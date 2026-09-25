@@ -1,0 +1,605 @@
+#!/usr/bin/env python3
+"""Observe relay landings; never submit, poll, launch, or edit JOB.json.
+
+Journal claims precede external effects. Interrupted effects remain UNKNOWN,
+not silently replayed. A missing Discord token is the only safe send retry.
+Do not rotate, replace, or edit the ledger while this producer is enabled.
+"""
+from __future__ import annotations
+
+import argparse
+import errno
+import fcntl
+import json
+import os
+import re
+import shlex
+import sqlite3
+import subprocess
+import sys
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+BUSINESS = Path("/home/ubuntu/business")
+JOBS = Path("reports/ops/gpt6pro-relay/jobs")
+LEDGER = Path("ops/gpt6pro-relay/landings.jsonl")
+TERMINAL = {"done", "failed", "error"}
+CRON = ("*/2 * * * * cd /home/ubuntu/business && "
+        "/usr/bin/python3 -B scripts/pro_relay_landing_monitor.py --once")
+
+
+def utc(value):
+    return datetime.fromtimestamp(value, timezone.utc).isoformat(timespec="seconds")
+
+
+class Journal:
+    def __init__(self, stream=None):
+        self.stream = stream
+        self.events, self.actions, self.states, self.health = {}, {}, {}, {}
+        self.absence_checks = {}
+        self.last_scan = None
+        if stream is not None:
+            stream.seek(0)
+            for number, line in enumerate(stream, 1):
+                try:
+                    if not line.endswith("\n"):
+                        raise ValueError("unterminated record")
+                    self.accept(json.loads(line))
+                except (ValueError, TypeError, KeyError) as exc:
+                    raise ValueError(f"invalid ledger record {number}") from exc
+
+    def accept(self, row):
+        if not isinstance(row, dict) or not isinstance(row["at"], (float, int)):
+            raise ValueError("invalid record")
+        utc(row["at"])
+        kind = row["kind"]
+        if kind == "event":
+            key = row["key"]
+            if not isinstance(key, str) or key in self.events:
+                raise ValueError("duplicate or invalid event key")
+            if not isinstance(row["event"], str):
+                raise ValueError("invalid event")
+            if "condition" in row:
+                self.health[row["condition"]] = key
+            elif row["status"] not in TERMINAL or key != f"{row['job']}:{row['status']}":
+                raise ValueError("invalid terminal event")
+            self.events[key] = row
+        elif kind == "action":
+            if row["key"] not in self.events or row["action"] not in ("fetch", "alert", "wake"):
+                raise ValueError("orphan action")
+            allowed = {"STARTED", "OK", "FAILED", "BLOCKED", "UNKNOWN", "BASELINE", "ABSENT_CHECK", "OUTBOX_ABSENT"}
+            if row["action"] == "alert":
+                allowed = {"STARTED", "SENT", "NOT_SENT", "UNKNOWN", "BASELINE", "ROUTED", "SUPPRESSED"}
+            if row['action'] == 'wake':
+                allowed = {'STARTED', 'DELIVERED', 'UNKNOWN', 'BASELINE'}
+            if row["state"] not in allowed:
+                raise ValueError("invalid action state")
+            if row['action'] == 'fetch':
+                if row['state'] == 'ABSENT_CHECK':
+                    self.absence_checks[row['key']] = self.absence_checks.get(row['key'], 0) + 1
+                elif row['state'] in ('OK', 'FAILED', 'BLOCKED', 'UNKNOWN', 'BASELINE'):
+                    self.absence_checks[row['key']] = 0
+                elif row['state'] == 'OUTBOX_ABSENT' and self.absence_checks.get(row['key'], 0) < 2:
+                    raise ValueError('unverified terminal absence')
+            self.actions[row["key"], row["action"]] = row["state"]
+        elif kind == "state":
+            if not isinstance(row["job"], str) or not isinstance(row["status"], str):
+                raise ValueError("invalid job state")
+            self.states[row["job"]] = row["status"]
+        elif kind == "clear":
+            self.health.pop(row["condition"], None)
+        elif kind == "scan":
+            self.last_scan = row["at"]
+        else:
+            raise ValueError("unknown record kind")
+
+    def add(self, kind, **fields):
+        row = {"kind": kind, "at": time.time(), **fields}
+        self.stream.seek(0, os.SEEK_END)
+        self.stream.write(json.dumps(row, sort_keys=True) + "\n")
+        self.stream.flush()
+        os.fsync(self.stream.fileno())
+        self.accept(row)
+
+    def action(self, key, action):
+        state = self.actions.get((key, action), "PENDING")
+        return "UNKNOWN" if state == "STARTED" else state
+
+
+def read_ps():
+    return subprocess.run(
+        ["ps", "-ww", "-eo", "pid=,args="], check=True,
+        stdout=subprocess.PIPE, text=True, timeout=20,
+    ).stdout
+
+
+def option(args, name):
+    values = []
+    for i, value in enumerate(args):
+        if value == name:
+            if i + 1 == len(args) or args[i + 1].startswith("-"):
+                raise ValueError("missing option value")
+            values.append(args[i + 1])
+        elif value.startswith(name + "="):
+            values.append(value.split("=", 1)[1])
+    if len(values) > 1 or (values and not values[0]):
+        raise ValueError("ambiguous option")
+    return values[0] if values else None
+
+
+def runners(listing):
+    found = {}
+    for line in listing.splitlines():
+        if not line.strip():
+            continue
+        pid, command = line.strip().split(None, 1)
+        if not pid.isdigit():
+            raise ValueError("invalid ps listing")
+        executable = Path(command.split(None, 1)[0]).name
+        if executable != "gpt6pro_wave.py" and not re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", executable):
+            continue
+        if "gpt6pro_wave.py" not in command and "scripts.gpt6pro_wave" not in command:
+            continue
+        args = shlex.split(command)[1:]
+        if re.fullmatch(r"python(?:\d+(?:\.\d+)*)?", executable):
+            while args:
+                if args[0] in ("-u", "-B", "-E", "-s", "-S", "-I", "-O", "-OO"):
+                    args.pop(0)
+                elif args[0] in ("-W", "-X") and len(args) > 1:
+                    args = args[2:]
+                elif args[0].startswith(("-W", "-X")) and len(args[0]) > 2:
+                    args.pop(0)
+                else:
+                    break
+            if args[:2] == ["-m", "scripts.gpt6pro_wave"]:
+                args = args[2:]
+            elif args and Path(args[0]).name == "gpt6pro_wave.py":
+                args.pop(0)
+            else:
+                if args and args[0].startswith("-") and args[0] not in ("-c", "-m"):
+                    raise ValueError("ambiguous Python runner options")
+                continue
+        elif executable != "gpt6pro_wave.py":
+            continue
+        wave = option(args, "--wave")
+        if not wave:
+            raise ValueError("runner without wave")
+        item = {"pid": int(pid), "wave": wave, "account": option(args, "--account")}
+        if pid in found and found[pid] != item:
+            raise ValueError("conflicting pid")
+        found[pid] = item
+    return list(found.values())
+
+
+def wave_jobs(runner):
+    path = Path(runner["wave"])
+    if not path.is_absolute():
+        # Relative argv paths belong to the runner's cwd, not this cron's cwd.
+        path = Path(f"/proc/{runner['pid']}/cwd").resolve(strict=True) / path
+    data = json.loads(path.read_text(encoding="utf-8"))
+    jobs = data["jobs"]
+    if not isinstance(jobs, list) or any(
+        not isinstance(j, dict) or not isinstance(j.get("job"), str) for j in jobs
+    ):
+        raise ValueError("invalid wave jobs")
+    return {j["job"] for j in jobs}
+
+
+def snapshot(jobs_dir, ps_reader=read_ps, wave_reader=wave_jobs):
+    jobs, conditions, live = {}, {}, []
+    complete = True
+    try:
+        directories = sorted(jobs_dir.iterdir())
+    except OSError as exc:
+        directories = []
+        conditions["PRO_INPUT_UNKNOWN:jobs"] = f"PRO_INPUT_UNKNOWN jobs={type(exc).__name__}"
+        complete = False
+    for directory in directories:
+        path = directory / "JOB.json"
+        if not directory.is_dir() or not path.exists():
+            continue
+        try:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", directory.name):
+                raise ValueError("unsafe job name")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            status = data["status"]
+            if not isinstance(status, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", status):
+                raise ValueError("invalid status")
+            jobs[directory.name] = {"status": status, "account": data.get('account'), "files": "UNKNOWN", "mtime": path.stat().st_mtime}
+            outbox = directory / "outbox"
+            jobs[directory.name]["files"] = sum(p.is_file() for p in outbox.iterdir()) if outbox.exists() else 0
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            name = json.dumps(directory.name, ensure_ascii=True)
+            conditions[f"PRO_INPUT_UNKNOWN:{directory.name}"] = f"PRO_INPUT_UNKNOWN job={name} error={type(exc).__name__}"
+            complete = False
+    try:
+        live = runners(ps_reader())
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        conditions["PRO_RUNNER_UNKNOWN:ps"] = f"PRO_RUNNER_UNKNOWN ps={type(exc).__name__}"
+        return jobs, live, conditions, False
+    owners, covered = {}, set()
+    coverage_known = True
+    for runner in live:
+        account = runner['account']
+        if account is None:
+            conditions['PRO_RUNNER_UNKNOWN:account'] = 'PRO_RUNNER_UNKNOWN implicit_account=UNKNOWN'
+        try:
+            owned_jobs = wave_reader(runner)
+            covered.update(j for j in owned_jobs if jobs.get(j, {}).get('account') == account)
+            if account is not None:
+                owners.setdefault(account, []).append((runner['pid'], owned_jobs))
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            conditions[f"PRO_RUNNER_UNKNOWN:wave:{runner['pid']}"] = f"PRO_RUNNER_UNKNOWN pid={runner['pid']} wave={type(exc).__name__}"
+            coverage_known = False
+    for account, entries in owners.items():
+        collisions = set()
+        for i, (pid, names) in enumerate(entries):
+            for other, other_names in entries[i+1:]:
+                if names & other_names:
+                    collisions.update((pid, other))
+        if collisions:
+            conditions[f'COLLISION:{account}'] = f"COLLISION account={json.dumps(account)} pids={','.join(map(str, sorted(collisions)))}"
+    if coverage_known:
+        for job, data in jobs.items():
+            if data["status"] == "running" and job not in covered:
+                conditions[f"PRO_RUNNER_DEAD:{job}"] = f"PRO_RUNNER_DEAD job={job} covering_runners=0 account=UNKNOWN"
+    return jobs, live, conditions, complete and coverage_known and all(r["account"] is not None for r in live)
+
+
+def fetch_outbox(root, job):
+    # Preserve the packet's 900-second relay command budget; no output filtering.
+    return subprocess.run(
+        [sys.executable, "-B", str(root / "scripts/gpt6pro_relay.py"), "fetch-outbox", "--job", job],
+        cwd=root, timeout=900, check=False,
+    ).returncode
+
+
+def send_alert(content):
+    if __package__:
+        from .hermes_ops_alert import send_ops_alert
+    else:
+        from hermes_ops_alert import send_ops_alert
+    return send_ops_alert(content)
+
+
+EVENTS = Path('ops/orchestrator-events.jsonl')
+DEAD_RUNNER_GRACE_S = 120
+
+
+def wake_orchestrator(root, event, account, reconcile_only=False):
+    """Durable pointer, not a Discord notification or a claim of adoption.
+
+    Reconcile STARTED against the append-only stream; never blindly resend after
+    an ambiguous append. The ledger lock is held and the shared inbox is flocked.
+    """
+    path = root / EVENTS
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pointer = {'kind': 'pro_landed', 'job': event['job'], 'account': account,
+               'outbox_path': str(root / JOBS / event['job'] / 'outbox')}
+    with path.open('a+', encoding='utf-8') as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        fh.seek(0)
+        found = []
+        for line in fh:
+            if not line.endswith('\n'): raise ValueError('partial orchestrator event')
+            row = json.loads(line)
+            if row.get('kind') == 'pro_landed' and row.get('job') == event['job']:
+                found.append(row)
+        if found:
+            if len(found) != 1 or any(found[0].get(k) != v for k, v in pointer.items()):
+                raise ValueError('conflicting orchestrator event')
+            return 'DELIVERED'
+        if reconcile_only: return 'UNKNOWN'
+        fh.seek(0, os.SEEK_END)
+        fh.write(json.dumps({'ts': utc(time.time()), **pointer}, sort_keys=True) + '\n')
+        fh.flush(); os.fsync(fh.fileno())
+        fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(fd)
+        finally: os.close(fd)
+    return 'DELIVERED'
+
+
+def pending(journal):
+    return sum(journal.action(key, 'alert') not in ('SENT', 'BASELINE', 'ROUTED', 'SUPPRESSED') for key in journal.events) + sum(
+        journal.action(key, 'fetch') not in ('OK', 'BASELINE', 'OUTBOX_ABSENT') or
+        (journal.action(key, 'fetch') != 'OUTBOX_ABSENT' and journal.action(key, 'wake') not in ('DELIVERED', 'BASELINE'))
+        for key, event in journal.events.items() if event.get('status') == 'done'
+    )
+
+
+def baseline(journal, jobs):
+    """Adopt every already-terminal job as handled: no fetch, no alert. Used once when the monitor is installed
+    on a host with history, so the first --once run announces only what lands AFTER the baseline."""
+    adopted = 0
+    for job, data in sorted(jobs.items()):
+        status = data["status"]
+        key = f"{job}:{status}"
+        if status in TERMINAL and key not in journal.events:
+            journal.add("event", key=key, job=job, status=status, previous=journal.states.get(job, "UNKNOWN"),
+                        event="PRO_LANDED" if status == "done" else "PRO_FAILED")
+        if journal.states.get(job) != status:
+            journal.add("state", job=job, status=status)
+    for key, event in list(journal.events.items()):
+        if "condition" in event:
+            continue
+        if event.get("status") == "done" and journal.action(key, "fetch") not in ("OK", "BASELINE"):
+            journal.add("action", key=key, action="fetch", state="BASELINE"); adopted += 1
+        if journal.action(key, "alert") not in ("SENT", "BASELINE"):
+            journal.add("action", key=key, action="alert", state="BASELINE"); adopted += 1
+    journal.add("scan")
+    return adopted
+
+
+def process(journal, jobs, conditions, complete, fetcher, sender, root=BUSINESS):
+    for job, data in sorted(jobs.items()):
+        status, previous = data["status"], journal.states.get(job, "UNKNOWN")
+        key = f"{job}:{status}"
+        if status in TERMINAL and key not in journal.events:
+            journal.add("event", key=key, job=job, status=status, previous=previous, routing_version=2,
+                        event="PRO_LANDED" if status == "done" else "PRO_FAILED")
+        if previous != status:
+            journal.add("state", job=job, status=status)
+    for condition, line in sorted(conditions.items()):
+        if condition not in journal.health:
+            journal.add("event", key=f"health:{len(journal.events)}", condition=condition, event=line)
+    if complete:
+        for condition in sorted(set(journal.health) - set(conditions)):
+            journal.add("clear", condition=condition)
+    for key, event in list(journal.events.items()):
+        if event.get("status") == "done":
+            state = journal.action(key, "fetch")
+            if state in ("PENDING", "FAILED", "BLOCKED", "ABSENT_CHECK"):
+                if jobs.get(event["job"], {}).get("status") != "done":
+                    if state != "BLOCKED":
+                        journal.add("action", key=key, action="fetch", state="BLOCKED")
+                else:
+                    journal.add("action", key=key, action="fetch", state="STARTED")
+                    try:
+                        rc = fetcher(event["job"])
+                        state = "OK" if rc == 0 else "ABSENT_CHECK" if rc == 10 else "FAILED"
+                    except Exception:
+                        state = "UNKNOWN"
+                    journal.add("action", key=key, action="fetch", state=state)
+                    if state == 'ABSENT_CHECK' and journal.absence_checks[key] >= 2:
+                        journal.add('action', key=key, action='fetch', state='OUTBOX_ABSENT')
+        if event.get('status') == 'done':
+            fetched = journal.action(key, 'fetch')
+            wake = journal.action(key, 'wake')
+            # Do not replay old baseline or already-announced pre-upgrade landings.
+            if wake == 'PENDING' and (fetched == 'BASELINE' or (event.get('routing_version') != 2 and journal.action(key, 'alert') in ('BASELINE', 'SENT'))):
+                journal.add('action', key=key, action='wake', state='BASELINE')
+                wake = 'BASELINE'
+            if fetched == 'OK' and wake in ('PENDING', 'UNKNOWN'):
+                reconcile = wake == 'UNKNOWN'
+                if not reconcile: journal.add('action', key=key, action='wake', state='STARTED')
+                try:
+                    account = jobs.get(event['job'], {}).get('account')
+                    if not account: raise ValueError('unverified account')
+                    wake = wake_orchestrator(root, event, account, reconcile_only=reconcile)
+                except Exception:
+                    wake = 'UNKNOWN'
+                journal.add('action', key=key, action='wake', state=wake)
+            if fetched in ('OK', 'BASELINE') and wake in ('DELIVERED', 'BASELINE'):
+                if journal.action(key, 'alert') == 'PENDING':
+                    journal.add('action', key=key, action='alert', state='ROUTED')
+                continue
+        if journal.action(key, "alert") in ("PENDING", "NOT_SENT"):
+            line = event["event"]
+            if 'condition' in event:
+                if event['condition'] not in journal.health:
+                    journal.add('action', key=key, action='alert', state='SUPPRESSED')
+                    continue
+                if line.startswith('PRO_RUNNER_DEAD ') and time.time() - event['at'] < DEAD_RUNNER_GRACE_S:
+                    continue
+                if line.startswith(('PRO_INPUT_UNKNOWN ', 'PRO_RUNNER_UNKNOWN ')):
+                    line = 'PRO_UNVERIFIED ' + line
+            if event.get('status') == 'done':
+                line = 'PRO_UNVERIFIED' if journal.action(key, 'fetch') != 'OK' else 'PRO_WAKE_FAILED'
+            if "job" in event:
+                line += f" job={event['job']} status={event['status']}"
+            if event.get("status") == "done":
+                line += f" fetch={journal.action(key, 'fetch')}"
+            line += f" observed_at={utc(event['at'])} key={key}"
+            # Store the exact attempted line; JSON escaping keeps one ledger row.
+            line = " ".join(line.split())
+            journal.add("action", key=key, action="alert", state="STARTED", line=line)
+            try:
+                receipt = sender(line)
+                if receipt.get("sent") is True:
+                    state = "SENT"
+                elif receipt.get("reason") == "missing_discord_token_env":
+                    state = "NOT_SENT"
+                else:
+                    state = "UNKNOWN"
+            except Exception:
+                state = "UNKNOWN"
+            journal.add("action", key=key, action="alert", state=state)
+    journal.add("scan")
+
+
+def once(root=BUSINESS, jobs_dir=None, ps_reader=read_ps, fetcher=None, sender=send_alert):
+    root = root.resolve()
+    ledger = root / LEDGER
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a+", encoding="utf-8") as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Persist the ledger's directory entry before claiming external effects.
+        directory = ledger.parent
+        while True:
+            fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            if directory == root:
+                break
+            directory = directory.parent
+        journal = Journal(stream)
+        jobs, live, conditions, complete = snapshot(jobs_dir or root / JOBS, ps_reader)
+        process(journal, jobs, conditions, complete, fetcher or (lambda job: fetch_outbox(root, job)), sender, root)
+        return int(bool(journal.health or pending(journal)))
+
+
+def adopt(root=BUSINESS, jobs_dir=None, ps_reader=read_ps):
+    """--baseline: journal every already-terminal job as handled (fetch/alert BASELINE). No external effect."""
+    root = root.resolve()
+    ledger = root / LEDGER
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    with ledger.open("a+", encoding="utf-8") as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        journal = Journal(stream)
+        jobs, live, conditions, complete = snapshot(jobs_dir or root / JOBS, ps_reader)
+        return baseline(journal, jobs)
+
+
+def status(root=BUSINESS, jobs_dir=None, ps_reader=read_ps):
+    ledger = root / LEDGER
+    try:
+        with ledger.open(encoding="utf-8") as stream:
+            fcntl.flock(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            journal = Journal(stream)
+    except FileNotFoundError:
+        journal = Journal()
+    jobs, live, conditions, complete = snapshot(jobs_dir or root / JOBS, ps_reader)
+    if not complete:
+        for condition, key in journal.health.items():
+            conditions.setdefault(condition, "UNCONFIRMED " + journal.events[key]["event"])
+    counts = Counter(data["status"] for data in jobs.values())
+    unseen = sum(data["status"] in TERMINAL and f"{job}:{data['status']}" not in journal.events for job, data in jobs.items())
+    last = "NEVER" if journal.last_scan is None else f"{utc(journal.last_scan)} age_s={max(0, int(time.time() - journal.last_scan))}"
+    lines = [f"PRO_RELAY {utc(time.time())}", f"last_scan={last}",
+             f"jobs={len(jobs)} running={counts['running']} done={counts['done']} failed={counts['failed']} error={counts['error']} other={sum(v for k, v in counts.items() if k not in TERMINAL | {'running'})}",
+             f"runners={len(live)} explicit_accounts={len({r['account'] for r in live if r['account'] is not None})} implicit_accounts={sum(r['account'] is None for r in live)}",
+             f"health={len(conditions)} dead={sum(k.startswith('PRO_RUNNER_DEAD:') for k in conditions)} collisions={sum(k.startswith('COLLISION:') for k in conditions)} complete={complete}",
+             f"events={len(journal.events)} unseen_terminal={unseen} incomplete_effects={pending(journal)}"]
+    accounts = [f"{r['pid']}:{r['account'] if r['account'] is not None else 'UNKNOWN'}" for r in live]
+    lines.append("runner_accounts=" + json.dumps(accounts[:4]) + (f" +{len(accounts) - 4} more" if len(accounts) > 4 else ""))
+    for action in ("fetch", "alert"):
+        relevant = [key for key, e in journal.events.items() if action == "alert" or e.get("status") == "done"]
+        tally = Counter(journal.action(key, action) for key in relevant)
+        lines.append(action + "=" + json.dumps(dict(sorted(tally.items())), sort_keys=True))
+    lines.extend(conditions[key] for key in sorted(conditions)[:4])
+    if len(conditions) > 4:
+        lines.append(f"... {len(conditions) - 4} more conditions; full events in ledger after --once")
+    lines.append(f"recent JOB.json (up to 6 of {len(jobs)}):")
+    for job, data in sorted(jobs.items(), key=lambda item: (-item[1]['mtime'], item[0]))[:6]:
+        key = f"{job}:{data['status']}"
+        fetched = journal.action(key, "fetch") if data["status"] == "done" else "N/A"
+        alerted = journal.action(key, "alert") if data["status"] in TERMINAL else "N/A"
+        lines.append(f"{job} {data['status']} files={data['files']} fetch={fetched} alert={alerted}")
+    lines.extend([f"ledger={LEDGER}", "UNKNOWN effects require reconciliation; automatic re-send is disabled."])
+    # Bounded display only; detector decisions and journal events are not truncated.
+    text = "\n".join(line if len(line) <= 120 else line[:117] + "..." for line in lines)
+    return text, int(bool(conditions or unseen or pending(journal) or journal.last_scan is None))
+
+
+def watch_state(root=BUSINESS, job_names=(), seat_names=(), snapshot_reader=snapshot):
+    """Observe existing producers only; no dispatch, fetch, acknowledgement or acceptance."""
+    jobs, live, conditions, complete = snapshot_reader(root / JOBS)
+    selected = set(job_names) if job_names else set(jobs)
+    state = {
+        "orchestrator_events_bytes": (root / EVENTS).stat().st_size if (root / EVENTS).exists() else 0,
+        "jobs": {name: {"status": jobs.get(name, {}).get("status", "MISSING"),
+                         "files": jobs.get(name, {}).get("files", "UNKNOWN")}
+                 for name in sorted(selected)},
+        "runners": sorted((item["pid"], item["account"]) for item in live),
+        "conditions": conditions,
+        "complete": complete,
+        "seats": {},
+    }
+    request_path = root / "ops/linear/requests.sqlite3"
+    state["requests"] = {"generation": None, "problem": "request store absent"}
+    if request_path.exists():
+        try:
+            connection = sqlite3.connect(request_path.resolve().as_uri() + "?mode=ro",
+                                         uri=True, timeout=1)
+            try:
+                row = connection.execute("SELECT schema, generation FROM meta WHERE id=1").fetchone()
+                if row is None or row[0] != 1:
+                    raise ValueError("unknown request schema")
+                state["requests"] = {"generation": int(row[1]), "problem": None}
+            finally:
+                connection.close()
+        except (OSError, sqlite3.Error, ValueError) as exc:
+            state["requests"] = {"generation": None, "problem": type(exc).__name__}
+    if seat_names:
+        try:
+            from . import seat_autodispatch as seats
+        except ImportError:
+            import seat_autodispatch as seats
+        config = json.loads((root / "ops/seat-standing-work.json").read_text())["seats"]
+        for name in seat_names:
+            seat = config.get(name, {})
+            problem = seats.seat_problem(seat)
+            if problem:
+                state["seats"][name] = {"problem": problem}
+                continue
+            brief = seats.read_brief(seat)
+            state["seats"][name] = {
+                "issue": seat["issue"], "brief": seat.get("brief"),
+                "busy": seats.pane_busy(seat["pane"]),
+                "result": brief.get("result"), "problem": brief.get("reason"),
+            }
+    return state
+
+
+def wait_for_change(reader, sleeper=time.sleep):
+    """Exit on the next observation change so terminal(notify=True) wakes the owner."""
+    before = reader()
+    while True:
+        sleeper(5)
+        after = reader()
+        if after != before:
+            return {"event": "FLEET_CHANGE", "before": before, "after": after}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    verbs = parser.add_mutually_exclusive_group(required=True)
+    for verb in ("once", "status", "install-cron", "baseline", "wait-for-change"):
+        verbs.add_argument("--" + verb, action="store_true")
+    parser.add_argument("--business-root", type=Path, default=BUSINESS)
+    parser.add_argument("--jobs-dir", type=Path, help="Fixture override; ledger remains under business-root")
+    parser.add_argument("--job", action="append", default=[], help="Job to observe in wait mode")
+    parser.add_argument("--seat", action="append", default=[], help="Standing seat to observe in wait mode")
+    args = parser.parse_args(argv)
+    if args.install_cron:
+        if args.business_root != BUSINESS or args.jobs_dir is not None:
+            parser.error("cron output supports only the production root and jobs directory")
+        print(CRON)
+        return 0
+    try:
+        if args.wait_for_change:
+            if args.jobs_dir is not None:
+                parser.error("wait mode uses the existing jobs directory under business-root")
+            print("FLEET_WAIT_ARMED", json.dumps({"jobs": args.job, "seats": args.seat}), flush=True)
+            event = wait_for_change(lambda: watch_state(args.business_root, args.job, args.seat))
+            print(json.dumps(event, sort_keys=True), flush=True)
+            return 0
+        if args.status:
+            text, rc = status(args.business_root, args.jobs_dir)
+            print(text)
+            return rc
+        if args.baseline:
+            adopted = adopt(args.business_root, args.jobs_dir)
+            print(f"PRO_RELAY_BASELINE adopted={adopted}")
+            return 0
+        rc = once(args.business_root, args.jobs_dir)
+        print(f"PRO_RELAY_SCAN rc={rc}")
+        return rc
+    except OSError as exc:
+        if exc.errno in (errno.EAGAIN, errno.EACCES) and isinstance(exc, BlockingIOError):
+            print("PRO_RELAY_BUSY status=UNKNOWN")
+        else:
+            print(f"PRO_RELAY_ERROR error={type(exc).__name__}", file=sys.stderr)
+        return 2
+    except (ValueError, TypeError, KeyError, OverflowError) as exc:
+        print(f"PRO_RELAY_ERROR error={type(exc).__name__}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

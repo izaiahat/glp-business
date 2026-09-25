@@ -385,7 +385,7 @@
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "84cf43424578b4eaa2665fadfb786c7227efede404c3ccf9a1544ac07cf60851"
+      "sha256": "49b74ee72cf7772203eb208ca77de3c0d07375116ef02b8c9cc44e8cb509c47a"
     },
     "ops/linear/DISCORD-RELAY.md": {
       "callers": [],
@@ -481,6 +481,101 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "d4f5b50cd9f90429481aaee244aba6f68347a9e5901adc6778e95c56e1128008"
+    },
+    "scripts/.retired-20260925/claude_cloud_relay.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "7ef42ddafb653354de394709c528b7f4f9cb375f5d7d8fe7d7e4d090340a73d1"
+    },
+    "scripts/.retired-20260925/fastmode_revert.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "fd4cf4237d53c6db4df6fb001ff0caf243cbb520d670402de245571489a351fb"
+    },
+    "scripts/.retired-20260925/fix_misrouted_handoffs.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "bb80e4567f8a1a9130ce6c948fd58f6585c195b21cef5ff671c6d1e655371cfd"
+    },
+    "scripts/.retired-20260925/glp_standing_brief_guard.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "2fc423a36c5c486635c0934000f56e639ab476ac9ac47cd700f0fef059760467"
+    },
+    "scripts/.retired-20260925/gpt6pro_packet.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
+    },
+    "scripts/.retired-20260925/gpt6pro_relay.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "cba9ec7c5f694a7d9e6b14c4787c2c913d58d9dd0259e060a344048de860d2bb"
+    },
+    "scripts/.retired-20260925/gpt6pro_wave.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "8e113774bb839fb6c6f6fd9054cf648d628e240d9022217fd321799deb2974f7"
+    },
+    "scripts/.retired-20260925/katalys_session_keepalive.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "e42a0a10727da10155caf8e865dde3bd207feba28b3417ca9da79ee1fb0386f3"
+    },
+    "scripts/.retired-20260925/linear_cycle_time.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "a31402461badce4eba1a275dd43cdde3e313498fff784d0eb1b8c408590fafd6"
+    },
+    "scripts/.retired-20260925/linear_pins_refresh.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "2fca0a1a59571b28214d7b24f777b5e73770bda55ae1325c6326ea3d8f9197b0"
+    },
+    "scripts/.retired-20260925/linear_project_dashboard.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "908cc649b4c21c61bba59d3e5fe34aeaaf90958a36f3121c82ad5c42bfc27b60"
+    },
+    "scripts/.retired-20260925/linear_state_reconciler.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "f9626c8df9aa0d8a5845c8f2bc77523011f73756396bb4ffba2270ea2a4dfd0f"
+    },
+    "scripts/.retired-20260925/operator_console_daily_post.sh": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "b962927d6b2b6a6876495328902f7b937603d38c11443df1cb9b18cbbd19f7eb"
+    },
+    "scripts/.retired-20260925/pro_relay_landing_monitor.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
+    },
+    "scripts/.retired-20260925/pro_relay_landing_monitor.py.p71b-20260923.bak": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "0215448ed7868d0e9cc914a6e2fb95486bf5c29bd2ad639ebc278a2c68de32e8"
+    },
+    "scripts/.retired-20260925/resume_on_capacity.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "c592fd641bef6891cffc7541db39f6f44074473aba6190f171b4c77c01d5456c"
+    },
+    "scripts/.retired-20260925/seat_autodispatch.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "1d5da370d7d91d69f5d28405178def8782acc0a32a7999383f6d36bf8ca97406"
+    },
+    "scripts/.retired-20260925/seat_continuation.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
+    },
+    "scripts/.retired-20260925/seat_send.py": {
+      "callers": [],
+      "kind": "retired_script",
+      "sha256": "1fa2886b43dec4866e9efcf952260335d5d46aeaaf750f82c4e76edca61e1253"
     },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
@@ -803,13 +898,6 @@
       "kind": "script",
       "sha256": "39f17781c5b42c5dcfebec442817d2ac84196e702e2e6adf64c81b3c8a7b0a19"
     },
-    "scripts/linear_state_reconciler.py": {
-      "callers": [
-        "crontab:36"
-      ],
-      "kind": "script",
-      "sha256": "f9626c8df9aa0d8a5845c8f2bc77523011f73756396bb4ffba2270ea2a4dfd0f"
-    },
     "scripts/loom_delivery_rails.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/loom_guard_events_poller.py"
@@ -828,6 +916,11 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "3c1e8161ee47dbe0a761e04190a64d73f9216ca0767fec0ea4524e00bdccccfb"
+    },
+    "scripts/skill_router.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "1459ac12ab4cdd4d987a1b34e23d03370d218730d2c644e1a26681376f977253"
     },
     "scripts/state_guard.py": {
       "callers": [
@@ -848,7 +941,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bec3d77c5668c66f91ffe148b9898085093f8a2e4e7e273bf283545377efca6e"
+      "sha256": "5fe28e8370a43b985d54937433b024d1423914064d0472f9780f16e58a3ae85f"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -861,6 +954,61 @@
       ],
       "kind": "script",
       "sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
+    },
+    "tests/.retired-20260925/test_claude_cloud_relay.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "7a46c3f20c80f4bae3aaa7dc3a013813d2f41f47b9bdf485a67e9a423a2fad18"
+    },
+    "tests/.retired-20260925/test_fastmode_revert_deadline.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "31aaf73d32fc970464b25c2635c2dc0899a35df8665c6d11420d073791bfb711"
+    },
+    "tests/.retired-20260925/test_gpt6pro_relay_binding.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "4151f955b96125a64bc2f619bafeb1dd947a7fc58cc3e360e7d171368d3b8a29"
+    },
+    "tests/.retired-20260925/test_gpt6pro_wave.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
+    },
+    "tests/.retired-20260925/test_linear_cycle_time_history.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "0b54db77a2345380e62c1d430623a126bdfa3b032ff290bee4de5ac294c8fafd"
+    },
+    "tests/.retired-20260925/test_linear_project_dashboard.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "46bb3f44055b6101ac328d23d3890aa65167be6c9c1497032d67b7558c6a7d14"
+    },
+    "tests/.retired-20260925/test_pro_relay_landing_monitor.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "0d46881b4f7497d3c20e7d853db3e71c0228f996365e30c3abe0b17347455fc8"
+    },
+    "tests/.retired-20260925/test_pro_relay_landing_monitor.py.p71b-20260923.bak": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "b50ba014cbfedce94d7acd34395c9dec91a11d29e793bfcce3d2565a52530174"
+    },
+    "tests/.retired-20260925/test_seat_autodispatch.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "fd36b526ba6a7e36acfb6ba01734f7075212f45e6bfb44fd11c219b76f718f67"
+    },
+    "tests/.retired-20260925/test_seat_continuation.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "d4af7329083e7b7d63bdbc6c58e91aeeeeaac6b8fb9990bcc6f93233fb233f87"
+    },
+    "tests/.retired-20260925/test_seat_send.py": {
+      "callers": [],
+      "kind": "retired_test",
+      "sha256": "d35b2dffb32f900f738028ed1f0fbc5689775ab9cf24f5e14600d7be345bf955"
     },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
       "callers": [
@@ -1267,6 +1415,11 @@
       "kind": "test",
       "sha256": "4097975fab1dd4edc126c0ec64ef83ec294ba31647d4bcf34d253404058b9f69"
     },
+    "tests/test_skill_router_surface_fields.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "7a7f5c9c543d43a945ebfb4ea6daf6f1fd3ca26dd481d1f142d94c66df39fde0"
+    },
     "tests/test_subscription_capacity_monitor.py": {
       "callers": [
         "subscription_capacity_monitor"
@@ -1277,7 +1430,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "13e8c39346ffc058a6f0e15071caadb611504d024a9c94f6671b5b0c32f331df"
+      "sha256": "c21db02a6d0e867ce607a5571d96ae4292c98e355bc8fcd18b1fb03b503919bc"
     }
   },
   "omitted_runtime_inputs": [
@@ -1288,5 +1441,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 189
+  "tracked_count": 220
 }

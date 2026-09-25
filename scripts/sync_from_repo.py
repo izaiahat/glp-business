@@ -57,11 +57,22 @@ def sync(root, checkout, apply):
     if not isinstance(previous, dict):
         raise ValueError("invalid sync state")
     stale = sorted(set(previous) - set(target_hashes))
-    changed, conflicts = [], []
+    changed, conflicts, retirement_moves = [], [], {}
     for p in sorted(set(target_hashes) | set(stale)):
         local = safe(root, p)
         current = sha(local)
         target = target_hashes.get(p)
+        parts = Path(p).parts
+        retirement_source = (safe(root, str(Path(parts[0]) / parts[2]))
+                             if len(parts) == 3 and parts[0] in {"scripts", "tests"}
+                             and parts[1] == ".retired-20260925" else None)
+        if retirement_source is not None and retirement_source.is_file():
+            if sha(retirement_source) != target or (current is not None and current != target):
+                conflicts.append(str(retirement_source.relative_to(root)))
+                continue
+            retirement_moves[p] = retirement_source
+            changed.append(p)
+            continue
         if current == target:
             continue
         baseline = previous.get(p)
@@ -83,7 +94,15 @@ def sync(root, checkout, apply):
     if apply:
         for p in changed:
             dst = safe(root, p)
-            if p in target_hashes:
+            if p in retirement_moves:
+                src = retirement_moves[p]
+                # Recheck immediately before the move; an intervening editor must
+                # not be replaced even if the earlier preflight matched.
+                if sha(src) != target_hashes[p] or (sha(dst) not in (None, target_hashes[p])):
+                    raise ValueError("retirement source changed during sync: " + p)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(src, dst)
+            elif p in target_hashes:
                 src = safe(checkout, p)
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 fd, tmp = tempfile.mkstemp(prefix=".sync-", dir=dst.parent)

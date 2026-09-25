@@ -47,3 +47,44 @@ def test_clean_upstream_change_applies(tmp_path):
     assert (root / "scripts/sample.py").read_bytes() == b"old\n"
     assert sync(root, repo, True) == 0
     assert (root / "scripts/sample.py").read_bytes() == b"new\n"
+
+
+def test_retirement_moves_matching_uncurated_source(tmp_path, capsys):
+    repo, root = checkout(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts/old.py").write_bytes(b"retire\n")
+    archive = repo / "scripts/.retired-20260925/old.py"
+    archive.parent.mkdir()
+    archive.write_bytes(b"retire\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["scripts/.retired-20260925/old.py"] = {"sha256": digest(b"retire\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "-f", str(archive)], check=True)
+    assert sync(root, repo, False) == 0
+    assert (root / "scripts/old.py").read_bytes() == b"retire\n"
+    assert sync(root, repo, True) == 0
+    assert not (root / "scripts/old.py").exists()
+    assert (root / "scripts/.retired-20260925/old.py").read_bytes() == b"retire\n"
+    assert sync(root, repo, False) == 0
+    assert "DRY_RUN diffs=0 conflicts=0" in capsys.readouterr().out
+
+
+def test_retirement_refuses_modified_source_before_other_writes(tmp_path):
+    repo, root = checkout(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts/old.py").write_bytes(b"LOCAL\n")
+    archive = repo / "scripts/.retired-20260925/old.py"
+    archive.parent.mkdir()
+    archive.write_bytes(b"retire\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["scripts/.retired-20260925/old.py"] = {"sha256": digest(b"retire\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "-f", str(archive)], check=True)
+    assert sync(root, repo, True) == 2
+    assert (root / "scripts/old.py").read_bytes() == b"LOCAL\n"
+    assert not (root / "scripts/.retired-20260925/old.py").exists()
+    assert not (root / "scripts/sample.py").exists()
