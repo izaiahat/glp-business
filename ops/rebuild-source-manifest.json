@@ -445,7 +445,7 @@
     "ops/linear/SKILL-INDEX.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "a6b2b7de16494673af590fcc238a4abc81f328de6a0adf92acb86b1c7978fc8d"
+      "sha256": "f84e589d13e47bca6b455edfe16f334ffa3cb62f7b17546813bd9ce90e796a59"
     },
     "ops/linear/SOP.md": {
       "callers": [],

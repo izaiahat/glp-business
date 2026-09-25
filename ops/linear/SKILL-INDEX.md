@@ -54,7 +54,7 @@ Track Apple devices/AirTags via FindMy.app on macOS -> findmy
 retrieving external sources with Firecrawl -> firecrawl-research
 Search/download GIFs from Tenor via curl + jq -> gif-search
 GitHub via gh CLI: PRs, issues, reviews, repos, auth -> github
-researching GLP-1 telehealth markets to distinguish medical, regulatory, payer and commercial evidence without acting as a clinic -> glp1-telehealth-market-expert
+researching GLP-1 telehealth markets, not practicing medicine -> glp1-telehealth-market-expert
 Gmail, Calendar, Drive, Docs, Sheets via gws CLI or Python -> google-workspace
 queueing source-bound GPT-6 Pro relay waves -> gpt6pro-relay-waves
 Interview loop that stress-tests a plan, decision or business direction before anyone acts on it -> grilling
