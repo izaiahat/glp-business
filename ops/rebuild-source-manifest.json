@@ -562,11 +562,6 @@
       "kind": "retired_script",
       "sha256": "1d5da370d7d91d69f5d28405178def8782acc0a32a7999383f6d36bf8ca97406"
     },
-    "scripts/.retired-20260925/seat_continuation.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
-    },
     "scripts/.retired-20260925/seat_send.py": {
       "callers": [],
       "kind": "retired_script",
@@ -998,11 +993,6 @@
       "kind": "retired_test",
       "sha256": "fd36b526ba6a7e36acfb6ba01734f7075212f45e6bfb44fd11c219b76f718f67"
     },
-    "tests/.retired-20260925/test_seat_continuation.py": {
-      "callers": [],
-      "kind": "retired_test",
-      "sha256": "d4af7329083e7b7d63bdbc6c58e91aeeeeaac6b8fb9990bcc6f93233fb233f87"
-    },
     "tests/.retired-20260925/test_seat_send.py": {
       "callers": [],
       "kind": "retired_test",
@@ -1428,7 +1418,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6f861d01059f8d342d9779203e004e3e17c3a0ae7a805e7d0e3b286b52017354"
+      "sha256": "d293e022399c19c3d28bd526cd59c176b33459800a0c361a96c993fa1110fd4e"
     }
   },
   "omitted_runtime_inputs": [
@@ -1439,5 +1429,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 219
+  "tracked_count": 217
 }

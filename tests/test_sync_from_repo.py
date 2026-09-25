@@ -79,7 +79,7 @@ def test_retirement_registry_releases_dormant_producers():
     retired = {p for p in json.loads((root / "ops/rebuild-source-manifest.json").read_text())["files"]
                if p.startswith("scripts/.retired-20260925/")}
     retired_origins = {"scripts/" + Path(p).name for p in retired}
-    callers = [(row["glob"], producer) for row in registry["rules"]
+    callers = [(row["glob"], producer) for row in registry["artifacts"]
                for producer in row["producers"] if producer in retired_origins]
     assert callers == []
 
