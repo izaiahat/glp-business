@@ -1,0 +1,117 @@
+{
+ "schema": "glp-protected-oracles-v1",
+ "note": "Baselines for scripts/protected_oracle_gate.py. A change needs an operator decision receipt naming the file AND an independent review whose verdict is APPROVE. Reverting to baseline clears a refusal instantly.",
+ "oracles": [
+  {
+   "path": "site-system/flagship-v2/candidates/glp34-provider-families-20260912/src/mystery-shop.mjs",
+   "sha256": "7661357b6d5248fe02ccb58fc8ee1f8f38ce0193758dc175fc3d92dc77b7122c",
+   "why": "ACCEPTED_CAPTURE_PINS and the evidence freshness guard. The only trust anchor OUTSIDE the self-consistent adoption chain.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260916-evidence-path-unblock.json",
+    "review": "/home/ubuntu/business/reports/ops/evidence-adoption-deadlock-20260916/CYCLE9-REVIEW-RESULT.json"
+   }
+  },
+  {
+   "path": "site-system/flagship-v2/candidates/glp208-source-refresh/src/mystery-shop.mjs",
+   "sha256": "94cf0cfed228e652deaf0c5df727467d523f36d9b0c80b6f74241173fec38047",
+   "why": "Second consumer of the same evidence chain; both must accept a successor.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260916-evidence-path-unblock.json",
+    "review": "/home/ubuntu/business/reports/ops/evidence-adoption-deadlock-20260916/CYCLE9-REVIEW-RESULT.json"
+   }
+  },
+  {
+   "path": "site-system/flagship-v2/candidates/glp34-provider-families-20260912/src/price-tracker.mjs",
+   "sha256": "69d6163b05fb4c4d393355fe290b2e0fcdf98eebd60326785d0be7ab4743085c",
+   "why": "45-day price freshness and the exact-record-set gate on published prices.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260916-evidence-path-unblock.json",
+    "review": "/home/ubuntu/business/reports/ops/evidence-adoption-deadlock-20260916/CYCLE9-REVIEW-RESULT.json"
+   }
+  },
+  {
+   "path": "site-system/flagship-v2/candidates/glp208-source-refresh/src/price-tracker.mjs",
+   "sha256": "414841d3c893753d89f1201bed6de1cbc382ddb9f2907f98d5a3a5701a68d250",
+   "why": "Second candidate's price freshness gate.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260916-evidence-path-unblock.json",
+    "review": "/home/ubuntu/business/reports/ops/evidence-adoption-deadlock-20260916/CYCLE9-REVIEW-RESULT.json"
+   }
+  },
+  {
+   "path": "site-system/flagship-v2/candidates/glp34-provider-families-20260912/src/therapeutic-taxonomy.mjs",
+   "sha256": "4398fb1d37abe2f32e599e33074230511ae3c2c79548f55c3f5a09ad953c2a1a",
+   "why": "Therapeutic tag evidence freshness; gates what the site claims a provider treats."
+  },
+  {
+   "path": "scripts/glp_evidence_ledger.mjs",
+   "sha256": "125e7d007967dc1f8110210feae1d020f12d760ec063e6f0d507517e39eb2537",
+   "why": "Hash-bound adoption reader: sequence, parent bindings, capture provenance."
+  },
+  {
+   "path": "scripts/glp_evidence_refresh_cycle.py",
+   "sha256": "c1a7a73919328f7a40de2fb80efb80619965a207ff5091f7646e622e65a4f2bf",
+   "why": "Registered adoption transaction. A bypass here shipped a forged adoption on 2026-09-16."
+  },
+  {
+   "path": "scripts/glp_material_acceptance.mjs",
+   "sha256": "8f985e496b54512c693d2be0e222a1badf2c983020362cb01ee5416c7e2e2e66",
+   "why": "Named material acceptance validator."
+  },
+  {
+   "path": "scripts/result_lint.py",
+   "sha256": "09e6e3aa1febbdd53bef3bab956ebe50b92f39ce9e58a3c381a4556d229388a3",
+   "why": "Acceptance-clause and router enforcement on every RESULT.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
+    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-4-RESULT.json"
+   }
+  },
+  {
+   "path": "scripts/brief_lint.py",
+   "sha256": "cee2127f2bddea476c76f6fafc98e0d0003686cc704d60fe7487f200af3727ac",
+   "why": "COMPLETION invariant and brief contract."
+  },
+  {
+   "path": "scripts/skill_router.py",
+   "sha256": "1459ac12ab4cdd4d987a1b34e23d03370d218730d2c644e1a26681376f977253",
+   "why": "Expert-skill routing gate."
+  },
+  {
+   "path": "scripts/protected_oracle_gate.py",
+   "sha256": "0ad20d9ad5806e6e5ea47dede98c0d106ed4c6c733c69b1ec601091337d7e6bc",
+   "why": "The gate itself. It and its registry protect each other.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
+    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-5-RESULT.json"
+   }
+  },
+  {
+   "path": "scripts/brief_clause_gate.py",
+   "sha256": "7d66bece777b25b2fa74cccb8ba019203d71fac6ef63386420e197e8a3c1d96c",
+   "why": "Refuses dispatching a brief to a seat that cannot satisfy its clause.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
+    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-5-RESULT.json"
+   }
+  },
+  {
+   "path": "scripts/seat_continuation.py",
+   "sha256": "d21a778fc05f5990019645e375c733dd510fc9603b07cbc544a6408c1a42f2a4",
+   "why": "Regenerates seat briefs; scope invention here is silent.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
+    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-5-RESULT.json"
+   }
+  },
+  {
+   "path": "scripts/candidate_build_lock.py",
+   "sha256": "6128551db0d0b7980e9f4ef178bc6378551f5627428e83aab8d29dcc60b8b65b",
+   "why": "Carries the gate call and the build mutex.",
+   "rebaselined_by": {
+    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
+    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-5-RESULT.json"
+   }
+  }
+ ]
+}

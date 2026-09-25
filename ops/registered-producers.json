@@ -1,0 +1,126 @@
+{
+ "schema": "glp-registered-producers-v1",
+ "why": "PERSISTENT PATH ONLY (operator 2026-09-14): every repair lands in the REGISTERED path. Until 2026-09-16 that was prose in three files and a receipt; nothing mechanical distinguished a registered producer from a one-off that appends a well-formed entry. On 2026-09-16 01:06Z a one-off adopted a pinned capture with check_successor disabled, and on the same day four dose_pricing rows were hand-written into the pricing matrix. Both were well-formed bytes. result_lint now refuses a RESULT that changes one of these artifacts without a producer.registered_command whose program is listed here.",
+ "artifacts": [
+  {
+   "glob": "ops/evidence-freshness/adoptions.jsonl",
+   "producers": [
+    "scripts/glp_evidence_refresh_cycle.py",
+    "scripts/glp_evidence_ledger.mjs"
+   ]
+  },
+  {
+   "glob": "ops/evidence-freshness/material-acceptances.jsonl",
+   "producers": [
+    "scripts/glp_material_acceptance.mjs",
+    "scripts/glp_evidence_refresh_cycle.py"
+   ]
+  },
+  {
+   "glob": "ops/evidence-freshness/*.json",
+   "producers": [
+    "scripts/glp_evidence_refresh_cycle.py",
+    "scripts/glp_evidence_pin_rotation.py"
+   ]
+  },
+  {
+   "glob": "site-system/flagship-v2/candidates/*/data/provider-pricing-matrix.json",
+   "producers": [
+    "site-system/flagship-v2/candidates/*/scripts/update-price-index.mjs",
+    "site-system/flagship-v2/candidates/*/scripts/build-staging.mjs"
+   ]
+  },
+  {
+   "glob": "site-system/flagship-v2/candidates/*/data/price-state-retention*.json",
+   "producers": []
+  },
+  {
+   "glob": "site-system/flagship-v2/candidates/*/data/program-registry.json",
+   "producers": [
+    "site-system/flagship-v2/candidates/*/scripts/refresh-therapeutic-taxonomy.py",
+    "site-system/flagship-v2/candidates/*/scripts/build-staging.mjs"
+   ]
+  },
+  {
+   "glob": "site-system/flagship-v2/candidates/*/data/page-content-provenance.json",
+   "producers": [
+    "site-system/flagship-v2/candidates/*/scripts/build-lastmod-provenance.mjs"
+   ]
+  },
+  {
+   "glob": "site-system/flagship-v2/candidates/*/data/coupon-offers.json",
+   "producers": []
+  },
+  {
+   "glob": "reports/ops/glp38-20260915/operator-note-closeout-register.json",
+   "producers": [
+    "scripts/register_writer.py"
+   ]
+  },
+  {
+   "glob": "ops/protected-oracles.json",
+   "producers": [
+    "scripts/protected_oracle_gate.py"
+   ]
+  },
+  {
+   "glob": "ops/linear/acceptance-cache.json",
+   "producers": [
+    "scripts/result_lint.py",
+    "scripts/linear_orchestrator.py"
+   ]
+  },
+  {
+   "glob": "ops/linear/triage-journal.json",
+   "producers": [
+    "scripts/linear_triage.py"
+   ]
+  },
+  {
+   "glob": "ops/linear/dispatch-ledger.jsonl",
+   "producers": [
+    "scripts/tui_send.sh",
+    "scripts/linear_dispatch.sh",
+    "scripts/seat_autodispatch.py"
+   ]
+  },
+  {
+   "glob": "reports/ops/codex-cli-update/*.json",
+   "producers": [
+    "scripts/codex_cli_update.py"
+   ]
+  },
+  {
+   "glob": "reports/ops/claude-code-update/*.json",
+   "producers": [
+    "scripts/claude_code_update.py"
+   ]
+  },
+  {
+   "glob": "reports/glp-clinic-scout/ads/handoff/*.json",
+   "producers": [
+    "scripts/glp_ads_handoff.py"
+   ]
+  },
+  {
+   "glob": "site-system/flagship-v2/releases/glp34-provider-families-20260918-r1/**",
+   "producers": [
+    "scripts/glp_seal_release_twins.py"
+   ]
+  },
+  {
+   "glob": "reports/glp-clinic-scout/growth/glp34/production-authority-20260918-r1/*-receipt*.json",
+   "producers": [
+    "scripts/glp_seal_release_twins.py",
+    "reports/glp-clinic-scout/growth/glp34/production-authority-20260918-r1/seal_glp34_authority.py"
+   ]
+  },
+  {
+   "glob": "ops/gpt6pro-relay/landings.jsonl",
+   "producers": [
+    "scripts/pro_relay_landing_monitor.py"
+   ]
+  }
+ ],
+ "empty_producers_means": "no program may write this artifact as part of ordinary work; a change requires an operator decision receipt in ops/linear/approvals naming the file."
+}

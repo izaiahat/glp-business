@@ -1,0 +1,17 @@
+{
+  "schema": "claude_model_policy_v1",
+  "description": "Dedicated fail-closed Claude model policy for the cron_medic seat. This seat remains on Opus while the shared bridge/acceptance/resume policy may switch to Fable.",
+  "seat": "cron_medic",
+  "active": {
+    "model": "claude-opus-5",
+    "effort": "medium"
+  },
+  "rules": {
+    "no_paid_fable_fallback": true,
+    "no_gateway_restart_on_switch": true,
+    "preserve_session_and_memory": true,
+    "fail_closed_on_missing_or_corrupt_policy": "keep deterministic detection running but skip model-dependent triage; never guess a model"
+  },
+  "updated_utc": "2026-07-29T19:22:51Z",
+  "updated_by": "operator-ruling-opus5-medium-effort-20260729"
+}

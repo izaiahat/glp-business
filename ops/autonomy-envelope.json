@@ -1,0 +1,57 @@
+{
+  "version": "2026-07-09.operator-approved-d12b",
+  "owner": "Kael parent owns final synthesis; operator decides RED items",
+  "default_rule": "GREEN can act and log; YELLOW proposes a default in #decisions; RED never defaults and requires explicit operator GO plus receipt.",
+  "classes": {
+    "GREEN": {
+      "definition": "Reversible, low-risk, preapproved work inside existing approved mission scope; agent acts and logs.",
+      "allowed_examples": [
+        "read local files and approved APIs",
+        "write local reports/receipts",
+        "create internal Discord status/decision posts",
+        "run tests/validators",
+        "draft copy without sending"
+      ],
+      "may_auto_default": true
+    },
+    "YELLOW": {
+      "definition": "Decision-bearing or externally visible setup work where the agent should propose a default in #decisions and wait for operator approve/override unless already explicitly approved.",
+      "allowed_examples": [
+        "create internal Discord channels approved by contract",
+        "write paused campaigns/queues if approved",
+        "post to internal #decisions/#ops-alerts",
+        "Pushover alerts to operator only"
+      ],
+      "may_auto_default": true,
+      "requires_receipt": true
+    },
+    "RED": {
+      "definition": "Never-default actions: spend, unpausing ads, external replies, investor/human replies, legal/identity, bulk sends on new domains, patient-list contact, irreversible deletes, or anything embarrassing if wrong.",
+      "allowed_examples": [],
+      "may_auto_default": false,
+      "requires_explicit_operator_approval": true
+    }
+  },
+  "venture_send_rules": {
+    "allocant": "Sender wrappers refuse RED or unapproved items. First-touch/follow-up motion resumes only after sample formatting approval, G-A1 checks, evidence card, and explicit GO.",
+    "glp": "B2B owner outreach/build/affiliate work is unblocked before HIPAA/counsel/A2P, but patient-list contact stays blocked until Gate-0; no PHI/patient-list action.",
+    "boring-ai": "Manual preview delivery only after operator approves the preview URL/package; no auto-DM/comment/postcard/email-first outreach until evidence card + GO."
+  },
+  "operator_approval_receipt": {
+    "approved_at": "2026-07-09",
+    "source": "#decisions D12B-GO",
+    "wording": "GREEN autonomous+logged; YELLOW propose-with-default in #decisions; RED never-default + explicit GO/receipt."
+  },
+  "standing_rules": [
+    {
+      "id": "first_paid_sale_ghl_agency_pro",
+      "trigger": "FIRST paid sale in any venture",
+      "operator_console_item": "Upgrade GHL to Agency Pro $497 so SaaS-mode rebilling is wired fully; if the sale was GLP also decide P10 HIPAA add-on.",
+      "pushover": "Upgrade GHL to Agency Pro $497 so SaaS-mode rebilling is wired fully; if the sale was GLP also decide P10 HIPAA add-on.",
+      "reraisal": "weekly until done",
+      "risk_class": "RED",
+      "may_auto_default": false
+    }
+  ],
+  "secret_printed": false
+}

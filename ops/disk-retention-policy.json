@@ -1,0 +1,13 @@
+{
+  "schema": "disk-retention-v1",
+  "inventory_status": "PARTIAL_EXACT_GATES",
+  "protected_roots": ["/home/ubuntu/business/site-system/flagship-v2/qa", "/home/ubuntu/business/site-system/flagship-v2/releases/sealed-d2j-review-20260909T152123Z", "/home/ubuntu/business/site-system/flagship-v2/candidates/glp-visual-ultracode-20260821"],
+  "superseded_candidates": [],
+  "archives": [],
+  "seals": [],
+  "gates": {
+    "archive": "20260909 archive already compressed by concurrent orchestrator; only report-before exists under state-archive-receipts, not hash-bound PASS verify; no deletion inferred",
+    "seals": "No complete current deployment/base/open acceptance-chain exclusion manifest supplied. All sealed trees remain protected.",
+    "candidate_node_modules": "Supersession is not inferred from age alone; supply path plus sha256-pinned SUPERSEDED receipt. COW cleanup requires descendant age and process reference rescan."
+  }
+}
