@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+from pathlib import Path
 from scripts.sync_from_repo import sync
 
 def digest(data):
@@ -69,6 +70,18 @@ def test_retirement_moves_matching_uncurated_source(tmp_path, capsys):
     assert (root / "scripts/.retired-20260925/old.py").read_bytes() == b"retire\n"
     assert sync(root, repo, False) == 0
     assert "DRY_RUN diffs=0 conflicts=0" in capsys.readouterr().out
+
+
+def test_retirement_registry_releases_dormant_producers():
+    """A retired entry point must not remain a registered ordinary writer."""
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / "ops/registered-producers.json").read_text())
+    retired = {p for p in json.loads((root / "ops/rebuild-source-manifest.json").read_text())["files"]
+               if p.startswith("scripts/.retired-20260925/")}
+    retired_origins = {"scripts/" + Path(p).name for p in retired}
+    callers = [(row["glob"], producer) for row in registry["rules"]
+               for producer in row["producers"] if producer in retired_origins]
+    assert callers == []
 
 
 def test_retirement_refuses_modified_source_before_other_writes(tmp_path):

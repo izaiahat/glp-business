@@ -475,7 +475,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "e2b3d299aadccbc545acea9b5a7450a6ba6a528f683712ded8cbe2faf865b26e"
+      "sha256": "cb8fb5061017a2f15d64fbd00511fc661a655ea99019fd1f8859a24424c093bb"
     },
     "reports/BUILD-SOURCE-OF-TRUTH.md": {
       "callers": [],
@@ -1428,7 +1428,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c21db02a6d0e867ce607a5571d96ae4292c98e355bc8fcd18b1fb03b503919bc"
+      "sha256": "6f861d01059f8d342d9779203e004e3e17c3a0ae7a805e7d0e3b286b52017354"
     }
   },
   "omitted_runtime_inputs": [
