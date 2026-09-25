@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
-ROOT = Path('/home/ubuntu/business')
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_module():
@@ -210,6 +210,11 @@ def test_the_audit_never_modifies_the_site():
 
 
 def test_registered_dry_run_audits_real_release_without_effects(monkeypatch, capsys):
+    # A real release pointer and registered n8n action live on the host, not
+    # in the curated control repository. Pure adapter/verdict tests run in CI.
+    if not (ROOT / 'ops/n8n-bridge/actions.json').is_file() or not (
+            ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json').is_file():
+        pytest.skip('requires live host registered action and release pointer')
     spec = json.loads((ROOT / 'ops/n8n-bridge/actions.json').read_text())['program_liveness_check']
     assert spec['argv'] == ['python3', 'scripts/glp_program_liveness_check.py']
     assert spec['value_flags']['dry-run'] == {'1': ['--dry-run']}

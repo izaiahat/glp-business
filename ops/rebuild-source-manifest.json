@@ -807,6 +807,14 @@
       "kind": "script",
       "sha256": "441e990d098bfea79485a6e01b713948ca3aee1b15c7140d55fc2c18e0f83da4"
     },
+    "scripts/glp_program_liveness_check.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        "ops/n8n-bridge/actions.json"
+      ],
+      "kind": "script",
+      "sha256": "a1c7c0f89374fe31fb84085021d48399bdb70f20a288e0638143509ef7008eb9"
+    },
     "scripts/glp_provider_cardinality_test_refresh.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
@@ -1306,7 +1314,7 @@
         "program_liveness"
       ],
       "kind": "test",
-      "sha256": "22d7119f8153357a0ed01dbaff75f4fa71d345a42aa0cb0d3def6c8082fa8e9c"
+      "sha256": "de1c539b3d7c62a59a9929fae86469560483de82978dff58fff88f29026658c7"
     },
     "tests/test_glp_provider_cardinality_test_refresh.py": {
       "callers": [
@@ -1441,5 +1449,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 220
+  "tracked_count": 221
 }
