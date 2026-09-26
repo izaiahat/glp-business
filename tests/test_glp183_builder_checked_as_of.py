@@ -1,12 +1,39 @@
 """Offline direct-builder regressions; no live authorities or tracking visits."""
+import ast
 from copy import deepcopy
 from pathlib import Path
-import sys
+from types import SimpleNamespace
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import build_glp_affiliate_wirein_incremental_v2 as builder
+
+def load_contract_functions():
+    """Execute the real pure functions without host-only deployment imports.
+
+    The curated mirror omits build_glp_affiliate_expansion_13. Importing the
+    whole builder on the host would silently resolve that dependency outside
+    this checkout. Compile unchanged source nodes instead; no mocked behavior
+    or replacement contract implementation is used.
+    """
+    source = Path(__file__).resolve().parents[1] / "scripts/build_glp_affiliate_wirein_incremental_v2.py"
+    tree = ast.parse(source.read_text(), filename=str(source))
+    names = {"quote", "stated", "canonical_field_sources", "normalize_regulatory_banner",
+             "build_contract"}
+    functions = [node for node in tree.body
+                 if isinstance(node, ast.FunctionDef) and node.name in names]
+    assert {node.name for node in functions} == names
+    constants = [node for node in tree.body if isinstance(node, ast.Assign)
+                 and any(isinstance(target, ast.Name) and target.id == "COMPOUNDED_TAIL"
+                         for target in node.targets)]
+    assert len(constants) == 1
+    namespace = {}
+    body: list[ast.stmt] = [*constants, *functions]
+    exec(compile(ast.Module(body=body, type_ignores=[]), str(source), "exec"),
+         namespace)
+    return SimpleNamespace(**namespace)
+
+
+builder = load_contract_functions()
 
 
 def inputs():
