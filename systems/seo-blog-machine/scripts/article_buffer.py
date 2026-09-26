@@ -1270,41 +1270,89 @@ def validate_entry(
     return entry
 
 
+REGISTERED_REVIEW_ROOT = Path("/home/ubuntu/business/reports/ops")
+
+
 def _registered_successor_review(receipt_path: Path, evidence: dict[str, Any]) -> dict[str, Any]:
-    """Bind a registered controller PASS to this exact eight-file subject tuple."""
+    """Require the controller's registered run and its fully bound review chain.
+
+    Self-hashes alone are not registration: the run's job and history must be
+    located in the registered reports tree and agree on this exact packet.
+    """
     receipt_path = receipt_path.resolve(strict=True)
-    history = receipt_path.parent
-    closeout_path = history / "loop-closeout.json"
-    execution_path = history / f"round-{json.loads(receipt_path.read_text())['round']:02d}-review-execution.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    job_id, round_number = receipt.get("job_id"), receipt.get("round")
+    if (not isinstance(job_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", job_id)
+        or type(round_number) is not int or round_number != 1):
+        raise BufferAdmissionError("buffer_successor_review_identity_invalid")
+    history = receipt_path.parent
+    run = history.parent
+    root = REGISTERED_REVIEW_ROOT.resolve()
+    if (history.name != f"opus-history-{job_id}" or run.name != job_id
+        or run.parent.name != "runs" or root not in run.parents
+        or receipt_path != history / "round-01-receipt.json"):
+        raise BufferAdmissionError("buffer_successor_review_unregistered_location")
+    job_path = run / f"review-job-{job_id}.json"
+    job = json.loads(job_path.read_text(encoding="utf-8"))
+    packet = Path(evidence["qa"]["path"]).parent.resolve()
+    subject_names = [row["path"] for row in evidence["subjects"]]
+    if (job.get("schema") != "glp-opus-seo-review-job-v1"
+        or job.get("job_id") != job_id
+        or Path(str(job.get("packet_dir") or "")).resolve() != packet
+        or packet != run / "packet"
+        or Path(str(job.get("history_dir") or "")).resolve() != history
+        or job.get("subject_files") != subject_names
+        or job.get("topic_id") != evidence["topic_id"]
+        or job.get("target_route") != evidence["target_route"]
+        or job.get("review_transport") != evidence["review_transport"]):
+        raise BufferAdmissionError("buffer_successor_review_job_mismatch")
+    closeout_path = history / "loop-closeout.json"
+    execution_path = history / "round-01-review-execution.json"
+    manifest_path = history / "round-01-subject-manifest.json"
+    raw_path = history / "round-01-sol-raw.json"
     closeout = json.loads(closeout_path.read_text(encoding="utf-8"))
     execution = json.loads(execution_path.read_text(encoding="utf-8"))
+    raw = json.loads(raw_path.read_text(encoding="utf-8"))
+    transport = review_transports.transport(evidence["review_transport"])
+    argv = execution.get("argv")
+    if (not isinstance(argv, list) or execution.get("exit_code") != 0
+        or execution.get("job_id") != job_id or execution.get("round") != 1
+        or execution.get("subject_manifest_sha256") != _sha(manifest_path)
+        or execution.get("raw_review_sha256") != _sha(raw_path)
+        or len(argv) < 3 or Path(argv[1]).resolve() != Path(transport["wrapper"]).resolve()
+        or not all(flag in argv for flag in ("--disable-tools", "--receipt-file", "--model", "--effort", "--provider"))
+        or any(argv[argv.index(flag) + 1] != value for flag, value in (
+            ("--receipt-file", str(raw_path)), ("--model", transport["model"]),
+            ("--effort", transport["effort"]), ("--provider", transport["provider"])))
+        or set(execution.get("streams") or {}) != {"stdout", "stderr"}
+        or not isinstance(raw.get("session_id"), str) or not raw["session_id"].strip()
+        or raw.get("review_input", {}).get("model") != transport["model"]
+        or raw.get("review_input", {}).get("effort") != transport["effort"]):
+        raise BufferAdmissionError("buffer_successor_review_execution_invalid")
+    for stream in execution["streams"].values():
+        path = _verify_spec(stream, "buffer_successor_execution_stream")
+        if path.parent != history or path.stat().st_size != stream.get("bytes"):
+            raise BufferAdmissionError("buffer_successor_execution_stream_invalid")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    expected = {row["path"]: (row["sha256"], row["bytes"]) for row in evidence["subjects"]}
+    if (Path(evidence["subject_manifest"]["path"]) != manifest_path
+        or Path(evidence["raw_review"]["path"]) != raw_path
+        or {row["path"]: (row["sha256"], row["bytes"]) for row in manifest["subject_files"]} != expected
+        or len(manifest["subject_files"]) != len(expected)):
+        raise BufferAdmissionError("buffer_successor_subject_tuple_drift")
     if (closeout.get("schema") != "glp-opus-seo-loop-closeout-v1"
         or closeout.get("closeout_sha256") != _opus_payload_hash(closeout, "closeout_sha256")
         or closeout.get("status") != "PASS_OPUS_SEO_DRAFT"
         or closeout.get("publication_invoked") is not False
         or closeout.get("topic_id") != evidence["topic_id"]
-        or closeout.get("job_id") != receipt.get("job_id")
-        or closeout.get("rounds") != [{"round": receipt["round"], "receipt": str(receipt_path),
+        or closeout.get("job_id") != job_id
+        or closeout.get("rounds") != [{"round": 1, "receipt": str(receipt_path),
                                       "sha256": _sha(receipt_path), "verdict": "PASS_OPUS_SEO_DRAFT"}]
-        or execution.get("exit_code") != 0
-        or "--disable-tools" not in execution.get("argv", [])
-        or "--receipt-file" not in execution.get("argv", [])
-        or set(execution.get("streams") or {}) != {"stdout", "stderr"}):
+        or closeout.get("review_execution_sha256") != _sha(execution_path)
+        or closeout.get("raw_review_sha256") != _sha(raw_path)
+        or closeout.get("subject_manifest_sha256") != _sha(manifest_path)
+        or closeout.get("packet_subject_sha256") != {row["path"]: row["sha256"] for row in evidence["subjects"]}):
         raise BufferAdmissionError("buffer_successor_registered_review_invalid")
-    argv = execution["argv"]
-    if argv[argv.index("--receipt-file") + 1] != evidence["raw_review"]["path"]:
-        raise BufferAdmissionError("buffer_successor_execution_raw_mismatch")
-    for stream in (execution.get("streams") or {}).values():
-        if _verify_spec(stream, "buffer_successor_execution_stream") != Path(stream["path"]):
-            raise BufferAdmissionError("buffer_successor_execution_stream_alias")
-        if _verify_spec(stream, "buffer_successor_execution_stream").stat().st_size != stream.get("bytes"):
-            raise BufferAdmissionError("buffer_successor_execution_stream_size_invalid")
-    manifest = json.loads(Path(evidence["subject_manifest"]["path"]).read_text())
-    expected = {row["path"]: (row["sha256"], row["bytes"]) for row in evidence["subjects"]}
-    if ({row["path"]: (row["sha256"], row["bytes"]) for row in manifest["subject_files"]} != expected
-        or len(manifest["subject_files"]) != len(expected)):
-        raise BufferAdmissionError("buffer_successor_subject_tuple_drift")
     return {"receipt": _spec(receipt_path), "closeout": _spec(closeout_path),
             "execution": _spec(execution_path)}
 
@@ -1324,6 +1372,16 @@ def _held_successor_predecessor(root: Path, predecessor_id: str,
         raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
     if predecessor_id not in _held_entry_ids(root):
         raise BufferAdmissionError("buffer_successor_predecessor_not_held")
+    # A HELD marker is not a proof of exclusive state. Even a stale claim or
+    # an orphaned terminal record makes this predecessor ineligible.
+    for directory in ("claims", "consumed", "quarantined", "published", "publications"):
+        records = root.resolve() / directory
+        for record in records.glob("*.json") if records.is_dir() else ():
+            payload = json.loads(record.read_text(encoding="utf-8"))
+            if payload.get("entry_id") == predecessor_id:
+                raise BufferAdmissionError(f"buffer_successor_predecessor_{directory}_recorded")
+    if predecessor_id in _claimed_entry_ids(root) or predecessor_id in _quarantined_entry_ids(root):
+        raise BufferAdmissionError("buffer_successor_predecessor_not_held_only")
     validate_entry(path, current_routes=set(), current_topic_ids=set())
     if (any(entry.get(key) != evidence[key] for key in ("topic_id", "target_route"))
         or entry.get("packet_closure_sha256") == closure

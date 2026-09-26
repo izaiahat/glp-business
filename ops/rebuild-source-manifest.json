@@ -1120,7 +1120,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "0044031141f365b088c4b932b08daba936576df4d6f8665ff57f4d1bc97f7443"
+      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -1239,7 +1239,7 @@
         "GLP-7 registered held-predecessor successor admission"
       ],
       "kind": "test",
-      "sha256": "541c9ad2bba2305e7fd39fc5bd628de9d557351f2508ef1059189437e0d7f819"
+      "sha256": "1fb3dac161328c953d332cbd655804eb0d1155ce3b430094bf8de8ecfaec90cf"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
@@ -1807,7 +1807,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "4fcf1afe7108e53de1eca38c842feb0da50558533822eb4c629ff4491824b625"
+      "sha256": "7b3d11f604bbb496e0e31bce65a79e72a63efd9e692b0ea3195bd855db3f1e37"
     }
   },
   "omitted_runtime_inputs": [
@@ -1818,5 +1818,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 274
+  "tracked_count": 275
 }

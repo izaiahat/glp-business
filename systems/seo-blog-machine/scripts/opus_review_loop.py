@@ -651,6 +651,9 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
         }
         atomic_json(review_execution_path, {
             "argv": command, "exit_code": proc.returncode, "streams": review_streams,
+            "job_id": job["job_id"], "round": round_number,
+            "subject_manifest_sha256": sha_file(manifest_path),
+            "raw_review_sha256": sha_file(raw_path) if raw_path.is_file() else None,
         })
         if proc.returncode != 0 or not raw_path.is_file():
             raise RuntimeError(
@@ -686,6 +689,10 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
                 "completed_at_utc": now(), "job_id": job["job_id"], "topic_id": job["topic_id"],
                 "rounds": rounds, "publication_invoked": apply, "bridge_touched": bool(extension),
                 "operator_card_created": False,
+                "review_execution_sha256": sha_file(review_execution_path),
+                "raw_review_sha256": sha_file(raw_path),
+                "subject_manifest_sha256": sha_file(manifest_path),
+                "packet_subject_sha256": subject_snapshot(packet, subject_paths(job)),
             }
             closeout["closeout_sha256"] = payload_hash(closeout, "closeout_sha256")
             atomic_json(history / "loop-closeout.json", closeout)
