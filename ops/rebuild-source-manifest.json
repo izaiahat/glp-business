@@ -150,6 +150,13 @@
       "kind": "script",
       "sha256": "def00df050f44bdc90305a9a3bc412af7a8f44e7cf0c70a78fef0ac2abf724b8"
     },
+    "ops/glp/seo_data_rails.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "script",
+      "sha256": "5b2ad3984df46ef1d66c855f0fb23ca6b3780f51223c45e88a044be854c20386"
+    },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
       "callers": [
         "hermes:a8bd5651f1d8"
@@ -1039,6 +1046,13 @@
       ],
       "kind": "script",
       "sha256": "061c01d7cf60903040d929bde9b7ee0e1521ee4ec5ad5b9d0a242913440b3321"
+    },
+    "scripts/glp_weekly_seo_ranking_report.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "script",
+      "sha256": "7fa490e47a3c21102a7f28c459ca7b20f870aed00c945500d5ced237a1b339f1"
     },
     "scripts/glp_wire_in_ready_queue.py": {
       "callers": [
@@ -2092,5 +2106,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 318
+  "tracked_count": 320
 }
