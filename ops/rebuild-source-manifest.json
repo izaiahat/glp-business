@@ -54,7 +54,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "6a8e634accc5c98123f43c29be463a3a954ddeeaf335e764370eb06d09545166"
+      "sha256": "19c1e920c445d86de891d6c5b68650f5276aa3dbb2cdfac856a3f0fcdba47162"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -971,7 +971,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "de53b39603cff6703227f7fb332499890d8b2e51f92187462ba92fd1fd2435f3"
+      "sha256": "038e0e537d236056c389b7709363cfeab5b416655a377b27e4da218d2d9de00e"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1197,6 +1197,11 @@
       ],
       "kind": "test",
       "sha256": "e6123786aeff8fef84a90325d400336d754f4dec0741653f68228b7426ab2e8f"
+    },
+    "tests/test_glp316_automated_notices.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "3875afa2c6259a5b8b59940689a09d722066a2bab1b3ee62b9c5e6a22fc1917b"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [

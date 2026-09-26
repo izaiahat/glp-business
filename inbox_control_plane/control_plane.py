@@ -205,6 +205,10 @@ AFFILIATE_GENUINE_HUMAN_REPLY_RE = re.compile(
     r"|\b(?:references?|referrals?)\b.{0,240}\b(?:call|meeting|application|partnership)\b",
     re.I | re.S,
 )
+AFFILIATE_MACHINE_STATUS_SUBJECT_RE = re.compile(
+    r"^(?:application (?:approved|accepted)|campaign cancellation notice|"
+    r"(?:campaign|program) (?:approval|cancellation) (?:notice|notification))$", re.I,
+)
 AFFILIATE_ROUTINE_NOTICE_RE = re.compile(
     r"\b(?:application (?:has been |was )?(?:approved|accepted|declined|rejected)|"
     r"(?:campaign|program|programme|partnership|relationship) request (?:has been |was )?(?:approved|accepted|declined|rejected)|"
@@ -4813,6 +4817,23 @@ def classify_message(
     # has been accepted", behind the generic subject "Partnerize Email Alert"),
     # Ultrahuman ("membership active"), Isagenix, Moveincore, Modify Health and
     # HealthyMale ("welcome to the … program").
+    machine_header = (
+        str(parsed.get("auto_submitted") or "").lower() not in {"", "no"}
+        or str(parsed.get("precedence") or "").lower() in {"bulk", "list", "junk"}
+        or bool(str(parsed.get("list_unsubscribe") or "").strip())
+    )
+    status_template = bool(AFFILIATE_MACHINE_STATUS_SUBJECT_RE.fullmatch(subject.strip()))
+    if affiliate_root and (machine_header or status_template) and (
+        AFFILIATE_APPROVAL_ACCEPTANCE_RE.search(text)
+        or status_template and "cancellation" in subject.lower()
+    ) and not AFFILIATE_REJECTION_RE.search(text):
+        # Network-attributed machine evidence or an exact status-template subject
+        # is required: a human discussion of an approval must keep its reply route.
+        return result(
+            "affiliate_network_response", 0.99, "affiliate_network_automated_notification",
+            f"network_domain:{affiliate_root}", "automatic_affiliate_reconciliation",
+            actionable=False,
+        )
     if affiliate_root and AFFILIATE_AUTOMATED_SENDER_RE.match(sender_address) \
             and AFFILIATE_APPROVAL_ACCEPTANCE_RE.search(text) \
             and not AFFILIATE_REJECTION_RE.search(text):
