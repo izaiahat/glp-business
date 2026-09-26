@@ -1837,7 +1837,9 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
             observed.get('last_len') != 0):
             raise SystemExit('MODEL_RECONCILE_REFUSED_STATE ' + job)
         report = json.loads((BUSINESS / report_path).read_text())
-        matching = [row for row in report.get('jobs', []) if row.get('job') == job]
+        matching = [row for row in report.get('jobs', [])
+                    if row.get('job', row.get('job_id')) == job and
+                    (row.get('job_id', job) == job)]
         if (len(matching) != 1 or matching[0].get('submission_bound') is not False or
             matching[0].get('typed') is not False or matching[0].get('sent') is not False):
             raise SystemExit('MODEL_RECONCILE_REFUSED_REPORT ' + job)

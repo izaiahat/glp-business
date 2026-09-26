@@ -730,7 +730,7 @@ class BindingTests(unittest.TestCase):
         relay.ledger_append(self.cfg, {'event': 'submitted', 'job': job, 'account': 'account-a'})
         report = 'reports/ops/pro-wave-unlisted/RESULT.json'
         (self.root / report).parent.mkdir(parents=True, exist_ok=True)
-        (self.root / report).write_text(json.dumps({'jobs': [{'job': job, **row}]}))
+        (self.root / report).write_text(json.dumps({'jobs': [{'job_id': job, **row}]}))
         return d, state, report
 
     def test_unlisted_wrong_model_reconciles_with_explicit_report(self):
