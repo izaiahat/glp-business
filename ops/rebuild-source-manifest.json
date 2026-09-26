@@ -4,12 +4,12 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "96f2fc804aac7825901329f9eb6606b65fd6f18c8105b7e54e37a465459fe564"
+      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f72b4d728993e9d54cf9edab3d791b7c9782388be13d2bfb139e04248081eadb"
+      "sha256": "db93042ee7911c9385902691b96a9c4648d50ec367334ba4d34a15bb138f18b3"
     },
     ".gitignore": {
       "callers": [],
@@ -571,7 +571,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "4166a4e98a415fd4b65ef7ffe378f6e11658a09b0403f62253e3e14d65d14cfa"
+      "sha256": "21deaf4c67146f207c8f2ab702e6e86009776d2f84f4989d692123392cabf375"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -956,7 +956,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "02e14e3a33066514aa0ba82d0538d5c4d2f0ec7e5c113bbd03d32cd8779c8bb8"
+      "sha256": "994985cf4c11ce9c9c04294f510ac1010aa9f866b496b5582172096141278fe0"
     },
     "scripts/glp_maxbounty_fresh_probe.py": {
       "callers": [
@@ -1159,7 +1159,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9d4031bd31c2cf4b744a3efd1b158a1e6b9b83854f365f26b4478b26558c7292"
+      "sha256": "1f5e25fe94d6a7a796016ab63df5872183e13216837edb15b096f7b224d17fb0"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1771,7 +1771,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "test",
-      "sha256": "929edbe592fcaf570941aed0e58374c0794fe5c73f8c44b987aa2af2f53e35d7"
+      "sha256": "430a165266fc107151daa72636d4e759ed67634556635b9268529edce93e2943"
     },
     "tests/test_glp_never_monetized_derived.py": {
       "callers": [
