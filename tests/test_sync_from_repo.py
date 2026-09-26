@@ -1,6 +1,11 @@
 import hashlib
 import json
+import shutil
 import subprocess
+import sys
+import pytest
+from pathlib import Path
+from scripts import sync_from_repo
 from scripts.sync_from_repo import sync
 
 def digest(data):
@@ -47,3 +52,107 @@ def test_clean_upstream_change_applies(tmp_path):
     assert (root / "scripts/sample.py").read_bytes() == b"old\n"
     assert sync(root, repo, True) == 0
     assert (root / "scripts/sample.py").read_bytes() == b"new\n"
+
+
+def test_retirement_moves_matching_uncurated_source(tmp_path, capsys):
+    repo, root = checkout(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts/old.py").write_bytes(b"retire\n")
+    archive = repo / "scripts/.retired-20260925/old.py"
+    archive.parent.mkdir()
+    archive.write_bytes(b"retire\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["scripts/.retired-20260925/old.py"] = {"sha256": digest(b"retire\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "-f", str(archive)], check=True)
+    assert sync(root, repo, False) == 0
+    assert (root / "scripts/old.py").read_bytes() == b"retire\n"
+    assert sync(root, repo, True) == 0
+    assert not (root / "scripts/old.py").exists()
+    assert (root / "scripts/.retired-20260925/old.py").read_bytes() == b"retire\n"
+    assert sync(root, repo, False) == 0
+    assert "DRY_RUN diffs=0 conflicts=0" in capsys.readouterr().out
+
+
+def test_retirement_registry_releases_dormant_producers():
+    """A retired entry point must not remain a registered ordinary writer."""
+    root = Path(__file__).resolve().parents[1]
+    registry = json.loads((root / "ops/registered-producers.json").read_text())
+    retired = {p for p in json.loads((root / "ops/rebuild-source-manifest.json").read_text())["files"]
+               if p.startswith("scripts/.retired-20260925/")}
+    retired_origins = {"scripts/" + Path(p).name for p in retired}
+    callers = [(row["glob"], producer) for row in registry["artifacts"]
+               for producer in row["producers"] if producer in retired_origins]
+    assert callers == []
+
+
+def test_protected_continuation_imports_retained_dispatcher_from_checkout(tmp_path):
+    """The post-sync scripts layout, isolated from the host, resolves the pinned import."""
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "ops/rebuild-source-manifest.json").read_text())["files"]
+    scripts = tmp_path / "live/scripts"
+    scripts.mkdir(parents=True)
+    for name in ("seat_continuation.py", "seat_autodispatch.py", "brief_model_effort.py"):
+        rel = f"scripts/{name}"
+        assert rel in manifest, f"missing live curated dependency: {name}"
+        assert digest((root / rel).read_bytes()) == manifest[rel]["sha256"]
+        shutil.copy2(root / rel, scripts / name)
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); "
+            "import seat_continuation, seat_autodispatch; "
+            "assert seat_continuation._provider_depleted is seat_autodispatch.provider_depleted; "
+            "assert seat_autodispatch.__file__ == sys.argv[1] + '/seat_autodispatch.py'")
+    subprocess.run([sys.executable, "-I", "-c", code, str(scripts)],
+                   cwd=tmp_path, check=True)
+
+
+def test_intervening_conventions_edit_refused_before_replacement(tmp_path, monkeypatch):
+    repo, root = checkout(tmp_path)
+    (repo / "ops/linear").mkdir(parents=True)
+    (repo / "ops/linear/CONVENTIONS.md").write_bytes(b"original\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["ops/linear/CONVENTIONS.md"] = {"sha256": digest(b"original\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "ops/linear/CONVENTIONS.md"], check=True)
+    assert sync(root, repo, True) == 0
+    (repo / "ops/linear/CONVENTIONS.md").write_bytes(b"upstream\n")
+    m["files"]["ops/linear/CONVENTIONS.md"]["sha256"] = digest(b"upstream\n")
+    mpath.write_text(json.dumps(m))
+    state_before = (root / "ops/.rebuild-sync-state.json").read_bytes()
+    real_fsync = sync_from_repo.os.fsync
+    destination = root / "ops/linear/CONVENTIONS.md"
+    def intervening_fsync(fd):
+        if not injected[0]:
+            destination.write_bytes(b"PARALLEL EDIT\n")
+            injected[0] = True
+        return real_fsync(fd)
+    injected = [False]
+    monkeypatch.setattr(sync_from_repo.os, "fsync", intervening_fsync)
+    # Injection after preflight but before replacement proves the destination survives.
+    with pytest.raises(ValueError, match="destination changed during sync: ops/linear/CONVENTIONS.md"):
+        sync(root, repo, True)
+    assert injected[0]
+    assert destination.read_bytes() == b"PARALLEL EDIT\n"
+    assert (root / "ops/.rebuild-sync-state.json").read_bytes() == state_before
+
+
+def test_retirement_refuses_modified_source_before_other_writes(tmp_path):
+    repo, root = checkout(tmp_path)
+    (root / "scripts").mkdir()
+    (root / "scripts/old.py").write_bytes(b"LOCAL\n")
+    archive = repo / "scripts/.retired-20260925/old.py"
+    archive.parent.mkdir()
+    archive.write_bytes(b"retire\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["scripts/.retired-20260925/old.py"] = {"sha256": digest(b"retire\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "-f", str(archive)], check=True)
+    assert sync(root, repo, True) == 2
+    assert (root / "scripts/old.py").read_bytes() == b"LOCAL\n"
+    assert not (root / "scripts/.retired-20260925/old.py").exists()
+    assert not (root / "scripts/sample.py").exists()

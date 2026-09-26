@@ -117,9 +117,7 @@
   },
   {
    "glob": "ops/gpt6pro-relay/landings.jsonl",
-   "producers": [
-    "scripts/pro_relay_landing_monitor.py"
-   ]
+   "producers": []
   }
  ],
  "empty_producers_means": "no program may write this artifact as part of ordinary work; a change requires an operator decision receipt in ops/linear/approvals naming the file."
