@@ -966,7 +966,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "85837d85f38275366058f4ab2be2e85dac2481770edb9687297393deb5be80f3"
+      "sha256": "83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa"
     },
     "scripts/glp_reddit_pack_scout.py": {
       "callers": [
@@ -1140,7 +1140,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9d4031bd31c2cf4b744a3efd1b158a1e6b9b83854f365f26b4478b26558c7292"
+      "sha256": "8e0d73c9cf771e3830be1e786fb87b113ce02170a640c7224edfdac85cfff78c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1613,6 +1613,11 @@
       "kind": "test",
       "sha256": "c57b0c5d2c59d50aab838ce332284c8af2accc8bbc1256f96bb62fcbf3cb0bb5"
     },
+    "tests/test_glp196_price_index_contract.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "1b7681e5f1a50fadb8ee6b356d14a7a322c16b8949cc12e60945dae1e231da14"
+    },
     "tests/test_glp319_incomplete_period.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -1963,5 +1968,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 297
+  "tracked_count": 298
 }
