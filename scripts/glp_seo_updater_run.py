@@ -2009,7 +2009,11 @@ def execute(target_pt_date: str | None = None) -> dict[str, Any]:
                 attempt,
             )
             run_id = f"{topic}-webhook-{stamp()}"
-            publication_date = target_pt_date or pt_date()
+            # target_pt_date selects retained plan/quota identity, not a release
+            # clock. A newer accepted base can contain genuine material edits
+            # after that plan day; preserve those dates and use today's PT day
+            # for publication admission. This does not refresh source evidence.
+            publication_date = pt_date()
             release_root = RELEASES / f"glp-r2-updater-{stamp()}-{sha_bytes(operation.encode())[:10]}"
             _rc, materialized, materialize_execution = run_child(
                 "materialize",
