@@ -973,12 +973,31 @@ def normalize_regulatory_banner(value: object) -> str:
     raise RuntimeError("regulatory_banner_required_invalid")
 
 
+def validate_checked_as_of(spec: dict) -> None:
+    """Require the authored YYYY-MM-DD calendar date, without restamping it."""
+    value = spec.get("checked_as_of")
+    missing = value is None or (isinstance(value, str) and not value.strip())
+    valid = False
+    if isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            valid = True
+        except ValueError:
+            pass
+    if not valid:
+        # program_id is a public route slug, never a publisher/network identifier.
+        # Unexpected identifier payloads get a stable digest, not raw disclosure.
+        pid = spec.get("program_id")
+        record = (pid if isinstance(pid, str) and
+                  re.fullmatch(r"[a-z][a-z0-9-]{0,99}", pid) else
+                  "sha256-" + hashlib.sha256(str(pid).encode()).hexdigest()[:16])
+        reason = "missing" if missing else "invalid"
+        raise RuntimeError(f"spec_checked_as_of_{reason}:record={record}") from None
+
+
 def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
                    publisher_id: str) -> dict:
-    # Direct callers need the same named missing-evidence refusal as PREPARE.
-    # Never manufacture a source date or silently emit an undated contract.
-    if not str(spec.get("checked_as_of") or "").strip():
-        raise RuntimeError("spec_checked_as_of_missing")
+    validate_checked_as_of(spec)
     pid = spec["program_id"]
     price = quote(research, "first_month_price")
     states = quote(research, "states_served")
@@ -1193,6 +1212,9 @@ def build_go_manifest_entry(rel: str, spec: dict, manifest: dict) -> dict:
 def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
                   publishers: dict[str, str], activation_at_utc: str,
                   sheet_snapshot: Path, research_dir: Path) -> dict:
+    # Direct writer callers also refuse the complete batch before any mutation.
+    for spec in specs:
+        validate_checked_as_of(spec)
     notes: dict = {}
     n = len(specs)
     ids = [s["program_id"] for s in specs]
@@ -1525,6 +1547,10 @@ def main() -> int:
     if spec_doc.get("schema") != "g6-r1a-wirein-program-specs-v1":
         raise RuntimeError("spec_schema_invalid")
     specs = spec_doc["programs"]
+    # Refuse before materialization, detachment, logo staging or receipt writes.
+    # Cleanup after writing a candidate is not a zero-write refusal.
+    for spec in specs:
+        validate_checked_as_of(spec)
     spec_ids = sorted(s["program_id"] for s in specs)
     if spec_ids != sorted(scope.get("newly_wired_program_ids") or []):
         raise RuntimeError(f"spec_authority_drift:{spec_ids}")
