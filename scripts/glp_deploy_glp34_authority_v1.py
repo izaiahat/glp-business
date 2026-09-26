@@ -1556,6 +1556,51 @@ def package_tree(root: Path) -> tuple[str, list[dict[str, str]]]:
     return sha_bytes(raw), rows
 
 
+def package_build_receipt(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, str]:
+    """Consume the site's existing gate receipt; never mint build evidence.
+
+    The expected digest must come from reviewed build evidence, not be refreshed
+    to make a changed receipt pass. This is a pinned receipt, not a signature.
+    """
+    if not HEX64.fullmatch(args.expected_build_receipt_sha256):
+        fail("package_build_receipt_hash_invalid")
+    path = package_plain_path(Path(args.build_receipt))
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as reader:
+        if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
+            fail("package_build_receipt_not_regular")
+        raw = reader.read()
+    if sha_bytes(raw) != args.expected_build_receipt_sha256:
+        fail("package_build_receipt_hash_mismatch")
+    receipt = json.loads(raw)
+    if not isinstance(receipt, dict) or receipt.get("schema") != "glp-d1-release-result-v1" or receipt.get("status") != "PASS":
+        fail("package_build_receipt_invalid")
+    if receipt.get("head") != args.site_head:
+        fail("package_build_receipt_head_mismatch")
+    for phase in ("output_before", "output_after"):
+        output = receipt.get(phase)
+        if not isinstance(output, dict) or output.get("sha256") != args.expected_tree_sha256 or output.get("files") != rows:
+            fail("package_build_receipt_tree_mismatch")
+    return {"path": str(path), "sha256": sha_bytes(raw), "schema": receipt["schema"]}
+
+
+def package_site_commit(site_head: str) -> None:
+    """The only package subprocess: fixed-repository, explicit GitHub GET."""
+    if not re.fullmatch(r"[0-9a-f]{40}", site_head):
+        fail("package_site_head_invalid")
+    command = ["gh", "api", "--hostname", "github.com", "--method", "GET",
+               "repos/izaiahat/glp-site-candidate/commits/" + site_head]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=45)
+        commit = json.loads(result.stdout)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        # Includes missing commit, auth/network failures and unavailable gh.
+        # Never print subprocess output, headers or credentials.
+        fail("package_site_commit_read_failed")
+    if not isinstance(commit, dict) or commit.get("sha") != site_head:
+        fail("package_site_commit_mismatch")
+
+
 def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
     if not re.fullmatch(r"[0-9a-f]{40}", args.site_head):
         fail("package_site_head_invalid")
@@ -1572,9 +1617,11 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
     tree_hash, rows = package_tree(public)
     if tree_hash != args.expected_tree_sha256:
         fail("package_public_tree_mismatch")
+    receipt_binding = package_build_receipt(args, rows)
+    package_site_commit(args.site_head)
     token = read_token()
     package_rollback(args.rollback_deployment_id, token, detail=True)
-    # First local write occurs only after exact tree + current rollback checks.
+    # First local write follows receipt/head/tree + current rollback checks.
     output.mkdir(mode=0o700)
     try:
         target = output / "public"
@@ -1593,9 +1640,12 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
         if package_tree(target) != (tree_hash, rows) or package_tree(public) != (tree_hash, rows):
             fail("package_tree_changed_during_copy")
         package_rollback(args.rollback_deployment_id, token, detail=False)
+        package_build_receipt(args, rows)  # refuse changed receipt before completion
         manifest = {
             "schema": "glp34-deploy-package-v1", "mode": "package-only",
-            "site_head": args.site_head, "site_head_binding": "operator-supplied-not-build-attestation",
+            "site_head": args.site_head, "site_head_binding": "sha256-pinned-site-gate-receipt-and-github-commit-get",
+            "site_repository": "izaiahat/glp-site-candidate", "github_reads": 1,
+            "build_receipt": receipt_binding,
             "public_root": str(public), "public_tree_sha256": tree_hash,
             "tree_hash_algorithm": "site-treeFiles-v1-json-file-sha256-recursive-js-sort",
             "file_count": len(rows), "files": rows,
@@ -1611,7 +1661,7 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
         return {"status": "PASS_PACKAGE_ONLY", "package_dir": str(output),
                 "manifest_sha256": sha_file(output / "PACKAGE-MANIFEST.json"),
                 "public_tree_sha256": tree_hash, "file_count": len(rows),
-                "provider_reads": 3, "provider_mutations": 0, "release_authorized": False}
+                "provider_reads": 3, "github_reads": 1, "provider_mutations": 0, "release_authorized": False}
     except BaseException:
         shutil.rmtree(output)
         raise
@@ -1623,7 +1673,8 @@ def main(argv: list[str] | None = None) -> int:
         return legacy_main(argv)
     parser = argparse.ArgumentParser(description="Package public bytes; no release authorization or deployment")
     parser.add_argument("--package-only", action="store_true", required=True)
-    for flag in ("site-head", "public-root", "expected-tree-sha256", "rollback-deployment-id", "package-dir"):
+    for flag in ("site-head", "public-root", "expected-tree-sha256", "build-receipt",
+                 "expected-build-receipt-sha256", "rollback-deployment-id", "package-dir"):
         parser.add_argument("--" + flag, required=True)
     args = parser.parse_args(argv)
     try:

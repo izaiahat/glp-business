@@ -18,7 +18,10 @@ spec = importlib.util.spec_from_file_location("package_carrier", ROOT / "scripts
 assert spec is not None and spec.loader is not None
 carrier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(carrier)
-HEAD = "a" * 40
+# Real historical heads, confirmed by read-only GitHub GET during R1 repair.
+# Portable tests intercept GH; they do not claim these synthetic bytes were built there.
+HEAD = "2927c1ea184d2ed23aa2dd448c8fc0d04df8c37d"
+OTHER_HEAD = "30e4a8178101b87ef052e07a0f9f9e9f64e0c17f"
 ROLLBACK = "ca0251a2-dd4e-469c-be3b-79ee8805c5f3"
 
 
@@ -40,6 +43,25 @@ class PackageTests(unittest.TestCase):
                         "subdomain": f"{carrier.PROJECT}.pages.dev",
                         "canonical_deployment": self.deployment}
         self.requests = []
+        self.github_requests = []
+        self.receipt = self.root / "gate.json"
+        self.receipt_data = {"schema": "glp-d1-release-result-v1", "status": "PASS", "head": HEAD,
+                             "output_before": {"sha256": self.tree_hash, "files": rows},
+                             "output_after": {"sha256": self.tree_hash, "files": rows}}
+        self.pin_receipt()
+
+    def pin_receipt(self):
+        self.receipt.write_text(json.dumps(self.receipt_data))
+        self.receipt_hash = hashlib.sha256(self.receipt.read_bytes()).hexdigest()
+
+    def github_transport(self, command, **kwargs):
+        # Only the fixed, explicit GET is permitted; every other subprocess fails.
+        self.assertIn(command, [["gh", "api", "--hostname", "github.com", "--method", "GET",
+                                "repos/izaiahat/glp-site-candidate/commits/" + head]
+                               for head in (HEAD, OTHER_HEAD)])
+        self.assertEqual(kwargs, {"check": True, "capture_output": True, "text": True, "timeout": 45})
+        self.github_requests.append(command)
+        return subprocess.CompletedProcess(command, 0, json.dumps({"sha": command[-1].split("/")[-1]}), "")
 
     def transport(self, request, **kwargs):
         # A write at the actual HTTP boundary fails, rather than succeeding as a mock.
@@ -56,6 +78,7 @@ class PackageTests(unittest.TestCase):
     def command(self, **changes):
         values = {"site-head": HEAD, "public-root": str(self.public),
                   "expected-tree-sha256": self.tree_hash, "rollback-deployment-id": ROLLBACK,
+                  "build-receipt": str(self.receipt), "expected-build-receipt-sha256": self.receipt_hash,
                   "package-dir": str(self.output)}
         values.update(changes)
         return ["--package-only", *[part for k, v in values.items() for part in ("--" + k, v)]]
@@ -65,7 +88,8 @@ class PackageTests(unittest.TestCase):
             for name in ("run_live", "run_verify_only", "acquire_lock", "load_authority", "atomic_pointer_cas"):
                 stack.enter_context(mock.patch.object(carrier, name, side_effect=AssertionError("forbidden: " + name)))
             stack.enter_context(mock.patch.object(carrier, "CloudflareClient", side_effect=AssertionError("write-capable client")))
-            stack.enter_context(mock.patch.object(carrier.subprocess, "run", side_effect=AssertionError("subprocess")))
+            stack.enter_context(mock.patch.object(carrier.subprocess, "run", side_effect=self.github_transport))
+            stack.enter_context(mock.patch.object(carrier.subprocess, "Popen", side_effect=AssertionError("unintercepted subprocess")))
             stack.enter_context(mock.patch.object(carrier, "read_token", return_value="synthetic-test-token"))
             stack.enter_context(mock.patch.object(carrier.urllib.request.OpenerDirector, "open", side_effect=self.transport))
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
@@ -81,8 +105,90 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["rollback_deployment_id"], ROLLBACK)
         self.assertFalse(manifest["release_authorized"])
         self.assertEqual(manifest["provider_mutations"], 0)
+        self.assertEqual(manifest["github_reads"], 1)
+        self.assertEqual(manifest["site_repository"], "izaiahat/glp-site-candidate")
+        self.assertEqual(manifest["build_receipt"], {"path": str(self.receipt), "sha256": self.receipt_hash,
+                                                    "schema": "glp-d1-release-result-v1"})
+        self.assertEqual(len(self.github_requests), 1)
         self.assertEqual((self.output / "public/index.html").read_bytes(), b"<h1>fixture</h1>")
         self.assertEqual(len(self.requests), 3)
+
+    def test_zero_site_head_refuses_before_package_write(self):
+        self.assertEqual(self.run_package(**{"site-head": "0" * 40}), 1)
+        self.assertFalse(self.output.exists())
+
+    def test_real_but_different_site_head_refuses_same_tree_and_receipt(self):
+        self.assertEqual(self.run_package(**{"site-head": OTHER_HEAD}), 1)
+        self.assertFalse(self.output.exists())
+        self.assertEqual(self.requests, [])
+
+    def test_missing_or_tampered_receipt_refuses_before_remote_or_local_writes(self):
+        self.receipt.unlink()
+        self.assertEqual(self.run_package(), 1)
+        self.assertFalse(self.output.exists())
+        self.pin_receipt()
+        self.receipt.write_bytes(self.receipt.read_bytes() + b"\n")
+        self.assertEqual(self.run_package(), 1)
+        self.assertFalse(self.output.exists())
+        self.assertEqual(self.requests, [])
+        self.assertEqual(self.github_requests, [])
+
+    def test_pinned_receipt_requires_native_schema_pass_head_and_both_tree_inventories(self):
+        original = copy.deepcopy(self.receipt_data)
+        for changes in ({"schema": "other"}, {"status": "FAIL"}, {"head": OTHER_HEAD},
+                        {"output_before": None}, {"output_after": None},
+                        {"output_before": {"sha256": "0" * 64, "files": original["output_before"]["files"]}},
+                        {"output_after": {"sha256": "0" * 64, "files": original["output_after"]["files"]}},
+                        {"output_after": {"sha256": self.tree_hash, "files": []}}):
+            with self.subTest(changes=changes):
+                self.receipt_data = {**original, **changes}
+                self.pin_receipt()
+                self.assertEqual(self.run_package(), 1)
+                self.assertFalse(self.output.exists())
+        self.assertEqual(self.requests, [])
+        self.assertEqual(self.github_requests, [])
+
+    def test_malformed_receipt_bytes_or_hash_refuse(self):
+        for raw in (b"not-json", b"null", b"[]"):
+            self.receipt.write_bytes(raw)
+            self.receipt_hash = hashlib.sha256(raw).hexdigest()
+            self.assertEqual(self.run_package(), 1)
+            self.assertFalse(self.output.exists())
+        self.pin_receipt()
+        for digest in ("wrong", "0" * 64):
+            self.assertEqual(self.run_package(**{"expected-build-receipt-sha256": digest}), 1)
+        self.assertEqual(self.github_requests, [])
+
+    def test_receipt_symlink_refuses(self):
+        link = self.root / "linked-gate.json"
+        link.symlink_to(self.receipt)
+        self.assertEqual(self.run_package(**{"build-receipt": str(link)}), 1)
+        self.assertFalse(self.output.exists())
+        self.assertEqual(self.github_requests, [])
+
+    def test_receipt_drift_during_copy_leaves_no_package(self):
+        original = carrier.shutil.copyfileobj
+        def copy_then_drift(*args, **kwargs):
+            original(*args, **kwargs)
+            self.receipt.write_bytes(self.receipt.read_bytes() + b"\n")
+        with mock.patch.object(carrier.shutil, "copyfileobj", side_effect=copy_then_drift):
+            self.assertEqual(self.run_package(), 1)
+        self.assertFalse(self.output.exists())
+
+    def test_missing_commit_and_github_errors_refuse_before_cloudflare_or_output(self):
+        for error in (subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 404"),
+                      subprocess.TimeoutExpired(["gh"], 45), FileNotFoundError("gh")):
+            with self.subTest(error=type(error).__name__), mock.patch.object(self, "github_transport", side_effect=error):
+                self.assertEqual(self.run_package(), 1)
+                self.assertFalse(self.output.exists())
+        self.assertEqual(self.requests, [])
+
+    def test_github_wrong_commit_or_malformed_response_refuses(self):
+        for raw in (json.dumps({"sha": OTHER_HEAD}), "null", "[]", "invalid"):
+            with mock.patch.object(self, "github_transport", return_value=subprocess.CompletedProcess([], 0, raw, "")):
+                self.assertEqual(self.run_package(), 1)
+                self.assertFalse(self.output.exists())
+        self.assertEqual(self.requests, [])
 
     def test_one_changed_byte_refuses_before_provider_read_or_package_write(self):
         (self.public / "index.html").write_bytes(b"<h1>Fixture</h1>")
@@ -160,7 +266,8 @@ class PackageTests(unittest.TestCase):
             carrier.package_get("/arbitrary", "synthetic")
 
     def test_cli_requires_every_binding_and_forbids_mixed_modes(self):
-        for missing in ("--site-head", "--public-root", "--expected-tree-sha256", "--rollback-deployment-id", "--package-dir"):
+        for missing in ("--site-head", "--public-root", "--expected-tree-sha256", "--build-receipt",
+                        "--expected-build-receipt-sha256", "--rollback-deployment-id", "--package-dir"):
             args = self.command()
             index = args.index(missing)
             del args[index:index + 2]
