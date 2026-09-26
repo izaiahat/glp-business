@@ -504,9 +504,9 @@ def load_identity_captures(
         if not isinstance(payload, dict):
             continue
 
-        # The new generic rail capture is already its own cited bytes. The plan
-        # pins this file's hash, and the rail validator pins its requirements,
-        # immutable id, href hash and same-capture host.
+        # The plan pins the descriptor; the rail validator checks requirements,
+        # immutable id, href hash and same-capture host. When it cites separate
+        # source bytes, revalidate that binding too before indexing identity.
         if payload.get("schema") == rails.CAPTURE_SCHEMA:
             link = str(payload.get("tracking_link") or "").strip()
             link_sha = hashlib.sha256(link.encode("utf-8")).hexdigest() if link else ""
@@ -514,6 +514,26 @@ def load_identity_captures(
                 rails.validate_tracking_capture(payload)
                 if int(payload.get("tracking_clicks", -1)) != 0:
                     raise rails.RailError("rail_capture_tracking_clicks_not_zero")
+                # A descriptor hash does not bind a separately cited campaign.
+                # Self-contained rail captures retain their existing contract.
+                if any(key in payload for key in ("capture_path", "capture_sha256", "quote")):
+                    capture_rel = str(payload.get("capture_path") or "").strip()
+                    declared = str(payload.get("capture_sha256") or "").strip()
+                    quote = str(payload.get("quote") or "")
+                    identity = str(payload.get("immutable_id") or "").strip()
+                    if not (capture_rel and declared and quote.strip() and identity):
+                        raise rails.RailError("identity_capture_fields_incomplete")
+                    capture = BUSINESS / capture_rel
+                    try:
+                        source_bytes = capture.read_bytes()
+                    except OSError:
+                        raise rails.RailError(f"identity_capture_missing:{capture_rel}") from None
+                    if hashlib.sha256(source_bytes).hexdigest() != declared:
+                        raise rails.RailError(f"identity_capture_hash_drift:{capture_rel}")
+                    if not quote_binds_capture_bytes(quote, source_bytes.decode("utf-8", "replace")):
+                        raise rails.RailError(f"identity_capture_quote_not_in_bytes:{capture_rel}")
+                    if identity not in quote:
+                        raise rails.RailError(f"identity_capture_id_not_in_quote:{identity}")
             except (ValueError, TypeError, rails.RailError) as exc:
                 reject(path, str(exc), link_sha)
                 continue
