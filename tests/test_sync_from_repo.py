@@ -23,6 +23,43 @@ def checkout(tmp_path):
     subprocess.run(["git", "-C", str(repo), "add", "scripts/sample.py", "ops/rebuild-source-manifest.json"], check=True)
     return repo, root
 
+def test_reviewed_baseline_adoption_requires_historical_bytes(tmp_path, capsys):
+    repo, root = checkout(tmp_path)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c",
+                    "user.email=test@example.invalid", "commit", "-qm", "original"], check=True)
+    (repo / "scripts/sample.py").write_bytes(b"new\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["scripts/sample.py"]["sha256"] = digest(b"new\n")
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "scripts/sample.py", str(mpath)], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=Test", "-c",
+                    "user.email=test@example.invalid", "commit", "-qm", "reviewed update"], check=True)
+    (root / "scripts").mkdir()
+    local = root / "scripts/sample.py"
+    local.write_bytes(b"old\n")
+    assert sync(root, repo, False) == 2
+    assert sync(root, repo, False, ["scripts/sample.py"]) == 0
+    assert "DRY_RUN diffs=" in capsys.readouterr().out
+    local.write_bytes(b"UNREVIEWED\n")
+    assert sync(root, repo, True, ["scripts/sample.py"]) == 2
+    assert local.read_bytes() == b"UNREVIEWED\n"
+    local.write_bytes(b"old\n")
+    assert sync(root, repo, True, ["scripts/sample.py"]) == 0
+    assert local.read_bytes() == b"new\n"
+    assert sync(root, repo, False) == 0
+    assert "DRY_RUN diffs=0 conflicts=0" in capsys.readouterr().out
+    with pytest.raises(ValueError, match="absent from sync state"):
+        sync(root, repo, False, ["scripts/sample.py"])
+
+
+def test_reviewed_baseline_adoption_rejects_untracked_or_duplicate_paths(tmp_path):
+    repo, root = checkout(tmp_path)
+    for paths in (["scripts/other.py"], ["scripts/sample.py", "scripts/sample.py"]):
+        with pytest.raises(ValueError, match="unique curated path"):
+            sync(root, repo, False, paths)
+
+
 def test_initial_import_then_clean_dry_run(tmp_path, capsys):
     repo, root = checkout(tmp_path)
     assert sync(root, repo, True) == 0
