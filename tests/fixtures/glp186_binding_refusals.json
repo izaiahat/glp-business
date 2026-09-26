@@ -1,0 +1,64 @@
+[
+  {
+    "row": 660,
+    "source_sha256": "71b373caf1507e0fd33c8297c53b1e33b90ce2eba8de407c9c172ea8231445a9",
+    "receipt": {
+      "provider": "snagrx-review",
+      "verdict": "not_authored",
+      "failure_class": "capability",
+      "fit_verdict": "unknown",
+      "artifacts_written": [
+        "reports/glp-clinic-scout/affiliate-machine/onboarding-manifest/authoring/authoring-20260912T013909Z-snagrx-review-c1.json"
+      ],
+      "captures": [],
+      "steps_addressed": [],
+      "steps_not_addressed": [
+        {
+          "step": "program_authority",
+          "why": "Dispatch supplies no assigned Linear issue or SHA-bound brief review; current WORKER-STANDARD.md lines 58-61 require that binding before execution. Live Linear title search for snagrx returned no issues. Owner: orchestrator ruling and assignment."
+        }
+      ],
+      "notes": "Orchestrator must supply the assigned Linear issue and reviewed brief binding. This is an execution-authority blocker, not a finding that provider evidence is unpublished; capability is the closest available failure_class. No captures, classification, authority, builds, assessments, messages or deployments were performed. Supplied machine receipt is explicitly not recorded. Git inspection also returned fatal: not a git repository for /home/ubuntu/business."
+    }
+  },
+  {
+    "row": 689,
+    "source_sha256": "4d4e06b21ecb011d4782e54541860fe98e2cff6dfa1294ce42653fbed4f231a4",
+    "receipt": {
+      "provider": "lttl-glp-landing-page-2-review",
+      "verdict": "not_authored",
+      "failure_class": "capability",
+      "fit_verdict": "unknown",
+      "artifacts_written": [],
+      "captures": [],
+      "steps_addressed": [],
+      "steps_not_addressed": [
+        {
+          "step": "program_authority",
+          "why": "Dispatch supplies no assigned Linear child or sha-bound brief review; ops/linear/WORKER-STANDARD.md:58-61 requires that binding before work. Orchestrator ruling owns resolution."
+        }
+      ],
+      "notes": "BLOCKER cause:brief | missing assigned-child and reviewed-brief binding | orchestrator ruling. Missing machine receipt was explicitly '(not recorded)' in the dispatch. Capability denotes an execution-contract blocker, not missing published evidence or model exhaustion; a larger model alone will not clear it. No captures, classifier, validator, build, assessment, deployment, messages or further cycles were run. GLP-25 was read as current root only, not claimed as this worker's assignment."
+    }
+  },
+  {
+    "row": 692,
+    "source_sha256": "1f9eaf3b6d5aac1efda8d70279c4e3f5fa61e6828e8d1e0ebc66e6bf8c7ebe30",
+    "receipt": {
+      "provider": "joinskinny-semaglutide-glp-1-us-review",
+      "verdict": "not_authored",
+      "failure_class": "capability",
+      "fit_verdict": "unknown",
+      "artifacts_written": [],
+      "captures": [],
+      "steps_addressed": [],
+      "steps_not_addressed": [
+        {
+          "step": "program_authority",
+          "why": "Dispatch supplies no assigned Linear child, tier, or sha-bound brief review; ops/linear/WORKER-STANDARD.md:25,56-61 requires these before work. Orchestrator ruling owns resolution."
+        }
+      ],
+      "notes": "Live Linear read returned GLP-25 as the sole In Progress issue, an unassigned top-level issue. STATE.md's GLP-11 cursor is historical. The dispatch records its machine receipt as '(not recorded)'. Orchestrator must supply the assigned direct child and reviewed brief binding before resuming. Capability is used because this receipt schema has no scope/authorization failure class; provider evidence availability was not assessed. Do not escalate model capacity to resolve this condition. No messages, assessments, builds, deployments, captures, or provider-artifact edits were performed."
+    }
+  }
+]
