@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from typing import Callable
+from urllib.parse import urlsplit
 
 PUBLISHER_ID = "2979387"
 IDENTIFIER = "ops@glpclinicscout.com"  # nonsecret account identifier
@@ -75,13 +76,30 @@ def finish(page_info: Callable, js: Callable, wait_for_load: Callable,
         raise LoginBoundaryError("password_step_not_completed_or_challenge")
     if not url.startswith("https://ui.awin.com/"):
         raise LoginBoundaryError("unexpected_post_login_origin")
+    return verify_directory(page_info, js, wait_for_load, goto_url)
+
+
+def verify_directory(page_info: Callable, js: Callable, wait_for_load: Callable,
+                     goto_url: Callable) -> dict:
+    """Read-only readiness check, also usable after a vault-managed MFA step."""
     goto_url(DIRECTORY)
     wait_for_load()
-    if not str(page_info().get("url", "")).startswith(DIRECTORY):
+    return read_directory(page_info, js)
+
+
+def read_directory(page_info: Callable, js: Callable) -> dict:
+    """No navigation or clicks: safe bounded hydration recheck, never a login retry."""
+    url = urlsplit(str(page_info().get("url", "")))
+    expected = urlsplit(DIRECTORY)
+    if (url.scheme, url.netloc, url.path) != (expected.scheme, expected.netloc, expected.path):
         raise LoginBoundaryError("directory_readback_required")
     body = str(js("document.body?.innerText||''"))
     if not re.search(r"Tilton Group\s*\(\s*2979387\s*\)", body):
         raise LoginBoundaryError("publisher_identity_not_verified")
+    if not (re.search(r"\bAdvertisers\b", body) and
+            re.search(r"\bResults\s*\(\s*[0-9][0-9,+\s]*\)", body)):
+        raise LoginBoundaryError("directory_controls_not_ready")
     return {"authenticated": True, "publisher_id": PUBLISHER_ID,
             "account_name": "Tilton Group", "directory_url": DIRECTORY,
+            "directory_ready": True,
             "secret_printed": False, "provider_writes": 0, "tracking_clicks": 0}

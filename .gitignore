@@ -234,6 +234,17 @@
 !/tests/test_subscription_capacity_monitor.py
 !/tests/test_sync_from_repo.py
 
+!/ops/awin-fresh-preflight.candidate.json
+!/ops/awin-fresh-preflight.md
+!/scripts/awin_fresh_preflight.py
+!/scripts/marketplace_adapters/
+/scripts/marketplace_adapters/*
+!/scripts/marketplace_adapters/__init__.py
+!/scripts/marketplace_adapters/portal_apply.py
+!/scripts/marketplace_adapters/awin.py
+!/scripts/marketplace_adapters/_base.py
+!/tests/test_awin_fresh_preflight.py
+
 **/.env*
 **/secrets/
 **/credentials/
