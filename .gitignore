@@ -132,6 +132,9 @@
 !/scripts/glp_affiliate_link_rot.py
 !/scripts/glp_affiliate_reconciliation_honesty.py
 !/scripts/glp_affiliate_weekly_reporting_job.py
+!/scripts/glp_affiliate_weekly_reporting.py
+!/scripts/glp_network_revenue_v2.py
+!/tests/test_glp319_incomplete_period.py
 !/scripts/glp_affiliate_wire_backlog_daily.py
 !/scripts/glp_affiliate_wire_backlog_worker.py
 !/scripts/glp_evidence_refresh_cycle.py
