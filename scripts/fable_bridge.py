@@ -7,6 +7,7 @@ to the exact source message. It runs in tmux session ``claude-fable``.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -20,8 +21,10 @@ import sys
 import tempfile
 import time
 import uuid
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
@@ -34,6 +37,8 @@ AUTHOR_ID_FILE = Path("/home/ubuntu/.hermes/secrets/fable-discord/author_id")
 AUTHORITY_CONFIG = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json")
 SID_FILE = Path("/home/ubuntu/business/reports/claude-audit-20260707/fable-console-session-id.txt")
 STATE = Path("/home/ubuntu/business/reports/claude-audit-20260707/fable-bridge-state.json")
+ISSUE_DIR = Path("/home/ubuntu/business/reports/boring-ai/bridge-authority-issues")
+ARTIFACT_ROOT = Path("/home/ubuntu/business/reports/ops")
 LOG = Path("/home/ubuntu/business/reports/claude-audit-20260707/fable-bridge.log")
 BRIDGE_TEST_MARKER = "[FABLE_BRIDGE_TEST]"
 REVIEW_REQUEST_MARKER = "TRUE-BRIDGE FABLE REVIEW REQUEST"
@@ -271,11 +276,13 @@ def _usage_exhausted(threshold: float) -> bool:
     return False
 
 
-def _included_quota_available() -> bool:
-    """Extra credits are test-only: require fresh included quota before inference."""
+def _included_quota_available(snapshot: dict[str, Any] | None = None) -> bool:
+    """Require current, positive included session AND weekly capacity."""
     try:
-        snapshot = json.loads(Path("/home/ubuntu/business/ops/subscription-capacity/latest.json").read_text())
-        from datetime import datetime, timezone
+        if snapshot is None:
+            snapshot = json.loads(Path("/home/ubuntu/business/ops/subscription-capacity/latest.json").read_text())
+        if not isinstance(snapshot, dict):
+            return False
         observed = datetime.fromisoformat(snapshot["collected_at_utc"].replace("Z", "+00:00"))
         age = (datetime.now(timezone.utc) - observed).total_seconds()
         return 0 <= age <= 600 and any(
@@ -285,8 +292,20 @@ def _included_quota_available() -> bool:
             and float(row.get("session_remaining_pct") or 0) > 0
             for row in snapshot["records"]
         )
-    except (OSError, KeyError, ValueError, TypeError):
+    except (OSError, KeyError, ValueError, TypeError, AttributeError):
         return False
+
+
+def refresh_included_capacity() -> dict[str, Any]:
+    """Use the existing read-only collector, not cached/reset or paid capacity."""
+    scripts = Path("/home/ubuntu/business/scripts")
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    from subscription_capacity_monitor import collect_monitored_capacity
+    report = collect_monitored_capacity(now=datetime.now(timezone.utc))
+    return {"collected_at_utc": report.collected_at_utc,
+            "records": [row.to_dict() for row in report.records
+                        if row.provider == "anthropic" and row.source == "oauth_usage_api"]}
 
 
 def _design_review(kind: str, text: str) -> bool:
@@ -378,7 +397,7 @@ def validate_startup_identity() -> str:
     return actual
 
 
-def post(content: str, *, reply_to_message_id: str) -> str:
+def post(content: str, *, reply_to_message_id: str, nonce: str | None = None) -> str:
     reply = content.strip() or "(Fable returned no output; no authority decision was issued.)"
     if len(reply) > MAX_REPLY_CHARS:
         reply = "(Fable response exceeded the single-message safety limit; no authority decision was issued.)"
@@ -390,7 +409,7 @@ def post(content: str, *, reply_to_message_id: str) -> str:
             "fail_if_not_exists": True,
         },
         "allowed_mentions": {"parse": [], "replied_user": False},
-        "nonce": reply_to_message_id,
+        "nonce": nonce or reply_to_message_id,
         "enforce_nonce": True,
     }
     result = api("POST", f"/channels/{CHANNEL}/messages", body)
@@ -412,6 +431,18 @@ def save_state(value: dict[str, Any]) -> None:
     temporary = STATE.with_suffix(STATE.suffix + ".tmp")
     temporary.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, STATE)
+
+
+@contextmanager
+def bridge_state_lock():
+    """Share one inode across daemon and exact-request resume; never unlink it."""
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    with STATE.with_suffix(STATE.suffix + ".lock").open("a+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _structured_self_mention(message: dict[str, Any]) -> bool:
@@ -487,6 +518,8 @@ def top_stakes_category(kind: str, text: str) -> str | None:
 
 def review_action(
     kind: str, text: str, *, source_message_id: str, receipt: dict[str, Any] | None = None,
+    capacity_snapshot: dict[str, Any] | None = None,
+    before_invoke: Callable[[], None] | None = None,
 ) -> tuple[str, str]:
     """Return ``(mode, reply)`` while preventing top-stakes in-place decisions."""
     category = top_stakes_category(kind, text)
@@ -502,11 +535,14 @@ def review_action(
         ]), identity)
     if receipt is None:
         return "model", ask_fable(kind, text)
-    return "model", ask_fable(kind, text, receipt=receipt)
+    return "model", ask_fable(kind, text, receipt=receipt,
+                              capacity_snapshot=capacity_snapshot, before_invoke=before_invoke)
 
 
 def _invoke_reviewer(
     backend: tuple[str, str, str], prompt: str, receipt: dict[str, Any], deadline: float,
+    *, capacity_snapshot: dict[str, Any] | None = None,
+    before_invoke: Callable[[], None] | None = None,
 ) -> tuple[str, bool]:
     name, model, effort = backend
     identity = "fable-xhigh" if name == "fable" else "astra-standin (claude_exhausted)"
@@ -516,7 +552,7 @@ def _invoke_reviewer(
     try:
         with tempfile.TemporaryDirectory(prefix="fable-bridge-review-") as directory:
             if name == "fable":
-                if not _included_quota_available():
+                if not _included_quota_available(capacity_snapshot):
                     attempt["status"] = "included_capacity_unverified_or_depleted"
                     return "(Included Claude quota unavailable or unverified; no authority decision was issued.)", True
                 native_id = _native_session_id(SESSION_ID)
@@ -547,6 +583,8 @@ def _invoke_reviewer(
                 raise subprocess.TimeoutExpired(command, 0)
             log(f"reviewer_cli_start backend={name} model={model} effort={effort}")
             attempt["invoked"] = True
+            if before_invoke is not None:
+                before_invoke()  # Durable claim before an uncertain external inference.
             result = subprocess.run(
                 command, capture_output=True, text=True, timeout=remaining,
                 cwd="/home/ubuntu/business",
@@ -578,7 +616,9 @@ def _invoke_reviewer(
         return "(Reviewer backend unavailable; no authority decision was issued.)", False
 
 
-def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None) -> str:
+def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None,
+              capacity_snapshot: dict[str, Any] | None = None,
+              before_invoke: Callable[[], None] | None = None) -> str:
     record = receipt if receipt is not None else {}
     record.update(reviewer_identity="none (model_policy_unavailable)", attempts=[])
     deadline = time.monotonic() + 1200
@@ -586,8 +626,10 @@ def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None) ->
     try:
         design = _design_review(kind, text)
         backend = select_backend(design_review=design)
-        output, exhausted = _invoke_reviewer(backend, prompt, record, deadline)
-        if exhausted and not design:
+        output, exhausted = _invoke_reviewer(backend, prompt, record, deadline,
+                                             capacity_snapshot=capacity_snapshot,
+                                             before_invoke=before_invoke)
+        if exhausted and not design and before_invoke is None:
             backend = select_backend(claude_exhausted=True)
             output, _ = _invoke_reviewer(backend, prompt, record, deadline)
     except Exception as error:
@@ -600,6 +642,212 @@ def _request_stop(signum: int, frame: Any) -> None:
     """Drain the current message, including its post/receipt, before exiting."""
     global STOP_REQUESTED
     STOP_REQUESTED = True
+
+
+def _exact_message(message_id: str) -> dict[str, Any]:
+    message = api("GET", f"/channels/{CHANNEL}/messages/{message_id}")
+    if not isinstance(message, dict) or str(message.get("id")) != message_id:
+        raise RuntimeError("exact_message_readback_failed")
+    return message
+
+
+def _only_original_refusal(source_id: str, refusal_id: str) -> None:
+    """Fail closed on later replies or incomplete newest-first history."""
+    # Discord `after` can return the newest page, silently skipping intervening
+    # decision replies. Walk backwards from the current snowflake instead.
+    cursor = ((int(time.time() * 1000) - 1420070400000) << 22) | 0x3fffff
+    seen = False
+    for _ in range(100):
+        page = api("GET", f"/channels/{CHANNEL}/messages?before={cursor}&limit=100")
+        if not isinstance(page, list):
+            raise RuntimeError("reply_history_unavailable")
+        if not page:
+            raise RuntimeError("reply_history_incomplete")
+        ids = [int(item["id"]) for item in page]
+        if max(ids) >= cursor or len(ids) != len(set(ids)):
+            raise RuntimeError("reply_history_nonmonotonic")
+        for item in page:
+            if int(item["id"]) <= int(source_id):
+                continue
+            if str((item.get("message_reference") or {}).get("message_id")) != source_id:
+                continue
+            if str((item.get("author") or {}).get("id")) == SELF_ID:
+                if str(item["id"]) != refusal_id or seen:
+                    raise RuntimeError("additional_reviewer_reply_present")
+                seen = True
+            else:
+                raise RuntimeError("other_source_reply_present")
+        cursor = min(ids)
+        if cursor <= int(source_id):
+            if not seen:
+                raise RuntimeError("original_refusal_not_in_history")
+            return
+    raise RuntimeError("reply_history_incomplete")
+
+
+def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str) -> dict[str, Any]:
+    """One exact registered request; no cursor rewind, repost or second inference."""
+    if not re.fullmatch(r"[0-9]{17,20}", source_id) or not re.fullmatch(
+        r"bridge-issue-[a-f0-9]{32}", issue_id
+    ) or not re.fullmatch(r"[a-f0-9]{64}", tuple_sha256):
+        raise RuntimeError("resume_identity_invalid")
+    if SELF_ID != expected_author_id() or SELF_ID == KAEL_BOT_ID:
+        raise RuntimeError("independent_signer_mismatch")
+    issue_path = ISSUE_DIR / f"{issue_id}.json"
+    with bridge_state_lock():
+        state = load_state()
+        receipts = state.get("reviewer_receipts")
+        receipt = receipts.get(source_id) if isinstance(receipts, dict) else None
+        if (not isinstance(receipt, dict) or receipt.get("source_message_id") != source_id
+                or receipt.get("kind") != "review_request" or receipt.get("mode") != "model"
+                or receipt.get("posting") != "posted" or receipt.get("resume") is not None
+                or not isinstance(state.get("last_id"), str)
+                or int(state["last_id"]) < int(source_id)):
+            raise RuntimeError("resume_receipt_not_eligible")
+        attempts = receipt.get("attempts")
+        if (not isinstance(attempts, list) or len(attempts) != 1
+                or not isinstance(attempts[0], dict) or attempts[0] != {
+                    "backend": "fable", "model": "claude-fable-5-1", "effort": "xhigh",
+                    "invoked": False, "status": "included_capacity_unverified_or_depleted",
+                } or receipt.get("reviewer_identity") != "fable-xhigh"
+                or receipt.get("backend") != "fable" or receipt.get("model") != "claude-fable-5-1"
+                or receipt.get("effort") != "xhigh"):
+            raise RuntimeError("resume_not_preinvocation_quota_refusal")
+        refusal_id = str(receipt.get("posted_message_id") or "")
+        if not refusal_id.isdigit():
+            raise RuntimeError("original_refusal_unbound")
+        issue = json.loads(issue_path.read_text())
+        issue_body = {key: value for key, value in issue.items() if key != "record_sha256"}
+        issue_hash = hashlib.sha256(json.dumps(issue_body, sort_keys=True, separators=(",", ":"),
+                                               ensure_ascii=False).encode("utf-8")).hexdigest()
+        if (issue.get("schema") != "boring_ai_bridge_request_issue_v2"
+                or issue.get("record_sha256") != issue_hash
+                or issue.get("status") != "BOUND"
+                or issue.get("issue_id") != issue_id
+                or issue.get("request_message_id") != source_id
+                or issue.get("channel_id") != CHANNEL
+                or issue.get("request_author_id") != KAEL_BOT_ID
+                or issue.get("tuple_sha256") != tuple_sha256
+                or issue.get("review_artifact_sha256") != tuple_sha256):
+            raise RuntimeError("issue_identity_or_status_changed")
+        content = issue.get("request_content")
+        artifact = Path(issue.get("review_artifact_path", ""))
+        if (not isinstance(content, str)
+                or hashlib.sha256(content.encode()).hexdigest() != issue.get("request_content_sha256")
+                or not artifact.resolve(strict=True).is_relative_to(ARTIFACT_ROOT.resolve())
+                or hashlib.sha256(artifact.read_bytes()).hexdigest() != tuple_sha256
+                or f"<@{SELF_ID}> {REVIEW_REQUEST_MARKER}" not in content
+                or f"issue_id: {issue_id}" not in content
+                or f"tuple_sha256: {tuple_sha256}" not in content
+                or f"review_artifact_sha256: {tuple_sha256}" not in content):
+            raise RuntimeError("request_or_artifact_drift")
+        message = _exact_message(source_id)
+        if (message.get("content") != content or message.get("edited_timestamp") is not None
+                or message.get("timestamp") != issue.get("request_timestamp")
+                or str(message.get("author", {}).get("id")) != KAEL_BOT_ID
+                or classify_message(message) is None
+                or classify_message(message)[0] != "review_request"):
+            raise RuntimeError("request_message_drift")
+        refusal = _exact_message(refusal_id)
+        refusal_content = refusal.get("content")
+        if (not isinstance(refusal_content, str)
+                or str(refusal.get("author", {}).get("id")) != SELF_ID
+                or str(refusal.get("message_reference", {}).get("message_id")) != source_id
+                or refusal.get("edited_timestamp") is not None
+                or len(refusal_content) != receipt.get("reply_chars")
+                or hashlib.sha256(refusal_content.encode()).hexdigest() != receipt.get("reply_sha256")
+                or "no authority decision was issued" not in refusal_content
+                or "ACCEPT" in refusal_content):
+            raise RuntimeError("original_refusal_drift_or_decision")
+        _only_original_refusal(source_id, refusal_id)
+        kind, text = classify_message(message)  # same normal bridge classification
+        if top_stakes_category(kind, text) is not None or not _design_review(kind, text):
+            raise RuntimeError("request_routing_changed")
+        backend = select_backend(design_review=True)
+        if backend != ("fable", "claude-fable-5-1", "xhigh"):
+            raise RuntimeError("reviewer_model_changed")
+
+        def revalidate_bound_source() -> None:
+            # Capacity collection and inference block while independent senders
+            # can reply. Recheck the original bindings and complete history at
+            # both external-effect boundaries; the state lock is only local.
+            if json.loads(issue_path.read_text()) != issue:
+                raise RuntimeError("issue_identity_or_status_changed")
+            if (not artifact.resolve(strict=True).is_relative_to(ARTIFACT_ROOT.resolve())
+                    or hashlib.sha256(artifact.read_bytes()).hexdigest() != tuple_sha256):
+                raise RuntimeError("request_or_artifact_drift")
+            current = _exact_message(source_id)
+            current_classification = classify_message(current)
+            if (current.get("content") != content or current.get("edited_timestamp") is not None
+                    or current.get("timestamp") != issue.get("request_timestamp")
+                    or str(current.get("author", {}).get("id")) != KAEL_BOT_ID
+                    or current_classification is None
+                    or current_classification[0] != "review_request"):
+                raise RuntimeError("request_message_drift")
+            current_refusal = _exact_message(refusal_id)
+            current_content = current_refusal.get("content")
+            if (not isinstance(current_content, str)
+                    or str(current_refusal.get("author", {}).get("id")) != SELF_ID
+                    or str(current_refusal.get("message_reference", {}).get("message_id")) != source_id
+                    or current_refusal.get("edited_timestamp") is not None
+                    or len(current_content) != receipt.get("reply_chars")
+                    or hashlib.sha256(current_content.encode()).hexdigest() != receipt.get("reply_sha256")
+                    or "no authority decision was issued" not in current_content
+                    or "ACCEPT" in current_content):
+                raise RuntimeError("original_refusal_drift_or_decision")
+            _only_original_refusal(source_id, refusal_id)
+
+        snapshot = refresh_included_capacity()
+        if not _included_quota_available(snapshot):
+            raise RuntimeError("fresh_positive_included_capacity_required")
+        revalidate_bound_source()  # Before reserving and invoking the reviewer.
+        # The claim precedes every possible invocation. Unknown/crashed claims never retry.
+        resumed: dict[str, Any] = {"status": "reserved", "issue_id": issue_id,
+            "tuple_sha256": tuple_sha256, "original_refusal_message_id": refusal_id,
+            "nonce": source_id + "-r1", "attempts": [], "posting": "not_prepared"}
+        receipt["resume"] = resumed
+        save_state(state)
+
+        def claim_invocation() -> None:
+            resumed["status"] = "invocation_reserved"
+            resumed["attempts"] = list(review_receipt.get("attempts", []))
+            save_state(state)
+
+        review_receipt: dict[str, Any] = {}
+        mode, reply = review_action(kind, text, source_message_id=source_id,
+                                    receipt=review_receipt, capacity_snapshot=snapshot,
+                                    before_invoke=claim_invocation)
+        resumed.update(mode=mode, reviewer_identity=review_receipt.get("reviewer_identity"),
+                       attempts=review_receipt.get("attempts", []),
+                       reply_chars=len(reply), reply_sha256=hashlib.sha256(reply.encode()).hexdigest())
+        if (mode != "model" or review_receipt.get("reviewer_identity") != "fable-xhigh"
+                or review_receipt.get("backend") != "fable"
+                or len(resumed["attempts"]) != 1
+                or resumed["attempts"][0].get("invoked") is not True
+                or resumed["attempts"][0].get("status") != "ok"):
+            resumed["status"] = "no_inference"
+            save_state(state)
+            raise RuntimeError("resume_no_safe_inference")
+        resumed.update(status="reply_prepared", posting="prepared")
+        save_state(state)
+        try:
+            revalidate_bound_source()  # Immediately before the outbound reply.
+        except Exception:
+            # Inference may already have occurred. Retain its terminal claim;
+            # withholding the reply must never make this request replayable.
+            resumed.update(status="reply_withheld_reconciliation", posting="withheld")
+            save_state(state)
+            raise
+        try:
+            posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"])
+        except Exception:
+            resumed.update(status="post_failed_or_ambiguous", posting="failed_or_ambiguous")
+            save_state(state)
+            raise
+        resumed.update(status="posted", posting="posted", posted_message_id=posted)
+        save_state(state)
+        return {"source_message_id": source_id, "posted_message_id": posted,
+                "reviewer_identity": resumed["reviewer_identity"], "status": "posted"}
 
 
 def main() -> None:
@@ -624,40 +872,44 @@ def main() -> None:
     log(f"bridge_up identity={SELF_ID} channel={CHANNEL} session_configured=true")
 
     while not STOP_REQUESTED:
-        messages = api("GET", f"/channels/{CHANNEL}/messages?after={state['last_id']}&limit=10")
-        if messages:
-            for message in sorted(messages, key=lambda item: int(item["id"])):
-                if STOP_REQUESTED:
-                    break
-                state["last_id"] = message["id"]
-                save_state(state)
-                classified = classify_message(message)
-                if classified is None:
-                    continue
-                kind, text = classified
-                log(f"inbound kind={kind} author={message.get('author', {}).get('id')} message={message['id']}")
-                source_id = str(message["id"])
-                receipt: dict[str, Any] = {"source_message_id": source_id, "kind": kind}
-                action_mode, reply = review_action(kind, text, source_message_id=source_id, receipt=receipt)
-                receipt.update(
-                    mode=action_mode, reply_chars=len(reply),
-                    reply_sha256=hashlib.sha256(reply.encode("utf-8")).hexdigest(),
-                    posting="prepared", posted_message_id=None,
-                )
-                receipts = state.setdefault("reviewer_receipts", {})
-                if not isinstance(receipts, dict):
-                    raise RuntimeError("reviewer_receipts_invalid")
-                receipts[source_id] = receipt
-                save_state(state)
-                try:
-                    posted = post(reply, reply_to_message_id=source_id)
-                except Exception:
-                    receipt["posting"] = "failed_or_ambiguous"
+        with bridge_state_lock():
+            state = load_state()  # Resume may have amended a receipt since the last poll.
+            messages = api("GET", f"/channels/{CHANNEL}/messages?after={state['last_id']}&limit=10")
+            if messages:
+                for message in sorted(messages, key=lambda item: int(item["id"])):
+                    if STOP_REQUESTED:
+                        break
+                    state["last_id"] = message["id"]
                     save_state(state)
-                    raise
-                receipt.update(posting="posted", posted_message_id=posted)
-                save_state(state)
-                log(f"outbound kind={kind} mode={action_mode} chars={len(reply)} message={posted} reviewer_identity={receipt['reviewer_identity']}")
+                    classified = classify_message(message)
+                    if classified is None:
+                        continue
+                    kind, text = classified
+                    log(f"inbound kind={kind} author={message.get('author', {}).get('id')} message={message['id']}")
+                    source_id = str(message["id"])
+                    if source_id in state.get("reviewer_receipts", {}):
+                        raise RuntimeError("already_receipted_source_message")
+                    receipt: dict[str, Any] = {"source_message_id": source_id, "kind": kind}
+                    action_mode, reply = review_action(kind, text, source_message_id=source_id, receipt=receipt)
+                    receipt.update(
+                        mode=action_mode, reply_chars=len(reply),
+                        reply_sha256=hashlib.sha256(reply.encode("utf-8")).hexdigest(),
+                        posting="prepared", posted_message_id=None,
+                    )
+                    receipts = state.setdefault("reviewer_receipts", {})
+                    if not isinstance(receipts, dict):
+                        raise RuntimeError("reviewer_receipts_invalid")
+                    receipts[source_id] = receipt
+                    save_state(state)
+                    try:
+                        posted = post(reply, reply_to_message_id=source_id)
+                    except Exception:
+                        receipt["posting"] = "failed_or_ambiguous"
+                        save_state(state)
+                        raise
+                    receipt.update(posting="posted", posted_message_id=posted)
+                    save_state(state)
+                    log(f"outbound kind={kind} mode={action_mode} chars={len(reply)} message={posted} reviewer_identity={receipt['reviewer_identity']}")
         if not STOP_REQUESTED:
             time.sleep(5)
 
@@ -672,5 +924,17 @@ if __name__ == "__main__":
         ])
         sys.argv = ["hermes", *sys.argv[2:]]
         hermes_main()
+    elif sys.argv[1:2] == ["--resume-preinvocation-quota"]:
+        if len(sys.argv) != 5:
+            raise SystemExit("usage: fable_bridge.py --resume-preinvocation-quota REQUEST_ID ISSUE_ID TUPLE_SHA256")
+        TOKEN = token()
+        HTTP = requests.Session()
+        HTTP.headers.update({"Authorization": "Bot " + TOKEN,
+                             "User-Agent": "DiscordBot (https://tryboringai.com, 2.0) fable-bridge"})
+        SESSION_ID = SID_FILE.read_text(encoding="utf-8").strip()
+        if not SESSION_ID:
+            raise RuntimeError("fable_session_id_missing")
+        SELF_ID = validate_startup_identity()
+        print(json.dumps(resume_preinvocation_quota(*sys.argv[2:]), sort_keys=True))
     else:
         main()
