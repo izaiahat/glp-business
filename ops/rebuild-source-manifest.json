@@ -147,7 +147,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "7cfce61e8b3a8c43b4ae025e320ec62b979eecad66d9c639fba47c86cf1df5ca"
+      "sha256": "2a037a7f9ef0f3d53d227a2c4bc37202a9d697c84f79a0dce5d5c656d577b753"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -1059,7 +1059,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "b265edecd2ae0eb54617d1b1886bb754fc77a898c175803aadba5f5672a6f941"
+      "sha256": "9103e2172c012f29be18bc9d95f0a8acc27957d60022c9f3c56ed366480890d3"
     },
     "scripts/glp_weekly_seo_ranking_report.py": {
       "callers": [
@@ -1776,7 +1776,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "8c14980bb1247ac1418cfc4b25bb768bcbafeb38dee4be0b38225fb8f8e8fee2"
+      "sha256": "0338a329608636c8083f323e98e7797734fba66fe0a527c4248438f1f2b175e8"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [

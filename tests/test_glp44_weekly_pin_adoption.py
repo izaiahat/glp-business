@@ -1,7 +1,7 @@
 """Offline verification of the PR #49 pin closure; never invoke weekly main.
 
 Uncurated host dependencies are not fabricated: the functional fixture scopes
-pins to the two adopted sources. The separate binding test checks the real full
+pins to the three adopted sources. The separate binding test checks the real full
 manifest hash against the unchanged script's literal PIN_SHA256.
 """
 import hashlib
@@ -13,7 +13,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 LIVE = Path('/home/ubuntu/business')
-SOURCES = ('ops/glp/seo_data_rails.py', 'scripts/glp_weekly_seo_ranking_report.py')
+SOURCES = ('ops/glp/seo_data_rails.py', 'scripts/glp_weekly_seo_ranking_report.py',
+           'ops/glp/seo_business_context.py')
 
 
 def load_analysis():
