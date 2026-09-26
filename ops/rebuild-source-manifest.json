@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8733107d6483533d43a6c2e020e410a0ceedeba369247af89a8756cd8e229995"
+      "sha256": "a94397856974cd0ea70905dae6f4f31e45ed3667ed1be30f095f42e277f41c26"
     },
     ".hermes.md": {
       "callers": [],
@@ -1058,7 +1058,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99f1aa330e92891398828d1362db66882fae9a952a133dcc2a4a54a14b2b9f41"
+      "sha256": "aa300e79d2a5aa7debf241e83697cb6250d09a9916efbeb6b7a2fd51e7502dfe"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1840,6 +1840,21 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+    },
+    "scripts/awin_pin_release.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "fdacf59a7faf9c45d396da87b15aaed2e2ce83878fe3ec712da80fc725d730c4"
+    },
+    "scripts/pin_drift_report.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "48b514394afb45bf255df2b765d27251bfa409e3d124e8c5a9e0ec69de90dfa5"
+    },
+    "tests/test_awin_pin_shell_conventions.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "713ad18d0430268e8274ac4af853b798b603ae5f2ce13cb83e251ce127f8f8e9"
     }
   },
   "omitted_runtime_inputs": [
@@ -1850,5 +1865,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 281
+  "tracked_count": 284
 }

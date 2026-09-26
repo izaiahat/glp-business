@@ -153,6 +153,8 @@
 !/scripts/linear_state_reconciler.py
 !/scripts/loom_delivery_rails.py
 !/scripts/result_contract.py
+!/scripts/awin_pin_release.py
+!/scripts/pin_drift_report.py
 !/scripts/run_tests.sh
 !/scripts/state_guard.py
 !/scripts/subscription_capacity_monitor.py
@@ -175,6 +177,7 @@
 !/tests/test_audit_20260916_gates.py
 !/tests/test_brief_lint_deep.py
 !/tests/test_brief_lint_short.py
+!/tests/test_awin_pin_shell_conventions.py
 !/tests/test_awin_application_fit_exclusions.py
 !/tests/test_capacity_pacing.py
 !/tests/test_cron_applications_note_reconcile.py
