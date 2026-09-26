@@ -27,12 +27,16 @@ fi
 exec 9>/home/ubuntu/.hermes/state/glp-affiliate-approval-reconciler.lock
 chmod 600 /home/ubuntu/.hermes/state/glp-affiliate-approval-reconciler.lock
 flock -n 9 || exit 0
-invitation_output="$(/usr/bin/python3.12 scripts/affiliate_application_invitation_reconciler.py)" || {
-  rc=$?; [[ -z "$invitation_output" ]] || printf '%s\n' "$invitation_output"; exit "$rc"
+invitation_output="$(/usr/bin/python3.12 scripts/affiliate_application_invitation_reconciler.py 2>/dev/null)" || {
+  rc=$?
+  printf '⚠️ **Affiliate Reconciler** — invitation child failed (exit %s)\n→ Inspect the private reconciler receipt and child logs; no success heartbeat was emitted.\n' "$rc"
+  exit "$rc"
 }
 [[ -z "$invitation_output" ]] || printf '%s\n' "$invitation_output"
-approval_output="$(/usr/bin/python3.12 scripts/affiliate_approval_auto_reconciler.py)" || {
-  rc=$?; [[ -z "$approval_output" ]] || printf '%s\n' "$approval_output"; exit "$rc"
+approval_output="$(/usr/bin/python3.12 scripts/affiliate_approval_auto_reconciler.py 2>/dev/null)" || {
+  rc=$?
+  printf '⚠️ **Affiliate Reconciler** — approval child failed (exit %s)\n→ Inspect the private reconciler receipt and child logs; no success heartbeat was emitted.\n' "$rc"
+  exit "$rc"
 }
 [[ -z "$approval_output" ]] || printf '%s\n' "$approval_output"
 if [[ -z "$invitation_output" && -z "$approval_output" ]]; then
