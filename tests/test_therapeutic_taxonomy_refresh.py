@@ -270,4 +270,3 @@ def test_capture_still_refuses_untrusted_responses(producer, monkeypatch, tmp_pa
     monkeypatch.setattr(producer.urllib.request, 'urlopen', lambda *a, **k: Response())
     with pytest.raises(ValueError, match='cached_response_refused|source_host_changed|capture_failed_or_empty|stale_cache_refused'):
         producer.capture('https://example.invalid/', tmp_path / 'fixture.json')
-

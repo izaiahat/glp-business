@@ -1,5 +1,5 @@
 {
-  "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
+  "description": "Explicit curated source snapshot; no runtime state, portal exports, candidate registry, generated site or reports/history. The only nested candidate files are the explicitly allowlisted taxonomy refresher and its policy. Source hashes identify import provenance, not runtime deployment.",
   "files": {
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -2019,7 +2019,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "446bd042c25e3bea5372231c4d7bbf23deac64012adede54e1b15a79059e0c41"
+      "sha256": "c5b26e58bb6eab3ed8c8b8a46e918a1b6dfc943ea17183872eadbe2a566e3d7a"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
