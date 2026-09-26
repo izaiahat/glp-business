@@ -25,6 +25,10 @@ workflow: always preview first, then apply.
      Exit 2 (REFUSED) means local edits conflict; resolve them before applying.
   2. python3 scripts/sync_from_repo.py --apply
      Rechecks every hash and writes only the paths the dry run reported.
+For a preexisting curated file absent from sync state, explicitly pass
+--adopt-reviewed-baseline PATH on BOTH commands. Its live bytes must match an
+older committed revision of that path in the reviewed checkout; arbitrary
+local edits and files with an existing baseline still refuse.
 """
 
 
@@ -42,7 +46,21 @@ def safe(root, rel):
     return q
 
 
-def sync(root, checkout, apply):
+def reviewed_prior_hashes(checkout, rel):
+    """Hashes of older committed versions, never working-tree or current HEAD bytes."""
+    commits = subprocess.check_output(
+        ["git", "-C", str(checkout), "log", "--format=%H", "HEAD", "--", rel],
+        text=True,
+    ).splitlines()
+    return {
+        hashlib.sha256(subprocess.check_output(
+            ["git", "-C", str(checkout), "show", f"{commit}:{rel}"]
+        )).hexdigest()
+        for commit in commits[1:]
+    }
+
+
+def sync(root, checkout, apply, adopt_reviewed_baseline=()):
     root = root.resolve(strict=True)
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":
@@ -64,6 +82,12 @@ def sync(root, checkout, apply):
     previous = state.get("hashes", {})
     if not isinstance(previous, dict):
         raise ValueError("invalid sync state")
+    adopted = set(adopt_reviewed_baseline)
+    if len(adopted) != len(tuple(adopt_reviewed_baseline)) or any(
+        p not in files or p in previous or p == MANIFEST for p in adopted
+    ):
+        raise ValueError("adoption requires a unique curated path absent from sync state")
+    prior_hashes = {p: reviewed_prior_hashes(checkout, p) for p in adopted}
     stale = sorted(set(previous) - set(target_hashes))
     changed, conflicts, retirement_moves, expected = [], [], {}, {}
     for p in sorted(set(target_hashes) | set(stale)):
@@ -90,7 +114,7 @@ def sync(root, checkout, apply):
                 conflicts.append(p)
             else:
                 changed.append(p)
-        elif current is None:
+        elif current is None or (p in adopted and current in prior_hashes[p]):
             changed.append(p)
         else:
             conflicts.append(p)
@@ -151,14 +175,16 @@ def main():
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--checkout", type=Path, help="local reviewed Git checkout for offline verification")
+    parser.add_argument("--adopt-reviewed-baseline", action="append", default=[], metavar="PATH",
+                        help="adopt a preexisting file only if bytes match a prior committed revision")
     args = parser.parse_args()
     if args.apply == args.dry_run:
         parser.error("choose exactly one of --dry-run or --apply")
     if args.checkout:
-        return sync(args.root, args.checkout.resolve(strict=True), args.apply)
+        return sync(args.root, args.checkout.resolve(strict=True), args.apply, args.adopt_reviewed_baseline)
     with tempfile.TemporaryDirectory(prefix="glp-business-sync-") as temp:
-        subprocess.run(["git", "clone", "--quiet", "--depth", "1", "--branch", "main", REMOTE, temp + "/repo"], check=True)
-        return sync(args.root, Path(temp) / "repo", args.apply)
+        subprocess.run(["git", "clone", "--quiet", "--branch", "main", REMOTE, temp + "/repo"], check=True)
+        return sync(args.root, Path(temp) / "repo", args.apply, args.adopt_reviewed_baseline)
 
 
 if __name__ == "__main__":

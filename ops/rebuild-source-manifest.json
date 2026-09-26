@@ -213,7 +213,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "c3ff9584426b1a00377e0c9ad7ae62c864d6108e7db525017ebf4b4fcefc012d"
+      "sha256": "d4b3a378c34013adcc65909b52b7973890b8b8523e8f5f887a5f3ea01fcf286e"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1018,7 +1018,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "53546568e6527dfcb0eddfff5811c2d66cd8be8ce6fb1af357dfc3f7be314333"
+      "sha256": "6cec0469041d03e0672d23f870e18c172f27722c6e2f3af17e63bbeef8a41b9c"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -1518,7 +1518,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9183bd90a7917cf6cf72ac2511ddc96ae60452aa12797abee5bf3f341e1b6313"
+      "sha256": "53992151d35c36de3d8cd9e1ad4e9d304063ef19102a3fc35b94aedc36752d0c"
     }
   },
   "omitted_runtime_inputs": [
