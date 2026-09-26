@@ -1010,7 +1010,7 @@ function addGuideMetadata(html, article, author) {
     datePublished: article.updated_at,
     dateModified: article.date_modified || article.updated_at,
     author,
-    image: existsSync(path.join(ROOT, "assets/derivatives", `guide-${heroSlug}-1600.jpg`)) ? `https://glpclinicscout.com${heroJpg}` : null,
+    image: article.image_availability === "text_only" ? null : existsSync(path.join(ROOT, "assets/derivatives", `guide-${heroSlug}-1600.jpg`)) ? `https://glpclinicscout.com${heroJpg}` : null,
     evidenceReview: { status: article.evidence_review?.status, source_urls: (article.sources || []).map((item) => item.url) },
     breadcrumbs: [{ name: "Home", path: "/" }, article.canonical_path.startsWith("/best/") ? { name: "Compare", path: "/providers/" } : { name: "Guides", path: "/insights/" }, { name: article.h1, path: article.canonical_path }],
   });
@@ -1962,7 +1962,10 @@ async function main() {
   for (const article of allArticles) {
     // R2 target release: render Mounjaro from the refreshed catalog row.
     const key = `guide-${routeSlug(article.canonical_path)}`;
-    const articleBase = addOg(responsiveHero(pageHero(addGuideMetadata(renderBlogPost(article, resolveBlogComparisonSpec(article, contentLedger.programs), resolveArticleAuthor(article), contentLedger.programs), article, resolveArticleAuthor(article)), key, article.images?.[0]?.alt || `Guide overview for ${article.h1}`), key), key, article.h1);
+    const articleHtml = addGuideMetadata(renderBlogPost(article, resolveBlogComparisonSpec(article, contentLedger.programs), resolveArticleAuthor(article), contentLedger.programs), article, resolveArticleAuthor(article));
+    const articleBase = article.image_availability === "text_only"
+      ? articleHtml
+      : addOg(responsiveHero(pageHero(articleHtml, key, article.images?.[0]?.alt || `Guide overview for ${article.h1}`), key), key, article.h1);
     const articleGraph = addArticleShareControls(articleVertical(article) === "GLP-1" ? upgradeInsightsArticle(articleBase, article, glpGuideArticles.filter((item) => item.canonical_path !== article.canonical_path && path.join(item.canonical_path.replace(/^\//, ""), "index.html") !== MOUNJARO_COUPON_ROUTE_FILE)) : articleBase);
     const rendered = addSharedRuntime(articleGraph);
     await write(path.join(article.canonical_path.replace(/^\//, ""), "index.html"), articleVertical(article) === "GLP-1" ? markReleaseReady(article.suppress_cta ? rendered : addGuideFunnel(rendered)) : rendered);
