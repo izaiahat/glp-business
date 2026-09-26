@@ -92,7 +92,10 @@
       "sha256": "9879d46ec00039d7c16293bf60af9123bd9c94a1054237169f219bf3b4113947"
     },
     "ops/decisions_router.py": {
-      "callers": ["n8n-bridge:decisions_router", "cron_bridge_action:decisions_router"],
+      "callers": [
+        "n8n-bridge:decisions_router",
+        "cron_bridge_action:decisions_router"
+      ],
       "kind": "script",
       "sha256": "1cb48c8ceb8306bf18fdf86a8acca18635e1a7c75129e47cc446590f63c8b31f"
     },
@@ -820,6 +823,13 @@
       "kind": "script",
       "sha256": "b313063f54848dbf4e7e8ff8b4dbf2bf697ff1ccb7245837d950b61c3ed255a0"
     },
+    "scripts/glp_awin_portal_login.py": {
+      "callers": [
+        "on-demand:browser_vault_glp54"
+      ],
+      "kind": "script",
+      "sha256": "087f3bf00a2bc694d9cf3439d3ba9f5d992c08eb0fafc18285dda5a4d961cf00"
+    },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
       "kind": "script",
@@ -1321,7 +1331,9 @@
       "sha256": "31440266dd06ec251627c2568ddbe341947be05f1e3783c714264112272d0f02"
     },
     "tests/test_decisions_router_card.py": {
-      "callers": ["ops/decisions_router.py"],
+      "callers": [
+        "ops/decisions_router.py"
+      ],
       "kind": "test",
       "sha256": "179ecde5f664b72d5dfc5e5b6096555a5e20c51c2004007ac102a5e78d51b154"
     },
@@ -1668,5 +1680,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 254
+  "tracked_count": 255
 }
