@@ -116,6 +116,52 @@ def validate_release_record(record, route, master_path, image):
     text = patch_once(text,
         'if record.get("generation_model") != "gpt_image_2":',
         'if record.get("generation_model") != ("stock" if master.get("provider") == "stock" else "gpt_image_2"):')
+    text = patch_once(text,
+        '    route_masters = load_route_masters(articles) if schema == "glp-article-image-system-v3" else {}\n',
+        '''    text_only = manifest.get("text_only_routes", [])
+    if not isinstance(text_only, list) or len(text_only) > 1:
+        raise RuntimeError("article_text_only_marker_invalid")
+    marked = set()
+    for marker in text_only:
+        if not isinstance(marker, dict) or set(marker) != {"route", "receipt"}:
+            raise RuntimeError("article_text_only_marker_invalid")
+        route = marker["route"]
+        article = next((row for row in articles if row["canonical_path"] == route), None)
+        spec = marker["receipt"]
+        if not article or article.get("image_availability") != "text_only" or article.get("image_fallback_receipt") != spec or not isinstance(spec, dict):
+            raise RuntimeError("article_text_only_catalog_binding_invalid")
+        relative = f"artifacts/ultracode/article-release-image-receipts/{stem_for(route)}.json"
+        if set(spec) != {"path", "sha256"} or spec["path"] != relative:
+            raise RuntimeError("article_text_only_receipt_path_invalid")
+        receipt_path = ROOT / relative
+        if receipt_path.is_symlink() or not receipt_path.is_file() or sha_file(receipt_path) != spec["sha256"]:
+            raise RuntimeError("article_text_only_receipt_hash_invalid")
+        receipt = json.loads(receipt_path.read_text())
+        if (receipt.get("schema") != "glp-article-hero-image-v1" or receipt.get("status") != "TEXT_ONLY"
+                or receipt.get("availability") != "unavailable" or receipt.get("route") != route
+                or receipt.get("h1") != article["h1"] or receipt.get("visual_key") != stem_for(route)
+                or receipt.get("reason") not in {"stock_family_missing", "stock_family_invalid_pixels"}
+                or not receipt.get("generation_reason") or receipt.get("generation_receipt_status") != "FALLBACK"):
+            raise RuntimeError("article_text_only_receipt_invalid")
+        if any((ROOT / "assets/derivatives" / f"{stem_for(route)}{suffix}").exists() or
+               (ROOT / "public/assets/images" / f"{stem_for(route)}{suffix}").exists()
+               for suffix in ("-800.avif", "-1600.avif", "-800.webp", "-1600.webp", "-800.jpg", "-1600.jpg", "-og.jpg")):
+            raise RuntimeError("article_text_only_unexpected_image")
+        marked.add(route)
+    if {row["canonical_path"] for row in articles if row.get("image_availability") == "text_only"} != marked:
+        raise RuntimeError("article_text_only_coverage_invalid")
+    imaged_articles = [row for row in articles if row["canonical_path"] not in marked]
+    route_masters = load_route_masters(imaged_articles) if schema == "glp-article-image-system-v3" else {}
+''')
+    text = patch_once(text,
+        '        if len(route_masters) != len(articles):',
+        '        if len(route_masters) != len(imaged_articles):')
+    text = patch_once(text,
+        '    if set(records) != set(expected):\n',
+        '    if len(manifest.get("records", [])) != len(records) or set(records) != set(expected) - marked:\n')
+    text = patch_once(text,
+        '    for route, article in expected.items():\n',
+        '    for route, article in ((route, article) for route, article in expected.items() if route not in marked):\n')
     path.write_text(text)
     qa = target / 'tests/article-imagery-pipeline.test.mjs'
     text = qa.read_text()
@@ -159,12 +205,97 @@ def validate_release_record(record, route, master_path, image):
     ]
     for old, new in replacements:
         text = patch_once(text, old, new)
+    text = patch_once(text, '  const masterPaths = new Set();', '''  const textOnly = manifest.text_only_routes || [];
+  assert.ok(Array.isArray(textOnly) && textOnly.length <= 1);
+  const textOnlyRoutes = new Set(textOnly.map(({route}) => route));
+  assert.equal(textOnlyRoutes.size, textOnly.length);
+  for (const {route, receipt: binding} of textOnly) {
+    assert.ok(routes.includes(route));
+    assert.match(binding.path, /^artifacts\\/ultracode\\/article-release-image-receipts\\/guide-[a-z0-9-]+\\.json$/);
+    const bytes = await readFile(new URL(`../${binding.path}`, import.meta.url));
+    assert.equal(sha256(bytes), binding.sha256);
+    const receipt = JSON.parse(bytes);
+    assert.equal(receipt.status, "TEXT_ONLY");
+    assert.equal(receipt.availability, "unavailable");
+    assert.equal(receipt.route, route);
+    assert.ok(["stock_family_missing", "stock_family_invalid_pixels"].includes(receipt.reason));
+    assert.ok(!routeState.records[route]);
+    assert.ok(!manifest.records.some((record) => record.route === route));
+  }
+  const imagedRoutes = routes.filter((route) => !textOnlyRoutes.has(route));
+  const scopedInheritedRoutes = inheritedRoutes.filter((route) => !textOnlyRoutes.has(route));
+  const masterPaths = new Set();''')
+    for old, new in (
+        ('assert.equal(manifest.records.length, routes.length);', 'assert.equal(manifest.records.length, imagedRoutes.length);'),
+        ('assert.equal(manifest.output_count, routes.length * 7);', 'assert.equal(manifest.output_count, imagedRoutes.length * 7);'),
+        ('assert.equal(manifest.route_master_count, routes.length);', 'assert.equal(manifest.route_master_count, imagedRoutes.length);'),
+        ('assert.equal(Object.keys(routeState.records).length, routes.length);', 'assert.equal(Object.keys(routeState.records).length, imagedRoutes.length);'),
+        ('assert.deepEqual(manifest.records.map((record) => record.route).sort(), routes);', 'assert.deepEqual(manifest.records.map((record) => record.route).sort(), imagedRoutes);'),
+        ('assert.equal(masterPaths.size, routes.length,', 'assert.equal(masterPaths.size, imagedRoutes.length,'),
+    ):
+        text = patch_once(text, old, new)
+    text = text.replace('inheritedRoutes.length', 'scopedInheritedRoutes.length').replace('contactRoutes.sort(), inheritedRoutes', 'contactRoutes.sort(), scopedInheritedRoutes')
     qa.write_text(text)
     return {'status': 'PASS_MIXED_PROVIDER_CONTRACT', 'generator_sha256': sha(path), 'qa_sha256': sha(qa)}
 
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def stage_text_only(builder, target, article, receipt, visual_key, catalogs, manifest, state, reason):
+    """Bind an unavailable image to this route without inventing image lineage."""
+    route = article['canonical_path']
+    relative = Path('artifacts/ultracode/article-release-image-receipts') / (visual_key + '.json')
+    destination = target / relative
+    builder._make_candidate_directory_writable(destination.parent)
+    if destination.exists():
+        raise RuntimeError('article_text_only_receipt_collision')
+    fallback = {
+        'schema': 'glp-article-hero-image-v1', 'status': 'TEXT_ONLY',
+        'availability': 'unavailable', 'route': route, 'h1': article['h1'],
+        'visual_key': visual_key, 'reason': reason,
+        'generation_receipt_status': receipt.get('status'),
+        'generation_reason': receipt.get('reason'),
+    }
+    destination.write_text(json.dumps(fallback, indent=2, sort_keys=True) + '\n')
+    article['image_availability'] = 'text_only'
+    article['image_fallback_receipt'] = {'path': str(relative), 'sha256': sha(destination)}
+    for name, payload in catalogs.items():
+        (target / ('data/blog/content-batch.json' if name == 'content_batch' else 'data/blog/content-national-wow-additions.json')).write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + '\n')
+    manifest['source_files'] = [{'path': rel, 'sha256': sha(target / rel)} for rel in
+                                ['data/blog/content-batch.json', 'data/blog/content-national-wow-additions.json']]
+    manifest['article_count'] = len({r['canonical_path'] for c in catalogs.values() for r in c['articles']})
+    manifest['text_only_routes'] = [{'route': route, 'receipt': article['image_fallback_receipt']}]
+    (target / 'artifacts/ultracode/article-image-manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+    # The predecessor state and its hash remain untouched. There is no new master.
+    return {'status': 'PASS_ARTICLE_TEXT_ONLY_STAGED', 'availability': 'unavailable',
+            'route': route, 'reason': reason, 'receipt': article['image_fallback_receipt'],
+            'master': None, 'family': []}
+
+
+def stock_family_status(derivative, visual_key, suffixes):
+    """Preflight every stock pixel before any route-specific derivative is copied."""
+    from PIL import Image, UnidentifiedImageError
+    sizes = [(800,450),(1600,900),(800,450),(1600,900),(800,450),(1600,900),(1200,630)]
+    sources = []
+    for suffix, dimensions in zip(suffixes, sizes):
+        source = derivative / ('editorial-evidence-hero' + suffix)
+        dest = derivative / (visual_key + suffix)
+        if dest.exists() or dest.is_symlink():
+            raise RuntimeError('article_stock_family_collision')
+        if source.is_symlink() or not source.is_file():
+            return [], 'stock_family_missing'
+        try:
+            with Image.open(source) as image:
+                image.load()
+                if image.size != dimensions or image.getexif():
+                    return [], 'stock_family_invalid_pixels'
+        except (OSError, ValueError, UnidentifiedImageError):
+            return [], 'stock_family_invalid_pixels'
+        sources.append((source, dest, dimensions))
+    return sources, None
 
 
 def stage_stock(builder, target, article, receipt, visual_key, catalogs):
@@ -186,26 +317,29 @@ def stage_stock(builder, target, article, receipt, visual_key, catalogs):
         raise RuntimeError('article_stock_predecessor_coverage_invalid')
     predecessor = builder.resolve_predecessor_route_master_state(target, manifest, inherited)
     state = predecessor['state']
+    family = []
+    derivative = target / 'assets/derivatives'
+    sources, unavailable = stock_family_status(derivative, visual_key, builder.IMAGE_SUFFIXES)
+    master_rel = Path('assets/source/article-masters-pass2') / (visual_key + '.webp')
+    master = target / master_rel
+    if master.exists() or master.is_symlink():
+        raise RuntimeError('article_stock_master_collision')
     builder.configure_article_route_master_state_overlay(target)
     builder.patch_article_image_visual_qa_for_release(target)
     configure(target)
-    family = []
-    derivative = target / 'assets/derivatives'
-    for suffix, dimensions in zip(builder.IMAGE_SUFFIXES, [(800,450),(1600,900),(800,450),(1600,900),(800,450),(1600,900),(1200,630)]):
-        source = derivative / ('editorial-evidence-hero' + suffix)
-        dest = derivative / (visual_key + suffix)
-        if source.is_symlink() or not source.is_file() or dest.exists():
-            raise RuntimeError('article_stock_family_invalid')
-        with Image.open(source) as im:
-            im.load()
-            if im.size != dimensions or im.getexif():
-                raise RuntimeError('article_stock_family_dimensions_invalid')
-        shutil.copy2(source, dest)
-        family.append({'name': dest.name, 'width': dimensions[0], 'height': dimensions[1], 'sha256': sha(dest), 'bytes': dest.stat().st_size})
-    master_rel = Path('assets/source/article-masters-pass2') / (visual_key + '.webp')
-    master = target / master_rel
-    if master.exists():
-        raise RuntimeError('article_stock_master_collision')
+    if unavailable:
+        return stage_text_only(builder, target, article, receipt, visual_key, catalogs,
+                               manifest, state, unavailable)
+    copied = []
+    try:
+        for source, dest, dimensions in sources:
+            shutil.copy2(source, dest)
+            copied.append(dest)
+            family.append({'name': dest.name, 'width': dimensions[0], 'height': dimensions[1], 'sha256': sha(dest), 'bytes': dest.stat().st_size})
+    except OSError:
+        for dest in copied:
+            dest.unlink(missing_ok=True)
+        raise
     builder._make_candidate_directory_writable(master.parent)
     source = derivative / 'editorial-evidence-hero-1600.webp'
     shutil.copy2(source, master)

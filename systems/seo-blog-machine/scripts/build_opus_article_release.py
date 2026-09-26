@@ -2885,8 +2885,8 @@ def restore_missing_ops_artifacts(base: Path, candidate: Path) -> dict[str, Any]
     return {"status": "PASS", "restored": restored, "copied": copied}
 
 
-def declared_image_additions(job: dict[str, Any], visual_key: str) -> list[str]:
-    expected = sorted(f"assets/images/{visual_key}{suffix}" for suffix in IMAGE_SUFFIXES)
+def declared_image_additions(job: dict[str, Any], visual_key: str, *, text_only: bool = False) -> list[str]:
+    expected = [] if text_only else sorted(f"assets/images/{visual_key}{suffix}" for suffix in IMAGE_SUFFIXES)
     declared_raw = job.get("allowed_public_added")
     if not isinstance(declared_raw, list) or any(not isinstance(path, str) for path in declared_raw):
         raise RuntimeError("declared_image_additions_invalid")
@@ -2902,8 +2902,10 @@ def require_declared_image_additions_absent(
     job: dict[str, Any],
     tree_root: Path,
     visual_key: str,
+    *,
+    text_only: bool = False,
 ) -> list[str]:
-    additions = declared_image_additions(job, visual_key)
+    additions = declared_image_additions(job, visual_key, text_only=text_only)
     collisions = [relative for relative in additions if os.path.lexists(tree_root / "public" / relative)]
     if collisions:
         raise RuntimeError(f"declared_image_addition_collision:{collisions}")
@@ -3279,6 +3281,14 @@ def _build_candidate_materialized(
         article_route_master_lineage = article_image_release_contract.stage_stock(
             sys.modules[__name__], temp, article, image_receipt, visual_key, catalogs,
         )
+        if article_route_master_lineage and article_route_master_lineage.get("availability") == "unavailable":
+            # The signed job authorizes the seven-image ceiling; the route-bound
+            # text-only receipt narrows the effective delta to its HTML, never
+            # permits any undeclared image or any other extra public change.
+            declared = declared_image_additions(job, visual_key)
+            job["allowed_public_added"] = [path for path in job["allowed_public_added"] if path not in declared]
+            require_declared_image_additions_absent(job, temp, visual_key, text_only=True)
+            image_additions = []
     source_page = route.strip("/").replace("/", "-")
     consent_sources = temp / "src/site-capture-consent-sources.mjs"
     consent_source = consent_sources.read_text()
@@ -3325,7 +3335,14 @@ def _build_candidate_materialized(
     sitemap_path.write_text(sitemap)
     image_install: dict[str, Any] | None = None
     if operation == "new_article":
-        if article_route_master_lineage is not None:
+        if article_route_master_lineage is not None and article_route_master_lineage.get("availability") == "unavailable":
+            # The route-bound receipt is the only image evidence; no derivative or
+            # synthetic master may be installed after the renderer chose text only.
+            require_declared_image_additions_absent(job, temp, visual_key, text_only=True)
+            image_install = {"status": "TEXT_ONLY", "availability": "unavailable",
+                             "reason": article_route_master_lineage["reason"],
+                             "receipt": article_route_master_lineage["receipt"], "files": []}
+        elif article_route_master_lineage is not None:
             image_install = verify_new_article_route_master_family(
                 temp,
                 job["target_route"],
@@ -3701,6 +3718,19 @@ def validate_delta(job: dict[str, Any], base: Path, release: Path) -> dict[str, 
         raise RuntimeError("release_operation_invalid")
     target_file = release / "public" / job["target_route"].strip("/") / "index.html"
     html = target_file.read_text()
+    image_manifest_path = release / "artifacts/ultracode/article-image-manifest.json"
+    image_manifest = json.loads(image_manifest_path.read_text())
+    text_only = image_manifest.get("text_only_routes", [])
+    if text_only:
+        if (len(text_only) != 1 or text_only[0].get("route") != job["target_route"]
+                or set(text_only[0]) != {"route", "receipt"}):
+            raise RuntimeError("article_text_only_delta_binding_invalid")
+        key = f"guide-{job['target_route'].strip('/').split('/')[-1]}"
+        declared_image_additions(job, key, text_only=True)
+        forbidden_image_markup = (r"<img\b", r"<picture\b", r"<source\b", r"(?:og|twitter):image", re.escape(key),
+                                  r"editorial-evidence-hero")
+        if any(re.search(pattern, html, re.IGNORECASE) for pattern in forbidden_image_markup):
+            raise RuntimeError("article_text_only_rendered_image_invalid")
     required = ["index,follow", "application/ld+json", "FAQPage", "Clinic Scout Editorial Team",
                 "Evidence boundary.", "Prices and terms can change."]
     if any(item not in html for item in required):
