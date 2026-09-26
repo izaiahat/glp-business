@@ -128,7 +128,7 @@
         "hermes:b0c800751b88"
       ],
       "kind": "script",
-      "sha256": "6f36da8177ed67299ed57e74678a01dc4c706720131c906c853092efdb310991"
+      "sha256": "090e1b54a1d8f6dd66a3b95584db2f889b2163582a2ac9e45f33ad78a915e8a3"
     },
     "ops/hermes-cron-scripts/glp_affiliate_blocker_ack_ingest.sh": {
       "callers": [
@@ -1192,6 +1192,13 @@
       "kind": "test",
       "sha256": "249218203d4f76940a52a1df02e1e834b1480caf9d1c7cf18e002aad5fdee578"
     },
+    "tests/test_glp315_reconciler_child_failure.py": {
+      "callers": [
+        "glp_affiliate_approval_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "e6123786aeff8fef84a90325d400336d754f4dec0741653f68228b7426ab2e8f"
+    },
     "tests/test_glp_candidate_quarantine.py": {
       "callers": [
         "glp_affiliate_wire_backlog_worker"
@@ -1455,5 +1462,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 219
+  "tracked_count": 220
 }
