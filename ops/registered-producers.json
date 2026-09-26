@@ -80,7 +80,8 @@
    "glob": "ops/linear/dispatch-ledger.jsonl",
    "producers": [
     "scripts/tui_send.sh",
-    "scripts/linear_dispatch.sh"
+    "scripts/linear_dispatch.sh",
+    "scripts/seat_autodispatch.py"
    ]
   },
   {

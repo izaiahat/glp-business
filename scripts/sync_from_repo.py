@@ -57,10 +57,11 @@ def sync(root, checkout, apply):
     if not isinstance(previous, dict):
         raise ValueError("invalid sync state")
     stale = sorted(set(previous) - set(target_hashes))
-    changed, conflicts, retirement_moves = [], [], {}
+    changed, conflicts, retirement_moves, expected = [], [], {}, {}
     for p in sorted(set(target_hashes) | set(stale)):
         local = safe(root, p)
         current = sha(local)
+        expected[p] = current
         target = target_hashes.get(p)
         parts = Path(p).parts
         retirement_source = (safe(root, str(Path(parts[0]) / parts[2]))
@@ -111,6 +112,10 @@ def sync(root, checkout, apply):
                         f.write(src.read_bytes())
                         f.flush(); os.fsync(f.fileno())
                     os.chmod(tmp, src.stat().st_mode & 0o777)
+                    # Serialized writers are still required: this detects intervening
+                    # ordinary edits, not an atomic compare-and-swap against outsiders.
+                    if sha(dst) != expected[p]:
+                        raise ValueError("destination changed during sync: " + p)
                     os.replace(tmp, dst)
                 finally:
                     if os.path.exists(tmp): os.unlink(tmp)

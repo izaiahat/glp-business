@@ -475,7 +475,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "cb8fb5061017a2f15d64fbd00511fc661a655ea99019fd1f8859a24424c093bb"
+      "sha256": "709b5cdff222da2bdc938b984c3435c2fb8d36f043cb627578c4d5d6a5853e98"
     },
     "reports/BUILD-SOURCE-OF-TRUTH.md": {
       "callers": [],
@@ -557,11 +557,6 @@
       "kind": "retired_script",
       "sha256": "c592fd641bef6891cffc7541db39f6f44074473aba6190f171b4c77c01d5456c"
     },
-    "scripts/.retired-20260925/seat_autodispatch.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "1d5da370d7d91d69f5d28405178def8782acc0a32a7999383f6d36bf8ca97406"
-    },
     "scripts/.retired-20260925/seat_send.py": {
       "callers": [],
       "kind": "retired_script",
@@ -616,6 +611,13 @@
       ],
       "kind": "script",
       "sha256": "59ce6e9b952f1a305ccbee6152578d65a95c78d69b13c81bab57eb1519c33016"
+    },
+    "scripts/brief_model_effort.py": {
+      "callers": [
+        "scripts/seat_autodispatch.py"
+      ],
+      "kind": "script",
+      "sha256": "317cdc3c43730ca383f6c4363549deb5d7251b8d6860003ef0015a1b44974e34"
     },
     "scripts/browser_session_reaper.py": {
       "callers": [
@@ -913,7 +915,21 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a55658990f27ec4ea49623a09a107840631a0cf9b452533977a46c4e14a7928f"
+      "sha256": "de53b39603cff6703227f7fb332499890d8b2e51f92187462ba92fd1fd2435f3"
+    },
+    "scripts/seat_autodispatch.py": {
+      "callers": [
+        "scripts/seat_continuation.py"
+      ],
+      "kind": "script",
+      "sha256": "1d5da370d7d91d69f5d28405178def8782acc0a32a7999383f6d36bf8ca97406"
+    },
+    "scripts/seat_continuation.py": {
+      "callers": [
+        "protected:ops/protected-oracles.json"
+      ],
+      "kind": "script",
+      "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
     },
     "scripts/skill_router.py": {
       "callers": [],
@@ -939,7 +955,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5fe28e8370a43b985d54937433b024d1423914064d0472f9780f16e58a3ae85f"
+      "sha256": "3f1701d9f06905a9f23d78a14ea9912cf89c757cbfb31bb28b83f787593bafef"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -987,11 +1003,6 @@
       "callers": [],
       "kind": "retired_test",
       "sha256": "b50ba014cbfedce94d7acd34395c9dec91a11d29e793bfcce3d2565a52530174"
-    },
-    "tests/.retired-20260925/test_seat_autodispatch.py": {
-      "callers": [],
-      "kind": "retired_test",
-      "sha256": "fd36b526ba6a7e36acfb6ba01734f7075212f45e6bfb44fd11c219b76f718f67"
     },
     "tests/.retired-20260925/test_seat_send.py": {
       "callers": [],
@@ -1389,6 +1400,13 @@
       "kind": "test",
       "sha256": "8d44d10c87ebdf797cd277083db29359066232207f26f3c4a02e063f0dc4d212"
     },
+    "tests/test_seat_autodispatch.py": {
+      "callers": [
+        "scripts/seat_autodispatch.py"
+      ],
+      "kind": "test",
+      "sha256": "fd36b526ba6a7e36acfb6ba01734f7075212f45e6bfb44fd11c219b76f718f67"
+    },
     "tests/test_seo_buffer_output_health.py": {
       "callers": [
         "business_output_health_sensor"
@@ -1418,7 +1436,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d293e022399c19c3d28bd526cd59c176b33459800a0c361a96c993fa1110fd4e"
+      "sha256": "b54b2b6420e833acd81ba57508bc544d0572ff6f76dc67c798a45d930e5b0f69"
     }
   },
   "omitted_runtime_inputs": [
@@ -1429,5 +1447,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 217
+  "tracked_count": 219
 }

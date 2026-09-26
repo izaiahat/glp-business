@@ -1,7 +1,11 @@
 import hashlib
 import json
+import shutil
 import subprocess
+import sys
+import pytest
 from pathlib import Path
+from scripts import sync_from_repo
 from scripts.sync_from_repo import sync
 
 def digest(data):
@@ -82,6 +86,57 @@ def test_retirement_registry_releases_dormant_producers():
     callers = [(row["glob"], producer) for row in registry["artifacts"]
                for producer in row["producers"] if producer in retired_origins]
     assert callers == []
+
+
+def test_protected_continuation_imports_retained_dispatcher_from_checkout(tmp_path):
+    """The post-sync scripts layout, isolated from the host, resolves the pinned import."""
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads((root / "ops/rebuild-source-manifest.json").read_text())["files"]
+    scripts = tmp_path / "live/scripts"
+    scripts.mkdir(parents=True)
+    for name in ("seat_continuation.py", "seat_autodispatch.py", "brief_model_effort.py"):
+        rel = f"scripts/{name}"
+        assert rel in manifest, f"missing live curated dependency: {name}"
+        assert digest((root / rel).read_bytes()) == manifest[rel]["sha256"]
+        shutil.copy2(root / rel, scripts / name)
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); "
+            "import seat_continuation, seat_autodispatch; "
+            "assert seat_continuation._provider_depleted is seat_autodispatch.provider_depleted; "
+            "assert seat_autodispatch.__file__ == sys.argv[1] + '/seat_autodispatch.py'")
+    subprocess.run([sys.executable, "-I", "-c", code, str(scripts)],
+                   cwd=tmp_path, check=True)
+
+
+def test_intervening_conventions_edit_refused_before_replacement(tmp_path, monkeypatch):
+    repo, root = checkout(tmp_path)
+    (repo / "ops/linear").mkdir(parents=True)
+    (repo / "ops/linear/CONVENTIONS.md").write_bytes(b"original\n")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+    m = json.loads(mpath.read_text())
+    m["files"]["ops/linear/CONVENTIONS.md"] = {"sha256": digest(b"original\n")}
+    m["tracked_count"] += 1
+    mpath.write_text(json.dumps(m))
+    subprocess.run(["git", "-C", str(repo), "add", "ops/linear/CONVENTIONS.md"], check=True)
+    assert sync(root, repo, True) == 0
+    (repo / "ops/linear/CONVENTIONS.md").write_bytes(b"upstream\n")
+    m["files"]["ops/linear/CONVENTIONS.md"]["sha256"] = digest(b"upstream\n")
+    mpath.write_text(json.dumps(m))
+    state_before = (root / "ops/.rebuild-sync-state.json").read_bytes()
+    real_fsync = sync_from_repo.os.fsync
+    destination = root / "ops/linear/CONVENTIONS.md"
+    def intervening_fsync(fd):
+        if not injected[0]:
+            destination.write_bytes(b"PARALLEL EDIT\n")
+            injected[0] = True
+        return real_fsync(fd)
+    injected = [False]
+    monkeypatch.setattr(sync_from_repo.os, "fsync", intervening_fsync)
+    # Injection after preflight but before replacement proves the destination survives.
+    with pytest.raises(ValueError, match="destination changed during sync: ops/linear/CONVENTIONS.md"):
+        sync(root, repo, True)
+    assert injected[0]
+    assert destination.read_bytes() == b"PARALLEL EDIT\n"
+    assert (root / "ops/.rebuild-sync-state.json").read_bytes() == state_before
 
 
 def test_retirement_refuses_modified_source_before_other_writes(tmp_path):
