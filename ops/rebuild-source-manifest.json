@@ -150,6 +150,13 @@
       "kind": "script",
       "sha256": "def00df050f44bdc90305a9a3bc412af7a8f44e7cf0c70a78fef0ac2abf724b8"
     },
+    "ops/glp/seo_data_rails.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "script",
+      "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
+    },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
       "callers": [
         "hermes:a8bd5651f1d8"
@@ -1040,6 +1047,13 @@
       "kind": "script",
       "sha256": "061c01d7cf60903040d929bde9b7ee0e1521ee4ec5ad5b9d0a242913440b3321"
     },
+    "scripts/glp_weekly_seo_ranking_report.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "script",
+      "sha256": "0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf"
+    },
     "scripts/glp_wire_in_ready_queue.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
@@ -1191,7 +1205,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "56ba235079364a59e0813f5d25f9671a46c05a1a2847d9e14a0bbd4de148ce7b"
+      "sha256": "80ffc8b35b764708bcaa39fe2c8c700eec42b2898830d1cdf81cc65a31d0cd94"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1736,6 +1750,13 @@
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
+    "tests/test_glp44_weekly_gsc_aggregate.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "test",
+      "sha256": "de6fee9cc25eaa0185fca58d39300439782cde523e1969baf95fe0224089cdc1"
+    },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
         "glp_ads_three_platform_monitor"
@@ -2112,5 +2133,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 322
+  "tracked_count": 325
 }
