@@ -288,8 +288,8 @@ def _included_quota_available(snapshot: dict[str, Any] | None = None) -> bool:
         return 0 <= age <= 600 and any(
             row.get("provider") == "anthropic" and row.get("freshness") == "live"
             and row.get("capacity_status") in {"available", "limited"}
-            and float(row.get("weekly_remaining_pct") or 0) > 0
-            and float(row.get("session_remaining_pct") or 0) > 0
+            and all(type(row.get(key)) in (int, float) and 0 < row[key] <= 100
+                    for key in ("weekly_remaining_pct", "session_remaining_pct"))
             for row in snapshot["records"]
         )
     except (OSError, KeyError, ValueError, TypeError, AttributeError):
@@ -510,8 +510,16 @@ def load_state() -> dict[str, Any]:
 def save_state(value: dict[str, Any]) -> None:
     STATE.parent.mkdir(parents=True, exist_ok=True)
     temporary = STATE.with_suffix(STATE.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
+    with temporary.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps(value, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(temporary, STATE)
+    directory = os.open(STATE.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
 
 
 @contextmanager
@@ -701,7 +709,8 @@ def _invoke_reviewer(
 
 def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None,
               capacity_snapshot: dict[str, Any] | None = None,
-              before_invoke: Callable[[], None] | None = None) -> str:
+              before_invoke: Callable[[], None] | None = None,
+              required_backend: tuple[str, str, str] | None = None) -> str:
     record = receipt if receipt is not None else {}
     record.update(reviewer_identity="none (model_policy_unavailable)", attempts=[])
     deadline = time.monotonic() + 1200
@@ -709,6 +718,8 @@ def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None,
     try:
         design = _design_review(kind, text)
         backend = select_backend(design_review=design)
+        if required_backend is not None and backend != required_backend:
+            raise RuntimeError("reviewer_model_changed")
         output, exhausted = _invoke_reviewer(backend, prompt, record, deadline,
                                              capacity_snapshot=capacity_snapshot,
                                              before_invoke=before_invoke)
@@ -988,6 +999,161 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
                 "reviewer_identity": resumed["reviewer_identity"], "status": "posted"}
 
 
+def _authority_guard():
+    path = Path(__file__).resolve().parents[1] / "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py"
+    spec = importlib.util.spec_from_file_location("bridge_authority_guard", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("registered_issue_guard_unavailable")
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    return guard
+
+
+def recover_missing_mention(source_id: str, issue_id: str, tuple_sha256: str) -> dict[str, Any]:
+    """Explicit once-only recovery of a skipped BOUND successor; never edit/resend.
+
+    Normal classification remains mention-gated. Only this exact-request entry
+    can prove that adding the structured mention *in memory* removes the sole
+    eligibility defect. Complete history and canonical bindings are rechecked
+    at every external-effect boundary under the same lock as the poller.
+    """
+    if (not re.fullmatch(r"[0-9]{17,20}", source_id)
+            or not re.fullmatch(r"bridge-issue-[a-f0-9]{32}", issue_id)
+            or not re.fullmatch(r"[a-f0-9]{64}", tuple_sha256)):
+        raise RuntimeError("mention_recovery_identity_invalid")
+    if SELF_ID != expected_author_id() or SELF_ID == KAEL_BOT_ID:
+        raise RuntimeError("independent_signer_mismatch")
+    guard = _authority_guard()
+    path = ISSUE_DIR / f"{issue_id}.json"
+    with bridge_state_lock():
+        # Unlike daemon boot, missing/corrupt state cannot establish no invocation.
+        state = json.loads(STATE.read_text(encoding="utf-8"))
+        receipts = state.get("reviewer_receipts")
+        if (not isinstance(receipts, dict) or source_id in receipts
+                or any(isinstance(item, dict) and item.get("source_message_id") == source_id
+                       for item in receipts.values())
+                or not isinstance(state.get("last_id"), str)
+                or not state["last_id"].isdigit() or int(state["last_id"]) < int(source_id)):
+            raise RuntimeError("mention_recovery_receipt_or_cursor_ineligible")
+        preliminary = json.loads(path.read_text(encoding="utf-8"))
+        _, issue = guard.load_issue_record(path, expected_subject_id=preliminary.get("subject_id"),
+                                           expected_tuple_sha256=tuple_sha256)
+        predecessor = issue.get("predecessor_request_message_id")
+        successors = state.get("successor_issues")
+        registered = successors.get(predecessor) if isinstance(successors, dict) else None
+        if (issue.get("schema") != "boring_ai_bridge_request_issue_v2"
+                or issue.get("request_message_id") != source_id
+                or issue.get("succession_reason") != "terminal_no_authority_decision"
+                or not isinstance(predecessor, str) or not predecessor.isdigit()
+                or int(predecessor) >= int(source_id)
+                or not isinstance(registered, dict) or registered.get("status") != "issued"
+                or registered.get("issue_id") != issue_id
+                or registered.get("predecessor_issue_id") != issue.get("predecessor_issue_id")
+                or registered.get("predecessor_reply_message_id") != issue.get("predecessor_reply_message_id")
+                or registered.get("issue_record_path") != str(path)
+                or issue.get("review_artifact_sha256") != tuple_sha256):
+            raise RuntimeError("mention_recovery_registered_successor_required")
+        artifact = Path(issue["review_artifact_path"])
+        content = issue["request_content"]
+        required_backend = ("fable", "claude-fable-5-1", "xhigh")
+
+        def revalidate() -> tuple[str, str]:
+            _, current_issue = guard.load_issue_record(path, expected_subject_id=issue["subject_id"],
+                                                       expected_tuple_sha256=tuple_sha256)
+            if current_issue != issue:
+                raise RuntimeError("mention_recovery_issue_changed")
+            if not artifact.resolve(strict=True).is_relative_to(ARTIFACT_ROOT.resolve()):
+                raise RuntimeError("mention_recovery_artifact_outside_ops")
+            message = _exact_message(source_id)
+            if (message.get("channel_id") != CHANNEL or message.get("content") != content
+                    or hashlib.sha256(message["content"].encode("utf-8")).hexdigest() != issue["request_content_sha256"]
+                    or message.get("timestamp") != issue["request_timestamp"]
+                    or not isinstance(message.get("mentions"), list)
+                    or _structured_self_mention(message) or classify_message(message) is not None):
+                raise RuntimeError("mention_recovery_not_missing_mention_only")
+            # Do not mutate the Discord object, content, registry, or normal gate.
+            eligible = dict(message, mentions=[*message["mentions"], {"id": SELF_ID}])
+            classified = classify_message(eligible)
+            if classified is None or classified[0] != "review_request":
+                raise RuntimeError("mention_recovery_not_missing_mention_only")
+            kind, text = classified
+            if top_stakes_category(kind, text) is not None or not _design_review(kind, text):
+                raise RuntimeError("request_routing_changed")
+            if select_backend(design_review=True) != required_backend:
+                raise RuntimeError("reviewer_model_changed")
+            _only_expected_replies(source_id, set())
+            return kind, text
+
+        kind, text = revalidate()
+        snapshot = refresh_included_capacity()
+        if not isinstance(snapshot, dict) or not _included_quota_available(snapshot):
+            raise RuntimeError("fresh_positive_included_capacity_required")
+        revalidate()
+        receipt: dict[str, Any] = {"source_message_id": source_id, "kind": kind, "mode": "model",
+            "posting": "not_prepared", "attempts": [], "recovery": {
+                "reason": "missing_structured_mention", "status": "reserved", "issue_id": issue_id,
+                "request_content_sha256": issue["request_content_sha256"], "tuple_sha256": tuple_sha256}}
+        receipts[source_id] = receipt
+        save_state(state)  # All claims, including crashes before inference, are terminal.
+
+        def claim_invocation() -> None:
+            revalidate()
+            if not _included_quota_available(snapshot):
+                raise RuntimeError("fresh_positive_included_capacity_required")
+            receipt["recovery"]["status"] = "invocation_reserved"
+            receipt["invocation_claimed"] = True
+            durable = dict(state, reviewer_receipts=dict(receipts))
+            durable["reviewer_receipts"][source_id] = {
+                key: value for key, value in receipt.items() if key != "original_stdout"}
+            save_state(durable)
+
+        reply = ask_fable(kind, text, receipt=receipt, capacity_snapshot=snapshot,
+                          before_invoke=claim_invocation, required_backend=required_backend)
+        original_stdout = receipt.pop("original_stdout", None)
+        attempts = receipt.get("attempts", [])
+        if (len(attempts) not in (1, 2) or attempts[0].get("status") != "ok"
+                or any((a.get("backend"), a.get("model"), a.get("effort")) != required_backend
+                       or a.get("invoked") is not True for a in attempts)):
+            receipt["recovery"]["status"] = "no_safe_inference"
+            save_state(state)
+            raise RuntimeError("mention_recovery_no_safe_inference")
+        receipt.update(reply_chars=len(reply), reply_sha256=hashlib.sha256(reply.encode()).hexdigest(),
+                       posting="prepared")
+        if original_stdout is not None:
+            receipt.update(original_stdout_sha256=hashlib.sha256(original_stdout.encode()).hexdigest(),
+                           original_stdout_bytes=len(original_stdout.encode()))
+        save_state(state)
+        try:
+            revalidate()
+        except Exception:
+            receipt.update(posting="withheld")
+            receipt["recovery"]["status"] = "reply_withheld_reconciliation"
+            save_state(state)
+            raise
+        try:
+            posted = post(reply, reply_to_message_id=source_id, nonce=source_id, kind=kind,
+                          original_stdout=original_stdout)
+        except Exception:
+            receipt.update(posting="failed_or_ambiguous")
+            receipt["recovery"]["status"] = "post_failed_or_ambiguous"
+            save_state(state)
+            raise
+        receipt.update(posting="posted", posted_message_id=posted)
+        receipt["recovery"]["status"] = "posted"
+        save_state(state)
+        try:
+            verified = verify_oversize_post(posted, source_id, reply, kind, original_stdout=original_stdout)
+        except Exception:
+            receipt.update(posting="posted_unverified")
+            save_state(state)
+            raise
+        if verified:
+            receipt["attachment_verification"] = verified
+            save_state(state)
+        return {"source_message_id": source_id, "posted_message_id": posted,
+                "reviewer_identity": receipt["reviewer_identity"], "status": "posted"}
+
+
 def _successor_verified_attachment(reply: dict[str, Any], record: dict[str, Any],
                                    content: str) -> bool:
     """Bind the one initial-stdout attachment to the durable receipt and CDN bytes."""
@@ -1119,12 +1285,7 @@ def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str
             "status": "reserved", "predecessor_issue_id": issue_id,
             "predecessor_reply_message_id": terminal_reply_id}
         save_state(state)
-        guard_path = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
-        spec = importlib.util.spec_from_file_location("bridge_authority_guard", guard_path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError("registered_issue_guard_unavailable")
-        guard = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(guard)
+        guard = _authority_guard()
         path, fresh = guard.issue_request(subject_id=issue["subject_id"],
                                           tuple_sha256=tuple_sha256,
                                           review_artifact_path=artifact)
@@ -1238,9 +1399,10 @@ if __name__ == "__main__":
         ])
         sys.argv = ["hermes", *sys.argv[2:]]
         hermes_main()
-    elif sys.argv[1:2] in (["--resume-preinvocation-quota"], ["--issue-no-decision-successor"]):
-        if len(sys.argv) != 5 and sys.argv[1] == "--resume-preinvocation-quota":
-            raise SystemExit("usage: fable_bridge.py --resume-preinvocation-quota REQUEST_ID ISSUE_ID TUPLE_SHA256")
+    elif sys.argv[1:2] in (["--resume-preinvocation-quota"], ["--issue-no-decision-successor"],
+                          ["--recover-missing-mention"]):
+        if len(sys.argv) != 5 and sys.argv[1] in {"--resume-preinvocation-quota", "--recover-missing-mention"}:
+            raise SystemExit(f"usage: fable_bridge.py {sys.argv[1]} REQUEST_ID ISSUE_ID TUPLE_SHA256")
         if len(sys.argv) != 6 and sys.argv[1] == "--issue-no-decision-successor":
             raise SystemExit("usage: fable_bridge.py --issue-no-decision-successor REQUEST_ID ISSUE_ID TUPLE_SHA256 TERMINAL_REPLY_ID")
         TOKEN = token()
@@ -1251,9 +1413,9 @@ if __name__ == "__main__":
         if not SESSION_ID:
             raise RuntimeError("fable_session_id_missing")
         SELF_ID = validate_startup_identity()
-        result = (resume_preinvocation_quota(*sys.argv[2:])
-                  if sys.argv[1] == "--resume-preinvocation-quota"
-                  else issue_no_decision_successor(*sys.argv[2:]))
+        result = {"--resume-preinvocation-quota": resume_preinvocation_quota,
+                  "--recover-missing-mention": recover_missing_mention,
+                  "--issue-no-decision-successor": issue_no_decision_successor}[sys.argv[1]](*sys.argv[2:])
         print(json.dumps(result, sort_keys=True))
     else:
         main()

@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "842f784d48b271b3dc68c6741467e3f0a8bc0ba405623ef32851e972b39bca30"
+      "sha256": "14b08b48123cc63ff1da644deef52ab3702080f50dd7843df0b112ac28e64966"
     },
     ".hermes.md": {
       "callers": [],
@@ -131,6 +131,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "b4a0f4aafa6941daa34ea0af21bf5cdba39ca44daafdf20be8d8e8e5cf495e84"
+    },
+    "ops/fable-mention-recovery.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "1e60c6806310c1c23197562abed2f170c8cced96a65098dfed5d3eb4414b8319"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -854,7 +859,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "9eade9ed8fd6e24b6f858855e673ea7c6224bac5c7a6638ff1405fa4e6b7d26e"
+      "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1125,6 +1130,13 @@
       "kind": "script",
       "sha256": "48b514394afb45bf255df2b765d27251bfa409e3d124e8c5a9e0ec69de90dfa5"
     },
+    "scripts/post_discord_message.py": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "script",
+      "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
+    },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
       "kind": "script",
@@ -1140,7 +1152,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b79d05f317142a1178c2e7248e439c8be305b68ef4ea9ef23e38ff93ab71bee8"
+      "sha256": "1f9100aa9ac0afebf7ff10be778e86fef5eaa72a631a5104deba43fd3885520b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1578,7 +1590,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "d96c5893ee93297df689e3159f17d6583185b1aa82b8ce8b07f6a295209dcb7e"
+      "sha256": "269bb8f7b6bd45885463c798b5b9abd149e8ffa6e688c111472b35a05d7e5f24"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
       "callers": [
@@ -1587,12 +1599,26 @@
       "kind": "test",
       "sha256": "93ff7db942617fab9593d99c66b23cdfe686af93c71095cad22abb0306c635c6"
     },
+    "tests/test_fable_mention_recovery.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "46dd3b5cf52a2ee2099a9be4f997035689af09d59ef3aa1c20f0e96120d4abdc"
+    },
     "tests/test_fleet_sentinel.py": {
       "callers": [
         "fleet_sentinel"
       ],
       "kind": "test",
       "sha256": "deba7d44114feadc58eaea1f9e3bc47be666712d38b87a96b7e87fc5cc2224ed"
+    },
+    "tests/test_glp183_builder_checked_as_of.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
     },
     "tests/test_glp250_maxbounty_held_identity.py": {
       "callers": [
@@ -1775,11 +1801,6 @@
       "kind": "test",
       "sha256": "cfd039558210bc4262a21f0758a4690dcf6f82f197e5a5d54cfe6e6b08fd917e"
     },
-    "tests/test_glp183_builder_checked_as_of.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
-    },
     "tests/test_glp_program_authority_checked_as_of.py": {
       "callers": [
         "build_glp_affiliate_wirein_incremental_v2"
@@ -1958,6 +1979,20 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+    },
+    "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "e64bd588cbc038a2bcc76227d9e6cf99d5636bb5481b66e6c73af71e9aa3e054"
+    },
+    "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "script",
+      "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
     }
   },
   "omitted_runtime_inputs": [
@@ -1968,5 +2003,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 298
+  "tracked_count": 303
 }
