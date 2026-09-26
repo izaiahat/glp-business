@@ -778,6 +778,16 @@
       "kind": "script",
       "sha256": "47da490e7d110e3640d4458762db6a67797b98cd683d4fbf8cb50ad19ad8ded9"
     },
+    "scripts/candidate_freshness_coverage.json": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "9b9b673f9c435340849da527e83ce3d9bcd36cf8e86ea71272d79a8a9dc34aa2"
+    },
+    "scripts/candidate_freshness_horizon.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "eec094267d93aed3adf40e2475d71270127363afa28321c0e475da198f5c6afa"
+    },
     "scripts/capacity_pacing.py": {
       "callers": [
         "crontab:32"
@@ -1181,7 +1191,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0f6556ee015b7fe433835b62b524bab4e349b753bcbbe467fbe43c3d0cc2c19b"
+      "sha256": "f926f3245396ad2bc110660d6178467c1478c8450012a21df00fa536ca01ee3c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1569,6 +1579,11 @@
       ],
       "kind": "test",
       "sha256": "8d9aed6a290611677f1ec1e5d1022680614b8ba226c71023053925bc60cf7045"
+    },
+    "tests/test_candidate_freshness_horizon.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "7a9451d0953350f22a2a454aa6097ff9d8123e61c29ca7fac4f0b73457fea9b7"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
@@ -2077,5 +2092,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 315
+  "tracked_count": 318
 }
