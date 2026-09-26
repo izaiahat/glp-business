@@ -961,7 +961,7 @@
     "scripts/glp_onboarding_authoring_dispatch.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "367c822e7e7f5762f528ec20288dc7001a351346faa8c5c321eba581be8abd05"
+      "sha256": "99c754f45b8129c21a93753f0db7c52273c8e8518a28b8c09f5a0bf67f89d4f2"
     },
     "scripts/glp_onboarding_authoring_status.py": {
       "callers": [],
@@ -1162,7 +1162,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b84ad81494217fd9009902097653c748c75c271c07e9a0c2ac3607a54c57ddcf"
+      "sha256": "679cf7f5d8239cd6cb6b3480e67b33fb4409625733f270811fd3a2c2339622fa"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1416,6 +1416,11 @@
       "kind": "retired_test",
       "sha256": "d35b2dffb32f900f738028ed1f0fbc5689775ab9cf24f5e14600d7be345bf955"
     },
+    "tests/fixtures/glp186_binding_refusals.json": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
+    },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
       "callers": [
         "affiliate_approval_auto_reconciler"
@@ -1629,6 +1634,11 @@
       ],
       "kind": "test",
       "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
+    },
+    "tests/test_glp186_binding_diagnostics.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "eacfae490ca68fdf6a9337d7becf9ae6c464095fc2c0516d93eb7c2e79d47fe5"
     },
     "tests/test_glp193_capture_source_binding.py": {
       "callers": [
@@ -2034,5 +2044,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 308
+  "tracked_count": 310
 }

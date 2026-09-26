@@ -1794,6 +1794,12 @@ def classify_failure(record: dict, agent: dict | None = None,
                        "that cannot report is a run that could not work"}
 
     declared = str(agent.get("failure_class") or "").strip().casefold()
+    if declared == CAPABILITY:
+        # A completed process can refuse execution before assessing evidence
+        # (for example, missing assignment/review binding). Preserve its class.
+        return {"failure_class": CAPABILITY,
+                "why": "the engine reported an execution/contract failure: %s"
+                       % (str(agent.get("notes") or "")[:200] or "no further detail")}
     if declared == EVIDENCE_GAP:
         return {"failure_class": EVIDENCE_GAP,
                 "why": "the engine reported an evidence gap: %s"
