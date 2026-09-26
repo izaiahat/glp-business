@@ -497,21 +497,6 @@
       "kind": "retired_script",
       "sha256": "2fc423a36c5c486635c0934000f56e639ab476ac9ac47cd700f0fef059760467"
     },
-    "scripts/.retired-20260925/gpt6pro_packet.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
-    },
-    "scripts/.retired-20260925/gpt6pro_relay.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "cba9ec7c5f694a7d9e6b14c4787c2c913d58d9dd0259e060a344048de860d2bb"
-    },
-    "scripts/.retired-20260925/gpt6pro_wave.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "8e113774bb839fb6c6f6fd9054cf648d628e240d9022217fd321799deb2974f7"
-    },
     "scripts/.retired-20260925/katalys_session_keepalive.py": {
       "callers": [],
       "kind": "retired_script",
@@ -541,11 +526,6 @@
       "callers": [],
       "kind": "retired_script",
       "sha256": "b962927d6b2b6a6876495328902f7b937603d38c11443df1cb9b18cbbd19f7eb"
-    },
-    "scripts/.retired-20260925/pro_relay_landing_monitor.py": {
-      "callers": [],
-      "kind": "retired_script",
-      "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
     "scripts/.retired-20260925/pro_relay_landing_monitor.py.p71b-20260923.bak": {
       "callers": [],
@@ -842,6 +822,27 @@
       "kind": "script",
       "sha256": "365f18241f4d1ada26a2f691179b0a553dd9131ad1cdfba7315d4de1aabc9bce"
     },
+    "scripts/gpt6pro_packet.py": {
+      "callers": [
+        "on-demand:gpt6pro_wave"
+      ],
+      "kind": "script",
+      "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
+    },
+    "scripts/gpt6pro_relay.py": {
+      "callers": [
+        "on-demand:gpt6pro_wave"
+      ],
+      "kind": "script",
+      "sha256": "cba9ec7c5f694a7d9e6b14c4787c2c913d58d9dd0259e060a344048de860d2bb"
+    },
+    "scripts/gpt6pro_wave.py": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "script",
+      "sha256": "8e113774bb839fb6c6f6fd9054cf648d628e240d9022217fd321799deb2974f7"
+    },
     "scripts/hermes-state-backup.sh": {
       "callers": [
         "crontab:20"
@@ -904,6 +905,11 @@
       ],
       "kind": "script",
       "sha256": "a5e7dcf66f14ff19487c4bfedfba0f0c6423152451085d9f07fdd40390919c35"
+    },
+    "scripts/pro_relay_landing_monitor.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
     "scripts/result_contract.py": {
       "callers": [
@@ -974,16 +980,6 @@
       "kind": "retired_test",
       "sha256": "31aaf73d32fc970464b25c2635c2dc0899a35df8665c6d11420d073791bfb711"
     },
-    "tests/.retired-20260925/test_gpt6pro_relay_binding.py": {
-      "callers": [],
-      "kind": "retired_test",
-      "sha256": "4151f955b96125a64bc2f619bafeb1dd947a7fc58cc3e360e7d171368d3b8a29"
-    },
-    "tests/.retired-20260925/test_gpt6pro_wave.py": {
-      "callers": [],
-      "kind": "retired_test",
-      "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
-    },
     "tests/.retired-20260925/test_linear_cycle_time_history.py": {
       "callers": [],
       "kind": "retired_test",
@@ -993,11 +989,6 @@
       "callers": [],
       "kind": "retired_test",
       "sha256": "46bb3f44055b6101ac328d23d3890aa65167be6c9c1497032d67b7558c6a7d14"
-    },
-    "tests/.retired-20260925/test_pro_relay_landing_monitor.py": {
-      "callers": [],
-      "kind": "retired_test",
-      "sha256": "0d46881b4f7497d3c20e7d853db3e71c0228f996365e30c3abe0b17347455fc8"
     },
     "tests/.retired-20260925/test_pro_relay_landing_monitor.py.p71b-20260923.bak": {
       "callers": [],
@@ -1342,6 +1333,18 @@
       "kind": "test",
       "sha256": "cc5bc57b3ec25bbb71e9dbfd30a851d39f2925e93e12e1d01b9e98f2b97b5196"
     },
+    "tests/test_gpt6pro_relay_binding.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "4151f955b96125a64bc2f619bafeb1dd947a7fc58cc3e360e7d171368d3b8a29"
+    },
+    "tests/test_gpt6pro_wave.py": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "test",
+      "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
+    },
     "tests/test_katalys_approved_link_resolver.py": {
       "callers": [
         "katalys_approved_link_resolver"
@@ -1376,6 +1379,11 @@
       ],
       "kind": "test",
       "sha256": "f0bfb45b1817ed4670fa453cd8d47657dcafd22adeaeed95e1d8a6e315ca6195"
+    },
+    "tests/test_pro_relay_landing_monitor.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "0d46881b4f7497d3c20e7d853db3e71c0228f996365e30c3abe0b17347455fc8"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
