@@ -414,7 +414,14 @@ class QuotaResumeTests(unittest.TestCase):
             fetched.content = raw
             self.save()
             self.extra.append(terminal)
-            self.assert_successor_registered(terminal)
+            if Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py").is_file():
+                self.assert_successor_registered(terminal)
+            else:
+                # CI excludes the site-owned guard; prove admission reaches its gate.
+                with patch.object(bridge.importlib.util, "spec_from_file_location", return_value=None):
+                    with self.assertRaisesRegex(RuntimeError, "registered_issue_guard_unavailable"):
+                        bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+                self.assertEqual(bridge.load_state()["successor_issues"][SOURCE]["status"], "reserved")
             download.assert_called_with(url, timeout=30)
 
     def test_successor_refuses_terminal_reply_with_decision(self):

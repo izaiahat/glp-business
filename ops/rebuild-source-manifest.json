@@ -1454,7 +1454,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "cafedd446c891420933aff6815d1f2ca12557be0a939ab8681321b3af1c642c2"
+      "sha256": "60b8c6811f34fc681d86de3d3c17a105245836a9cc489e9a7ae0b233a33b920a"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
       "callers": [
