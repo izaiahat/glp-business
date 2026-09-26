@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "842f784d48b271b3dc68c6741467e3f0a8bc0ba405623ef32851e972b39bca30"
+      "sha256": "41be9be164b4f8e991ba32f1cd05a80c6394ac3a8cd86d585bad772d7aa66bdb"
     },
     ".hermes.md": {
       "callers": [],
@@ -1125,6 +1125,13 @@
       "kind": "script",
       "sha256": "48b514394afb45bf255df2b765d27251bfa409e3d124e8c5a9e0ec69de90dfa5"
     },
+    "scripts/post_discord_message.py": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "script",
+      "sha256": "f830f1b5b9525d5c3e5c61bbe27649c3d142ce33eb8bb9622d1662f18a1b2e22"
+    },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
       "kind": "script",
@@ -1953,6 +1960,20 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+    },
+    "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "e64bd588cbc038a2bcc76227d9e6cf99d5636bb5481b66e6c73af71e9aa3e054"
+    },
+    "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py": {
+      "callers": [
+        "scripts/fable_bridge.py"
+      ],
+      "kind": "script",
+      "sha256": "36b655f774a2e9b5c855a37510542b544d55e87e92e422fe35f91df6c847eb29"
     }
   },
   "omitted_runtime_inputs": [
@@ -1963,5 +1984,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 297
+  "tracked_count": 300
 }
