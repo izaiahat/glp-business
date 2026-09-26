@@ -31,6 +31,8 @@
 !/CLAUDE.md
 !/README.md
 !/ops/autonomy-envelope.json
+!/ops/claude-model-policy.json
+!/ops/claude_model_policy.py
 !/ops/cron-medic-model-policy.json
 !/ops/disk-retention-policy.json
 !/ops/hermes-cron-scripts/affiliate_backrun_daily.sh
@@ -102,6 +104,7 @@
 !/ops/rebuild-source-manifest.json
 !/ops/registered-producers.json
 !/reports/BUILD-SOURCE-OF-TRUTH.md
+!/scripts/account_capacity_collector.py
 !/scripts/affiliate_approval_auto_reconciler.py
 !/scripts/affiliate_best_terms_machine.py
 !/scripts/affiliate_provider_metadata.py
@@ -122,6 +125,7 @@
 !/scripts/cron_ports_sheet/program_liveness.py
 !/scripts/deploy_freeze_guard.py
 !/scripts/disk_guard.py
+!/scripts/fable_bridge.py
 !/scripts/glp_ads_three_platform_monitor.py
 !/scripts/glp_affiliate_link_rails.py
 !/scripts/glp_affiliate_link_rot.py
@@ -173,6 +177,10 @@
 !/tests/test_capacity_pacing.py
 !/tests/test_cron_applications_note_reconcile.py
 !/tests/test_cron_bridge_action.py
+!/tests/test_fable_bridge_identity.py
+!/tests/test_fable_bridge_native_review.py
+!/tests/test_fable_bridge_quota_resume.py
+!/tests/test_fable_bridge_reviewer_routing.py
 !/tests/test_fleet_sentinel.py
 !/tests/test_glp_ads_three_platform_monitor.py
 !/tests/test_glp_affiliate_daily_decisions_report.py
