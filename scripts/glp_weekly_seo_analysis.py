@@ -4,7 +4,7 @@ import argparse, hashlib, json, sys
 from pathlib import Path
 B = Path('/home/ubuntu/business')
 PIN_PATH = B / 'ops/glp/seo-weekly-installed-pins.json'
-PIN_SHA256 = 'fdd7573dd7451a5aa3bdb952ed84ed709fe69a7556ee799a3a1f4226c565a0e9'
+PIN_SHA256 = '7cfce61e8b3a8c43b4ae025e320ec62b979eecad66d9c639fba47c86cf1df5ca'
 def verify_pins():
     raw = PIN_PATH.read_bytes()
     if hashlib.sha256(raw).hexdigest() != PIN_SHA256:
