@@ -36,6 +36,7 @@ class QuotaResumeTests(unittest.TestCase):
                         f"tuple_sha256: {self.digest}\nreview_artifact_sha256: {self.digest}\n"
                         "review_artifact_path: " + str(self.artifact))
         self.issue = dict(schema="boring_ai_bridge_request_issue_v2", status="BOUND", issue_id=ISSUE,
+                          subject_id="glp:GLP-42:offline-fixture",
                           request_message_id=SOURCE, channel_id=bridge.CHANNEL,
                           request_author_id=bridge.KAEL_BOT_ID, tuple_sha256=self.digest,
                           review_artifact_sha256=self.digest, review_artifact_path=str(self.artifact),
@@ -266,6 +267,223 @@ class QuotaResumeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "resume_receipt_not_eligible"):
             self.run_resume()
         self.assertEqual(self.inferences.call_count, 1)
+
+    def test_successor_is_registered_once_after_terminal_no_decision(self):
+        # The guard is site-owned and excluded from the curated CI checkout.
+        # On the host, execute its actual module against temp-root fixtures.
+        guard_source = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
+        if not guard_source.is_file():
+            self.skipTest("host-only bridge authority guard source unavailable")
+        terminal_id = "1553281139517423701"
+        terminal_body = ("(Reviewer response exceeded the single-message safety limit; "
+                         "no authority decision was issued.)\n[reviewer: fable-xhigh]")
+        terminal = dict(id=terminal_id, content=terminal_body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE}, attachments=[])
+        self.extra.append(terminal)
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", reply_chars=len(terminal_body),
+            reply_sha256=hashlib.sha256(terminal_body.encode()).hexdigest(),
+            attempts=[dict(backend="fable", invoked=True, status="ok")])
+        self.save()
+        self.assert_successor_registered(terminal)
+
+    def assert_successor_registered(self, terminal):
+        terminal_id = terminal["id"]
+        original_api = self.api
+        def api(method, path, body=None):
+            return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, body)
+        # Load the actual guard source, replacing only its filesystem roots and
+        # authenticated GET seam after execution. The issue/hash/bind paths stay real.
+        original_spec = bridge.importlib.util.spec_from_file_location
+        loaded = []
+        def fixture_spec(name, path):
+            spec = original_spec(name, path)
+            loader = spec.loader
+            class FixtureLoader:
+                def create_module(self, spec):
+                    return None
+                def exec_module(self, module):
+                    loader.exec_module(module)
+                    module.BRIDGE_ISSUE_ROOT = self_root.issue_dir
+                    module.REVIEW_ARTIFACT_ROOT = self_root.artifact_root
+                    module._fetch_discord_message = lambda channel, message_id: {
+                        "id": message_id, "channel_id": channel,
+                        "author": {"id": module.KAEL_SHARED_BOT_AUTHOR_ID},
+                        "content": loaded_request["content"],
+                        "timestamp": module._utc_now(), "edited_timestamp": None,
+                    }
+                    loaded.append(module)
+            spec.loader = FixtureLoader()
+            return spec
+        self_root = self
+        loaded_request = {}
+        with patch.object(bridge, "api", side_effect=api), \
+                patch.object(bridge.importlib.util, "spec_from_file_location", side_effect=fixture_spec), \
+                patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            result = bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+            self.assertEqual(len(loaded), 1)
+            guard = loaded[0]
+            registered_path = Path(result["issue_record_path"])
+            registered = json.loads(registered_path.read_text())
+            self.assertEqual(result["status"], "ISSUED_NOT_SENT")
+            self.assertEqual(registered["predecessor_request_message_id"], SOURCE)
+            self.assertEqual(registered["predecessor_reply_message_id"], terminal_id)
+            self.assertEqual(registered["predecessor_issue_id"], ISSUE)
+            self.assertEqual(registered["tuple_sha256"], self.digest)
+            self.assertEqual(registered["record_sha256"], guard._record_hash(registered))
+            self.assertEqual(registered["status"], "ISSUED")
+            guard.load_issue_record(registered_path, expected_subject_id=registered["subject_id"],
+                                    expected_tuple_sha256=self.digest, require_bound=False)
+            loaded_request["content"] = result["request_content"]
+            bound_path, bound = guard.bind_request_issue(
+                issue_record_path=registered_path, request_message_id="1553281999999999999")
+            self.assertEqual(bound_path, registered_path)
+            self.assertEqual(bound["status"], "BOUND")
+            self.assertEqual(guard.load_issue_record(registered_path,
+                expected_subject_id=registered["subject_id"], expected_tuple_sha256=self.digest)[1], bound)
+            with self.assertRaisesRegex(RuntimeError, "successor_terminal_receipt_not_eligible"):
+                bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+        self.inferences.assert_not_called()
+        self.assertFalse(self.posts)
+
+    def test_oversize_terminal_successor_requires_exact_verified_two_attempt_shape(self):
+        terminal_id = "1553281139517423701"
+        raw = ("TRUE-BRIDGE FABLE — ACCEPT (initial oversized output)" * 40).encode()
+        digest = hashlib.sha256(raw).hexdigest()
+        body = ("(Compact reviewer decision unavailable; no authority decision was issued.)\n"
+                f"Full verbatim initial reviewer response: attached as reviewer-response.txt "
+                f"({len(raw)} UTF-8 bytes; SHA-256: {digest}).\n[reviewer: fable-xhigh]")
+        url = "https://cdn.discordapp.com/attachments/offline/reviewer-response.txt"
+        attachment = dict(url=url, filename="reviewer-response.txt", size=len(raw))
+        terminal = dict(id=terminal_id, content=body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE},
+                        attachments=[attachment])
+        attempt = dict(backend="fable", model="claude-fable-5-1", effort="xhigh",
+                       session_id="20260922_120000_abcdef", session_mode="native_import_resume",
+                       legacy_session_id="00000000-0000-4000-8000-000000000001",
+                       invoked=True, status="ok")
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", backend="fable", model="claude-fable-5-1",
+            effort="xhigh", reply_chars=len(body),
+            reply_sha256=hashlib.sha256(body.encode()).hexdigest(),
+            original_stdout_sha256=digest, original_stdout_bytes=len(raw),
+            attachment_verification=dict(attachment_sha256=digest, attachment_bytes=len(raw),
+                posted_content_sha256=hashlib.sha256(body.encode()).hexdigest()),
+            attempts=[dict(attempt), dict(attempt, status="timeout")])
+        original_api = self.api
+        def api(method, path, data=None):
+            return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, data)
+        fetched = Mock(content=raw)
+        with patch.object(bridge, "api", side_effect=api), \
+                patch.object(bridge.requests, "get", return_value=fetched) as download, \
+                patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            def refused(mutate, expected):
+                mutate()
+                self.save()
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+                self.assertNotIn("successor_issues", bridge.load_state())
+            def verdict(text):
+                altered = body + "\nTRUE-BRIDGE FABLE — " + text
+                terminal["content"] = altered
+                self.receipt["resume"].update(reply_chars=len(altered),
+                    reply_sha256=hashlib.sha256(altered.encode()).hexdigest())
+            baseline = json.loads(json.dumps(self.receipt["resume"]))
+            # Reviewer probe regression: deleting both bindings used to register.
+            # Exercise the actual successor admission before its host-only guard.
+            binding_cases = [
+                ("both_missing", lambda r: (r.pop("original_stdout_sha256"), r.pop("original_stdout_bytes"))),
+            ]
+            for field, empty, wrong_type, malformed, mismatch in (
+                ("original_stdout_sha256", "", 7, "g" * 64, "0" * 64),
+                ("original_stdout_bytes", 0, True, -1, len(raw) + 1),
+            ):
+                binding_cases.extend([
+                    (field + "_missing", lambda r, field=field: r.pop(field)),
+                    (field + "_empty", lambda r, field=field, value=empty: r.__setitem__(field, value)),
+                    (field + "_wrong_type", lambda r, field=field, value=wrong_type: r.__setitem__(field, value)),
+                    (field + "_malformed", lambda r, field=field, value=malformed: r.__setitem__(field, value)),
+                    (field + "_mismatch", lambda r, field=field, value=mismatch: r.__setitem__(field, value)),
+                ])
+            for case, mutate in binding_cases:
+                with self.subTest(binding=case):
+                    self.receipt["resume"] = json.loads(json.dumps(baseline))
+                    mutate(self.receipt["resume"])
+                    self.assertFalse(bridge._successor_verified_attachment(terminal, self.receipt["resume"], body))
+                    refused(lambda: None, "successor_predecessor_reply_not_no_decision")
+            # All attachment receipt fields are mandatory; no receipt default may
+            # stand in for an independently verified byte digest or size.
+            verification_cases = [
+                ("attachment_sha256", "", 7, "g" * 64, "0" * 64),
+                ("attachment_bytes", 0, True, -1, len(raw) + 1),
+                ("posted_content_sha256", "", 7, "g" * 64, "0" * 64),
+            ]
+            for field, empty, wrong_type, malformed, mismatch in verification_cases:
+                for label, value in (("missing", None), ("empty", empty),
+                                     ("wrong_type", wrong_type), ("malformed", malformed),
+                                     ("mismatch", mismatch)):
+                    with self.subTest(verified_field=field, defect=label):
+                        self.receipt["resume"] = json.loads(json.dumps(baseline))
+                        verified = self.receipt["resume"]["attachment_verification"]
+                        if label == "missing":
+                            verified.pop(field)
+                        else:
+                            verified[field] = value
+                        self.assertFalse(bridge._successor_verified_attachment(terminal, self.receipt["resume"], body))
+                        refused(lambda: None, "successor_predecessor_reply_not_no_decision")
+            for mutate, expected in [
+                (lambda: self.receipt["resume"]["attempts"].append(dict(attempt)), "receipt_not_eligible"),
+                (lambda: self.receipt["resume"]["attempts"].pop(), "reply_not_no_decision"),
+                (lambda: self.receipt["resume"]["attempts"][1].update(session_id="other"), "receipt_not_eligible"),
+                (lambda: self.receipt["resume"]["attachment_verification"].update(attachment_sha256="0" * 64), "reply_not_no_decision"),
+                (lambda: terminal["attachments"][0].update(size=len(raw) + 1), "reply_not_no_decision"),
+                (lambda: terminal["attachments"].append(dict(attachment)), "reply_not_no_decision"),
+                (lambda: setattr(fetched, "content", raw + b"drift"), "reply_not_no_decision"),
+                (lambda: verdict("REJECT"), "reply_not_no_decision"),
+                (lambda: verdict("ACCEPT"), "reply_not_no_decision"),
+            ]:
+                with self.subTest(mutate=expected):
+                    self.receipt["resume"] = json.loads(json.dumps(baseline))
+                    terminal.update(content=body, attachments=[dict(attachment)])
+                    terminal["attachments"][0]["size"] = len(raw)
+                    fetched.content = raw
+                    refused(mutate, "successor_predecessor_" + expected if expected.startswith("reply") else "successor_terminal_" + expected)
+            self.receipt["resume"] = baseline
+            terminal.update(content=body, attachments=[dict(attachment)])
+            terminal["attachments"][0]["size"] = len(raw)
+            fetched.content = raw
+            self.save()
+            self.extra.append(terminal)
+            if Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py").is_file():
+                self.assert_successor_registered(terminal)
+            else:
+                # CI excludes the site-owned guard; prove admission reaches its gate.
+                with patch.object(bridge.importlib.util, "spec_from_file_location", return_value=None):
+                    with self.assertRaisesRegex(RuntimeError, "registered_issue_guard_unavailable"):
+                        bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+                self.assertEqual(bridge.load_state()["successor_issues"][SOURCE]["status"], "reserved")
+            download.assert_called_with(url, timeout=30)
+
+    def test_successor_refuses_terminal_reply_with_decision(self):
+        terminal_id = "1553281139517423701"
+        terminal_body = "TRUE-BRIDGE FABLE — ACCEPT (this message is the SOLE valid acceptance)"
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", reply_chars=len(terminal_body),
+            reply_sha256=hashlib.sha256(terminal_body.encode()).hexdigest(),
+            attempts=[dict(backend="fable", invoked=True, status="ok")])
+        self.save()
+        terminal = dict(id=terminal_id, content=terminal_body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE})
+        original_api = self.api
+        with patch.object(bridge, "api", side_effect=lambda method, path, body=None:
+                terminal if method == "GET" and path.endswith("/" + terminal_id)
+                else original_api(method, path, body)):
+            with self.assertRaisesRegex(RuntimeError, "successor_predecessor_reply_not_no_decision"):
+                bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+        self.assertNotIn("successor_issues", bridge.load_state())
 
 
 if __name__ == "__main__":

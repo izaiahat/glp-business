@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8733107d6483533d43a6c2e020e410a0ceedeba369247af89a8756cd8e229995"
+      "sha256": "62cd4a7912f72c9d0c944b8d28f3d2e86d14798a59c5974bbb6bac476d10225e"
     },
     ".hermes.md": {
       "callers": [],
@@ -629,9 +629,7 @@
       "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
     },
     "scripts/affiliate_application_executor_gate.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
+      "callers": ["GLP-317 Awin paused source review"],
       "kind": "script",
       "sha256": "bbb23e1e5b6f6a52d002a3896b514912d8a58a13c349996643570db91e5a21cb"
     },
@@ -651,9 +649,7 @@
       "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
     },
     "scripts/affiliate_niche_geo_filter.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
+      "callers": ["GLP-317 Awin paused source review"],
       "kind": "script",
       "sha256": "5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e"
     },
@@ -818,7 +814,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "ab328675c6bba8b2fc776d46bebcbcbef53229ce43dab13fd4b2ce20329e60c8"
+      "sha256": "9eade9ed8fd6e24b6f858855e673ea7c6224bac5c7a6638ff1405fa4e6b7d26e"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1038,16 +1034,12 @@
       "sha256": "a5e7dcf66f14ff19487c4bfedfba0f0c6423152451085d9f07fdd40390919c35"
     },
     "scripts/marketplace_adapters/__init__.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
+      "callers": ["GLP-317 Awin paused source review"],
       "kind": "script",
       "sha256": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445"
     },
     "scripts/marketplace_adapters/portal_apply.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
+      "callers": ["GLP-317 Awin paused source review"],
       "kind": "script",
       "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77"
     },
@@ -1066,7 +1058,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5bb7ea8e6c940cac499acb6b98b9fb27a45034fd90f8a3fd1419e468016edf88"
+      "sha256": "99f1aa330e92891398828d1362db66882fae9a952a133dcc2a4a54a14b2b9f41"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1471,7 +1463,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "afaf1c32644226f519ad0e5f4e0161574b64c3656c8ca18b8a9b1643e04d656a"
+      "sha256": "5040a06c8affe1c07d653b491f0979db0e8a51e8e5ee7eb5c193f597a1816054"
     },
     "tests/test_fable_bridge_native_review.py": {
       "callers": [
@@ -1480,19 +1472,26 @@
       "kind": "test",
       "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
     },
+    "tests/test_fable_bridge_oversize.py": {
+      "callers": [
+        "fable_bridge"
+      ],
+      "kind": "test",
+      "sha256": "cff56ed052c003c0206b93ba2c4a1110a3b1758b57cd6752d94f36958b1d9dc9"
+    },
     "tests/test_fable_bridge_quota_resume.py": {
       "callers": [
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "4c616ba5404c6d06a9470b992b87e07347c8287b03c507fd8887f79f5203399e"
+      "sha256": "d96c5893ee93297df689e3159f17d6583185b1aa82b8ce8b07f6a295209dcb7e"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
       "callers": [
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "11ce6ec368252ee104d645ac484e403b40bf1cde22e29141eed62678e849b7d1"
+      "sha256": "93ff7db942617fab9593d99c66b23cdfe686af93c71095cad22abb0306c635c6"
     },
     "tests/test_fleet_sentinel.py": {
       "callers": [
@@ -1851,5 +1850,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 280
+  "tracked_count": 281
 }
