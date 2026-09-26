@@ -12,6 +12,7 @@ suites+=(tests/test_glp_landed_uncertain_deployment_reconcile.py)
 suites+=(tests/test_glp193_capture_source_binding.py)
 suites+=(tests/test_glp196_price_index_contract.py)
 suites+=(tests/test_fable_mention_recovery.py)
+suites+=(tests/test_glp186_binding_diagnostics.py)
 suites+=(tests/test_glp183_builder_checked_as_of.py)
 suites+=(tests/test_glp_awin_portal_login.py tests/test_awin_fresh_preflight.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \

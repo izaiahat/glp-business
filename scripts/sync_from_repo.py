@@ -48,16 +48,20 @@ def safe(root, rel):
 
 def reviewed_prior_hashes(checkout, rel):
     """Hashes of older committed versions, never working-tree or current HEAD bytes."""
+    head_hash = hashlib.sha256(subprocess.check_output(
+        ["git", "-C", str(checkout), "show", f"HEAD:{rel}"]
+    )).hexdigest()
+    # Default path history prunes side branches at TREESAME merges.
     commits = subprocess.check_output(
-        ["git", "-C", str(checkout), "log", "--format=%H", "HEAD", "--", rel],
+        ["git", "-C", str(checkout), "log", "--full-history", "--format=%H", "HEAD", "--", rel],
         text=True,
     ).splitlines()
     return {
         hashlib.sha256(subprocess.check_output(
             ["git", "-C", str(checkout), "show", f"{commit}:{rel}"]
         )).hexdigest()
-        for commit in commits[1:]
-    }
+        for commit in commits
+    } - {head_hash}
 
 
 def sync(root, checkout, apply, adopt_reviewed_baseline=()):

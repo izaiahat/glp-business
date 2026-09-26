@@ -968,6 +968,16 @@
       "kind": "script",
       "sha256": "cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1"
     },
+    "scripts/glp_onboarding_authoring_dispatch.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "99c754f45b8129c21a93753f0db7c52273c8e8518a28b8c09f5a0bf67f89d4f2"
+    },
+    "scripts/glp_onboarding_authoring_status.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
+    },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
         "scripts/run_tests.sh",
@@ -1162,7 +1172,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f786f537ee95024efd2d70cd05636589642bc606bd18e208f1e1978e1dbf96c"
+      "sha256": "d72539fb939cf32cd34caeec34c679216e5b8384614635cd8238a5bd85f7fd67"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1209,7 +1219,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cec0469041d03e0672d23f870e18c172f27722c6e2f3af17e63bbeef8a41b9c"
+      "sha256": "afb8bd57af4b65b227dd332754651c83cb13e15d4797133e1e410d818b832743"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -1415,6 +1425,11 @@
       "callers": [],
       "kind": "retired_test",
       "sha256": "d35b2dffb32f900f738028ed1f0fbc5689775ab9cf24f5e14600d7be345bf955"
+    },
+    "tests/fixtures/glp186_binding_refusals.json": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
     },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
       "callers": [
@@ -1634,6 +1649,11 @@
       ],
       "kind": "test",
       "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
+    },
+    "tests/test_glp186_binding_diagnostics.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "eacfae490ca68fdf6a9337d7becf9ae6c464095fc2c0516d93eb7c2e79d47fe5"
     },
     "tests/test_glp193_capture_source_binding.py": {
       "callers": [
@@ -2014,7 +2034,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+      "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -2039,5 +2059,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 309
+  "tracked_count": 313
 }
