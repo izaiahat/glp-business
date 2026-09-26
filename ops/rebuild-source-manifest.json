@@ -799,7 +799,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "ab328675c6bba8b2fc776d46bebcbcbef53229ce43dab13fd4b2ce20329e60c8"
+      "sha256": "c4db833e257763ba4ac4c1e4615231879edc74f6303999c2ba1944a0d05f95b4"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1033,7 +1033,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "10396a7fd1aba1279efcba445a38789e0c99315028a2dc41985541ce53821566"
+      "sha256": "532a88ac03916f8c1d0cbd2c2181cafec19f291c5af7b4e0afe4115425ce102a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1433,7 +1433,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "afaf1c32644226f519ad0e5f4e0161574b64c3656c8ca18b8a9b1643e04d656a"
+      "sha256": "5040a06c8affe1c07d653b491f0979db0e8a51e8e5ee7eb5c193f597a1816054"
     },
     "tests/test_fable_bridge_native_review.py": {
       "callers": [
@@ -1442,19 +1442,26 @@
       "kind": "test",
       "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
     },
+    "tests/test_fable_bridge_oversize.py": {
+      "callers": [
+        "fable_bridge"
+      ],
+      "kind": "test",
+      "sha256": "b9aafab5984408d9129ab023772a892efd78cb88ca9204e7f6572495599b1114"
+    },
     "tests/test_fable_bridge_quota_resume.py": {
       "callers": [
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "4c616ba5404c6d06a9470b992b87e07347c8287b03c507fd8887f79f5203399e"
+      "sha256": "48d40151b4246c1e84d14acd339370f057095df05ce9e3d86c57f0386e7d0d02"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
       "callers": [
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "11ce6ec368252ee104d645ac484e403b40bf1cde22e29141eed62678e849b7d1"
+      "sha256": "f1422dcd7d4958c633810e95446af8f17a83579465bc117b0fe49535c9247d43"
     },
     "tests/test_fleet_sentinel.py": {
       "callers": [

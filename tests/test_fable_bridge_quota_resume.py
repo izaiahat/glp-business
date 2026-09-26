@@ -36,6 +36,7 @@ class QuotaResumeTests(unittest.TestCase):
                         f"tuple_sha256: {self.digest}\nreview_artifact_sha256: {self.digest}\n"
                         "review_artifact_path: " + str(self.artifact))
         self.issue = dict(schema="boring_ai_bridge_request_issue_v2", status="BOUND", issue_id=ISSUE,
+                          subject_id="glp:GLP-42:offline-fixture",
                           request_message_id=SOURCE, channel_id=bridge.CHANNEL,
                           request_author_id=bridge.KAEL_BOT_ID, tuple_sha256=self.digest,
                           review_artifact_sha256=self.digest, review_artifact_path=str(self.artifact),
@@ -266,6 +267,70 @@ class QuotaResumeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "resume_receipt_not_eligible"):
             self.run_resume()
         self.assertEqual(self.inferences.call_count, 1)
+
+    def test_successor_is_registered_once_after_terminal_no_decision(self):
+        terminal_id = "1553281139517423701"
+        terminal_body = ("(Reviewer response exceeded the single-message safety limit; "
+                         "no authority decision was issued.)\n[reviewer: fable-xhigh]")
+        terminal = dict(id=terminal_id, content=terminal_body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE}, attachments=[])
+        self.extra.append(terminal)
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", reply_chars=len(terminal_body),
+            reply_sha256=hashlib.sha256(terminal_body.encode()).hexdigest(),
+            attempts=[dict(backend="fable", invoked=True, status="ok")])
+        self.save()
+        original_api = self.api
+        def api(method, path, body=None):
+            return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, body)
+        def issue_request(*, subject_id, tuple_sha256, review_artifact_path):
+            self.assertEqual(tuple_sha256, self.digest)
+            path = self.issue_dir / ("bridge-issue-" + "f" * 32 + ".json")
+            fresh = dict(issue_id=path.stem, status="ISSUED", subject_id=subject_id,
+                         tuple_sha256=tuple_sha256, review_artifact_path=str(review_artifact_path),
+                         request_content="new canonical request")
+            path.write_text(json.dumps(fresh))
+            return path, fresh
+        fake_guard = SimpleNamespace(issue_request=issue_request,
+            _record_hash=lambda value: hashlib.sha256(json.dumps(
+                {key: item for key, item in value.items() if key != "record_sha256"},
+                sort_keys=True, separators=(",", ":")).encode()).hexdigest())
+        fake_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+        with patch.object(bridge, "api", side_effect=api), \
+                patch.object(bridge.importlib.util, "spec_from_file_location", return_value=fake_spec), \
+                patch.object(bridge.importlib.util, "module_from_spec", return_value=fake_guard), \
+                patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            result = bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+            self.assertEqual(result["status"], "ISSUED_NOT_SENT")
+            registered = json.loads(Path(result["issue_record_path"]).read_text())
+            self.assertEqual(registered["predecessor_request_message_id"], SOURCE)
+            self.assertEqual(registered["predecessor_reply_message_id"], terminal_id)
+            self.assertEqual(registered["predecessor_issue_id"], ISSUE)
+            self.assertEqual(registered["tuple_sha256"], self.digest)
+            with self.assertRaisesRegex(RuntimeError, "successor_terminal_receipt_not_eligible"):
+                bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+        self.inferences.assert_not_called()
+        self.assertFalse(self.posts)
+
+    def test_successor_refuses_terminal_reply_with_decision(self):
+        terminal_id = "1553281139517423701"
+        terminal_body = "TRUE-BRIDGE FABLE — ACCEPT (this message is the SOLE valid acceptance)"
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", reply_chars=len(terminal_body),
+            reply_sha256=hashlib.sha256(terminal_body.encode()).hexdigest(),
+            attempts=[dict(backend="fable", invoked=True, status="ok")])
+        self.save()
+        terminal = dict(id=terminal_id, content=terminal_body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE})
+        original_api = self.api
+        with patch.object(bridge, "api", side_effect=lambda method, path, body=None:
+                terminal if method == "GET" and path.endswith("/" + terminal_id)
+                else original_api(method, path, body)):
+            with self.assertRaisesRegex(RuntimeError, "successor_predecessor_reply_not_no_decision"):
+                bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+        self.assertNotIn("successor_issues", bridge.load_state())
 
 
 if __name__ == "__main__":

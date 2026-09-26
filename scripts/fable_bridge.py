@@ -333,15 +333,46 @@ def select_backend(*, claude_exhausted: bool = False, design_review: bool = Fals
 
 
 def _tag_reply(kind: str, output: str, identity: str) -> str:
-    """Append metadata, never truncate an authority decision to make it fit."""
+    """Keep the complete reviewer output until the transport can attach it."""
     suffix = f"\n[reviewer: {identity}]"
     limit = min(MAX_REPLY_CHARS, 1399) if kind == "review_request" else MAX_REPLY_CHARS
     body = output.strip() or "(Reviewer returned no output; no authority decision was issued.)"
     if "[reviewer:" in body.casefold():
         body = "(Reviewer supplied reserved identity metadata; no authority decision was issued.)"
-    if len(body) + len(suffix) > limit:
-        body = "(Reviewer response exceeded the single-message safety limit; no authority decision was issued.)"
-    return body + suffix
+    # Short replies retain their historical content; long replies retain raw
+    # stdout, including terminal newlines, in the attachment payload.
+    return (body if len(body) + len(suffix) <= limit else output) + suffix
+
+
+def _oversize_reply(reply: str, kind: str) -> tuple[str, bytes, str] | None:
+    """Build a bounded wrapper; never infer a decision from quoted contract text."""
+    limit = min(MAX_REPLY_CHARS, 1399) if kind == "review_request" else MAX_REPLY_CHARS
+    if len(reply) <= limit:
+        return None
+    body, separator, identity = reply.rpartition("\n[reviewer: ")
+    if not separator or not identity.endswith("]"):
+        raise RuntimeError("oversize_reviewer_identity_unbound")
+    identity = identity[:-1]
+    first = body.lstrip("\ufeff\r\n").splitlines()[0] if body.strip() else ""
+    accept = "TRUE-BRIDGE FABLE — ACCEPT (this message is the SOLE valid acceptance)"
+    # The first line must be the reviewer's own exact verdict. Contradictory
+    # ACCEPT bodies remain no-decision rather than laundering a false authority.
+    if kind == "review_request" and first == accept and not re.search(
+        r"\b(?:REJECT(?:ED|ION)?|REVISE(?:D)?|DO\s+NOT\s+ACCEPT|NOT\s+ACCEPT(?:ED)?)\b",
+        body, re.IGNORECASE,
+    ):
+        verdict = accept
+    elif kind == "review_request" and first == "TRUE-BRIDGE FABLE — REJECT":
+        verdict = first
+    else:
+        verdict = "Reviewer response attached; no parsable verdict, no authority decision was issued."
+    raw = body.encode("utf-8")
+    digest = hashlib.sha256(raw).hexdigest()
+    wrapper = (f"{verdict}\nFull verbatim reviewer response: attached as reviewer-response.txt "
+               f"({len(raw)} UTF-8 bytes; SHA-256: {digest}).\n[reviewer: {identity}]")
+    if len(wrapper) > MAX_REPLY_CHARS:
+        raise RuntimeError("oversize_reply_wrapper_invalid")
+    return wrapper, raw, digest
 
 
 def api(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
@@ -397,10 +428,12 @@ def validate_startup_identity() -> str:
     return actual
 
 
-def post(content: str, *, reply_to_message_id: str, nonce: str | None = None) -> str:
-    reply = content.strip() or "(Fable returned no output; no authority decision was issued.)"
+def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
+         kind: str = "review_request") -> str:
+    oversize = _oversize_reply(content, kind)
+    reply = oversize[0] if oversize else (content.strip() or "(Fable returned no output; no authority decision was issued.)")
     if len(reply) > MAX_REPLY_CHARS:
-        reply = "(Fable response exceeded the single-message safety limit; no authority decision was issued.)"
+        raise RuntimeError("reply_exceeds_discord_limit")
     body: dict[str, Any] = {
         "content": reply,
         "message_reference": {
@@ -412,10 +445,56 @@ def post(content: str, *, reply_to_message_id: str, nonce: str | None = None) ->
         "nonce": nonce or reply_to_message_id,
         "enforce_nonce": True,
     }
-    result = api("POST", f"/channels/{CHANNEL}/messages", body)
+    if oversize:
+        if HTTP is None:
+            raise RuntimeError("dedicated_fable_http_session_not_initialized")
+        body["attachments"] = [{"id": 0, "filename": "reviewer-response.txt"}]
+        # One POST, one Discord message, no unjournaled PATCH or blind retry.
+        try:
+            response = HTTP.request("POST", BASE + f"/channels/{CHANNEL}/messages",
+                                    data={"payload_json": json.dumps(body)},
+                                    files={"files[0]": ("reviewer-response.txt", oversize[1],
+                                                        "text/plain; charset=utf-8")}, timeout=30)
+            result = response.json() if 200 <= response.status_code < 300 else None
+        except (requests.RequestException, ValueError) as error:
+            raise RuntimeError("dedicated_fable_message_post_failed_or_ambiguous") from error
+    else:
+        result = api("POST", f"/channels/{CHANNEL}/messages", body)
     if not isinstance(result, dict) or not str(result.get("id") or "").isdigit():
         raise RuntimeError("dedicated_fable_message_post_failed_or_ambiguous")
     return str(result["id"])
+
+
+def verify_oversize_post(posted_id: str, source_id: str, reply: str, kind: str) -> dict[str, Any] | None:
+    """Read back the exact posted message and CDN bytes without bot auth."""
+    oversized = _oversize_reply(reply, kind)
+    if oversized is None:
+        return None
+    wrapper, raw, digest = oversized
+    message = _exact_message(posted_id)
+    if (str((message.get("author") or {}).get("id")) != SELF_ID
+            or str((message.get("message_reference") or {}).get("message_id")) != source_id
+            or message.get("content") != wrapper
+            or message.get("edited_timestamp") is not None):
+        raise RuntimeError("oversize_post_readback_mismatch")
+    attachments = message.get("attachments")
+    if not isinstance(attachments, list) or len(attachments) != 1:
+        raise RuntimeError("oversize_attachment_missing_or_ambiguous")
+    attachment = attachments[0]
+    url = attachment.get("url") if isinstance(attachment, dict) else None
+    if (not isinstance(url, str) or not url.startswith("https://cdn.discordapp.com/")
+            or attachment.get("filename") != "reviewer-response.txt"
+            or attachment.get("size") != len(raw)):
+        raise RuntimeError("oversize_attachment_binding_mismatch")
+    try:
+        downloaded = requests.get(url, timeout=30)  # No dedicated bot token on CDN.
+        downloaded.raise_for_status()
+    except requests.RequestException as error:
+        raise RuntimeError("oversize_attachment_readback_failed") from error
+    if downloaded.content != raw or hashlib.sha256(downloaded.content).hexdigest() != digest:
+        raise RuntimeError("oversize_attachment_bytes_mismatch")
+    return {"attachment_sha256": digest, "attachment_bytes": len(raw),
+            "posted_content_sha256": hashlib.sha256(wrapper.encode("utf-8")).hexdigest()}
 
 
 def load_state() -> dict[str, Any]:
@@ -590,7 +669,7 @@ def _invoke_reviewer(
                 cwd="/home/ubuntu/business",
             )
         attempt["exit"] = result.returncode
-        output = (result.stdout or "").strip()
+        output = result.stdout or ""
         reason = _claude_failure_reason(output, result.stderr or "")
         refusal = name == "fable" and (
             (result.returncode != 0 and reason == "capacity_unavailable")
@@ -651,12 +730,10 @@ def _exact_message(message_id: str) -> dict[str, Any]:
     return message
 
 
-def _only_original_refusal(source_id: str, refusal_id: str) -> None:
-    """Fail closed on later replies or incomplete newest-first history."""
-    # Discord `after` can return the newest page, silently skipping intervening
-    # decision replies. Walk backwards from the current snowflake instead.
+def _only_expected_replies(source_id: str, expected: set[str]) -> None:
+    """Fail closed on extra replies or incomplete newest-first history."""
     cursor = ((int(time.time() * 1000) - 1420070400000) << 22) | 0x3fffff
-    seen = False
+    seen: set[str] = set()
     for _ in range(100):
         page = api("GET", f"/channels/{CHANNEL}/messages?before={cursor}&limit=100")
         if not isinstance(page, list):
@@ -667,22 +744,25 @@ def _only_original_refusal(source_id: str, refusal_id: str) -> None:
         if max(ids) >= cursor or len(ids) != len(set(ids)):
             raise RuntimeError("reply_history_nonmonotonic")
         for item in page:
-            if int(item["id"]) <= int(source_id):
+            message_id = str(item["id"])
+            if int(message_id) <= int(source_id):
                 continue
             if str((item.get("message_reference") or {}).get("message_id")) != source_id:
                 continue
-            if str((item.get("author") or {}).get("id")) == SELF_ID:
-                if str(item["id"]) != refusal_id or seen:
-                    raise RuntimeError("additional_reviewer_reply_present")
-                seen = True
-            else:
-                raise RuntimeError("other_source_reply_present")
+            if (str((item.get("author") or {}).get("id")) != SELF_ID
+                    or message_id not in expected or message_id in seen):
+                raise RuntimeError("additional_reviewer_reply_present")
+            seen.add(message_id)
         cursor = min(ids)
         if cursor <= int(source_id):
-            if not seen:
-                raise RuntimeError("original_refusal_not_in_history")
+            if seen != expected:
+                raise RuntimeError("expected_reply_not_in_history")
             return
     raise RuntimeError("reply_history_incomplete")
+
+
+def _only_original_refusal(source_id: str, refusal_id: str) -> None:
+    _only_expected_replies(source_id, {refusal_id})
 
 
 def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str) -> dict[str, Any]:
@@ -839,15 +919,133 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
             save_state(state)
             raise
         try:
-            posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"])
+            posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"], kind=kind)
         except Exception:
             resumed.update(status="post_failed_or_ambiguous", posting="failed_or_ambiguous")
             save_state(state)
             raise
         resumed.update(status="posted", posting="posted", posted_message_id=posted)
         save_state(state)
+        try:
+            verified = verify_oversize_post(posted, source_id, reply, kind)
+        except Exception:
+            resumed.update(status="posted_unverified", posting="posted_unverified")
+            save_state(state)
+            raise
+        if verified:
+            resumed["attachment_verification"] = verified
+            save_state(state)
         return {"source_message_id": source_id, "posted_message_id": posted,
                 "reviewer_identity": resumed["reviewer_identity"], "status": "posted"}
+
+
+def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str,
+                                terminal_reply_id: str) -> dict[str, Any]:
+    """Register one new issue after a terminal, non-authoritative resume reply.
+
+    This does not send a Discord message or invoke a reviewer. A reserved claim
+    is deliberately non-replayable after a crash or ambiguous issue write.
+    """
+    if (not re.fullmatch(r"[0-9]{17,20}", source_id)
+            or not re.fullmatch(r"[0-9]{17,20}", terminal_reply_id)
+            or not re.fullmatch(r"bridge-issue-[a-f0-9]{32}", issue_id)
+            or not re.fullmatch(r"[a-f0-9]{64}", tuple_sha256)):
+        raise RuntimeError("successor_identity_invalid")
+    if SELF_ID != expected_author_id() or SELF_ID == KAEL_BOT_ID:
+        raise RuntimeError("independent_signer_mismatch")
+    with bridge_state_lock():
+        state = load_state()
+        receipts = state.get("reviewer_receipts")
+        receipt = receipts.get(source_id) if isinstance(receipts, dict) else None
+        resume = receipt.get("resume") if isinstance(receipt, dict) else None
+        if (not isinstance(receipt, dict) or receipt.get("source_message_id") != source_id
+                or receipt.get("kind") != "review_request" or receipt.get("posting") != "posted"
+                or not isinstance(resume, dict) or resume.get("status") != "posted"
+                or resume.get("posting") != "posted"
+                or resume.get("issue_id") != issue_id
+                or resume.get("tuple_sha256") != tuple_sha256
+                or resume.get("posted_message_id") != terminal_reply_id
+                or resume.get("reviewer_identity") != "fable-xhigh"
+                or len(resume.get("attempts", [])) != 1
+                or resume["attempts"][0].get("invoked") is not True
+                or resume["attempts"][0].get("status") != "ok"
+                or source_id in state.get("successor_issues", {})):
+            raise RuntimeError("successor_terminal_receipt_not_eligible")
+        original_reply_id = str(receipt.get("posted_message_id") or "")
+        issue_path = ISSUE_DIR / f"{issue_id}.json"
+        issue = json.loads(issue_path.read_text(encoding="utf-8"))
+        body = {key: value for key, value in issue.items() if key != "record_sha256"}
+        if (issue.get("record_sha256") != hashlib.sha256(json.dumps(
+                body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+                or issue.get("schema") != "boring_ai_bridge_request_issue_v2"
+                or issue.get("status") != "BOUND" or issue.get("issue_id") != issue_id
+                or issue.get("request_message_id") != source_id
+                or issue.get("tuple_sha256") != tuple_sha256
+                or issue.get("review_artifact_sha256") != tuple_sha256
+                or issue.get("channel_id") != CHANNEL
+                or issue.get("request_author_id") != KAEL_BOT_ID):
+            raise RuntimeError("successor_predecessor_issue_invalid")
+        artifact = Path(issue["review_artifact_path"])
+        if (not artifact.resolve(strict=True).is_relative_to(ARTIFACT_ROOT.resolve())
+                or hashlib.sha256(artifact.read_bytes()).hexdigest() != tuple_sha256):
+            raise RuntimeError("successor_artifact_drift")
+        request = _exact_message(source_id)
+        if (request.get("content") != issue.get("request_content")
+                or request.get("timestamp") != issue.get("request_timestamp")
+                or request.get("edited_timestamp") is not None
+                or str((request.get("author") or {}).get("id")) != KAEL_BOT_ID
+                or classify_message(request) is None
+                or classify_message(request)[0] != "review_request"):
+            raise RuntimeError("successor_predecessor_request_drift")
+        for message_id, record in ((original_reply_id, receipt), (terminal_reply_id, resume)):
+            reply = _exact_message(message_id)
+            content = reply.get("content")
+            if (not isinstance(content, str)
+                    or str((reply.get("author") or {}).get("id")) != SELF_ID
+                    or str((reply.get("message_reference") or {}).get("message_id")) != source_id
+                    or reply.get("edited_timestamp") is not None
+                    or len(content) != record.get("reply_chars")
+                    or hashlib.sha256(content.encode()).hexdigest() != record.get("reply_sha256")
+                    or "no authority decision was issued" not in content
+                    or "TRUE-BRIDGE FABLE — ACCEPT" in content
+                    or "TRUE-BRIDGE FABLE — REJECT" in content
+                    or reply.get("attachments")):
+                raise RuntimeError("successor_predecessor_reply_not_no_decision")
+        _only_expected_replies(source_id, {original_reply_id, terminal_reply_id})
+        # Recheck against existing registered successor records as well as the
+        # locked bridge state; no second issue on a repeated CLI invocation.
+        for path in ISSUE_DIR.glob("bridge-issue-*.json"):
+            registered = json.loads(path.read_text(encoding="utf-8"))
+            if registered.get("predecessor_request_message_id") == source_id:
+                raise RuntimeError("successor_already_registered")
+        state.setdefault("successor_issues", {})[source_id] = {
+            "status": "reserved", "predecessor_issue_id": issue_id,
+            "predecessor_reply_message_id": terminal_reply_id}
+        save_state(state)
+        guard_path = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
+        spec = importlib.util.spec_from_file_location("bridge_authority_guard", guard_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("registered_issue_guard_unavailable")
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        path, fresh = guard.issue_request(subject_id=issue["subject_id"],
+                                          tuple_sha256=tuple_sha256,
+                                          review_artifact_path=artifact)
+        fresh.update(predecessor_issue_id=issue_id,
+                     predecessor_request_message_id=source_id,
+                     predecessor_reply_message_id=terminal_reply_id,
+                     succession_reason="terminal_no_authority_decision")
+        fresh["record_sha256"] = guard._record_hash(fresh)
+        temporary = path.with_suffix(path.suffix + f".tmp-{os.getpid()}")
+        temporary.write_text(json.dumps(fresh, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temporary, path)
+        state["successor_issues"][source_id].update(status="issued", issue_id=fresh["issue_id"],
+                                                      issue_record_path=str(path))
+        save_state(state)
+        return {"status": "ISSUED_NOT_SENT", "issue_id": fresh["issue_id"],
+                "issue_record_path": str(path), "request_content": fresh["request_content"],
+                "predecessor_request_message_id": source_id,
+                "predecessor_reply_message_id": terminal_reply_id}
 
 
 def main() -> None:
@@ -902,13 +1100,22 @@ def main() -> None:
                     receipts[source_id] = receipt
                     save_state(state)
                     try:
-                        posted = post(reply, reply_to_message_id=source_id)
+                        posted = post(reply, reply_to_message_id=source_id, kind=kind)
                     except Exception:
                         receipt["posting"] = "failed_or_ambiguous"
                         save_state(state)
                         raise
                     receipt.update(posting="posted", posted_message_id=posted)
                     save_state(state)
+                    try:
+                        verified = verify_oversize_post(posted, source_id, reply, kind)
+                    except Exception:
+                        receipt["posting"] = "posted_unverified"
+                        save_state(state)
+                        raise
+                    if verified:
+                        receipt["attachment_verification"] = verified
+                        save_state(state)
                     log(f"outbound kind={kind} mode={action_mode} chars={len(reply)} message={posted} reviewer_identity={receipt['reviewer_identity']}")
         if not STOP_REQUESTED:
             time.sleep(5)
@@ -924,9 +1131,11 @@ if __name__ == "__main__":
         ])
         sys.argv = ["hermes", *sys.argv[2:]]
         hermes_main()
-    elif sys.argv[1:2] == ["--resume-preinvocation-quota"]:
-        if len(sys.argv) != 5:
+    elif sys.argv[1:2] in (["--resume-preinvocation-quota"], ["--issue-no-decision-successor"]):
+        if len(sys.argv) != 5 and sys.argv[1] == "--resume-preinvocation-quota":
             raise SystemExit("usage: fable_bridge.py --resume-preinvocation-quota REQUEST_ID ISSUE_ID TUPLE_SHA256")
+        if len(sys.argv) != 6 and sys.argv[1] == "--issue-no-decision-successor":
+            raise SystemExit("usage: fable_bridge.py --issue-no-decision-successor REQUEST_ID ISSUE_ID TUPLE_SHA256 TERMINAL_REPLY_ID")
         TOKEN = token()
         HTTP = requests.Session()
         HTTP.headers.update({"Authorization": "Bot " + TOKEN,
@@ -935,6 +1144,9 @@ if __name__ == "__main__":
         if not SESSION_ID:
             raise RuntimeError("fable_session_id_missing")
         SELF_ID = validate_startup_identity()
-        print(json.dumps(resume_preinvocation_quota(*sys.argv[2:]), sort_keys=True))
+        result = (resume_preinvocation_quota(*sys.argv[2:])
+                  if sys.argv[1] == "--resume-preinvocation-quota"
+                  else issue_no_decision_successor(*sys.argv[2:]))
+        print(json.dumps(result, sort_keys=True))
     else:
         main()

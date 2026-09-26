@@ -288,9 +288,10 @@ class ReviewerRoutingTests(unittest.TestCase):
                 self.assertEqual(output.splitlines()[0], ACCEPT)
                 self.assertTrue(output.endswith(suffix))
                 over = bridge._tag_reply(kind, body + "x", identity)
-                self.assertLessEqual(len(over), limit)
-                self.assertNotIn(ACCEPT, over)
-                self.assertIn("no authority decision", over)
+                self.assertEqual(over, body + "x" + suffix)
+                wrapper, raw, digest = bridge._oversize_reply(over, kind)
+                self.assertEqual(raw, (body + "x").encode())
+                self.assertIn(digest, wrapper)
                 self.assertTrue(over.endswith(suffix))
         self.assertEqual(bridge._tag_reply("transport_test", "FABLE_BRIDGE_READY nonce", FABLE).splitlines()[0],
                          "FABLE_BRIDGE_READY nonce")
