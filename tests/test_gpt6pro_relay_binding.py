@@ -1758,7 +1758,9 @@ except SystemExit as e: print(str(e),flush=True)
         listing = "123 /usr/bin/bash -c 'unterminated\n124 /usr/bin/python3 scripts/gpt6pro_relay.py poll --job legacy\n"
         with mock.patch.object(monitor, 'read_ps', return_value=listing):
             self.assertIn('legacy', relay._legacy_live_jobs())
-        with mock.patch.object(monitor, 'read_ps', return_value="123 /usr/bin/python3 'unterminated\n"):
+        with mock.patch.object(monitor, 'read_ps', return_value="123 /usr/bin/python3 -c 'unrelated prompt\n"):
+            self.assertEqual(relay._legacy_live_jobs(), set())
+        with mock.patch.object(monitor, 'read_ps', return_value="123 /usr/bin/python3 scripts/gpt6pro_relay.py 'unterminated\n"):
             with self.assertRaisesRegex(ValueError, 'unparseable possible Python relay process'):
                 relay._legacy_live_jobs()
 

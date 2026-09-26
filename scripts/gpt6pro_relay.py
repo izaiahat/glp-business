@@ -188,8 +188,11 @@ def _legacy_live_jobs():
         try:
             argv = shlex.split(parts[1])
         except ValueError:
-            # A malformed Python command might own a relay job: fail closed.
-            raise ValueError('unparseable possible Python relay process')
+            # An unrelated Python worker may have a free-form, unbalanced
+            # prompt in argv. Never ignore a malformed possible relay runner.
+            if 'gpt6pro_relay.py' in parts[1] or 'gpt6pro_wave.py' in parts[1] or 'scripts.gpt6pro_relay' in parts[1]:
+                raise ValueError('unparseable possible Python relay process')
+            continue
         if not argv:
             continue
         executable = Path(argv[0]).name
