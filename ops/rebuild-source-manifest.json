@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "62cd4a7912f72c9d0c944b8d28f3d2e86d14798a59c5974bbb6bac476d10225e"
+      "sha256": "8733107d6483533d43a6c2e020e410a0ceedeba369247af89a8756cd8e229995"
     },
     ".hermes.md": {
       "callers": [],
@@ -628,6 +628,11 @@
       "kind": "script",
       "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
     },
+    "scripts/affiliate_application_executor_gate.py": {
+      "callers": ["GLP-317 Awin paused source review"],
+      "kind": "script",
+      "sha256": "bbb23e1e5b6f6a52d002a3896b514912d8a58a13c349996643570db91e5a21cb"
+    },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
         "migration-survivor"
@@ -642,6 +647,16 @@
       ],
       "kind": "script",
       "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
+    },
+    "scripts/affiliate_niche_geo_filter.py": {
+      "callers": ["GLP-317 Awin paused source review"],
+      "kind": "script",
+      "sha256": "5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e"
+    },
+    "scripts/affiliate_payout_policy.py": {
+      "callers": ["scripts/affiliate_niche_geo_filter.py"],
+      "kind": "script",
+      "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -1018,6 +1033,16 @@
       "kind": "script",
       "sha256": "a5e7dcf66f14ff19487c4bfedfba0f0c6423152451085d9f07fdd40390919c35"
     },
+    "scripts/marketplace_adapters/__init__.py": {
+      "callers": ["GLP-317 Awin paused source review"],
+      "kind": "script",
+      "sha256": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445"
+    },
+    "scripts/marketplace_adapters/portal_apply.py": {
+      "callers": ["GLP-317 Awin paused source review"],
+      "kind": "script",
+      "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77"
+    },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
       "kind": "script",
@@ -1033,7 +1058,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "532a88ac03916f8c1d0cbd2c2181cafec19f291c5af7b4e0afe4115425ce102a"
+      "sha256": "99f1aa330e92891398828d1362db66882fae9a952a133dcc2a4a54a14b2b9f41"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1399,6 +1424,11 @@
       ],
       "kind": "test",
       "sha256": "8d9aed6a290611677f1ec1e5d1022680614b8ba226c71023053925bc60cf7045"
+    },
+    "tests/test_awin_application_fit_exclusions.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "f21cbeb0dcaee2448a2bae148a026159ca8f4e77c98fa4d715f2cf5aef65a7c0"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
@@ -1820,5 +1850,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 275
+  "tracked_count": 281
 }
