@@ -752,7 +752,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "1b2f3196d318c3712796a8d2afca5cee16b78831038faa529f83a71df06f5cbb"
+      "sha256": "4803fbed0f81c7b756a957a34658d69fcdc6ae882efb62ccfd336b8b1b2ea0b4"
     },
     "scripts/business_output_health_sensor.py": {
       "callers": [
@@ -1140,7 +1140,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9d4031bd31c2cf4b744a3efd1b158a1e6b9b83854f365f26b4478b26558c7292"
+      "sha256": "b79d05f317142a1178c2e7248e439c8be305b68ef4ea9ef23e38ff93ab71bee8"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1775,6 +1775,11 @@
       "kind": "test",
       "sha256": "cfd039558210bc4262a21f0758a4690dcf6f82f197e5a5d54cfe6e6b08fd917e"
     },
+    "tests/test_glp183_builder_checked_as_of.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "5dd433dc239629b804dda4be124888e8207134d4559563ed2d950e4ebc443f0c"
+    },
     "tests/test_glp_program_authority_checked_as_of.py": {
       "callers": [
         "build_glp_affiliate_wirein_incremental_v2"
@@ -1963,5 +1968,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 297
+  "tracked_count": 298
 }

@@ -975,6 +975,10 @@ def normalize_regulatory_banner(value: object) -> str:
 
 def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
                    publisher_id: str) -> dict:
+    # Direct callers need the same named missing-evidence refusal as PREPARE.
+    # Never manufacture a source date or silently emit an undated contract.
+    if not str(spec.get("checked_as_of") or "").strip():
+        raise RuntimeError("spec_checked_as_of_missing")
     pid = spec["program_id"]
     price = quote(research, "first_month_price")
     states = quote(research, "states_served")
