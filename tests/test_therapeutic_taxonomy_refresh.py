@@ -48,7 +48,7 @@ def policy_row(producer, pid):
             'evidence_bindings': [{'fixture': 'old'}]}
 
 
-def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False):
+def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False, markdown_overrides=None):
     """Execute maintained main with only external effects replaced by fixtures."""
     monkeypatch.setattr(producer, 'BUSINESS', tmp_path)
     monkeypatch.setattr(producer, 'REPORTS', tmp_path / 'receipts')
@@ -57,7 +57,7 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
     rows = {pid: policy_row(producer, pid) for pid in ids
             if not producer.POLICIES[pid].get('review_required')}
     for pid in set(ids) - rows.keys():
-        rows[pid] = {f: [] for f in producer.FIELDS}
+        rows[pid] = copy.deepcopy(SNAPSHOT['programs'][pid])
     before = {'therapeutic_taxonomy': {'programs': rows, 'authorities': {}}}
     registry.write_bytes(producer.encoded(before))
     captures = []
@@ -72,6 +72,8 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
                                  for tag, q in tags.items() if (pid, f, tag) not in missing)
         receipt = {'received_at': '2026-09-26T12:00:00+00:00',
                    'response': {'data': {'markdown': '\n' + ('\n' + '.' * 200 + '\n').join(parts), 'links': []}}}
+        if markdown_overrides and url in markdown_overrides:
+            receipt['response']['data']['markdown'] = markdown_overrides[url]
         if linked:
             receipt['response']['data']['links'] = [p['linked_url'] for p in producer.POLICIES.values() if p.get('linked_url')]
         dest.write_bytes(producer.encoded(receipt))
@@ -250,6 +252,100 @@ def test_rxspan_linked_success_binding_stays_on_supplement(producer, monkeypatch
     assert code == 0 and result['status'] == 'PASS'
     assert calls == [p['url'], p['linked_url']]
     assert after['therapeutic_taxonomy']['programs'][pid]['evidence_bindings'][0]['source_url'] == p['linked_url']
+
+
+# Fixed adversarial excerpts, not derived from the current policy. The first two
+# reproduce the independent review: offering text gone, old disclaimers retained.
+# Remaining cases were found by the all-new-policy audit. These are synthetic
+# negative captures, not assertions about what any live site currently offers.
+NON_OFFERING_CAPTURES = {
+    'humecare-data-driven-glp-1-weight-loss-system': {
+        'https://app.humecare.com/medications-safety': (
+            'Compounded semaglutide and compounded tirzepatide are not approved by the FDA.\n\n'
+            'Compounded semaglutide is an injectable prescription medicine')},
+    'sprout-health': {
+        'https://joinsprouthealth.com/shop': (
+            'Compounded semaglutide and tirzepatide are not approved by the FDA\n\n'
+            'Sprout Health provides access to compounded GLP-1 medications prepared by licensed U.S. pharmacies.')},
+    'trimi-glp-1': {
+        'https://trytrimi.com/': (
+            'Compounded semaglutide and tirzepatide are prepared per individual prescription by state-licensed 503A pharmacies and are not FDA-approved as drugs.\n\n'
+            'DosingOnce-weekly injection')},
+    'live-vital-launch': {
+        'https://www.livevital.io/treatments/semaglutide': 'Semaglutide is a once-weekly injectable GLP-1 receptor agonist.',
+        'https://www.livevital.io/treatments/tirzepatide': 'Tirzepatide is a once-weekly injectable that activates two incretin receptors at the same time:'},
+    'longevity-meds-glp-1-review': {
+        'https://www.longevitymeds.com/': 'The Science Behind\n\nSemaglutide & Tirzepatide',
+        'https://www.longevitymeds.com/legal/safety-information': 'Compounded Tirzepatide is an injectable prescription medication'},
+    'novi-weight-loss-glp-1': {
+        'https://www.joinnovi.com/begin': (
+            'Which GLP-1 medication have you taken?\n\n'
+            'Semaglutide (Ozempic or Wegovy)\n\nTirzepatide (Mounjaro or Zepbound)'),
+        'https://www.joinnovi.com/': (
+            'Semaglutide (Ozempic or Wegovy)\n\nTirzepatide (Mounjaro or Zepbound)')},
+    # The other page still offers specific molecules, but this page now contains
+    # only a generic compounding disclaimer, so it cannot renew that facet.
+    'mademed': {
+        'https://mademed.com/rx/oral-semaglutide/': 'This is a compounded medication that has not been approved by the FDA.'},
+    'enhance-md': {
+        'https://enhance.md/product/core-semaglutide': (
+            'GLP-1 Core semaglutide prescription online for weight loss\n\n'
+            'This compounded formulation is not FDA-approved and is intended solely for patients under active care of a licensed prescriber.'),
+        'https://enhance.md/product/advanced-tirzepatide': 'GLP-1 Advanced tirzepatide prescription online for weight loss'},
+    'futurhealth-wegovy-pillform': {
+        'https://landing.fh.co/medication-wegovy-pillform5-discount': 'Wegovy® is the only FDA-approved semaglutide in a pill for weight loss.'},
+    'breeze-meds-review': {
+        'https://www.breezemeds.com/': 'Oral Semaglutide\n\nOral Tirzepatide'},
+}
+
+
+@pytest.mark.parametrize('pid', NON_OFFERING_CAPTURES)
+def test_offering_removed_disclaimers_retained_never_renews(producer, monkeypatch, tmp_path, pid):
+    good = 'coreage-rx-glp-1-1632'
+    code, result, before, after, _ = run_fixture(
+        producer, monkeypatch, tmp_path, [pid, good],
+        markdown_overrides=NON_OFFERING_CAPTURES[pid])
+    assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
+    assert [w['program_id'] for w in result['written']] == [good]
+    assert result['findings'][0]['program_id'] == pid
+    assert result['findings'][0]['status'] == 'REVIEW_REQUIRED'
+    # Entire row equality includes its date, tags, bindings and normalized hash.
+    assert after['therapeutic_taxonomy']['programs'][pid] == before['therapeutic_taxonomy']['programs'][pid]
+
+
+# Every new molecular/brand assertion must survive a one-at-a-time negative,
+# not merely the removal of all claims. Generic synthetic legal language keeps
+# drug-name tokens present; it is deliberately NOT evidence for any live page.
+NEW_ASSERTIONS = [
+    (pid, field, tag)
+    for pid, p in json.loads(SOURCE.with_name('therapeutic-taxonomy-refresh-policies.json').read_text()).items()
+    for source in p.get('sources', [p])
+    for field in ('molecule_tags', 'brand_name_tags')
+    for tag in source.get('quotes', {}).get(field, {})
+]
+
+
+@pytest.mark.parametrize('pid,field,tag', NEW_ASSERTIONS)
+def test_each_new_offering_required_with_generic_disclaimers_remaining(producer, monkeypatch, tmp_path, pid, field, tag):
+    p = producer.POLICIES[pid]
+    sources = p.get('sources', [p])
+    source = next(s for s in sources if tag in s['quotes'].get(field, {}))
+    removed = producer.normalized(source['quotes'][field][tag])
+    text = '\n'.join(dict.fromkeys(q for tags in source['quotes'].values() for q in tags.values()))
+    # Remove every occurrence, including the same quote reused for another facet.
+    text = producer.normalized(text).replace(removed, '')
+    generic = (
+        'Compounded semaglutide and compounded tirzepatide are not FDA-approved. '
+        'Compounded Semaglutide & Tirzepatide are not FDA-approved. '
+        'Mounjaro® and Wegovy® and Zepbound® are registered trademarks. '
+        'Mounjaro and Wegovy and Zepbound are registered trademarks.')
+    good = next(p for p, r in SNAPSHOT['programs'].items() if r['previously_covered'])
+    code, result, before, after, _ = run_fixture(
+        producer, monkeypatch, tmp_path, [pid, good],
+        markdown_overrides={source['url']: text + '\n' + '.' * 200 + '\n' + generic})
+    assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
+    assert [w['program_id'] for w in result['written']] == [good]
+    assert after['therapeutic_taxonomy']['programs'][pid] == before['therapeutic_taxonomy']['programs'][pid]
 
 
 @pytest.mark.parametrize('fault', ['cache', 'host', 'status', 'empty', 'failed', 'stale'])
