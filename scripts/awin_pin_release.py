@@ -134,7 +134,8 @@ def discover_file_pin_sites() -> list[PinSite]:
     if report.HERMES_SCRIPTS.is_dir():
         for script in sorted(report.HERMES_SCRIPTS.glob("*.sh")):
             for source, target, _expected in report.shell_pins(script):
-                variable = source.rsplit(":", 1)[1].removesuffix("_SHA256")
+                # Keep the reporter's exact assignment name, including case/suffix.
+                variable = source.rsplit(":", 1)[1]
                 sites.append(PinSite(script.resolve(), "shell", variable, target.resolve()))
     return sites
 
@@ -153,7 +154,8 @@ def _replace_python_pin(text: str, site: PinSite, digest: str) -> str:
 
 def _replace_shell_pin(text: str, site: PinSite, digest: str) -> str:
     pattern = re.compile(
-        rf'^(\s*(?:readonly\s+)?{re.escape(site.key)}_SHA256=)("?)[0-9a-f]{{64}}("?\s*)$',
+        rf"^([ \t]*(?:readonly[ \t]+)?{re.escape(site.key)}=)([\"']?)"
+        rf"[0-9a-f]{{64}}(\2[ \t]*)$",
         re.MULTILINE,
     )
     matches = pattern.findall(text)
