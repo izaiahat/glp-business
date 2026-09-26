@@ -367,7 +367,7 @@
         "hermes:db3fb99c1044"
       ],
       "kind": "script",
-      "sha256": "bfbe482de9c2751ae4431c41501c84e8d3acda8492750d905fc5d8b2b28d31a6"
+      "sha256": "b78245e97243f90655a1a4ca649481f6aefa5be56fb8c700ad6711aaa5e60934"
     },
     "ops/hermes-cron-scripts/process_partner_info_replies_watchdog.sh": {
       "callers": [
