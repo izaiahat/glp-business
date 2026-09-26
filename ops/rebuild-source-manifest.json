@@ -14,7 +14,7 @@
     ".hermes.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "f7db75289617676d54ea8a88561c6ae8a5da648956993a7fda35504429e83d4b"
+      "sha256": "e41fb4f7836c4a1d755286110b33ffeb478cfa5a75c688186d12c557c7fabecb"
     },
     "AGENTS.md": {
       "callers": [],
@@ -465,7 +465,7 @@
     "ops/linear/WORKER-STANDARD.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "e5536dc1dbf73bec8778da290b5dba0acfa813b12ed70f93cc16cab75c05c335"
+      "sha256": "475a004aeaf672eb0b24d24a882f7418e93fbb4a2e3de46dbbd6ff915a608f42"
     },
     "ops/protected-oracles.json": {
       "callers": [],
