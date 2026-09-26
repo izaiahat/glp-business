@@ -4,7 +4,12 @@
     "ops/glp/seo_business_context.py": {
       "callers": ["scripts/glp_weekly_seo_control.py", "ops/glp/seo_weekly_modules.py"],
       "kind": "script",
-      "sha256": "ba5d96812d06c08fb828bb87523894f8898f21a1ad8e58fffb3450c66d54ea44"
+      "sha256": "def00df050f44bdc90305a9a3bc412af7a8f44e7cf0c70a78fef0ac2abf724b8"
+    },
+    "tests/test_glp_seo_skill_loader.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "b3b10ae2ef0449ba59b1616efb5907a85db8e1c7bfb574f5a80973467a9db9f6"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -1063,7 +1068,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a5ae7a85874d76128d216cd8b73d67869677e7657a35c12f220ccd50b940df6b"
+      "sha256": "c20abfce5d2d5b80b7c6257b4983d300fbcfb36663a0f95461e0fc6d0cb86ae3"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1870,5 +1875,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 285
+  "tracked_count": 286
 }

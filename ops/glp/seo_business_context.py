@@ -4,7 +4,19 @@ import hashlib
 B=Path('/home/ubuntu/business')
 CONTEXT_PATH=B/'ops/glp/seo/BUSINESS-CONTEXT.md'
 SKILL_ROOT=Path('/home/ubuntu/.hermes/skills')
-SEO_SKILLS=('comparison-site-seo','comparison-site-programmatic-seo','gsc-page-two-optimization','intent-internal-linking','provider-review-seo','search-console-bing-operations')
+# Preserve the evidence-key contract and load order used by weekly RULES.
+# Keys identify procedure coverage, not necessarily a current indexed skill.
+# Canonical destinations: ops/linear/SKILL-INDEX.md and each owner's
+# references/MERGED-PROCEDURES.md (Bing shares the GSC-owned procedure).
+SEO_SKILL_PATHS={
+ 'comparison-site-seo':'comparison-site-programmatic-seo/references/consolidated/comparison-site-seo/PROCEDURE.md',
+ 'comparison-site-programmatic-seo':'comparison-site-programmatic-seo/SKILL.md',
+ 'gsc-page-two-optimization':'gsc-page-two-optimization/SKILL.md',
+ 'intent-internal-linking':'intent-internal-linking/SKILL.md',
+ 'provider-review-seo':'provider-review-seo/SKILL.md',
+ 'search-console-bing-operations':'gsc-page-two-optimization/references/consolidated/search-console-bing-operations/PROCEDURE.md',
+}
+SEO_SKILLS=tuple(SEO_SKILL_PATHS)
 
 def _read(path):
  path=Path(path)
@@ -18,4 +30,4 @@ def load_business_context(job_name):
  return {**_read(CONTEXT_PATH),'job_name':job_name,'authority':'business_context_not_release_or_clinical_authority'}
 
 def load_seo_skills():
- return {name:_read(SKILL_ROOT/name/'SKILL.md') for name in SEO_SKILLS}
+ return {name:_read(SKILL_ROOT/SEO_SKILL_PATHS[name]) for name in SEO_SKILLS}
