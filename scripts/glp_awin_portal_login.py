@@ -1,192 +1,87 @@
 #!/usr/bin/env python3
-"""Awin portal login over the persistent CDP profile — Auth0 universal login.
+"""Fresh Awin login stages for the AI browser and origin-bound vault.
 
-Operator 2026-08-18: *"AWIN IS UNLOCKED — 2FA is OFF."*
-
-Awin fronts ui.awin.com with Auth0 (`id.awin.com/u/login/identifier`), which is a
-TWO-STEP form: identifier, then password. This driver walks exactly that flow,
-screenshots every step, and reports what the provider actually put on screen —
-including a 2FA prompt if one appears, which it does NOT try to guess past.
-
-Nothing here applies to a programme. Login is login; the Join mutation lives in
-`glp_awin_portal_join.py` and only runs after this proves a session.
-
-    /home/ubuntu/.hermes/venvs/glp-awin-runtime-r2/bin/python \
-        scripts/glp_awin_portal_login.py --run-id <id>
+Call prepare() in a fresh browser session on ui.awin.com; call the browser
+vault list/fill tools at id.awin.com; call finish() after the vault fill.
+No persistent CDP profile, credential file, password input, screenshots or
+unredacted exception logging is permitted in this caller.
 """
 from __future__ import annotations
 
-import argparse
-import datetime as dt
-import json
 import re
-import sys
-from pathlib import Path
+from typing import Callable
 
-BUSINESS = Path("/home/ubuntu/business")
-CDP = "http://127.0.0.1:9325"
-SECRET = Path.home() / ".hermes/secrets/affiliate-marketplaces/awin/ui_login.json"
 PUBLISHER_ID = "2979387"
-DASHBOARD = f"https://ui.awin.com/dashboard/awin/publisher/{PUBLISHER_ID}/us"
-OUT = BUSINESS / "reports/glp-clinic-scout/affiliate-machine/awin-portal-login"
-
-TWOFA_MARKERS = ("verification code", "one-time", "authenticator", "two-factor",
-                 "2-step", "enter the code", "security code", "verify your identity")
-AUTHED_MARKERS = ("log out", "sign out", "publisher", "commission", "advertiser",
-                  "dashboard", "my account")
+IDENTIFIER = "ops@glpclinicscout.com"  # nonsecret account identifier
+DIRECTORY = f"https://ui.awin.com/awin/affiliate/{PUBLISHER_ID}/merchant-directory"
+PRELOGIN = "https://ui.awin.com/idp/us/awin/login/prelogin"
+PASSWORD_ORIGIN = "https://id.awin.com"
 
 
-def utc() -> str:
-    return dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+class LoginBoundaryError(RuntimeError):
+    """Only fixed error codes; never include browser exceptions or form values."""
 
 
-class Step:
-    """One captured screen. Secrets never enter a step record."""
-
-    def __init__(self, page, run_dir: Path, name: str):
-        page.wait_for_timeout(2500)
-        self.name = name
-        self.url = page.url
-        self.title = page.title()
-        try:
-            self.text = (page.inner_text("body") or "")[:20000]
-        except Exception:  # noqa: BLE001
-            self.text = ""
-        self.shot = run_dir / f"{name}.png"
-        try:
-            page.screenshot(path=str(self.shot), full_page=False)
-        except Exception:  # noqa: BLE001
-            pass
-        (run_dir / f"{name}.txt").write_text(self.text)
-
-    def record(self) -> dict:
-        low = self.text.lower()
-        return {"step": self.name, "url": self.url, "title": self.title,
-                "text_len": len(self.text),
-                "screenshot": str(self.shot.relative_to(BUSINESS)),
-                "twofa_markers": [m for m in TWOFA_MARKERS if m in low],
-                "authed_markers": [m for m in AUTHED_MARKERS if m in low],
-                "on_login_host": bool(re.search(r"id\.awin\.com|/login|/prelogin",
-                                                self.url, re.I))}
+def _field(js: Callable, selector: str) -> dict:
+    return js("""(() => {const e=document.querySelector(%r);
+      if(!e) return {visible:false};
+      const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+      return {visible:r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'&&!e.disabled,
+              x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)};
+    })()""" % selector)
 
 
-def _fill_first(page, selectors: list[str], value: str) -> str | None:
-    for sel in selectors:
-        try:
-            loc = page.locator(sel).first
-            if loc.count() and loc.is_visible():
-                loc.fill(value)
-                return sel
-        except Exception:  # noqa: BLE001
-            continue
-    return None
+def prepare(page_info: Callable, js: Callable, click_at_xy: Callable,
+            cdp: Callable, wait_for_load: Callable) -> dict:
+    """Click and insert the nonsecret identifier; stop at the vault boundary."""
+    if not str(page_info().get("url", "")).startswith(PRELOGIN):
+        raise LoginBoundaryError("expected_ui_awin_prelogin")
+    field = _field(js, "input#email")
+    if not field.get("visible"):
+        raise LoginBoundaryError("identifier_controls_not_visible")
+    click_at_xy(field["x"], field["y"])
+    cdp("Input.insertText", text=IDENTIFIER)
+    if js("document.querySelector('input#email')?.value===%r" % IDENTIFIER) is not True:
+        raise LoginBoundaryError("identifier_not_committed")
+    button = _field(js, "button#login")
+    if not button.get("visible"):
+        raise LoginBoundaryError("identifier_submit_not_enabled")
+    js("document.querySelector('button#login').click()")
+    wait_for_load()
+    if not str(page_info().get("url", "")).startswith(PASSWORD_ORIGIN + "/"):
+        raise LoginBoundaryError("password_origin_not_reached")
+    if not _field(js, "input[type='password']").get("visible"):
+        raise LoginBoundaryError("password_field_not_visible")
+    return {"stage": "vault_fill_required", "origin": PASSWORD_ORIGIN,
+            "publisher_id": PUBLISHER_ID, "secret_printed": False}
 
 
-def _click_first(page, selectors: list[str]) -> str | None:
-    for sel in selectors:
-        try:
-            loc = page.locator(sel).first
-            if loc.count() and loc.is_visible():
-                loc.click()
-                return sel
-        except Exception:  # noqa: BLE001
-            continue
-    return None
-
-
-def login(run_dir: Path) -> dict:
-    from playwright.sync_api import sync_playwright
-
-    creds = json.loads(SECRET.read_text())
-    email, password = creds["username"], creds["password"]
-    steps, actions = [], []
-
-    with sync_playwright() as pw:
-        browser = pw.chromium.connect_over_cdp(CDP)
-        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
-        page = ctx.new_page()
-        try:
-            page.goto(DASHBOARD, wait_until="domcontentloaded", timeout=60000)
-            s = Step(page, run_dir, "01-entry")
-            steps.append(s.record())
-
-            if not s.record()["on_login_host"] and s.record()["authed_markers"]:
-                return {"already_authenticated": True, "steps": steps, "actions": actions,
-                        "final_url": page.url}
-
-            # ---- Awin step 0: ui.awin.com's OWN prelogin form.
-            # This is the step the first driver missed. `/idp/us/awin/login/prelogin`
-            # is not a hand-off button — it is a real form carrying `input#email` +
-            # `button#login`. Awin resolves the identifier to a network group here
-            # and only THEN hands off to Auth0. Proven 2026-08-18: supplying the
-            # identifier at this step resumed the profile's existing session and
-            # landed straight on the dashboard, with no password and no 2FA.
-            if page.locator("input#email").count():
-                page.locator("input#email").first.fill(email)
-                _click_first(page, ["button#login", "button[type=submit]"])
-                actions.append({"prelogin_identifier": "input#email"})
-                page.wait_for_timeout(7000)
-                steps.append(Step(page, run_dir, "02-after-prelogin").record())
-
-            # ---- Auth0 step 1: identifier (only when Awin escalates to id.awin.com)
-            hit = None
-            if (page.locator("input#username").count()
-                    and page.locator("input#username").first.is_visible()):
-                hit = _fill_first(page, ["input#username", "input[name=username]"], email)
-            actions.append({"identifier_field": hit})
-            if hit:
-                _click_first(page, ["button[type=submit]", "button[name=action]",
-                                    "button:has-text('Continue')", "button:has-text('Next')"])
-                page.wait_for_timeout(6000)
-                steps.append(Step(page, run_dir, "03-after-identifier").record())
-
-            # ---- Auth0 step 2: password
-            hit = _fill_first(page, [
-                "input#password", "input[name=password]", "input[type=password]"], password)
-            actions.append({"password_field": hit})
-            if hit:
-                _click_first(page, ["button[type=submit]", "button[name=action]",
-                                    "button:has-text('Continue')", "button:has-text('Sign in')",
-                                    "button:has-text('Log in')"])
-                page.wait_for_timeout(9000)
-                steps.append(Step(page, run_dir, "04-after-password").record())
-
-            # ---- Land on the dashboard and record the truth
-            page.goto(DASHBOARD, wait_until="domcontentloaded", timeout=60000)
-            final = Step(page, run_dir, "05-dashboard")
-            steps.append(final.record())
-            rec = final.record()
-            return {
-                "already_authenticated": False,
-                "authenticated": bool(rec["authed_markers"]) and not rec["on_login_host"],
-                "twofa_prompted": bool(rec["twofa_markers"])
-                                  or any(s["twofa_markers"] for s in steps),
-                "steps": steps, "actions": actions, "final_url": page.url,
-            }
-        finally:
-            page.close()
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--run-id", default="")
-    args = ap.parse_args()
-    run_dir = OUT / (args.run_id or f"login-{utc()}")
-    run_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        out = login(run_dir)
-    except Exception as exc:  # noqa: BLE001
-        import traceback
-        out = {"error": f"{type(exc).__name__}: {exc}",
-               "trace": traceback.format_exc()[-2000:]}
-    doc = {"schema": "awin_portal_login_v1", "cdp": CDP, "publisher_id": PUBLISHER_ID,
-           "run_dir": str(run_dir.relative_to(BUSINESS)), "secret_printed": False, **out}
-    (run_dir / "login.json").write_text(json.dumps(doc, indent=2, default=str))
-    print(json.dumps({k: v for k, v in doc.items() if k != "steps"}, indent=2, default=str))
-    for s in doc.get("steps", []):
-        print(json.dumps(s, default=str))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def finish(page_info: Callable, js: Callable, wait_for_load: Callable,
+           goto_url: Callable) -> dict:
+    """Submit only a vault-filled field; read back exact publisher directory."""
+    if not str(page_info().get("url", "")).startswith(PASSWORD_ORIGIN + "/"):
+        raise LoginBoundaryError("password_origin_mismatch")
+    if not _field(js, "input[type='password']").get("visible"):
+        raise LoginBoundaryError("password_field_not_visible")
+    # Boolean only: never inspect or return the secret value.
+    if js("!!document.querySelector('input[type=password]')?.value.length") is not True:
+        raise LoginBoundaryError("vault_fill_not_observed")
+    if not _field(js, "button[type='submit']").get("visible"):
+        raise LoginBoundaryError("password_submit_not_visible")
+    js("document.querySelector(\"button[type='submit']\").click()")
+    wait_for_load()
+    url = str(page_info().get("url", ""))
+    if url.startswith(PASSWORD_ORIGIN + "/"):
+        raise LoginBoundaryError("password_step_not_completed_or_challenge")
+    if not url.startswith("https://ui.awin.com/"):
+        raise LoginBoundaryError("unexpected_post_login_origin")
+    goto_url(DIRECTORY)
+    wait_for_load()
+    if not str(page_info().get("url", "")).startswith(DIRECTORY):
+        raise LoginBoundaryError("directory_readback_required")
+    body = str(js("document.body?.innerText||''"))
+    if not re.search(r"Tilton Group\s*\(\s*2979387\s*\)", body):
+        raise LoginBoundaryError("publisher_identity_not_verified")
+    return {"authenticated": True, "publisher_id": PUBLISHER_ID,
+            "account_name": "Tilton Group", "directory_url": DIRECTORY,
+            "secret_printed": False, "provider_writes": 0, "tracking_clicks": 0}
