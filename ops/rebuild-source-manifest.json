@@ -1208,7 +1208,7 @@
     "tests/test_glp316_automated_notices.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "3875afa2c6259a5b8b59940689a09d722066a2bab1b3ee62b9c5e6a22fc1917b"
+      "sha256": "f3ccf3daca00a8f8a4b50170827cf1c5f55579a21c20410acc8789881c13360c"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [

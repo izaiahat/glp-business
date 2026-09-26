@@ -34,7 +34,9 @@ def message(sender, subject, body, *, headers=None):
 def ingest_fixture(sender, subject, body, *, headers=None):
     with tempfile.TemporaryDirectory(prefix="glp316-") as temporary:
         root = Path(temporary)
-        with mock.patch.object(cp, "RAW_ROOT", root / "raw"), mock.patch.object(
+        with mock.patch.object(cp, "STATE_ROOT", root / "state"), mock.patch.object(
+            cp, "PRIVATE_ROOT", root / "private"
+        ), mock.patch.object(cp, "RAW_ROOT", root / "raw"), mock.patch.object(
             cp, "ATTACHMENT_ROOT", root / "attachments"
         ), mock.patch.object(cp, "BACKUP_ROOT", root / "backups"), mock.patch.object(
             cp, "REPORT_ROOT", root / "reports"
