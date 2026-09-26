@@ -161,16 +161,40 @@ def validate_maxbounty_identity_repair(manifest, root):
                 'authority_type': 'explicit_operator_identity_category_repair'}
     if not isinstance(authority, dict) or any(authority.get(k) != v for k, v in expected.items()):
         raise RuntimeError('maxbounty_identity_repair_authority_mismatch')
+    held_bistromd = (manifest.get('task') == 'GLP-250'
+                       and manifest['sheet_row'] == 800 and program_id == '25152'
+                       and cell(source, 'Program / Network') == 'BistroMD - Meal Delivery - CPS (US)'
+                       and cell(source, 'Status') == 'hold_sister_site_not_live'
+                       and cell(source, 'Vertical') == 'womens-health'
+                       and cell(source, 'Category') == category)
     if (manifest.get('apply_url') != url or not isinstance(category, str) or not category.strip()
             or cell(source, 'Network / Route') != 'MaxBounty'
             or cell(source, 'Apply URL') not in {'', url}
-            or cell(source, 'Status') not in SLUG_APPROVED_STATUSES | {'approved', 'applied_pending_brand_approval'}
+            or (cell(source, 'Status') not in SLUG_APPROVED_STATUSES | {'approved', 'applied_pending_brand_approval'}
+                and not held_bistromd)
             or excluded(source)
-            or str(cell(source, 'Wired Live?')).upper() == 'TRUE'):
+            or str(cell(source, 'Wired Live?')).upper() == 'TRUE'
+            or (held_bistromd and str(cell(source, 'Tracking Link / Deep Link') or '').strip())):
         raise RuntimeError('maxbounty_identity_repair_outside_authorized_mapping')
-    program = capture.get('program') or {}
-    state = capture.get('state') or {}
-    if (capture.get('program_id') != program_id or program.get('program_id') != program_id
+    # The approval chain's authenticated, immutable targeted capture stores one
+    # programme under `programs`, unlike the earlier S33 singular API capture.
+    targeted = capture.get('schema') == 'glp.maxbounty.targeted-approval-capture.v1'
+    if targeted:
+        programs = capture.get('programs')
+        if (not isinstance(programs, list) or len(programs) != 1
+                or capture.get('sheet_row') != manifest['sheet_row']
+                or capture.get('event_id') != 'evt_f278de1567bb0dbcf8c04a7c7bd0'
+                or f"Portal capture={manifest.get('capture_path')}." not in str(cell(source, 'Notes / Blocker'))
+                or not held_bistromd):
+            raise RuntimeError('maxbounty_identity_repair_capture_mismatch')
+        program = programs[0]
+        state = capture.get('campaign_detail_state') or {}
+        capture_id = state.get('program_id')
+    else:
+        program = capture.get('program') or {}
+        state = capture.get('state') or {}
+        capture_id = capture.get('program_id')
+    if (capture_id != program_id or program.get('program_id') != program_id
             or program.get('name') != cell(source, 'Program / Network')
             or program.get('official_url') != cell(source, 'Official URL')
             or program.get('detail_url') != url or state.get('detail_url') != url

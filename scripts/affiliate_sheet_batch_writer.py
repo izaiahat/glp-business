@@ -3427,8 +3427,8 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
         allowed_status=frozenset(), required_flags={},
         evidence_fields=(("metadata_manifest_path", "repo_path"),
                          ("metadata_manifest_sha256", "sha256_of:metadata_manifest_path")),
-        note_must_cite=(), source_status=provider_metadata.SLUG_APPROVED_STATUSES | {"approved", "applied_pending_brand_approval"},
-        description="Hash-bound approved MaxBounty identity/category CAS; no other columns.",
+        note_must_cite=(), source_status=provider_metadata.SLUG_APPROVED_STATUSES | {"approved", "applied_pending_brand_approval", "hold_sister_site_not_live"},
+        description="Hash-bound approved MaxBounty identity/category CAS; held BistroMD exception is row-800-only in metadata validator.",
     ),
     "provider_slug_correction": SheetSyncModeSpec(
         key="provider_slug_correction",
