@@ -31,6 +31,56 @@
       "kind": "repository_control",
       "sha256": "f043c24fe9dd9a48dfa29076904b87121d7766d160d9c338757bf7ea14af2b9e"
     },
+    "inbox_control_plane/__init__.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "3c9d0de8e779cad2b23aa984c636307de273b6ae7e248db9cc2c34c64ae4f764"
+    },
+    "inbox_control_plane/affiliate_network_registry.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "075fed013ff6e35365aa6d3e654ad90d420d836a3c8564403b97e5f8a2428095"
+    },
+    "inbox_control_plane/affiliate_supply_intake.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "ebe5b729d1a6b599f19093293f8c31431357c7a17f4133eea0074da59e7722d7"
+    },
+    "inbox_control_plane/approved_gmail_sender.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "7c12348a7705f4b3e815270e865f09e99a3587c115a3309cbe8800ce09fa8fbc"
+    },
+    "inbox_control_plane/control_plane.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "6a8e634accc5c98123f43c29be463a3a954ddeeaf335e764370eb06d09545166"
+    },
+    "inbox_control_plane/gmail_client.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "4172c1089dd355f6ce48174667e9d9b36a5783ce28218acc24d47830a98e4b55"
+    },
+    "inbox_control_plane/mark_read_after_action.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "7669d06529a9bdca48df3e079a40fd64987a3026058c0b9c735bffa0768074fc"
+    },
+    "inbox_control_plane/network_grounding.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "066c44876df272aa23f3217a37e613c837939c10f997570918967dd0f4f6475f"
+    },
+    "inbox_control_plane/outbound_style_guard.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "0be29c1f32b86ecc04a19d8c89148c5bad4e31ae9071997ff32c6728cf294cb8"
+    },
+    "inbox_control_plane/validate_inbox_control_plane.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
+    },
     "ops/autonomy-envelope.json": {
       "callers": [],
       "kind": "instruction_or_policy",
@@ -1141,6 +1191,13 @@
       "kind": "test",
       "sha256": "deba7d44114feadc58eaea1f9e3bc47be666712d38b87a96b7e87fc5cc2224ed"
     },
+    "tests/test_glp315_reconciler_child_failure.py": {
+      "callers": [
+        "glp_affiliate_approval_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "e6123786aeff8fef84a90325d400336d754f4dec0741653f68228b7426ab2e8f"
+    },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
         "glp_ads_three_platform_monitor"
@@ -1191,13 +1248,6 @@
       ],
       "kind": "test",
       "sha256": "249218203d4f76940a52a1df02e1e834b1480caf9d1c7cf18e002aad5fdee578"
-    },
-    "tests/test_glp315_reconciler_child_failure.py": {
-      "callers": [
-        "glp_affiliate_approval_reconciler"
-      ],
-      "kind": "test",
-      "sha256": "e6123786aeff8fef84a90325d400336d754f4dec0741653f68228b7426ab2e8f"
     },
     "tests/test_glp_candidate_quarantine.py": {
       "callers": [
@@ -1352,6 +1402,11 @@
       "kind": "test",
       "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
     },
+    "tests/test_inbox_control_plane.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "14d8dd5c289604c04ac53279d85e997edc81501f5e93f631b97bc3caafaaedb8"
+    },
     "tests/test_katalys_approved_link_resolver.py": {
       "callers": [
         "katalys_approved_link_resolver"
@@ -1462,5 +1517,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 220
+  "tracked_count": 231
 }
