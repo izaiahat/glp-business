@@ -719,6 +719,63 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(relay.job_state(job)['status'], 'unsent_reconciled')
         self.assertFalse(relay.job_state(job)['retry_blocked'])
 
+    def _unlisted_wrong_model(self, job, row):
+        d = relay.job_dir(job)
+        state = {'job': job, 'account': 'account-a', 'status': 'failed',
+                 'reason': 'WRONG_MODEL', 'retry_blocked': True, 'typed': False, 'sent': False,
+                 'error': {'error': 'WRONG_MODEL', 'typed': False, 'sent': False,
+                           'state': {'url': HOME, 'model': None, 'assistant_count': 0, 'last_len': 0}}}
+        relay.job_write(job, state)
+        (d / 'MESSAGE.md').write_text('packet')
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'job': job, 'account': 'account-a'})
+        report = 'reports/ops/pro-wave-unlisted/RESULT.json'
+        (self.root / report).parent.mkdir(parents=True, exist_ok=True)
+        (self.root / report).write_text(json.dumps({'jobs': [{'job_id': job, **row}]}))
+        return d, state, report
+
+    def test_unlisted_wrong_model_reconciles_with_explicit_report(self):
+        job = 'glp999-unlisted-wrong-model'
+        d, state, report = self._unlisted_wrong_model(
+            job, {'submission_bound': False, 'typed': False, 'sent': False})
+        out = io.StringIO()
+        with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), mock.patch.object(
+            relay, '_legacy_tabs', return_value=[{'type': 'page', 'id': 'idle', 'url': HOME}]), \
+                redirect_stdout(out):
+            self.assertEqual(relay.reconcile_unsent_model(job, report=report), 0)
+            self.assertEqual(relay.job_state(job), state)
+            with self.assertRaisesRegex(SystemExit, 'MODEL_RECONCILE_REFUSED_REPORT_PATH'):
+                relay.reconcile_unsent_model(job, apply=True, report='../outside.json')
+            self.assertEqual(relay.reconcile_unsent_model(job, apply=True, report=report), 0)
+        self.assertIn('WOULD_RECONCILE_UNSENT_MODEL job=' + job + ' account=account-a', out.getvalue())
+        self.assertIn('RECONCILED_UNSENT_MODEL job=' + job + ' account=account-a', out.getvalue())
+        self.assertEqual(relay.job_state(job)['status'], 'unsent_reconciled')
+        self.assertFalse(relay.job_state(job)['retry_blocked'])
+        self.assertEqual(json.loads(next(d.glob('JOB.pre-model-reconcile-*.json')).read_text()), state)
+        self.assertEqual([x['phase'] for x in relay.ledger_rows(self.cfg)
+                          if x.get('event') == 'model_unsent_reconcile'], ['STARTED', 'APPLIED'])
+
+    def test_unlisted_wrong_model_report_must_prove_unsent(self):
+        for row in ({'submission_bound': False, 'typed': False, 'sent': True},
+                    {'submission_bound': True, 'typed': False, 'sent': False}):
+            job = 'glp999-unlisted-' + ('sent' if row['sent'] else 'bound')
+            _, state, report = self._unlisted_wrong_model(job, row)
+            with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), mock.patch.object(
+                relay, '_legacy_tabs', return_value=[{'type': 'page', 'id': 'idle', 'url': HOME}]):
+                for apply in (False, True):
+                    with self.assertRaisesRegex(SystemExit, 'MODEL_RECONCILE_REFUSED_REPORT ' + job):
+                        relay.reconcile_unsent_model(job, apply=apply, report=report)
+            self.assertEqual(relay.job_state(job), state)
+            self.assertFalse(list(relay.job_dir(job).glob('JOB.pre-model-reconcile-*.json')))
+
+    def test_unlisted_wrong_model_without_report_refuses(self):
+        job = 'glp999-unlisted-no-report'
+        _, state, _ = self._unlisted_wrong_model(
+            job, {'submission_bound': False, 'typed': False, 'sent': False})
+        for apply in (False, True):
+            with self.assertRaisesRegex(SystemExit, 'MODEL_RECONCILE_REFUSED_UNLISTED ' + job):
+                relay.reconcile_unsent_model(job, apply=apply)
+        self.assertEqual(relay.job_state(job), state)
+
     def test_undefined_focus_value_does_not_abort_before_typing(self):
         self.browser.omit_undefined_value = True
         result = relay.send_message("packet", forbidden=[SIBLING])
