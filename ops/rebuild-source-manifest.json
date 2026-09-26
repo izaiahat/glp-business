@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ef9a96726fbf3ab135e72da76d06680ffc49f969c767c2ffc8939b6f3ce6f1cb"
+      "sha256": "62cd4a7912f72c9d0c944b8d28f3d2e86d14798a59c5974bbb6bac476d10225e"
     },
     ".hermes.md": {
       "callers": [],
@@ -620,7 +620,7 @@
     "scripts/account_capacity_collector.py": {
       "callers": ["subscription_capacity_monitor"],
       "kind": "script",
-      "sha256": "e81fb37eb2f7f1d72f8aa6f06299353cec83c9ced559f89a9da3ad2f9f0e7a1d"
+      "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
     },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
@@ -1025,7 +1025,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7c47ef885297078b0e28fb77c725687b1de3929c0143c87c5151029b8a28617d"
+      "sha256": "10396a7fd1aba1279efcba445a38789e0c99315028a2dc41985541ce53821566"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1393,7 +1393,7 @@
     "tests/test_fable_bridge_native_review.py": {
       "callers": ["fable_bridge"],
       "kind": "test",
-      "sha256": "984b6136275a4ce19fea0f3eeb417371ae5a83c396ee06918d56e222ffd27fbb"
+      "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
     },
     "tests/test_fable_bridge_quota_resume.py": {
       "callers": ["fable_bridge"],
@@ -1744,7 +1744,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "53992151d35c36de3d8cd9e1ad4e9d304063ef19102a3fc35b94aedc36752d0c"
+      "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
     }
   },
   "omitted_runtime_inputs": [
