@@ -1657,8 +1657,12 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
             "scope": "public bytes only; not Functions build or release acceptance",
         }
         # A final readback must cover all writes and the last rollback GET.
-        exclusive_file(output / "PACKAGE-MANIFEST.json", json_bytes(manifest), mode=0o444)
-        manifest_sha256 = sha_file(output / "PACKAGE-MANIFEST.json")
+        manifest_bytes = json_bytes(manifest)
+        exclusive_file(output / "PACKAGE-MANIFEST.json", manifest_bytes, mode=0o444)
+        persisted_manifest = (output / "PACKAGE-MANIFEST.json").read_bytes()
+        if persisted_manifest != manifest_bytes:
+            fail("package_final_manifest_mismatch")
+        manifest_sha256 = sha_bytes(persisted_manifest)
         if package_tree(target) != (manifest["public_tree_sha256"], manifest["files"]):
             fail("package_final_tree_mismatch")
         return {"status": "PASS_PACKAGE_ONLY", "package_dir": str(output),

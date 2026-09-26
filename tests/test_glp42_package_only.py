@@ -257,6 +257,59 @@ class PackageTests(unittest.TestCase):
                          {"status": "BLOCK", "error": "package_final_tree_mismatch"})
         self.assertFalse(self.output.exists())
 
+    def test_persisted_manifest_must_match_intended_bytes(self):
+        original = carrier.exclusive_file
+        source_tree = carrier.package_tree(self.public)
+        receipt_bytes = self.receipt.read_bytes()
+        for field in ("site_head", "build_receipt", "files", "rollback_deployment_id", None):
+            with self.subTest(field=field):
+                self.output = self.root / ("package-" + (field or "control"))
+                self.requests.clear()
+                self.github_requests.clear()
+                intended = []
+
+                def write_then_replace(path, data, **kwargs):
+                    self.assertEqual(path, self.output / "PACKAGE-MANIFEST.json")
+                    original(path, data, **kwargs)
+                    self.assertEqual(path.read_bytes(), data)
+                    intended.append(data)
+                    if field is not None:
+                        manifest = json.loads(data)
+                        if field == "build_receipt":
+                            manifest[field]["sha256"] = "0" * 64
+                        else:
+                            manifest[field] = {"site_head": OTHER_HEAD, "files": [],
+                                               "rollback_deployment_id": "11111111-1111-1111-1111-111111111111"}[field]
+                        # Mode 0444 does not prevent replacement in our directory.
+                        path.unlink()
+                        original(path, carrier.json_bytes(manifest), mode=0o444)
+                        self.assertNotEqual(path.read_bytes(), data)
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o444)
+                    self.assertEqual(carrier.package_tree(self.output / "public"), source_tree)
+
+                with mock.patch.object(carrier, "exclusive_file", side_effect=write_then_replace):
+                    result = self.run_package()
+                self.assertEqual(len(intended), 1)
+                self.assertEqual(len(self.requests), 3)
+                self.assertEqual(len(self.github_requests), 1)
+                self.assertEqual(self.receipt.read_bytes(), receipt_bytes)
+                self.assertEqual(carrier.package_tree(self.public), source_tree)
+                if field is None:
+                    self.assertEqual(result, 0)
+                    self.assertEqual(self.stderr.getvalue(), "")
+                    raw = (self.output / "PACKAGE-MANIFEST.json").read_bytes()
+                    self.assertEqual(raw, intended[0])
+                    success = json.loads(self.stdout.getvalue())
+                    self.assertEqual(success["status"], "PASS_PACKAGE_ONLY")
+                    self.assertEqual(success["manifest_sha256"], hashlib.sha256(raw).hexdigest())
+                    self.assertEqual(carrier.package_tree(self.output / "public"), source_tree)
+                else:
+                    self.assertEqual(result, 1)
+                    self.assertEqual(self.stdout.getvalue(), "")
+                    self.assertEqual(json.loads(self.stderr.getvalue()),
+                                     {"status": "BLOCK", "error": "package_final_manifest_mismatch"})
+                    self.assertFalse(self.output.exists())
+
     def test_source_drift_during_copy_leaves_no_manifest(self):
         original = carrier.shutil.copyfileobj
         def copy_then_drift(*args, **kwargs):

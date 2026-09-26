@@ -71,6 +71,8 @@ recursive JS filename sort and SHA-256 of compact JSON `{file,sha256}` rows.
 It is **not** the historical carrier's size-bearing `file_closure` digest.
 Source and copied public trees are verified against the explicit expected hash.
 After the final rollback read, receipt check and manifest write, the carrier
+compares the actual persisted manifest bytes to the exact intended serialization
+and derives the returned manifest digest from that verified readback. It then
 re-hashes the actual output tree against the manifest hash and complete inventory
 as its final validation. Any mismatch removes the whole package (including its
 manifest), returns BLOCK and emits no success stdout. A successful manifest binds
