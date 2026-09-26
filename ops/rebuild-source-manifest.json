@@ -1199,7 +1199,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6cec0469041d03e0672d23f870e18c172f27722c6e2f3af17e63bbeef8a41b9c"
+      "sha256": "afb8bd57af4b65b227dd332754651c83cb13e15d4797133e1e410d818b832743"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -1999,7 +1999,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+      "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
