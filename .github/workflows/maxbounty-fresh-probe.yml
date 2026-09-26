@@ -1,7 +1,7 @@
 name: maxbounty-fresh-probe
 on:
   pull_request:
-    branches: [main]
+    branches: [main, fix/glp318-fresh-capacity-probe]
 permissions:
   contents: read
 jobs:
@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Install isolated fixture runner
         run: |

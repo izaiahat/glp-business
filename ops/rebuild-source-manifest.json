@@ -4,12 +4,12 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "96f2fc804aac7825901329f9eb6606b65fd6f18c8105b7e54e37a465459fe564"
+      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f72b4d728993e9d54cf9edab3d791b7c9782388be13d2bfb139e04248081eadb"
+      "sha256": "db93042ee7911c9385902691b96a9c4648d50ec367334ba4d34a15bb138f18b3"
     },
     ".gitignore": {
       "callers": [],
@@ -576,7 +576,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "4166a4e98a415fd4b65ef7ffe378f6e11658a09b0403f62253e3e14d65d14cfa"
+      "sha256": "13b41e9d81a7b6a1010fe14574338b5814dbc3528bc4cdf151ab32d4d3ef6de6"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -961,14 +961,14 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "02e14e3a33066514aa0ba82d0538d5c4d2f0ec7e5c113bbd03d32cd8779c8bb8"
+      "sha256": "a80092bb830a68931383f5819ecb81b0fc726ff69d4583cb02d7d3bf63c22f73"
     },
     "scripts/glp_maxbounty_fresh_probe.py": {
       "callers": [
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "script",
-      "sha256": "342fb0f58cc1672f08618f455ed21003bbad7cf43a5ec41e73ee62508f91b11d"
+      "sha256": "bbfca936af93758ec6f2cf5c9a1f146810b4b48d4e21d969b1d3deb32ed8356a"
     },
     "scripts/glp_network_revenue_v2.py": {
       "callers": [
@@ -1171,7 +1171,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b84ad81494217fd9009902097653c748c75c271c07e9a0c2ac3607a54c57ddcf"
+      "sha256": "c1b9cfe030c73eab3214de5617fe60db7ff547b3614d56a9495a9241a18241f7"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1818,7 +1818,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "test",
-      "sha256": "929edbe592fcaf570941aed0e58374c0794fe5c73f8c44b987aa2af2f53e35d7"
+      "sha256": "635c6f35dd222046a195cab85fdabee3dc59306210f36da8cea5793dbd1501a8"
     },
     "tests/test_glp_never_monetized_derived.py": {
       "callers": [

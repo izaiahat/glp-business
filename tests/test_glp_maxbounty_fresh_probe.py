@@ -242,7 +242,7 @@ def test_source_pin_failure_precedes_browser(caller):
 
 def test_no_legacy_default_transport(monkeypatch):
     from contextlib import ExitStack
-    monkeypatch.setattr(m, 'session_leases', ExitStack)
+    monkeypatch.setattr(m, 'capacity_lease_stage', lambda **_: ExitStack())
     monkeypatch.setattr(m, 'restricted_classes', lambda _: pytest.fail('legacy transport called'))
     with pytest.raises(m.Refusal, match='FRESH_VAULT_STAGES_NOT_INTEGRATED'):
         m.live_probe(f.TARGET)
@@ -373,3 +373,544 @@ sys.stdin.readline()
     finally:
         if child.poll() is None:
             child.communicate('\n', timeout=10)
+
+
+# Staged controller tests use separate real interpreters. Only the external
+# CDP event queue/DOM survive in a fixture file; never a live browser or vault.
+CONTROLLER_CHILD = '''
+import json, os, sys
+from pathlib import Path
+from scripts import glp_maxbounty_capacity_monitor as m
+from scripts import glp_maxbounty_fresh_probe as f
+from tests.test_glp_maxbounty_fresh_probe import BrowserFixture, ROW
+m.BUSINESS = Path(sys.argv[1])
+original = m.assert_profile_idle
+m.assert_profile_idle = lambda _: original(m.BUSINESS / 'profile', m.BUSINESS / 'proc')
+options = json.loads(sys.stdin.readline())
+path = m.BUSINESS / 'browser-fixture.json'
+b = BrowserFixture()
+if path.exists():
+    b.__dict__.update(json.loads(path.read_text()))
+base_cdp = b.cdp
+def cdp(method, **kw):
+    value = base_cdp(method, **kw)
+    if method == 'Target.getTargetInfo':
+        value['targetInfo'].update(targetId='owned-tab', url=b.location if path.exists() else 'about:blank')
+        if b.__dict__.get('fixture_binding_fault') == 'context':
+            value['targetInfo']['browserContextId'] = 'other-context'
+    if method == 'Page.getFrameTree' and b.__dict__.get('fixture_binding_fault') == 'frame':
+        value['frameTree']['frame']['id'] = 'other-frame'
+    return value
+def switch_tab(target):
+    return 'other-session' if b.__dict__.get('fixture_binding_fault') == 'session' else b.switch_tab(target)
+b.calls = []
+try:
+    stage = options.pop('stage')
+    if stage == 'auth-request':
+        b.events.append(b.event('auth-1', f.AUTH_RESPONSE, 'POST'))
+    with m.fresh_browser_stage(pins=m.BUSINESS / 'pins.json', cdp=cdp,
+            drain_events=b.drain_events, switch_tab=switch_tab, **options) as (token, producer):
+        if stage in {'auth-request', 'auth-response'}:
+            producer.poll()
+        if stage == 'crash-after-dispatch':
+            b.events.append(b.event('auth-1', f.AUTH_RESPONSE, 'POST'))
+            producer.poll()
+            path.write_text(json.dumps(b.__dict__))
+            os._exit(17)
+        if stage == 'probe':
+            result = m.run_once(m.BUSINESS / 'result.json', lambda: [ROW], producer.probe)
+        else:
+            result = {'authenticated': producer.authenticated}
+    print(json.dumps({'owner_token': token, 'result': result, 'pid': os.getpid()}))
+except m.Refusal as exc:
+    print(json.dumps({'refused': str(exc), 'pid': os.getpid()}))
+finally:
+    path.write_text(json.dumps(b.__dict__))
+'''
+
+
+def controller_process(caller, stage, **options) -> dict:
+    import subprocess
+    import sys
+    out = subprocess.run([sys.executable, '-c', CONTROLLER_CHILD, str(caller.pins.parent)],
+        cwd=Path(m.__file__).resolve().parents[1], input=json.dumps(dict(stage=stage, **options)) + '\n',
+        capture_output=True, text=True, timeout=10)
+    if stage == 'crash-after-dispatch':
+        assert out.returncode == 17, out.stderr
+        return {'crashed': True}
+    assert out.returncode == 0, out.stderr
+    return json.loads(out.stdout.splitlines()[-1])
+
+
+def test_controller_real_process_stages_preserve_auth_and_request_budget(caller):
+    first = controller_process(caller, 'begin')
+    token = first['owner_token']
+    request = controller_process(caller, 'auth-request', owner_token=token)
+    assert request['result']['authenticated'] is False
+    response = controller_process(caller, 'auth-response', owner_token=token)
+    assert response['result']['authenticated'] is True
+    final = controller_process(caller, 'probe', owner_token=token, final=True)
+    assert len({r['pid'] for r in (first, request, response, final)}) == 4
+    result = final['result']
+    assert result['status'] == 'OBSERVED'
+    assert result['capacity'] == 'BLOCKED'
+    assert result['successful_reads'] == 1
+    assert result['network_boundary']['authentication_posts'] == 1
+    assert result['network_boundary']['campaign_gets'] == 1
+    browser = json.loads((caller.pins.parent / 'browser-fixture.json').read_text())
+    assert browser['sent'] == ['auth-1', 'campaign-1']
+    assert browser['disposed'] == ['owned-context']
+    assert json.loads(m.capacity_lease_path().read_text())['status'] == 'released'
+    assert 'NOT_A_REAL_TOKEN' not in m.controller_state_path().read_text()
+
+
+@pytest.mark.parametrize('response', [False, True])
+def test_controller_replayed_auth_event_refused_across_interpreters(caller, response):
+    token = controller_process(caller, 'begin')['owner_token']
+    controller_process(caller, 'auth-request', owner_token=token)
+    controller_process(caller, 'auth-response', owner_token=token)
+    path = caller.pins.parent / 'browser-fixture.json'
+    browser = json.loads(path.read_text())
+    browser['events'] = [BrowserFixture().event('auth-1', f.AUTH_RESPONSE, 'POST', 200 if response else None)]
+    path.write_text(json.dumps(browser))
+    result = controller_process(caller, 'auth-response', owner_token=token)
+    assert result.get('refused') == 'REQUEST_REPLAY_REFUSED'
+    calls = json.loads(path.read_text())['calls']
+    assert not any(name in {'Fetch.continueRequest', 'Fetch.getResponseBody'} for name, _ in calls)
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'CONTROLLER_STAGE_NOT_RESUMABLE'
+
+
+def controller_browser(caller, **changes):
+    path = caller.pins.parent / 'browser-fixture.json'
+    value = json.loads(path.read_text())
+    value.update(changes)
+    if changes:
+        path.write_text(json.dumps(value))
+    return value
+
+
+@pytest.mark.parametrize('tamper', ['body', 'owner', 'request', 'rollback', 'missing', 'symlink', 'malformed', 'mode'])
+def test_controller_tampered_checkpoint_refuses_before_browser(caller, tamper):
+    token = controller_process(caller, 'begin')['owner_token']
+    path = m.controller_state_path()
+    old = path.read_bytes()
+    controller_process(caller, 'auth-request', owner_token=token)
+    state = json.loads(path.read_text())
+    if tamper == 'body':
+        state['controller']['authenticated'] = True
+    elif tamper == 'owner':
+        state['binding']['owner_sha256'] = '0' * 64
+    elif tamper == 'request':
+        state['binding']['request_sha256'] = '0' * 64
+    if tamper in {'body', 'owner', 'request'}:
+        path.write_text(json.dumps(state))
+    elif tamper == 'rollback':
+        path.write_bytes(old)
+    elif tamper == 'missing':
+        path.unlink()
+    elif tamper == 'symlink':
+        victim = path.with_suffix('.victim')
+        victim.write_bytes(path.read_bytes())
+        path.unlink()
+        path.symlink_to(victim)
+    elif tamper == 'malformed':
+        path.write_text('{')
+    elif tamper == 'mode':
+        path.chmod(0o644)
+    result = controller_process(caller, 'auth-response', owner_token=token)
+    assert result.get('refused') == 'CONTROLLER_STATE_INVALID'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_controller_expired_and_stale_owner_refuse_before_browser(caller):
+    import time
+    token = controller_process(caller, 'begin', ttl_seconds=.3)['owner_token']
+    expires = json.loads(m.capacity_lease_path().read_text())['expires_at']
+    time.sleep(max(0, expires - time.time()) + .02)
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'CAPACITY_LEASE_EXPIRED'
+    assert controller_browser(caller)['calls'] == []
+    successor = lease_process(caller)[0]['owner_token']
+    before = m.capacity_lease_path().read_bytes()
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'CAPACITY_LEASE_WRONG_OWNER'
+    assert m.capacity_lease_path().read_bytes() == before
+    assert controller_browser(caller)['calls'] == []
+    # A successor cannot adopt the previous controller even with its own token.
+    assert controller_process(caller, 'auth-response', owner_token=successor).get('refused') == 'CONTROLLER_STAGE_NOT_RESUMABLE'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_controller_crash_burns_checkpoint_and_forbids_retry(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    before = m.controller_state_path().read_bytes()
+    assert controller_process(caller, 'crash-after-dispatch', owner_token=token) == {'crashed': True}
+    assert controller_browser(caller)['sent'] == ['auth-1']
+    assert m.controller_state_path().read_bytes() == before
+    assert json.loads(m.capacity_lease_path().read_text())['controller']['status'] == 'in_progress'
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'CONTROLLER_STAGE_NOT_RESUMABLE'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_controller_request_identity_requires_exact_response_id(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    controller_process(caller, 'auth-request', owner_token=token)
+    controller_browser(caller, events=[BrowserFixture().event('wrong-auth-id', f.AUTH_RESPONSE, 'POST', 200)])
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'RESPONSE_BINDING_MISMATCH'
+    assert not any(name == 'Fetch.getResponseBody' for name, _ in controller_browser(caller)['calls'])
+
+
+def test_controller_markerless_result_stays_unknown_and_final_cannot_replay(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    controller_process(caller, 'auth-request', owner_token=token)
+    controller_process(caller, 'auth-response', owner_token=token)
+    controller_browser(caller, raw=BrowserFixture(relation='Pending').raw)
+    result = controller_process(caller, 'probe', owner_token=token, final=True)['result']
+    assert result['status'] == 'OBSERVED' and result['capacity'] == 'UNKNOWN'
+    assert result['classification'] == 'application_pending'
+    assert controller_process(caller, 'probe', owner_token=token, final=True).get('refused') == 'CAPACITY_LEASE_RELEASED'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_controller_wrong_target_and_missing_pins_refuse_before_browser(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    assert controller_process(caller, 'auth-response', owner_token=token, target=dict(f.TARGET, program_id='other')).get('refused') == 'PROGRAM_PROJECTION_IDENTITY_MISMATCH'
+    assert controller_browser(caller)['calls'] == []
+    caller.pins.write_text(json.dumps({'files': {str(Path(m.__file__).resolve()): '0' * 64}}))
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'SOURCE_PIN_MISMATCH'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_controller_checkpoint_contains_no_request_or_response_secrets(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    request = BrowserFixture().event('auth-1', f.AUTH_RESPONSE, 'POST')
+    request['params']['request'].update(postData='PRIVATE_PASSWORD', headers={'Cookie': 'PRIVATE_COOKIE'})
+    controller_browser(caller, events=[request])
+    controller_process(caller, 'auth-response', owner_token=token)
+    controller_process(caller, 'auth-response', owner_token=token)
+    state = m.controller_state_path().read_text()
+    for secret in ['PRIVATE_PASSWORD', 'PRIVATE_COOKIE', 'NOT_A_REAL_TOKEN']:
+        assert secret not in state
+        assert hashlib.sha256(secret.encode()).hexdigest() not in state
+    assert set(json.loads(state)['controller']) == {
+        'context', 'tab', 'session', 'main_frame', 'authenticated', 'auth_attempt',
+        'auth_posts', 'pageview_posts', 'blocked', 'seen'}
+    assert m.controller_state_path().stat().st_mode & 0o777 == 0o600
+
+
+def test_checkpoint_anchor_hashes_producer_bytes_not_postwrite_reread(caller, monkeypatch):
+    original = m.atomic_json
+    def intervening_edit(path, value):
+        original(path, value)
+        if Path(path) == m.controller_state_path():
+            changed = json.loads(Path(path).read_text())
+            changed['controller']['pageview_posts'] = 2
+            Path(path).write_text(json.dumps(changed))
+    monkeypatch.setattr(m, 'atomic_json', intervening_edit)
+    browser = BrowserFixture()
+    with m.fresh_browser_stage(pins=caller.pins, cdp=browser.cdp,
+            drain_events=browser.drain_events, switch_tab=browser.switch_tab) as (token, _):
+        pass
+    (caller.pins.parent / 'browser-fixture.json').write_text(json.dumps(browser.__dict__))
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == 'CONTROLLER_STATE_INVALID'
+    assert controller_browser(caller)['calls'] == []
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_stage_controller_cannot_be_used_after_lock_scope(caller, failed):
+    browser = BrowserFixture()
+    with pytest.raises(RuntimeError) if failed else __import__('contextlib').nullcontext():
+        with m.fresh_browser_stage(pins=caller.pins, cdp=browser.cdp,
+                drain_events=browser.drain_events, switch_tab=browser.switch_tab) as (_, producer):
+            if failed:
+                raise RuntimeError('fixture failure')
+    before = list(browser.calls)
+    with pytest.raises(m.Refusal, match='CONTROLLER_STAGE_FENCED'):
+        producer.poll()
+    assert browser.calls == before
+
+
+def test_controller_expiry_during_stage_prevents_dispatch(caller):
+    import time
+    browser = BrowserFixture()
+    with pytest.raises(m.Refusal, match='CAPACITY_LEASE_EXPIRED'):
+        with m.fresh_browser_stage(pins=caller.pins, cdp=browser.cdp,
+                drain_events=browser.drain_events, switch_tab=browser.switch_tab,
+                ttl_seconds=.2) as (_, producer):
+            expires = json.loads(m.capacity_lease_path().read_text())['expires_at']
+            time.sleep(max(0, expires - time.time()) + .02)
+            browser.events = [browser.event('auth-1', f.AUTH_RESPONSE, 'POST')]
+            producer.poll()
+    assert browser.sent == []
+    assert json.loads(m.capacity_lease_path().read_text())['controller']['status'] == 'in_progress'
+
+
+@pytest.mark.parametrize('binding,reason', [('context', 'FRESH_CONTEXT_BINDING_FAILED'),
+    ('frame', 'FRESH_FRAME_BINDING_FAILED'), ('session', 'FRESH_BROWSER_SESSION_LOST')])
+def test_controller_resume_rechecks_browser_binding(caller, binding, reason):
+    token = controller_process(caller, 'begin')['owner_token']
+    controller_browser(caller, fixture_binding_fault=binding)
+    assert controller_process(caller, 'auth-response', owner_token=token).get('refused') == reason
+    assert not any(name.startswith('Fetch.') for name, _ in controller_browser(caller)['calls'])
+
+
+def test_controller_pageview_budget_survives_each_interpreter(caller):
+    token = controller_process(caller, 'begin')['owner_token']
+    for n in range(4):
+        controller_browser(caller, events=[BrowserFixture().event(
+            'view-' + str(n), 'https://api.maxbounty.com/affiliates/api/affiliate/pageView', 'POST')])
+        controller_process(caller, 'auth-response', owner_token=token)
+    assert controller_browser(caller)['sent'] == ['view-0', 'view-1', 'view-2']
+    state = json.loads(m.controller_state_path().read_text())['controller']
+    assert state['pageview_posts'] == 3 and state['blocked'] == 1
+
+
+@pytest.mark.parametrize('fault', ['not-final', 'wrong-principal', 'second-campaign', 'challenge'])
+def test_controller_final_probe_fail_closed_paths_cannot_resume(caller, fault):
+    token = controller_process(caller, 'begin')['owner_token']
+    controller_process(caller, 'auth-request', owner_token=token)
+    controller_process(caller, 'auth-response', owner_token=token)
+    if fault == 'wrong-principal':
+        controller_browser(caller, principal='other@example.invalid')
+    elif fault == 'second-campaign':
+        controller_browser(caller, second=True)
+    elif fault == 'challenge':
+        controller_browser(caller, challenge=True)
+    expected = {'not-final': 'CONTROLLER_NOT_CHECKPOINTABLE',
+        'wrong-principal': 'AUTHENTICATED_PRINCIPAL_MISMATCH',
+        'second-campaign': 'CAMPAIGN_READ_COUNT_INVALID', 'challenge': 'LOGIN_WALL_OR_CHALLENGE'}[fault]
+    assert controller_process(caller, 'probe', owner_token=token, final=fault != 'not-final').get('refused') == expected
+    assert controller_process(caller, 'probe', owner_token=token, final=True).get('refused') == 'CONTROLLER_STAGE_NOT_RESUMABLE'
+    assert controller_browser(caller)['calls'] == []
+
+
+def test_stage_expiry_after_target_creation_prevents_switch(caller):
+    import time
+    browser = BrowserFixture()
+    switched = []
+    def cdp(method, **kw):
+        result = browser.cdp(method, **kw)
+        if method == 'Target.createTarget':
+            time.sleep(.25)
+        return result
+    def switch(target):
+        switched.append(target)
+        return browser.switch_tab(target)
+    with pytest.raises(m.Refusal, match='CAPACITY_LEASE_EXPIRED'):
+        with m.fresh_browser_stage(pins=caller.pins, cdp=cdp,
+                drain_events=browser.drain_events, switch_tab=switch, ttl_seconds=.2):
+            pass
+    assert switched == []
+
+
+# Every lease action runs the maintained code in a separate interpreter. Only
+# the business/profile/proc paths are redirected; no flock/clock/lease mocks.
+LEASE_CHILD = '''
+import json, sys
+from pathlib import Path
+from scripts import glp_maxbounty_capacity_monitor as m
+m.BUSINESS = Path(sys.argv[1])
+original = m.assert_profile_idle
+m.assert_profile_idle = lambda _: original(m.BUSINESS / 'profile', m.BUSINESS / 'proc')
+options = json.loads(sys.stdin.readline())
+try:
+    with m.capacity_lease_stage(**options) as token:
+        print(json.dumps({'owner_token': token}), flush=True)
+    print(json.dumps({'completed': True}), flush=True)
+except m.Refusal as exc:
+    print(json.dumps({'refused': str(exc)}), flush=True)
+'''
+
+
+def lease_process(caller, **options):
+    import subprocess
+    import sys
+    out = subprocess.run([sys.executable, '-c', LEASE_CHILD, str(caller.pins.parent)],
+        cwd=Path(m.__file__).resolve().parents[1], input=json.dumps(options) + '\n',
+        capture_output=True, text=True, timeout=10)
+    assert out.returncode == 0, out.stderr
+    return [json.loads(line) for line in out.stdout.splitlines()]
+
+
+def test_cross_interpreter_start_refused_until_owner_final_release(caller):
+    started = lease_process(caller)
+    assert started[-1] == {'completed': True}
+    token = started[0]['owner_token']
+    # The start interpreter is gone. Custody must still exclude another start.
+    assert lease_process(caller) == [{'refused': 'CAPACITY_LEASE_BUSY'}]
+    resumed = lease_process(caller, owner_token=token, final=True)
+    assert resumed == [{'owner_token': token}, {'completed': True}]
+    restarted = lease_process(caller, final=True)
+    assert restarted[-1] == {'completed': True}
+    assert restarted[0]['owner_token'] != token
+
+
+def test_expired_takeover_records_evidence_and_fences_former_owner(caller):
+    import time
+    token = lease_process(caller, ttl_seconds=.2)[0]['owner_token']
+    old = json.loads(m.capacity_lease_path().read_text())
+    time.sleep(max(0, old['expires_at'] - time.time()) + .03)
+    assert lease_process(caller, owner_token=token) == [{'refused': 'CAPACITY_LEASE_EXPIRED'}]
+    successor = lease_process(caller)[0]['owner_token']
+    assert successor != token
+    record = json.loads(m.capacity_lease_path().read_text())
+    assert record['takeovers'] == [{
+        'previous_owner_sha256': hashlib.sha256(token.encode()).hexdigest(),
+        'owner_sha256': hashlib.sha256(successor.encode()).hexdigest(),
+        'expired_at': old['expires_at'], 'taken_over_at': record['acquired_at']}]
+    assert record['acquired_at'] > old['expires_at']
+    for final in (False, True):
+        before = m.capacity_lease_path().read_bytes()
+        assert lease_process(caller, owner_token=token, final=final) == [
+            {'refused': 'CAPACITY_LEASE_WRONG_OWNER'}]
+        assert m.capacity_lease_path().read_bytes() == before
+    assert lease_process(caller, owner_token=successor, final=True)[-1] == {'completed': True}
+    lease_process(caller, final=True)
+    assert json.loads(m.capacity_lease_path().read_text())['takeovers'] == record['takeovers']
+
+
+def test_stage_renews_and_wrong_token_cannot_mutate_lease(caller):
+    token = lease_process(caller, ttl_seconds=1)[0]['owner_token']
+    first = json.loads(m.capacity_lease_path().read_text())
+    assert lease_process(caller, owner_token=token, ttl_seconds=10)[-1] == {'completed': True}
+    renewed = json.loads(m.capacity_lease_path().read_text())
+    assert renewed['acquired_at'] == first['acquired_at']
+    assert renewed['renewed_at'] > first['renewed_at']
+    assert renewed['expires_at'] > first['expires_at']
+    for final in (False, True):
+        before = m.capacity_lease_path().read_bytes()
+        assert lease_process(caller, owner_token='0' * 64, final=final) == [
+            {'refused': 'CAPACITY_LEASE_WRONG_OWNER'}]
+        assert m.capacity_lease_path().read_bytes() == before
+    lease_process(caller, owner_token=token, final=True)
+    assert lease_process(caller, owner_token=token) == [{'refused': 'CAPACITY_LEASE_RELEASED'}]
+
+
+@pytest.mark.parametrize('raw', ['null', '{}', '[]', '{',
+    '{"schema":"other","status":"released"}'])
+def test_malformed_lease_refuses_even_a_new_start(caller, raw):
+    m.capacity_lease_path().write_text(raw)
+    assert lease_process(caller) == [{'refused': 'CAPACITY_LEASE_INVALID'}]
+    assert m.capacity_lease_path().read_text() == raw
+
+
+@pytest.mark.parametrize('field,value', [
+    ('expires_at', float('nan')), ('expires_at', float('inf')),
+    ('expires_at', 0), ('owner_token', 'bad'), ('status', 'bad'),
+    ('takeovers', [{}]), ('renewed_at', -1), ('schema', 'other')])
+def test_corrupt_lease_fields_refuse_without_repair(caller, field, value):
+    token = lease_process(caller)[0]['owner_token']
+    lease = json.loads(m.capacity_lease_path().read_text())
+    lease[field] = value
+    m.capacity_lease_path().write_text(json.dumps(lease))
+    before = m.capacity_lease_path().read_bytes()
+    for options in ({}, {'owner_token': token, 'final': True}):
+        assert lease_process(caller, **options) == [{'refused': 'CAPACITY_LEASE_INVALID'}]
+    assert m.capacity_lease_path().read_bytes() == before
+
+
+@pytest.mark.parametrize('options', [
+    {'ttl_seconds': 0}, {'ttl_seconds': -1}, {'ttl_seconds': float('nan')},
+    {'ttl_seconds': float('inf')}, {'ttl_seconds': True}, {'ttl_seconds': 901},
+    {'owner_token': ''}, {'owner_token': 123}, {'owner_token': 'non-ascii-☃'},
+    {'final': 'yes'}])
+def test_invalid_stage_arguments_refuse_before_creating_lease(caller, options):
+    assert lease_process(caller, **options) == [{'refused': 'CAPACITY_LEASE_ARGUMENT_INVALID'}]
+    assert not m.capacity_lease_path().exists()
+
+
+def test_missing_resume_and_symlink_fail_closed(caller):
+    assert lease_process(caller, owner_token='0' * 64) == [{'refused': 'CAPACITY_LEASE_MISSING'}]
+    assert not m.capacity_lease_path().exists()
+    victim = caller.pins.parent / 'victim'
+    victim.write_text('unchanged')
+    m.capacity_lease_path().symlink_to(victim)
+    assert lease_process(caller) == [{'refused': 'CAPACITY_LEASE_INVALID'}]
+    assert victim.read_text() == 'unchanged'
+
+
+def test_factory_and_live_refusal_cannot_bypass_cross_stage_owner(caller):
+    lease_process(caller)
+    browser = BrowserFixture()
+    with pytest.raises(m.Refusal, match='CAPACITY_LEASE_BUSY'):
+        caller(browser)
+    assert browser.calls == []
+    with pytest.raises(m.Refusal, match='CAPACITY_LEASE_BUSY'):
+        m.live_probe(f.TARGET)
+
+
+def test_factory_releases_lease_after_closing_browser(caller):
+    caller(BrowserFixture())
+    assert json.loads(m.capacity_lease_path().read_text())['status'] == 'released'
+
+
+def test_real_kernel_locks_exclude_concurrent_stage_even_after_expiry(caller):
+    import selectors
+    import subprocess
+    import sys
+    import time
+    # Pause *inside* the first stage, after the durable atomic replacement.
+    code = LEASE_CHILD.replace(
+        "print(json.dumps({'owner_token': token}), flush=True)",
+        "print(json.dumps({'owner_token': token}), flush=True); sys.stdin.readline()")
+    child = subprocess.Popen([sys.executable, '-c', code, str(caller.pins.parent)],
+        cwd=Path(m.__file__).resolve().parents[1], stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert child.stdin is not None and child.stdout is not None
+        child.stdin.write(json.dumps({'ttl_seconds': .2}) + '\n')
+        child.stdin.flush()
+        with selectors.DefaultSelector() as ready:
+            ready.register(child.stdout, selectors.EVENT_READ)
+            assert ready.select(timeout=10), 'stage did not start'
+        token = json.loads(child.stdout.readline())['owner_token']
+        locks = [caller.pins.parent / name for name in (
+            'reports/glp-clinic-scout/affiliate-machine/applications/.application-machine.lock',
+            'reports/ops/orchestration-restore-20260907/PLAN/MARKETPLACE-ACCESS/M2b/MAXBOUNTY-LIVE/owner.lock')]
+        inodes = [p.stat().st_ino for p in locks]
+        assert lease_process(caller) == [{'refused': 'SESSION_LEASE_BUSY'}]
+        # Both distinct kernel locks, not a mock and not the JSON file, are held.
+        for lock in locks:
+            with lock.open('r+') as handle:
+                import fcntl
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        expires = json.loads(m.capacity_lease_path().read_text())['expires_at']
+        time.sleep(max(0, expires - time.time()) + .03)
+        assert lease_process(caller) == [{'refused': 'SESSION_LEASE_BUSY'}]
+        # An overrun cannot renew its own expired lease on stage exit.
+        out, err = child.communicate('\n', timeout=10)
+        assert child.returncode == 0, err
+        assert json.loads(out) == {'refused': 'CAPACITY_LEASE_EXPIRED'}
+        new = lease_process(caller, final=True)[0]['owner_token']
+        assert new != token
+        assert [p.stat().st_ino for p in locks] == inodes
+    finally:
+        if child.poll() is None:
+            child.communicate('\n', timeout=10)
+
+
+def test_concurrent_start_race_has_exactly_one_winner(caller):
+    import subprocess
+    import sys
+    # Launch both first, then release their input barriers. Either BUSY code
+    # is valid depending on whether the other process is inside or between stages.
+    children = [subprocess.Popen(
+        [sys.executable, '-c', LEASE_CHILD, str(caller.pins.parent)],
+        cwd=Path(m.__file__).resolve().parents[1], stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for _ in range(2)]
+    try:
+        for child in children:
+            assert child.stdin is not None
+            child.stdin.write('{}\n'); child.stdin.flush()
+        results = []
+        for child in children:
+            out, err = child.communicate(timeout=10)
+            assert child.returncode == 0, err
+            results.append([json.loads(line) for line in out.splitlines()])
+        assert sum(result[-1] == {'completed': True} for result in results) == 1
+        refused = [result for result in results if 'refused' in result[0]]
+        assert len(refused) == 1
+        assert refused[0][0]['refused'] in {'SESSION_LEASE_BUSY', 'CAPACITY_LEASE_BUSY'}
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.communicate(timeout=10)
