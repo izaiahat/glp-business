@@ -50,6 +50,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from dataclasses import dataclass, field
 
+import affiliate_payout_policy
+
 # --- niche lanes (operator's established categories) -------------------------
 NICHE_LANES: dict[str, tuple[str, ...]] = {
     "glp1-weightloss": (
@@ -162,6 +164,8 @@ class Candidate:
     network_region: str = ""
     site: SiteEvidence | None = None
     network_status: str = ""  # network-reported offer state; paused is terminal
+    status: str = ""          # alternate source state; never override a pause
+    offer_status: str = ""    # offer-level state; never override a pause
 
 
 @dataclass
@@ -300,6 +304,14 @@ MEDICATION_OFFER_RE = re.compile(
 DELIVERY_SERVICE_RE = re.compile(
     r"\b(?:telehealth|telemedicine|online clinic|online doctor|clinicians?|"
     r"physicians?|medical provider|prescrib\w*|prescription|patient|clinic)\b", re.I)
+RESEARCH_PEPTIDE_RE = re.compile(
+    r"\b(?:research[- ]grade|research[- ]use|research only|for research|"
+    r"not for human consumption)\b", re.I)
+
+def research_product_only(text: str) -> bool:
+    """Research peptide catalog wording is not prescription care evidence."""
+    return bool(re.search(r"\bpeptides?\b", text, re.I)
+                and RESEARCH_PEPTIDE_RE.search(text))
 
 # Other verticals, for APPLICATION purposes only. A hit here never changes how a
 # program is recorded or researched — only whether glpclinicscout.com applies.
@@ -376,39 +388,49 @@ APPLY_SCOPE_RULING_PATH = os.path.join(
 # scripts/affiliate_sheet_batch_writer.py). Its two ClickDealer offers read
 # "[WEB+MOB] Fella Health - GLP-1 Medication CTC ...", i.e. they land squarely
 # in the explicit_glp1 tier and would otherwise apply.
-APPLICATION_EXCLUSIONS_PATH = Path(__file__).resolve().parents[1] / "ops/affiliate-application-exclusions.json"
+# Only business-wide permanent exclusions are application-wide. The morning
+# review's EXCLUDED_PROGRAMS hold editorial/monetization output, not every
+# application; never promote those scopes to a provider-wide ban here.
 EXCLUDED_PROVIDER_DECISION = "SKIPPED_EXCLUDED_PROVIDER"
 
 
 def application_exclusion(name: str) -> tuple[str, str]:
-    """Read the curated held/excluded provider registry; never assume an unreadable
-    registry means no holds. Match aliases as complete tokens, not substrings.
-    """
+    """Derive whole-token permanent matches from the payout policy at call time."""
     try:
-        registry = json.loads(APPLICATION_EXCLUSIONS_PATH.read_text(encoding="utf-8"))
-        if registry.get("schema") != "affiliate-application-exclusions-v1":
-            raise ValueError("exclusion registry schema")
-        providers = registry["providers"]
-        if not isinstance(providers, list) or not providers:
-            raise ValueError("exclusion registry empty")
-    except (OSError, ValueError, KeyError, TypeError):
-        return "registry_unavailable", "application_exclusion_registry_unavailable"
-    normalized = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
-    for provider in providers:
-        for alias in (provider["name"], *provider.get("aliases", [])):
-            # Preserve boundaries around decorated affiliate program titles.
-            pieces = re.findall(r"[a-z0-9]+", alias.lower())
-            expression = r"(?<![a-z0-9])" + r"[\W_]*".join(map(re.escape, pieces)) + r"(?![a-z0-9])"
-            if re.search(expression, str(name or ""), re.I):
-                return provider["name"], provider["reason"]
-        # Joined brand spellings (e.g. TelosRx), only for a complete name.
-        if normalized == re.sub(r"[^a-z0-9]+", "", provider["name"].lower()):
-            return provider["name"], provider["reason"]
+        exclusions = affiliate_payout_policy.PERMANENT_EXCLUSIONS
+        if not isinstance(exclusions, frozenset) or not exclusions or not all(
+                isinstance(item, str) and item.strip() for item in exclusions):
+            raise ValueError("permanent exclusions unavailable")
+    except (AttributeError, ValueError, TypeError):
+        return "registry_unavailable", "permanent_payout_policy_unavailable"
+    for identity in sorted(exclusions, key=len, reverse=True):
+        pieces = re.findall(r"[a-z0-9]+", identity.lower())
+        expression = r"(?<![a-z0-9])" + r"[\W_]*".join(map(re.escape, pieces)) + r"(?![a-z0-9])"
+        if re.search(expression, str(name or ""), re.I):
+            return identity, "permanent_review_site_prohibition"
     return "", ""
 # Terminals no downstream rescue may overturn (the direct-Sheet
 # `sheet_vertical_glp1` rescue in scripts/affiliate_auto_apply.py reads this).
 NO_RESCUE_TERMINALS = frozenset({"SKIPPED_OPERATOR_RULING", EXCLUDED_PROVIDER_DECISION,
-                                 "SKIPPED_NETWORK_PAUSED"})
+                                 "SKIPPED_NETWORK_PAUSED", "SKIPPED_NETWORK_STATUS_UNKNOWN"})
+
+PAUSED_OFFER_STATE_RE = re.compile(r"\b(?:paused|suspended|inactive|disabled)\b", re.I)
+ACTIVE_OFFER_STATES = frozenset({"active", "enabled", "live", "available"})
+
+def offer_state(c: Candidate) -> tuple[str, str]:
+    """Any adverse or unrecognized state outranks an affirmative state."""
+    states = [(key, str(getattr(c, key) or "").strip())
+              for key in ("network_status", "status", "offer_status")]
+    for key, value in states:
+        if PAUSED_OFFER_STATE_RE.search(value):
+            return "PAUSED", f"{key}:{value}"
+    supplied = [(key, value) for key, value in states if value]
+    if any(value.casefold() not in ACTIVE_OFFER_STATES for _key, value in supplied):
+        return "UNKNOWN", ",".join(f"{key}:{value}" for key, value in supplied)
+    if not supplied:
+        return "UNKNOWN", "absent"
+    return "ACTIVE", ",".join(f"{key}:{value}" for key, value in supplied)
+
 
 
 def permanently_excluded_provider(name: str) -> str:
@@ -529,6 +551,7 @@ CONTRACT_REASONS: dict[str, str] = {
     "park_glp1_without_medication_delivery": CONTRACT_PARK,
     "park_permanently_excluded_provider": CONTRACT_PARK,
     "park_network_paused_offer": CONTRACT_PARK,
+    "park_network_status_unknown": CONTRACT_PARK,
     "park_not_glp_relevant": CONTRACT_PARK,
     "park_non_us": CONTRACT_PARK,
     "park_us_unverified": CONTRACT_PARK,
@@ -682,6 +705,12 @@ def glp_application_fit(c: Candidate) -> FitVerdict:
         return parked("park_permanently_excluded_provider",
                       [f"permanently_excluded_provider:{excluded}",
                        "permanent_business_wide_exclusion_review_site_prohibition"])
+
+    # Research-grade peptide evidence outranks the broad medication/clinical
+    # regex trio; informational clinician copy is not a patient care offering.
+    if research_product_only(text):
+        return parked("park_product_vertical_body_copy",
+                      ["research_grade_peptide_product_only"])
 
     # Gate 1 — the brand's own name says which vertical it is.
     #
@@ -969,21 +998,14 @@ def evaluate_application(c: Candidate,
                 FitVerdict(False, "excluded_provider", why,
                            contract_decision=CONTRACT_PARK,
                            contract_reason="park_permanently_excluded_provider"))
-    if re.search(r"\b(?:paused|suspended|inactive|disabled)\b", c.network_status or "", re.I):
-        why = [f"network_offer_state:{c.network_status}",
-               contract_tag("park_network_paused_offer")]
-        return (Decision("SKIPPED_NETWORK_PAUSED", None, why),
-                FitVerdict(False, "network_paused", why,
-                           contract_decision=CONTRACT_PARK,
-                           contract_reason="park_network_paused_offer"))
-
     # Product-only GLP claims and research-use peptides cannot be promoted by a
     # bridge FIT override. A sibling clinical service is not a product veto.
     body = _text(c)
     product_labels = [v for v in _off_verticals(body) if v not in CLINIC_SIBLING_VERTICALS]
     research_peptides = bool(re.search(r"\bpeptides?\b", body)
                              and ILLEGAL_OPERATION_RE.search(body))
-    if product_labels or research_peptides:
+    research_catalog = research_product_only(body)
+    if product_labels or research_peptides or research_catalog:
         reason = ("reject_illegal_operation_signal" if research_peptides
                   else "park_product_vertical_body_copy")
         why = [f"application_product_veto:{','.join(product_labels) or 'research_peptides'}",
@@ -992,6 +1014,16 @@ def evaluate_application(c: Candidate,
                          None, why),
                 FitVerdict(False, "product_vertical", why,
                            contract_decision=CONTRACT_REASONS[reason], contract_reason=reason))
+
+    state, state_basis = offer_state(c)
+    if state != "ACTIVE":
+        reason = ("park_network_paused_offer" if state == "PAUSED"
+                  else "park_network_status_unknown")
+        why = [f"network_offer_state:{state_basis}", contract_tag(reason)]
+        return (Decision("SKIPPED_NETWORK_PAUSED" if state == "PAUSED"
+                         else "SKIPPED_NETWORK_STATUS_UNKNOWN", None, why),
+                FitVerdict(False, "network_paused" if state == "PAUSED" else "network_status_unknown", why,
+                           contract_decision=CONTRACT_PARK, contract_reason=reason))
 
     if GLP1_EXPLICIT_RE.search(body) and not (
             MEDICATION_OFFER_RE.search(" ".join((c.name or "", c.description or "")))
@@ -1317,6 +1349,9 @@ def _scope_candidate(mapping: dict) -> tuple[Decision, FitVerdict]:
             url=url,
             network_region=network_region,
             site=site,
+            network_status=_first(mapping, "network_status"),
+            status=_first(mapping, "status"),
+            offer_status=_first(mapping, "offer_status"),
         )
     )
 

@@ -81,11 +81,6 @@
       "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
     },
-    "ops/affiliate-application-exclusions.json": {
-      "callers": ["scripts/affiliate_niche_geo_filter.py"],
-      "kind": "instruction_or_policy",
-      "sha256": "de7d47296a15a3ddb8a5d2cce58d39265a2321e297dbb5f409b2e78f4ed57d1c"
-    },
     "ops/autonomy-envelope.json": {
       "callers": [],
       "kind": "instruction_or_policy",
@@ -655,17 +650,17 @@
       "kind": "script",
       "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
     },
-    "scripts/affiliate_payout_policy.py": {
-      "callers": ["scripts/affiliate_niche_geo_filter.py"],
-      "kind": "script",
-      "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
-    },
     "scripts/affiliate_niche_geo_filter.py": {
       "callers": [
         "GLP-317 Awin paused source review"
       ],
       "kind": "script",
-      "sha256": "1e8798edc62c306842ab368f53a2fa4e40d3e33f5c984f2ca0a49dd8a26d8b18"
+      "sha256": "5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e"
+    },
+    "scripts/affiliate_payout_policy.py": {
+      "callers": ["scripts/affiliate_niche_geo_filter.py"],
+      "kind": "script",
+      "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -1441,7 +1436,7 @@
     "tests/test_awin_application_fit_exclusions.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "0c227902f75d25a43f149fd1f0df898e8aec0d2c02c1b070618c29b5f25ea375"
+      "sha256": "f21cbeb0dcaee2448a2bae148a026159ca8f4e77c98fa4d715f2cf5aef65a7c0"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
