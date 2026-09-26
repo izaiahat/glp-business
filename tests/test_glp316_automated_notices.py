@@ -43,6 +43,13 @@ def ingest_fixture(sender, subject, body, *, headers=None):
         ), mock.patch.object(cp, "DAILY_AUDIT_DIR", root / "audit"), mock.patch.object(
             affiliate_supply_intake, "INTAKE_ROOT", root / "supply-intake"
         ), mock.patch.object(
+            cp, "load_reply_registry", return_value=({
+                "templates": {"glp_affiliate": {"partner_vendor_action": {
+                    "draft": True, "never_auto_send": True,
+                    "body": "Thank you for your specific note. I will answer your partnership question after review."
+                }}}
+            }, "fixture-registry-sha256")
+        ), mock.patch.object(
             cp, "run_fable_email_drafter", return_value={
                 "status": "pass", "composer": "fable_claude_tool",
                 "composer_version": cp.FABLE_EMAIL_DRAFTER_VERSION,
