@@ -104,7 +104,7 @@ def qualification_clocks(root, authority_root=None):
     code = ("import {loadEvidenceInputs,materialQualificationsFor,materialOffersFor} from './scripts/glp_evidence_ledger.mjs';"
             "const x=loadEvidenceInputs(process.argv[1]);"
             "console.log(JSON.stringify({ledger_generated_at:x.ledger.generated_at_utc,ledger_path:x.ledger_path,"
-            "ledger_cached:x.ledger.records.filter(r=>r.cached_at).map(r=>({id:r.capture_id,cached_at:r.cached_at})),"
+            "ledger_cached:x.ledger.records.filter(r=>r.cached_at!==null).map(r=>({id:r.capture_id,cached_at:r.cached_at??null})),"
             "config:x.config,config_path:x.config_path,"
             "qualifications:materialQualificationsFor(x.ledger).map(q=>"
             "({capture_id:q.material?.capture_id,observation_id:q.material?.observation_id,fetched_at:q.fetched_at})),"
@@ -213,6 +213,44 @@ def stamp_gate(root):
             "expiry_date": newest if invalid and newest else "UNKNOWN"}
 
 
+def required_items(value):
+    """A required nonempty collection keeps an UNKNOWN slot when absent/malformed."""
+    return value if isinstance(value, list) and value else [None]
+
+
+def field(node, name):
+    return node.get(name) if isinstance(node, dict) else None
+
+
+def typed_capture_records(row, identity):
+    """Enumerate native witness positions, never discover them by timestamp keys.
+
+    pricing-evidence-v2 requires row/identity evidence and known-fact evidence.
+    UNKNOWN facts may have an empty evidence array, but not a missing array.
+    """
+    collections = [(name, required_items(row.get(name)))
+                   for name in ("evidence", "identity_evidence")]
+    facts = row.get("facts")
+    if not isinstance(facts, dict) or not facts:
+        collections.append(("facts", [None]))
+    else:
+        for name, fact in facts.items():
+            evidence = field(fact, "evidence")
+            if field(fact, "value") == "UNKNOWN" and isinstance(evidence, list):
+                collections.append((f"facts.{name}.evidence", evidence))
+            else:
+                collections.append((f"facts.{name}.evidence", required_items(evidence)))
+    for position, witnesses in collections:
+        for index, witness in enumerate(witnesses):
+            stamp = field(witness, "captured_at_utc")
+            # Native validDate requires a full UTC instant, not merely any ISO date.
+            if not isinstance(stamp, str) or not re.fullmatch(
+                    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)", stamp):
+                stamp = None
+            yield (identity, "data/provider-pricing-matrix.json",
+                   f"{position}[{index}].captured_at_utc", stamp)
+
+
 def inventory(root=CAND, now=None, authority_root=None):
     root = Path(root)
     now = now or datetime.now(timezone.utc)
@@ -248,17 +286,17 @@ def inventory(root=CAND, now=None, authority_root=None):
     add("dynamic-profile", "provider-dynamic-profiles.mjs", 'fail("evidence_stale"', profiles.get("freshness_max_days"),
         [(pid, rfile, "verified_as_of", row.get("verified_as_of")) for pid, row in dynamic])
     add("dynamic-calculator", "provider-dynamic-profiles.mjs", 'fail("calculator_evidence_stale"', profiles.get("freshness_max_days"),
-        [(pid, rfile, "calculator.checked_as_of", row.get("calculator", {}).get("checked_as_of"))
-         for pid, row in dynamic if row.get("calculator")])
+        [(pid, rfile, "calculator.checked_as_of", field(row.get("calculator"), "checked_as_of"))
+         for pid, row in dynamic])
     add("dynamic-binding", "provider-dynamic-profiles.mjs", 'fail("evidence_binding_stale"', profiles.get("freshness_max_days"),
-        [(f"{pid}:{i}", rfile, "evidence_bindings.verified_as_of", row.get("verified_as_of"))
-         for pid, profile in dynamic for i, row in enumerate(profile.get("evidence_bindings", []))])
+        [(f"{pid}:{i}", rfile, "evidence_bindings.verified_as_of", field(row, "verified_as_of"))
+         for pid, profile in dynamic for i, row in enumerate(required_items(profile.get("evidence_bindings")))])
     add("coupon-offers", "coupon-offers.mjs", "nowDate.getTime() - verified.getTime() > feed.source_contract.max_age_days", offers.get("source_contract", {}).get("max_age_days"),
         [(row.get("program_id"), "data/coupon-offers.json", "verified_at", row.get("verified_at"))
          for row in offers.get("offers", []) if row.get("status") == "VERIFIED"])
     add("coupon-explicit-expiry", "coupon-offers.mjs", "nowDate >= new Date(expires.getTime() + day)", 1,
         [(row.get("program_id"), "data/coupon-offers.json", "expires_at", row.get("expires_at"))
-         for row in offers.get("offers", []) if row.get("status") == "VERIFIED" and row.get("expires_at")])
+         for row in offers.get("offers", []) if row.get("status") == "VERIFIED" and ("expires_at" not in row or row["expires_at"] is not None)])
     add("original-study", "original-data.mjs", 'throw new Error("study_source_stale")',
         study.get("methodology", {}).get("freshness_max_age_hours"),
         [(row.get("source_id"), "data/original-data-study.json", "checked_at", row.get("checked_at"))
@@ -266,8 +304,8 @@ def inventory(root=CAND, now=None, authority_root=None):
     preserved = root / "artifacts" / "ops" / "wave4-deal-ingestion-manifest.json"
     frozen = moment(json.loads(preserved.read_text()).get("evaluated_at")) if preserved.is_file() else None
     authority = qualification_clocks(root, authority_root) if authority_root else qualification_clocks(root)
-    material_offers = {row["offer_id"]: row["fetched_at"] for row in (authority or {}).get("material_offers", [])
-                       if row.get("offer_id") and row.get("fetched_at")}
+    material_offers = {row["offer_id"]: row.get("fetched_at") for row in (authority or {}).get("material_offers", [])
+                       if row.get("offer_id")}
     add("deals", "deal-ingestion.mjs", "offer_evidence_stale", window_constant(root, "deal-ingestion.mjs", "MAX_EVIDENCE_AGE_DAYS"),
         [(row.get("id"), "data/deals.json", "checked_at", row.get("checked_at"))
          for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and row.get("id") not in material_offers], clock=frozen)
@@ -277,11 +315,11 @@ def inventory(root=CAND, now=None, authority_root=None):
          for offer_id, fetched_at in material_offers.items()] if authority is not None else [])
     add("deal-explicit-expiry", "deal-ingestion.mjs", "nowMs < Date.parse(offer.expires_at)", 0,
         [(row.get("id"), "data/deals.json", "expires_at", row.get("expires_at"))
-         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and row.get("expires_at")], clock=frozen)
+         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and ("expires_at" not in row or row["expires_at"] is not None)], clock=frozen)
     add("deal-term-expiry", "deal-ingestion.mjs", "nowMs < Date.parse(term.expires_at)", 0,
         [(f"{row.get('id')}:{term.get('label')}", "data/deals.json", "pricing.expires_at", term.get("expires_at"))
          for row in deals.get("offers", []) for group in row.get("pricing", {}).values() if isinstance(group, list)
-         for term in group if isinstance(term, dict) and term.get("expires_at")], clock=frozen)
+         for term in group if isinstance(term, dict) and ("expires_at" not in term or term["expires_at"] is not None)], clock=frozen)
     max_mystery = window_constant(root, "mystery-shop.mjs", "MAX_AGE_MS")
     # A second ledger timestamp is independently enforced in the config.
     active_mystery = (authority or {}).get("config", mystery)
@@ -307,7 +345,7 @@ def inventory(root=CAND, now=None, authority_root=None):
          for row in money.get("pages", []) if row.get("promo", {}).get("status") == "VERIFIED"])
     add("promo-explicit-expiry", "promo-code.mjs", "nowDate >= new Date(expiry.getTime() + dayMs())", 1,
         [(row.get("program_id"), "data/money-page-specs.json", "promo.expires_at", row["promo"].get("expires_at"))
-         for row in money.get("pages", []) if row.get("promo", {}).get("status") == "VERIFIED" and row["promo"].get("expires_at")])
+         for row in money.get("pages", []) if row.get("promo", {}).get("status") == "VERIFIED" and row["promo"].get("expires_at") is not None])
     max_price = window_constant(root, "price-tracker.mjs", "MAX_AGE_MS")
     add("price-tracker", "price-tracker.mjs", "tracker_freshness_invalid", max_price,
         [(row.get("id"), "data/price-tracker.json",
@@ -344,19 +382,7 @@ def inventory(root=CAND, now=None, authority_root=None):
         for row in provider.get("medications", []):
             identity = row.get("row_id") or f"{program}:{row.get('medication_id')}"
             if "price_kind" in row:
-                def witnesses(node):
-                    if isinstance(node, dict):
-                        if "captured_at_utc" in node:
-                            yield node
-                        for child in node.values():
-                            yield from witnesses(child)
-                    elif isinstance(node, list):
-                        for child in node:
-                            yield from witnesses(child)
-                typed_witnesses.extend(
-                    (identity, "data/provider-pricing-matrix.json", "captured_at_utc", witness.get("captured_at_utc"))
-                    for witness in witnesses(row)
-                )
+                typed_witnesses.extend(typed_capture_records(row, identity))
             else:
                 captured = row.get("captured_on")
                 legacy_rows.append((identity, "data/provider-pricing-matrix.json", "captured_on@12:00Z",

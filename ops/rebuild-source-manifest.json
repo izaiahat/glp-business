@@ -774,7 +774,7 @@
     "scripts/candidate_freshness_horizon.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "17d8ceecfa0813fb3422e4c1d7abfe2f042c6bbde7e0810203ec21eff5ec44eb"
+      "sha256": "eec094267d93aed3adf40e2475d71270127363afa28321c0e475da198f5c6afa"
     },
     "scripts/capacity_pacing.py": {
       "callers": [
@@ -1549,7 +1549,7 @@
     "tests/test_candidate_freshness_horizon.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "1438737e1c4c11c91389c73c4fce738e5e66fe911cd8def7abe9c56d1f2245f4"
+      "sha256": "7a9451d0953350f22a2a454aa6097ff9d8123e61c29ca7fac4f0b73457fea9b7"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [

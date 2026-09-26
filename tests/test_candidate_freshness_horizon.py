@@ -58,8 +58,12 @@ def test_pricing_witness_and_legacy_noon_clocks_are_discovered(tmp_path):
     )
     (tmp_path / "data/provider-pricing-matrix.json").write_text(json.dumps({"providers": {
         "one": {"medications": [
-            {"row_id": "one:typed", "price_kind": "quoted", "evidence": [
-                {"captured_at_utc": "2026-09-08T03:30:55Z"}]},
+            {"row_id": "one:typed", "price_kind": "floor_from", "evidence": [
+                {"captured_at_utc": "2026-09-08T03:30:55Z"}], "identity_evidence": [
+                {"captured_at_utc": "2026-09-08T03:30:55Z"}], "facts": {
+                    "amount_usd": {"value": 100, "evidence": [
+                        {"captured_at_utc": "2026-09-08T03:30:55Z"}]},
+                    "period": {"value": "UNKNOWN", "evidence": []}}},
             {"medication_id": "legacy", "captured_on": "2026-08-31"},
         ]},
     }}))
@@ -271,3 +275,181 @@ def test_explicit_expiry_boundary_is_inclusive(tmp_path):
     row = HORIZON.gate(tmp_path, "deal-explicit-expiry", "deal-ingestion.mjs", 'nowMs <', 0,
                        [("one", "data/deals.json", "expires_at", NOW.isoformat())], NOW)
     assert row["status"] == "EXPIRED"
+
+
+@pytest.mark.parametrize("mutation", [
+    "remove-all-stamps", "missing-stamp", "invalid-stamp", "date-only", "non-utc",
+    "missing-evidence", "empty-evidence", "missing-identity", "empty-identity",
+    "missing-fact-evidence", "empty-fact-evidence", "invalid-witness",
+])
+def test_required_typed_witness_cannot_disappear(tmp_path, capsys, mutation):
+    import copy
+    import shutil
+    real = os.environ.get("GLP270_REAL_CANDIDATE")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "data").mkdir()
+    if real:
+        real = Path(real)
+        for name in ("src/pricing-evidence-v2.mjs", "scripts/validate-provider-pricing-matrix.mjs"):
+            shutil.copyfile(real / name, tmp_path / name)
+        matrix = json.loads((real / "data/provider-pricing-matrix.json").read_text())
+        row = next(r for p in matrix["providers"].values() for r in p["medications"]
+                   if r.get("row_id") == "altrx-glp1-us-cps:s32-0:compounded-semaglutide-injection")
+    else:
+        (tmp_path / "src/pricing-evidence-v2.mjs").write_text("evidence_older_than_recency_bar")
+        (tmp_path / "scripts/validate-provider-pricing-matrix.mjs").write_text("const MAX_EVIDENCE_AGE_DAYS = 92;")
+        witness = {"captured_at_utc": "2026-09-16T00:00:00Z", "quote": "synthetic"}
+        row = {"row_id": "broken", "price_kind": "floor_from", "evidence": [copy.deepcopy(witness)],
+               "identity_evidence": [copy.deepcopy(witness)], "facts": {
+                   "amount_usd": {"value": 100, "evidence": [copy.deepcopy(witness)]},
+                   "period": {"value": "month", "evidence": [copy.deepcopy(witness)]}}}
+        healthy = copy.deepcopy(row)
+        healthy["row_id"] = "healthy"
+        matrix = {"providers": {"synthetic": {"medications": [healthy, row]}}}
+    path = tmp_path / "data/provider-pricing-matrix.json"
+    path.write_text(json.dumps(matrix))
+    def native_errors():
+        import subprocess
+        code = ("import {validatePriceRow} from './src/pricing-evidence-v2.mjs';"
+                "import {readFileSync} from 'node:fs';"
+                "const m=JSON.parse(readFileSync(process.argv[1]));"
+                "const r=Object.values(m.providers).flatMap(p=>p.medications).find(r=>r.row_id===process.argv[2]);"
+                "console.log(JSON.stringify(validatePriceRow(r,{root:process.argv[3],now:Date.parse('2026-09-26T00:00:00Z')})));")
+        run = subprocess.run(["node", "--input-type=module", "-e", code, str(path), row["row_id"], str(real)],
+                             cwd=tmp_path, text=True, capture_output=True, check=True)
+        return json.loads(run.stdout)
+    if real:
+        assert native_errors() == []
+    def clock():
+        return next(g for g in HORIZON.inventory(tmp_path, NOW) if g["gate"] == "pricing-typed-witness")
+    assert clock()["status"] == "CURRENT"
+    if mutation == "remove-all-stamps":
+        def remove(node):
+            if isinstance(node, dict):
+                node.pop("captured_at_utc", None)
+                for value in node.values():
+                    remove(value)
+            elif isinstance(node, list):
+                for value in node:
+                    remove(value)
+        remove(row)
+    elif mutation == "missing-stamp":
+        row["evidence"][0].pop("captured_at_utc")
+    elif mutation in ("invalid-stamp", "date-only", "non-utc"):
+        row["evidence"][0]["captured_at_utc"] = {
+            "invalid-stamp": "not-a-date", "date-only": "2026-09-16",
+            "non-utc": "2026-09-16T00:00:00+01:00"}[mutation]
+    elif mutation == "invalid-witness":
+        row["evidence"][0] = None
+    elif "fact" in mutation:
+        fact = next(f for f in row["facts"].values() if f["value"] != "UNKNOWN")
+        if mutation.startswith("missing"):
+            fact.pop("evidence")
+        else:
+            fact["evidence"] = []
+    else:
+        key = "identity_evidence" if "identity" in mutation else "evidence"
+        if mutation.startswith("missing"):
+            row.pop(key)
+        else:
+            row[key] = []
+    path.write_text(json.dumps(matrix))
+    if real:
+        errors = native_errors()
+        assert errors
+        if mutation in ("remove-all-stamps", "missing-stamp", "invalid-stamp", "date-only", "non-utc"):
+            assert f"capture_date_invalid:{row['row_id']}" in errors
+    result = clock()
+    assert result["status"] == "UNKNOWN"
+    assert result["row"] == row["row_id"]
+    assert result["expiry_date"] == "UNKNOWN"
+    assert HORIZON.main(["--candidate", str(tmp_path), "--now", NOW.isoformat()]) == 1
+    reported = json.loads(capsys.readouterr().out)
+    assert any(g["gate"] == "pricing-typed-witness" and g["row"] == row["row_id"]
+               for g in reported["unknown"])
+
+
+@pytest.mark.parametrize("field", ["calculator", "evidence_bindings"])
+@pytest.mark.parametrize("value", [None, {}, []])
+def test_dynamic_required_collection_missing_cannot_disappear(tmp_path, field, value):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "src/provider-dynamic-profiles.mjs").write_text(
+        'fail("calculator_evidence_stale"\nfail("evidence_binding_stale"')
+    good = {"calculator": {"checked_as_of": "2026-09-16"},
+            "evidence_bindings": [{"verified_as_of": "2026-09-16"}]}
+    bad = {**good, field: value}
+    path = tmp_path / "data/program-registry.json"
+    path.write_text(json.dumps({"provider_dynamic_profiles": {"freshness_max_days": 90,
+                               "profiles": {"healthy": good, "broken": bad}}}))
+    name = "dynamic-calculator" if field == "calculator" else "dynamic-binding"
+    result = next(g for g in HORIZON.inventory(tmp_path, NOW) if g["gate"] == name)
+    assert result["status"] == "UNKNOWN"
+    assert result["row"].startswith("broken")
+
+
+@pytest.mark.parametrize("name", ["coupon-explicit-expiry", "deal-explicit-expiry", "deal-term-expiry", "promo-explicit-expiry"])
+@pytest.mark.parametrize("value", ["MISSING", "", False, None])
+def test_optional_expiry_only_native_absence_is_skipped(tmp_path, name, value):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "data").mkdir()
+    source, needle, file = {
+        "coupon-explicit-expiry": ("coupon-offers.mjs", "nowDate >= new Date(expires.getTime() + day)", "coupon-offers.json"),
+        "deal-explicit-expiry": ("deal-ingestion.mjs", "nowMs < Date.parse(offer.expires_at)", "deals.json"),
+        "deal-term-expiry": ("deal-ingestion.mjs", "nowMs < Date.parse(term.expires_at)", "deals.json"),
+        "promo-explicit-expiry": ("promo-code.mjs", "nowDate >= new Date(expiry.getTime() + dayMs())", "money-page-specs.json"),
+    }[name]
+    (tmp_path / "src" / source).write_text(needle)
+    good = {"id": "healthy", "program_id": "healthy", "status": "VERIFIED", "expires_at": "2026-10-01"}
+    bad = {**good, "id": "broken", "program_id": "broken", "expires_at": value}
+    if value == "MISSING":
+        bad.pop("expires_at")
+    data = {"offers": [good, bad]}
+    if name == "deal-term-expiry":
+        data = {"offers": [{"id": "offer", "pricing": {"current_terms": [
+            {**good, "label": "healthy"}, {**bad, "label": "broken"}]}}]}
+    elif name == "promo-explicit-expiry":
+        data = {"pages": [{"program_id": row["program_id"], "promo": row} for row in [good, bad]]}
+    (tmp_path / "data" / file).write_text(json.dumps(data))
+    result = next(g for g in HORIZON.inventory(tmp_path, NOW) if g["gate"] == name)
+    optional = value is None or (name == "promo-explicit-expiry" and value == "MISSING")
+    assert result["status"] == ("CURRENT" if optional else "UNKNOWN")
+    if not optional:
+        assert "broken" in result["row"]
+
+
+@pytest.mark.parametrize("value", [None, "", False, "MISSING"])
+def test_material_offer_missing_capture_is_not_fallback(tmp_path, monkeypatch, value):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/deal-ingestion.mjs").write_text(
+        "const MAX_EVIDENCE_AGE_DAYS = 45;\nevaluated_at: receipt.fetched_at")
+    bad = {"offer_id": "broken", "fetched_at": value}
+    if value == "MISSING":
+        bad.pop("fetched_at")
+    monkeypatch.setattr(HORIZON, "qualification_clocks", lambda root: {
+        "qualifications": {}, "material_offers": [
+            {"offer_id": "healthy", "fetched_at": "2026-09-16"}, bad]})
+    result = next(g for g in HORIZON.inventory(tmp_path, NOW) if g["gate"] == "deal-material-offer")
+    assert result["status"] == "UNKNOWN"
+    assert result["row"] == "broken"
+
+
+def test_cache_loader_retains_missing_and_invalid_dates_but_not_null(tmp_path):
+    # Run the actual JS projection with a pure, isolated accepted-input loader.
+    (tmp_path / "data").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "data/wave4-source-capture-ledger.json").write_text("{}")
+    (tmp_path / "scripts/glp_evidence_ledger.mjs").write_text('''
+export const loadEvidenceInputs = () => ({ledger: {records: [
+ {capture_id:'healthy',cached_at:'2026-09-16'}, {capture_id:'missing'},
+ {capture_id:'empty',cached_at:''}, {capture_id:'null',cached_at:null}
+]},config:{}});
+export const materialQualificationsFor = () => [];
+export const materialOffersFor = () => [];
+''')
+    result = HORIZON.qualification_clocks(tmp_path, tmp_path)
+    assert result is not None
+    assert result["ledger_cached"] == [
+        {"id": "healthy", "cached_at": "2026-09-16"},
+        {"id": "missing", "cached_at": None}, {"id": "empty", "cached_at": ""}]
