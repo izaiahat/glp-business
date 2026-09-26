@@ -337,6 +337,67 @@ class BindingTests(unittest.TestCase):
             relay.reconcile_no_reply("job")
         self.assertEqual(relay.job_state("job"), before)
 
+    def test_ambiguous_sent_bound_polls_never_navigate_or_release_reservation(self):
+        # Reproduce the incident: virtualized generation has neither assistant
+        # text nor a legacy Stop button. Three polls used to trigger a reload.
+        self.browser.pages['exact'] = {'url': WANT, 'text': '', 'composer': '',
+                                       'messages': True, 'stop': False}
+        original = self.job(tab='exact', sent=True, typed=True,
+                            input_sha256='a'*64, reply_token='b'*64,
+                            dispatcher_profile='default', hermes_session_id='offline',
+                            linear_child='GLP-test', request_id='ambiguous')
+        (relay.JOBS / 'job/MESSAGE.md').write_text(relay._failed_generation_identity(original))
+        relay.ledger_append(self.cfg, {'event': 'submission_bound', 'job': 'job',
+            'account': original['account'], 'conversation_url': WANT,
+            **{key: original[key] for key in relay.PROVENANCE_FIELDS}})
+        events = relay.ledger_rows(self.cfg)
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp, \
+             mock.patch.object(relay, 'read_reply', wraps=relay.read_reply) as reads:
+            for elapsed in (0, 150, 150, 86400):
+                self.clock += elapsed
+                self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+                self.assertEqual(self.browser.navigations, [], 'empty polls must not reload')
+                self.assertEqual(relay.job_state('job')['status'], 'running')
+                self.assertEqual([r['job'] for r in relay.active_registry()], ['job'])
+            self.assertEqual(len(reads.call_args_list), 4)
+            self.assertTrue(all(not c.kwargs.get('reload') for c in reads.call_args_list))
+            self.assertEqual(relay.reconcile_no_reply('job'), 3)
+            before = relay.job_state('job')
+            # A lost/reused bound tab must not turn a read into a new-tab reopen,
+            # including fetch-outbox's initial read of a nonterminal job.
+            for tab_state in ('missing', 'reused'):
+                if tab_state == 'missing':
+                    self.browser.pages.pop('exact')
+                else:
+                    self.browser.pages['exact'] = {**self.browser.pages['sibling']}
+                for entry in ('poll', 'fetch'):
+                    with self.subTest(tab_state=tab_state, entry=entry):
+                        self.clock += 150
+                        with self.assertRaises(SystemExit):
+                            if entry == 'poll':
+                                relay.poll('job', False, 150, 3600)
+                            else:
+                                relay.cmd_fetch_outbox(types.SimpleNamespace(job='job'))
+                        self.assertEqual(relay.job_state('job'), before)
+                        self.assertEqual(self.browser.created, [])
+            self.assertFalse(any(c.args[0] in ('Page.navigate', 'Page.reload', 'Target.createTarget')
+                                 for c in cdp.call_args_list))
+        current = relay.job_state('job')
+        self.assertEqual(current['tab'], original['tab'])
+        self.assertEqual(current['conversation_url'], original['conversation_url'])
+        self.assertTrue(current['sent'])
+        self.assertFalse(current.get('reloaded_once', False))
+        self.assertEqual([r['job'] for r in relay.active_registry()], ['job'])
+        self.assertEqual(relay.ledger_rows(self.cfg), events)
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        relay.close_tab_quiet.assert_not_called()
+        self.svc.files.assert_not_called()
+        self.assertFalse((relay.JOBS / 'job/RESPONSE.md').exists())
+        self.assertFalse((relay.JOBS / 'job/outbox').exists())
+
     def test_thinking_failed_bound_generation_is_terminal_but_ambiguous_controls_are_not(self):
         page = {"url": WANT, "text": "", "composer": "", "messages": True,
                 "stop": False, "thinking_failed": True, "identity_matched": True}
@@ -1034,7 +1095,9 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(relay.job_state('job')['fetch_verification']['state'], 'VERIFIED')
 
     def test_reply_writer_hash_and_legacy_exact_lf_reject_tamper(self):
-        self.job(last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
+        self.browser.pages['exact'] = {'url': WANT, 'text': 'wanted answer',
+                                       'composer': '', 'messages': True, 'stop': False}
+        self.job(tab='exact', last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
         self.assertEqual(relay.poll('job', False, 30, 3600), 0)
         st = relay.job_state('job')
         local = (relay.JOBS / 'job/RESPONSE.md').read_bytes()
