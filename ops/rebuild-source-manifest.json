@@ -475,7 +475,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "709b5cdff222da2bdc938b984c3435c2fb8d36f043cb627578c4d5d6a5853e98"
+      "sha256": "9b9f2725f2ddc0657e14b2a844059fb8ec0b5afb3dda9d17bef4b656747bd706"
     },
     "reports/BUILD-SOURCE-OF-TRUTH.md": {
       "callers": [],
