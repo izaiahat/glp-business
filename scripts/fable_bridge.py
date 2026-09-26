@@ -353,14 +353,19 @@ def _oversize_reply(reply: str, kind: str) -> tuple[str, bytes, str] | None:
     if not separator or not identity.endswith("]"):
         raise RuntimeError("oversize_reviewer_identity_unbound")
     identity = identity[:-1]
-    first = body.lstrip("\ufeff\r\n").splitlines()[0] if body.strip() else ""
+    # Do not strip a BOM, blank line, CR, or leading whitespace into authority.
+    first, _, remainder = body.partition("\n")
     accept = "TRUE-BRIDGE FABLE — ACCEPT (this message is the SOLE valid acceptance)"
-    # The first line must be the reviewer's own exact verdict. Contradictory
-    # ACCEPT bodies remain no-decision rather than laundering a false authority.
-    if kind == "review_request" and first == accept and not re.search(
-        r"\b(?:REJECT(?:ED|ION)?|REVISE(?:D)?|DO\s+NOT\s+ACCEPT|NOT\s+ACCEPT(?:ED)?)\b",
-        body, re.IGNORECASE,
-    ):
+    # A later refusal or withdrawal overrides the opening line. Err toward
+    # no-decision for ambiguous reviewer prose, not a manufactured acceptance.
+    contradiction = re.search(
+        r"\b(?:REJECT\w*|REVIS\w*|WITHDRAW\w*|WITHDREW|WITHHELD|WITHHOLD\w*|"
+        r"RESCIND\w*|REVOK\w*|FAIL\w*|NOT[-\s]+ACCEPT\w*|NOT[-\s]+APPROV\w*|"
+        r"NO\s+(?:RELEASE\s+)?AUTHORITY|NO\s+APPROV\w*|"
+        r"DO\s+NOT\s+(?:DEPLOY|RELEASE|SHIP|PUBLISH|ACCEPT|APPROVE))\b",
+        remainder, re.IGNORECASE,
+    )
+    if kind == "review_request" and first == accept and not contradiction:
         verdict = accept
     elif kind == "review_request" and first == "TRUE-BRIDGE FABLE — REJECT":
         verdict = first

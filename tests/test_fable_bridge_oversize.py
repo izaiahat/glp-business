@@ -68,6 +68,25 @@ class OversizeTests(unittest.TestCase):
     def test_oversize_accept_verbatim(self):
         self.assert_delivery(ACCEPT + "\ninspection_note: " + "a" * 1800 + "\n", ACCEPT)
 
+    def test_oversize_leading_bom_or_newline_is_not_acceptance(self):
+        for prefix in ("\ufeff", "\n", "\r\n"):
+            with self.subTest(prefix=repr(prefix)):
+                self.sent.clear()
+                self.api.reset_mock()
+                self.assert_delivery(prefix + ACCEPT + "\n" + "a" * 1800,
+                                     "Reviewer response attached; no parsable verdict, no authority decision was issued.")
+
+    def test_oversize_withdrawn_or_negated_acceptance_is_not_authority(self):
+        for contradiction in ("I withdraw this approval. No release authority is granted.",
+                              "Do not deploy; the review fails the criteria.",
+                              "This is not approved and must not be accepted.",
+                              "Approval is rescinded; do not release."):
+            with self.subTest(contradiction=contradiction):
+                self.sent.clear()
+                self.api.reset_mock()
+                self.assert_delivery(ACCEPT + "\n" + contradiction + "\n" + "a" * 1800,
+                                     "Reviewer response attached; no parsable verdict, no authority decision was issued.")
+
     def test_oversize_reject_verbatim(self):
         self.assert_delivery(REJECT + "\n" + "défect" * 300 + "\n", REJECT)
 

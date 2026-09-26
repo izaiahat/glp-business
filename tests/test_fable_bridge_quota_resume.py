@@ -284,30 +284,55 @@ class QuotaResumeTests(unittest.TestCase):
         original_api = self.api
         def api(method, path, body=None):
             return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, body)
-        def issue_request(*, subject_id, tuple_sha256, review_artifact_path):
-            self.assertEqual(tuple_sha256, self.digest)
-            path = self.issue_dir / ("bridge-issue-" + "f" * 32 + ".json")
-            fresh = dict(issue_id=path.stem, status="ISSUED", subject_id=subject_id,
-                         tuple_sha256=tuple_sha256, review_artifact_path=str(review_artifact_path),
-                         request_content="new canonical request")
-            path.write_text(json.dumps(fresh))
-            return path, fresh
-        fake_guard = SimpleNamespace(issue_request=issue_request,
-            _record_hash=lambda value: hashlib.sha256(json.dumps(
-                {key: item for key, item in value.items() if key != "record_sha256"},
-                sort_keys=True, separators=(",", ":")).encode()).hexdigest())
-        fake_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+        # Load the actual guard source, replacing only its filesystem roots and
+        # authenticated GET seam after execution. The issue/hash/bind paths stay real.
+        original_spec = bridge.importlib.util.spec_from_file_location
+        loaded = []
+        def fixture_spec(name, path):
+            spec = original_spec(name, path)
+            loader = spec.loader
+            class FixtureLoader:
+                def create_module(self, spec):
+                    return None
+                def exec_module(self, module):
+                    loader.exec_module(module)
+                    module.BRIDGE_ISSUE_ROOT = self_root.issue_dir
+                    module.REVIEW_ARTIFACT_ROOT = self_root.artifact_root
+                    module._fetch_discord_message = lambda channel, message_id: {
+                        "id": message_id, "channel_id": channel,
+                        "author": {"id": module.KAEL_SHARED_BOT_AUTHOR_ID},
+                        "content": loaded_request["content"],
+                        "timestamp": module._utc_now(), "edited_timestamp": None,
+                    }
+                    loaded.append(module)
+            spec.loader = FixtureLoader()
+            return spec
+        self_root = self
+        loaded_request = {}
         with patch.object(bridge, "api", side_effect=api), \
-                patch.object(bridge.importlib.util, "spec_from_file_location", return_value=fake_spec), \
-                patch.object(bridge.importlib.util, "module_from_spec", return_value=fake_guard), \
+                patch.object(bridge.importlib.util, "spec_from_file_location", side_effect=fixture_spec), \
                 patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
             result = bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+            self.assertEqual(len(loaded), 1)
+            guard = loaded[0]
+            registered_path = Path(result["issue_record_path"])
+            registered = json.loads(registered_path.read_text())
             self.assertEqual(result["status"], "ISSUED_NOT_SENT")
-            registered = json.loads(Path(result["issue_record_path"]).read_text())
             self.assertEqual(registered["predecessor_request_message_id"], SOURCE)
             self.assertEqual(registered["predecessor_reply_message_id"], terminal_id)
             self.assertEqual(registered["predecessor_issue_id"], ISSUE)
             self.assertEqual(registered["tuple_sha256"], self.digest)
+            self.assertEqual(registered["record_sha256"], guard._record_hash(registered))
+            self.assertEqual(registered["status"], "ISSUED")
+            guard.load_issue_record(registered_path, expected_subject_id=registered["subject_id"],
+                                    expected_tuple_sha256=self.digest, require_bound=False)
+            loaded_request["content"] = result["request_content"]
+            bound_path, bound = guard.bind_request_issue(
+                issue_record_path=registered_path, request_message_id="1553281999999999999")
+            self.assertEqual(bound_path, registered_path)
+            self.assertEqual(bound["status"], "BOUND")
+            self.assertEqual(guard.load_issue_record(registered_path,
+                expected_subject_id=registered["subject_id"], expected_tuple_sha256=self.digest)[1], bound)
             with self.assertRaisesRegex(RuntimeError, "successor_terminal_receipt_not_eligible"):
                 bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
         self.inferences.assert_not_called()
