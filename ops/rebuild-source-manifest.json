@@ -961,7 +961,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "7450f17f35f3fa714761a6bfe7f749016dc6a6bf37df668ff6fefe4b5f068c6c"
+      "sha256": "53f0e39a7852cb9ea5180be342f22a508f1eb46bbec5afd8c4d2722e46ac6c9d"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -1058,7 +1058,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "aa300e79d2a5aa7debf241e83697cb6250d09a9916efbeb6b7a2fd51e7502dfe"
+      "sha256": "a5ae7a85874d76128d216cd8b73d67869677e7657a35c12f220ccd50b940df6b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1726,7 +1726,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "5523e21f4515ec72172156a1274119527729d57cd6973ecad6edae8b53341e89"
+      "sha256": "3c2246e5b3f5e6531ad2416eba3ce8b4c9b7d769fe4929c617663df3f86963c4"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [

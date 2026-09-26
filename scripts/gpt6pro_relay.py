@@ -1016,9 +1016,11 @@ else:
 def read_reply(conversation_url: str, tab: str | None = None, reload: bool = False,
                protected: list[str] | tuple[str, ...] = (), existing_only: bool = False,
                expected_identity: str | None = None, capture_mode: str | None = None) -> dict:
-    """Read the last assistant message. `reload` re-fetches the conversation from the server first: a background
-    tab's stream can stall (2026-09-16: four chats showed 'Stop answering' with no text long after the operator's
-    own app showed them finished); a reload renders the completed conversation."""
+    """Read the last assistant message; nonterminal callers must use existing_only.
+
+    Reopening/reloading is reserved for independently confirmed terminal fetches.
+    Missing Stop/assistant nodes or elapsed time do not prove completion.
+    """
     if existing_only and (reload or not tab or not _conversation(conversation_url)):
         raise ValueError('existing reply requires an exact tab and canonical conversation without reload')
     if capture_mode not in (None, 'role', 'selection_markdown'):
@@ -1322,6 +1324,7 @@ def _cmd_fetch_outbox(a) -> int:
     if st.get('status') == 'done':
         cleanup_tabs()
     r = read_reply(binding_url(st), st.get('tab'), protected=protected_tabs(st),
+                   existing_only=st.get('status') != 'done',
                    capture_mode=st.get('reply_render_mode'))
     require_binding(st, r)  # no Drive call or destination writes before exact session verification
     # Poll closes a completed tab. A later reopened, non-generating page can
@@ -2141,16 +2144,15 @@ def _poll_once(job: str, cfg: dict, interval: int) -> tuple[int, int]:
     conv = binding_url(st)
     # Stability still survives separate poll invocations; never carry stale JOB.json across the lock.
     prev = st.get("last_text_sha")
-    stale = st.get("finished_unrendered_polls", 0) >= 2 and not st.get("reloaded_once")
-    r = read_reply(conv, st.get("tab"), reload=stale, protected=protected_tabs(st),
+    # Missing Stop/assistant nodes can be virtualized generation, not completion.
+    # No poll count or elapsed time permits navigation of a nonterminal binding.
+    r = read_reply(conv, st.get("tab"), existing_only=True, protected=protected_tabs(st),
                    expected_identity=_failed_generation_identity(st),
                    capture_mode=st.get('reply_render_mode'))
     require_binding(st, r)
     if _record_failed_generation(job, cfg, st, r):
         print(f"poll job={job} GENERATION_FAILED reason=THINKING_FAILED; no resend", flush=True)
         return 5, 0
-    if stale:
-        st["reloaded_once"] = True
     s = r["state"]
     st["tab"] = r["tab"]
     if s.get("rate_limited"):
