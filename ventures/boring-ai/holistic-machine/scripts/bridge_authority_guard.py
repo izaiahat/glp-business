@@ -255,7 +255,89 @@ def load_issue_record(
     return path, record
 
 
-def bind_request_issue(*, issue_record_path: Path | str, request_message_id: str) -> tuple[Path, dict[str, Any]]:
+def successor_request_payload(issue: dict[str, Any]) -> dict[str, Any]:
+    """Only the configured reviewer may be mentioned; no blanket user parsing."""
+    return {"content": issue["request_content"],
+            "allowed_mentions": {"parse": [], "users": [_configured_fable_author_id()]},
+            "nonce": sha256_text(issue["issue_id"])[:24], "enforce_nonce": True}
+
+
+def validate_successor_payload(issue: dict[str, Any], payload: dict[str, Any]) -> None:
+    # Validate the actual outgoing payload, not merely the canonical text.
+    if payload != {"content": issue["request_content"],
+                   "allowed_mentions": {"parse": [], "users": [_configured_fable_author_id()]},
+                   "nonce": sha256_text(issue["issue_id"])[:24], "enforce_nonce": True}:
+        raise BridgeAuthorityError("bridge_successor_payload_suppresses_mention_or_drift")
+
+
+def _successor_message_eligible(message: dict[str, Any]) -> None:
+    mentions = message.get("mentions")
+    if (not isinstance(mentions, list)
+            or not any(isinstance(item, dict) and item.get("id") == _configured_fable_author_id()
+                       for item in mentions)
+            or (message.get("author") or {}).get("bot") is not True
+            or message.get("webhook_id") is not None
+            or message.get("type") != 0):
+        raise BridgeAuthorityError("bridge_successor_structured_mention_or_eligibility_missing")
+
+
+def send_successor_issue(*, issue_record_path: Path | str) -> tuple[Path, dict[str, Any]]:
+    """Send/bind one registered successor. Any claimed/ambiguous send never retries.
+
+    Separate send authorization is required. Do not use this to recover a BOUND
+    request; the bridge's exact-message recovery never resends or edits it.
+    """
+    supplied = Path(issue_record_path)
+    preliminary = json.loads(supplied.read_text(encoding="utf-8"))
+    path, issue = load_issue_record(supplied, expected_subject_id=preliminary["subject_id"],
+        expected_tuple_sha256=preliminary["tuple_sha256"], require_bound=False)
+    if (issue.get("schema") != BRIDGE_ISSUE_SCHEMA_V2
+            or issue.get("succession_reason") != "terminal_no_authority_decision"
+            or not _SNOWFLAKE_RE.fullmatch(str(issue.get("predecessor_request_message_id", "")))
+            or not _SNOWFLAKE_RE.fullmatch(str(issue.get("predecessor_reply_message_id", "")))
+            or not _ISSUE_ID_RE.fullmatch(str(issue.get("predecessor_issue_id", "")))):
+        raise BridgeAuthorityError("bridge_registered_successor_required")
+    payload = successor_request_payload(issue)
+    validate_successor_payload(issue, payload)  # Before token I/O or claim or send.
+    if len(payload["content"]) > 2000:
+        raise BridgeAuthorityError("bridge_successor_content_too_long")
+    # The create-exclusive claim survives exceptions, crashes and ambiguous POSTs.
+    # Never remove it or automatically issue another successor.
+    claim_path = path.with_suffix(".send-claim.json")
+    try:
+        with claim_path.open("x", encoding="utf-8") as handle:
+            json.dump({"issue_id": issue["issue_id"], "record_sha256": issue["record_sha256"],
+                       "status": "send_reserved", "nonce": payload["nonce"]}, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError as error:
+        raise BridgeAuthorityError("bridge_successor_send_already_claimed") from error
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+    if json.loads(path.read_text(encoding="utf-8")) != issue:
+        raise BridgeAuthorityError("bridge_successor_issue_changed")
+    validate_successor_payload(issue, payload)
+    request = urllib.request.Request(
+        f"{_DISCORD_API_BASE}/channels/{FIXED_BRIDGE_CHANNEL_ID}/messages",
+        data=json.dumps(payload).encode("utf-8"), method="POST",
+        headers={"Authorization": f"Bot {_discord_bot_token()}", "Content-Type": "application/json",
+                 "User-Agent": "BoringAI-BridgeAuthorityGuard/3.0"})
+    # No blind retry, including 429, timeout or a missing/invalid POST response.
+    with urllib.request.urlopen(request, timeout=30) as response:
+        posted = json.loads(response.read().decode("utf-8"))
+    message_id = str(posted.get("id") or "")
+    if not _SNOWFLAKE_RE.fullmatch(message_id):
+        raise BridgeAuthorityError("bridge_successor_post_ambiguous")
+    _successor_message_eligible(posted)
+    return bind_request_issue(issue_record_path=path, request_message_id=message_id,
+                              require_reviewer_mention=True)
+
+
+def bind_request_issue(*, issue_record_path: Path | str, request_message_id: str,
+                       require_reviewer_mention: bool = False) -> tuple[Path, dict[str, Any]]:
     """Bind an issued record once to the exact live, unedited Discord request."""
     if not _SNOWFLAKE_RE.fullmatch(request_message_id):
         raise BridgeAuthorityError("bridge_issue_request_message_id_invalid")
@@ -273,6 +355,8 @@ def bind_request_issue(*, issue_record_path: Path | str, request_message_id: str
         require_bound=False,
     )
     message = _fetch_discord_message(FIXED_BRIDGE_CHANNEL_ID, request_message_id)
+    if require_reviewer_mention or "predecessor_request_message_id" in issue:
+        _successor_message_eligible(message)
     _reject_edited_message(message, "request")
     content = _message_identity(
         message,
@@ -612,6 +696,8 @@ def _parser() -> argparse.ArgumentParser:
     issue.add_argument("--tuple-sha256", required=True)
     issue.add_argument("--review-artifact", required=True, type=Path)
     issue.add_argument("--output", type=Path)
+    sender = sub.add_parser("send-successor", help="send/bind one issued successor with explicit reviewer mention")
+    sender.add_argument("--issue-record", required=True, type=Path)
     bind = sub.add_parser("bind-request", help="bind an issued record once to the live request")
     bind.add_argument("--issue-record", required=True, type=Path)
     bind.add_argument("--request-message-id", required=True)
@@ -636,10 +722,13 @@ def main(argv: list[str] | None = None) -> int:
                 "request_content": record["request_content"],
             }
         else:
-            path, record = bind_request_issue(
-                issue_record_path=args.issue_record,
-                request_message_id=args.request_message_id,
-            )
+            if args.command == "send-successor":
+                path, record = send_successor_issue(issue_record_path=args.issue_record)
+            else:
+                path, record = bind_request_issue(
+                    issue_record_path=args.issue_record,
+                    request_message_id=args.request_message_id,
+                )
             output = {
                 "status": "BOUND",
                 "issue_id": record["issue_id"],

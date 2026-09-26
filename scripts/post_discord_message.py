@@ -21,6 +21,10 @@ def load_token() -> str:
 
 
 def send(channel_id: str, content: str) -> dict:
+    # This notification-only helper suppresses structured mentions. Registered
+    # reviews must use bridge_authority_guard.py send-successor, never this path.
+    if 'TRUE-BRIDGE FABLE REVIEW REQUEST' in content.upper():
+        raise RuntimeError('registered_bridge_sender_required')
     token = load_token()
     req = urllib.request.Request(
         f'https://discord.com/api/v10/channels/{channel_id}/messages',

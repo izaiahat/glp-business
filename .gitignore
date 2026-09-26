@@ -268,6 +268,8 @@
 
 !/ventures/boring-ai/holistic-machine/config/
 /ventures/boring-ai/holistic-machine/config/*
+!/tests/test_fable_mention_recovery.py
+!/ops/fable-mention-recovery.md
 !/scripts/post_discord_message.py
 !/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py
 !/ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json
