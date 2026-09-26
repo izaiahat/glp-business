@@ -201,3 +201,29 @@ def test_help_epilog_documents_dry_run_then_apply():
                          capture_output=True, text=True, check=True).stdout
     assert "--dry-run" in out.split("workflow:")[1]
     assert out.index("1. python3 scripts/sync_from_repo.py --dry-run") < out.index("2. python3 scripts/sync_from_repo.py --apply")
+
+
+def test_real_committed_source_manifest_passes_sync_preflight(tmp_path, capsys):
+    """CI must reject stale postimage pins in the actual checkout, not just fixtures."""
+    repo = Path(__file__).resolve().parents[1]
+    manifest = json.loads((repo / sync_from_repo.MANIFEST).read_text())
+    files = manifest["files"]
+    required = {".gitignore", "scripts/account_capacity_collector.py",
+                "scripts/run_tests.sh", "tests/test_fable_bridge_native_review.py"}
+    assert required <= files.keys()
+    committed = set(subprocess.check_output(
+        ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", "HEAD"], text=True
+    ).splitlines())
+    assert committed == files.keys() | {sync_from_repo.MANIFEST}
+    assert manifest["tracked_count"] == len(committed)
+    mismatches = {}
+    for rel, info in files.items():
+        committed_bytes = subprocess.check_output(
+            ["git", "-C", str(repo), "show", f"HEAD:{rel}"]
+        )
+        actual = digest(committed_bytes)
+        if info["sha256"] != actual:
+            mismatches[rel] = {"manifest": info["sha256"], "committed": actual}
+    assert mismatches == {}, f"committed source-manifest hash mismatches: {mismatches}"
+    assert sync(tmp_path, repo, False) == 0
+    assert "conflicts=0" in capsys.readouterr().out
