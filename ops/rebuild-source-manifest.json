@@ -873,6 +873,13 @@
       "kind": "script",
       "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
     },
+    "scripts/generate_glp34_deploy_carrier.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "f7ee6c5596b9e932f62e3ebadbbd2904550c445f39139ff8380481a4c5916562"
+    },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
         "migration-survivor"
@@ -936,6 +943,20 @@
       ],
       "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
+    },
+    "scripts/glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "e54a4af3166e7756f1460283b346a4c76c000cdcde30af7b2d22672b5960366d"
+    },
+    "scripts/glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "e84739026556dde07ebd75d6801e1378ea22ebf29be954bc5c3bfb6a36536bf8"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1779,6 +1800,20 @@
       "kind": "test",
       "sha256": "dda65b95b06223a8107b97a4dc478251e70a5192e5bcf0d30cd2839e84e480ba"
     },
+    "tests/test_glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "274b602a2cf6871b91eaf6877fedba81924eb83800e189278db80feb22cb2599"
+    },
+    "tests/test_glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "95300e56a4431384ba5dd2a36e694bd1bb7548c889de66c79b518ba2aac95a23"
+    },
     "tests/test_glp_earnings_notice.py": {
       "callers": [],
       "kind": "test",
@@ -2070,5 +2105,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 314
+  "tracked_count": 319
 }
