@@ -1784,17 +1784,32 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
         return 0
 
 
-def reconcile_unsent_model(job: str, apply: bool = False) -> int:
-    """Release an allowlisted pre-insert model refusal, never a possibly-sent job."""
+def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = None) -> int:
+    """Release a pre-insert model refusal, never a possibly-sent job.
+
+    Jobs are either allowlisted below or named with an explicit ``report``
+    (a path relative to the business root) whose row must prove the job unsent;
+    the account alias then comes from the job's own JOB.json.
+    """
     incidents = {
         'glp270-20260924d-taxonomy-all-expiring-rows':
             ('reports/ops/pro-wave-20260924d/RESULT.json', 'acct1'),
         'glp41-20260925-postreset-r3-browser-node-blockers':
             ('reports/ops/pro-postreset-wave-20260925/RESULT.json', 'acct2'),
     }
-    if job not in incidents:
+    listed = job in incidents
+    if listed:
+        report_path, account_alias = incidents[job]
+        if report is not None and report != report_path:
+            raise SystemExit('MODEL_RECONCILE_REFUSED_REPORT_MISMATCH ' + job)
+    elif report is None:
         raise SystemExit('MODEL_RECONCILE_REFUSED_UNLISTED ' + job)
-    report_path, account_alias = incidents[job]
+    else:
+        report_path, account_alias = report, None
+        resolved = (BUSINESS / report_path).resolve()
+        if (Path(report_path).is_absolute() or
+                not resolved.is_relative_to(BUSINESS.resolve()) or not resolved.is_file()):
+            raise SystemExit('MODEL_RECONCILE_REFUSED_REPORT_PATH ' + job)
     cfg = load_config()
     st = job_state(job)
     if not st:
@@ -1804,10 +1819,12 @@ def reconcile_unsent_model(job: str, apply: bool = False) -> int:
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
-        if st.get('reason') == 'NO_COMPOSER':
+        if listed and st.get('reason') == 'NO_COMPOSER':
             return _reconcile_unsent_composer(job, cfg, st, path, preimage, apply)
-        if st.get('reason') == 'composer_not_empty':
+        if listed and st.get('reason') == 'composer_not_empty':
             return _reconcile_unsent_nonempty_composer(job, cfg, st, path, preimage, apply)
+        if account_alias is None:
+            account_alias = str(st.get('account'))
         error = st.get('error', {})
         observed = error.get('state', {}) if isinstance(error, dict) else {}
         if (st.get('job') != job or st.get('status') != 'failed' or
@@ -2180,8 +2197,9 @@ def main() -> int:
     u.add_argument("--job", required=True)
     u.add_argument("--failure-log", type=Path, required=True)
     u.add_argument("--apply", action="store_true")
-    m = sub.add_parser("reconcile-unsent-model", help="dry-run first; exact 20260924d pre-insert WRONG_MODEL refusal only")
+    m = sub.add_parser("reconcile-unsent-model", help="dry-run first; exact pre-insert WRONG_MODEL refusal only")
     m.add_argument("--job", required=True)
+    m.add_argument("--report", help="unlisted job: report JSON (relative to business root) whose row proves it unsent")
     m.add_argument("--apply", action="store_true")
     sd = sub.add_parser("reconcile-unsent-send-disabled", help="dry-run first; exact intact unsent SEND_DISABLED draft")
     sd.add_argument("--job", required=True)
@@ -2223,7 +2241,7 @@ def main() -> int:
     if a.cmd == "reconcile-unsent-focus":
         return reconcile_unsent_focus(a.job, a.failure_log, apply=a.apply)
     if a.cmd == "reconcile-unsent-model":
-        return reconcile_unsent_model(a.job, apply=a.apply)
+        return reconcile_unsent_model(a.job, apply=a.apply, report=a.report)
     if a.cmd == "reconcile-unsent-send-disabled":
         return reconcile_unsent_send_disabled(a.job, apply=a.apply)
     if a.cmd == "reconcile-legacy":
