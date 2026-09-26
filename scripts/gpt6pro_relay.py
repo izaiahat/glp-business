@@ -182,7 +182,14 @@ def _legacy_live_jobs():
         parts = line.strip().split(None, 1)
         if len(parts) != 2 or not parts[0].isdigit():
             continue
-        argv = shlex.split(parts[1])
+        executable = Path(parts[1].split(None, 1)[0]).name
+        if not re.fullmatch(r'python(?:\d+(?:\.\d+)*)?', executable):
+            continue
+        try:
+            argv = shlex.split(parts[1])
+        except ValueError:
+            # A malformed Python command might own a relay job: fail closed.
+            raise ValueError('unparseable possible Python relay process')
         if not argv:
             continue
         executable = Path(argv[0]).name

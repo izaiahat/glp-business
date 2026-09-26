@@ -1753,6 +1753,15 @@ except SystemExit as e: print(str(e),flush=True)
         with mock.patch.object(monitor, 'read_ps', return_value=listing):
             self.assertIn('legacy', relay._legacy_live_jobs())
 
+    def test_live_jobs_skips_malformed_non_python_wrapper_but_fails_closed_for_python(self):
+        from scripts import pro_relay_landing_monitor as monitor
+        listing = "123 /usr/bin/bash -c 'unterminated\n124 /usr/bin/python3 scripts/gpt6pro_relay.py poll --job legacy\n"
+        with mock.patch.object(monitor, 'read_ps', return_value=listing):
+            self.assertIn('legacy', relay._legacy_live_jobs())
+        with mock.patch.object(monitor, 'read_ps', return_value="123 /usr/bin/python3 'unterminated\n"):
+            with self.assertRaisesRegex(ValueError, 'unparseable possible Python relay process'):
+                relay._legacy_live_jobs()
+
     def test_malformed_registry_fails_closed(self):
         relay.job_dir("broken")
         (relay.JOBS / "broken/JOB.json").write_text("{")
