@@ -815,6 +815,11 @@
       "kind": "script",
       "sha256": "b313063f54848dbf4e7e8ff8b4dbf2bf697ff1ccb7245837d950b61c3ed255a0"
     },
+    "scripts/glp_earnings_notice.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "8a7410c288bc31b5fbbe5871a44a71e79ec8df99e7acbeb2b43be11eecb1c0f5"
+    },
     "scripts/glp_evidence_refresh_cycle.py": {
       "callers": [
         "crontab:40"
@@ -1283,6 +1288,11 @@
       "kind": "test",
       "sha256": "dda65b95b06223a8107b97a4dc478251e70a5192e5bcf0d30cd2839e84e480ba"
     },
+    "tests/test_glp_earnings_notice.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "2fd5cb717e13a1eaf2dfb53872ca201f6b6bfc697a85bf85e23c6be121694805"
+    },
     "tests/test_glp_evidence_schedule.py": {
       "callers": [
         "glp_evidence_refresh_cycle"
@@ -1529,5 +1539,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 233
+  "tracked_count": 235
 }
