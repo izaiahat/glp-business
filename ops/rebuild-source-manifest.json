@@ -863,6 +863,13 @@
       "kind": "script",
       "sha256": "a014f4770b3c6fac6eff8cdfa1f0a1c46cbd6b36f72e152b9d55e5f106bb32c5"
     },
+    "scripts/glp_served_test_contract.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "7b08da73ffed67dbac6545aa14ced5fdb67b6167797b017bd6b4fe08611f1234"
+    },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
         "migration-survivor"
@@ -999,6 +1006,13 @@
       "kind": "script",
       "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
     },
+    "scripts/site_tree_materializer.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4"
+    },
     "scripts/skill_router.py": {
       "callers": [],
       "kind": "script",
@@ -1036,6 +1050,111 @@
       ],
       "kind": "script",
       "sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
+    },
+    "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "2168cc79fd0b17819a6d71c47c14026c787e9badf883d2518514cfa9d6f36796"
+    },
+    "site-system/flagship-v2/work/glp215-accepted-base/src/blog-system.mjs": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "91e28154f61a6b71487d14c2ffd60cf6cee996efadcfbcf4ef3d67ce50911cdb"
+    },
+    "systems/seo-blog-machine/scripts/accepted_failure_contract.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "42b8b2c82c6663cca3aa9d57f05c526a9046f880874a1f404ad8e3e76b79463e"
+    },
+    "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "ee4d41a2293a49801bfacb5f0a22656a0ff3c788e46de4f0d6621ae069df138d"
+    },
+    "systems/seo-blog-machine/scripts/article_images.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "792d813f58d3da108905c617be03bcdf02547d8fcf03d2efa0bb53ab79196d8d"
+    },
+    "systems/seo-blog-machine/scripts/build_opus_article_release.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "c8a674a6efa3f47673d621ec88e7a6a03109fd78a0a3a2aaa20247efec167029"
+    },
+    "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "1dc7a08b80e25e7448843cb2c2e2ae077abd67402e4936428502c57114d1d054"
+    },
+    "systems/seo-blog-machine/scripts/carrier_lock.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "10e90004795c150b1a459f78b34b990d96494cf75c923e35dfd33e348ca4c9cf"
+    },
+    "systems/seo-blog-machine/scripts/defect_remediation.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "dcbf7dd9094e1bbd1dc9c46fea6183e6713aea9e2b7424f78b75f116f9ff6abe"
+    },
+    "systems/seo-blog-machine/scripts/existing_article_updates.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144"
+    },
+    "systems/seo-blog-machine/scripts/materialize_opus_run.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "1b6600045de75c1600b7b0fe11f93e128318beb6e657d4b69d572f654fd0a165"
+    },
+    "systems/seo-blog-machine/scripts/r2_execution_control.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "eea97573c0c269aa6092b57300bb86fe196d00c28b5181e5f080f476d53f93cc"
+    },
+    "systems/seo-blog-machine/scripts/review_transports.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "script",
+      "sha256": "07f5afe93e2467fe4bc6a117c323b3399f1faff134274a4e842cfa8007fe39c4"
+    },
+    "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "test",
+      "sha256": "293c4e3c29793e299424a9d7f9dc190409433fd47b947d9a4c8f80f64d8d4b89"
+    },
+    "systems/seo-blog-machine/tests/test_article_images.py": {
+      "callers": [
+        "GLP-73 article image release and text-only rendering"
+      ],
+      "kind": "test",
+      "sha256": "ca2a7048963310de791e0fa82dade5a5ad7b77c3d9b477e602c307e2795ea6dd"
     },
     "tests/.retired-20260925/test_fastmode_revert_deadline.py": {
       "callers": [],
@@ -1539,5 +1658,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 235
+  "tracked_count": 252
 }
