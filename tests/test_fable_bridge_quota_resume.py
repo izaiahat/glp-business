@@ -1,7 +1,9 @@
 """Offline exact-request resume regressions. No Discord or reviewer network calls."""
 import hashlib
 import importlib.util
+import inspect
 import json
+import textwrap
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -334,6 +336,22 @@ class QuotaResumeTests(unittest.TestCase):
             guard.load_issue_record(registered_path, expected_subject_id=registered["subject_id"],
                                     expected_tuple_sha256=self.digest, require_bound=False)
             loaded_request["content"] = result["request_content"]
+            # PR #36 contract: guard.py:273-281 and ops/fable-mention-recovery.md:18-22.
+            # A textual mention alone is not bindable. Check each eligibility
+            # field through the real binder before the unchanged positive case.
+            fetch = guard._fetch_discord_message
+            for field, value in (("mentions", []), ("author", {"id": guard.KAEL_SHARED_BOT_AUTHOR_ID}),
+                                 ("type", None)):
+                with self.subTest(ineligible_successor=field):
+                    message = fetch(bridge.CHANNEL, "1553281999999999999")
+                    message[field] = value
+                    before = registered_path.read_bytes()
+                    with patch.object(guard, "_fetch_discord_message", return_value=message):
+                        with self.assertRaisesRegex(guard.BridgeAuthorityError,
+                                "bridge_successor_structured_mention_or_eligibility_missing"):
+                            guard.bind_request_issue(issue_record_path=registered_path,
+                                                     request_message_id="1553281999999999999")
+                    self.assertEqual(registered_path.read_bytes(), before)
             bound_path, bound = guard.bind_request_issue(
                 issue_record_path=registered_path, request_message_id="1553281999999999999")
             self.assertEqual(bound_path, registered_path)
@@ -475,6 +493,46 @@ class QuotaResumeTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "successor_predecessor_reply_not_no_decision"):
                 bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
         self.assertNotIn("successor_issues", bridge.load_state())
+
+
+class SuccessorOracleMutationTests(unittest.TestCase):
+    """Run the original oracles against isolated in-memory production mutants."""
+
+    def assert_mutant_caught(self, test_name, target, mutant, expected_failure):
+        result = unittest.TestResult()
+        with patch.object(bridge, target, mutant), \
+                patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            QuotaResumeTests(test_name).run(result)
+        self.assertEqual(result.testsRun, 1)
+        self.assertFalse(result.errors, result.errors)
+        self.assertTrue(result.failures, "mutant survived the original oracle")
+        self.assertTrue(any(expected_failure in detail for _, detail in result.failures),
+                        result.failures)
+
+    def test_once_only_oracle_catches_removed_duplicate_guards(self):
+        original = bridge.issue_no_decision_successor
+        source = textwrap.dedent(inspect.getsource(original))
+        # Remove both layers so a replay really creates a duplicate, rather
+        # than merely tripping the second guard with a different error code.
+        for old, new in (
+            ('or source_id in state.get("successor_issues", {})', 'or False'),
+            ('if registered.get("predecessor_request_message_id") == source_id:', 'if False:'),
+        ):
+            self.assertEqual(source.count(old), 1)
+            source = source.replace(old, new)
+        namespace = {}
+        exec(compile(source, "<offline-duplicate-guard-mutant>", "exec"),
+             original.__globals__, namespace)
+        self.assert_mutant_caught(
+            "test_successor_is_registered_once_after_terminal_no_decision",
+            "issue_no_decision_successor", namespace[original.__name__],
+            "RuntimeError not raised")
+
+    def test_oversize_oracle_catches_unverified_attachment_admission(self):
+        self.assert_mutant_caught(
+            "test_oversize_terminal_successor_requires_exact_verified_two_attempt_shape",
+            "_successor_verified_attachment", lambda *args: True,
+            "True is not false")
 
 
 if __name__ == "__main__":
