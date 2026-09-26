@@ -2,10 +2,11 @@
 """In-memory, staged AI-browser producer for the capacity monitor's probe(target).
 
 Browser helpers are the real browser_harness.helpers cdp/drain_events/switch_tab
-callables, not Playwright or a portal API client. The owner must retain this
-object (and its lease context) across the explicit vault/MFA tool boundary.
-There is deliberately no receipt-import, credential, persistent-profile,
-signing, or background-daemon interface. Operational adoption is separate.
+callables, not Playwright or a portal API client. This single-process candidate
+is not a resumable Awin-style prepare/vault/finish runner: see the runbook's
+concrete lease and controller compatibility evidence. A new bridge is not a
+prescribed dependency. There is deliberately no receipt-import, credential,
+persistent-profile, signing, or background-daemon interface.
 """
 from __future__ import annotations
 

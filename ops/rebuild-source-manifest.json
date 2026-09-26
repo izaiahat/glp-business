@@ -557,7 +557,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "831ec919cd88e38184ddb2cb8d8d52645af67233c080a27f8e5cfbe1abfb8f2d"
+      "sha256": "4166a4e98a415fd4b65ef7ffe378f6e11658a09b0403f62253e3e14d65d14cfa"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -935,14 +935,14 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "a3cf67c1977963851d18c62023a1f4aac9cc7e356c4ecd7a324e2b703676b1eb"
+      "sha256": "02e14e3a33066514aa0ba82d0538d5c4d2f0ec7e5c113bbd03d32cd8779c8bb8"
     },
     "scripts/glp_maxbounty_fresh_probe.py": {
       "callers": [
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "script",
-      "sha256": "8bfa86d416aed69eb28d1986b8775ca71d231e9991bc468469c3328aa1d9fd66"
+      "sha256": "342fb0f58cc1672f08618f455ed21003bbad7cf43a5ec41e73ee62508f91b11d"
     },
     "scripts/glp_network_revenue_v2.py": {
       "callers": [
@@ -1729,7 +1729,7 @@
         "glp_maxbounty_capacity_monitor"
       ],
       "kind": "test",
-      "sha256": "60cad6e703e670b2d3e1987ec619408efbef5a7f606fd43c732ec6e5a9f2f324"
+      "sha256": "929edbe592fcaf570941aed0e58374c0794fe5c73f8c44b987aa2af2f53e35d7"
     },
     "tests/test_glp_never_monetized_derived.py": {
       "callers": [

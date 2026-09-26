@@ -244,7 +244,7 @@ def test_no_legacy_default_transport(monkeypatch):
     from contextlib import ExitStack
     monkeypatch.setattr(m, 'session_leases', ExitStack)
     monkeypatch.setattr(m, 'restricted_classes', lambda _: pytest.fail('legacy transport called'))
-    with pytest.raises(m.Refusal, match='FRESH_AI_BROWSER_TOOL_OWNER_REQUIRED'):
+    with pytest.raises(m.Refusal, match='FRESH_VAULT_STAGES_NOT_INTEGRATED'):
         m.live_probe(f.TARGET)
 
 
@@ -283,3 +283,93 @@ def test_reused_browser_refused(caller):
     with pytest.raises(m.Refusal, match='FRESH_BROWSER_NOT_EXCLUSIVE_BLANK'):
         caller(browser)
     assert not any(name == 'Target.createBrowserContext' for name, _ in browser.calls)
+
+
+def test_awin_stages_do_not_require_a_retained_python_controller():
+    """Positive contrast: re-import Awin between stages; browser DOM survives.
+
+    This is the actual PR #17 caller, not a new password adapter. The boolean
+    below models the separate secure vault tool, never a real credential.
+    """
+    import importlib.util
+    from tests.test_glp_awin_portal_login import FakePage
+
+    def load_stage():
+        spec = importlib.util.spec_from_file_location(
+            'isolated_awin_stage', Path(m.__file__).with_name('glp_awin_portal_login.py'))
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    page = FakePage()
+    first = load_stage()
+    assert first.prepare(page.page_info, page.js, page.click, page.cdp, page.wait)['stage'] == 'vault_fill_required'
+    del first
+    page.password = True
+    second = load_stage()
+    result = second.finish(page.page_info, page.js, page.wait, page.goto)
+    assert result['authenticated'] is True
+    assert result['publisher_id'] == '2979387'
+    assert page.clicks.count('submit') == 1
+
+
+def test_maxbounty_reconstructing_controller_cannot_resume_awin_style(caller):
+    """Browser state alone cannot recreate consumed budgets or owned context."""
+    browser = BrowserFixture()
+    leases, original = m.fresh_browser_session(pins=caller.pins, cdp=browser.cdp,
+        drain_events=browser.drain_events, switch_tab=browser.switch_tab)
+    with leases:
+        browser.vault_fixture(original)
+        assert original.authenticated is True
+        resumed = f.FreshCapacityProbe(cdp=browser.cdp, drain_events=browser.drain_events,
+                                      switch_tab=browser.switch_tab)
+        result = m.run_once(caller.pins.parent / 'resumed.json', lambda: [ROW], resumed.probe)
+        assert result['reason'] == 'FRESH_BROWSER_NOT_STARTED'
+        assert result['capacity'] == 'UNKNOWN'
+        assert result['successful_reads'] == 0
+        assert browser.sent == ['auth-1']
+    assert browser.disposed == ['owned-context']
+
+
+def test_real_session_leases_do_not_survive_interpreter_exit(caller):
+    """Use real flock + real short-lived Python; never touch the live leases.
+
+    The child deliberately leaves its ExitStack alive until interpreter exit,
+    just as a browser_exec variable would. A second owner is blocked while the
+    child lives but succeeds between stages. Reacquisition is not continuous
+    custody. This tests a concrete constraint, not a requirement for a bridge.
+    """
+    import subprocess
+    import sys
+
+    code = '''
+import sys
+from pathlib import Path
+from scripts import glp_maxbounty_capacity_monitor as m
+m.BUSINESS = Path(sys.argv[1])
+original = m.assert_profile_idle
+m.assert_profile_idle = lambda _: original(m.BUSINESS / 'profile', m.BUSINESS / 'proc')
+leases = m.session_leases()
+print('FIXTURE_LEASES_HELD', flush=True)
+sys.stdin.readline()
+'''
+    child = subprocess.Popen([sys.executable, '-c', code, str(caller.pins.parent)],
+        cwd=Path(m.__file__).resolve().parents[1], stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout is not None
+        import selectors
+        with selectors.DefaultSelector() as ready:
+            ready.register(child.stdout, selectors.EVENT_READ)
+            assert ready.select(timeout=10), 'fixture child did not acquire leases'
+        assert child.stdout.readline().strip() == 'FIXTURE_LEASES_HELD'
+        with pytest.raises(m.Refusal, match='SESSION_LEASE_BUSY'):
+            m.session_leases()
+        _, err = child.communicate('\n', timeout=10)
+        assert child.returncode == 0, err
+        with m.session_leases():
+            pass  # another owner can enter before the next browser_exec stage
+    finally:
+        if child.poll() is None:
+            child.communicate('\n', timeout=10)

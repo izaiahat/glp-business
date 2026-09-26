@@ -250,9 +250,12 @@ def session_leases():
 
 
 def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
-    """Explicit tool-owner entry; no receipt import or unattended login fallback.
+    """Single-process candidate entry, not an integrated agent/vault runner.
 
-    The returned ExitStack must span vault/MFA tools and run_once(..., p.probe).
+    The returned ExitStack owns real flock handles, not a resumable token.
+    Awin's stateless stages cannot carry them between browser_exec calls.
+    See ops/maxbounty-fresh-probe.md for the tested compatibility constraint;
+    no particular bridge or new runtime is prescribed by this factory.
     Browser/heavy admission remains the coordinator's separate prerequisite.
     """
     verify_pins(pins)
@@ -271,13 +274,13 @@ def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
 
 
 def live_probe(target):
-    # An unattended cron cannot manufacture an authorized AI-browser/vault
-    # session. Keep the original ownership refusal ahead of this handoff and
-    # never launch the retired persistent-cookie transport.
+    # The staged vault caller is not integrated with the session-wide leases
+    # and guarded read. Retain the concrete refusal, not a prescribed bridge.
+    # Never launch the retired persistent-cookie transport as a fallback.
     if target!={'queue_id':TARGET_QUEUE_ID,'program_id':TARGET_ID,'detail_url':DETAIL_URL}:
         raise Refusal('PROGRAM_PROJECTION_IDENTITY_MISMATCH')
     with session_leases():
-        raise Refusal('FRESH_AI_BROWSER_TOOL_OWNER_REQUIRED')
+        raise Refusal('FRESH_VAULT_STAGES_NOT_INTEGRATED')
 
 
 def main():
