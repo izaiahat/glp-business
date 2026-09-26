@@ -960,6 +960,7 @@ def hold_entry(
     current_topic_ids: set[str],
     mutable_article_routes: set[str] | None = None,
     dry_run: bool = False,
+    allow_stale_claim: bool = False,
 ) -> dict[str, Any]:
     """Register a reversible exact-entry exclusion; never rewrite the packet.
 
@@ -993,8 +994,13 @@ def hold_entry(
         evidence_path = _verify_spec(evidence, "buffer_hold_evidence")
         if str(evidence_path) != evidence["path"]:
             raise RuntimeError("buffer_hold_evidence_path_alias")
-        if entry_id in _claimed_entry_ids(root):
-            raise RuntimeError("buffer_hold_entry_claimed")
+        claimed = entry_id in _claimed_entry_ids(root)
+        stale: list[dict[str, Any]] = []
+        if claimed:
+            stale = [row for row in stale_claims(root) if row["entry_id"] == entry_id]
+            all_claims = [claim for _, claim in _claim_rows(root) if claim.get("entry_id") == entry_id]
+            if not allow_stale_claim or len(stale) != 1 or len(all_claims) != 1:
+                raise RuntimeError("buffer_hold_entry_claimed")
         consumed_root = root.resolve() / "consumed"
         for path in sorted(consumed_root.glob("*.json")) if consumed_root.is_dir() else []:
             consumed = _read_sealed(path, CONSUME_SCHEMA, "consumption_sha256")
@@ -1027,6 +1033,8 @@ def hold_entry(
             "publication_effects": 0,
             "disposition": "excluded_from_ready_selection_no_successor_admission",
         }
+        if claimed:
+            receipt["stale_claim"] = _spec(Path(stale[0]["claim"]))
         if dry_run:
             return {"status": "DRY_RUN_BUFFER_ENTRY_HOLD", "would_hold": receipt}
         _write_once(receipt_path, receipt, "hold_sha256")
@@ -1245,7 +1253,102 @@ def validate_entry(
         path = Path(str(raw))
         if not path.is_absolute() or len(str(expected)) != 64:
             raise RuntimeError("buffer_control_provenance_invalid")
+    successor = entry.get("successor_of")
+    if successor is not None:
+        if not isinstance(successor, dict) or set(successor) != {"entry_id", "entry_manifest", "hold"}:
+            raise RuntimeError("buffer_successor_lineage_invalid")
+        root = manifest_path.resolve().parents[2]
+        if successor["entry_id"] not in _held_entry_ids(root):
+            raise RuntimeError("buffer_successor_predecessor_hold_drift")
+        for label in ("entry_manifest", "hold"):
+            _verify_spec(successor[label], f"buffer_successor_{label}")
+        registered = entry.get("registered_review")
+        if not isinstance(registered, dict) or set(registered) != {"receipt", "closeout", "execution"}:
+            raise RuntimeError("buffer_successor_review_binding_invalid")
+        for label, spec in registered.items():
+            _verify_spec(spec, f"buffer_successor_{label}")
     return entry
+
+
+def _registered_successor_review(receipt_path: Path, evidence: dict[str, Any]) -> dict[str, Any]:
+    """Bind a registered controller PASS to this exact eight-file subject tuple."""
+    receipt_path = receipt_path.resolve(strict=True)
+    history = receipt_path.parent
+    closeout_path = history / "loop-closeout.json"
+    execution_path = history / f"round-{json.loads(receipt_path.read_text())['round']:02d}-review-execution.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    closeout = json.loads(closeout_path.read_text(encoding="utf-8"))
+    execution = json.loads(execution_path.read_text(encoding="utf-8"))
+    if (closeout.get("schema") != "glp-opus-seo-loop-closeout-v1"
+        or closeout.get("closeout_sha256") != _opus_payload_hash(closeout, "closeout_sha256")
+        or closeout.get("status") != "PASS_OPUS_SEO_DRAFT"
+        or closeout.get("publication_invoked") is not False
+        or closeout.get("topic_id") != evidence["topic_id"]
+        or closeout.get("job_id") != receipt.get("job_id")
+        or closeout.get("rounds") != [{"round": receipt["round"], "receipt": str(receipt_path),
+                                      "sha256": _sha(receipt_path), "verdict": "PASS_OPUS_SEO_DRAFT"}]
+        or execution.get("exit_code") != 0
+        or "--disable-tools" not in execution.get("argv", [])
+        or "--receipt-file" not in execution.get("argv", [])
+        or set(execution.get("streams") or {}) != {"stdout", "stderr"}):
+        raise BufferAdmissionError("buffer_successor_registered_review_invalid")
+    argv = execution["argv"]
+    if argv[argv.index("--receipt-file") + 1] != evidence["raw_review"]["path"]:
+        raise BufferAdmissionError("buffer_successor_execution_raw_mismatch")
+    for stream in (execution.get("streams") or {}).values():
+        if _verify_spec(stream, "buffer_successor_execution_stream") != Path(stream["path"]):
+            raise BufferAdmissionError("buffer_successor_execution_stream_alias")
+        if _verify_spec(stream, "buffer_successor_execution_stream").stat().st_size != stream.get("bytes"):
+            raise BufferAdmissionError("buffer_successor_execution_stream_size_invalid")
+    manifest = json.loads(Path(evidence["subject_manifest"]["path"]).read_text())
+    expected = {row["path"]: (row["sha256"], row["bytes"]) for row in evidence["subjects"]}
+    if ({row["path"]: (row["sha256"], row["bytes"]) for row in manifest["subject_files"]} != expected
+        or len(manifest["subject_files"]) != len(expected)):
+        raise BufferAdmissionError("buffer_successor_subject_tuple_drift")
+    return {"receipt": _spec(receipt_path), "closeout": _spec(closeout_path),
+            "execution": _spec(execution_path)}
+
+
+def _held_successor_predecessor(root: Path, predecessor_id: str,
+                                duplicates: list[tuple[Path, dict[str, Any]]],
+                                evidence: dict[str, Any], closure: str) -> dict[str, Any]:
+    if ENTRY_ID_PATTERN.fullmatch(predecessor_id) is None or len(duplicates) not in (1, 2):
+        raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
+    path, entry = duplicates[0] if len(duplicates) == 1 else next(
+        ((p, e) for p, e in duplicates if e.get("entry_id") == predecessor_id), (None, None))
+    if (path is None or entry is None or len(duplicates) not in (1, 2)
+        or any(e.get("entry_id") != predecessor_id and
+               "successor_of" not in e for _, e in duplicates)):
+        raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
+    if path.parent.name != predecessor_id or entry.get("entry_id") != predecessor_id:
+        raise BufferAdmissionError("buffer_successor_predecessor_not_exact")
+    if predecessor_id not in _held_entry_ids(root):
+        raise BufferAdmissionError("buffer_successor_predecessor_not_held")
+    validate_entry(path, current_routes=set(), current_topic_ids=set())
+    if (any(entry.get(key) != evidence[key] for key in ("topic_id", "target_route"))
+        or entry.get("packet_closure_sha256") == closure
+        or entry.get("topic_provenance") != evidence["topic_provenance"]):
+        raise BufferAdmissionError("buffer_successor_authority_or_content_drift")
+    old_selection, old_selected = load_selection_receipt(Path(entry["selection_receipt"]["path"]))
+    new_selection, new_selected = load_selection_receipt(Path(evidence["selection_receipt"]["path"]))
+    fields = ("topic_id", "target_query", "target_route", "operator_directive_id",
+              "queue_position", "queue_sha256", "selection_mode", "topic_provenance")
+    if (any(old_selected.get(k) != new_selected.get(k) for k in fields)
+        or old_selection.get("selection_mode") != new_selection.get("selection_mode")
+        or entry.get("topic_authority", {}).get("sha256") != evidence["topic_authority"]["sha256"]):
+        raise BufferAdmissionError("buffer_successor_selection_drift")
+    return {"entry_id": predecessor_id, "entry_manifest": _spec(path),
+            "hold": _spec(_hold_path(root, predecessor_id))}
+
+
+def _successor_publication_date(today_pt: str, control_files: dict[str, str]) -> None:
+    """PR #19 binds the planned PT day at release, not historical draft dates."""
+    if today_pt != pt_date_now():
+        raise BufferAdmissionError("buffer_successor_pt_day_drift")
+    for name in ("build_opus_article_release.py", "publish_opus_article_release.py"):
+        path = Path(__file__).resolve().with_name(name)
+        if control_files.get(str(path)) != _sha(path):
+            raise BufferAdmissionError("buffer_successor_publication_controls_unpinned")
 
 
 def admit(
@@ -1258,8 +1361,14 @@ def admit(
     current_topic_ids: set[str],
     mutable_article_routes: set[str],
     admitted_at_utc: str,
+    predecessor_entry_id: str | None = None,
+    today_pt: str | None = None,
 ) -> Path:
     evidence = validate_admission_evidence(packet, pass_receipt, control_files)
+    registered_review = None
+    if predecessor_entry_id is not None:
+        _successor_publication_date(today_pt or pt_date_now(), control_files)
+        registered_review = _registered_successor_review(pass_receipt, evidence)
     missing_sources = missing_inbound_source_routes(
         packet,
         mutable_article_routes,
@@ -1274,10 +1383,17 @@ def admit(
         duplicates: list[tuple[Path, dict[str, Any]]] = []
         for path in _entry_manifests(root):
             entry = _read_sealed(path, ENTRY_SCHEMA, "entry_sha256")
+            if path.parent.name != entry.get("entry_id"):
+                raise BufferAdmissionError("buffer_entry_manifest_identity_drift")
             if entry["target_route"] == evidence["target_route"] or entry["topic_id"] == evidence["topic_id"]:
                 duplicates.append((path, entry))
         reframed_from = None
-        if duplicates:
+        predecessor = None
+        if predecessor_entry_id is not None:
+            predecessor = _held_successor_predecessor(
+                root, predecessor_entry_id, duplicates, evidence, closure)
+            _successor_publication_date(today_pt or pt_date_now(), control_files)
+        elif duplicates:
             reframed_from = _medical_reframe_predecessor(
                 root=root,
                 packet=packet,
@@ -1285,6 +1401,24 @@ def admit(
                 duplicate_manifests=duplicates,
                 successor_closure=closure,
             )
+        entry_id = hashlib.sha256(
+            f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
+        ).hexdigest()[:24]
+        entries_root = root.resolve() / "entries"
+        final = entries_root / entry_id
+        if predecessor is not None and any(
+            e.get("entry_id") not in (predecessor_entry_id, entry_id) for _, e in duplicates
+        ):
+            raise BufferAdmissionError("buffer_successor_existing_conflict")
+        if predecessor is not None and final.exists():
+            existing = validate_entry(final / "entry.json", current_routes=current_routes,
+                                      current_topic_ids=current_topic_ids)
+            if (existing.get("successor_of") != predecessor
+                or existing.get("registered_review") != registered_review
+                or existing.get("packet_files") != evidence["subjects"]
+                or existing.get("pass_receipt", {}).get("sha256") != evidence["pass_receipt"]["sha256"]):
+                raise BufferAdmissionError("buffer_successor_idempotency_drift")
+            return final / "entry.json"
         ready_count = len(ready_entries(
             root,
             current_routes=current_routes,
@@ -1345,6 +1479,9 @@ def admit(
         }
         if reframed_from is not None:
             entry["reframed_from"] = reframed_from
+        if predecessor is not None:
+            entry["successor_of"] = predecessor
+            entry["registered_review"] = registered_review
         _write_once(temporary / "entry.json", entry, "entry_sha256")
         for directory in (temporary / "packet", temporary / "evidence", temporary):
             os.chmod(directory, 0o555)

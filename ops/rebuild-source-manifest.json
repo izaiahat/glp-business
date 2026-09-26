@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "96f2fc804aac7825901329f9eb6606b65fd6f18c8105b7e54e37a465459fe564"
+      "sha256": "d097e4c948a0b38848a69c5a23f00a4ed9768075aeb4ca243564b47aabc164d2"
     },
     ".gitignore": {
       "callers": [],
@@ -1120,14 +1120,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
+      "sha256": "0044031141f365b088c4b932b08daba936576df4d6f8665ff57f4d1bc97f7443"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
+      "sha256": "d27165eed61aa0590e9a37560a4f18fa3350f15cab91983022a0f1319d377dea"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -1233,6 +1233,13 @@
       ],
       "kind": "test",
       "sha256": "47a2e3ab5a454572b83ba683ef708bac458a4ca1158727cd5604595234111da5"
+    },
+    "systems/seo-blog-machine/tests/test_article_successor.py": {
+      "callers": [
+        "GLP-7 registered held-predecessor successor admission"
+      ],
+      "kind": "test",
+      "sha256": "6196b7edf4186224b39a51dd64b76cc8640752d8fdbd9932cd617b758b5da9af"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
@@ -1806,5 +1813,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 273
+  "tracked_count": 274
 }
