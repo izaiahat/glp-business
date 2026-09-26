@@ -269,11 +269,8 @@ class QuotaResumeTests(unittest.TestCase):
         self.assertEqual(self.inferences.call_count, 1)
 
     def test_successor_is_registered_once_after_terminal_no_decision(self):
-        # The guard is site-owned and excluded from the curated CI checkout.
-        # On the host, execute its actual module against temp-root fixtures.
-        guard_source = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
-        if not guard_source.is_file():
-            self.skipTest("host-only bridge authority guard source unavailable")
+        # Execute the curated real guard in CI as well as on the host.
+        self.assertTrue((ROOT / "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py").is_file())
         terminal_id = "1553281139517423701"
         terminal_body = ("(Reviewer response exceeded the single-message safety limit; "
                          "no authority decision was issued.)\n[reviewer: fable-xhigh]")
@@ -309,7 +306,8 @@ class QuotaResumeTests(unittest.TestCase):
                     module.REVIEW_ARTIFACT_ROOT = self_root.artifact_root
                     module._fetch_discord_message = lambda channel, message_id: {
                         "id": message_id, "channel_id": channel,
-                        "author": {"id": module.KAEL_SHARED_BOT_AUTHOR_ID},
+                        "author": {"id": module.KAEL_SHARED_BOT_AUTHOR_ID, "bot": True},
+                        "type": 0, "mentions": [{"id": SIGNER}],
                         "content": loaded_request["content"],
                         "timestamp": module._utc_now(), "edited_timestamp": None,
                     }
@@ -456,14 +454,7 @@ class QuotaResumeTests(unittest.TestCase):
             fetched.content = raw
             self.save()
             self.extra.append(terminal)
-            if Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py").is_file():
-                self.assert_successor_registered(terminal)
-            else:
-                # CI excludes the site-owned guard; prove admission reaches its gate.
-                with patch.object(bridge.importlib.util, "spec_from_file_location", return_value=None):
-                    with self.assertRaisesRegex(RuntimeError, "registered_issue_guard_unavailable"):
-                        bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
-                self.assertEqual(bridge.load_state()["successor_issues"][SOURCE]["status"], "reserved")
+            self.assert_successor_registered(terminal)
             download.assert_called_with(url, timeout=30)
 
     def test_successor_refuses_terminal_reply_with_decision(self):
