@@ -2155,6 +2155,26 @@ def commissioning_context():
             "brief_sha256": review["brief_sha256"], "tier": tier, "brief_text": text}
 
 
+#: GLP-324: a commission with no live Linear assignee used to reach the producer
+#: and be refused there (live_commissioning_assignment_unset) after work began.
+COMMISSIONING_ASSIGNEE_UNSET = "commissioning_assignee_unset"
+
+
+def commissioning_assignee_gate(commissioning: dict | None) -> dict:
+    """Refuse a commission whose live assignee is null or empty, before any
+    producer or model call. No commissioning context means nothing to check."""
+    if commissioning is None:
+        return {"ok": True}
+    issue = commissioning.get("issue") if isinstance(commissioning, dict) else None
+    assignee = issue.get("assignee") if isinstance(issue, dict) else None
+    if isinstance(assignee, dict) and str(assignee.get("id") or "").strip():
+        return {"ok": True}
+    return {"ok": False, "reason_code": COMMISSIONING_ASSIGNEE_UNSET,
+            "why": ("commissioning issue %s has no live assignee; refused before "
+                    "producer execution — nothing was authored"
+                    % ((issue or {}).get("identifier") or "(unknown)"))}
+
+
 def dispatch(*, entry="bridge", native_runner=None, **kwargs):
     """Reserve under the ledger lock; native execution never holds that lock.
 
@@ -2254,6 +2274,10 @@ def _dispatch(*, provider: str, receipt: dict, sheet_row: dict | None = None,
     verdict = may_dispatch(provider, receipt, state, now, entry=entry)
     if not verdict.get("ok"):
         return {"dispatched": False, "provider": provider, **verdict}
+    # Preflight: no cycle, receipt, brief or producer call for an unassigned commission.
+    assignee = commissioning_assignee_gate(commissioning)
+    if not assignee["ok"]:
+        return {"dispatched": False, "provider": provider, **assignee}
 
     cycle = int(verdict["cycle"])
     stamp = (now or dt.datetime.now(dt.timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
