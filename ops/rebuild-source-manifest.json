@@ -799,7 +799,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "e7a0ed44537b3ab26ae94814f014f64311b3b6bc6f383e905201bd7d53160597"
+      "sha256": "d04e693100f40a16a50d41dc4167ab9a695f9696e8aa74050822faee8e914c4b"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1447,7 +1447,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "7f75d7410b3367fcb200886c7aade3c351dbeb059502784df56bbb463a5b5633"
+      "sha256": "cff56ed052c003c0206b93ba2c4a1110a3b1758b57cd6752d94f36958b1d9dc9"
     },
     "tests/test_fable_bridge_quota_resume.py": {
       "callers": [
@@ -1461,7 +1461,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "f1422dcd7d4958c633810e95446af8f17a83579465bc117b0fe49535c9247d43"
+      "sha256": "93ff7db942617fab9593d99c66b23cdfe686af93c71095cad22abb0306c635c6"
     },
     "tests/test_fleet_sentinel.py": {
       "callers": [

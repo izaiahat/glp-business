@@ -172,8 +172,10 @@ class ReviewerRoutingTests(unittest.TestCase):
             self.assertIn("agent-evaluation-review", command[command.index("--skills") + 1].split(","))
             for flag in ("--ignore-user-config", "--ignore-rules", "--toolsets", "--safe-mode", "--yolo"):
                 self.assertNotIn(flag, command)
-            for flag in ("--resume", "--continue", "-c", "-r"):
-                self.assertNotIn(flag, command)
+            self.assertNotIn("--resume", command)
+            self.assertEqual(command[command.index("--continue") + 1],
+                             command[command.index("--source") + 1])
+            self.assertIn("--create-if-missing", command)
             path = Path(command[command.index("--query-file") + 1])
             self.assertTrue(path.is_file())
             self.assertEqual(path.read_text(), prompt)

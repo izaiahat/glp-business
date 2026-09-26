@@ -353,21 +353,10 @@ def _oversize_reply(reply: str, kind: str) -> tuple[str, bytes, str] | None:
     if not separator or not identity.endswith("]"):
         raise RuntimeError("oversize_reviewer_identity_unbound")
     identity = identity[:-1]
-    # Do not strip a BOM, blank line, CR, or leading whitespace into authority.
-    first, _, remainder = body.partition("\n")
-    accept = "TRUE-BRIDGE FABLE — ACCEPT (this message is the SOLE valid acceptance)"
-    # A later refusal or withdrawal overrides the opening line. Err toward
-    # no-decision for ambiguous reviewer prose, not a manufactured acceptance.
-    contradiction = re.search(
-        r"\b(?:REJECT\w*|REVIS\w*|WITHDRAW\w*|WITHDREW|WITHHELD|WITHHOLD\w*|"
-        r"RESCIND\w*|REVOK\w*|FAIL\w*|NOT[-\s]+ACCEPT\w*|NOT[-\s]+APPROV\w*|"
-        r"NO\s+(?:RELEASE\s+)?AUTHORITY|NO\s+APPROV\w*|"
-        r"DO\s+NOT\s+(?:DEPLOY|RELEASE|SHIP|PUBLISH|ACCEPT|APPROVE))\b",
-        remainder, re.IGNORECASE,
-    )
-    if kind == "review_request" and first == accept and not contradiction:
-        verdict = accept
-    elif kind == "review_request" and first == "TRUE-BRIDGE FABLE — REJECT":
+    # Oversized prose has no acceptance authority, regardless of its first line.
+    # A compact second inference must take the ordinary short-reply path instead.
+    first = body.partition("\n")[0]
+    if kind == "review_request" and first == "TRUE-BRIDGE FABLE — REJECT":
         verdict = first
     else:
         verdict = "Reviewer response attached; no parsable verdict, no authority decision was issued."
@@ -434,9 +423,12 @@ def validate_startup_identity() -> str:
 
 
 def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
-         kind: str = "review_request") -> str:
+         kind: str = "review_request", original_stdout: str | None = None) -> str:
     oversize = _oversize_reply(content, kind)
+    if original_stdout is not None and oversize is not None:
+        raise RuntimeError("compact_followup_exceeds_short_limit")
     reply = oversize[0] if oversize else (content.strip() or "(Fable returned no output; no authority decision was issued.)")
+    attachment = oversize[1] if oversize else (original_stdout.encode("utf-8") if original_stdout is not None else None)
     if len(reply) > MAX_REPLY_CHARS:
         raise RuntimeError("reply_exceeds_discord_limit")
     body: dict[str, Any] = {
@@ -450,7 +442,7 @@ def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
         "nonce": nonce or reply_to_message_id,
         "enforce_nonce": True,
     }
-    if oversize:
+    if attachment is not None:
         if HTTP is None:
             raise RuntimeError("dedicated_fable_http_session_not_initialized")
         body["attachments"] = [{"id": 0, "filename": "reviewer-response.txt"}]
@@ -458,7 +450,7 @@ def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
         try:
             response = HTTP.request("POST", BASE + f"/channels/{CHANNEL}/messages",
                                     data={"payload_json": json.dumps(body)},
-                                    files={"files[0]": ("reviewer-response.txt", oversize[1],
+                                    files={"files[0]": ("reviewer-response.txt", attachment,
                                                         "text/plain; charset=utf-8")}, timeout=30)
             result = response.json() if 200 <= response.status_code < 300 else None
         except (requests.RequestException, ValueError) as error:
@@ -470,12 +462,17 @@ def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
     return str(result["id"])
 
 
-def verify_oversize_post(posted_id: str, source_id: str, reply: str, kind: str) -> dict[str, Any] | None:
+def verify_oversize_post(posted_id: str, source_id: str, reply: str, kind: str,
+                         original_stdout: str | None = None) -> dict[str, Any] | None:
     """Read back the exact posted message and CDN bytes without bot auth."""
     oversized = _oversize_reply(reply, kind)
-    if oversized is None:
+    if original_stdout is not None and oversized is not None:
+        raise RuntimeError("compact_followup_exceeds_short_limit")
+    if oversized is None and original_stdout is None:
         return None
-    wrapper, raw, digest = oversized
+    wrapper = oversized[0] if oversized else reply.strip()
+    raw = oversized[1] if oversized else str(original_stdout).encode("utf-8")
+    digest = hashlib.sha256(raw).hexdigest()
     message = _exact_message(posted_id)
     if (str((message.get("author") or {}).get("id")) != SELF_ID
             or str((message.get("message_reference") or {}).get("message_id")) != source_id
@@ -652,13 +649,15 @@ def _invoke_reviewer(
                     "--source", "fable-bridge-reviewer",
                 ]
             else:
-                session_name = "fable-bridge-astra-standin-" + uuid.uuid4().hex
+                session_name = receipt.setdefault("standin_session_name", "fable-bridge-astra-standin-" + uuid.uuid4().hex)
                 attempt["session_name"] = session_name
                 prompt_path = Path(directory) / "prompt.txt"
                 prompt_path.write_text(prompt, encoding="utf-8")
                 command = [
                     "hermes", "chat", "--query-file", str(prompt_path), "-Q", "--oneshot",
                     "-m", model, "--reasoning", effort, "--source", session_name,
+                    "--continue", session_name,
+                    *([] if len(receipt["attempts"]) > 1 else ["--create-if-missing"]),
                     "--provider", "openai-codex",
                     "--skills", "agent-evaluation-review,site-design,cloudflare-release-operations,discord-delivery",
                 ]
@@ -716,9 +715,47 @@ def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None,
         if exhausted and not design and before_invoke is None:
             backend = select_backend(claude_exhausted=True)
             output, _ = _invoke_reviewer(backend, prompt, record, deadline)
+        limit = min(MAX_REPLY_CHARS, 1399) if kind == "review_request" else MAX_REPLY_CHARS
+        if kind == "review_request" and len(_tag_reply(kind, output, record["reviewer_identity"])) > limit:
+            original = output
+            record["original_stdout"] = original  # Transient; removed before the receipt is saved.
+            record["original_stdout_sha256"] = hashlib.sha256(original.encode("utf-8")).hexdigest()
+            # A second inference belongs to the same claim, reviewer, model, effort,
+            # session, deadline and lock. Never reroute or replay on failure.
+            if record["attempts"][-1].get("status") == "ok":
+                followup_prompt = (
+                    "In this SAME review session, give your FINAL decision on the preceding review. "
+                    "Reconsider any qualification or withdrawal in your preceding answer. "
+                    "Do not repeat the long analysis. Under 1000 characters total, use the exact "
+                    "decision line and subject, tuple SHA-256, challenge, and a substantive inspection note "
+                    "required by the original request. If not unconditionally accepted, REJECT or "
+                    "state no decision. This answer supersedes your preceding long answer."
+                )
+                compact, _ = _invoke_reviewer(backend, followup_prompt, record, deadline,
+                                               capacity_snapshot=capacity_snapshot,
+                                               before_invoke=before_invoke)
+                valid = record["attempts"][-1].get("status") == "ok"
+            else:
+                compact, valid = "", False
+            if not valid or len(_tag_reply(kind, compact, record["reviewer_identity"])) > limit:
+                output = "(Compact reviewer decision unavailable; no authority decision was issued.)"
+            else:
+                output = compact
+            raw = original.encode("utf-8")
+            note = (f"Full verbatim initial reviewer response: attached as reviewer-response.txt "
+                    f"({len(raw)} UTF-8 bytes; SHA-256: {record['original_stdout_sha256']}).")
+            candidate = output.rstrip() + "\n" + note
+            if len(_tag_reply(kind, candidate, record["reviewer_identity"])) > limit:
+                candidate = ("(Compact reviewer decision exceeds delivery limit; "
+                             "no authority decision was issued.)\n" + note)
+            output = candidate
     except Exception as error:
         log(f"fail_closed model_policy type={type(error).__name__}")
         output = "(model policy unavailable; Fable lane paused and no authority decision was issued.)"
+        if isinstance(record.get("original_stdout"), str):
+            raw = record["original_stdout"].encode("utf-8")
+            output += ("\nFull verbatim initial reviewer response: attached as reviewer-response.txt "
+                       f"({len(raw)} UTF-8 bytes; SHA-256: {hashlib.sha256(raw).hexdigest()}).")
     return _tag_reply(kind, output, record["reviewer_identity"])
 
 
@@ -902,13 +939,14 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
         mode, reply = review_action(kind, text, source_message_id=source_id,
                                     receipt=review_receipt, capacity_snapshot=snapshot,
                                     before_invoke=claim_invocation)
+        original_stdout = review_receipt.pop("original_stdout", None)
         resumed.update(mode=mode, reviewer_identity=review_receipt.get("reviewer_identity"),
                        attempts=review_receipt.get("attempts", []),
                        reply_chars=len(reply), reply_sha256=hashlib.sha256(reply.encode()).hexdigest())
         if (mode != "model" or review_receipt.get("reviewer_identity") != "fable-xhigh"
                 or review_receipt.get("backend") != "fable"
-                or len(resumed["attempts"]) != 1
-                or resumed["attempts"][0].get("invoked") is not True
+                or len(resumed["attempts"]) not in (1, 2)
+                or any(attempt.get("invoked") is not True for attempt in resumed["attempts"])
                 or resumed["attempts"][0].get("status") != "ok"):
             resumed["status"] = "no_inference"
             save_state(state)
@@ -924,7 +962,8 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
             save_state(state)
             raise
         try:
-            posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"], kind=kind)
+            posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"], kind=kind,
+                          original_stdout=original_stdout)
         except Exception:
             resumed.update(status="post_failed_or_ambiguous", posting="failed_or_ambiguous")
             save_state(state)
@@ -932,7 +971,8 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
         resumed.update(status="posted", posting="posted", posted_message_id=posted)
         save_state(state)
         try:
-            verified = verify_oversize_post(posted, source_id, reply, kind)
+            verified = verify_oversize_post(posted, source_id, reply, kind,
+                                            original_stdout=original_stdout)
         except Exception:
             resumed.update(status="posted_unverified", posting="posted_unverified")
             save_state(state)
@@ -1093,7 +1133,15 @@ def main() -> None:
                     if source_id in state.get("reviewer_receipts", {}):
                         raise RuntimeError("already_receipted_source_message")
                     receipt: dict[str, Any] = {"source_message_id": source_id, "kind": kind}
-                    action_mode, reply = review_action(kind, text, source_message_id=source_id, receipt=receipt)
+                    def claim_review() -> None:
+                        receipt["invocation_claimed"] = True
+                        state.setdefault("reviewer_receipts", {})[source_id] = {
+                            key: value for key, value in receipt.items() if key != "original_stdout"}
+                        save_state(state)
+                    action_mode, reply = review_action(
+                        kind, text, source_message_id=source_id, receipt=receipt,
+                        before_invoke=claim_review if kind == "review_request" else None)
+                    original_stdout = receipt.pop("original_stdout", None)
                     receipt.update(
                         mode=action_mode, reply_chars=len(reply),
                         reply_sha256=hashlib.sha256(reply.encode("utf-8")).hexdigest(),
@@ -1105,7 +1153,8 @@ def main() -> None:
                     receipts[source_id] = receipt
                     save_state(state)
                     try:
-                        posted = post(reply, reply_to_message_id=source_id, kind=kind)
+                        posted = post(reply, reply_to_message_id=source_id, kind=kind,
+                                      original_stdout=original_stdout)
                     except Exception:
                         receipt["posting"] = "failed_or_ambiguous"
                         save_state(state)
@@ -1113,7 +1162,8 @@ def main() -> None:
                     receipt.update(posting="posted", posted_message_id=posted)
                     save_state(state)
                     try:
-                        verified = verify_oversize_post(posted, source_id, reply, kind)
+                        verified = verify_oversize_post(posted, source_id, reply, kind,
+                                            original_stdout=original_stdout)
                     except Exception:
                         receipt["posting"] = "posted_unverified"
                         save_state(state)
