@@ -958,6 +958,16 @@
       "kind": "script",
       "sha256": "cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1"
     },
+    "scripts/glp_onboarding_authoring_dispatch.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "367c822e7e7f5762f528ec20288dc7001a351346faa8c5c321eba581be8abd05"
+    },
+    "scripts/glp_onboarding_authoring_status.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
+    },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
         "scripts/run_tests.sh",
@@ -2024,5 +2034,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 306
+  "tracked_count": 308
 }
