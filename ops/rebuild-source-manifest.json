@@ -1,5 +1,5 @@
 {
-  "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
+  "description": "Explicit curated source snapshot; no runtime state, portal exports, candidate registry, generated site or reports/history. The only nested candidate files are the explicitly allowlisted taxonomy refresher and its policy. Source hashes identify import provenance, not runtime deployment.",
   "files": {
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -1205,7 +1205,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f95a3275d46cfc948fa64bd6f3abc5f7a289fa47e0ef1016af8060bc0e06968d"
+      "sha256": "80ffc8b35b764708bcaa39fe2c8c700eec42b2898830d1cdf81cc65a31d0cd94"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1265,6 +1265,16 @@
       ],
       "kind": "script",
       "sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
+    },
+    "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "f5b8b7039439d7f43f8a5416f01818a9a89f5ec806dcc9e1787b90713d520e61"
+    },
+    "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
+      "callers": [],
+      "kind": "policy",
+      "sha256": "c9b7e7b2881f43f076c2f4815eb4b47a09d7f89c4fef18ad75d7f316f84adba4"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -1463,6 +1473,11 @@
       "callers": [],
       "kind": "test",
       "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
+    },
+    "tests/fixtures/therapeutic-taxonomy-coverage.json": {
+      "callers": [],
+      "kind": "policy",
+      "sha256": "6e113d93146cbef76d17ed1ba801385ed5a03b65777c78912148bc47332ff0f9"
     },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
       "callers": [
@@ -2090,6 +2105,11 @@
       "kind": "repository_control",
       "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
     },
+    "tests/test_therapeutic_taxonomy_refresh.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "28cc7db0c8b3de90758c1dc62492a2d1fe6cd03239d9850b2f545acef33bd04e"
+    },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
         "scripts/fable_bridge.py"
@@ -2113,5 +2133,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 321
+  "tracked_count": 325
 }
