@@ -234,6 +234,9 @@ class JsonRegistry:
     def jobs(self) -> list[dict[str, Any]]:
         return list(json.loads(self.path.read_text(encoding="utf-8"))["jobs"])
 
+    def paused_jobs(self) -> list[dict[str, Any]]:
+        return self.jobs()
+
     def update_hash(self, job_id: str, digest: str) -> None:
         document = json.loads(self.path.read_text(encoding="utf-8"))
         hits = [job for job in document["jobs"] if str(job.get("id")) == job_id]
@@ -243,6 +246,19 @@ class JsonRegistry:
         _atomic_write(
             self.path, (json.dumps(document, indent=2, sort_keys=True) + "\n").encode(),
             self.path.stat().st_mode & 0o777)
+
+
+    def update_paused_hashes(self, expected: list[dict[str, Any]], digests: dict[str, str]) -> None:
+        # Fixture adapter only. Production uses the scheduler-owned lock and saver.
+        if self.path.resolve() == CRON_REGISTRY.resolve():
+            raise RuntimeError("fixture_adapter_live_registry_refused")
+        import fcntl
+        with self.path.with_suffix(".lock").open("a+") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            document = json.loads(self.path.read_text(encoding="utf-8"))
+            document["jobs"] = _paused_hash_candidates(document["jobs"], expected, digests)
+            _atomic_write(self.path, (json.dumps(document, indent=2) + "\n").encode(),
+                          self.path.stat().st_mode & 0o777)
 
 
 class HermesRegistry:
@@ -255,10 +271,102 @@ class HermesRegistry:
     def jobs(self) -> list[dict[str, Any]]:
         return list(self._load_jobs())
 
+    def paused_jobs(self) -> list[dict[str, Any]]:
+        from cron import jobs as scheduler
+        if scheduler._current_cron_store().jobs_file.resolve() != CRON_REGISTRY.resolve():
+            raise RuntimeError("paused_registration_wrong_profile")
+        # Atomic-file snapshot only; no tolerant loader / auto-repair side effects.
+        return list(json.loads(CRON_REGISTRY.read_text(encoding="utf-8"))["jobs"])
+
     def update_hash(self, job_id: str, digest: str) -> None:
         updated = self._update_job(job_id, {"script_sha256": digest})
         if updated is None:
             raise RuntimeError(f"registry_job_missing:{job_id}")
+
+
+    def update_paused_hashes(self, expected: list[dict[str, Any]], digests: dict[str, str]) -> None:
+        from cron import jobs as scheduler
+        # update_job normalizes lifecycle fields; use its maintained locked saver
+        # for an all-or-nothing hash-only transaction without that normalization.
+        if scheduler._current_cron_store().jobs_file.resolve() != CRON_REGISTRY.resolve():
+            raise RuntimeError("paused_registration_wrong_profile")
+        import fcntl
+        # The scheduler's generic context degrades on flock timeout. This
+        # preparation must refuse instead, while sharing its exact lock path.
+        with scheduler._jobs_file_lock:
+            with scheduler._jobs_lock_file().open("a+") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                scheduler._record_load_stamp(None)
+                try:
+                    jobs = scheduler._peek_jobs_unlocked()
+                    if jobs is None:
+                        raise RuntimeError("paused_registration_store_invalid")
+                    candidate = _paused_hash_candidates(jobs, expected, digests)
+                    scheduler._save_jobs_unlocked(candidate)
+                    if scheduler._peek_jobs_unlocked() != candidate:
+                        raise RuntimeError("paused_registration_readback_mismatch_no_retry")
+                finally:
+                    scheduler._record_load_stamp(None)
+
+
+PAUSED_WRAPPERS = {
+    "52e2014a9579": "affiliate_portal_apply_daily.sh",
+    "7a269c665b12": "awin_auth_liveness_preflight.sh",
+    "5a2cba16e057": "affiliate_multi_network_portal_apply_daily.sh",
+}
+
+
+def _paused_hash_candidates(jobs: list[dict[str, Any]], expected: list[dict[str, Any]],
+                            digests: dict[str, str]) -> list[dict[str, Any]]:
+    """Validate the entire compare-and-swap before changing any record."""
+    import copy
+    selected = [job for job in jobs if str(job.get("id")) in PAUSED_WRAPPERS]
+    if (len(selected) != len(PAUSED_WRAPPERS)
+            or {str(job.get("id")) for job in selected} != set(PAUSED_WRAPPERS)
+            or set(digests) != set(PAUSED_WRAPPERS)):
+        raise RuntimeError("paused_registration_set_invalid")
+    if sorted(selected, key=lambda j: j["id"]) != sorted(expected, key=lambda j: j["id"]):
+        raise RuntimeError("paused_registration_preimage_changed")
+    for job in selected:
+        job_id = str(job["id"])
+        wrapper = report.HERMES_SCRIPTS / PAUSED_WRAPPERS[job_id]
+        raw = Path(str(job.get("script") or ""))
+        registered = raw if raw.is_absolute() else report.HERMES_SCRIPTS / raw
+        if (job.get("enabled") is not False or job.get("state") != "paused"
+                or registered != wrapper or wrapper.is_symlink()
+                or not HEX64.fullmatch(digests[job_id])
+                or sha_bytes(wrapper.read_bytes()) != digests[job_id]):
+            raise RuntimeError(f"paused_registration_contract_changed:{job_id}")
+    result = copy.deepcopy(jobs)
+    for job in result:
+        if str(job.get("id")) in digests:
+            job["script_sha256"] = digests[str(job["id"])]
+    return result
+
+
+def release_paused_registrations(review_path: Path, registry: Any, *,
+                                 apply: bool) -> tuple[int, dict[str, Any]]:
+    """Explicit exact-wrapper review; no source staging, activation or scheduling."""
+    _review, approved = load_review(review_path)
+    wrappers = {job_id: report.HERMES_SCRIPTS / name for job_id, name in PAUSED_WRAPPERS.items()}
+    if (set(approved) != set(wrappers.values())
+            or any(entry["review_basis"] != "current_wrapper_review" for entry in approved.values())):
+        raise RuntimeError("paused_review_must_name_exact_three_wrappers")
+    jobs = registry.paused_jobs()
+    expected = [job for job in jobs if str(job.get("id")) in PAUSED_WRAPPERS]
+    digests = {job_id: approved[path]["reviewed_sha256"] for job_id, path in wrappers.items()}
+    _paused_hash_candidates(jobs, expected, digests)
+    updates = [{"job_id": job["id"], "script": str(wrappers[job["id"]]),
+                "script_sha256": digests[job["id"]], "previous_sha256": job.get("script_sha256")}
+               for job in expected if job.get("script_sha256") != digests[job["id"]]]
+    result = {"schema": "awin-paused-registration-release-v1", "applied": False,
+              "review_receipt_sha256": sha_bytes(review_path.read_bytes()),
+              "registry_updates": updates, "pause_state_preserved": True,
+              "activation_ready": False, "fresh_browser_migration_hold": True}
+    if apply and updates:
+        registry.update_paused_hashes(expected, digests)
+    result["applied"] = apply
+    return 0, result
 
 
 def _cron_paths(registry: Any) -> dict[str, Path]:
@@ -486,7 +594,10 @@ def main() -> int:
     parser.add_argument("--review-receipt", required=True)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--registry-json")
-    parser.add_argument("--package-binaries-only", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--package-binaries-only", action="store_true")
+    modes.add_argument("--paused-registrations-only", action="store_true",
+                       help="Exact three-wrapper review; hash-only, never unpauses")
     args = parser.parse_args()
     registry_path = Path(args.registry_json) if args.registry_json else CRON_REGISTRY
     registry = JsonRegistry(registry_path) if args.registry_json else HermesRegistry()
@@ -495,10 +606,14 @@ def main() -> int:
         os.chmod(LOCK, 0o600)
         import fcntl
         fcntl.flock(handle, fcntl.LOCK_EX)
-        operation = release_package_binaries if args.package_binaries_only else release
-        code, result = operation(
-            Path(args.review_receipt), registry, registry_path=registry_path,
-            apply=args.apply)
+        if args.paused_registrations_only:
+            code, result = release_paused_registrations(
+                Path(args.review_receipt), registry, apply=args.apply)
+        else:
+            operation = release_package_binaries if args.package_binaries_only else release
+            code, result = operation(
+                Path(args.review_receipt), registry, registry_path=registry_path,
+                apply=args.apply)
     print(json.dumps(result, indent=2, sort_keys=True))
     return code
 

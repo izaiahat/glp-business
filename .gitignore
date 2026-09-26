@@ -178,6 +178,7 @@
 !/tests/test_brief_lint_deep.py
 !/tests/test_brief_lint_short.py
 !/tests/test_awin_pin_shell_conventions.py
+!/tests/test_awin_paused_registration_release.py
 !/tests/test_awin_application_fit_exclusions.py
 !/tests/test_capacity_pacing.py
 !/tests/test_cron_applications_note_reconcile.py
