@@ -961,7 +961,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3f1701d9f06905a9f23d78a14ea9912cf89c757cbfb31bb28b83f787593bafef"
+      "sha256": "53546568e6527dfcb0eddfff5811c2d66cd8be8ce6fb1af357dfc3f7be314333"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -1444,7 +1444,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b54b2b6420e833acd81ba57508bc544d0572ff6f76dc67c798a45d930e5b0f69"
+      "sha256": "9183bd90a7917cf6cf72ac2511ddc96ae60452aa12797abee5bf3f341e1b6313"
     }
   },
   "omitted_runtime_inputs": [
