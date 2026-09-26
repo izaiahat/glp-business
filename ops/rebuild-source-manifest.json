@@ -1219,7 +1219,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d9248f6b678d1603bc522f0f9baa867e0e8a3ce4204e6703fd9ae933706b54aa"
+      "sha256": "83442a1c54364d45d60893ef44e4c7bd214806267db1827845e2b763c8e3bd1c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1279,6 +1279,16 @@
       ],
       "kind": "script",
       "sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
+    },
+    "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "f5b8b7039439d7f43f8a5416f01818a9a89f5ec806dcc9e1787b90713d520e61"
+    },
+    "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
+      "callers": [],
+      "kind": "policy",
+      "sha256": "c9b7e7b2881f43f076c2f4815eb4b47a09d7f89c4fef18ad75d7f316f84adba4"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -1477,6 +1487,11 @@
       "callers": [],
       "kind": "test",
       "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
+    },
+    "tests/fixtures/therapeutic-taxonomy-coverage.json": {
+      "callers": [],
+      "kind": "policy",
+      "sha256": "6e113d93146cbef76d17ed1ba801385ed5a03b65777c78912148bc47332ff0f9"
     },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
       "callers": [
@@ -2111,6 +2126,11 @@
       "kind": "repository_control",
       "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
     },
+    "tests/test_therapeutic_taxonomy_refresh.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "28cc7db0c8b3de90758c1dc62492a2d1fe6cd03239d9850b2f545acef33bd04e"
+    },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
         "scripts/fable_bridge.py"
@@ -2134,5 +2154,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 324
+  "tracked_count": 328
 }
