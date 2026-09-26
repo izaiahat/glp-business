@@ -977,6 +977,33 @@ def evaluate_application(c: Candidate,
                            contract_decision=CONTRACT_PARK,
                            contract_reason="park_network_paused_offer"))
 
+    # Product-only GLP claims and research-use peptides cannot be promoted by a
+    # bridge FIT override. A sibling clinical service is not a product veto.
+    body = _text(c)
+    product_labels = [v for v in _off_verticals(body) if v not in CLINIC_SIBLING_VERTICALS]
+    research_peptides = bool(re.search(r"\bpeptides?\b", body)
+                             and ILLEGAL_OPERATION_RE.search(body))
+    if product_labels or research_peptides:
+        reason = ("reject_illegal_operation_signal" if research_peptides
+                  else "park_product_vertical_body_copy")
+        why = [f"application_product_veto:{','.join(product_labels) or 'research_peptides'}",
+               contract_tag(reason)]
+        return (Decision("REJECTED_LEGALITY" if research_peptides else "SKIPPED_NOT_GLP_FIT",
+                         None, why),
+                FitVerdict(False, "product_vertical", why,
+                           contract_decision=CONTRACT_REASONS[reason], contract_reason=reason))
+
+    if GLP1_EXPLICIT_RE.search(body) and not (
+            MEDICATION_OFFER_RE.search(" ".join((c.name or "", c.description or "")))
+            and DELIVERY_SERVICE_RE.search(" ".join((c.name or "", c.description or "")))):
+        if not (c.site and c.site.proves_glp1):
+            why = ["glp1_token_present", "no_medication_delivery_evidence",
+                   contract_tag("park_glp1_without_medication_delivery")]
+            return (Decision("SKIPPED_NOT_GLP_FIT", None, why),
+                    FitVerdict(False, "explicit_glp1", why,
+                               contract_decision=CONTRACT_PARK,
+                               contract_reason="park_glp1_without_medication_delivery"))
+
     # 0. General operator policy is an exact program identity gate. Coordinators
     # pass one frozen snapshot through a run; a standalone caller gets a fresh
     # inert-or-current local snapshot without any provider access.

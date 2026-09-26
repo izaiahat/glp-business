@@ -23,7 +23,7 @@ spec.loader.exec_module(fit)
 ])
 def test_product_and_research_probes_never_apply(name, description, categories):
     candidate = fit.Candidate(name=name, description=description, categories=categories, region="US")
-    verdict, classification = fit.evaluate_application(candidate, rulings={})
+    verdict, classification = fit.evaluate_application(candidate, rulings={name.lower(): (fit.RULING_FIT, "override")})
     assert verdict.decision != "APPLY_OK"
     assert not classification.fit
 

@@ -660,7 +660,7 @@
         "GLP-317 Awin paused source review"
       ],
       "kind": "script",
-      "sha256": "54be436d65019c7d39cc96007133177f24b8592e791435dfc4ba948b1f1421c9"
+      "sha256": "1e8798edc62c306842ab368f53a2fa4e40d3e33f5c984f2ca0a49dd8a26d8b18"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -1436,7 +1436,7 @@
     "tests/test_awin_application_fit_exclusions.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "f50f3baa5017549f8ea79ed6d2b6da2876083df240016e5b4d336b4ca969b570"
+      "sha256": "0c227902f75d25a43f149fd1f0df898e8aec0d2c02c1b070618c29b5f25ea375"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
