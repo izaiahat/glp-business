@@ -657,6 +657,26 @@ def patch_article_runtime_proof(source: str) -> str:
     return apply_once_or_already(source, old, new, "article_runtime_proof_call")
 
 
+def bind_article_publication_date(article: dict[str, Any], publication_date: str,
+                                  predecessor: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Bind a planned release day; never treat a draft check as first publication.
+
+    Publisher rechecks the PT day before deploy. For R2, retain the existing
+    catalog's first-publication day (legacy rows used updated_at in JSON-LD).
+    """
+    publication_date = strict_iso_date(publication_date, "publication_date")
+    if predecessor is None:
+        article["date_published"] = publication_date
+    else:
+        first_day = predecessor.get("date_published") or predecessor.get("updated_at")
+        article["date_published"] = strict_iso_date(first_day, "predecessor_date_published")
+    article["updated_at"] = publication_date
+    for field in ("date_modified", "dateModified"):
+        if field in article or (predecessor is not None and field in predecessor):
+            article[field] = publication_date
+    return article
+
+
 def article_build_environment(job: dict[str, Any], candidate: Path | None = None) -> dict[str, str]:
     """Isolate route authority and bind verified predecessor runtime evidence."""
     env = dict(os.environ)
@@ -3126,10 +3146,12 @@ def _build_candidate_materialized(
             raise RuntimeError("r2_visual_addition_forbidden")
         image_additions = []
     article["operator_release_receipt"] = opus_sha
-    # The article ships on job.publication_date, and the site derives the
-    # sitemap <lastmod> from updated_at — repair cycles that cross UTC midnight
-    # otherwise publish a stale lastmod and fail the sitemap delta gate.
-    article["updated_at"] = job["publication_date"]
+    # This is a planned PT publication day, checked again at the publisher's
+    # network boundary. A packet's draft date must not become first publication.
+    if operation == "new_article":
+        bind_article_publication_date(article, job["publication_date"])
+    else:
+        article["updated_at"] = job["publication_date"]
     r2_target_test_rebind: dict[str, Any] | None = None
     if operation == "r2_refresh":
         r2_target_test_rebind = rebind_r2_target_tests(temp, article)
@@ -3193,9 +3215,7 @@ def _build_candidate_materialized(
                    if row.get("canonical_path") == route]
         if len(matches) != 1:
             raise RuntimeError(f"r2_exact_route_match_count_invalid:{len(matches)}")
-        for modified_field in ("date_modified", "dateModified"):
-            if modified_field in matches[0] or modified_field in article:
-                article[modified_field] = job["publication_date"]
+        bind_article_publication_date(article, job["publication_date"], matches[0])
         article = preserve_r2_route_governance(matches[0], article)
         contract = validate_r2_execution_contract(
             job.get("r2_contract") or {},

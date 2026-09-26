@@ -15,6 +15,8 @@ jobs:
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
-          .venv/bin/python -m pip install 'pytest==8.3.5'
+          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2'
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
+      - name: Publication-date binding regression (no deployment)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
