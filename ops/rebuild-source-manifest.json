@@ -628,6 +628,13 @@
       "kind": "script",
       "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
     },
+    "scripts/affiliate_application_executor_gate.py": {
+      "callers": [
+        "GLP-317 Awin paused source review"
+      ],
+      "kind": "script",
+      "sha256": "7f313285cfe9d3ace5ffff74c5ea471346e07ee594a3becacf6da4f063ba681f"
+    },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
         "migration-survivor"
@@ -642,6 +649,13 @@
       ],
       "kind": "script",
       "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
+    },
+    "scripts/affiliate_niche_geo_filter.py": {
+      "callers": [
+        "GLP-317 Awin paused source review"
+      ],
+      "kind": "script",
+      "sha256": "95507fb3505cbae8e37775bcf04c628effabde640a617e9807b5ee794e6593dd"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -1017,6 +1031,20 @@
       ],
       "kind": "script",
       "sha256": "a5e7dcf66f14ff19487c4bfedfba0f0c6423152451085d9f07fdd40390919c35"
+    },
+    "scripts/marketplace_adapters/__init__.py": {
+      "callers": [
+        "GLP-317 Awin paused source review"
+      ],
+      "kind": "script",
+      "sha256": "3092b170dbb493d437f117bc337b768809e1546e46997f9484e57ea6ee30ddf4"
+    },
+    "scripts/marketplace_adapters/portal_apply.py": {
+      "callers": [
+        "GLP-317 Awin paused source review"
+      ],
+      "kind": "script",
+      "sha256": "8f7fb2a40bdca095f4a8d6081aa6b23d2658e4c32557e4a091d5723333dbe1fa"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
