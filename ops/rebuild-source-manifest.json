@@ -766,6 +766,11 @@
       "kind": "script",
       "sha256": "47da490e7d110e3640d4458762db6a67797b98cd683d4fbf8cb50ad19ad8ded9"
     },
+    "scripts/candidate_freshness_horizon.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "d04e1094c51ac1783a4c49c643d9f91155462a72329bd5947b8f61ad4a3e9861"
+    },
     "scripts/capacity_pacing.py": {
       "callers": [
         "crontab:32"
@@ -1536,6 +1541,11 @@
       "kind": "test",
       "sha256": "8d9aed6a290611677f1ec1e5d1022680614b8ba226c71023053925bc60cf7045"
     },
+    "tests/test_candidate_freshness_horizon.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "cb7c7eb57410969b7f38893f7b89aac9b347df5f4431eb172df486db482a98b2"
+    },
     "tests/test_capacity_pacing.py": {
       "callers": [
         "capacity_pacing"
@@ -2024,5 +2034,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 306
+  "tracked_count": 308
 }
