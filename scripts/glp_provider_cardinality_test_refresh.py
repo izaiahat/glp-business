@@ -131,7 +131,14 @@ def refresh(release: Path, activated_program_id: str) -> dict[str, object]:
         "price-index.test.mjs": (
             "  assert.equal(result.live_provider_count, 28);",
             "  assert.equal(result.live_provider_count, input.programRegistry.provider_dynamic_profiles.expected_counts.provider_identities);",
-            "input.programRegistry.provider_dynamic_profiles.expected_counts.provider_identities",
+            (
+                "input.programRegistry.provider_dynamic_profiles.expected_counts.provider_identities",
+                # The retained price-index fixture now checks its own frozen
+                # manifest, not the growing provider registry. Preserve that
+                # denominator; require its exact source binding AND assertion.
+                "  const frozenManifest=JSON.parse(await readFile(new URL('../artifacts/ops/price-index-manifest.json',import.meta.url)));\n"
+                "  assert.equal(result.live_provider_count,frozenManifest.live_provider_count);",
+            ),
         ),
         "provider-dynamic-profiles.test.mjs": (
             '''  assert.equal(registry.therapeutic_taxonomy.expected_counts.provider_rows, 29);
