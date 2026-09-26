@@ -25,7 +25,7 @@ from ._base import (  # noqa: F401 - re-exported as the adapter toolkit
 NETWORKS = (
     "awin", "cj", "partnerize", "rakuten", "impact", "healthtrader",
     "clickbank", "digistore24", "partnerstack", "katalys", "refersion",
-    "everflow", "sovrn", "levanta", "affiliati",
+    "everflow", "sovrn", "levanta", "affiliati", "clickdealer",
     # PROSPECTS — marketplaces the supply-discovery lane found carrying GLP
     # supply we cannot reach, each with a public publisher signup form the
     # portal lane can self-register on. They implement the same four-verb

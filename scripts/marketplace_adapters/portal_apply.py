@@ -285,11 +285,14 @@ LANE_MAP = {
     "supplements-nutrition": "supplements-nutrition",
     "supplements": "supplements-nutrition",
     "general-wellness": "general-wellness",
-    # Exact 2026-08-13 niche-classifier breadth tiers. These aliases retain the
-    # signed manifest's parent lanes; unknown/new tiers remain unmapped.
-    "telehealth_clinical": "other",
-    "compounding_pharmacy": "glp1-weightloss",
-    "glp_adjacent_labs": "glp1-weightloss",
+    # The exact 2026-08-13 niche-classifier breadth-tier aliases
+    # (telehealth_clinical, compounding_pharmacy, glp_adjacent_labs) were
+    # REMOVED on 2026-09-17: those tiers are no longer application fits
+    # (receipt ops/linear/approvals/OPERATOR-DECISION-20260917-apply-scope-
+    # glp1-telehealth-only-clickdealer.json), so nothing may relabel them into
+    # an authorized parent lane.  Unmapped means unauthorized, which is why
+    # `apply-scope-not-authorized` (affiliate_niche_geo_filter.
+    # UNAUTHORIZED_APPLY_LANE) is deliberately absent here too.
     "telehealth-general": "other",
     "beauty-skincare": "other",
     "other": "other",

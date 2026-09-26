@@ -24,11 +24,16 @@ EXPECTED_PREFLIGHT_SCHEMA = "glp_affiliate_execution_preflight_v1"
 # signed authority manifest names broader execution lanes.  Admit only these
 # exact, reviewed aliases and only when their canonical parent lane remains in
 # the active manifest.  Unknown/new tiers therefore stay fail-closed.
-FIT_TIER_AUTHORITY_LANES = {
-    "telehealth_clinical": "other",
-    "compounding_pharmacy": "glp1-weightloss",
-    "glp_adjacent_labs": "glp1-weightloss",
-}
+#
+# EMPTY since the 2026-09-17 apply-scope ruling (receipt ops/linear/approvals/
+# OPERATOR-DECISION-20260917-apply-scope-glp1-telehealth-only-clickdealer.json):
+# the three aliases that lived here — telehealth_clinical -> other,
+# compounding_pharmacy -> glp1-weightloss, glp_adjacent_labs -> glp1-weightloss
+# — existed only to carry the 2026-08-13 breadth tiers into an authorized lane,
+# and those tiers are no longer application fits.  The mechanism stays so a
+# future reviewed alias has a declared home; with no aliases, a fit_lane must
+# appear verbatim in the ACTIVE manifest lanes or the row fails closed.
+FIT_TIER_AUTHORITY_LANES: dict[str, str] = {}
 CONSUMED_STATUSES = {
     "SUBMITTED_VERIFIED", "APPROVED_VERIFIED", "JOINED_VERIFIED",
     "ALREADY_RELATIONSHIP", "AUTO_APPROVED_VERIFIED", "PENDING_VERIFIED",

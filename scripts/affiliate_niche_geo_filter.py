@@ -272,10 +272,21 @@ WEIGHT_LOSS_RE = re.compile(
 # clinically delivered — that is the difference between a GLP-1 clinic and a
 # fat-burner supplement that says "supports weight loss" on the label.
 CLINICAL_CONTEXT_RE = re.compile(
-    r"\b(telehealth|telemedicine|prescription|prescriptions|prescribed|prescribing|"
+    # `prescribe`/`prescribes` were missing from this alternation; harmless while
+    # the tier only needed a weight-loss claim, load-bearing from 2026-09-17 when
+    # clinical delivery became the medication test ("GobyMeds PRESCRIBES
+    # semaglutide"). A supplement label never prescribes, so this cannot widen
+    # scope to the product classes the ruling excluded.
+    r"\b(telehealth|telemedicine|prescription|prescriptions|prescribe|prescribes|"
+    r"prescribed|prescribing|"
     r"online doctor|online clinic|online pharmacy|compounded|compounding|clinician|"
     r"clinicians|physician|physicians|licensed provider|licensed providers|"
     r"board[- ]certified|medically supervised|medical provider|injection|injections|"
+    # "medical weight loss" is the clinic category's own name for the service
+    # ("Center for Medical Weight Loss ... with semaglutide", live 2026-08-06).
+    # Added 2026-09-17 with the medication test, for the same reason as
+    # prescribe/prescribes: without it a real clinic reads as a product.
+    r"medical weight[- ]loss|"
     r"injectable|injectables|patient|patients|clinic|clinics|rx)\b", re.I)
 
 # Other verticals, for APPLICATION purposes only. A hit here never changes how a
@@ -312,6 +323,59 @@ OFF_VERTICAL_FOR_APPLICATION: tuple[tuple[str, str], ...] = (
 CLINIC_SIBLING_VERTICALS = frozenset({
     "mens-health-trt", "hair-loss", "peptides-longevity", "cpap-sleep",
 })
+
+# =============================================================================
+# APPLY-SCOPE RULING (operator 2026-09-17) — GLP-1 TELEHEALTH MEDICATION ONLY
+# =============================================================================
+# Receipt: ops/linear/approvals/
+# OPERATOR-DECISION-20260917-apply-scope-glp1-telehealth-only-clickdealer.json
+#
+#   "Affiliate auto-apply scope: apply ONLY to explicit GLP-1 / weight-loss
+#    telehealth MEDICATION programs (the explicit_glp1 tier); diabetes/
+#    blood-sugar supplements, general weight-loss supplements, gummies, detox,
+#    peptides, ED/other telehealth are NOT fits."
+#
+# This SUPERSEDES the 2026-08-13 breadth tiers as APPLY fits. They remain
+# classifier vocabulary — a candidate still classifies as `diabetes_metabolic`
+# or `telehealth_clinical`, and that tier is still recorded as evidence — but
+# the CONTRACT_REASONS map above now buckets those reasons PARK_NOT_FIT, and
+# LANE_BY_TIER below binds them to a lane the signed authority manifest does
+# not activate, so scripts/affiliate_application_executor_gate.py fails closed
+# on any row that somehow reaches it.
+#
+# Two mechanical consequences inside the explicit_glp1 tier itself, because the
+# ruling says telehealth MEDICATION and names the non-fit product classes:
+#   * a GLP-1 token with no clinical-delivery evidence is a consumable product
+#     ("Soda Lean bundle 1 - 2 bottles", vertical "Nutra - Weight Loss GLP1"),
+#     parked as park_glp1_without_medication_delivery;
+#   * a PRODUCT vertical in the program's own NAME stays terminal even when the
+#     name also says GLP-1 ("Trimora - GLP-1 Skincare"), the same rule the site
+#     -evidence rescue has always applied. A sibling CLINICAL vertical in the
+#     body copy still does not veto a clinic (CLINIC_SIBLING_VERTICALS).
+APPLY_SCOPE_RULING_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "ops", "linear", "approvals",
+    "OPERATOR-DECISION-20260917-apply-scope-glp1-telehealth-only-clickdealer.json")
+
+# Permanently excluded providers are never an application fit, in any tier, by
+# any route — not even a bridge FIT ruling or a GLP-1 Sheet vertical. Fella
+# Health's own terms prohibit review sites, so the whole business excludes it
+# (see scripts/affiliate_payout_policy.py PERMANENT_EXCLUSIONS and
+# scripts/affiliate_sheet_batch_writer.py). Its two ClickDealer offers read
+# "[WEB+MOB] Fella Health - GLP-1 Medication CTC ...", i.e. they land squarely
+# in the explicit_glp1 tier and would otherwise apply.
+PERMANENTLY_EXCLUDED_PROVIDER_RE = re.compile(r"fella\s*health", re.I)
+EXCLUDED_PROVIDER_DECISION = "SKIPPED_EXCLUDED_PROVIDER"
+# Terminals no downstream rescue may overturn (the direct-Sheet
+# `sheet_vertical_glp1` rescue in scripts/affiliate_auto_apply.py reads this).
+NO_RESCUE_TERMINALS = frozenset({"SKIPPED_OPERATOR_RULING", EXCLUDED_PROVIDER_DECISION})
+
+
+def permanently_excluded_provider(name: str) -> str:
+    """The matched exclusion token for `name`, or "" — never a fit, any route."""
+    hit = PERMANENTLY_EXCLUDED_PROVIDER_RE.search(str(name or ""))
+    return hit.group(0).lower().replace(" ", "_") if hit else ""
+
 
 # =============================================================================
 # APPLY-BREADTH CONTRACT (operator 2026-08-13) — widened GLP-RELEVANT fit
@@ -403,22 +467,27 @@ CONTRACT_PARK = "PARK_NOT_FIT"
 CONTRACT_REJECT = "REJECT_LEGALITY"
 
 CONTRACT_REASONS: dict[str, str] = {
-    # APPLY — GLP-relevant, US-serving, lawful
+    # APPLY — explicit GLP-1 / weight-loss telehealth MEDICATION, US-serving,
+    # lawful. This is the whole apply scope after the 2026-09-17 ruling.
     "fit_glp_explicit": CONTRACT_APPLY,
-    "fit_weight_loss_identity": CONTRACT_APPLY,
-    "fit_clinical_weight_loss": CONTRACT_APPLY,
     "fit_site_glp1_evidence": CONTRACT_APPLY,
-    "fit_telehealth_clinical": CONTRACT_APPLY,
-    "fit_compounding_pharmacy": CONTRACT_APPLY,
-    "fit_glp_adjacent_labs": CONTRACT_APPLY,
-    "fit_diabetes_metabolic": CONTRACT_APPLY,
     "fit_bridge_ruling": CONTRACT_APPLY,
+    # PARK_NOT_FIT — the 2026-08-13 breadth tiers keep their classification as
+    # evidence vocabulary, but they are NOT application fits (2026-09-17).
+    "fit_weight_loss_identity": CONTRACT_PARK,
+    "fit_clinical_weight_loss": CONTRACT_PARK,
+    "fit_telehealth_clinical": CONTRACT_PARK,
+    "fit_compounding_pharmacy": CONTRACT_PARK,
+    "fit_glp_adjacent_labs": CONTRACT_PARK,
+    "fit_diabetes_metabolic": CONTRACT_PARK,
     # PARK_NOT_FIT — auditable in the parking/NOT_FIT ledger, never silent
     "park_blocklisted_category": CONTRACT_PARK,
     "park_off_vertical_brand": CONTRACT_PARK,
     "park_product_vertical_body_copy": CONTRACT_PARK,
     "park_specialty_non_glp": CONTRACT_PARK,
     "park_weight_claim_without_clinical_context": CONTRACT_PARK,
+    "park_glp1_without_medication_delivery": CONTRACT_PARK,
+    "park_permanently_excluded_provider": CONTRACT_PARK,
     "park_not_glp_relevant": CONTRACT_PARK,
     "park_non_us": CONTRACT_PARK,
     "park_us_unverified": CONTRACT_PARK,
@@ -453,17 +522,37 @@ def apply_breadth_provenance() -> dict:
                 "error": f"{type(exc).__name__}: {exc}"}
 
 
-# Lane continuity for the coordinator's ranking when the niche lanes cannot
-# name one (site-evidence rescues, platform tiers).
+# The lane an APPLICATION rides. Only the three ruled fit tiers bind to a lane
+# the signed authority manifest activates; every de-scoped tier binds to
+# UNAUTHORIZED_APPLY_LANE, which is in no authority manifest and in no
+# portal_apply.LANE_MAP entry, so affiliate_application_executor_gate fails
+# closed (`fit_lane_not_authorized`) on anything that reaches it (2026-09-17).
+UNAUTHORIZED_APPLY_LANE = "apply-scope-not-authorized"
 LANE_BY_TIER: dict[str, str] = {
-    "explicit_glp1": "glp1-weightloss", "weight_loss_in_name": "glp1-weightloss",
-    "clinical_weight_loss": "glp1-weightloss", "site_glp1": "glp1-weightloss",
-    "telehealth_clinical": "telehealth-general",
-    "compounding_pharmacy": "glp1-weightloss",
-    "glp_adjacent_labs": "glp1-weightloss",
-    "diabetes_metabolic": "glp1-weightloss",
+    "explicit_glp1": "glp1-weightloss",
+    "site_glp1": "glp1-weightloss",
+    "sheet_vertical_glp1": "glp1-weightloss",
     "bridge_ruling": "glp1-weightloss",
+    "weight_loss_in_name": UNAUTHORIZED_APPLY_LANE,
+    "clinical_weight_loss": UNAUTHORIZED_APPLY_LANE,
+    "telehealth_clinical": UNAUTHORIZED_APPLY_LANE,
+    "compounding_pharmacy": UNAUTHORIZED_APPLY_LANE,
+    "glp_adjacent_labs": UNAUTHORIZED_APPLY_LANE,
+    "diabetes_metabolic": UNAUTHORIZED_APPLY_LANE,
 }
+
+# The whole application scope, derived from the CLOSED contract above so the map
+# and the scope can never disagree: exactly the reasons bucketed APPLY, and
+# exactly the tiers they come from. `sheet_vertical_glp1` is the direct-Sheet
+# route's own operator-ruled fit (scripts/affiliate_auto_apply.py), kept here so
+# the lane binding and the scope lists stay in one place.
+APPLY_SCOPE_FIT_REASONS = frozenset(
+    reason for reason, bucket in CONTRACT_REASONS.items() if bucket == CONTRACT_APPLY)
+APPLY_SCOPE_FIT_TIERS = frozenset(
+    {"explicit_glp1", "site_glp1", "sheet_vertical_glp1", "bridge_ruling"})
+assert all(LANE_BY_TIER[tier] != UNAUTHORIZED_APPLY_LANE for tier in APPLY_SCOPE_FIT_TIERS)
+assert all(lane == UNAUTHORIZED_APPLY_LANE
+           for tier, lane in LANE_BY_TIER.items() if tier not in APPLY_SCOPE_FIT_TIERS)
 
 
 @dataclass
@@ -523,16 +612,35 @@ def glp_application_fit(c: Candidate) -> FitVerdict:
     labs_adjacent = ("diagnostics-testing" in off_text
                      and bool(GLP_ADJACENT_LAB_CONTEXT_RE.search(text)))
 
-    def parked(reason_key: str, reasons: list[str]) -> FitVerdict:
-        return FitVerdict(False, "none", [*reasons, contract_tag(reason_key)],
+    def parked(reason_key: str, reasons: list[str], tier: str = "none") -> FitVerdict:
+        return FitVerdict(False, tier, [*reasons, contract_tag(reason_key)],
                           off_name, off_text,
                           contract_decision=CONTRACT_PARK, contract_reason=reason_key)
 
     def fit(tier: str, reason_key: str, reasons: list[str]) -> FitVerdict:
+        """A classified tier, admitted as an application fit only if the closed
+        contract still buckets its reason APPLY (operator 2026-09-17).
+
+        A de-scoped breadth tier KEEPS its classification — the tier travels in
+        the verdict and in the receipt vocabulary — but it is not a fit, so no
+        route can file an application for it.
+        """
+        if CONTRACT_REASONS[reason_key] != CONTRACT_APPLY:
+            return parked(reason_key,
+                          [f"glp_tier:{tier}", *reasons,
+                           "apply_scope_20260917:not_glp1_telehealth_medication"],
+                          tier=tier)
         return FitVerdict(True, tier,
                           [f"glp_fit:{tier}", *reasons, contract_tag(reason_key)],
                           off_name, off_text,
                           contract_decision=CONTRACT_APPLY, contract_reason=reason_key)
+
+    # Gate 0 — a permanently excluded provider is never a fit, in any tier.
+    excluded = permanently_excluded_provider(c.name)
+    if excluded:
+        return parked("park_permanently_excluded_provider",
+                      [f"permanently_excluded_provider:{excluded}",
+                       "permanent_business_wide_exclusion_review_site_prohibition"])
 
     # Gate 1 — the brand's own name says which vertical it is.
     #
@@ -540,30 +648,59 @@ def glp_application_fit(c: Candidate) -> FitVerdict:
     # GLP-1 care. That is the operator's rule — a telehealth provider doing GLPs
     # is a fit however its program is titled ("Brightmeds - NAD+ Injections" is
     # a service line of a clinic that prescribes semaglutide). It applies only
-    # to SIBLING CLINICAL verticals: a supplement store, pet brand, lab-test
-    # company or SaaS whose blog mentions Ozempic is still not a GLP-1 clinic,
-    # so a PRODUCT vertical in the name stays terminal no matter what the site
-    # says. (2026-08-13: a compounding-pharmacy identity or an operator-named
-    # GLP-adjacent lab in the name also overturns it.)
-    if off_name and not (glp_in_name or wl_in_name or comp_in_name or named_adjacent):
+    # to SIBLING CLINICAL verticals, so a PRODUCT vertical in the name stays
+    # terminal no matter what the site says. (Until 2026-09-17 a GLP-1 /
+    # weight-loss / compounding / operator-named-lab token in the name also
+    # overturned it; the apply-scope ruling below removed that bypass.)
+    #
+    # 2026-09-17: an off-vertical in the name is terminal even when the name ALSO
+    # says GLP-1 or weight-loss. "Trimora - GLP-1 Skincare" is a skincare
+    # product, "Research Labs - GLP-3 RT - Peptides Weight Loss" is a peptide
+    # product, and the ruling names supplements, gummies, detox, peptides and
+    # ED/other telehealth as NOT fits — so a GLP token can no longer pull a
+    # program that titled itself another vertical back into the apply scope. The
+    # site-evidence rescue is unchanged, and still only for sibling CLINICAL
+    # verticals: a supplement store, pet brand, lab-test company or SaaS whose
+    # blog mentions Ozempic is still not a GLP-1 clinic.
+    if off_name:
         rescuable = site_proves and all(v in CLINIC_SIBLING_VERTICALS for v in off_name)
         if not rescuable:
             return parked("park_off_vertical_brand",
                           [f"off_vertical_brand:{','.join(off_name)}",
-                           "name_does_not_declare_glp1_or_weight_loss"]
+                           "off_vertical_in_name_is_terminal",
+                           "apply_scope_20260917:not_glp1_telehealth_medication"]
                           + ([f"site_evidence_insufficient_for:{','.join(off_name)}"]
                              if site and site.fetched else []))
 
     # Gate 2 — evidence ladder, strongest first. Historical tiers unchanged;
     # the 2026-08-13 breadth tiers extend the ladder below them.
     if glp_in_text:
-        return fit("explicit_glp1", "fit_glp_explicit", ["glp1_token_present"])
-    if wl_in_name:
-        return fit("weight_loss_in_name", "fit_weight_loss_identity",
-                   ["weight_loss_identity_in_name"])
-    if named_adjacent:
-        return fit("glp_adjacent_labs", "fit_glp_adjacent_labs",
-                   ["operator_named_glp_adjacent_program"])
+        # 2026-09-17: the scope is GLP-1 telehealth MEDICATION. A GLP-1 token on
+        # a record with no clinical-delivery evidence is a consumable product
+        # riding the vertical's name ("Soda Lean bundle 1 - 2 bottles", whose own
+        # ClickDealer vertical reads "Nutra - Weight Loss GLP1"), which the
+        # ruling parks. Clinical delivery is the existing CLINICAL_CONTEXT_RE
+        # vocabulary: telehealth, prescription, clinician, compounded, injection…
+        if clinical:
+            return fit("explicit_glp1", "fit_glp_explicit",
+                       ["glp1_token_present", "clinical_delivery_context"])
+        # …unless the provider's OWN site carries the proof the record lacks.
+        # SiteEvidence.proves_glp1 already requires a GLP-1 token AND
+        # weight-loss framing AND a clinical marker, which is exactly medication
+        # -delivery evidence, and site_glp1 stays an operator-ruled fit. So a
+        # name-only clinic ("Embody GLP1" on Katalys, "Trim Rx") keeps a
+        # registered route in — through the site-evidence harvest, never through
+        # an assumption. Handled by the site tier below; park only if it is not
+        # reached.
+        if not site_proves:
+            return parked("park_glp1_without_medication_delivery",
+                          ["glp1_token_present", "no_clinical_delivery_evidence",
+                           "apply_scope_20260917:not_glp1_telehealth_medication"],
+                          tier="explicit_glp1")
+    # The site tier is now consulted BEFORE the de-scoped name/label tiers
+    # (2026-09-17): a site-proven GLP-1 clinic is a ruled fit, and letting
+    # `weight_loss_in_name` claim it first would park a real clinic ("Trim Rx"
+    # with a harvested site is the audit's own false-negative case).
     if site_proves:
         # The record's own text says nothing, but the provider's site does.
         # Site evidence is still only evidence about a CLINIC. If the record's
@@ -578,6 +715,14 @@ def glp_application_fit(c: Candidate) -> FitVerdict:
         if off_name:
             reasons.append(f"site_evidence_overrides_brand_identity:{','.join(off_name)}")
         return fit("site_glp1", "fit_site_glp1_evidence", reasons)
+    # De-scoped by the 2026-09-17 ruling but still CLASSIFIED: `fit()` parks a
+    # tier whose contract reason no longer buckets APPLY.
+    if wl_in_name:
+        return fit("weight_loss_in_name", "fit_weight_loss_identity",
+                   ["weight_loss_identity_in_name"])
+    if named_adjacent:
+        return fit("glp_adjacent_labs", "fit_glp_adjacent_labs",
+                   ["operator_named_glp_adjacent_program"])
     if wl_in_text and clinical:
         # Body-copy-only evidence is the weakest historical tier, so it does
         # not survive a body that is also selling a PRODUCT vertical
@@ -796,6 +941,24 @@ def evaluate_application(c: Candidate,
                                contract_decision=CONTRACT_REASONS[hold_reason],
                                contract_reason=hold_reason))
 
+    # 0a-. A permanently excluded provider is terminal, ahead of every automated
+    # gate AND ahead of a human bridge FIT ruling: Fella Health's own terms
+    # prohibit review sites and the whole business excludes it, forever. The
+    # canonical operator-rulings snapshot above already holds it by name and its
+    # terminal is preserved; this is the fail-safe for the paths that have no
+    # snapshot (an unreadable policy file degrades to inert, and callers may pass
+    # `rulings=` directly), because "permanently excluded" cannot depend on a
+    # file being readable.
+    excluded = permanently_excluded_provider(c.name)
+    if excluded:
+        why = [f"permanently_excluded_provider:{excluded}",
+               "permanent_business_wide_exclusion_review_site_prohibition",
+               contract_tag("park_permanently_excluded_provider")]
+        return (Decision(EXCLUDED_PROVIDER_DECISION, None, why),
+                FitVerdict(False, "permanently_excluded", why,
+                           contract_decision=CONTRACT_PARK,
+                           contract_reason="park_permanently_excluded_provider"))
+
     # 0a. Bridge ruling — a human verdict outranks every automated gate below
     # it. A frozen general-policy snapshot carries a compatible legacy mapping
     # so every candidate in one job sees the same ruling bytes.
@@ -877,11 +1040,25 @@ def evaluate_application(c: Candidate,
     verdict = glp_application_fit(c)
 
     if verdict.fit:
-        lane, niche_reasons = classify_niche(c)
+        niche_lane, niche_reasons = classify_niche(c)
         us_ok, geo_reasons = classify_geo(c)
         base_reasons = list(niche_reasons)
-        if lane is None:
-            lane = LANE_BY_TIER.get(verdict.tier, "glp1-weightloss")
+        # 2026-09-17: an APPLICATION rides its RULED lane, not whichever niche
+        # lane the vocabulary matched first. "Enhanced Tirzepatide" scoring one
+        # `peptides` term hit must not carry a peptides-longevity authority lane
+        # into the executor gate. The niche lane stays in the reasons as
+        # evidence; an unruled tier gets a lane no manifest activates.
+        lane = LANE_BY_TIER.get(verdict.tier, UNAUTHORIZED_APPLY_LANE)
+        if niche_lane and niche_lane != lane:
+            # Consumers that re-derive the lane from the `lane:` reason token
+            # rather than from Decision.lane (scripts/glp_application_machine.py
+            # :988-1000) must see the RULED lane too, or an explicit_glp1 fit
+            # whose vocabulary happened to match `peptides` would still ride a
+            # peptides-longevity authority lane.
+            base_reasons = [r for r in base_reasons if not r.startswith("lane:")]
+            base_reasons.insert(0, f"lane:{lane}")
+            base_reasons.append(f"niche_lane_evidence:{niche_lane}")
+        if niche_lane is None:
             if verdict.tier == "site_glp1" and site:
                 # The record's own text gave the lanes nothing; the provider's
                 # site is what overrode them (legacy rescue vocabulary).
