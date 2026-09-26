@@ -289,6 +289,14 @@ def _read_capacity_lease(path):
             fields.add('released_at')
             if not _lease_number(lease.get('released_at')) or lease['released_at'] != lease['renewed_at']:
                 raise ValueError
+        if 'controller' in lease:
+            fields.add('controller')
+            anchor = lease['controller']
+            if (not isinstance(anchor, dict) or set(anchor) != {'revision', 'status', 'sha256'}
+                    or type(anchor['revision']) is not int or anchor['revision'] < 1
+                    or anchor['status'] not in {'ready', 'in_progress', 'closed'}
+                    or not _lease_token(anchor['sha256'])):
+                raise ValueError
         if set(lease) != fields:
             raise ValueError
         for event in lease['takeovers']:
@@ -359,20 +367,147 @@ def capacity_lease_stage(*, owner_token=None, final=False, ttl_seconds=300):
         _capacity_lease_update(token, ttl_seconds, release=final)
 
 
-def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
-    """Single-process candidate entry, not an integrated agent/vault runner.
+def controller_state_path():
+    return capacity_lease_path().with_name('.maxbounty-capacity-controller.json')
 
-    The ExitStack holds the original kernel locks plus a durable capacity lease.
-    capacity_lease_stage() supports token-carrying interpreter boundaries, but
-    this factory still owns one in-memory guarded-request controller. The lease
-    alone does not make that controller resumable. Browser/heavy admission
-    remains the coordinator's separate prerequisite.
+
+def _controller_lease(owner_token):
+    """Read-only custody check, including before every browser boundary.
+
+    Caller holds both stable-inode locks for the entire stage. The private
+    lease is the trust anchor, not a hash stored alongside untrusted state.
     """
+    import secrets
+    import time
+    lease = _read_capacity_lease(capacity_lease_path())
+    if lease is None:
+        raise Refusal('CAPACITY_LEASE_MISSING')
+    if not secrets.compare_digest(lease['owner_token'], owner_token):
+        raise Refusal('CAPACITY_LEASE_WRONG_OWNER')
+    if lease['status'] != 'active':
+        raise Refusal('CAPACITY_LEASE_RELEASED')
+    now = time.time()
+    if now < lease['renewed_at']:
+        raise Refusal('CAPACITY_LEASE_CLOCK_REGRESSED')
+    if now >= lease['expires_at']:
+        raise Refusal('CAPACITY_LEASE_EXPIRED')
+    return lease
+
+
+def _controller_digest(value):
+    import hashlib
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def _read_controller(anchor, binding):
+    import hashlib
+    import os
+    import stat
+    try:
+        fd = os.open(controller_state_path(), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as src:
+            info = os.fstat(src.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or info.st_mode & 0o077 or info.st_nlink != 1 or info.st_size > 65536):
+                raise ValueError
+            raw = src.read(65537)
+        if hashlib.sha256(raw).hexdigest() != anchor['sha256']:
+            raise ValueError
+        state = json.loads(raw)
+        if (not isinstance(state, dict) or set(state) != {'binding', 'revision', 'controller'}
+                or state['binding'] != binding or state['revision'] != anchor['revision']):
+            raise ValueError
+        return state['controller']
+    except (OSError, ValueError, TypeError, KeyError):
+        raise Refusal('CONTROLLER_STATE_INVALID') from None
+
+
+def _fresh_source_identity(pins):
+    import hashlib
     verify_pins(pins)
-    pinned=json.loads(Path(pins).read_text())['files']
-    sources=[Path(__file__).resolve(), Path(__file__).with_name('glp_maxbounty_fresh_probe.py').resolve()]
+    pinned = json.loads(Path(pins).read_text())['files']
+    sources = [Path(__file__).resolve(), Path(__file__).with_name('glp_maxbounty_fresh_probe.py').resolve()]
     if any(str(source) not in pinned for source in sources):
         raise Refusal('FRESH_PRODUCER_SOURCE_PIN_MISSING')
+    return _controller_digest({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sources})
+
+
+@contextmanager
+def fresh_browser_stage(*, pins, cdp, drain_events, switch_tab, owner_token=None,
+                        final=False, ttl_seconds=300, target=None):
+    """Lease-bound prepare / vault-tool interval / poll / final-probe stage.
+
+    Yield (token, controller). Carry the token privately, not the Python object.
+    Only a successful pre-probe stage is resumable. Before any browser I/O an
+    in_progress anchor burns the old checkpoint: crashes and uncertain effects
+    cannot replay it. No credentials or raw payloads are checkpointed. The final
+    stage closes the owned context before releasing. Standalone cron is held.
+    """
+    import hashlib
+    from scripts.glp_maxbounty_fresh_probe import FreshCapacityProbe, TARGET
+    if target is not None and target != TARGET:
+        raise Refusal('PROGRAM_PROJECTION_IDENTITY_MISMATCH')
+    source_sha256 = _fresh_source_identity(pins)
+    with capacity_lease_stage(owner_token=owner_token, final=final, ttl_seconds=ttl_seconds) as token:
+        lease = _controller_lease(token)
+        binding = {'schema': 'glp.maxbounty.controller.v1',
+                   'owner_sha256': hashlib.sha256(token.encode()).hexdigest(),
+                   'request_sha256': _controller_digest(TARGET), 'source_sha256': source_sha256}
+        anchor = lease.get('controller')
+        state = None
+        if owner_token is not None:
+            if anchor is None or anchor['status'] != 'ready':
+                raise Refusal('CONTROLLER_STAGE_NOT_RESUMABLE')
+            state = _read_controller(anchor, binding)
+        revision = anchor['revision'] + 1 if anchor else 1
+        lease['controller'] = {'revision': revision, 'status': 'in_progress', 'sha256': '0' * 64}
+        atomic_json(capacity_lease_path(), lease)
+
+        active = True
+
+        def check_custody():
+            if not active:
+                raise Refusal('CONTROLLER_STAGE_FENCED')
+            current = _controller_lease(token)
+            if current.get('controller') != lease['controller']:
+                raise Refusal('CONTROLLER_STAGE_FENCED')
+
+        producer = FreshCapacityProbe(cdp=cdp, drain_events=drain_events, switch_tab=switch_tab)
+        producer.check_custody = check_custody
+        try:
+            if state is None:
+                producer.begin()
+            else:
+                producer.restore(state)
+            yield token, producer
+            check_custody()
+            if producer.fault:
+                raise Refusal(producer.fault)  # run_once may have caught the failure
+            if final:
+                producer.close()
+                checkpoint = {'closed': True}  # no retained campaign body/projection
+            else:
+                checkpoint = producer.checkpoint()
+            state = {'binding': binding, 'revision': revision, 'controller': checkpoint}
+            check_custody()
+            atomic_json(controller_state_path(), state)
+            # Anchor producer bytes, never a possibly tampered postwrite reread.
+            # Old checkpoints cannot rewind budgets under this lease anchor.
+            digest = hashlib.sha256((json.dumps(state, sort_keys=True) + '\n').encode()).hexdigest()
+            check_custody()
+            lease['controller'] = {'revision': revision, 'status': 'closed' if final else 'ready', 'sha256': digest}
+            atomic_json(capacity_lease_path(), lease)
+        finally:
+            active = False  # escaped Python references never outlive lock custody
+
+
+def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
+    """Single-process compatibility entry; staged callers use fresh_browser_stage.
+
+    Both entries require pins and the same durable lease. Browser/heavy
+    admission and actual vault tools remain the agent runner's prerequisites.
+    """
+    _fresh_source_identity(pins)
     from scripts.glp_maxbounty_fresh_probe import FreshCapacityProbe
     from contextlib import ExitStack
     leases=ExitStack()
@@ -386,8 +521,8 @@ def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
 
 
 def live_probe(target):
-    # Durable lease custody does not resume the guarded request controller.
-    # Retain the concrete refusal, not a prescribed bridge.
+    # The standalone shell cannot invoke vault tools or own a named AI browser.
+    # An authorized agent can use fresh_browser_stage; registration stays held.
     # Never launch the retired persistent-cookie transport as a fallback.
     if target!={'queue_id':TARGET_QUEUE_ID,'program_id':TARGET_ID,'detail_url':DETAIL_URL}:
         raise Refusal('PROGRAM_PROJECTION_IDENTITY_MISMATCH')

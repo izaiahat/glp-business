@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""In-memory, staged AI-browser producer for the capacity monitor's probe(target).
+"""Guarded AI-browser controller; resumable only through fresh_browser_stage.
 
-Browser helpers are the real browser_harness.helpers cdp/drain_events/switch_tab
-callables, not Playwright or a portal API client. This single-process candidate
-is not a resumable Awin-style prepare/vault/finish runner: see the runbook's
-concrete lease and controller compatibility evidence. A new bridge is not a
-prescribed dependency. There is deliberately no receipt-import, credential,
-persistent-profile, signing, or background-daemon interface.
+The lease-bound checkpoint contains identifiers, hashes and bounded control
+state, never credentials, request bodies, cookies or raw response payloads.
+No portal API client, persistent profile, credential adapter or daemon.
 """
 from __future__ import annotations
 
@@ -47,13 +44,10 @@ PRINCIPAL_JS = r"""(() => {
 class FreshCapacityProbe:
     """One owned incognito context; all network remains paused between poll calls.
 
-    Construct only inside monitor.session_leases(). begin() guards the blank
-    target before opening login. The caller uses the maintained vault tools,
-    then calls poll() while authentication settles and finally probe(target).
+    Use monitor.fresh_browser_stage() across interpreters. begin() guards the
+    blank target before login. Vault/MFA tools stay outside this controller;
+    poll() consumes paused requests, then probe(target) reads one campaign.
     No generic success receipt or configured account can establish identity.
-
-    This is a candidate controller, not a claim that browser_exec preserves
-    Python objects across calls. See the runbook's explicit adoption blockers.
     """
     def __init__(self, *, cdp, drain_events, switch_tab, clock=time.monotonic):
         self.cdp, self.drain_events, self.switch_tab = cdp, drain_events, switch_tab
@@ -67,12 +61,63 @@ class FreshCapacityProbe:
         self.response = None
         self.armed = self.used = False
         self.fault = None
+        self.check_custody = lambda: None
+        self.seen = set()
+
+    def checkpoint(self):
+        # A campaign probe is one final stage. Never persist response text or
+        # recover a partially completed/uncertain campaign dispatch.
+        if self.fault or self.used or self.armed or self.response is not None:
+            self._fail('CONTROLLER_NOT_CHECKPOINTABLE')
+        return {'context': self.context, 'tab': self.tab, 'session': self.session,
+                'main_frame': self.main_frame, 'authenticated': self.authenticated,
+                'auth_attempt': self.auth_attempt,
+                'auth_posts': self.guard.auth_posts, 'pageview_posts': self.guard.pageview_posts,
+                'blocked': self.guard.blocked, 'seen': sorted(self.seen)}
+
+    def restore(self, state):
+        if (not isinstance(state, dict) or set(state) != {
+                'context', 'tab', 'session', 'main_frame', 'authenticated',
+                'auth_attempt', 'auth_posts', 'pageview_posts', 'blocked', 'seen'}
+                or not isinstance(state['seen'], list) or len(state['seen']) > 512
+                or any(not monitor._lease_token(item) for item in state['seen'])
+                or len(set(state['seen'])) != len(state['seen'])
+                or any(not isinstance(state[k], str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,256}', state[k])
+                       for k in ('context', 'tab', 'session', 'main_frame'))
+                or type(state['authenticated']) is not bool
+                or any(type(state[k]) is not int or not 0 <= state[k] <= limit
+                       for k, limit in (('auth_posts', 1), ('pageview_posts', 3), ('blocked', 10000)))
+                or (state['auth_attempt'] is not None and not monitor._lease_token(state['auth_attempt']))
+                or (state['auth_posts'] == 1) != (state['auth_attempt'] is not None)
+                or (state['authenticated'] and state['auth_attempt'] is None)):
+            self._fail('CONTROLLER_STATE_INVALID')
+        self.seen = set(state['seen'])
+        for key in ('context', 'tab', 'session', 'main_frame', 'authenticated', 'auth_attempt'):
+            setattr(self, key, state[key])
+        for key in ('auth_posts', 'pageview_posts', 'blocked'):
+            setattr(self.guard, key, state[key])
+        self.check_custody()
+        if self.switch_tab(self.tab) != self.session:
+            self._fail('FRESH_BROWSER_SESSION_LOST')
+        info = self._call('Target.getTargetInfo', targetId=self.tab).get('targetInfo', {})
+        if (info.get('targetId') != self.tab or info.get('browserContextId') != self.context
+                or info.get('url') not in {'about:blank', LOGIN_URL, monitor.DETAIL_URL}):
+            self._fail('FRESH_CONTEXT_BINDING_FAILED')
+        frame = self._call('Page.getFrameTree').get('frameTree', {}).get('frame', {}).get('id')
+        if frame != self.main_frame:
+            self._fail('FRESH_FRAME_BINDING_FAILED')
+        # Do not reinstall Fetch, navigate, log in or recreate the context.
+
+    def _request_identity(self, rid, verb, url):
+        return hashlib.sha256(json.dumps([self.context, self.tab, self.session,
+            self.main_frame, rid, verb, url], separators=(',', ':')).encode()).hexdigest()
 
     def _fail(self, code):
         self.fault = code
         raise monitor.Refusal(code)
 
     def _call(self, method, **params):
+        self.check_custody()
         try:
             return self.cdp(method, session_id=self.session, **params)
         except Exception:
@@ -92,6 +137,7 @@ class FreshCapacityProbe:
         try:
             self.tab = self._call('Target.createTarget', url='about:blank',
                                  browserContextId=self.context)['targetId']
+            self.check_custody()
             self.session = self.switch_tab(self.tab)
             info = self._call('Target.getTargetInfo', targetId=self.tab)['targetInfo']
             if info.get('browserContextId') != self.context or info.get('url') != 'about:blank':
@@ -160,6 +206,7 @@ class FreshCapacityProbe:
         return (allowed_page or asset) and self.guard.allow(method, url)
 
     def poll(self):
+        self.check_custody()
         if self.fault:
             raise monitor.Refusal(self.fault)
         if not self.context:
@@ -194,6 +241,16 @@ class FreshCapacityProbe:
             if params.get('frameId') != self.main_frame:
                 self._call('Fetch.failRequest', requestId=rid, errorReason='BlockedByClient')
                 self._fail('CHILD_FRAME_BOUNDARY_REFUSED')
+            # Request and response pauses have distinct identities. Never hash
+            # postData, headers or query strings (even a secret hash is unsafe).
+            event_id = hashlib.sha256(json.dumps([self.session, rid,
+                'responseStatusCode' in params], separators=(',', ':')).encode()).hexdigest()
+            if event_id in self.seen:
+                self._call('Fetch.failRequest', requestId=rid, errorReason='BlockedByClient')
+                self._fail('REQUEST_REPLAY_REFUSED')
+            if len(self.seen) >= 512:
+                self._fail('REQUEST_EVIDENCE_BUDGET_EXHAUSTED')
+            self.seen.add(event_id)
             if 'responseStatusCode' in params:
                 self._response(params, rid, verb, url)
                 continue
@@ -211,13 +268,14 @@ class FreshCapacityProbe:
             if url == AUTH_RESPONSE:
                 if self.auth_attempt is not None:
                     self._fail('AUTHENTICATION_READ_COUNT_INVALID')
-                self.auth_attempt = rid
+                self.auth_attempt = self._request_identity(rid, verb, url)
             self._call('Fetch.continueRequest', requestId=rid)
 
     def _response(self, params, rid, verb, url):
         auth = url == AUTH_RESPONSE
         expected = self.auth_attempt if auth else self.campaign_attempt
-        if (url not in {AUTH_RESPONSE, CAMPAIGN_RESPONSE} or rid != expected
+        identity = self._request_identity(rid, verb, url) if auth else rid
+        if (url not in {AUTH_RESPONSE, CAMPAIGN_RESPONSE} or identity != expected
                 or verb != ('POST' if auth else 'GET')):
             self._fail('RESPONSE_BINDING_MISMATCH')
         status = params['responseStatusCode']
