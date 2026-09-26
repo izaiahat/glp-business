@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
+      "sha256": "055f3f5e40ae0a507106afa04928cd238402b7dbd2dc02b6112a7163442b0d00"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -85,6 +85,11 @@
       "callers": [],
       "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
+    },
+    "ops/GLP42-PACKAGE-ONLY.md": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "6c5c82fed174c52ce99b183e5868f4a0a7fe6aabb7cf9190d9b1b4ff3e6866ca"
     },
     "ops/autonomy-envelope.json": {
       "callers": [],
@@ -878,7 +883,14 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "f7ee6c5596b9e932f62e3ebadbbd2904550c445f39139ff8380481a4c5916562"
+      "sha256": "b805aa88e1075744c089051f9fcd2e79444ac04bea1059b7dcf0101ff6993fcb"
+    },
+    "scripts/glp34_package_only.inc.py": {
+      "callers": [
+        "scripts/generate_glp34_deploy_carrier.py"
+      ],
+      "kind": "script",
+      "sha256": "ddbcbc0e3e9b936de5a3f0cd59d168bb75b941295015a66a7a24083633f81ad1"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -956,7 +968,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "e84739026556dde07ebd75d6801e1378ea22ebf29be954bc5c3bfb6a36536bf8"
+      "sha256": "7d3ba785a7dbb8ab87676699d48745452eadf9d448da0fac4e2e4afd148debe2"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1202,7 +1214,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "cd1b75c8d5b512d76cf11a07c612aafefadecd1155948bf09082ea35fa6a32bb"
+      "sha256": "043831520174cf6c145178427f8376f917698f5b70344d162442858127927e28"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1720,6 +1732,13 @@
       "kind": "test",
       "sha256": "41678b63f7d50fec37e3c7a8adb6a326b8d01ac945dee9194ad5945370b7729e"
     },
+    "tests/test_glp42_package_only.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "81e8073b45782f5e1925efd8015e6defb854efde5818d396960249efcf4b0859"
+    },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
         "glp_ads_three_platform_monitor"
@@ -2105,5 +2124,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 319
+  "tracked_count": 322
 }

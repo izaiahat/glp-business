@@ -14,10 +14,12 @@ AUTH=ROOT/'reports/glp-clinic-scout/growth/glp34/production-authority-20260918-r
 CAND=ROOT/'site-system/flagship-v2/candidates/glp34-provider-families-20260912'
 REL=ROOT/'site-system/flagship-v2/releases/glp34-provider-families-20260918-r1'
 
-def source_module():
- st=SOURCE.lstat()
- if not stat.S_ISREG(st.st_mode) or st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o444 or st.st_nlink!=1: raise SystemExit('source_not_root_sealed')
- source_bytes=SOURCE.read_bytes()
+def source_module(*, snapshot=False):
+ path=Path(__file__).resolve().parent/SOURCE.name if snapshot else SOURCE
+ st=path.lstat()
+ if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1: raise SystemExit('source_not_regular')
+ if not snapshot and (st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o444): raise SystemExit('source_not_root_sealed')
+ source_bytes=path.read_bytes()
  if hashlib.sha256(source_bytes).hexdigest()!=SOURCE_SHA256: raise SystemExit('source_lineage_bytes_drift')
  spec=importlib.util.spec_from_file_location('glp34_generation_lineage',SOURCE)
  if spec is None or spec.loader is None: raise SystemExit('source_loader_missing')
@@ -32,10 +34,12 @@ def frozen(module,root:Path):
   if stat.S_ISREG(st.st_mode) and st.st_nlink!=1: raise SystemExit(f'not_single_regular:{p}')
  return module.file_closure(root)
 
-def authenticated_source_test():
- st=SOURCE_TEST.lstat()
- if not stat.S_ISREG(st.st_mode) or st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o444 or st.st_nlink!=1: raise SystemExit('source_test_not_root_sealed')
- raw=SOURCE_TEST.read_bytes()
+def authenticated_source_test(*, snapshot=False):
+ path=Path(__file__).resolve().parents[1]/'tests'/SOURCE_TEST.name if snapshot else SOURCE_TEST
+ st=path.lstat()
+ if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1: raise SystemExit('source_test_not_regular')
+ if not snapshot and (st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o444): raise SystemExit('source_test_not_root_sealed')
+ raw=path.read_bytes()
  if hashlib.sha256(raw).hexdigest()!=SOURCE_TEST_SHA256: raise SystemExit('source_test_lineage_bytes_drift')
  return raw.decode('utf-8')
 
@@ -91,12 +95,20 @@ def upgrade_staged_test(path:Path,text:str):
  finally: tmp.unlink(missing_ok=True)
  dfd=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY); os.fsync(dfd); os.close(dfd)
 def main():
+ global TARGET,TARGET_TEST
  parser=argparse.ArgumentParser(description='Generate or reconcile pinned GLP34 carrier and test')
  parser.add_argument('--prepare',action='store_true',help='offline source/test preparation only; no twin checks or carrier execution')
+ parser.add_argument('--emit-dir',type=Path,help='with --prepare only: emit to a NEW directory from hash-authenticated checkout snapshots; never install')
  args=parser.parse_args()
+ if args.emit_dir is not None:
+  if not args.prepare: parser.error('--emit-dir requires --prepare')
+  if not args.emit_dir.is_absolute() or args.emit_dir.exists() or args.emit_dir.is_symlink(): parser.error('--emit-dir must be a new absolute directory')
+  if any(p.is_symlink() for p in args.emit_dir.parents): parser.error('--emit-dir symlink ancestor')
+  TARGET=args.emit_dir/TARGET.name
+  TARGET_TEST=args.emit_dir/TARGET_TEST.name
  if not args.prepare and (not CAND.is_dir() or not REL.is_dir()): raise SystemExit('candidate_or_release_missing')
- module,source=source_module()
- test=authenticated_source_test()
+ module,source=source_module(snapshot=args.emit_dir is not None)
+ test=authenticated_source_test(snapshot=args.emit_dir is not None)
  computed=None
  if not args.prepare:
   ch=frozen(module,CAND); rh=frozen(module,REL)
@@ -247,7 +259,18 @@ def main():
         self.assertNotIn("provider_reads", result)
 
 ''')
+ # Keep legacy mode bodies byte-identical; embed maintained package-only code.
+ entry='if __name__ == "__main__":\n    raise SystemExit(main())'
+ legacy='def main(argv: list[str] | None = None) -> int:'
+ if source.count(entry)!=1 or source.count(legacy)!=1: raise SystemExit('package_dispatch_context_drift')
+ extension=Path(__file__).with_name('glp34_package_only.inc.py').read_text()
+ source=source.replace(legacy,legacy.replace('main(', 'legacy_main('),1)
+ source=source.replace(entry,extension+'\n\n'+entry,1)
+ source=source.replace('The only accepted modes are ``--verify-only`` and ``--live``.',
+                       'Legacy modes are ``--verify-only`` and ``--live``.  The separate\n``--package-only`` mode packages explicitly hash-bound public bytes without\nrelease authority, signatures, or provider writes.')
+ compile(source,str(TARGET),'exec')
  carrier_bytes,test_bytes=source.encode(),test.encode()
+ if args.emit_dir is not None: args.emit_dir.mkdir(mode=0o700)
  # Reconcile both targets before writing either: partial prior output is safe only
  # if its bytes and custody match this exact authenticated lineage.
  present={p:existing(p,b,allow_staged=(p==TARGET_TEST)) for p,b in ((TARGET,carrier_bytes),(TARGET_TEST,test_bytes))}
