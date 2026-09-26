@@ -13,6 +13,7 @@ import concurrent.futures
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -588,6 +589,76 @@ def dataforseo_collection(module_input: Path | None = None) -> dict[str, Any]:
     return {**result, 'shared_snapshot': binding, 'captured_at_utc': snapshot['captured_at_utc'], 'new_collection_cost_usd': 0}
 
 
+def collect_sitewide_gsc(google: GoogleRail, window: tuple[dt.date, dt.date]) -> dict[str, Any]:
+    """Aggregate-only evidence in the registered ranking collector, not query sums.
+
+    Missing date rows are unknown (including possible no-traffic days). Requesting
+    final data is not proof of a global finalization watermark or complete indexing.
+    """
+    start, end = window
+    days = [(start + dt.timedelta(days=n)).isoformat()
+            for n in range((end - start).days + 1)]
+    fields = ('clicks', 'impressions', 'ctr', 'position')
+    unknown = dict.fromkeys(fields)
+
+    def metrics(row: dict[str, Any]) -> dict[str, Any] | None:
+        values: dict[str, Any] = {key: row.get(key) for key in fields}
+        if not all(type(v) in (int, float) and math.isfinite(v) and v >= 0
+                   for v in values.values()):
+            return None
+        return values
+
+    scopes = {}
+    for label, property_uri, denominator in (
+        ('consumer_https_apex', SITE + '/', 'All HTTPS apex paths; excludes HTTP, www and partners subdomains'),
+        ('domain_including_partners', GSC_PROPERTY, 'All protocols, paths and subdomains, including partners'),
+    ):
+        began = utc_now()
+        context = {'property': property_uri, 'start_date': start.isoformat(),
+                   'end_date': end.isoformat(), 'window_days': len(days),
+                   'search_type': 'web', 'data_state': 'final', 'dimensions': [],
+                   'aggregation_type': 'byProperty', 'timezone': 'America/Los_Angeles',
+                   'denominator': denominator}
+        daily = {}
+        totals = None
+        try:
+            if not days or end >= dt.datetime.now(PT).date():
+                raise ValueError('window_not_completed')
+            args: dict[str, Any] = dict(property_uri=property_uri, start_date=start.isoformat(),
+                        end_date=end.isoformat(), search_type='web', data_state='final',
+                        aggregation_type='byProperty', row_limit=25000, fetch_all=True)
+            dates = google.gsc_search_analytics(**args, dimensions=['date'])
+            aggregate = google.gsc_search_analytics(**args, dimensions=[])
+            if dates.get('ok') is True and dates.get('complete') is True:
+                for row in dates.get('rows') or []:
+                    keys = row.get('keys')
+                    if not isinstance(keys, list) or len(keys) != 1 or keys[0] not in days or keys[0] in daily:
+                        raise ValueError('unexpected_date_rows')
+                    daily[keys[0]] = metrics(row)
+            rows = aggregate.get('rows') or []
+            if (aggregate.get('ok') is True and aggregate.get('complete') is True
+                    and len(rows) == 1 and not rows[0].get('keys')):
+                totals = metrics(rows[0])
+        except Exception:
+            # Never serialize transport errors or unexpected keys into aggregate evidence.
+            daily, totals = {}, None
+        missing = [day for day in days if daily.get(day) is None]
+        state = ('UNKNOWN_DATE_COVERAGE' if missing else
+                 'UNKNOWN_NO_AGGREGATE_ROW' if totals is None else 'SOURCE_REPORTED')
+        scopes[label] = {'context': context, 'request_started_at_utc': began,
+                         'captured_at_utc': utc_now(), 'state': state,
+                         'totals': totals if state == 'SOURCE_REPORTED' else dict(unknown),
+                         'date_availability': [
+                             {'date': day, 'state': 'SOURCE_REPORTED' if daily.get(day) is not None else 'UNKNOWN',
+                              'metrics': daily.get(day) or dict(unknown)} for day in days],
+                         'missing_dates': missing}
+    return {'schema': 'glp.weekly-gsc-sitewide-aggregate.v1', 'scopes': scopes,
+            'note': 'Separate property denominators; not a sum of query/page or article rows. '
+                    'Missing dates/rows are UNKNOWN, not zero. Final date availability is not '
+                    'a global watermark. Position is a diagnostic, not a stable rank. '
+                    'Search traffic is not users, conversions or revenue; no user joins.'}
+
+
 def collect(report_date: dt.date, module_input: Path | None = None) -> dict[str, Any]:
     windows = report_windows(report_date)
     ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
@@ -762,6 +833,7 @@ def collect(report_date: dt.date, module_input: Path | None = None) -> dict[str,
             },
             "inspection_rows": inspections,
         },
+        "google_sitewide_aggregate": collect_sitewide_gsc(google, windows["gsc_current"]),
         "google_ranking": {
             "source": "GSC Search Analytics direct user-OAuth; page totals preserve anonymized-query traffic, query+page rows name targets",
             "current_window": date_range_text(windows["gsc_current"]),
@@ -1025,6 +1097,12 @@ def main(argv: list[str] | None = None) -> int:
                    else dt.datetime.now(PT).date())
     report = collect(report_date, args.module_input)
     report_path = REPORT_ROOT / f"{report_date.isoformat()}.json"
+    aggregate_path = REPORT_ROOT / f"{report_date.isoformat()}-gsc-sitewide-aggregate.json"
+    write_json(aggregate_path, report['google_sitewide_aggregate'])
+    aggregate_binding = {'path': str(aggregate_path), 'sha256': sha256(aggregate_path),
+                         'bytes': aggregate_path.stat().st_size}
+    report['google_sitewide_aggregate']['receipt'] = aggregate_binding
+    report['evidence'].append(aggregate_binding)
     write_json(report_path, report)
     discord = (post_discord_once(report_date, render_discord(report))
                if args.post_discord else {"status": "not_requested", "message_id": None})

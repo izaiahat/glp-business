@@ -748,7 +748,10 @@ class GoogleRail:
                              start_date: str, end_date: str,
                              dimensions: list[str] | None = None,
                              row_limit: int = 1000,
-                             fetch_all: bool = False) -> dict[str, Any]:
+                             fetch_all: bool = False,
+                             search_type: str | None = None,
+                             data_state: str | None = None,
+                             aggregation_type: str | None = None) -> dict[str, Any]:
         endpoint = ("https://searchconsole.googleapis.com/webmasters/v3/sites/"
                     + urllib.parse.quote(property_uri, safe="") + "/searchAnalytics/query")
         rows = []
@@ -759,8 +762,11 @@ class GoogleRail:
             while True:
                 doc = _http(endpoint, method="POST", headers=self._headers(), body={
                     "startDate": start_date, "endDate": end_date,
-                    "dimensions": dimensions or ["query"], "rowLimit": row_limit,
-                    "startRow": start_row,
+                    "dimensions": ["query"] if dimensions is None else dimensions,
+                    "rowLimit": row_limit, "startRow": start_row,
+                    **({"type": search_type} if search_type is not None else {}),
+                    **({"dataState": data_state} if data_state is not None else {}),
+                    **({"aggregationType": aggregation_type} if aggregation_type is not None else {}),
                 })
                 page = doc.get("rows") or []
                 pages += 1

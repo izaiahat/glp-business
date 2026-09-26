@@ -155,7 +155,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "5b2ad3984df46ef1d66c855f0fb23ca6b3780f51223c45e88a044be854c20386"
+      "sha256": "e78fa389a569406ed2ae4aae28f2bacb520636b6ebc34a5fd8689bd1c4df14fb"
     },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
       "callers": [
@@ -1052,7 +1052,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "7fa490e47a3c21102a7f28c459ca7b20f870aed00c945500d5ced237a1b339f1"
+      "sha256": "6307a6666818762eed86848efc56c4db6531fd2f5e98d7d0b3598229804356bd"
     },
     "scripts/glp_wire_in_ready_queue.py": {
       "callers": [
@@ -1205,7 +1205,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f926f3245396ad2bc110660d6178467c1478c8450012a21df00fa536ca01ee3c"
+      "sha256": "f95a3275d46cfc948fa64bd6f3abc5f7a289fa47e0ef1016af8060bc0e06968d"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1735,6 +1735,13 @@
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
+    "tests/test_glp44_weekly_gsc_aggregate.py": {
+      "callers": [
+        "GLP-44 registered weekly ranking collector/report"
+      ],
+      "kind": "test",
+      "sha256": "b2f28d369eebebdcb721f6c25ced4c8e9d2a8bc9c1999c1196a7755d5fa9dfe2"
+    },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
         "glp_ads_three_platform_monitor"
@@ -2106,5 +2113,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 320
+  "tracked_count": 321
 }
