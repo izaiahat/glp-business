@@ -86,6 +86,16 @@
       "kind": "instruction_or_policy",
       "sha256": "3b46a664e1023d09676da2c728f2c768aa7d97b69dcb830bcb8212de9408fd92"
     },
+    "ops/claude-model-policy.json": {
+      "callers": ["fable_bridge"],
+      "kind": "instruction_or_policy",
+      "sha256": "746239b3badb6442e453ab64eea6a0176a58b0195651deb98f5088110c68cdfc"
+    },
+    "ops/claude_model_policy.py": {
+      "callers": ["fable_bridge"],
+      "kind": "script",
+      "sha256": "0cb92558f8a88ccd3fa76d7f954d8eda1eff634d1825db17f424c6c039f7f011"
+    },
     "ops/cron-medic-model-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
@@ -607,6 +617,11 @@
       "kind": "retired_script",
       "sha256": "1fa2886b43dec4866e9efcf952260335d5d46aeaaf750f82c4e76edca61e1253"
     },
+    "scripts/account_capacity_collector.py": {
+      "callers": ["subscription_capacity_monitor"],
+      "kind": "script",
+      "sha256": "e81fb37eb2f7f1d72f8aa6f06299353cec83c9ced559f89a9da3ad2f9f0e7a1d"
+    },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
         "migration-survivor"
@@ -772,6 +787,11 @@
       ],
       "kind": "script",
       "sha256": "470ea1dd5c90b471ef7a6f09c9846329b48369171f1c345c3c367e9ba5006330"
+    },
+    "scripts/fable_bridge.py": {
+      "callers": ["registered:fable-bridge"],
+      "kind": "script",
+      "sha256": "ab328675c6bba8b2fc776d46bebcbcbef53229ce43dab13fd4b2ce20329e60c8"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1365,6 +1385,26 @@
       "kind": "test",
       "sha256": "179ecde5f664b72d5dfc5e5b6096555a5e20c51c2004007ac102a5e78d51b154"
     },
+    "tests/test_fable_bridge_identity.py": {
+      "callers": ["fable_bridge"],
+      "kind": "test",
+      "sha256": "afaf1c32644226f519ad0e5f4e0161574b64c3656c8ca18b8a9b1643e04d656a"
+    },
+    "tests/test_fable_bridge_native_review.py": {
+      "callers": ["fable_bridge"],
+      "kind": "test",
+      "sha256": "984b6136275a4ce19fea0f3eeb417371ae5a83c396ee06918d56e222ffd27fbb"
+    },
+    "tests/test_fable_bridge_quota_resume.py": {
+      "callers": ["fable_bridge"],
+      "kind": "test",
+      "sha256": "4c616ba5404c6d06a9470b992b87e07347c8287b03c507fd8887f79f5203399e"
+    },
+    "tests/test_fable_bridge_reviewer_routing.py": {
+      "callers": ["fable_bridge"],
+      "kind": "test",
+      "sha256": "11ce6ec368252ee104d645ac484e403b40bf1cde22e29141eed62678e849b7d1"
+    },
     "tests/test_fleet_sentinel.py": {
       "callers": [
         "fleet_sentinel"
@@ -1715,5 +1755,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 260
+  "tracked_count": 268
 }

@@ -1,0 +1,65 @@
+{
+  "schema": "claude_model_policy_v2",
+  "description": "Single fail-closed source of truth for the Claude model+effort used by every Fable-seat consumer (operator TUI, Discord bridge, acceptance pass, cron medic, resume helpers). Read at invocation time. No consumer may hard-code a model.",
+  "active": {
+    "model": "claude-opus-5-5[1m]",
+    "effort": "medium"
+  },
+  "target": {
+    "model": "claude-opus-5-5[1m]",
+    "effort": "medium"
+  },
+  "cutover": {
+    "armed": false,
+    "fire_utc": "2026-07-15T14:00:00Z",
+    "fire_local": "2026-07-15 07:00:00 America/Los_Angeles",
+    "arm_requires": "deterministic readiness validator PASS (fable_opus48_transition contract)",
+    "readiness_pass_marker": "reports/fable-opus48-transition/READINESS-PASS.json",
+    "fired_utc": "2026-07-17T22:17:41Z",
+    "target": {
+      "model": "claude-opus-5",
+      "effort": "medium"
+    },
+    "per_seat": {
+      "bridge": "shared policy",
+      "acceptance": "shared policy",
+      "resume": "shared policy",
+      "cron_medic": "/home/ubuntu/business/ops/cron-medic-model-policy.json",
+      "operator_tui": "untouched/manual"
+    },
+    "fable_included_deadline_utc": "2026-07-20T06:59:59Z"
+  },
+  "rules": {
+    "no_paid_fable_fallback": true,
+    "included_fable_access": true,
+    "fable_model": "claude-fable-5-1",
+    "fable_seats": [
+      "bridge"
+    ],
+    "no_gateway_restart_on_switch": true,
+    "preserve_session_and_memory": true,
+    "rollback_to_fable_requires": "official included-access restored OR explicit operator paid approval",
+    "fail_closed_on_missing_or_corrupt_policy": "pause model-dependent lane, keep deterministic monitors, alert ops \u2014 never default to a paid or arbitrary model"
+  },
+  "succession": {
+    "status": "operator_ruled",
+    "ruling": "claude-opus-4-8 xhigh replaces claude-fable-5 before included-plan sunset",
+    "authority": "/home/ubuntu/business/reports/boring-ai/fable5-sunset-succession-plan-2026-07-17.md"
+  },
+  "updated_utc": "2026-09-22T21:40:00Z",
+  "updated_by": "OPERATOR-DECISION-20260922-model-doctrine-capacity",
+  "doctrine": "/home/ubuntu/.hermes/skills/linear-orchestrator/references/model-delegation-doctrine.md",
+  "seat_overrides": {
+    "bridge": {
+      "model": "claude-fable-5-1",
+      "effort": "xhigh"
+    }
+  },
+  "seat_overrides_note": "Native Hermes bridge remains the separate Fable 5.1/xhigh acceptance identity. Design and unclassified review requests never use an Astra substitute. Only explicitly NON-DESIGN REVIEW requests may use the previously authorized stand-in. Defaults use native Opus 5.5/medium; the orchestrator chooses effort per task. Retired cutover history is not execution authority. No paid fallback or reset redemption.",
+  "reviewer_routing": {
+    "native_session_id": "20260922_214459_3be4d1",
+    "threshold_percent": 100,
+    "hermes_model": "gpt-6-astra-900k",
+    "authority": "ops/linear/approvals/OPERATOR-DECISION-20260918-acceptance-reviewer-astra-standin.json"
+  }
+}
