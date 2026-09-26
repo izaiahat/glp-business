@@ -823,7 +823,7 @@ Expected entries:
 """
 
 
-def confirmation_card(mode: str, items: list[dict[str, Any]]) -> str:
+def confirmation_card(mode: str, items: list[dict[str, Any]], *, run_id: str = "") -> str:
     ordered = sorted(items, key=lambda row: (int(str(row["item"]).rstrip("b")) if str(row["item"]).rstrip("b").isdigit() else 9999, str(row["item"])))
     noop = sum(row.get("status") == "already_satisfied_noop" for row in ordered)
     applied = sum(row.get("status") == "applied_verified" for row in ordered)
@@ -850,6 +850,12 @@ def confirmation_card(mode: str, items: list[dict[str, Any]]) -> str:
     if len(card) > 1900:
         compact = lines[:2] + [f"{row['item']}. {str(row.get('text') or row.get('line') or '')[:42]} → {row['destination']}" for row in ordered]
         card = "\n".join(compact)
+    if len(card) > 1900:
+        # Discord has a 2,000-character limit. Keep the exact count and a
+        # bounded pointer to the private receipt instead of dropping the
+        # outcome or sending an incomplete per-item list.
+        receipt = f"reports/ops/decisions-router/runs/{run_id}.json" if re.fullmatch(r"[A-Za-z0-9_-]+", run_id) else "the private router run receipt"
+        card = "\n".join(lines[:2] + [f"Full item dispositions: {receipt}"])
     if len(card) > 1900:
         raise RuntimeError("confirmation_card_too_long")
     return card
@@ -899,7 +905,7 @@ def validate_agent(dispatch: dict[str, Any]) -> list[dict[str, Any]]:
 
 def finalize(dispatch: dict[str, Any], agent_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     items = list(dispatch.get("deterministic_items") or []) + list(agent_items or [])
-    card = confirmation_card(str(dispatch["mode"]), items)
+    card = confirmation_card(str(dispatch["mode"]), items, run_id=str(dispatch["run_id"]))
     final = {
         **{key: dispatch[key] for key in ("mode", "run_id", "source_message_ids", "sink")},
         "status": "complete", "completed_at_utc": utc_now(), "items": items,
