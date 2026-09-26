@@ -1122,6 +1122,13 @@
       "kind": "script",
       "sha256": "10e90004795c150b1a459f78b34b990d96494cf75c923e35dfd33e348ca4c9cf"
     },
+    "systems/seo-blog-machine/scripts/compile_review_packet_article.py": {
+      "callers": [
+        "GLP-7 publication-date binding"
+      ],
+      "kind": "script",
+      "sha256": "4b8ad5836ed81365e6634c72834d9f7ca118ec1e992b2ed149ac93bb4474d86d"
+    },
     "systems/seo-blog-machine/scripts/defect_remediation.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
@@ -1142,6 +1149,13 @@
       ],
       "kind": "script",
       "sha256": "1b6600045de75c1600b7b0fe11f93e128318beb6e657d4b69d572f654fd0a165"
+    },
+    "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
+      "callers": [
+        "GLP-7 publication-date binding"
+      ],
+      "kind": "script",
+      "sha256": "62df25ca91dc50ce362d2d8d2566e2b75a6e9aba22e65a3a1cd27de9e149cfb5"
     },
     "systems/seo-blog-machine/scripts/r2_execution_control.py": {
       "callers": [
@@ -1694,5 +1708,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 257
+  "tracked_count": 259
 }
