@@ -156,3 +156,11 @@ def test_retirement_refuses_modified_source_before_other_writes(tmp_path):
     assert (root / "scripts/old.py").read_bytes() == b"LOCAL\n"
     assert not (root / "scripts/.retired-20260925/old.py").exists()
     assert not (root / "scripts/sample.py").exists()
+
+
+def test_help_epilog_documents_dry_run_then_apply():
+    root = Path(__file__).resolve().parents[1]
+    out = subprocess.run([sys.executable, str(root / "scripts/sync_from_repo.py"), "--help"],
+                         capture_output=True, text=True, check=True).stdout
+    assert "--dry-run" in out.split("workflow:")[1]
+    assert out.index("1. python3 scripts/sync_from_repo.py --dry-run") < out.index("2. python3 scripts/sync_from_repo.py --apply")

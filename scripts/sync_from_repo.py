@@ -18,6 +18,14 @@ REMOTE = "git@github.com:izaiahat/glp-business.git"
 DEFAULT_ROOT = Path("/home/ubuntu/business")
 STATE = "ops/.rebuild-sync-state.json"  # deliberately excluded from Git
 MANIFEST = "ops/rebuild-source-manifest.json"
+EPILOG = """\
+workflow: always preview first, then apply.
+  1. python3 scripts/sync_from_repo.py --dry-run
+     Prints DRY_RUN diffs=N and the paths that would change; writes nothing.
+     Exit 2 (REFUSED) means local edits conflict; resolve them before applying.
+  2. python3 scripts/sync_from_repo.py --apply
+     Rechecks every hash and writes only the paths the dry run reported.
+"""
 
 
 def sha(path):
@@ -134,7 +142,11 @@ def sync(root, checkout, apply):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Import reviewed glp-business/main source into the live business workspace.",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
