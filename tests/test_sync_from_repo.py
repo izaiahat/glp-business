@@ -53,6 +53,48 @@ def test_reviewed_baseline_adoption_requires_historical_bytes(tmp_path, capsys):
         sync(root, repo, False, ["scripts/sample.py"])
 
 
+def test_reviewed_baseline_adoption_from_treesame_side_branch(tmp_path):
+    repo, root = checkout(tmp_path)
+
+    def git(*args):
+        return subprocess.check_output(
+            ["git", "-C", str(repo), "-c", "user.name=Test", "-c",
+             "user.email=test@example.invalid", *args], text=True).strip()
+
+    git("commit", "-qm", "original")
+    git("branch", "first-parent")
+    git("checkout", "-qb", "side")
+    sample = repo / "scripts/sample.py"
+    sample.write_bytes(b"side predecessor\n")
+    git("commit", "-qam", "side predecessor")
+    predecessor = git("rev-parse", "HEAD")
+    sample.write_bytes(b"old\n")
+    git("commit", "-qam", "return to original bytes")
+    git("checkout", "-q", "first-parent")
+    git("merge", "--no-ff", "-m", "TREESAME merge", "side")
+    assert git("diff", "HEAD^1", "HEAD", "--", "scripts/sample.py") == ""
+    assert predecessor not in git("log", "--format=%H", "HEAD", "--", "scripts/sample.py").splitlines()
+    assert predecessor in git("log", "--full-history", "--format=%H", "HEAD", "--", "scripts/sample.py").splitlines()
+
+    (root / "scripts").mkdir()
+    local = root / "scripts/sample.py"
+    local.write_bytes(b"side predecessor\n")
+    assert sync(root, repo, False) == 2  # Explicit path authorization is required.
+    assert sync(root, repo, False, ["scripts/sample.py"]) == 0
+    assert local.read_bytes() == b"side predecessor\n"
+    assert not (root / sync_from_repo.STATE).exists()
+
+    local.write_bytes(b"never committed\n")
+    assert sync(root, repo, False, ["scripts/sample.py"]) == 2
+    assert local.read_bytes() == b"never committed\n"
+    # HEAD's bytes occurred in older commits too: exclude by content, not position.
+    hashes = sync_from_repo.reviewed_prior_hashes(repo, "scripts/sample.py")
+    assert digest(b"old\n") not in hashes
+    assert digest(b"side predecessor\n") in hashes
+    sample.write_bytes(b"working tree only\n")
+    assert sync_from_repo.reviewed_prior_hashes(repo, "scripts/sample.py") == hashes
+
+
 def test_reviewed_baseline_adoption_rejects_untracked_or_duplicate_paths(tmp_path):
     repo, root = checkout(tmp_path)
     for paths in (["scripts/other.py"], ["scripts/sample.py", "scripts/sample.py"]):
