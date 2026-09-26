@@ -7,6 +7,12 @@ import pytest
 from test_article_buffer import build_candidate, admit_candidate, sha, write_json, opus_payload_hash
 import article_buffer as buffer
 import article_buffer_cli as cli
+from carrier_lock import carrier_lock as real_carrier_lock
+
+
+@pytest.fixture(autouse=True)
+def isolated_carrier_lock(tmp_path, monkeypatch):
+    monkeypatch.setattr(buffer, "carrier_lock", lambda: real_carrier_lock(tmp_path / "carrier.lock"))
 
 
 def successor_fixture(tmp_path):

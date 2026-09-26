@@ -1239,7 +1239,7 @@
         "GLP-7 registered held-predecessor successor admission"
       ],
       "kind": "test",
-      "sha256": "6196b7edf4186224b39a51dd64b76cc8640752d8fdbd9932cd617b758b5da9af"
+      "sha256": "541c9ad2bba2305e7fd39fc5bd628de9d557351f2508ef1059189437e0d7f819"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
