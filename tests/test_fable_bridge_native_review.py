@@ -62,7 +62,7 @@ class NativeReviewerTests(unittest.TestCase):
             self.assertIn("--no-restore-cwd", command)
             self.assertNotIn("--yolo", command)
             self.assertEqual(Path(command[command.index("--query-file") + 1]).read_text(), prompt)
-            self.assertEqual(kwargs["cwd"], "/home/ubuntu/business")
+            self.assertEqual(kwargs["cwd"], str(ROOT))
             return SimpleNamespace(returncode=0, stdout="TRUE-BRIDGE FABLE — REJECT\ninspected bytes", stderr="")
         with patch.object(bridge.subprocess, "run", side_effect=run) as mocked:
             reply = bridge.ask_fable("review_request", "Inspect artifact SHA-256 and challenge")

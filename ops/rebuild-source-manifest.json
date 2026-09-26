@@ -620,7 +620,7 @@
     "scripts/account_capacity_collector.py": {
       "callers": ["subscription_capacity_monitor"],
       "kind": "script",
-      "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
+      "sha256": "e81fb37eb2f7f1d72f8aa6f06299353cec83c9ced559f89a9da3ad2f9f0e7a1d"
     },
     "scripts/affiliate_approval_auto_reconciler.py": {
       "callers": [
@@ -791,7 +791,7 @@
     "scripts/fable_bridge.py": {
       "callers": ["registered:fable-bridge"],
       "kind": "script",
-      "sha256": "ab328675c6bba8b2fc776d46bebcbcbef53229ce43dab13fd4b2ce20329e60c8"
+      "sha256": "314fb9a1dcd4e94eb963460a8aeacb9049cafd36fc374832ff0c48170cff1ae4"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1393,7 +1393,7 @@
     "tests/test_fable_bridge_native_review.py": {
       "callers": ["fable_bridge"],
       "kind": "test",
-      "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
+      "sha256": "984b6136275a4ce19fea0f3eeb417371ae5a83c396ee06918d56e222ffd27fbb"
     },
     "tests/test_fable_bridge_quota_resume.py": {
       "callers": ["fable_bridge"],
