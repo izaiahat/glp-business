@@ -153,6 +153,8 @@
 !/scripts/linear_state_reconciler.py
 !/scripts/loom_delivery_rails.py
 !/scripts/result_contract.py
+!/scripts/awin_pin_release.py
+!/scripts/pin_drift_report.py
 !/scripts/run_tests.sh
 !/scripts/state_guard.py
 !/scripts/subscription_capacity_monitor.py
