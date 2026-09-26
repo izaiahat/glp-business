@@ -282,6 +282,61 @@ def verify_decisions_confirmation(confirmation, *, run_id, sink, channel, card, 
         raise RuntimeError("decisions_confirm_live_readback_invalid")
 
 
+def decisions_host_sol(prompt, receipt_path, run_id, state, state_path):
+    """Subscription-only Sol continuation; an unknown launch is never replayed."""
+    from ops.decisions_router import AGENT_DIR
+    import subprocess
+    import signal
+    if Path(receipt_path).resolve().parent != AGENT_DIR.resolve():
+        raise RuntimeError("decisions_agent_receipt_outside_owned_directory")
+    jobs = state.setdefault("decisions_jobs", {})
+    digest = hashlib.sha256(prompt.encode()).hexdigest()
+    stage = jobs.get("sol")
+    if stage:
+        if (stage.get("prompt_sha256") != digest or stage.get("run_id") != run_id
+                or stage.get("receipt_path") != receipt_path):
+            raise RuntimeError("decisions_host_sol_binding_changed")
+        if stage.get("status") != "complete" or stage.get("rc") != 0:
+            raise RuntimeError("decisions_host_sol_unconfirmed_no_replay")
+        return {"job_id": stage["job_id"], "status": "done", "rc": 0}
+    prompt_path = Path(state_path).parent / ("decisions-sol-" + run_id + ".prompt")
+    # O_EXCL refuses a stale prompt file; never run an unreviewed prior query.
+    fd = os.open(prompt_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        stream.write(prompt)
+        stream.flush()
+        os.fsync(stream.fileno())
+    stage = {"run_id": run_id, "prompt_sha256": digest,
+             "receipt_path": receipt_path, "status": "launch_unknown",
+             "job_id": "host-sol-" + uuid.uuid4().hex}
+    jobs["sol"] = stage
+    save(state_path, state)
+    # Cron's minimal PATH does not include ~/.local/bin; bind the installed CLI.
+    command = ["/home/ubuntu/.local/bin/hermes", "chat", "--quiet", "--cli", "--source", "tool",
+               "--provider", "openai-codex", "--model", "gpt-6-sol",
+               "--reasoning", "xhigh", "--max-turns", "60", "--toolsets",
+               "web,file,terminal,firecrawl", "--query-file", str(prompt_path)]
+    try:
+        proc = subprocess.Popen(command, cwd=str(ROOT), stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, start_new_session=True)
+        try:
+            stdout, stderr = proc.communicate(timeout=3300)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+            raise RuntimeError("decisions_host_sol_timeout_no_replay")
+        # No model output or exception text is persisted in public receipts.
+        stage.update(status="complete" if proc.returncode == 0 else "failed",
+                     rc=proc.returncode, stdout_sha256=hashlib.sha256(stdout).hexdigest(),
+                     stderr_sha256=hashlib.sha256(stderr).hexdigest())
+        save(state_path, state)
+        if proc.returncode != 0:
+            raise RuntimeError("decisions_host_sol_failed_no_replay")
+        return {"job_id": stage["job_id"], "status": "done", "rc": 0}
+    finally:
+        prompt_path.unlink(missing_ok=True)
+
+
 def finish_decisions(job, state, state_path, call):
     initial = decisions_summary(job)
     final = initial
@@ -294,20 +349,11 @@ def finish_decisions(job, state, state_path, call):
                 or not path or not isinstance(expected, list) or not expected
                 or initial.get("post_required") is not False):
             raise RuntimeError("decisions_agent_scope_invalid")
-        # The old graph's 5.6 route is not an acceptable silent fallback. The
-        # bridge model allowlist must explicitly admit this requested route.
+        # The router and confirmation still use the registered bridge action.
+        # Model execution is host-local on the approved subscription route;
+        # never fall back to the bridge's older 5.6 model allowlist.
         from ops.decisions_router import validate_agent
-        from scripts.glp_onboarding_bridge_scoped_cutover import bridge_call
-        sol_call = call if call is not None else None
-        if sol_call is None:
-            spec = importlib.util.spec_from_file_location("cron_decisions_bridge", ROOT / "ops/n8n-bridge/bridge.py")
-            bridge = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(bridge)
-            token = bridge.load_token()
-            sol_call = lambda route, payload=None: bridge_call(route, token, payload)
-        sol = decisions_stage("sol", {"action": "hermes_chat", "prompt": prompt,
-            "model": "gpt-6-sol", "reasoning": "xhigh", "max_turns": 60,
-            "toolset_profile": "authoring", "timeout_s": 3300}, state, state_path, sol_call)
+        sol = decisions_host_sol(prompt, path, run_id, state, state_path)
         # Router resume converts invalid agent receipts into 'unroutable'. Do
         # not call it on an invalid/missing receipt and mistake that for success.
         validate_agent(initial)
