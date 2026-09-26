@@ -771,7 +771,9 @@ class GoogleRail:
                 page = doc.get("rows") or []
                 pages += 1
                 for row in page:
-                    keys = row.get("keys") or []
+                    keys = row.get("keys", [])
+                    if not isinstance(keys, list):
+                        raise ValueError("invalid_gsc_keys_shape")
                     rows.append({
                         "keys": keys,
                         "clicks": row.get("clicks"), "impressions": row.get("impressions"),

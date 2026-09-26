@@ -155,7 +155,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "e78fa389a569406ed2ae4aae28f2bacb520636b6ebc34a5fd8689bd1c4df14fb"
+      "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
     },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
       "callers": [
@@ -1052,7 +1052,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "6307a6666818762eed86848efc56c4db6531fd2f5e98d7d0b3598229804356bd"
+      "sha256": "0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf"
     },
     "scripts/glp_wire_in_ready_queue.py": {
       "callers": [
@@ -1740,7 +1740,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "test",
-      "sha256": "b2f28d369eebebdcb721f6c25ced4c8e9d2a8bc9c1999c1196a7755d5fa9dfe2"
+      "sha256": "de6fee9cc25eaa0185fca58d39300439782cde523e1969baf95fe0224089cdc1"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [

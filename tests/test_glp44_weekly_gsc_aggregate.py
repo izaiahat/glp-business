@@ -56,7 +56,7 @@ def test_empty_dimensions_not_none(monkeypatch):
 
 
 @pytest.mark.parametrize('mode', ['complete', 'missing_day', 'missing_row', 'missing_metric', 'transport', 'unexpected_query', 'zero'])
-def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode):
+def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode, rail_case=None):
     # Fail if an unmocked network boundary is reached, including sends.
     import urllib.request
     monkeypatch.setattr(urllib.request, 'urlopen', lambda *a, **k: pytest.fail('network forbidden'))
@@ -106,6 +106,26 @@ def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode):
                     rows[0]['keys'] = ['PRIVATE_QUERY_SENTINEL']
                 elif consumer and mode == 'zero':
                     rows[0].update(clicks=0, impressions=0, ctr=0, position=0)
+            if rail_case is not None:
+                if consumer and dims == []:
+                    present, keys = rail_case
+                    if present:
+                        rows[0]['keys'] = keys
+                    else:
+                        rows[0].pop('keys')
+                cls = runpy.run_path(str(RAILS))['GoogleRail']
+                rail = object.__new__(cls)
+                monkeypatch.setattr(rail, '_headers', lambda: {})
+
+                def http(url, **request):
+                    body = request['body']
+                    assert body['dimensions'] == dims
+                    assert (body['startDate'], body['endDate']) == ('2026-09-18', '2026-09-24')
+                    assert (body['type'], body['dataState'], body['aggregationType']) == ('web', 'final', 'byProperty')
+                    return {'rows': rows}
+
+                monkeypatch.setitem(cls.gsc_search_analytics.__globals__, '_http', http)
+                return rail.gsc_search_analytics(**kw)
             return {'ok': True, 'complete': True, 'rows': rows}
 
     ns.update(GoogleRail=Google, PostHog=lambda: types.SimpleNamespace(page_conversion=lambda **kw: {'rows': []}),
@@ -155,3 +175,22 @@ def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode):
     assert report['google_ranking']['all_ledger_articles_current']['impressions'] == 20
     assert report['google_ranking']['indexed_pages_current']['impressions'] == 20
     assert len([r for r in requests if r['dimensions'] == []]) == (1 if mode == 'transport' else 2)
+    if rail_case is not None:
+        assert b'"keys"' not in raw and b'"error"' not in raw
+        assert b'invalid_gsc_keys_shape' not in raw
+
+
+@pytest.mark.parametrize('present,keys,mode', [
+    pytest.param(True, False, 'malformed_keys', id='false'),
+    pytest.param(True, 0, 'malformed_keys', id='zero-key'),
+    pytest.param(True, '', 'malformed_keys', id='empty-string'),
+    pytest.param(True, {}, 'malformed_keys', id='empty-object'),
+    pytest.param(False, None, 'complete', id='omitted'),
+    pytest.param(True, [], 'complete', id='empty-list'),
+    pytest.param(True, [], 'zero', id='numeric-zero'),
+])
+def test_aggregate_keys_rail_to_persisted_receipt(tmp_path, monkeypatch, capsys, present, keys, mode):
+    # Reuse the unchanged collector/main persistence and article-metric assertions,
+    # but route aggregate and date requests through the actual rail with stubbed HTTP.
+    test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode,
+                                        rail_case=(present, keys))

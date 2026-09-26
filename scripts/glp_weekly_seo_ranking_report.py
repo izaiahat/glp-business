@@ -637,7 +637,7 @@ def collect_sitewide_gsc(google: GoogleRail, window: tuple[dt.date, dt.date]) ->
                     daily[keys[0]] = metrics(row)
             rows = aggregate.get('rows') or []
             if (aggregate.get('ok') is True and aggregate.get('complete') is True
-                    and len(rows) == 1 and not rows[0].get('keys')):
+                    and len(rows) == 1 and rows[0].get('keys', []) == []):
                 totals = metrics(rows[0])
         except Exception:
             # Never serialize transport errors or unexpected keys into aggregate evidence.
