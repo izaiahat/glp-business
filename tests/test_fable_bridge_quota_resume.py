@@ -269,6 +269,11 @@ class QuotaResumeTests(unittest.TestCase):
         self.assertEqual(self.inferences.call_count, 1)
 
     def test_successor_is_registered_once_after_terminal_no_decision(self):
+        # The guard is site-owned and excluded from the curated CI checkout.
+        # On the host, execute its actual module against temp-root fixtures.
+        guard_source = Path("/home/ubuntu/business/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
+        if not guard_source.is_file():
+            self.skipTest("host-only bridge authority guard source unavailable")
         terminal_id = "1553281139517423701"
         terminal_body = ("(Reviewer response exceeded the single-message safety limit; "
                          "no authority decision was issued.)\n[reviewer: fable-xhigh]")
