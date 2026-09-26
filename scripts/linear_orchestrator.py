@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """Orchestrator-only Linear transitions with native history (operator key). Usage:
   linear_orchestrator.py transition <GLP-n> <StateName> <abs RESULT.json path>
-  linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --brief <scope brief>  # FLEET_RESULT_V1 + Done
+  linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --brief <scope brief>  # legacy/protected contract
+  linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --ordinary [--check-only]
+        Ordinary completion: linear-ordinary-completion-v1, COMPLETE, exact issue,
+        scope ordinary-code|ordinary-runtime, protected_effects [], description_sha256,
+        pr {url,head_sha,merge_sha,checks:[{name,url}]}, review {comment_id,body_sha256},
+        evidence [{kind:check|runtime,path,sha256,observed:[exact identifiers/output]}].
+        Uses existing coordinator acceptance, current PR/CI and physical evidence;
+        runtime requires live acceptance, not just a merged PR. --check-only writes nothing.
+        No release, outward design, financial REAL or third-party-send approval is granted.
   linear_orchestrator.py triage <GLP-n> admitted "<reason/evidence>" --root <GLP-current-root> --basis <operator-priority|escaped-safety-revenue-defect|current-acceptance-dependency> --project "<name>" --type <task|defect|incident|decision|idea> [--priority N] [--blocks GLP-m]
         Native Triage candidates become direct Todo children. Dependency basis requires --blocks.
         Already-planned Backlog placement cleanup still accepts --project/--type without --root/--basis.
@@ -144,7 +152,7 @@ def gql(q, v=None):
     if d.get('errors'): raise SystemExit('linear error: ' + json.dumps(d['errors'])[:300])
     return d['data']
 def states(): return {s['name']: s['id'] for s in gql('query($id:String!){ team(id:$id){ states{ nodes{ id name } } } }', {'id': TEAM})['team']['states']['nodes']}
-ISSUE_FIELDS = 'id identifier description parent{ id } team{ id key } state{ id name } project{ id name } priority labels{ nodes{ id name } }'
+ISSUE_FIELDS = 'id identifier title description parent{ id } team{ id key } state{ id name } project{ id name } priority labels{ nodes{ id name } }'
 def issue(ident): return gql('query($id:String!){ issue(id:$id){ ' + ISSUE_FIELDS + ' } }', {'id': ident})['issue']
 def projects(): return {p['name']: p['id'] for p in gql('query($id:String!){ team(id:$id){ projects(first:250){ nodes{ id name } } } }', {'id': TEAM})['team']['projects']['nodes']}
 
@@ -336,7 +344,96 @@ def sha(p):
 def fenced(marker, obj): return marker + '\n```json\n' + json.dumps(obj, indent=1) + '\n```'
 
 
-def pass_issue(iss, result_path, st, brief=None):
+def _lint_ordinary_result(path, iss):
+    """Read-only ordinary outcome check, not authority for any protected effect.
+
+    The coordinator supplies a current description binding, merged PR/exact-head
+    CI, existing acceptance comment and hash-bound observed evidence. No brief,
+    clause transcription, historical packet rewrite, command execution or pins.
+    Protected/ambiguous scopes still require their independent acceptance path.
+    """
+    import re
+    import subprocess
+
+    def require(condition, message):
+        if not condition:
+            raise SystemExit('ordinary completion refused: ' + message)
+
+    try:
+        data = json.loads(Path(path).read_text())
+        require(isinstance(data, dict), 'result must be an object')
+        require(data.get('schema') == 'linear-ordinary-completion-v1', 'unknown schema')
+        require(data.get('issue') == iss['identifier'] and data.get('status') == 'COMPLETE',
+                'exact issue and COMPLETE required')
+        require(iss.get('team') == {'id': TEAM, 'key': 'GLP'}, 'issue must belong to GLP')
+        require(data.get('scope') in ('ordinary-code', 'ordinary-runtime') and
+                data.get('protected_effects') == [], 'protected scope requires independent acceptance')
+        description = iss.get('description') or ''
+        require(re.search(r'##\s*Acceptance\s*\n\s*\S', description, re.I), 'current acceptance missing')
+        require(data.get('description_sha256') == hashlib.sha256(description.encode()).hexdigest(),
+                'current issue acceptance/scope changed')
+        # Conservative refusal only, never an approval classifier. The coordinator
+        # remains responsible for scope; this contract cannot approve these effects.
+        scope = '\n'.join([iss.get('title') or '', description, *label_names(iss)])
+        protected = (r'\b(release|deploy\w*|publish\w*|production|design|Fable|'
+                     r'third.party|outreach|email|spend|budget|KYC|PHI|legal)\b|'
+                     r'\b(send|deliver)\w*\s+(?:to\s+)?(?:partners?|providers?|customers?)\b|'
+                     r'\b(?:verify|confirm|record|mark|claim|reconcile|establish)\w*[^\n.]{0,40}'
+                     r'\b(?:real earning\w*|commission|settlement|cash)\b')
+        require(not re.search(protected, scope, re.I) and not re.search(r'\bREAL\b', scope),
+                'protected release/design/financial REAL/send scope is not ordinary')
+        pr = data['pr']
+        require(re.fullmatch(r'https://github\.com/izaiahat/glp-(?:business|site-candidate)/pull/[1-9]\d*',
+                             pr['url']), 'exact authorized repository PR URL required')
+        require(all(re.fullmatch(r'[a-f0-9]{40}', pr[key]) for key in ('head_sha', 'merge_sha')),
+                'full head and merge SHA required')
+        remote = json.loads(subprocess.check_output(
+            ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
+            text=True, timeout=60))
+        require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
+                (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
+        checks = remote.get('statusCheckRollup') or []
+        require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
+                               for c in checks), 'exact-head CI is not all successful')
+        require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
+            any(c.get('name') == expected['name'] and c.get('detailsUrl') == expected['url'] for c in checks)
+            for expected in pr['checks']), 'exact CI receipts missing or changed')
+        review = data['review']
+        comment_row = gql('query($id:String!){comment(id:$id){id body archivedAt user{id} issue{id}}}',
+                          {'id': review['comment_id']})['comment']
+        require(comment_row and comment_row['id'] == review['comment_id'] and
+                comment_row['issue']['id'] == iss['id'] and not comment_row.get('archivedAt') and
+                (comment_row.get('user') or {}).get('id') == OPERATOR_USER_ID,
+                'existing coordinator acceptance comment required on exact issue')
+        body = comment_row['body']
+        require(hashlib.sha256(body.encode()).hexdigest() == review['body_sha256'] and
+                body.startswith('Coordinator acceptance verified:') and pr['merge_sha'] in body,
+                'coordinator acceptance body/merge binding missing or changed')
+        evidence = data.get('evidence')
+        require(isinstance(evidence, list) and evidence, 'acceptance evidence missing')
+        runtime = data['scope'] == 'ordinary-runtime' or re.search(
+            r'\b(installed|runtime|natural|read.?back|replayed|card|receipt|live)\b', description, re.I)
+        require(not runtime or any(e.get('kind') == 'runtime' for e in evidence),
+                'live acceptance evidence required; a merged PR does not prove runtime work')
+        reports = Path(__file__).resolve().parents[1] / 'reports'
+        for entry in evidence:
+            source = Path(entry['path'])
+            require(entry.get('kind') in ('check', 'runtime') and source.is_absolute() and
+                    source.resolve().is_relative_to(reports.resolve()) and source.is_file() and
+                    source.resolve() != Path(path).resolve(), 'existing reports evidence required')
+            raw = source.read_bytes()
+            require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'acceptance evidence hash changed')
+            observed = entry.get('observed')
+            require(isinstance(observed, list) and observed and all(
+                isinstance(value, str) and value.strip() and value in raw.decode() for value in observed),
+                'observed acceptance identifiers/output missing from evidence')
+            if entry['kind'] == 'runtime':
+                require(any(value in body for value in observed), 'runtime evidence absent from coordinator acceptance')
+    except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as exc:
+        raise SystemExit('ordinary completion evidence unavailable/invalid: ' + str(exc)) from None
+
+
+def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, check_only=False):
     """The single Done writer. A failed readback requires inspection, not replay."""
     path = Path(result_path)
     reports = Path(__file__).resolve().parents[1] / 'reports'
@@ -349,12 +446,21 @@ def pass_issue(iss, result_path, st, brief=None):
             raise SystemExit('already Done but exact receipt unverified; inspect before any action')
         print(json.dumps({'identifier': iss['identifier'], 'state': 'Done', 'already_verified': True}))
         return
-    if brief is None or not Path(brief).is_file():
-        raise SystemExit('new closure needs its existing scope brief via --brief')
     digest = sha(path)
-    _lint_result(path, brief, expected_issue=iss['identifier'])
+    if ordinary:
+        if brief is not None:
+            raise SystemExit('--ordinary and --brief are distinct contracts')
+        _lint_ordinary_result(path, iss)
+    else:
+        if brief is None or not Path(brief).is_file():
+            raise SystemExit('new closure needs its existing scope brief via --brief')
+        _lint_result(path, brief, expected_issue=iss['identifier'])
     if sha(path) != digest:
         raise SystemExit('RESULT changed during validation; inspect before any action')
+    if check_only:
+        print(json.dumps({'identifier': iss['identifier'], 'validated': True, 'writes': 0,
+                          'result_sha256': digest}))
+        return
     if iss['state']['name'] in ('Todo', 'Backlog', 'Triage'):
         # Retain the real startedAt needed by existing cycle-time readers.
         set_state(iss['id'], st['In Progress'])
@@ -370,7 +476,8 @@ def pass_issue(iss, result_path, st, brief=None):
     if sha(path) != digest or not receipt_validates(iss['id'], path):
         raise SystemExit('closure readback unverified; inspect actual state/receipt before any action')
     print(json.dumps(result))
-    sync_wrapper_pins(path)
+    if not ordinary:
+        sync_wrapper_pins(path)
 
 
 def main():
@@ -379,11 +486,14 @@ def main():
     cmd = a[0]
     if cmd not in ('transition', 'pass', 'rework', 'triage', 'assign', 'promote', 'resolve-request', 'relabel', 'rule', 'reorder'): print(__doc__); return 2
     if len(a) < 2: raise SystemExit(cmd + ' needs an issue identifier, e.g. GLP-163')
+    if any(flag in a for flag in ('--ordinary', '--check-only')) and not (
+            cmd == 'pass' or (cmd == 'transition' and len(a) > 2 and a[2] == 'Done')):
+        raise SystemExit('--ordinary/--check-only are for completion only')
     st = states(); i = issue(a[1])
     if cmd == 'transition':
         if a[2] == 'Done':
             brief = a[a.index('--brief') + 1] if '--brief' in a else None
-            return pass_issue(i, a[3], st, brief)
+            return pass_issue(i, a[3], st, brief, ordinary='--ordinary' in a, check_only='--check-only' in a)
         to = st[a[2]]; path = os.path.abspath(a[3]); assert path.endswith('RESULT.json') and os.path.exists(path), 'need an existing absolute RESULT.json path'
 
         print(json.dumps(set_state(i['id'], to)))
@@ -391,7 +501,7 @@ def main():
             inflation_warning(i['id'])
     elif cmd == 'pass':
         brief = a[a.index('--brief') + 1] if '--brief' in a else None
-        return pass_issue(i, a[2], st, brief)
+        return pass_issue(i, a[2], st, brief, ordinary='--ordinary' in a, check_only='--check-only' in a)
     elif cmd == 'assign':
         # The scoped client refuses metadata writes on children, so nothing sanctioned could change an
         # assignee; an issue parked on the operator by mistake stayed in his "Needs you" view forever.

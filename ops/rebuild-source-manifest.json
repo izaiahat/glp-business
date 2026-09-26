@@ -1040,7 +1040,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "a0bd847d2adb040b20c84ed41d570562610bb49aab2c6114dc290d08f8b47bb1"
+      "sha256": "f25908ef4a2c4057b09b5d5b04f0d4ba3f9cde14e5cc11e41a0e1327dd532a69"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -1083,7 +1083,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a5ae7a85874d76128d216cd8b73d67869677e7657a35c12f220ccd50b940df6b"
+      "sha256": "7e19a236afc1bfe6b2ecd945c7bba7f2980195c3966712d1ba4954fd9b6f8810"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1784,6 +1784,11 @@
       "kind": "test",
       "sha256": "1a51ae06e8ab19bf2c75a07d1856b5158d0f3d4096528cd2a57f08f18581b91b"
     },
+    "tests/test_linear_ordinary_completion.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "03c8c6448e4cb8ab50a99fb4855f05e8ce3ce251a51c594d0fd15cf6671ec00f"
+    },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
         "linear_audit"
@@ -1880,5 +1885,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 285
+  "tracked_count": 286
 }
