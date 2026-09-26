@@ -12,8 +12,10 @@ suites+=(tests/test_glp193_capture_source_binding.py)
 suites+=(tests/test_glp196_price_index_contract.py)
 suites+=(tests/test_fable_mention_recovery.py)
 suites+=(tests/test_glp324_unassigned_commission_preflight.py)
+suites+=(tests/test_glp186_binding_diagnostics.py)
 suites+=(tests/test_glp183_builder_checked_as_of.py)
 suites+=(tests/test_glp_awin_portal_login.py tests/test_awin_fresh_preflight.py)
+suites+=(tests/test_glp_maxbounty_fresh_probe.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \
       -f /home/ubuntu/business/reports/glp-clinic-scout/growth/build-3/reddit-firecrawl-search-captures-20260811-r5.json ]]; then
