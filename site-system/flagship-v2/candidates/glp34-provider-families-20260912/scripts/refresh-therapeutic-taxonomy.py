@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Live Firecrawl re-verification of reviewed taxonomy assertions; never infer tags.
 
-Default: the reviewed GLP-38 programs. --program selects one. Captures and
+Default: all explicit reviewed policies. --program selects one. Captures and
 findings survive refusals. Only a complete validated registry is atomically saved.
 """
 import argparse
@@ -84,6 +84,13 @@ POLICIES = {
                                            'compounded': 'compounded GLP-1 formulations'}},
     },
 }
+# Explicit retained-source policy only: never derive assertions from tag names.
+# These additions do not refresh dates. Live capture/support and all write gates
+# below remain mandatory. Missing policy file refuses rather than hiding rows.
+ADDITIONAL_POLICIES = json.loads(Path(__file__).with_name('therapeutic-taxonomy-refresh-policies.json').read_text())
+if set(ADDITIONAL_POLICIES) & set(POLICIES):
+    raise ValueError('duplicate_reviewed_policy')
+POLICIES.update(ADDITIONAL_POLICIES)
 
 
 def sha(data):
@@ -165,6 +172,38 @@ process.stdout.write(JSON.stringify(x.registry,null,2)+'\\n');'''
     return json.loads(result.stdout)
 
 
+def verify_sources(pid, row, policy, run):
+    """Reverify explicit per-page assertions, never combine unrelated page text."""
+    sources = policy['sources']
+    expected = {field: [] for field in FIELDS}
+    for source in sources:
+        if source['url'] not in row['source_urls']:
+            raise ValueError('reviewed_source_not_in_program')
+        for field in FIELDS:
+            expected[field].extend(source['quotes'].get(field, {}))
+    for field in FIELDS:
+        if (set(row[field]) != set(expected[field]) or
+                len(expected[field]) != len(set(expected[field]))):
+            raise ValueError(f'tag_set_changed:{field}:review_required')
+    captures, assertions = [], {field: {} for field in FIELDS}
+    for index, source in enumerate(sources):
+        path = run / f'{pid}-source-{index}.json'
+        receipt = capture(source['url'], path)
+        fragment = {field: list(source['quotes'].get(field, {})) for field in FIELDS}
+        found = support(fragment, source, receipt['response']['data']['markdown'])
+        for field in FIELDS:
+            assertions[field].update(found[field])
+        captures.append({'source_url': source['url'], 'verified_as_of': receipt['received_at'][:10],
+                         'captured_at': receipt['received_at'], 'capture_sha256': sha(encoded(receipt)),
+                         'capture_path': str(path.relative_to(BUSINESS)), 'assertions': found})
+    if not captures:
+        raise ValueError('no_reviewed_sources')
+    return {'program_id': pid, 'sources': captures, 'assertions': assertions,
+            'verified_as_of': min(c['verified_as_of'] for c in captures),
+            'finding': policy.get('finding'), 'previous_row': row,
+            'tags_unchanged': {field: row[field] for field in FIELDS}}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--program', choices=sorted(POLICIES), action='append')
@@ -178,21 +217,26 @@ def main():
         policy = POLICIES[pid]
         try:
             row = before['therapeutic_taxonomy']['programs'][pid]
-            if policy['url'] not in row['source_urls']:
-                raise ValueError('reviewed_source_not_in_program')
-            primary = capture(policy['url'], run / (pid + '-primary.json'))
-            selected, url = primary, policy['url']
-            if policy.get('linked_url'):
-                url = policy['linked_url']
-                if url not in primary['response']['data'].get('links', []):
-                    raise ValueError('supplement_no_longer_linked_by_program')
-                selected = capture(url, run / (pid + '-linked.json'))
-            assertions = support(row, policy, selected['response']['data']['markdown'])
-            manifest = {'program_id': pid, 'source_url': url, 'verified_as_of': selected['received_at'][:10],
-                'captured_at': selected['received_at'], 'assertions': assertions,
-                'capture_sha256': sha(encoded(selected)), 'capture_path': str((run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))).relative_to(BUSINESS)),
-                'finding': policy.get('finding'), 'previous_row': row,
-                'tags_unchanged': {field: row[field] for field in FIELDS}}
+            if policy.get('review_required'):
+                raise ValueError('policy_review_required:' + policy['review_required'])
+            if 'sources' in policy:
+                manifest = verify_sources(pid, row, policy, run)
+            else:
+                if policy['url'] not in row['source_urls']:
+                    raise ValueError('reviewed_source_not_in_program')
+                primary = capture(policy['url'], run / (pid + '-primary.json'))
+                selected, url = primary, policy['url']
+                if policy.get('linked_url'):
+                    url = policy['linked_url']
+                    if url not in primary['response']['data'].get('links', []):
+                        raise ValueError('supplement_no_longer_linked_by_program')
+                    selected = capture(url, run / (pid + '-linked.json'))
+                assertions = support(row, policy, selected['response']['data']['markdown'])
+                manifest = {'program_id': pid, 'source_url': url, 'verified_as_of': selected['received_at'][:10],
+                    'captured_at': selected['received_at'], 'assertions': assertions,
+                    'capture_sha256': sha(encoded(selected)), 'capture_path': str((run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))).relative_to(BUSINESS)),
+                    'finding': policy.get('finding'), 'previous_row': row,
+                    'tags_unchanged': {field: row[field] for field in FIELDS}}
             manifest_path = run / (pid + '-verification.json')
             manifest_path.write_bytes(encoded(manifest))
             proposals[pid] = (manifest, manifest_path)
@@ -223,13 +267,14 @@ def main():
             authority = 'taxonomy_refresh_' + pid.replace('-', '_') + '_' + run.name
             candidate['therapeutic_taxonomy']['authorities'][authority] = {
                 'path': str(manifest_path.relative_to(BUSINESS)), 'sha256': sha(manifest_path.read_bytes())}
-            row['source_urls'] = sorted(set(row['source_urls'] + [manifest['source_url']]))
+            sources = manifest.get('sources', [manifest])
+            row['source_urls'] = sorted(set(row['source_urls'] + [s['source_url'] for s in sources]))
             row['verified_as_of'] = manifest['verified_as_of']
             # The prior active bindings remain in the immutable verification
             # receipt, not in the current evidence set with an expired clock.
             row['evidence_bindings'] = [{'authority': authority,
-                'authority_sha256': sha(manifest_path.read_bytes()), 'source_url': manifest['source_url'],
-                'verified_as_of': manifest['verified_as_of'], 'evidence_sha256': manifest['capture_sha256']}]
+                'authority_sha256': sha(manifest_path.read_bytes()), 'source_url': s['source_url'],
+                'verified_as_of': s['verified_as_of'], 'evidence_sha256': s['capture_sha256']} for s in sources]
         candidate = validate(candidate, list(proposals))
         if REGISTRY.read_bytes() != original:
             raise ValueError('registry_changed_during_validation')

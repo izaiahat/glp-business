@@ -1,0 +1,829 @@
+{
+  "altrx-glp1-us-cps": {
+    "url": "https://www.altrx.com/about",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "may prescribe Compounded Semaglutide or Compounded Tirzepatide if appropriate.",
+        "tirzepatide": "may prescribe Compounded Semaglutide or Compounded Tirzepatide if appropriate."
+      },
+      "delivery_form_tags": {
+        "injectable": "Available treatment formats include injectable formulations."
+      },
+      "treatment_type_tags": {
+        "compounded": "may prescribe Compounded Semaglutide or Compounded Tirzepatide if appropriate."
+      }
+    }
+  },
+  "biltrx": {
+    "url": "https://biltrx.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded Semaglutide",
+        "tirzepatide": "Compounded Tirzepatide"
+      },
+      "brand_name_tags": {
+        "mounjaro": "### Mounjaro",
+        "wegovy": "### Wegovy",
+        "zepbound": "### Zepbound"
+      },
+      "treatment_type_tags": {
+        "brand_name": "### Mounjaro",
+        "compounded": "Compounded Tirzepatide"
+      }
+    }
+  },
+  "breeze-meds-review": {
+    "url": "https://www.breezemeds.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "### Oral Semaglutide",
+        "tirzepatide": "### Oral Tirzepatide"
+      },
+      "delivery_form_tags": {
+        "oral": "### Oral Semaglutide"
+      }
+    }
+  },
+  "care-bare-rx-glp1-review": {
+    "review_required": "Retained Mounjaro quote is a parenthetical comparator for compounded tirzepatide, not affirmative brand supply. Retained tag needs independent source/claim review; do not drop it or renew it from the comparator."
+  },
+  "curex-glp-1": {
+    "url": "https://getcurex.com/cl/glp",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Curex offers oral dissolving tablets (ODT) for both semaglutide and tirzepatide.",
+        "tirzepatide": "Curex offers oral dissolving tablets (ODT) for both semaglutide and tirzepatide."
+      },
+      "delivery_form_tags": {
+        "oral": "Curex offers oral dissolving tablets (ODT) for both semaglutide and tirzepatide.",
+        "injectable": "If you do choose the injectable format, we provide clear instructions and your care team is available to walk you through your first dose."
+      },
+      "treatment_type_tags": {
+        "compounded": "but we may prescribe treatments containing compounded semaglutide or tirzepatide, formulated specifically for you by a licensed pharmacy."
+      }
+    }
+  },
+  "direct-meds": {
+    "url": "https://directmeds.com/dm-offers/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Direct Meds allows you to get prescription weight loss medications such as semaglutide & tirzepatide from the comfort of your home.",
+        "tirzepatide": "Direct Meds allows you to get prescription weight loss medications such as semaglutide & tirzepatide from the comfort of your home."
+      },
+      "delivery_form_tags": {
+        "injectable": "100% online medical visit. Injections and oral options available.",
+        "oral": "100% online medical visit. Injections and oral options available."
+      },
+      "treatment_type_tags": {
+        "compounded": "Yes, both of our GLP-1 weight loss medications are real prescription medications that are prescribed by a doctor and compounded by a real US based pharmacy."
+      }
+    }
+  },
+  "drhouse": {
+    "url": "https://drhouse.com/telehealth/weight-loss-treatment/",
+    "quotes": {}
+  },
+  "eden-xentraffic-offer-3051": {
+    "sources": [
+      {
+        "url": "https://www.eden.health/treatment/glp-1-treatments",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Compounded Semaglutide",
+            "tirzepatide": "Compounded Tirzepatide"
+          },
+          "treatment_type_tags": {
+            "compounded": "Compounded Semaglutide"
+          },
+          "delivery_form_tags": {
+            "injectable": "The compounded medications come in various forms, from injectables to liquids."
+          }
+        }
+      },
+      {
+        "url": "https://www.eden.health/weight-loss",
+        "quotes": {
+          "brand_name_tags": {
+            "mounjaro": "[Mounjaro® ᴿˣ](https://www.eden.health/treatment/mounjaro)",
+            "wegovy": "[Wegovy® ᴿˣ](https://www.eden.health/treatment/wegovy)",
+            "zepbound": "[Zepbound® ᴿˣ](https://www.eden.health/treatment/zepbound)"
+          }
+        }
+      }
+    ]
+  },
+  "enhance-md": {
+    "sources": [
+      {
+        "url": "https://enhance.md/product/core-semaglutide",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "GLP-1 Core semaglutide prescription online for weight loss"
+          },
+          "treatment_type_tags": {
+            "compounded": "This compounded formulation is not FDA-approved and is intended solely for patients under active care of a licensed prescriber."
+          }
+        }
+      },
+      {
+        "url": "https://enhance.md/product/advanced-tirzepatide",
+        "quotes": {
+          "molecule_tags": {
+            "tirzepatide": "GLP-1 Advanced tirzepatide prescription online for weight loss"
+          }
+        }
+      }
+    ]
+  },
+  "enhanced-tirzepatide-funnel-b": {
+    "sources": [
+      {
+        "url": "https://www.enhanced.com/live-enhanced/products/tirzepatide",
+        "quotes": {
+          "molecule_tags": {
+            "tirzepatide": "Tirzepatide  (GLP-1 / GIP)"
+          }
+        }
+      },
+      {
+        "url": "https://www.enhanced.com/live-enhanced/pathways/weight",
+        "quotes": {
+          "treatment_type_tags": {
+            "compounded": "If clinically appropriate, a licensed provider may prescribe a compounded medication tailored to your individual needs."
+          }
+        }
+      }
+    ]
+  },
+  "found-health": {
+    "url": "https://joinfound.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "compounded tirzepatide and semaglutide when you choose a prepaid annual plan",
+        "tirzepatide": "compounded tirzepatide and semaglutide when you choose a prepaid annual plan"
+      },
+      "brand_name_tags": {
+        "mounjaro": "Mounjaro®",
+        "wegovy": "Wegovy® pens, and Wegovy® pills",
+        "zepbound": "including Zepbound® vials"
+      },
+      "delivery_form_tags": {
+        "injectable": "Wegovy® pens, and Wegovy® pills",
+        "oral": "Wegovy® pens, and Wegovy® pills"
+      },
+      "treatment_type_tags": {
+        "brand_name": "supporting brand-name GLP-1 prescriptions",
+        "compounded": "compounded tirzepatide and semaglutide when you choose a prepaid annual plan"
+      }
+    }
+  },
+  "futurhealth-wegovy-pillform": {
+    "sources": [
+      {
+        "url": "https://landing.fh.co/",
+        "quotes": {
+          "brand_name_tags": {
+            "wegovy": "Wegovy® Pill Daily Oral Pill"
+          },
+          "delivery_form_tags": {
+            "oral": "Wegovy® Pill Daily Oral Pill"
+          }
+        }
+      },
+      {
+        "url": "https://landing.fh.co/medication-wegovy-pillform5-discount",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Wegovy® is the only FDA-approved semaglutide in a pill for weight loss."
+          }
+        }
+      }
+    ]
+  },
+  "g-plan": {
+    "sources": [
+      {
+        "url": "https://g-plans.com/",
+        "quotes": {
+          "brand_name_tags": {
+            "zepbound": "Our options include Ozempic®, Zepbound®, and other GLP-1 and GLP-1 + GIP medications."
+          }
+        }
+      },
+      {
+        "url": "https://g-plans.com/pages/meds",
+        "quotes": {
+          "treatment_type_tags": {
+            "compounded": "The G-Plans program includes access to both branded medications and customized, compounded medications based on what your clinician determines is medically appropriate and necessary for you."
+          }
+        }
+      }
+    ]
+  },
+  "gala-health": {
+    "sources": [
+      {
+        "url": "https://galaglp1.com/weight-loss/compounded-glp1",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Compounded semaglutide & tirzepatide options",
+            "tirzepatide": "Compounded semaglutide & tirzepatide options"
+          },
+          "treatment_type_tags": {
+            "compounded": "Compounded semaglutide & tirzepatide options"
+          }
+        }
+      },
+      {
+        "url": "https://galaglp1.com/weight-loss/ozempic",
+        "quotes": {
+          "treatment_type_tags": {
+            "brand_name": "FDA-approved semaglutide from Novo Nordisk. The original GLP-1 weight-loss molecule, reviewed and prescribed by a Gala provider."
+          }
+        }
+      }
+    ]
+  },
+  "gobymeds": {
+    "sources": [
+      {
+        "url": "https://www.gobymeds.com/getting-started/pricing",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "For **first-time patients** beginning their GLP-1 compounded semaglutide journey.",
+            "tirzepatide": "For **first-time patients** beginning their GLP-1/GIP compounded tirzepatide journey."
+          },
+          "delivery_form_tags": {
+            "injectable": "Bundle includes 12 weeks of medication, shipping, consultation, and injection kit."
+          },
+          "treatment_type_tags": {
+            "compounded": "For **first-time patients** beginning their GLP-1 compounded semaglutide journey."
+          }
+        }
+      },
+      {
+        "url": "https://www.gobymeds.com/",
+        "quotes": {
+          "treatment_type_tags": {
+            "brand_name": "Yes, GobyMeds offers brand-name medications including Zepbound, Mounjaro, Wegovy, and Ozempic."
+          }
+        }
+      }
+    ]
+  },
+  "healthrx": {
+    "url": "https://healthrx.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "### Compounded Semaglutide",
+        "tirzepatide": "### Compounded Tirzepatide"
+      },
+      "delivery_form_tags": {
+        "injectable": "Once-weekly injection · GLP-1"
+      },
+      "treatment_type_tags": {
+        "compounded": "### Compounded Semaglutide"
+      }
+    }
+  },
+  "humecare-data-driven-glp-1-weight-loss-system": {
+    "url": "https://app.humecare.com/medications-safety",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded semaglutide and compounded tirzepatide are not approved by the FDA.",
+        "tirzepatide": "Compounded semaglutide and compounded tirzepatide are not approved by the FDA."
+      },
+      "delivery_form_tags": {
+        "injectable": "Compounded semaglutide is an injectable prescription medicine"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded semaglutide and compounded tirzepatide are not approved by the FDA."
+      }
+    }
+  },
+  "joinskinny-semaglutide-glp-1-us": {
+    "url": "https://joinskinny.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded Semaglutide & Tirzepatide",
+        "tirzepatide": "Compounded Semaglutide & Tirzepatide"
+      },
+      "delivery_form_tags": {
+        "injectable": "Injectable treatments come with easy step-by-step guidance",
+        "oral": "Oral options include simple, clear directions."
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded Semaglutide & Tirzepatide"
+      }
+    }
+  },
+  "jrnys-review": {
+    "review_required": "Retained raw capture hash drift: needs source-bound evidence review before a refresh policy can be admitted. Retained Zepbound quote is a safety/off-label disclaimer rather than affirmative availability; the molecule/injectable quote is an educational comparison. Needs offering-specific assertions, not token matching."
+  },
+  "levelsrx-extra-cpa-home-page": {
+    "url": "https://www.levelsrx.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded Semaglutide (GLP-1)",
+        "tirzepatide": "Compounded Tirzepatide (GLP-1/GIP)"
+      },
+      "delivery_form_tags": {
+        "oral": "Oral Compounded Semaglutide (GLP-1)"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded Semaglutide (GLP-1)"
+      }
+    }
+  },
+  "live-vital-launch": {
+    "sources": [
+      {
+        "url": "https://www.livevital.io/treatments/semaglutide",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Semaglutide is a once-weekly injectable GLP-1 receptor agonist."
+          },
+          "delivery_form_tags": {
+            "injectable": "Semaglutide is a once-weekly injectable GLP-1 receptor agonist."
+          }
+        }
+      },
+      {
+        "url": "https://www.livevital.io/treatments/tirzepatide",
+        "quotes": {
+          "molecule_tags": {
+            "tirzepatide": "Tirzepatide is a once-weekly injectable that activates two incretin receptors at the same time:"
+          }
+        }
+      }
+    ]
+  },
+  "longevity-meds-glp-1-review": {
+    "sources": [
+      {
+        "url": "https://www.longevitymeds.com/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Semaglutide & Tirzepatide",
+            "tirzepatide": "Semaglutide & Tirzepatide"
+          }
+        }
+      },
+      {
+        "url": "https://www.longevitymeds.com/legal/safety-information",
+        "quotes": {
+          "delivery_form_tags": {
+            "injectable": "Compounded Tirzepatide is an injectable prescription medication"
+          },
+          "treatment_type_tags": {
+            "compounded": "Compounded Tirzepatide is an injectable prescription medication"
+          }
+        }
+      }
+    ]
+  },
+  "lttl-glp-landing-page-2": {
+    "sources": [
+      {
+        "url": "https://lttl.com/plans",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Semaglutide Injectable",
+            "tirzepatide": "Tirzepatide Injectable"
+          },
+          "delivery_form_tags": {
+            "injectable": "Semaglutide Injectable",
+            "oral": "Semaglutide Oral (ODT)"
+          }
+        }
+      },
+      {
+        "url": "https://lttl.com/terms-of-service",
+        "quotes": {
+          "treatment_type_tags": {
+            "compounded": "**Compounded Medication Program:** A program that includes a compounded drug formulation",
+            "brand_name": "**Prescription-Only Service:** A prescription for an FDA-approved, brand-name medication."
+          }
+        }
+      }
+    ]
+  },
+  "mademed": {
+    "sources": [
+      {
+        "url": "https://mademed.com/weight-loss/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "**Injectable Semaglutide**",
+            "tirzepatide": "**Injectable Tirzepatide**"
+          },
+          "delivery_form_tags": {
+            "injectable": "**Injectable Semaglutide**",
+            "oral": "**Oral Semaglutide**"
+          }
+        }
+      },
+      {
+        "url": "https://mademed.com/rx/oral-semaglutide/",
+        "quotes": {
+          "treatment_type_tags": {
+            "compounded": "This is a compounded medication that has not been approved by the FDA."
+          }
+        }
+      }
+    ]
+  },
+  "mangorx": {
+    "url": "https://mangorx.com/products/slim",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Your provider reviews your health history and prescribes a personalized Slim oral Semaglutide tablet."
+      },
+      "delivery_form_tags": {
+        "oral": "Pain-free daily tablet"
+      },
+      "treatment_type_tags": {
+        "compounded": "Uniquely compounded"
+      }
+    }
+  },
+  "measured": {
+    "url": "https://trymeasured.com/how-it-works",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "#### Compounded Semaglutide",
+        "tirzepatide": "#### Compounded Tirzepatide"
+      },
+      "brand_name_tags": {
+        "wegovy": "#### Wegovy® Pill"
+      },
+      "delivery_form_tags": {
+        "oral": "Daily semaglutide pill"
+      },
+      "treatment_type_tags": {
+        "compounded": "#### Compounded Semaglutide"
+      }
+    }
+  },
+  "medvi-review": {
+    "url": "https://glp1.medvi.org/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "The MEDVi Semaglutide program starts at $179 for your first month with no contract."
+      },
+      "brand_name_tags": {
+        "wegovy": "[Wegovy® Injection]",
+        "zepbound": "[Zepbound® Injection]"
+      },
+      "treatment_type_tags": {
+        "compounded": "Our providers will explore prescribing compounded GLP-1 medications for you, if appropriate"
+      }
+    }
+  },
+  "mydrhank": {
+    "url": "https://mydrhank.com/products/compounded-semaglutide",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded SemaglutideRx"
+      },
+      "delivery_form_tags": {
+        "injectable": "Compounded injectable GLP-1 with B-12"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded SemaglutideRx"
+      }
+    }
+  },
+  "novi-weight-loss-glp-1": {
+    "url": "https://www.joinnovi.com/begin",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Semaglutide (Ozempic or Wegovy)",
+        "tirzepatide": "Tirzepatide (Mounjaro or Zepbound)"
+      },
+      "brand_name_tags": {
+        "wegovy": "Semaglutide (Ozempic or Wegovy)",
+        "mounjaro": "Tirzepatide (Mounjaro or Zepbound)",
+        "zepbound": "Tirzepatide (Mounjaro or Zepbound)"
+      }
+    }
+  },
+  "oak-weight-loss-program": {
+    "url": "https://www.oaklovesyou.com/",
+    "quotes": {}
+  },
+  "orderlymeds": {
+    "url": "https://orderlymeds.com/pricing/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed.",
+        "tirzepatide": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed."
+      },
+      "brand_name_tags": {
+        "wegovy": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed.",
+        "zepbound": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed."
+      },
+      "treatment_type_tags": {
+        "brand_name": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed.",
+        "compounded": "We offer brand name weight loss treatments Zepbound® (tirzepatide) and Wegovy® (semaglutide), as well as compounded medications where appropriate and prescribed."
+      },
+      "delivery_form_tags": {
+        "injectable": "Compounded **Tirzepatide** GLP-1/GIP injections"
+      }
+    }
+  },
+  "refills": {
+    "review_required": "Retained tirzepatide excerpt is an educational comparison, not affirmative offering evidence. The retained product source supports semaglutide but cannot renew the tirzepatide tag; needs source/claim review."
+  },
+  "ro-wegovy-glp1-quiz-us-cpl": {
+    "sources": [
+      {
+        "url": "https://ro.co/weight-loss/oral-wegovy/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "the Wegovy pill (semaglutide) is available in the US on Ro."
+          },
+          "brand_name_tags": {
+            "wegovy": "the Wegovy pill (semaglutide) is available in the US on Ro."
+          },
+          "delivery_form_tags": {
+            "oral": "the Wegovy pill (semaglutide) is available in the US on Ro."
+          }
+        }
+      },
+      {
+        "url": "https://ro.co/weight-loss/pricing/",
+        "quotes": {
+          "delivery_form_tags": {
+            "injectable": "## Wegovy® pen weekly semaglutide injection"
+          }
+        }
+      }
+    ]
+  },
+  "serena-health": {
+    "url": "https://serenahealth.life/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "### Semaglutide + B6 Injectable",
+        "tirzepatide": "### Tirzepatide + B6 Injectable"
+      },
+      "delivery_form_tags": {
+        "injectable": "### Semaglutide + B6 Injectable",
+        "oral": "### Semaglutide Sublingual"
+      }
+    }
+  },
+  "shed": {
+    "sources": [
+      {
+        "url": "https://shedrx.com/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Compounded Semaglutide Injections Rx",
+            "tirzepatide": "Compounded Tirzepatide Injections Rx"
+          },
+          "delivery_form_tags": {
+            "oral": "Daily oral drops, no needle"
+          },
+          "treatment_type_tags": {
+            "compounded": "Compounded Semaglutide Injections Rx"
+          }
+        }
+      },
+      {
+        "url": "https://www.tryshed.com/resources/legal/terms",
+        "quotes": {
+          "brand_name_tags": {
+            "wegovy": "Access to LillyCare and NovoDirect for brand-name medications (e.g, Wegovy® and Zepbound® in connection with Provider approval).",
+            "zepbound": "Access to LillyCare and NovoDirect for brand-name medications (e.g, Wegovy® and Zepbound® in connection with Provider approval)."
+          }
+        }
+      }
+    ]
+  },
+  "shedrx": {
+    "sources": [
+      {
+        "url": "https://shedrx.com/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "Compounded Semaglutide Injections Rx",
+            "tirzepatide": "Compounded Tirzepatide Injections Rx"
+          },
+          "delivery_form_tags": {
+            "oral": "Daily oral drops, no needle"
+          },
+          "treatment_type_tags": {
+            "compounded": "Compounded Semaglutide Injections Rx"
+          }
+        }
+      },
+      {
+        "url": "https://www.tryshed.com/resources/legal/terms",
+        "quotes": {
+          "brand_name_tags": {
+            "wegovy": "Access to LillyCare and NovoDirect for brand-name medications (e.g, Wegovy® and Zepbound® in connection with Provider approval).",
+            "zepbound": "Access to LillyCare and NovoDirect for brand-name medications (e.g, Wegovy® and Zepbound® in connection with Provider approval)."
+          },
+          "treatment_type_tags": {
+            "brand_name": "Access to LillyCare and NovoDirect for brand-name medications (e.g, Wegovy® and Zepbound® in connection with Provider approval)."
+          }
+        }
+      }
+    ]
+  },
+  "snagrx": {
+    "url": "https://snagrx.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded Semaglutide Injections",
+        "tirzepatide": "Compounded Tirzepatide Injections"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded Semaglutide Injections"
+      }
+    }
+  },
+  "sprout-health": {
+    "url": "https://joinsprouthealth.com/shop",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded semaglutide and tirzepatide are not approved by the FDA",
+        "tirzepatide": "Compounded semaglutide and tirzepatide are not approved by the FDA"
+      },
+      "treatment_type_tags": {
+        "compounded": "Sprout Health provides access to compounded GLP-1 medications prepared by licensed U.S. pharmacies."
+      }
+    }
+  },
+  "strut-health": {
+    "url": "https://www.struthealth.com/weight-loss/semaglutide",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "GLP-1 compounded weight management therapy with Semaglutide."
+      },
+      "delivery_form_tags": {
+        "injectable": "Semaglutide Injectable"
+      },
+      "treatment_type_tags": {
+        "compounded": "GLP-1 compounded weight management therapy with Semaglutide."
+      }
+    }
+  },
+  "sunlight-glp1": {
+    "url": "https://www.sunlight.com/t3/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Sunlight.com offers compounded semaglutide and tirzepatide.",
+        "tirzepatide": "Sunlight.com offers compounded semaglutide and tirzepatide."
+      },
+      "delivery_form_tags": {
+        "oral": "100% online medical visit. Injections and oral options available."
+      },
+      "treatment_type_tags": {
+        "compounded": "Sunlight.com offers compounded semaglutide and tirzepatide."
+      }
+    }
+  },
+  "tmates-xentraffic-offer-3154": {
+    "review_required": "Retained Wegovy/Zepbound assertions are trademark non-affiliation disclaimers, not affirmative brand availability. Needs reviewed offering-specific brand assertions."
+  },
+  "trimi-glp-1": {
+    "url": "https://trytrimi.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded semaglutide and tirzepatide are prepared per individual prescription by state-licensed 503A pharmacies and are not FDA-approved as drugs.",
+        "tirzepatide": "Compounded semaglutide and tirzepatide are prepared per individual prescription by state-licensed 503A pharmacies and are not FDA-approved as drugs."
+      },
+      "delivery_form_tags": {
+        "injectable": "DosingOnce-weekly injection"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded semaglutide and tirzepatide are prepared per individual prescription by state-licensed 503A pharmacies and are not FDA-approved as drugs."
+      }
+    }
+  },
+  "trimrx-xentraffic-offer-3014": {
+    "sources": [
+      {
+        "url": "https://trimrx.com/blog/compounded-semaglutide-cost-complete-pricing-guide-2026/",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "TrimRx offers compounded semaglutide",
+            "tirzepatide": "Compounded tirzepatide through TrimRx"
+          },
+          "treatment_type_tags": {
+            "compounded": "TrimRx offers compounded semaglutide"
+          }
+        }
+      },
+      {
+        "url": "https://trimrx.com/product/semaglutide",
+        "quotes": {
+          "brand_name_tags": {
+            "wegovy": "Benefit from Medications Like Ozempic®, Wegovy®, and Zepbound®",
+            "zepbound": "Benefit from Medications Like Ozempic®, Wegovy®, and Zepbound®"
+          }
+        }
+      },
+      {
+        "url": "https://trimrx.com/terms-and-conditions",
+        "quotes": {
+          "treatment_type_tags": {
+            "brand_name": "**Prescription-Only Service:** A prescription for an FDA-approved, brand-name medication"
+          }
+        }
+      },
+      {
+        "url": "https://trimrx.com/glp1/offer-v8-hero",
+        "quotes": {
+          "delivery_form_tags": {
+            "injectable": "In Stock GLP-1 Injections One simple injection per week."
+          }
+        }
+      }
+    ]
+  },
+  "trt-nation": {
+    "url": "https://trtnation.com/weight-loss-therapy/",
+    "quotes": {
+      "molecule_tags": {
+        "tirzepatide": "## Tirzepatide A breakthrough dual-action injectable"
+      },
+      "delivery_form_tags": {
+        "injectable": "## Tirzepatide A breakthrough dual-action injectable"
+      }
+    }
+  },
+  "try-ageless": {
+    "url": "https://tryageless.com/affiliate-weight-plans/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Try Ageless dispenses **compounded semaglutide and tirzepatide**",
+        "tirzepatide": "Try Ageless dispenses **compounded semaglutide and tirzepatide**"
+      },
+      "delivery_form_tags": {
+        "injectable": "**Semaglutide injection, tirzepatide injection, or tirzepatide oral drops**",
+        "oral": "**Semaglutide injection, tirzepatide injection, or tirzepatide oral drops**"
+      },
+      "treatment_type_tags": {
+        "compounded": "Try Ageless dispenses **compounded semaglutide and tirzepatide**"
+      }
+    }
+  },
+  "wellorithm": {
+    "sources": [
+      {
+        "url": "https://wellorithm.com/",
+        "quotes": {
+          "brand_name_tags": {
+            "mounjaro": "### Mounjaro",
+            "wegovy": "### Wegovy",
+            "zepbound": "### Zepbound"
+          },
+          "delivery_form_tags": {
+            "injectable": "GLP-1 Compounded Semaglutide Injection.",
+            "oral": "Oral dissolving tablets for convenient, clinician-guided weight management."
+          }
+        }
+      },
+      {
+        "url": "https://wellorithm.com/campaign-7",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "At Wellorithm, we specialize in compounded GLP-1 medication programs, specifically Semaglutide and Tirzepatide.",
+            "tirzepatide": "At Wellorithm, we specialize in compounded GLP-1 medication programs, specifically Semaglutide and Tirzepatide."
+          },
+          "treatment_type_tags": {
+            "compounded": "At Wellorithm, we specialize in compounded GLP-1 medication programs, specifically Semaglutide and Tirzepatide."
+          }
+        }
+      }
+    ]
+  },
+  "yourera-program": {
+    "url": "https://www.yourera.com/",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Our compounded tirzepatide and compounded semaglutide are custom formulations prepared by a licensed compounding pharmacy in the United States to meet individual patient needs pursuant to a prescription for an individual patient.",
+        "tirzepatide": "Our compounded tirzepatide and compounded semaglutide are custom formulations prepared by a licensed compounding pharmacy in the United States to meet individual patient needs pursuant to a prescription for an individual patient."
+      },
+      "treatment_type_tags": {
+        "compounded": "Our compounded tirzepatide and compounded semaglutide are custom formulations prepared by a licensed compounding pharmacy in the United States to meet individual patient needs pursuant to a prescription for an individual patient."
+      }
+    }
+  },
+  "yucca-health-xentraffic-offer-3117": {
+    "url": "https://tryyucca.com/treatments",
+    "quotes": {
+      "molecule_tags": {
+        "semaglutide": "Compounded **tirzepatide** and **semaglutide** paired with thoughtful, patient-first care",
+        "tirzepatide": "Compounded **tirzepatide** and **semaglutide** paired with thoughtful, patient-first care"
+      },
+      "treatment_type_tags": {
+        "compounded": "Compounded **tirzepatide** and **semaglutide** paired with thoughtful, patient-first care"
+      }
+    }
+  }
+}
