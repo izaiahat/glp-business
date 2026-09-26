@@ -228,39 +228,56 @@ class NullReceipts:
     def record(self,*args,**kwargs):return None
 
 
-def live_probe(target):
-    import sys
+def session_leases():
+    """Hold the original owner/profile refusals for the whole fresh tool session."""
     from contextlib import ExitStack
     import fcntl
-    sys.path[:0]=[str(BUSINESS),str(BUSINESS/'scripts'),str(BUSINESS/'ops')]
-    from scripts.marketplace_adapters import maxbounty as mb
-    pl=mb.portal_lane
-    profile=pl.PORTALS['maxbounty'].profile_dir
-    expected=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/maxbounty/browser-profile')
-    if profile!=expected:raise Refusal('PROFILE_UNSAFE')
+    profile=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/maxbounty/browser-profile')
     lease_paths=[BUSINESS/'reports/glp-clinic-scout/affiliate-machine/applications/.application-machine.lock',
                  BUSINESS/'reports/ops/orchestration-restore-20260907/PLAN/MARKETPLACE-ACCESS/M2b/MAXBOUNTY-LIVE/owner.lock']
-    with ExitStack() as stack:
+    stack=ExitStack()
+    try:
         for lease in lease_paths:
             if lease.is_symlink() or not lease.is_file():raise Refusal('SESSION_LEASE_MISSING')
             handle=stack.enter_context(lease.open('r+'))
             try:fcntl.flock(handle,fcntl.LOCK_EX|fcntl.LOCK_NB)
             except BlockingIOError:raise Refusal('SESSION_LEASE_BUSY') from None
         assert_profile_idle(profile)
-        Driver,Session=restricted_classes(pl)
-        driver=Driver(profile)
-        try:
-            # The known PortalSession/login helper is reused, but password loading,
-            # all credential fills/submits, screenshots and account dumps are barred.
-            with Session('maxbounty',driver=driver,password='',receipts=NullReceipts(),
-                         run_id='capacity-monitor-cookie-only') as session:
-                result=probe_with_session(target,session,mb)
-                if driver._ctx.service_workers:raise Refusal('SERVICE_WORKER_BOUNDARY_UNKNOWN')
-                if result['network_boundary']['campaign_gets']!=1:
-                    raise Refusal('CAMPAIGN_READ_COUNT_INVALID')
-                return result
-        finally:
-            driver.close()
+        return stack
+    except BaseException:
+        stack.close()
+        raise
+
+
+def fresh_browser_session(*, pins, cdp, drain_events, switch_tab):
+    """Explicit tool-owner entry; no receipt import or unattended login fallback.
+
+    The returned ExitStack must span vault/MFA tools and run_once(..., p.probe).
+    Browser/heavy admission remains the coordinator's separate prerequisite.
+    """
+    verify_pins(pins)
+    pinned=json.loads(Path(pins).read_text())['files']
+    sources=[Path(__file__).resolve(), Path(__file__).with_name('glp_maxbounty_fresh_probe.py').resolve()]
+    if any(str(source) not in pinned for source in sources):
+        raise Refusal('FRESH_PRODUCER_SOURCE_PIN_MISSING')
+    from scripts.glp_maxbounty_fresh_probe import FreshCapacityProbe
+    leases=session_leases()
+    try:
+        producer=leases.enter_context(FreshCapacityProbe(cdp=cdp, drain_events=drain_events, switch_tab=switch_tab))
+        return leases,producer
+    except BaseException:
+        leases.close()
+        raise
+
+
+def live_probe(target):
+    # An unattended cron cannot manufacture an authorized AI-browser/vault
+    # session. Keep the original ownership refusal ahead of this handoff and
+    # never launch the retired persistent-cookie transport.
+    if target!={'queue_id':TARGET_QUEUE_ID,'program_id':TARGET_ID,'detail_url':DETAIL_URL}:
+        raise Refusal('PROGRAM_PROJECTION_IDENTITY_MISMATCH')
+    with session_leases():
+        raise Refusal('FRESH_AI_BROWSER_TOOL_OWNER_REQUIRED')
 
 
 def main():

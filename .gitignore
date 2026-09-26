@@ -137,6 +137,10 @@
 !/scripts/glp_evidence_refresh_cycle.py
 !/scripts/glp_g6_weekly_traction_report.py
 !/scripts/glp_maxbounty_capacity_monitor.py
+!/scripts/glp_maxbounty_fresh_probe.py
+!/tests/test_glp_maxbounty_fresh_probe.py
+!/ops/maxbounty-fresh-probe.md
+!/.github/workflows/maxbounty-fresh-probe.yml
 !/scripts/glp_provider_cardinality_test_refresh.py
 !/scripts/glp_reddit_pack_scout.py
 !/scripts/glp_sheet_vs_site_reconciler.py

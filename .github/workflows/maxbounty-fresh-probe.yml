@@ -1,0 +1,20 @@
+name: maxbounty-fresh-probe
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  offline-caller-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install isolated fixture runner
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5'
+      - name: Exact fresh producer and real caller (no network)
+        run: .venv/bin/python -m pytest -q tests/test_glp_maxbounty_fresh_probe.py
