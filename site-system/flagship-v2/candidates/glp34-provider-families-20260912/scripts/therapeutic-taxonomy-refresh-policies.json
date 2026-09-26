@@ -96,7 +96,7 @@
             "compounded": "Compounded Semaglutide\n\n$99/mo\n\n\\+ Eden Membership\\*"
           },
           "delivery_form_tags": {
-            "injectable": "The compounded medications come in various forms, from injectables to liquids."
+            "injectable": "### Personalized GLP **‑** 1 Injections\n\n[See if you qualify](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)"
           }
         }
       },
@@ -104,9 +104,9 @@
         "url": "https://www.eden.health/weight-loss",
         "quotes": {
           "brand_name_tags": {
-            "mounjaro": "[Mounjaro® ᴿˣ](https://www.eden.health/treatment/mounjaro)",
-            "wegovy": "[Wegovy® ᴿˣ](https://www.eden.health/treatment/wegovy)",
-            "zepbound": "[Zepbound® ᴿˣ](https://www.eden.health/treatment/zepbound)"
+            "mounjaro": "### Mounjaro®\n\n### Personalized GLP-1 Treatments\n\n$1,399/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)",
+            "wegovy": "### Wegovy®\n\n### Personalized GLP-1 Treatments\n\n$1,695/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)",
+            "zepbound": "### Zepbound®\n\n### Personalized GLP-1 Treatments\n\n$1,399/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)"
           }
         }
       }
@@ -164,12 +164,12 @@
       },
       "brand_name_tags": {
         "mounjaro": "Mounjaro®\n\n~$1100/mo\n\n[Get started",
-        "wegovy": "Wegovy® pens, and Wegovy® pills",
-        "zepbound": "including Zepbound® vials"
+        "wegovy": "Wegovy®\n\nfrom $650/mo+\n\n[Get started",
+        "zepbound": "Zepbound®\n\nfrom $650/mo+\n\n[Get started"
       },
       "delivery_form_tags": {
-        "injectable": "Wegovy® pens, and Wegovy® pills",
-        "oral": "Wegovy® pens, and Wegovy® pills"
+        "injectable": "Save $100 off today's checkout supporting brand-name GLP-1 prescriptions (including Zepbound® vials, Wegovy® pens, and Wegovy® pills) when paying cash for your Found Membership.",
+        "oral": "Save $100 off today's checkout supporting brand-name GLP-1 prescriptions (including Zepbound® vials, Wegovy® pens, and Wegovy® pills) when paying cash for your Found Membership."
       },
       "treatment_type_tags": {
         "brand_name": "supporting brand-name GLP-1 prescriptions",
@@ -276,7 +276,7 @@
     "quotes": {
       "molecule_tags": {
         "semaglutide": "Compounded semaglutide · ships cold, overnight",
-        "tirzepatide": "### Compounded Tirzepatide\n\nOnce-weekly injection · Dual-incretin"
+        "tirzepatide": "### Compounded Tirzepatide\n\nOnce-weekly injection · Dual-incretin\n\nDual-incretin therapy. Average 21% body-weight loss at 72 weeks in pivotal phase-3 trial. Compounded at a licensed 503A pharmacy.\n\nFrom$209/mo\n\n(3-month plan) · as low as $179/mo on 12-month\n\nPlan options · secure checkout"
       },
       "delivery_form_tags": {
         "injectable": "### Compounded Semaglutide\n\nOnce-weekly injection · GLP-1"
@@ -435,7 +435,7 @@
         "tirzepatide": "#### Compounded Tirzepatide\n\nClinician-guided, personalized GLP-1/GIP care\n\nNo insurance requiredMedication included"
       },
       "brand_name_tags": {
-        "wegovy": "#### Wegovy® Pill"
+        "wegovy": "#### Wegovy® Pill\n\nDaily semaglutide pill proven to help people lose up to 14% of body weight\n\nNo insurance requiredMedication paid separately\n\nFrom\n\n$49/mo"
       },
       "delivery_form_tags": {
         "oral": "Daily semaglutide pill"

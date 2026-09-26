@@ -348,6 +348,70 @@ def test_each_new_offering_required_with_generic_disclaimers_remaining(producer,
     assert after['therapeutic_taxonomy']['programs'][pid] == before['therapeutic_taxonomy']['programs'][pid]
 
 
+# R2 semantic counterexamples keep the complete normalized old name/definition
+# or navigation link, not a shortened brand token. Every non-target offering is
+# still present. These fixed replacements are synthetic, not provider quotes.
+R2_SEMANTIC_CASES = [
+    ('measured', 'brand_name_tags', 'wegovy', 'Wegovy® Pill',
+     'General medication reference: Wegovy® Pill is a third-party product name. Daily semaglutide pill.'),
+    ('healthrx', 'molecule_tags', 'tirzepatide',
+     'Compounded Tirzepatide\n\nOnce-weekly injection · Dual-incretin',
+     'Medication reference: Compounded Tirzepatide\n\nOnce-weekly injection · Dual-incretin.'),
+    ('found-health', 'brand_name_tags', 'wegovy', 'Wegovy® pens, and Wegovy® pills',
+     'Medication reference: Wegovy® pens, and Wegovy® pills.'),
+    ('found-health', 'brand_name_tags', 'zepbound', 'including Zepbound® vials',
+     'Medication reference including Zepbound® vials.'),
+    # Both forms share one substantive prescription/checkout sentence. Removing
+    # it tests that rule while every independent brand/molecule card remains.
+    ('found-health', 'delivery_form_tags', 'injectable', 'Wegovy® pens, and Wegovy® pills',
+     'Medication reference: Wegovy® pens, and Wegovy® pills.'),
+    *[('eden-xentraffic-offer-3051', 'brand_name_tags', tag,
+       f'[{name}® ᴿˣ](https://www.eden.health/treatment/{tag})',
+       f'Medication reference: [{name}® ᴿˣ](https://www.eden.health/treatment/{tag})')
+      for tag, name in [('mounjaro', 'Mounjaro'), ('wegovy', 'Wegovy'), ('zepbound', 'Zepbound')]],
+    ('eden-xentraffic-offer-3051', 'delivery_form_tags', 'injectable',
+     'The compounded medications come in various forms, from injectables to liquids.',
+     'The compounded medications come in various forms, from injectables to liquids.'),
+]
+
+
+def r2_semantic_capture(producer, pid, field, tag, generic):
+    policy = producer.POLICIES[pid]
+    source = next(s for s in policy.get('sources', [policy]) if tag in s['quotes'].get(field, {}))
+    removed = producer.normalized(source['quotes'][field][tag])
+    others = list(dict.fromkeys(q for tags in source['quotes'].values() for q in tags.values()
+                               if producer.normalized(q) != removed))
+    if pid == 'found-health' and field == 'brand_name_tags':
+        # Remove this brand's additional offering in the shared form sentence,
+        # without removing the other brands' priced cards or compound plans.
+        fragment = {'wegovy': ', Wegovy® pens, and Wegovy® pills',
+                    'zepbound': 'Zepbound® vials, '}[tag]
+        others = [q.replace(fragment, '') for q in others]
+    reference_names = [name for other_pid, other_field, other_tag, name, _ in R2_SEMANTIC_CASES
+                       if other_pid == pid and other_tag in source['quotes'].get(other_field, {})]
+    text = ('\n' + '.' * 220 + '\n').join(others + ['Medication reference: ' + '\n'.join(reference_names), generic])
+    # Other molecule/brand offers remain, even when a treatment facet shares one.
+    for other_field in ('molecule_tags', 'brand_name_tags'):
+        for other_tag, quote in source['quotes'].get(other_field, {}).items():
+            if (other_field, other_tag) != (field, tag):
+                assert producer.normalized(quote) in producer.normalized(text)
+    return source, text
+
+
+@pytest.mark.parametrize('pid,field,tag,old_name,generic', R2_SEMANTIC_CASES)
+def test_r2_generic_name_is_not_an_offering(producer, monkeypatch, tmp_path, pid, field, tag, old_name, generic):
+    source, text = r2_semantic_capture(producer, pid, field, tag, generic)
+    assert producer.normalized(old_name) in producer.normalized(text)
+    good = 'breeze-meds-review'
+    code, result, before, after, _ = run_fixture(
+        producer, monkeypatch, tmp_path, [pid, good], markdown_overrides={source['url']: text})
+    assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
+    assert result['findings'][0]['condition'] == f'assertion_no_longer_supported:{field}:{tag}'
+    assert [w['program_id'] for w in result['written']] == [good]
+    assert producer.encoded(after['therapeutic_taxonomy']['programs'][pid]) == producer.encoded(before['therapeutic_taxonomy']['programs'][pid])
+    assert after['therapeutic_taxonomy']['programs'][pid]['verified_as_of'] == before['therapeutic_taxonomy']['programs'][pid]['verified_as_of']
+
+
 @pytest.mark.parametrize('fault', ['cache', 'host', 'status', 'empty', 'failed', 'stale'])
 def test_capture_still_refuses_untrusted_responses(producer, monkeypatch, tmp_path, fault):
     data = {'metadata': {'statusCode': 200, 'sourceURL': 'https://example.invalid/'}, 'markdown': 'test fixture'}
