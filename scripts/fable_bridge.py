@@ -766,9 +766,41 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
         backend = select_backend(design_review=True)
         if backend != ("fable", "claude-fable-5-1", "xhigh"):
             raise RuntimeError("reviewer_model_changed")
+
+        def revalidate_bound_source() -> None:
+            # Capacity collection and inference block while independent senders
+            # can reply. Recheck the original bindings and complete history at
+            # both external-effect boundaries; the state lock is only local.
+            if json.loads(issue_path.read_text()) != issue:
+                raise RuntimeError("issue_identity_or_status_changed")
+            if (not artifact.resolve(strict=True).is_relative_to(ARTIFACT_ROOT.resolve())
+                    or hashlib.sha256(artifact.read_bytes()).hexdigest() != tuple_sha256):
+                raise RuntimeError("request_or_artifact_drift")
+            current = _exact_message(source_id)
+            current_classification = classify_message(current)
+            if (current.get("content") != content or current.get("edited_timestamp") is not None
+                    or current.get("timestamp") != issue.get("request_timestamp")
+                    or str(current.get("author", {}).get("id")) != KAEL_BOT_ID
+                    or current_classification is None
+                    or current_classification[0] != "review_request"):
+                raise RuntimeError("request_message_drift")
+            current_refusal = _exact_message(refusal_id)
+            current_content = current_refusal.get("content")
+            if (not isinstance(current_content, str)
+                    or str(current_refusal.get("author", {}).get("id")) != SELF_ID
+                    or str(current_refusal.get("message_reference", {}).get("message_id")) != source_id
+                    or current_refusal.get("edited_timestamp") is not None
+                    or len(current_content) != receipt.get("reply_chars")
+                    or hashlib.sha256(current_content.encode()).hexdigest() != receipt.get("reply_sha256")
+                    or "no authority decision was issued" not in current_content
+                    or "ACCEPT" in current_content):
+                raise RuntimeError("original_refusal_drift_or_decision")
+            _only_original_refusal(source_id, refusal_id)
+
         snapshot = refresh_included_capacity()
         if not _included_quota_available(snapshot):
             raise RuntimeError("fresh_positive_included_capacity_required")
+        revalidate_bound_source()  # Before reserving and invoking the reviewer.
         # The claim precedes every possible invocation. Unknown/crashed claims never retry.
         resumed: dict[str, Any] = {"status": "reserved", "issue_id": issue_id,
             "tuple_sha256": tuple_sha256, "original_refusal_message_id": refusal_id,
@@ -798,6 +830,14 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
             raise RuntimeError("resume_no_safe_inference")
         resumed.update(status="reply_prepared", posting="prepared")
         save_state(state)
+        try:
+            revalidate_bound_source()  # Immediately before the outbound reply.
+        except Exception:
+            # Inference may already have occurred. Retain its terminal claim;
+            # withholding the reply must never make this request replayable.
+            resumed.update(status="reply_withheld_reconciliation", posting="withheld")
+            save_state(state)
+            raise
         try:
             posted = post(reply, reply_to_message_id=source_id, nonce=resumed["nonce"])
         except Exception:

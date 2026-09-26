@@ -132,6 +132,47 @@ class QuotaResumeTests(unittest.TestCase):
         self.assertEqual(self.inferences.call_count, 1)
         self.assertEqual(len(self.posts), 1)
 
+    def test_competing_decision_during_capacity_refresh_blocks_inference_and_post(self):
+        decision = dict(id=str(int(REFUSAL) + 1), author={"id": SIGNER, "bot": True},
+                        message_reference={"message_id": SOURCE},
+                        content="TRUE-BRIDGE FABLE — ACCEPT\nOffline competing decision")
+        def refresh():
+            self.extra.append(decision)
+            return self.capacity()
+        bridge.refresh_included_capacity.side_effect = refresh
+        with patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            with self.assertRaisesRegex(RuntimeError, "additional_reviewer_reply_present"):
+                self.run_resume()
+        self.inferences.assert_not_called()
+        self.assertFalse(self.posts)
+        self.assertNotIn("resume", bridge.load_state()["reviewer_receipts"][SOURCE])
+        self.assertEqual(bridge.load_state()["last_id"], REFUSAL)
+
+    def test_competing_decision_during_inference_withholds_post_and_replay(self):
+        decision = dict(id=str(int(REFUSAL) + 1), author={"id": SIGNER, "bot": True},
+                        message_reference={"message_id": SOURCE},
+                        content="TRUE-BRIDGE FABLE — ACCEPT\nOffline competing decision")
+        def inference(*args, **kwargs):
+            self.extra.append(decision)
+            return SimpleNamespace(returncode=0,
+                stdout="TRUE-BRIDGE FABLE — REJECT\nOffline resumed review", stderr="")
+        self.inferences.side_effect = inference
+        with patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            with self.assertRaisesRegex(RuntimeError, "additional_reviewer_reply_present"):
+                self.run_resume()
+            with self.assertRaisesRegex(RuntimeError, "resume_receipt_not_eligible"):
+                self.run_resume()
+        self.assertEqual(self.inferences.call_count, 1)
+        self.assertFalse(self.posts)
+        state = bridge.load_state()
+        original = state["reviewer_receipts"][SOURCE]
+        self.assertEqual(original["posted_message_id"], REFUSAL)
+        self.assertEqual(original["reply_sha256"], hashlib.sha256(REFUSAL_BODY.encode()).hexdigest())
+        self.assertEqual(state["last_id"], REFUSAL)
+        self.assertEqual(original["resume"]["status"], "reply_withheld_reconciliation")
+        self.assertEqual(original["resume"]["posting"], "withheld")
+        self.assertTrue(original["resume"]["attempts"][0]["invoked"])
+
     def test_duplicate_or_other_refusal_blocks_before_capacity_or_inference(self):
         self.extra.append(dict(id="1553266023426293761", author={"id": SIGNER},
                                message_reference={"message_id": SOURCE},
