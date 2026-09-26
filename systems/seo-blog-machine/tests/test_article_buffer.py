@@ -369,7 +369,9 @@ def _check_registered_exact_entry_hold(tmp_path, unsafe):
 @pytest.mark.parametrize("unsafe", [
     "claimed", "consumed", "published", "unknown", "preimage_drift", "evidence_drift"
 ])
-def test_registered_exact_entry_hold_states(tmp_path, unsafe):
+def test_registered_exact_entry_hold_states(tmp_path, unsafe, monkeypatch):
+    from carrier_lock import carrier_lock as real_carrier_lock
+    monkeypatch.setattr(buffer, "carrier_lock", lambda: real_carrier_lock(tmp_path / "carrier.lock"))
     _check_registered_exact_entry_hold(tmp_path, unsafe)
 
 
