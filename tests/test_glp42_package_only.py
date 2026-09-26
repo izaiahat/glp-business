@@ -92,8 +92,9 @@ class PackageTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(carrier.subprocess, "Popen", side_effect=AssertionError("unintercepted subprocess")))
             stack.enter_context(mock.patch.object(carrier, "read_token", return_value="synthetic-test-token"))
             stack.enter_context(mock.patch.object(carrier.urllib.request.OpenerDirector, "open", side_effect=self.transport))
-            stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-            stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            self.stdout, self.stderr = io.StringIO(), io.StringIO()
+            stack.enter_context(contextlib.redirect_stdout(self.stdout))
+            stack.enter_context(contextlib.redirect_stderr(self.stderr))
             return carrier.main(self.command(**changes))
 
     def test_matching_tree_produces_bound_package_without_write_capability(self):
@@ -224,6 +225,36 @@ class PackageTests(unittest.TestCase):
             self.deployment["id"] = "1" * 8 + "-1111-1111-1111-111111111111"
         with mock.patch.object(carrier.shutil, "copyfileobj", side_effect=copy_then_drift):
             self.assertEqual(self.run_package(), 1)
+        self.assertFalse(self.output.exists())
+
+    def test_target_drift_final_get_refuses_without_success_output(self):
+        original = self.transport
+        def final_get_then_drift(*args, **kwargs):
+            response = original(*args, **kwargs)
+            if len(self.requests) == 3:
+                (self.output / "public/index.html").write_bytes(b"changed during final rollback read")
+            return response
+        with mock.patch.object(self, "transport", side_effect=final_get_then_drift):
+            result = self.run_package()
+        self.assertEqual(len(self.requests), 3)
+        self.assertEqual(len(self.github_requests), 1)
+        self.assertEqual(result, 1)
+        self.assertEqual(self.stdout.getvalue(), "")
+        self.assertEqual(json.loads(self.stderr.getvalue()),
+                         {"status": "BLOCK", "error": "package_final_tree_mismatch"})
+        self.assertFalse(self.output.exists())
+
+    def test_target_drift_at_manifest_write_is_still_checked(self):
+        original = carrier.exclusive_file
+        def write_then_drift(*args, **kwargs):
+            original(*args, **kwargs)
+            # New members must be found, not just rehashing the original rows.
+            (self.output / "public/unlisted.html").write_bytes(b"late addition")
+        with mock.patch.object(carrier, "exclusive_file", side_effect=write_then_drift):
+            self.assertEqual(self.run_package(), 1)
+        self.assertEqual(self.stdout.getvalue(), "")
+        self.assertEqual(json.loads(self.stderr.getvalue()),
+                         {"status": "BLOCK", "error": "package_final_tree_mismatch"})
         self.assertFalse(self.output.exists())
 
     def test_source_drift_during_copy_leaves_no_manifest(self):

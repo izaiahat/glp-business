@@ -1656,10 +1656,13 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
             "release_authorized": False, "authority_created": False, "signature_created": False,
             "scope": "public bytes only; not Functions build or release acceptance",
         }
-        # Manifest is the completion marker, never emitted for a mismatching copy.
+        # A final readback must cover all writes and the last rollback GET.
         exclusive_file(output / "PACKAGE-MANIFEST.json", json_bytes(manifest), mode=0o444)
+        manifest_sha256 = sha_file(output / "PACKAGE-MANIFEST.json")
+        if package_tree(target) != (manifest["public_tree_sha256"], manifest["files"]):
+            fail("package_final_tree_mismatch")
         return {"status": "PASS_PACKAGE_ONLY", "package_dir": str(output),
-                "manifest_sha256": sha_file(output / "PACKAGE-MANIFEST.json"),
+                "manifest_sha256": manifest_sha256,
                 "public_tree_sha256": tree_hash, "file_count": len(rows),
                 "provider_reads": 3, "github_reads": 1, "provider_mutations": 0, "release_authorized": False}
     except BaseException:

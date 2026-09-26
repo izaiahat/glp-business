@@ -69,9 +69,13 @@ historical authority, or writes a production pointer.
 The public digest uses the site's `ci-release-gate.mjs::treeFiles` contract:
 recursive JS filename sort and SHA-256 of compact JSON `{file,sha256}` rows.
 It is **not** the historical carrier's size-bearing `file_closure` digest.
-Source and copied public trees are verified against the explicit expected hash;
-a manifest is emitted only on success, binding head/repository/receipt path and
-hash/public root/tree/current rollback and the complete file inventory.
+Source and copied public trees are verified against the explicit expected hash.
+After the final rollback read, receipt check and manifest write, the carrier
+re-hashes the actual output tree against the manifest hash and complete inventory
+as its final validation. Any mismatch removes the whole package (including its
+manifest), returns BLOCK and emits no success stdout. A successful manifest binds
+head/repository/receipt path and hash/public root/tree/current rollback and the
+complete file inventory.
 `provider_reads=3` counts Cloudflare GETs; `github_reads=1` counts the commit GET.
 Byte changes, symlinks, special files, rollback drift and existing output refuse.
 
