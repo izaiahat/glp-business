@@ -286,6 +286,10 @@ class QuotaResumeTests(unittest.TestCase):
             reply_sha256=hashlib.sha256(terminal_body.encode()).hexdigest(),
             attempts=[dict(backend="fable", invoked=True, status="ok")])
         self.save()
+        self.assert_successor_registered(terminal)
+
+    def assert_successor_registered(self, terminal):
+        terminal_id = terminal["id"]
         original_api = self.api
         def api(method, path, body=None):
             return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, body)
@@ -342,6 +346,76 @@ class QuotaResumeTests(unittest.TestCase):
                 bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
         self.inferences.assert_not_called()
         self.assertFalse(self.posts)
+
+    def test_oversize_terminal_successor_requires_exact_verified_two_attempt_shape(self):
+        terminal_id = "1553281139517423701"
+        raw = ("TRUE-BRIDGE FABLE — ACCEPT (initial oversized output)" * 40).encode()
+        digest = hashlib.sha256(raw).hexdigest()
+        body = ("(Compact reviewer decision unavailable; no authority decision was issued.)\n"
+                f"Full verbatim initial reviewer response: attached as reviewer-response.txt "
+                f"({len(raw)} UTF-8 bytes; SHA-256: {digest}).\n[reviewer: fable-xhigh]")
+        url = "https://cdn.discordapp.com/attachments/offline/reviewer-response.txt"
+        attachment = dict(url=url, filename="reviewer-response.txt", size=len(raw))
+        terminal = dict(id=terminal_id, content=body, author={"id": SIGNER},
+                        edited_timestamp=None, message_reference={"message_id": SOURCE},
+                        attachments=[attachment])
+        attempt = dict(backend="fable", model="claude-fable-5-1", effort="xhigh",
+                       session_id="20260922_120000_abcdef", session_mode="native_import_resume",
+                       legacy_session_id="00000000-0000-4000-8000-000000000001",
+                       invoked=True, status="ok")
+        self.receipt["resume"] = dict(status="posted", posting="posted", issue_id=ISSUE,
+            tuple_sha256=self.digest, posted_message_id=terminal_id,
+            reviewer_identity="fable-xhigh", backend="fable", model="claude-fable-5-1",
+            effort="xhigh", reply_chars=len(body),
+            reply_sha256=hashlib.sha256(body.encode()).hexdigest(),
+            original_stdout_sha256=digest, original_stdout_bytes=len(raw),
+            attachment_verification=dict(attachment_sha256=digest, attachment_bytes=len(raw),
+                posted_content_sha256=hashlib.sha256(body.encode()).hexdigest()),
+            attempts=[dict(attempt), dict(attempt, status="timeout")])
+        original_api = self.api
+        def api(method, path, data=None):
+            return terminal if method == "GET" and path.endswith("/" + terminal_id) else original_api(method, path, data)
+        fetched = Mock(content=raw)
+        with patch.object(bridge, "api", side_effect=api), \
+                patch.object(bridge.requests, "get", return_value=fetched) as download, \
+                patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            def refused(mutate, expected):
+                mutate()
+                self.save()
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    bridge.issue_no_decision_successor(SOURCE, ISSUE, self.digest, terminal_id)
+                self.assertNotIn("successor_issues", bridge.load_state())
+            def verdict(text):
+                altered = body + "\nTRUE-BRIDGE FABLE — " + text
+                terminal["content"] = altered
+                self.receipt["resume"].update(reply_chars=len(altered),
+                    reply_sha256=hashlib.sha256(altered.encode()).hexdigest())
+            baseline = json.loads(json.dumps(self.receipt["resume"]))
+            for mutate, expected in [
+                (lambda: self.receipt["resume"]["attempts"].append(dict(attempt)), "receipt_not_eligible"),
+                (lambda: self.receipt["resume"]["attempts"].pop(), "reply_not_no_decision"),
+                (lambda: self.receipt["resume"]["attempts"][1].update(session_id="other"), "receipt_not_eligible"),
+                (lambda: self.receipt["resume"]["attachment_verification"].update(attachment_sha256="0" * 64), "reply_not_no_decision"),
+                (lambda: terminal["attachments"][0].update(size=len(raw) + 1), "reply_not_no_decision"),
+                (lambda: terminal["attachments"].append(dict(attachment)), "reply_not_no_decision"),
+                (lambda: setattr(fetched, "content", raw + b"drift"), "reply_not_no_decision"),
+                (lambda: verdict("REJECT"), "reply_not_no_decision"),
+                (lambda: verdict("ACCEPT"), "reply_not_no_decision"),
+            ]:
+                with self.subTest(mutate=expected):
+                    self.receipt["resume"] = json.loads(json.dumps(baseline))
+                    terminal.update(content=body, attachments=[dict(attachment)])
+                    terminal["attachments"][0]["size"] = len(raw)
+                    fetched.content = raw
+                    refused(mutate, "successor_predecessor_" + expected if expected.startswith("reply") else "successor_terminal_" + expected)
+            self.receipt["resume"] = baseline
+            terminal.update(content=body, attachments=[dict(attachment)])
+            terminal["attachments"][0]["size"] = len(raw)
+            fetched.content = raw
+            self.save()
+            self.extra.append(terminal)
+            self.assert_successor_registered(terminal)
+            download.assert_called_with(url, timeout=30)
 
     def test_successor_refuses_terminal_reply_with_decision(self):
         terminal_id = "1553281139517423701"

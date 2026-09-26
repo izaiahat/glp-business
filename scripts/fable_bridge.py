@@ -943,6 +943,10 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
         resumed.update(mode=mode, reviewer_identity=review_receipt.get("reviewer_identity"),
                        attempts=review_receipt.get("attempts", []),
                        reply_chars=len(reply), reply_sha256=hashlib.sha256(reply.encode()).hexdigest())
+        if original_stdout is not None:
+            raw = original_stdout.encode("utf-8")
+            resumed["original_stdout_sha256"] = hashlib.sha256(raw).hexdigest()
+            resumed["original_stdout_bytes"] = len(raw)
         if (mode != "model" or review_receipt.get("reviewer_identity") != "fable-xhigh"
                 or review_receipt.get("backend") != "fable"
                 or len(resumed["attempts"]) not in (1, 2)
@@ -984,6 +988,35 @@ def resume_preinvocation_quota(source_id: str, issue_id: str, tuple_sha256: str)
                 "reviewer_identity": resumed["reviewer_identity"], "status": "posted"}
 
 
+def _successor_verified_attachment(reply: dict[str, Any], record: dict[str, Any],
+                                   content: str) -> bool:
+    """Bind the one initial-stdout attachment to the durable receipt and CDN bytes."""
+    verified = record.get("attachment_verification")
+    attachments = reply.get("attachments")
+    if (not isinstance(verified, dict) or not isinstance(attachments, list)
+            or len(attachments) != 1 or not isinstance(attachments[0], dict)):
+        return False
+    attachment = attachments[0]
+    digest, size = verified.get("attachment_sha256"), verified.get("attachment_bytes")
+    url = attachment.get("url")
+    if (not isinstance(digest, str) or re.fullmatch(r"[a-f0-9]{64}", digest) is None
+            or type(size) is not int or size <= 0
+            or verified.get("posted_content_sha256") != hashlib.sha256(content.encode()).hexdigest()
+            or record.get("original_stdout_sha256", digest) != digest
+            or record.get("original_stdout_bytes", size) != size
+            or attachment.get("filename") != "reviewer-response.txt"
+            or attachment.get("size") != size
+            or not isinstance(url, str) or not url.startswith("https://cdn.discordapp.com/")
+            or f"({size} UTF-8 bytes; SHA-256: {digest})" not in content):
+        return False
+    try:
+        downloaded = requests.get(url, timeout=30)  # Never send bot auth to the CDN.
+        downloaded.raise_for_status()
+    except requests.RequestException:
+        return False
+    return len(downloaded.content) == size and hashlib.sha256(downloaded.content).hexdigest() == digest
+
+
 def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str,
                                 terminal_reply_id: str) -> dict[str, Any]:
     """Register one new issue after a terminal, non-authoritative resume reply.
@@ -1003,6 +1036,7 @@ def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str
         receipts = state.get("reviewer_receipts")
         receipt = receipts.get(source_id) if isinstance(receipts, dict) else None
         resume = receipt.get("resume") if isinstance(receipt, dict) else None
+        attempts = resume.get("attempts") if isinstance(resume, dict) else None
         if (not isinstance(receipt, dict) or receipt.get("source_message_id") != source_id
                 or receipt.get("kind") != "review_request" or receipt.get("posting") != "posted"
                 or not isinstance(resume, dict) or resume.get("status") != "posted"
@@ -1011,9 +1045,19 @@ def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str
                 or resume.get("tuple_sha256") != tuple_sha256
                 or resume.get("posted_message_id") != terminal_reply_id
                 or resume.get("reviewer_identity") != "fable-xhigh"
-                or len(resume.get("attempts", [])) != 1
-                or resume["attempts"][0].get("invoked") is not True
-                or resume["attempts"][0].get("status") != "ok"
+                or not isinstance(attempts, list) or len(attempts) not in (1, 2)
+                or any(not isinstance(attempt, dict) or attempt.get("invoked") is not True
+                       for attempt in attempts)
+                or attempts[0].get("status") != "ok"
+                or (len(attempts) == 2 and (
+                    any(attempt.get("backend") != "fable" or
+                        attempt.get("model") != attempts[0].get("model") or
+                        attempt.get("effort") != attempts[0].get("effort") for attempt in attempts)
+                    or not attempts[0].get("model") or not attempts[0].get("effort")
+                    or attempts[0].get("session_id") != attempts[1].get("session_id")
+                    or not attempts[0].get("session_id")
+                    or attempts[0].get("session_mode") != attempts[1].get("session_mode")
+                    or attempts[0].get("legacy_session_id") != attempts[1].get("legacy_session_id")))
                 or source_id in state.get("successor_issues", {})):
             raise RuntimeError("successor_terminal_receipt_not_eligible")
         original_reply_id = str(receipt.get("posted_message_id") or "")
@@ -1052,9 +1096,12 @@ def issue_no_decision_successor(source_id: str, issue_id: str, tuple_sha256: str
                     or len(content) != record.get("reply_chars")
                     or hashlib.sha256(content.encode()).hexdigest() != record.get("reply_sha256")
                     or "no authority decision was issued" not in content
-                    or "TRUE-BRIDGE FABLE — ACCEPT" in content
-                    or "TRUE-BRIDGE FABLE — REJECT" in content
-                    or reply.get("attachments")):
+                    or re.search(r"TRUE-BRIDGE FABLE\s*[—–-]\s*(?:ACCEPT|REJECT)\b",
+                                 content, re.IGNORECASE)
+                    or (record is receipt and reply.get("attachments"))
+                    or (record is resume and (
+                        not _successor_verified_attachment(reply, resume, content)
+                        if len(attempts) == 2 else bool(reply.get("attachments"))))):
                 raise RuntimeError("successor_predecessor_reply_not_no_decision")
         _only_expected_replies(source_id, {original_reply_id, terminal_reply_id})
         # Recheck against existing registered successor records as well as the
