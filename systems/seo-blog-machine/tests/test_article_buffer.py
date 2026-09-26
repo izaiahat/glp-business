@@ -272,6 +272,107 @@ def admit_candidate(
     )
 
 
+def _check_registered_exact_entry_hold(tmp_path, unsafe):
+    root = tmp_path / "pool"
+    packet, receipt, control = build_candidate(
+        tmp_path, "obsolete", "/guides/obsolete/", "topic-obsolete"
+    )
+    manifest = admit_candidate(root, packet, receipt, control, "2026-08-14T01:00:00Z")
+    entry = json.loads(manifest.read_text())
+    evidence_path = tmp_path / "review.json"
+    write_json(evidence_path, {"status": "reviewed_obsolete"})
+    evidence = {"path": str(evidence_path.resolve()), "sha256": sha(evidence_path)}
+    base = tmp_path / "base.json"
+    write_json(base, {"deployment_id": "fixture"})
+    original = {p: p.read_bytes() for p in manifest.parent.rglob("*") if p.is_file()}
+    request = dict(
+        root=root, entry_id=entry["entry_id"], entry_sha256=sha(manifest),
+        reason="superseded_after_exact_packet_review", evidence=evidence,
+        current_routes=set(), current_topic_ids=set(), dry_run=True,
+    )
+    import article_buffer_cli as cli
+    parsed = cli.build_parser().parse_args([
+        "hold", "--root", str(root), "--entry-id", entry["entry_id"],
+        "--entry-sha256", sha(manifest), "--reason", request["reason"],
+        "--evidence", str(evidence_path), "--evidence-sha256", evidence["sha256"],
+        "--dry-run",
+    ])
+    assert parsed.command == "hold" and parsed.dry_run is True
+    assert buffer.hold_entry(**request)["status"] == "DRY_RUN_BUFFER_ENTRY_HOLD"
+    assert not (root / "held").exists()
+    request["dry_run"] = False
+    first = buffer.hold_entry(**request)
+    assert first["status"] == "PASS_BUFFER_ENTRY_HELD"
+    hold_path = Path(first["hold"]["path"])
+    held_bytes = hold_path.read_bytes()
+    assert buffer._read_sealed(hold_path, buffer.HOLD_SCHEMA, "hold_sha256")["entry_manifest"] == buffer._spec(manifest)
+    assert buffer.hold_entry(**request) == {
+        "status": "IDEMPOTENT_BUFFER_ENTRY_HELD", "hold": first["hold"]
+    }
+    assert hold_path.read_bytes() == held_bytes
+    assert buffer.ready_entries(root, current_routes=set(), current_topic_ids=set()) == []
+    assert buffer.pool_status(root, current_routes=set(), current_topic_ids=set())["ready"] == 0
+    with pytest.raises(buffer.BufferEmptyError):
+        buffer.claim_oldest(root=root, operation_id="cannot-consume-held",
+                            current_routes=set(), current_topic_ids=set(), base_state=base)
+    assert buffer.recycle_stale_claims(root=root, work_root=tmp_path / "work",
+                                       base_state=base, today_pt="2026-08-15")["retired"] == []
+    assert buffer.ready_entries(root, current_routes=set(), current_topic_ids=set()) == []
+    with pytest.raises(buffer.BufferAdmissionError, match="buffer_candidate_duplicate"):
+        admit_candidate(root, packet, receipt, control, "2026-08-14T03:00:00Z")
+    assert {p: p.read_bytes() for p in manifest.parent.rglob("*") if p.is_file()} == original
+
+    # Every unsafe target is a separate isolated pool; the held receipt above
+    # must neither be re-used to conceal an unsafe state nor admit a successor.
+    other_packet, other_receipt, _ = build_candidate(
+        tmp_path, "unsafe", "/guides/unsafe/", "topic-unsafe"
+    )
+    other = admit_candidate(root, other_packet, other_receipt, control, "2026-08-14T02:00:00Z")
+    other_entry = json.loads(other.read_text())
+    unsafe_request = {**request, "entry_id": other_entry["entry_id"], "entry_sha256": sha(other)}
+    expected = {
+        "claimed": "buffer_hold_entry_claimed",
+        "consumed": "buffer_hold_entry_consumed",
+        "published": "buffer_entry_now_published",
+        "unknown": "buffer_hold_entry_unknown",
+        "preimage_drift": "buffer_hold_entry_preimage_drift",
+        "evidence_drift": "buffer_hold_evidence_pin_invalid",
+    }[unsafe]
+    if unsafe == "claimed":
+        buffer.claim_oldest(root=root, operation_id="in-flight",
+                            current_routes=set(), current_topic_ids=set(), base_state=base)
+        expected = "buffer_hold_entry_claimed"
+    elif unsafe == "consumed":
+        buffer._write_once(root / "consumed" / "fixture.json", {
+            "schema": buffer.CONSUME_SCHEMA, "entry_id": other_entry["entry_id"]
+        }, "consumption_sha256")
+        expected = "buffer_hold_entry_consumed"
+    elif unsafe == "published":
+        unsafe_request["current_routes"] = {other_entry["target_route"]}
+        expected = "buffer_entry_now_published"
+    elif unsafe == "unknown":
+        unsafe_request["entry_id"] = "f" * 24
+        expected = "buffer_hold_entry_unknown"
+    elif unsafe == "preimage_drift":
+        unsafe_request["entry_sha256"] = "0" * 64
+        expected = "buffer_hold_entry_preimage_drift"
+    elif unsafe == "evidence_drift":
+        unsafe_request["evidence"] = {**evidence, "sha256": "0" * 64}
+        expected = "buffer_hold_evidence_pin_invalid"
+    with pytest.raises(RuntimeError, match=expected):
+        buffer.hold_entry(**unsafe_request)
+    assert not (root / "held" / f"{other_entry['entry_id']}.json").exists()
+    with pytest.raises(RuntimeError, match="buffer_hold_conflict"):
+        buffer.hold_entry(**{**request, "reason": "unreviewed_new_reason"})
+
+
+@pytest.mark.parametrize("unsafe", [
+    "claimed", "consumed", "published", "unknown", "preimage_drift", "evidence_drift"
+])
+def test_registered_exact_entry_hold_states(tmp_path, unsafe):
+    _check_registered_exact_entry_hold(tmp_path, unsafe)
+
+
 def test_admission_rejects_packet_pin_drift(tmp_path):
     packet, receipt, control = build_candidate(tmp_path, "one", "/guides/one/", "topic-one")
     (packet / "04-draft.md").write_text("tampered\n", encoding="utf-8")

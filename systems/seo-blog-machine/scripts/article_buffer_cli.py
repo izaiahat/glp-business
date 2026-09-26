@@ -22,6 +22,7 @@ from article_buffer import (
     admit,
     consume_oldest,
     current_publication_truth,
+    hold_entry,
     missing_inbound_source_routes,
     pool_status,
     pt_date_now,
@@ -425,6 +426,21 @@ def status(root: Path) -> dict[str, Any]:
     }
 
 
+def hold_cli(args: argparse.Namespace) -> dict[str, Any]:
+    _resolution, release, routes, topics = current_context()
+    return hold_entry(
+        root=args.root,
+        entry_id=args.entry_id,
+        entry_sha256=args.entry_sha256,
+        reason=args.reason,
+        evidence={"path": str(args.evidence), "sha256": args.evidence_sha256},
+        current_routes=routes,
+        current_topic_ids=topics,
+        mutable_article_routes=current_article_routes(release),
+        dry_run=args.dry_run,
+    )
+
+
 def admit_cli(args: argparse.Namespace) -> dict[str, Any]:
     _resolution, release, routes, topics = current_context()
     timestamp = args.admitted_at_utc or dt.datetime.now(dt.timezone.utc).replace(
@@ -603,9 +619,16 @@ def reconcile_cli(args: argparse.Namespace) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     result = JsonReceiptArgumentParser()
     sub = result.add_subparsers(dest="command", required=True)
-    for name in ("status", "admit", "consume", "recycle", "reconcile"):
+    for name in ("status", "admit", "consume", "recycle", "reconcile", "hold"):
         item = sub.add_parser(name)
         item.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    hold_parser = sub.choices["hold"]
+    hold_parser.add_argument("--entry-id", required=True)
+    hold_parser.add_argument("--entry-sha256", required=True)
+    hold_parser.add_argument("--reason", required=True)
+    hold_parser.add_argument("--evidence", type=Path, required=True)
+    hold_parser.add_argument("--evidence-sha256", required=True)
+    hold_parser.add_argument("--dry-run", action="store_true")
     admit_parser = sub.choices["admit"]
     admit_parser.add_argument("--packet", type=Path, required=True)
     admit_parser.add_argument("--pass-receipt", type=Path, required=True)
@@ -632,6 +655,8 @@ def main() -> int:
             result = status(args.root)
         elif args.command == "admit":
             result = admit_cli(args)
+        elif args.command == "hold":
+            result = hold_cli(args)
         elif args.command == "recycle":
             result = recycle_cli(args)
         elif args.command == "reconcile":
@@ -655,7 +680,7 @@ def main() -> int:
         exception_traceback = traceback.format_exc()
         command = getattr(args, "command", None)
         if command is None and len(sys.argv) > 1 and sys.argv[1] in {
-            "status", "admit", "consume", "recycle",
+            "status", "admit", "consume", "recycle", "reconcile", "hold",
         }:
             command = sys.argv[1]
         failure = {

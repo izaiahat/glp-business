@@ -39,6 +39,8 @@ QUARANTINE_SCHEMA = "glp-seo-article-buffer-quarantine-v1"
 MATERIALIZATION_SCHEMA = "glp-seo-article-buffer-materialization-v1"
 REMATERIALIZATION_SCHEMA = "glp-seo-article-buffer-rematerialization-v1"
 CONSUME_SCHEMA = "glp-seo-article-buffer-consumption-v1"
+HOLD_SCHEMA = "glp-seo-article-buffer-entry-hold-v1"
+ENTRY_ID_PATTERN = re.compile(r"[0-9a-f]{24}")
 MEDICAL_REFRAME_REASON = "high_risk_medical_claim_must_be_reframed"
 PT_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 ROUTE_PATTERN = re.compile(r"^/(?:guides|best|reviews|cost|tools|compare)/[a-z0-9]+(?:-[a-z0-9]+)*/$")
@@ -910,6 +912,126 @@ def _claimed_entry_ids(root: Path) -> set[str]:
     return result
 
 
+def _hold_path(root: Path, entry_id: str) -> Path:
+    return root.resolve() / "held" / f"{entry_id}.json"
+
+
+def _held_entry_ids(root: Path) -> set[str]:
+    held_root = root.resolve() / "held"
+    result: set[str] = set()
+    for path in sorted(held_root.glob("*.json")) if held_root.is_dir() else []:
+        try:
+            receipt = _read_sealed(path, HOLD_SCHEMA, "hold_sha256")
+            if path.stem != receipt.get("entry_id") or ENTRY_ID_PATTERN.fullmatch(path.stem) is None:
+                raise RuntimeError("buffer_hold_identity_invalid")
+            manifest = root.resolve() / "entries" / path.stem / "entry.json"
+            pinned = receipt.get("entry_manifest")
+            if (receipt.get("status") != "HELD_READY_ENTRY"
+                or receipt.get("publication_effects") != 0
+                or receipt.get("disposition") != "excluded_from_ready_selection_no_successor_admission"
+                or not isinstance(pinned, dict)
+                or pinned.get("path") != str(manifest)
+                or not manifest.is_file() or manifest.is_symlink()
+                or pinned.get("sha256") != _sha(manifest)):
+                raise RuntimeError("buffer_hold_manifest_binding_invalid")
+            entry = _read_sealed(manifest, ENTRY_SCHEMA, "entry_sha256")
+            if (entry.get("entry_id") != path.stem
+                or any(receipt.get(key) != entry.get(key) for key in
+                       ("topic_id", "article_id", "target_route", "packet_closure_sha256"))
+                or not isinstance(receipt.get("reason"), str)
+                or not receipt["reason"]
+                or not isinstance(receipt.get("evidence"), dict)
+                or set(receipt["evidence"]) != {"path", "sha256"}):
+                raise RuntimeError("buffer_hold_entry_binding_invalid")
+            result.add(path.stem)
+        except Exception:
+            raise RuntimeError(f"buffer_hold_invalid:{path}") from None
+    return result
+
+
+def hold_entry(
+    *,
+    root: Path,
+    entry_id: str,
+    entry_sha256: str,
+    reason: str,
+    evidence: dict[str, str],
+    current_routes: set[str],
+    current_topic_ids: set[str],
+    mutable_article_routes: set[str] | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Register a reversible exact-entry exclusion; never rewrite the packet.
+
+    A later release/unhold requires a separately reviewed operation. Neither
+    stale-claim recycling nor refill has authority to remove this receipt.
+    """
+    if ENTRY_ID_PATTERN.fullmatch(entry_id) is None:
+        raise RuntimeError("buffer_hold_entry_id_invalid")
+    if not re.fullmatch(r"[0-9a-f]{64}", entry_sha256):
+        raise RuntimeError("buffer_hold_entry_preimage_invalid")
+    if not isinstance(reason, str) or not reason.strip() or reason != reason.strip():
+        raise RuntimeError("buffer_hold_reason_required")
+    if not isinstance(evidence, dict) or set(evidence) != {"path", "sha256"}:
+        raise RuntimeError("buffer_hold_evidence_invalid")
+    with carrier_lock():
+        manifest = root.resolve() / "entries" / entry_id / "entry.json"
+        if not manifest.is_file() or manifest.is_symlink():
+            raise RuntimeError("buffer_hold_entry_unknown")
+        if _sha(manifest) != entry_sha256:
+            raise RuntimeError("buffer_hold_entry_preimage_drift")
+        entry = validate_entry(
+            manifest, current_routes=current_routes, current_topic_ids=current_topic_ids
+        )
+        if entry.get("entry_id") != entry_id:
+            raise RuntimeError("buffer_hold_entry_identity_invalid")
+        if mutable_article_routes is not None and missing_inbound_source_routes(
+            manifest.parent / "packet", mutable_article_routes,
+            expected_article_id=entry["article_id"],
+        ):
+            raise RuntimeError("buffer_hold_entry_not_ready")
+        evidence_path = _verify_spec(evidence, "buffer_hold_evidence")
+        if str(evidence_path) != evidence["path"]:
+            raise RuntimeError("buffer_hold_evidence_path_alias")
+        if entry_id in _claimed_entry_ids(root):
+            raise RuntimeError("buffer_hold_entry_claimed")
+        consumed_root = root.resolve() / "consumed"
+        for path in sorted(consumed_root.glob("*.json")) if consumed_root.is_dir() else []:
+            consumed = _read_sealed(path, CONSUME_SCHEMA, "consumption_sha256")
+            if consumed.get("entry_id") == entry_id:
+                raise RuntimeError("buffer_hold_entry_consumed")
+        if entry_id in _quarantined_entry_ids(root):
+            raise RuntimeError("buffer_hold_entry_quarantined")
+        receipt_path = _hold_path(root, entry_id)
+        if receipt_path.exists():
+            receipt = _read_sealed(receipt_path, HOLD_SCHEMA, "hold_sha256")
+            if (receipt.get("entry_id") != entry_id
+                or receipt.get("entry_manifest") != _spec(manifest)
+                or receipt.get("reason") != reason
+                or receipt.get("evidence") != evidence):
+                raise RuntimeError("buffer_hold_conflict")
+            return {"status": "IDEMPOTENT_BUFFER_ENTRY_HELD", "hold": _spec(receipt_path)}
+        receipt = {
+            "schema": HOLD_SCHEMA,
+            "status": "HELD_READY_ENTRY",
+            "held_at_utc": _utc_now(),
+            "entry_id": entry_id,
+            "topic_id": entry["topic_id"],
+            "article_id": entry["article_id"],
+            "target_route": entry["target_route"],
+            "packet_closure_sha256": entry["packet_closure_sha256"],
+            "entry_manifest": _spec(manifest),
+            "reason": reason,
+            "evidence": evidence,
+            "publication_effects": 0,
+            "disposition": "excluded_from_ready_selection_no_successor_admission",
+        }
+        if dry_run:
+            return {"status": "DRY_RUN_BUFFER_ENTRY_HOLD", "would_hold": receipt}
+        _write_once(receipt_path, receipt, "hold_sha256")
+        return {"status": "PASS_BUFFER_ENTRY_HELD", "hold": _spec(receipt_path)}
+
+
 def _quarantine_path(root: Path, entry_id: str) -> Path:
     return root.resolve() / "quarantined" / f"{entry_id}.json"
 
@@ -1238,6 +1360,7 @@ def ready_entries(
 ) -> list[tuple[Path, dict[str, Any]]]:
     claimed = _claimed_entry_ids(root)
     quarantined = _quarantined_entry_ids(root)
+    held = _held_entry_ids(root)
     valid: list[tuple[Path, dict[str, Any]]] = []
     for path in _entry_manifests(root):
         try:
@@ -1256,7 +1379,7 @@ def ready_entries(
                     continue
         except RuntimeError:
             continue
-        if entry["entry_id"] not in claimed and entry["entry_id"] not in quarantined:
+        if entry["entry_id"] not in claimed and entry["entry_id"] not in quarantined and entry["entry_id"] not in held:
             valid.append((path, entry))
     valid.sort(key=lambda item: (item[1]["admitted_at_utc"], item[1]["entry_id"]))
     return valid
