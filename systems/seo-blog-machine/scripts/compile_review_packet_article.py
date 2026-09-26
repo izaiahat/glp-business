@@ -154,7 +154,10 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "canonical_path": meta["slug"], "primary_keyword": meta["primaryKeyword"], "target_query": meta["primaryKeyword"],
         "title": meta["title"], "h1": meta["h1"], "meta_description": meta["metaDescription"],
         "updated_at": meta["dateModified"], "source_checked_through": meta["pricesCheckedDate"],
-        "prices_checked_date": meta["pricesCheckedDate"], "date_published": meta.get("datePublished") or meta["dateModified"],
+        # Packet frontmatter is draft/source-check history, not proof of first publication.
+        # The release builder binds this field on a new publication or retains the
+        # predecessor's value on a same-route refresh.
+        "prices_checked_date": meta["pricesCheckedDate"], "date_published": None,
         "status": "PASS_OPUS_PENDING", "risk_tier": str(meta.get("riskTier") or "MEDIUM").upper(), "search_intent": "transactional informational",
         "audience": f"U.S. readers researching {meta['primaryKeyword']} using current primary evidence",
         "intent": intent, "direct_answer": direct_answer,

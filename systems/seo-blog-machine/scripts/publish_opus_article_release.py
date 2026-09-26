@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse, datetime as dt, hashlib, importlib.util, json, os, stat, subprocess, sys
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 import requests
 
 BUSINESS = Path("/home/ubuntu/business")
@@ -38,6 +39,25 @@ SEO_MACHINE_REPORTS = BUSINESS / "reports/glp-clinic-scout/seo-machine"
 
 def now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def publication_day_pt() -> str:
+    return dt.datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
+
+
+def require_current_publication_day(job: dict[str, Any]) -> None:
+    """Refuse a stale planned day before any network deployment attempt."""
+    planned = job.get("publication_date")
+    try:
+        if not isinstance(planned, str):
+            raise ValueError("not_a_string")
+        parsed = dt.date.fromisoformat(planned)
+        if parsed.isoformat() != planned:
+            raise ValueError("noncanonical")
+    except (ValueError, TypeError):
+        raise RuntimeError("publication_date_invalid") from None
+    if planned != publication_day_pt():
+        raise RuntimeError("publication_date_pt_day_mismatch:rematerialize_rebuild_review")
 
 
 def sha(path: Path) -> str:
@@ -767,6 +787,7 @@ def validated_post_deploy_receipts(report: Path, manifest: dict[str, Any]) -> di
 def run_deploy(job: dict[str, Any], report: Path, manifest: dict[str, Any]) -> None:
     if validated_post_deploy_receipts(report, manifest) is not None:
         return
+    require_current_publication_day(job)
     engine = load_module("glp_opus_article_deploy_engine", ENGINE)
     engine.REPORT = report
     engine.RELEASE = Path(manifest["release_root"])
@@ -1111,6 +1132,7 @@ def publish_job(job: dict[str, Any]) -> None:
     reconcile_partial_deployment(report, manifest)
     post_deploy = validated_post_deploy_receipts(report, manifest)
     if post_deploy is None:
+        require_current_publication_day(job)
         assert_controls(manifest)
     # ZERO-APPROVAL AUTONOMOUS RELEASE (operator authority:
     # reports/glp-clinic-scout/seo-machine/OPERATOR-AUTHORITY-AUTONOMOUS-
