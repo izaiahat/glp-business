@@ -161,6 +161,7 @@ class Candidate:
     # made every Katalys row fail geo as `region_unverified`.
     network_region: str = ""
     site: SiteEvidence | None = None
+    network_status: str = ""  # network-reported offer state; paused is terminal
 
 
 @dataclass
@@ -289,6 +290,17 @@ CLINICAL_CONTEXT_RE = re.compile(
     r"medical weight[- ]loss|"
     r"injectable|injectables|patient|patients|clinic|clinics|rx)\b", re.I)
 
+MEDICATION_OFFER_RE = re.compile(
+    r"\b(?:glp[- ]?1|semaglutide|tirzepatide|wegovy|ozempic|zepbound|mounjaro)\b"
+    r".{0,110}\b(?:medications?|prescriptions?|prescrib\w*|compounded|injections?|"
+    r"injectables?)\b|"
+    r"\b(?:medications?|prescriptions?|prescrib\w*|compounded|injections?|"
+    r"injectables?)\b.{0,110}"
+    r"\b(?:glp[- ]?1|semaglutide|tirzepatide|wegovy|ozempic|zepbound|mounjaro)\b", re.I)
+DELIVERY_SERVICE_RE = re.compile(
+    r"\b(?:telehealth|telemedicine|online clinic|online doctor|clinicians?|"
+    r"physicians?|medical provider|prescrib\w*|prescription|patient|clinic)\b", re.I)
+
 # Other verticals, for APPLICATION purposes only. A hit here never changes how a
 # program is recorded or researched — only whether glpclinicscout.com applies.
 OFF_VERTICAL_FOR_APPLICATION: tuple[tuple[str, str], ...] = (
@@ -364,17 +376,45 @@ APPLY_SCOPE_RULING_PATH = os.path.join(
 # scripts/affiliate_sheet_batch_writer.py). Its two ClickDealer offers read
 # "[WEB+MOB] Fella Health - GLP-1 Medication CTC ...", i.e. they land squarely
 # in the explicit_glp1 tier and would otherwise apply.
-PERMANENTLY_EXCLUDED_PROVIDER_RE = re.compile(r"fella\s*health", re.I)
+APPLICATION_EXCLUSIONS_PATH = Path(__file__).resolve().parents[1] / "ops/affiliate-application-exclusions.json"
 EXCLUDED_PROVIDER_DECISION = "SKIPPED_EXCLUDED_PROVIDER"
+
+
+def application_exclusion(name: str) -> tuple[str, str]:
+    """Read the curated held/excluded provider registry; never assume an unreadable
+    registry means no holds. Match aliases as complete tokens, not substrings.
+    """
+    try:
+        registry = json.loads(APPLICATION_EXCLUSIONS_PATH.read_text(encoding="utf-8"))
+        if registry.get("schema") != "affiliate-application-exclusions-v1":
+            raise ValueError("exclusion registry schema")
+        providers = registry["providers"]
+        if not isinstance(providers, list) or not providers:
+            raise ValueError("exclusion registry empty")
+    except (OSError, ValueError, KeyError, TypeError):
+        return "registry_unavailable", "application_exclusion_registry_unavailable"
+    normalized = re.sub(r"[^a-z0-9]+", "", str(name or "").lower())
+    for provider in providers:
+        for alias in (provider["name"], *provider.get("aliases", [])):
+            # Preserve boundaries around decorated affiliate program titles.
+            pieces = re.findall(r"[a-z0-9]+", alias.lower())
+            expression = r"(?<![a-z0-9])" + r"[\W_]*".join(map(re.escape, pieces)) + r"(?![a-z0-9])"
+            if re.search(expression, str(name or ""), re.I):
+                return provider["name"], provider["reason"]
+        # Joined brand spellings (e.g. TelosRx), only for a complete name.
+        if normalized == re.sub(r"[^a-z0-9]+", "", provider["name"].lower()):
+            return provider["name"], provider["reason"]
+    return "", ""
 # Terminals no downstream rescue may overturn (the direct-Sheet
 # `sheet_vertical_glp1` rescue in scripts/affiliate_auto_apply.py reads this).
-NO_RESCUE_TERMINALS = frozenset({"SKIPPED_OPERATOR_RULING", EXCLUDED_PROVIDER_DECISION})
+NO_RESCUE_TERMINALS = frozenset({"SKIPPED_OPERATOR_RULING", EXCLUDED_PROVIDER_DECISION,
+                                 "SKIPPED_NETWORK_PAUSED"})
 
 
 def permanently_excluded_provider(name: str) -> str:
     """The matched exclusion token for `name`, or "" — never a fit, any route."""
-    hit = PERMANENTLY_EXCLUDED_PROVIDER_RE.search(str(name or ""))
-    return hit.group(0).lower().replace(" ", "_") if hit else ""
+    name, _reason = application_exclusion(name)
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") if name else ""
 
 
 # =============================================================================
@@ -488,6 +528,7 @@ CONTRACT_REASONS: dict[str, str] = {
     "park_weight_claim_without_clinical_context": CONTRACT_PARK,
     "park_glp1_without_medication_delivery": CONTRACT_PARK,
     "park_permanently_excluded_provider": CONTRACT_PARK,
+    "park_network_paused_offer": CONTRACT_PARK,
     "park_not_glp_relevant": CONTRACT_PARK,
     "park_non_us": CONTRACT_PARK,
     "park_us_unverified": CONTRACT_PARK,
@@ -675,15 +716,18 @@ def glp_application_fit(c: Candidate) -> FitVerdict:
     # Gate 2 — evidence ladder, strongest first. Historical tiers unchanged;
     # the 2026-08-13 breadth tiers extend the ladder below them.
     if glp_in_text:
-        # 2026-09-17: the scope is GLP-1 telehealth MEDICATION. A GLP-1 token on
-        # a record with no clinical-delivery evidence is a consumable product
-        # riding the vertical's name ("Soda Lean bundle 1 - 2 bottles", whose own
-        # ClickDealer vertical reads "Nutra - Weight Loss GLP1"), which the
-        # ruling parks. Clinical delivery is the existing CLINICAL_CONTEXT_RE
-        # vocabulary: telehealth, prescription, clinician, compounded, injection…
-        if clinical:
+        # The broad clinical matcher includes informational wording; require a
+        # medication-specific offer tied to a delivery service, not advice about
+        # supplements or a category label carrying an incidental GLP token.
+        offer_text = " ".join((c.name or "", c.description or ""))
+        if product_verticals:
+            return parked("park_product_vertical_body_copy",
+                          [f"off_vertical_text:{','.join(product_verticals)}",
+                           "glp_token_vetoed_by_product_vertical"], tier="explicit_glp1")
+        if (clinical and MEDICATION_OFFER_RE.search(offer_text)
+                and DELIVERY_SERVICE_RE.search(offer_text)):
             return fit("explicit_glp1", "fit_glp_explicit",
-                       ["glp1_token_present", "clinical_delivery_context"])
+                       ["glp1_token_present", "medication_delivery_evidence"])
         # …unless the provider's OWN site carries the proof the record lacks.
         # SiteEvidence.proves_glp1 already requires a GLP-1 token AND
         # weight-loss framing AND a clinical marker, which is exactly medication
@@ -915,6 +959,24 @@ def evaluate_application(c: Candidate,
     A bridge fit ruling on the program name is consulted FIRST and is terminal
     in both directions. Pass `rulings` explicitly to bypass disk entirely.
     """
+    # Registry and network-state exclusions are terminal at the application
+    # boundary itself, before operator snapshots and bridge FIT overrides.
+    excluded, exclusion_reason = application_exclusion(c.name)
+    if excluded:
+        why = [f"application_exclusion:{excluded}", f"exclusion_reason:{exclusion_reason}",
+               contract_tag("park_permanently_excluded_provider")]
+        return (Decision(EXCLUDED_PROVIDER_DECISION, None, why),
+                FitVerdict(False, "excluded_provider", why,
+                           contract_decision=CONTRACT_PARK,
+                           contract_reason="park_permanently_excluded_provider"))
+    if re.search(r"\b(?:paused|suspended|inactive|disabled)\b", c.network_status or "", re.I):
+        why = [f"network_offer_state:{c.network_status}",
+               contract_tag("park_network_paused_offer")]
+        return (Decision("SKIPPED_NETWORK_PAUSED", None, why),
+                FitVerdict(False, "network_paused", why,
+                           contract_decision=CONTRACT_PARK,
+                           contract_reason="park_network_paused_offer"))
+
     # 0. General operator policy is an exact program identity gate. Coordinators
     # pass one frozen snapshot through a run; a standalone caller gets a fresh
     # inert-or-current local snapshot without any provider access.

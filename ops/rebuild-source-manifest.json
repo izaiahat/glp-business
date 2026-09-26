@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "62cd4a7912f72c9d0c944b8d28f3d2e86d14798a59c5974bbb6bac476d10225e"
+      "sha256": "8733107d6483533d43a6c2e020e410a0ceedeba369247af89a8756cd8e229995"
     },
     ".hermes.md": {
       "callers": [],
@@ -80,6 +80,11 @@
       "callers": [],
       "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
+    },
+    "ops/affiliate-application-exclusions.json": {
+      "callers": ["scripts/affiliate_niche_geo_filter.py"],
+      "kind": "instruction_or_policy",
+      "sha256": "de7d47296a15a3ddb8a5d2cce58d39265a2321e297dbb5f409b2e78f4ed57d1c"
     },
     "ops/autonomy-envelope.json": {
       "callers": [],
@@ -655,7 +660,7 @@
         "GLP-317 Awin paused source review"
       ],
       "kind": "script",
-      "sha256": "cfb8b6b3570f360e4daac60029be8bff9c45c68afe7b4e67257cf9afbfb4b9cd"
+      "sha256": "54be436d65019c7d39cc96007133177f24b8592e791435dfc4ba948b1f1421c9"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -1061,7 +1066,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "10396a7fd1aba1279efcba445a38789e0c99315028a2dc41985541ce53821566"
+      "sha256": "5bb7ea8e6c940cac499acb6b98b9fb27a45034fd90f8a3fd1419e468016edf88"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1427,6 +1432,11 @@
       ],
       "kind": "test",
       "sha256": "8d9aed6a290611677f1ec1e5d1022680614b8ba226c71023053925bc60cf7045"
+    },
+    "tests/test_awin_application_fit_exclusions.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "f50f3baa5017549f8ea79ed6d2b6da2876083df240016e5b4d336b4ca969b570"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
@@ -1834,5 +1844,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 277
+  "tracked_count": 279
 }

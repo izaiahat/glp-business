@@ -30,6 +30,7 @@
 !/AGENTS.md
 !/CLAUDE.md
 !/README.md
+!/ops/affiliate-application-exclusions.json
 !/ops/autonomy-envelope.json
 !/ops/claude-model-policy.json
 !/ops/claude_model_policy.py
@@ -174,6 +175,7 @@
 !/tests/test_audit_20260916_gates.py
 !/tests/test_brief_lint_deep.py
 !/tests/test_brief_lint_short.py
+!/tests/test_awin_application_fit_exclusions.py
 !/tests/test_capacity_pacing.py
 !/tests/test_cron_applications_note_reconcile.py
 !/tests/test_cron_bridge_action.py

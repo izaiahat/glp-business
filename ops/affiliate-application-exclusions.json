@@ -1,0 +1,13 @@
+{
+  "schema": "affiliate-application-exclusions-v1",
+  "provenance": "Existing excluded_programs in scripts/build_glp_operator_morning_review.py and PERMANENT_EXCLUSIONS in scripts/affiliate_payout_policy.py; curated application-gate projection, not a release of any hold.",
+  "providers": [
+    {"name": "Fella Health", "aliases": ["Fella", "FellaHealth"], "reason": "permanent_review_site_prohibition"},
+    {"name": "MadeMed", "aliases": ["Made Med"], "reason": "held_source_thin"},
+    {"name": "Telos RX", "aliases": ["TelosRx", "Telos Rx"], "reason": "held_source_thin"},
+    {"name": "Breeze Meds", "aliases": ["BreezeMeds"], "reason": "held_product_status"},
+    {"name": "Direct Meds", "aliases": ["DirectMeds"], "reason": "held_fda_warning"},
+    {"name": "Strut Health", "aliases": ["StrutHealth"], "reason": "held_fda_warning"},
+    {"name": "eMed", "aliases": ["eMed.com"], "reason": "held_commercial_terms"}
+  ]
+}
