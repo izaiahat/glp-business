@@ -880,11 +880,13 @@ class DecisionsGraphTests(unittest.TestCase):
         self.resumed = dict(status='complete', mode='live', run_id='live-a1',
             sink='decisions', item_count=1, unroutable_count=0,
             source_message_ids=['100'], post_required=True, confirmation_card='residue card')
-        result = self.run_graph()
+        with patch.object(cron, 'decisions_host_sol', return_value={'job_id': 'sol-1', 'status': 'done', 'rc': 0}) as sol:
+            result = self.run_graph()
         self.assertEqual(result['rc'], 0, result)
+        sol.assert_called_once()
         self.assertEqual(self.router_resumes, 1)
         self.assertEqual([v['action'] for p, v in self.calls if p == '/run'],
-                         ['script', 'hermes_chat', 'script', 'script'])
+                         ['script', 'script', 'script'])
         self.assertEqual(self.heartbeats[-1][2], 'live-a1:discord_verified')
 
     def test_malformed_scope_truncated_and_noncomplete_hold_no_false_heartbeat(self):
@@ -970,58 +972,53 @@ class DecisionsGraphTests(unittest.TestCase):
         self.assertEqual([p for p,v in self.calls], ['/run'])
         self.assertEqual(self.heartbeats[0][2], 'live-a1:discord_verified')
 
-    def test_sol_bridge_allowlist_refusal_never_falls_back_to_old_model(self):
-        self.jobs = {}
-        self.dispatch = dict(status='awaiting_agent', mode='live', run_id='live-a1',
-            sink='decisions', free_text_prompt='route residue',
-            agent_receipt_path='/private/agent.json',
-            agent_expected=[dict(item='1', line='fixture')], post_required=False)
-        original = self.call
-        def denied(path, payload=None):
-            if path == '/run' and payload['action'] == 'hermes_chat':
-                self.calls.append((path, payload))
-                return 400, {'error': 'unsupported model'}
-            return original(path, payload)
-        self.call = denied
-        first = self.run_graph()
-        second = self.run_graph()
-        self.assertEqual([first['rc'], second['rc']], [125, 125])
-        self.assertEqual([p for p,v in self.calls], ['/run', '/run', '/job/dispatch-1', '/run'])
-        self.assertEqual([v['model'] for p,v in self.calls if p == '/run' and v['action'] == 'hermes_chat'],
-                         ['gpt-6-sol', 'gpt-6-sol'])
-        self.assertEqual(self.heartbeats, [])
+    def test_host_sol_subscription_route_and_exactly_once_stage(self):
+        from ops import decisions_router as router
+        agent_dir = self.root / 'agent'
+        agent_dir.mkdir()
+        path = str(agent_dir / 'live-a1.json')
+        state_path = self.root / 'state.json'
+        state = {}
+        class FakeProcess:
+            pid = 42
+            returncode = 0
+            def __init__(self, argv, **kwargs):
+                self.argv = argv
+                self.kwargs = kwargs
+            def communicate(self, timeout):
+                self.timeout = timeout
+                return b'ok', b''
+        with patch.object(router, 'AGENT_DIR', agent_dir), patch('subprocess.Popen', side_effect=FakeProcess) as popen:
+            first = cron.decisions_host_sol('bounded prompt', path, 'live-a1', state, state_path)
+            second = cron.decisions_host_sol('bounded prompt', path, 'live-a1', state, state_path)
+        self.assertEqual(first, second)
+        self.assertEqual(popen.call_count, 1)
+        argv = popen.call_args.args[0]
+        for flag, expected in (('--provider', 'openai-codex'), ('--model', 'gpt-6-sol'),
+                               ('--reasoning', 'xhigh'), ('--toolsets', 'web,file,terminal,firecrawl')):
+            self.assertEqual(argv[argv.index(flag) + 1], expected)
+        self.assertNotIn('bounded prompt', argv)
+        self.assertFalse((self.root / 'decisions-sol-live-a1.prompt').exists())
+        self.assertEqual(json.loads(state_path.read_text())['decisions_jobs']['sol']['status'], 'complete')
+        with patch.object(router, 'AGENT_DIR', agent_dir), patch('subprocess.Popen') as popen:
+            with self.assertRaisesRegex(RuntimeError, 'binding_changed'):
+                cron.decisions_host_sol('changed prompt', path, 'live-a1', state, state_path)
+            popen.assert_not_called()
 
-    def test_sol_unknown_post_ack_holds_without_second_submission(self):
-        self.jobs = {}
-        self.dispatch = dict(status='awaiting_agent', mode='live', run_id='live-a1',
-            sink='decisions', free_text_prompt='route residue',
-            agent_receipt_path='/private/agent.json',
-            agent_expected=[dict(item='1', line='fixture')], post_required=False)
-        original = self.call
-        def uncertain(path, payload=None):
-            if path == '/run' and payload['action'] == 'hermes_chat':
-                self.calls.append((path, payload))
-                raise TimeoutError('synthetic lost POST ack')
-            return original(path, payload)
-        self.call = uncertain
-        self.assertEqual(self.run_graph()['rc'], 125)
-        self.assertEqual(self.run_graph()['rc'], 125)
-        self.assertEqual([p for p,v in self.calls], ['/run', '/run', '/job/dispatch-1'])
-        self.assertEqual(self.heartbeats, [])
-
-    def test_agent_truncated_terminal_holds_known_job_and_never_resumes(self):
-        self.jobs = {}
-        self.dispatch = dict(status='awaiting_agent', mode='live', run_id='live-a1',
-            sink='decisions', free_text_prompt='route residue',
-            agent_receipt_path='/private/agent.json',
-            agent_expected=[dict(item='1', line='fixture')], post_required=False)
-        self.agent['stdout_truncated'] = True
-        first = self.run_graph()
-        second = self.run_graph()
-        self.assertEqual([first['rc'], second['rc']], [125, 125])
-        self.assertEqual([p for p,v in self.calls], ['/run', '/run', '/job/dispatch-1', '/job/sol-1'])
-        self.assertEqual(self.heartbeats, [])
-        self.assertEqual(self.router_resumes, 0)
+    def test_host_sol_uncertain_launch_never_replayed(self):
+        from ops import decisions_router as router
+        agent_dir = self.root / 'agent'
+        agent_dir.mkdir()
+        path = str(agent_dir / 'live-a1.json')
+        state_path = self.root / 'state.json'
+        state = {}
+        with patch.object(router, 'AGENT_DIR', agent_dir), patch('subprocess.Popen', side_effect=OSError('unavailable')) as popen:
+            with self.assertRaises(OSError):
+                cron.decisions_host_sol('prompt', path, 'live-a1', state, state_path)
+            with self.assertRaisesRegex(RuntimeError, 'unconfirmed_no_replay'):
+                cron.decisions_host_sol('prompt', path, 'live-a1', state, state_path)
+            self.assertEqual(popen.call_count, 1)
+        self.assertEqual(json.loads(state_path.read_text())['decisions_jobs']['sol']['status'], 'launch_unknown')
 
     def test_mismatched_confirmation_holds_without_heartbeat_or_card_repost(self):
         self.jobs = {}
