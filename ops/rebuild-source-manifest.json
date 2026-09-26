@@ -1803,6 +1803,11 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "7fd616cbdebacbc95dd7025926d4c3542c7711b6bc0a21be73917d3734912095"
+    },
+    "systems/seo-blog-machine/scripts/opus_review_loop.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "4fcf1afe7108e53de1eca38c842feb0da50558533822eb4c629ff4491824b625"
     }
   },
   "omitted_runtime_inputs": [
