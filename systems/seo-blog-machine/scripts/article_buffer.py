@@ -1003,7 +1003,8 @@ def hold_entry(
         if entry_id in _quarantined_entry_ids(root):
             raise RuntimeError("buffer_hold_entry_quarantined")
         receipt_path = _hold_path(root, entry_id)
-        if receipt_path.exists():
+        held = _held_entry_ids(root)
+        if entry_id in held:
             receipt = _read_sealed(receipt_path, HOLD_SCHEMA, "hold_sha256")
             if (receipt.get("entry_id") != entry_id
                 or receipt.get("entry_manifest") != _spec(manifest)

@@ -1120,7 +1120,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "788af8c72e2ffda0e914c07547b65da5eb3fc76f105b08daea4c1e99bcc417ab"
+      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
