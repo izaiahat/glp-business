@@ -799,7 +799,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "c1aa58627f851fc7c5c2300c858819370780840ce580cf5f7f0f475ceed89d09"
+      "sha256": "9eade9ed8fd6e24b6f858855e673ea7c6224bac5c7a6638ff1405fa4e6b7d26e"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1454,7 +1454,7 @@
         "fable_bridge"
       ],
       "kind": "test",
-      "sha256": "60b8c6811f34fc681d86de3d3c17a105245836a9cc489e9a7ae0b233a33b920a"
+      "sha256": "d96c5893ee93297df689e3159f17d6583185b1aa82b8ce8b07f6a295209dcb7e"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
       "callers": [

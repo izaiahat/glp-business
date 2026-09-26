@@ -998,12 +998,17 @@ def _successor_verified_attachment(reply: dict[str, Any], record: dict[str, Any]
         return False
     attachment = attachments[0]
     digest, size = verified.get("attachment_sha256"), verified.get("attachment_bytes")
+    original_digest = record.get("original_stdout_sha256")
+    original_size = record.get("original_stdout_bytes")
     url = attachment.get("url")
     if (not isinstance(digest, str) or re.fullmatch(r"[a-f0-9]{64}", digest) is None
             or type(size) is not int or size <= 0
             or verified.get("posted_content_sha256") != hashlib.sha256(content.encode()).hexdigest()
-            or record.get("original_stdout_sha256", digest) != digest
-            or record.get("original_stdout_bytes", size) != size
+            or not isinstance(original_digest, str)
+            or re.fullmatch(r"[a-f0-9]{64}", original_digest) is None
+            or original_digest != digest
+            or type(original_size) is not int or original_size <= 0
+            or original_size != size
             or attachment.get("filename") != "reviewer-response.txt"
             or attachment.get("size") != size
             or not isinstance(url, str) or not url.startswith("https://cdn.discordapp.com/")

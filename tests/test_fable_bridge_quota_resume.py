@@ -391,6 +391,48 @@ class QuotaResumeTests(unittest.TestCase):
                 self.receipt["resume"].update(reply_chars=len(altered),
                     reply_sha256=hashlib.sha256(altered.encode()).hexdigest())
             baseline = json.loads(json.dumps(self.receipt["resume"]))
+            # Reviewer probe regression: deleting both bindings used to register.
+            # Exercise the actual successor admission before its host-only guard.
+            binding_cases = [
+                ("both_missing", lambda r: (r.pop("original_stdout_sha256"), r.pop("original_stdout_bytes"))),
+            ]
+            for field, empty, wrong_type, malformed, mismatch in (
+                ("original_stdout_sha256", "", 7, "g" * 64, "0" * 64),
+                ("original_stdout_bytes", 0, True, -1, len(raw) + 1),
+            ):
+                binding_cases.extend([
+                    (field + "_missing", lambda r, field=field: r.pop(field)),
+                    (field + "_empty", lambda r, field=field, value=empty: r.__setitem__(field, value)),
+                    (field + "_wrong_type", lambda r, field=field, value=wrong_type: r.__setitem__(field, value)),
+                    (field + "_malformed", lambda r, field=field, value=malformed: r.__setitem__(field, value)),
+                    (field + "_mismatch", lambda r, field=field, value=mismatch: r.__setitem__(field, value)),
+                ])
+            for case, mutate in binding_cases:
+                with self.subTest(binding=case):
+                    self.receipt["resume"] = json.loads(json.dumps(baseline))
+                    mutate(self.receipt["resume"])
+                    self.assertFalse(bridge._successor_verified_attachment(terminal, self.receipt["resume"], body))
+                    refused(lambda: None, "successor_predecessor_reply_not_no_decision")
+            # All attachment receipt fields are mandatory; no receipt default may
+            # stand in for an independently verified byte digest or size.
+            verification_cases = [
+                ("attachment_sha256", "", 7, "g" * 64, "0" * 64),
+                ("attachment_bytes", 0, True, -1, len(raw) + 1),
+                ("posted_content_sha256", "", 7, "g" * 64, "0" * 64),
+            ]
+            for field, empty, wrong_type, malformed, mismatch in verification_cases:
+                for label, value in (("missing", None), ("empty", empty),
+                                     ("wrong_type", wrong_type), ("malformed", malformed),
+                                     ("mismatch", mismatch)):
+                    with self.subTest(verified_field=field, defect=label):
+                        self.receipt["resume"] = json.loads(json.dumps(baseline))
+                        verified = self.receipt["resume"]["attachment_verification"]
+                        if label == "missing":
+                            verified.pop(field)
+                        else:
+                            verified[field] = value
+                        self.assertFalse(bridge._successor_verified_attachment(terminal, self.receipt["resume"], body))
+                        refused(lambda: None, "successor_predecessor_reply_not_no_decision")
             for mutate, expected in [
                 (lambda: self.receipt["resume"]["attempts"].append(dict(attempt)), "receipt_not_eligible"),
                 (lambda: self.receipt["resume"]["attempts"].pop(), "reply_not_no_decision"),
