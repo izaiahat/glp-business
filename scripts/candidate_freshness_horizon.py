@@ -10,8 +10,11 @@ Read-only. Names each gate, its window, its worst row, and the hours remaining.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import hashlib
+import math
+import sys
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -54,22 +57,36 @@ def gate(root, name, source_file, needle, window, records, now, *, unit="days", 
     result = {"gate": name, "source": source, "window_days": window if unit == "days" else None,
               "window_hours": window if unit == "hours" else None,
               "evidence_timestamp": "UNKNOWN", "expiry_date": "UNKNOWN", "status": "UNKNOWN"}
-    if source.endswith(":UNKNOWN") or window is None or not records:
+    if (source.endswith(":UNKNOWN") or isinstance(window, bool)
+            or not isinstance(window, (int, float)) or not math.isfinite(window)
+            or window < 0 or not records):
         return result
     observed = []
     for who, file, field, timestamp in records:
         parsed = moment(timestamp)
         if parsed is None:
             return {**result, "row": who, "evidence_file": file, "stamp_field": field}
-        expiry = parsed + timedelta(**{unit: window})
+        tolerance = timedelta(days=1) if source_file in ("therapeutic-taxonomy.mjs", "provider-dynamic-profiles.mjs") else timedelta(0)
+        if not name.endswith("expiry") and parsed > (clock or now) + tolerance:
+            return {**result, "row": who, "evidence_file": file, "stamp_field": field,
+                    "reason": "future_anchor", "evidence_timestamp": timestamp}
+        try:
+            expiry = parsed + timedelta(**{unit: window})
+        except OverflowError:
+            return {**result, "row": who, "reason": "window_overflow"}
         observed.append((expiry, who, file, field, timestamp))
     expiry, who, file, field, timestamp = min(observed)
     checked = clock or now
     return {**result, "row": who, "evidence_file": file, "stamp_field": field,
             "evidence_timestamp": timestamp, "expiry_date": expiry.date().isoformat(),
             "expiry_at_utc": expiry.isoformat(), "hours_left": round((expiry - checked).total_seconds() / 3600, 1),
-            "status": "EXPIRED" if checked > expiry else "CURRENT",
+            "status": "EXPIRED" if (checked >= expiry if name.endswith("expiry") else checked > expiry) else "CURRENT",
+            "expiry_boundary": "inclusive" if name.endswith("expiry") else "exclusive",
+            "evaluated_at_utc": checked.isoformat(),
             "evaluation_clock": "historical_as_of" if clock else "wall_clock",
+            "members": [{"row": who, "anchor_date": timestamp, "expiry_at_utc": exp.isoformat(),
+                         "expiry_date": exp.date().isoformat(), "evidence_file": file, "stamp_field": field}
+                        for exp, who, file, field, timestamp in observed],
             "member_expiries": {d: sum(1 for item in observed if item[0].date().isoformat() == d)
                                 for d in sorted({item[0].date().isoformat() for item in observed})}}
 
@@ -79,10 +96,11 @@ def document(root, name):
     return json.loads(path.read_text()) if path.is_file() else {}
 
 
-def qualification_clocks(root):
+def qualification_clocks(root, authority_root=None):
     """Read the site's hash-bound adopted evidence, never an unaccepted proposal."""
     if not (root / "data" / "wave4-source-capture-ledger.json").is_file():
         return {"qualifications": {}, "material_offers": []}
+    authority_root = Path(authority_root) if authority_root else Path(__file__).resolve().parents[1]
     code = ("import {loadEvidenceInputs,materialQualificationsFor,materialOffersFor} from './scripts/glp_evidence_ledger.mjs';"
             "const x=loadEvidenceInputs(process.argv[1]);"
             "console.log(JSON.stringify({ledger_generated_at:x.ledger.generated_at_utc,ledger_path:x.ledger_path,"
@@ -93,7 +111,7 @@ def qualification_clocks(root):
             "material_offers:materialOffersFor(x).map(q=>({offer_id:q.material?.offer_id,fetched_at:q.fetched_at}))}));")
     try:
         run = subprocess.run(["node", "--input-type=module", "-e", code, str(root)],
-                             cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=30)
+                             cwd=authority_root, capture_output=True, text=True, timeout=30)
         if run.returncode:
             return None
         data = json.loads(run.stdout)
@@ -109,15 +127,18 @@ def css_gates(root):
     layers = sorted(css.glob("*.css")) if css.is_dir() else []
     bundle_map = {"site.css": [p.name for p in layers]}
     if src.is_file():
-        for line in src.read_text().splitlines():
+        text = src.read_text()
+        constants = {}
+        for key, value in re.findall(r'const\s+(\w+)\s*=\s*(\[[^;]*\]|"[^"\n]*")\s*;', text):
+            constants[key] = re.findall(r'"([\w-]+\.css)"', value)
+        for line in text.splitlines():
             found = re.match(r'\s*"(site-[^" ]+\.css)": \[(.*)\]', line)
             if not found:
                 continue
             names = re.findall(r'"([\w-]+\.css)"', found.group(2))
-            if "...COMMON" in found.group(2):
-                names = ["00-foundation.css", "01-primitives.css", "02-shell.css", *names]
-            if "ACTION_AURORA" in found.group(2):
-                names.append("99-action-aurora.css")
+            for token in re.sub(r'"[^"]*"', '', found.group(2)).replace('...', '').split(','):
+                if token.strip():
+                    names.extend(constants.get(token.strip(), [f'UNKNOWN-{token.strip()}']))
             bundle_map[found.group(1)] = names
     entries = []
     public_entries = []
@@ -136,10 +157,10 @@ def css_gates(root):
             if not layer.is_file():
                 missing_layers.append(f"assets/css-src/{name}")
             if layer.is_file() and built.is_file():
-                entries.append((layer.stat().st_mtime, built.stat().st_mtime, f"assets/css-src/{name}", bundle))
+                entries.append((layer.stat().st_mtime_ns, built.stat().st_mtime_ns, f"assets/css-src/{name}", bundle))
         if built.is_file() and public.is_file():
             drift = hashlib.sha256(built.read_bytes()).digest() != hashlib.sha256(public.read_bytes()).digest()
-            public_entries.append((built.stat().st_mtime, public.stat().st_mtime, f"assets/{bundle}", bundle, drift))
+            public_entries.append((built.stat().st_mtime_ns, public.stat().st_mtime_ns, f"assets/{bundle}", bundle, drift))
 
     def result(name, needle, pairs, missing):
         item = {"gate": name, "source": source_line(root, "css-build-freshness.mjs", needle),
@@ -151,7 +172,7 @@ def css_gates(root):
         if not pairs or item["source"].endswith(":UNKNOWN"):
             return item
         pair = max(pairs, key=lambda row: (row[0] > row[1] or (len(row) > 4 and row[4]), row[0] - row[1]))
-        observed = datetime.fromtimestamp(pair[0], timezone.utc)
+        observed = datetime.fromtimestamp(pair[0] / 1_000_000_000, timezone.utc)
         stale = pair[0] > pair[1] or (len(pair) > 4 and pair[4])
         return {**item, "row": pair[3], "evidence_file": pair[2],
                 "evidence_timestamp": observed.isoformat(), "status": "STALE" if stale else "CURRENT",
@@ -187,11 +208,12 @@ def stamp_gate(root):
     stamp, newest, path = invalid[0] if invalid else min(candidates)
     return {**result, "row": str(path.relative_to(root)), "evidence_file": str(path.relative_to(root)),
             "stamp_field": "dateModified", "stamp": stamp or "UNKNOWN",
-            "evidence_timestamp": newest or "UNKNOWN", "status": "STALE" if invalid else "CURRENT",
+            "evidence_timestamp": newest or "UNKNOWN",
+            "status": "UNKNOWN" if stamp is None else "STALE" if invalid else "CURRENT",
             "expiry_date": newest if invalid and newest else "UNKNOWN"}
 
 
-def inventory(root=CAND, now=None):
+def inventory(root=CAND, now=None, authority_root=None):
     root = Path(root)
     now = now or datetime.now(timezone.utc)
     registry = document(root, "program-registry.json")
@@ -243,7 +265,7 @@ def inventory(root=CAND, now=None):
          for row in study.get("sources", [])], unit="hours", clock=moment(study.get("as_of_utc")))
     preserved = root / "artifacts" / "ops" / "wave4-deal-ingestion-manifest.json"
     frozen = moment(json.loads(preserved.read_text()).get("evaluated_at")) if preserved.is_file() else None
-    authority = qualification_clocks(root)
+    authority = qualification_clocks(root, authority_root) if authority_root else qualification_clocks(root)
     material_offers = {row["offer_id"]: row["fetched_at"] for row in (authority or {}).get("material_offers", [])
                        if row.get("offer_id") and row.get("fetched_at")}
     add("deals", "deal-ingestion.mjs", "offer_evidence_stale", window_constant(root, "deal-ingestion.mjs", "MAX_EVIDENCE_AGE_DAYS"),
@@ -261,7 +283,13 @@ def inventory(root=CAND, now=None):
          for row in deals.get("offers", []) for group in row.get("pricing", {}).values() if isinstance(group, list)
          for term in group if isinstance(term, dict) and term.get("expires_at")], clock=frozen)
     max_mystery = window_constant(root, "mystery-shop.mjs", "MAX_AGE_MS")
-    add("mystery-ledger", "mystery-shop.mjs", '"evidence_ledger_generated_at"', max_mystery,
+    # A second ledger timestamp is independently enforced in the config.
+    active_mystery = (authority or {}).get("config", mystery)
+    add("mystery-config-ledger", "mystery-shop.mjs", '"evidence_ledger_generated_at"', max_mystery,
+        [("config", (authority or {}).get("config_path", "data/mystery-shop.json"),
+          "source_capture_ledger.generated_at_utc",
+          active_mystery.get("source_capture_ledger", {}).get("generated_at_utc"))])
+    add("mystery-ledger", "mystery-shop.mjs", '"capture_ledger_generated_at"', max_mystery,
         [("ledger", (authority or {}).get("ledger_path", "data/wave4-source-capture-ledger.json"), "generated_at_utc",
           (authority or {}).get("ledger_generated_at"))] if ledger else [])
     add("mystery-capture-cache", "mystery-shop.mjs", '"capture_cached_at"', max_mystery,
@@ -287,6 +315,27 @@ def inventory(root=CAND, now=None):
           qualified.get(row.get("source_capture_id")) if qualified and row.get("source_capture_id") in qualified else row.get("checked_at"))
          for row in prices.get("records", [])] if authority is not None else [])
     add("price-alert", "price-tracker.mjs", "alert_record_freshness_invalid", max_price, [])
+    add("mystery-renewal", "mystery-shop.mjs", '"renewal_qualification"', max_mystery,
+        [(capture_id, "accepted evidence ledger", "fetched_at", stamp) for capture_id, stamp in qualified.items()])
+    for name, source, needle, window, rows, id_field, stamp_field in (
+        ("mystery-lineage", "mystery-shop.mjs", "observation_qualification_lineage_invalid", max_mystery,
+         active_mystery.get("observations", []), "capture_id", "observed_at"),
+        ("price-lineage", "price-tracker.mjs", "tracker_qualification_lineage_invalid", max_price,
+         prices.get("records", []), "source_capture_id", "checked_at"),
+    ):
+        members = []
+        for row in rows:
+            if row.get(id_field) in qualified:
+                member = gate(root, name, source, needle, window,
+                              [(row.get("id"), "qualified input", stamp_field, row.get(stamp_field))], now,
+                              clock=moment(qualified[row[id_field]]))
+                member["evaluation_clock"] = "qualification_lineage"
+                members.append(member)
+        if members:
+            worst = min(members, key=lambda item: (item["status"] != "UNKNOWN", item.get("hours_left", float("inf"))))
+            findings.append({**worst, "lineage_members": members})
+        else:
+            add(name, source, needle, window, [])
     matrix = document(root, "provider-pricing-matrix.json")
     pricing_window = window_constant(root, "scripts/validate-provider-pricing-matrix.mjs", "MAX_EVIDENCE_AGE_DAYS")
     typed_witnesses = []
@@ -316,24 +365,90 @@ def inventory(root=CAND, now=None):
     add("pricing-legacy-capture", "scripts/validate-provider-pricing-matrix.mjs", "ageInDays(row.captured_on, now) > MAX_EVIDENCE_AGE_DAYS", pricing_window, legacy_rows)
     findings.extend(css_gates(root))
     findings.append(stamp_gate(root))
+    if moment(study.get("as_of_utc")) is None:
+        original = next(row for row in findings if row["gate"] == "original-study")
+        original.update(status="UNKNOWN", reason="unknown_evaluation_clock", evidence_timestamp="UNKNOWN", expiry_date="UNKNOWN")
     return findings
 
 
-def main() -> int:
-    now = datetime.now(timezone.utc)
-    findings = inventory(CAND, now)
+COVERAGE = Path(__file__).with_name("candidate_freshness_coverage.json")
+
+
+def source_coverage(root, baseline=None):
+    """Fail closed on ANY new/changed src file, not just familiar clock names.
+
+    Arbitrary JS cannot be exhaustively inferred with regex. The extraction below
+    is a reviewed adapter catalog. This conservative byte census is its coverage
+    guard: a newly added clock even with an unfamiliar name cannot pass unnoticed.
+    Never auto-update the manifest during a probe. Source changes need review.
+    """
+    root = Path(root)
+    baseline = json.loads(COVERAGE.read_text()) if baseline is None else baseline
+    expected = baseline["files"]
+    paths = {str(p.relative_to(root)): p for p in (root / "src").rglob("*") if p.is_file()}
+    for name in expected:
+        if not name.startswith("src/") and (root / name).is_file():
+            paths[name] = root / name
+    findings = []
+    for name in sorted(set(expected) | set(paths)):
+        path = paths.get(name)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest() if path else None
+        if digest == expected.get(name) and name in expected:
+            continue
+        findings.append({"gate": f"unreviewed-source:{name}", "source": f"{name}:1",
+                         "window": "UNKNOWN", "anchor_date": "UNKNOWN",
+                         "evidence_timestamp": "UNKNOWN", "expiry_date": "UNKNOWN", "status": "UNKNOWN",
+                         "reason": "new_source" if name not in expected else "changed_source" if path else "missing_source",
+                         "observed_sha256": digest, "reviewed_sha256": expected.get(name)})
+    return findings
+
+
+def report(root, now, authority_root=None):
+    findings = inventory(root, now, authority_root) if authority_root else inventory(root, now)
+    coverage = source_coverage(root)
+    findings.extend(coverage)
+    drifted = {row["source"].rsplit(":", 1)[0] for row in coverage}
+    for row in findings:
+        row["anchor_date"] = row.get("evidence_timestamp", "UNKNOWN")
+        row.setdefault("window", {"days": row.get("window_days"), "hours": row.get("window_hours")})
+        event = row["gate"] in ("css-bundle", "public-css", "rendered-freshness-stamp")
+        row["expiry_kind"] = "event_driven_no_calendar_deadline" if event else "calendar"
+        if event:
+            row["expiry_date"] = "UNKNOWN"
+        if row["source"].rsplit(":", 1)[0] in drifted:
+            row["status"] = "UNKNOWN"
+            row["reason"] = "source_adapter_requires_review"
     findings.sort(key=lambda f: (f.get("hours_left", float("inf")), f["gate"]))
     expired = [f for f in findings if f["status"] in ("EXPIRED", "STALE")]
     unknown = [f for f in findings if f["status"] == "UNKNOWN"]
     soon = [f for f in findings if f.get("evaluation_clock") == "wall_clock"
             and 0 <= f.get("hours_left", float("inf")) <= 72]
-    verdict = "STALE" if expired else "UNKNOWN" if unknown else "CURRENT"
-    print(json.dumps({"schema": "candidate-freshness-horizon-v2", "observed_at": now.isoformat(),
-                      "verdict": verdict,
-                      "gates": len(findings), "expired": expired, "unknown": unknown,
-                      "due_within_72h": soon, "all": findings}, indent=2))
-    return 1 if expired or unknown else 0
+    return {"schema": "candidate-freshness-horizon-v3", "candidate": str(Path(root).resolve()),
+            "observed_at": now.isoformat(), "verdict": "STALE" if expired else "UNKNOWN" if unknown else "CURRENT",
+            "coverage": {"reviewed_src_files": sum(p.startswith("src/") for p in json.loads(COVERAGE.read_text())["files"]),
+                         "unreviewed_sources": len(coverage), "policy": "any source addition/deletion/change requires adapter review"},
+            "gates": len(findings), "expired": expired, "unknown": unknown, "due_within_72h": soon, "all": findings}
+
+
+def main(argv=()) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--candidate", type=Path, default=CAND)
+    parser.add_argument("--now", help="ISO timestamp; default actual UTC clock")
+    parser.add_argument("--authority-root", type=Path,
+                        help="explicit read-only business root containing accepted-evidence loader; absent inputs stay UNKNOWN")
+    args = parser.parse_args(argv)
+    now = moment(args.now) if args.now else datetime.now(timezone.utc)
+    if now is None:
+        parser.error("--now must be an ISO date or timestamp")
+    try:
+        result = report(args.candidate, now, args.authority_root)
+    except (OSError, ValueError, TypeError, AttributeError, KeyError) as exc:
+        result = {"schema": "candidate-freshness-horizon-v3", "verdict": "UNKNOWN",
+                  "candidate": str(args.candidate), "observed_at": now.isoformat(),
+                  "error": f"{type(exc).__name__}: {exc}"}
+    print(json.dumps(result, indent=2))
+    return 0 if result["verdict"] == "CURRENT" else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
