@@ -75,6 +75,30 @@ class CallerTest(unittest.TestCase):
             login.prepare(page.page_info, page.js, page.click, page.cdp, page.wait)
         self.assertEqual(page.clicks, [])
 
+    def test_account_header_without_directory_controls_is_not_ready(self):
+        page = FakePage()
+        page.url = login.PASSWORD_ORIGIN + "/u/login/password"
+        page.password = True
+        page.body = "Tilton Group (2979387) Loading..."
+        with self.assertRaisesRegex(login.LoginBoundaryError, "directory_controls_not_ready"):
+            login.finish(page.page_info, page.js, page.wait, page.goto)
+
+    def test_directory_path_prefix_is_not_the_directory(self):
+        page = FakePage()
+        page.url = login.PASSWORD_ORIGIN + "/u/login/password"
+        page.password = True
+        def wrong_goto(url):
+            page.url = url + "-untrusted"
+        with self.assertRaisesRegex(login.LoginBoundaryError, "directory_readback_required"):
+            login.finish(page.page_info, page.js, page.wait, wrong_goto)
+
+    def test_read_directory_does_not_renavigate_or_resubmit(self):
+        page = FakePage()
+        page.url = login.DIRECTORY
+        result = login.read_directory(page.page_info, page.js)
+        self.assertTrue(result["directory_ready"])
+        self.assertEqual(page.clicks, [])
+
     def test_wrong_publisher_refuses(self):
         page = FakePage()
         login.prepare(page.page_info, page.js, page.click, page.cdp, page.wait)

@@ -9,7 +9,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bdaaa8ebd794ceb1d90bcb46838fd8fe0b39aa6eec671142b079b3a28845ab76"
+      "sha256": "842f784d48b271b3dc68c6741467e3f0a8bc0ba405623ef32851e972b39bca30"
     },
     ".hermes.md": {
       "callers": [],
@@ -85,6 +85,20 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "3b46a664e1023d09676da2c728f2c768aa7d97b69dcb830bcb8212de9408fd92"
+    },
+    "ops/awin-fresh-preflight.candidate.json": {
+      "callers": [
+        "candidate:GLP-317"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "afd96403068675fde46a9f612d268418af3bf56def1637d3672853b1eb77f653"
+    },
+    "ops/awin-fresh-preflight.md": {
+      "callers": [
+        "candidate:GLP-317"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "876d99e0c60afad99d5e3188a67c087ee4400302ee2556850219e19f57497ec1"
     },
     "ops/claude-model-policy.json": {
       "callers": [
@@ -707,6 +721,13 @@
       "kind": "script",
       "sha256": "59ce6e9b952f1a305ccbee6152578d65a95c78d69b13c81bab57eb1519c33016"
     },
+    "scripts/awin_fresh_preflight.py": {
+      "callers": [
+        "candidate:GLP-317"
+      ],
+      "kind": "script",
+      "sha256": "2f4029cc289da3b605cd42a53e059923a9c158676eb287641a32c392108e00ef"
+    },
     "scripts/awin_pin_release.py": {
       "callers": [],
       "kind": "script",
@@ -897,7 +918,7 @@
         "on-demand:browser_vault_glp54"
       ],
       "kind": "script",
-      "sha256": "2381bad411547869ba3877f45081fb5f00dc60857e0c1e867912e6932daeab10"
+      "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1078,6 +1099,20 @@
       "kind": "script",
       "sha256": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445"
     },
+    "scripts/marketplace_adapters/_base.py": {
+      "callers": [
+        "scripts/awin_fresh_preflight.py"
+      ],
+      "kind": "script",
+      "sha256": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72"
+    },
+    "scripts/marketplace_adapters/awin.py": {
+      "callers": [
+        "scripts/awin_fresh_preflight.py"
+      ],
+      "kind": "script",
+      "sha256": "864b16dc7816ec92a19964f465e08d833311462c0c4cb6c469d101b5f2854de8"
+    },
     "scripts/marketplace_adapters/portal_apply.py": {
       "callers": [
         "GLP-317 Awin paused source review"
@@ -1105,7 +1140,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "782d5436402c73ea165bb6addbbfeb59667edc4ad597442e1d7db4f7716ba975"
+      "sha256": "9d4031bd31c2cf4b744a3efd1b158a1e6b9b83854f365f26b4478b26558c7292"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1463,6 +1498,13 @@
       "kind": "test",
       "sha256": "f21cbeb0dcaee2448a2bae148a026159ca8f4e77c98fa4d715f2cf5aef65a7c0"
     },
+    "tests/test_awin_fresh_preflight.py": {
+      "callers": [
+        "scripts/awin_fresh_preflight.py"
+      ],
+      "kind": "test",
+      "sha256": "dd3036b25aae909842f3cc08847b7d703241099ec0aff807ae2c725a567375ed"
+    },
     "tests/test_awin_pin_shell_conventions.py": {
       "callers": [],
       "kind": "test",
@@ -1634,7 +1676,7 @@
         "glp_awin_portal_login"
       ],
       "kind": "test",
-      "sha256": "5a6ec32bfc4e412edad88ef0e0de4d53c1d85ac011baa043525bc0db40d27853"
+      "sha256": "4c504b0c485a0790c44a6cbaa35ab1dcd76b9b1bb34a5be7368184e1e30a7af3"
     },
     "tests/test_glp_candidate_quarantine.py": {
       "callers": [
@@ -1921,5 +1963,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 291
+  "tracked_count": 297
 }
