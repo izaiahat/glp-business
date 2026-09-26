@@ -1792,7 +1792,7 @@
         "glp_affiliate_wire_backlog_worker"
       ],
       "kind": "test",
-      "sha256": "c563c76528e2462b2004d90e0f7424e341db26530b2120a59c5c499f1ece221c"
+      "sha256": "3a0e875a4dfdf37cb926b89f94f27e0381fc140e746e00d461a85dd5d5667125"
     },
     "tests/test_glp_never_monetized_derived.py": {
       "callers": [
