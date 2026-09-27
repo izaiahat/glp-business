@@ -147,6 +147,13 @@
       "kind": "instruction_or_policy",
       "sha256": "1e60c6806310c1c23197562abed2f170c8cced96a65098dfed5d3eb4414b8319"
     },
+    "ops/glp/seo-weekly-installed-pins.json": {
+      "callers": [
+        "scripts/glp_weekly_seo_control.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "2a037a7f9ef0f3d53d227a2c4bc37202a9d697c84f79a0dce5d5c656d577b753"
+    },
     "ops/glp/seo_business_context.py": {
       "callers": [
         "scripts/glp_weekly_seo_control.py",
@@ -1080,6 +1087,13 @@
       "kind": "script",
       "sha256": "061c01d7cf60903040d929bde9b7ee0e1521ee4ec5ad5b9d0a242913440b3321"
     },
+    "scripts/glp_weekly_seo_analysis.py": {
+      "callers": [
+        "scripts/glp_weekly_seo_control.py"
+      ],
+      "kind": "script",
+      "sha256": "9103e2172c012f29be18bc9d95f0a8acc27957d60022c9f3c56ed366480890d3"
+    },
     "scripts/glp_weekly_seo_ranking_report.py": {
       "callers": [
         "GLP-44 registered weekly ranking collector/report"
@@ -1238,7 +1252,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "83e3efc3543e3d587a7ece4eab133871f720720cff5f7e49522631221da9fb04"
+      "sha256": "e5fc09402dc270dea9cd7a94d9e25c731ad735e3b6bfce924099f981bbcb379c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1797,6 +1811,13 @@
       "kind": "test",
       "sha256": "de6fee9cc25eaa0185fca58d39300439782cde523e1969baf95fe0224089cdc1"
     },
+    "tests/test_glp44_weekly_pin_adoption.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "0338a329608636c8083f323e98e7797734fba66fe0a527c4248438f1f2b175e8"
+    },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
         "glp_ads_three_platform_monitor"
@@ -2187,5 +2208,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 333
+  "tracked_count": 336
 }
