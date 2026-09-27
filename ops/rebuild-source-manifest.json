@@ -11,10 +11,20 @@
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
     },
+    "scripts/affiliate_supply_discovery.py": {"callers": ["research-only source observation -> sheet_update_queue"], "kind": "script", "sha256": "aed573fee696365bfc00efa207f71ae40a1a3aa4883c39d4af7085fee9df64e0"},
+    "scripts/affiliate_marketplace_update_sheet.py": {"callers": ["legacy ready-to-apply parser regression only; never used for held writes"], "kind": "script", "sha256": "d535143c946c00f6ea4d70a9a6a55be4aa5212f80247fa088bc0f8df43f5c6b2"},
+    "scripts/affiliate_supply_expansion.py": {"callers": ["scripts/affiliate_supply_discovery.py"], "kind": "script", "sha256": "6d583ab1523ca852c1f9342c036fac0766fe1b89819671c40b2d6612ad6fddf1"},
+    "tests/test_glp96_research_only_contract.py": {"callers": ["scripts/run_tests.sh"], "kind": "test", "sha256": "de393a670c122947e3861ce3950999b41fdee0ce0e3280df17dbfb33fb871369"},
+    "tests/support/google_stubs.py": {"callers": ["tests/test_glp96_research_only_contract.py"], "kind": "test", "sha256": "4b24b436a54b6ee19956a3de7a601ceab31c8b2262c25421cf5e746bcfb56899"},
+    "reports/ops/glp96-research-intake-followthrough-20260927/two-prospects-report-only.json": {"callers": ["scripts/affiliate_supply_discovery.py"], "kind": "test_fixture", "sha256": "0067bb9b4080f683f44ccb070801954321e38ed4d5123d1ea2f00c7c3f024332"},
+    "reports/ops/glp96-full-current-join-20260927/raw/page-001.html": {"callers": ["scripts/affiliate_supply_discovery.py", "scripts/affiliate_sheet_batch_writer.py"], "kind": "test_fixture", "sha256": "80291f47bedb1c74b7df0909a7f97ef869ac9f7e3b48f3f2ee285702236a1043"},
+    "reports/ops/glp96-article-feeder-qualification-20260927/raw/walgreens-service.html": {"callers": ["scripts/affiliate_supply_discovery.py", "scripts/affiliate_sheet_batch_writer.py"], "kind": "test_fixture", "sha256": "5b6a01ebcfa6dd457a212d7d69ec2b9310928c5828b0395ba16ca43a70b177db"},
+    "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-home.html": {"callers": ["scripts/affiliate_supply_discovery.py", "scripts/affiliate_sheet_batch_writer.py"], "kind": "test_fixture", "sha256": "ec9496b6ea3d16b691510b666d0d76958eb662f26eb4dc545430a1c7b470201b"},
+    "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-terms-current.html": {"callers": ["scripts/affiliate_supply_discovery.py", "scripts/affiliate_sheet_batch_writer.py"], "kind": "test_fixture", "sha256": "534bc40eeef8127e9d3d69b93d9c381387fcc08c56fe758aefaa08efa5055d1c"},
     "scripts/glp_sheet_sync_drain.py": {
       "callers": ["sheet_update_queue single-writer carrier"],
       "kind": "script",
-      "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
+      "sha256": "c5ce505c501724d17381b50dd85e2389ec36b4310e17067f80a714522ac7f9a1"
     },
     "scripts/affiliate_program_relevance.py": {
       "callers": ["scripts/affiliate_sheet_batch_writer.py"],
@@ -761,7 +771,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "dc713c15af72f5dc2af6311fbcc9f0a56c887ff5843da7a741a6af84d376690c"
+      "sha256": "9048da4377826d6a82912fd3357f7365de75602ad6ef1a1c73b33f9f60379ca4"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
@@ -1249,7 +1259,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2a583c3c2953dadbd6b6af471882a230470366e8a1f9a89a2b26d99258bd721d"
+      "sha256": "20368bbda47ebccb459c46415eb90c61d022444d84e552ea30db889959cace32"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2194,5 +2204,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 336
+  "tracked_count": 346
 }
