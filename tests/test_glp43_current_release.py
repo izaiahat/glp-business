@@ -397,6 +397,81 @@ class CurrentReleaseTests(unittest.TestCase):
         self.assertEqual(self.publish(), 1)
         self.assertEqual(self.calls, before)
 
+    def test_current_deployment_list_defaults_complete_and_fail_closed(self):
+        # Real provider rejected this exact legacy query with HTTP 400/8000024.
+        # Omitted per_page returned 25, not evidence of a universal size cap.
+        from urllib.parse import parse_qs, urlsplit
+        self.prepare(); self.approve_fixture()
+        preview = [dict(self.deployment(f"{i:08x}-2222-4222-8222-222222222222", self.head),
+                        environment="preview", latest_stage={"status": "failure"}) for i in range(26)]
+        queries, pages = [], []
+        mutation = None
+
+        def provider(request, **kwargs):
+            url = urlsplit(request.full_url)
+            if url.path != f"/client/v4/accounts/{c.ACCOUNT_ID}/pages/projects/{c.PROJECT}/deployments":
+                return self.transport(request, **kwargs)
+            self.assertEqual(request.get_method(), "GET")
+            self.assertIsNone(request.data)
+            queries.append(url.query)
+            if url.query == "page=1&per_page=100":
+                error = {"success": False, "errors": [{"code": 8000024,
+                         "message": "Invalid list options provided. Review the `page` or `per_page` parameter."}]}
+                raise c.urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, io.BytesIO(c.json_bytes(error)))
+            query = parse_qs(url.query)
+            page = int(query["page"][0])
+            self.assertEqual(query, {"page": [str(page)]})  # no environment filter or guessed size
+            rows = preview + self.deployments
+            result = copy.deepcopy(rows[(page - 1) * 25:page * 25])
+            info = {"page": page, "per_page": 25, "count": len(result),
+                    "total_pages": 2, "total_count": len(rows)}
+            body = {"success": True, "result": result, "result_info": info}
+            if mutation is not None:
+                mutation(body, page)
+            pages.append(page)
+            response = mock.MagicMock()
+            response.__enter__.return_value = response
+            response.read.return_value = c.json_bytes(body)
+            return response
+
+        client = c.CloudflareClient("synthetic-fixture-not-a-credential")
+        with mock.patch.object(c.urllib.request, "urlopen", side_effect=provider):
+            with self.assertRaisesRegex(c.GateError, "cloudflare_request_failed:GET:.*per_page=100:HTTPError"):
+                client.deployments()  # unchanged historical reader must still refuse
+            queries.clear()
+            self.assertEqual(self.publish(), 0, self.last)  # both current reconciliation calls
+            self.assertEqual(queries, ["page=1", "page=2"] * 2)
+            self.assertEqual(pages, [1, 2] * 2)
+            self.assertEqual(len(self.deploy_calls), 1)
+            self.assertEqual(json.loads(self.pointer.read_text())["deployment_id"], NEW_ID)
+            rows = c.current_deployments(client)
+            self.assertEqual(rows, preview + self.deployments)  # includes failed previews
+            self.assertEqual(len({row["id"] for row in rows}), len(rows))
+
+            def change_info(key, value):
+                return lambda body, page: body["result_info"].update({key: value}) if page == 2 else None
+
+            cases = [
+                (lambda b, p: b.update(result_info=None), "shape_invalid"),
+                (lambda b, p: b.update(result={}), "shape_invalid"),
+                (change_info("page", 1), "pagination_invalid"),
+                (change_info("page", True), "pagination_invalid"),
+                (change_info("total_pages", "2"), "pagination_invalid"),
+                (change_info("total_count", None), "pagination_invalid"),
+                (change_info("total_count", -1), "pagination_invalid"),
+                (change_info("total_count", 99), "changed_during_read"),
+                (change_info("total_pages", 3), "changed_during_read"),
+                (lambda b, p: b["result"].pop() if p == 2 else None, "incomplete"),
+                (lambda b, p: b["result"][0].update(id=preview[0]["id"]) if p == 2 else None, "identity_invalid"),
+                (lambda b, p: b["result"][0].update(id="malformed"), "identity_invalid"),
+                (lambda b, p: b["result"][0].update(environment="unknown"), "identity_invalid"),
+            ]
+            for mutation, error in cases:
+                with self.subTest(error=error):
+                    with self.assertRaisesRegex(c.GateError, "^deployment_list_" + error + "$"):
+                        c.current_deployments(client)
+        self.assertEqual(client.provider_mutations, 0)
+
     def test_publish_consumes_once_reconciles_landed_timeout_and_records_target(self):
         self.prepare(); self.approve_fixture(); self.cli_mode = "landed-timeout"
         self.assertEqual(self.publish(), 0, self.last)
