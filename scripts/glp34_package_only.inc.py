@@ -558,19 +558,20 @@ def current_route_specs(root: Path) -> list[dict[str, Any]]:
              "bytes": (root / name).stat().st_size} for name in names]
 
 
-# Narrow reuse of verify_glp_wave2_production.normalize_cf_email_html's
-# exact mailto-anchor reversal: same XOR decoding, matching href/span mailbox,
-# approved mailboxes and literal decoder. Do NOT import its broader wrapper,
-# plaintext or query-link normalization into this current-only comparison.
+# Exact mailto/span reversal plus the retained providers plaintext shape.
+# Do not import the historical normalizer's query links or generic cleanup.
 CURRENT_CF_EMAIL_ANCHOR_RE = re.compile(
     rb'<a href="/cdn-cgi/l/email-protection#([0-9A-Fa-f]+)"><span class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</span></a>'
+)
+CURRENT_CF_EMAIL_PLAIN_RE = re.compile(
+    rb'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</a>'
 )
 CURRENT_CF_EMAIL_DECODER_SCRIPT = b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
 
 
 def current_restore_cf_email(value: bytes) -> bytes:
-    """Reverse only the observed CF mailto/span shape; never normalize source."""
-    def decode_cloudflare_hex(encoded: bytes) -> bytes:
+    """Reverse only proven CF shapes; the caller still requires all source bytes."""
+    def decode_cloudflare_hex(encoded: bytes, *, plaintext: bool = False) -> bytes:
         if len(encoded) < 4 or len(encoded) % 2:
             fail("cloudflare_email_hex_invalid")
         try:
@@ -578,7 +579,11 @@ def current_restore_cf_email(value: bytes) -> bytes:
             decoded = bytes(byte ^ raw[0] for byte in raw[1:]).decode("utf-8")
         except (UnicodeDecodeError, ValueError):
             fail("cloudflare_email_decode_invalid")
-        if decoded not in {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"}:
+        # The mailto allowlist is unchanged. Only the exact retained plaintext
+        # spelling is supported; this is not a general provider-email decoder.
+        allowed = ({"care@BiltRx.com"} if plaintext else
+                   {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"})
+        if decoded not in allowed:
             fail("cloudflare_email_unapproved")
         return decoded.encode("ascii")
 
@@ -589,11 +594,27 @@ def current_restore_cf_email(value: bytes) -> bytes:
             fail("cloudflare_email_anchor_span_mismatch")
         return b'<a href="mailto:' + href_address + b'">' + href_address + b'</a>'
 
+    anchors = list(CURRENT_CF_EMAIL_ANCHOR_RE.finditer(value))
+    plain = list(CURRENT_CF_EMAIL_PLAIN_RE.finditer(value))
+    # Retained providers evidence has one plaintext region before one mailto
+    # region, each flushed at its next original script. Support exactly that
+    # extra shape, not an arbitrary number of plaintext rewrites or decoders.
+    if plain and (len(plain) != 1 or len(anchors) != 1 or plain[0].end() > anchors[0].start()):
+        fail("cloudflare_email_plaintext_shape_invalid")
     restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
+    restored = CURRENT_CF_EMAIL_PLAIN_RE.sub(
+        lambda match: decode_cloudflare_hex(match.group(1), plaintext=True), restored)
     script_count = value.count(CURRENT_CF_EMAIL_DECODER_SCRIPT)
-    if count:
-        if script_count < 1 or script_count > count:
+    if count or plain:
+        boundaries = {value.find(b"<script", match.end()) for match in [*anchors, *plain]}
+        if (script_count < 1 or script_count != len(boundaries)
+                or (plain and len(boundaries) != 2)):
             fail("cloudflare_email_decoder_script_count_invalid")
+        for position in boundaries:
+            after = position + len(CURRENT_CF_EMAIL_DECODER_SCRIPT)
+            if (position < 0 or not value.startswith(CURRENT_CF_EMAIL_DECODER_SCRIPT, position)
+                    or not value.startswith((b"<script ", b"<script>"), after)):
+                fail("cloudflare_email_decoder_script_location_invalid")
         restored = restored.replace(CURRENT_CF_EMAIL_DECODER_SCRIPT, b"")
     elif script_count:
         fail("cloudflare_email_decoder_without_anchor")

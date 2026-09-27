@@ -8,6 +8,7 @@ import copy
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -756,6 +757,92 @@ class CurrentReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:.*:503'):
             self.email_probe(self.email_raw, status=503)
         self.assert_email_raw_retained(self.email_raw)
+
+    def test_current_email_readback_providers_script_regions(self):
+        # Reduced structural fixture, NOT the actual candidate-era HTML below.
+        self.email_probe_fixture()
+        script = c.CURRENT_CF_EMAIL_DECODER_SCRIPT
+        plain = (b'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" '
+                 b'data-cfemail="b8dbd9caddf8fad1d4cceac096dbd7d5">[email&#160;protected]</a>')
+        boundary = b'<script type="application/json" data-provider-card-payloads>[]</script>'
+        expected = self.email_expected.replace(b'$199 ', b'$199 care@BiltRx.com ' + boundary)
+        body = self.email_raw.replace(b'$199 ', b'$199 ' + plain + b' ' + script + boundary)
+        (self.public / 'index.html').write_bytes(expected)
+        self.email_item.update(sha256=c.sha_bytes(expected), bytes=len(expected))
+        self.assertEqual(c.current_restore_cf_email(body), expected)
+        row = self.email_probe(body)
+        self.assertEqual(row['compared_sha256'], c.sha_bytes(expected))
+        self.assertEqual(row['compared_bytes'], len(expected))
+        self.assert_email_raw_retained(body)
+        cases = {
+            'duplicate_decoder': body.replace(script, script + script, 1),
+            'missing_decoder': body.replace(script, b'', 1),
+            'relocated_decoder': body.replace(script, b'', 1).replace(plain, script + plain, 1),
+            'wrong_boundary': body.replace(script + boundary, script + b' ' + boundary, 1),
+            'unknown_decoder': body.replace(b'/5c5dd728/', b'/deadbeef/', 1),
+            'tampered_decoder': body.replace(b'data-cfasync="false"', b'data-cfasync="true"', 1),
+            'unobserved_plaintext_count': body.replace(plain, plain + plain, 1),
+            'changed_plaintext_email': body.replace(b'b8dbd9caddf8fad1d4cceac096dbd7d5',
+                                                  b'b8dbd9caddf8fad1d4cceac096dbd7d4'),
+            'changed_price': body.replace(b'$199', b'$999'),
+            'changed_unrelated_script': body.replace(b'window.x=1', b'window.x=2'),
+        }
+        for name, changed in cases.items():
+            with self.subTest(negative=name):
+                with self.assertRaises(c.GateError):
+                    self.email_probe(changed)
+                self.assert_email_raw_retained(changed)
+        with self.subTest(negative='immutable_transformed_refuses'):
+            with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+                self.email_probe(body, base=self.current['url'])
+            self.assert_email_raw_retained(body)
+        with self.subTest(negative='non_html_source_refuses'):
+            (self.public / 'asset.js').write_bytes(expected)
+            self.email_item['url_path'] = '/asset.js'
+            with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+                self.email_probe(body)
+            self.assert_email_raw_retained(body)
+
+    @unittest.skipUnless(os.environ.get('GLP43_RETAINED_EMAIL_ROOT'),
+                         'actual retained responses are host evidence, not portable fixtures')
+    def test_current_email_readback_actual_providers_11_saved_variants(self):
+        # Explicit opt-in to pinned, read-only historical inputs. Never fetch or
+        # normalize expected HTML; never write the consumed promotion journal.
+        root = Path(os.environ['GLP43_RETAINED_EMAIL_ROOT'])
+        journal = root / ('reports/glp-clinic-scout/seo-machine/current-release-'
+                          '38133df58fc5406adeb87ed88771cc6ceeb26342/'
+                          'CURRENT-PROMOTION-8291d24b-a1c6-4340-bd42-2efa9f2ba2b7.json')
+        raw_journal = journal.read_bytes()
+        self.assertEqual(c.sha_bytes(raw_journal),
+                         '162966b57bf902f14dce9dc43a13d3c639f77af4f35fd7f375dadbda3bb7d5e6')
+        receipt = json.loads(raw_journal)
+        self.assertEqual(receipt['status'], 'BLOCKED_ROLLED_BACK')
+        rows = [r for r in receipt['stages']['route_probe_raw']
+                if r['url'] == c.SITE + '/providers/']
+        self.assertEqual(len(rows), 11)
+        self.assertEqual(len({r['body_sha256'] for r in rows}), 11)
+        expected_path = root / ('reports/ops/glp43-wrangler-shape-repair-20260927/'
+                                'prepared-final381/release/public/providers/index.html')
+        expected = expected_path.read_bytes()
+        expected_sha = '401d31e5c8a79bd1fdc1de78fc6a1bdb30d29b7c9ea8f70cb2d480d461789704'
+        self.assertEqual((len(expected), c.sha_bytes(expected)), (687450, expected_sha))
+        self.email_probe_fixture()
+        (self.public / 'providers/index.html').write_bytes(expected)
+        self.email_item = {'url_path': '/providers/', 'bytes': len(expected), 'sha256': expected_sha}
+        for saved in rows:
+            with self.subTest(retained_sha256=saved['body_sha256']):
+                self.assertNotIn('comparison', saved)  # original failed evidence stays failed
+                body = Path(saved['body_path']).read_bytes()
+                self.assertEqual((len(body), c.sha_bytes(body)), (saved['bytes'], saved['body_sha256']))
+                self.assertEqual((saved['expected_bytes'], saved['expected_sha256']), (len(expected), expected_sha))
+                row = self.email_probe(body)
+                restored = c.current_restore_cf_email(body)
+                self.assertEqual(restored, expected)
+                self.assertEqual((len(restored), c.sha_bytes(restored)), (687450, expected_sha))
+                self.assertEqual((row['compared_bytes'], row['compared_sha256']), (687450, expected_sha))
+                self.assert_email_raw_retained(body)
+        self.assertEqual(journal.read_bytes(), raw_journal)
+        self.assertEqual(expected_path.read_bytes(), expected)
 
     def test_current_deployment_list_defaults_complete_and_fail_closed(self):
         # Real provider rejected this exact legacy query with HTTP 400/8000024.
