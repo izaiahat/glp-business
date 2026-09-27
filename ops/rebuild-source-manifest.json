@@ -1215,7 +1215,7 @@
     "scripts/maxbounty_pin_release.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "fbcf9d426613f13337aab6d49c1d4bc7f1515856c1920b0226428671c1f2da53"
+      "sha256": "169c0f761a5766fa2f22f46f1e0404d380f497c17a3da91098a9075e21d1e462"
     },
     "scripts/pin_drift_report.py": {
       "callers": [],
@@ -2091,7 +2091,7 @@
     "tests/test_maxbounty_pin_release.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "6e1607963a297c30c12839890b37582d3ed19aa9ad69a8370d327b53aea289e8"
+      "sha256": "7132829e82213cacaa2f9cf1da76383c500549c42dd070a9121112d67b734105"
     },
     "tests/test_operator_decision_duplicate_identity.py": {
       "callers": [

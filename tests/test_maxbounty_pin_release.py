@@ -217,6 +217,46 @@ def test_conflicts_refuse_without_artifact_or_registry_writes(tmp_path, mutation
     assert not (business/'reports').exists()
 
 
+def test_native_run_claim_refuses_before_custody_artifacts_or_saver(tmp_path, monkeypatch):
+    f = release_fixture(tmp_path)
+    p, repo, business, hermes, scheduler, receipt, review = f
+    accept(f)
+    registry = hermes/'cron/jobs.json'
+    doc = json.loads(registry.read_bytes())
+    job = doc['jobs'][0]
+    job['schedule'] = {'kind': 'once', 'run_at': '2026-09-27T03:00:00Z'}
+    import datetime as dt
+    job['run_claim'] = {'at': dt.datetime.now(dt.timezone.utc).isoformat(),
+                        'by': 'fixture-running-owner'}
+    # A matching review of a paused one-shot does not establish native idleness.
+    review['expected_job'] = copy.deepcopy(job)
+    registry.write_text(json.dumps(doc))
+    receipt.write_text(json.dumps(review))
+    paths = [business/PINS, hermes/'scripts'/p.WRAPPER, registry, receipt]
+    before = {path: (p.read_regular(path), path.stat().st_mtime_ns) for path in paths}
+    entries = {root: sorted(str(path.relative_to(root)) for path in root.rglob('*'))
+               for root in (business, hermes)}
+    calls = []
+
+    def forbidden(name):
+        def fail(*args, **kwargs):
+            calls.append(name)
+            pytest.fail('native run_claim reached write boundary: ' + name)
+        return fail
+
+    monkeypatch.setattr(p, 'preserve_custody', forbidden('custody'))
+    monkeypatch.setattr(p, 'atomic_write', forbidden('artifact'))
+    monkeypatch.setattr(scheduler, '_save_jobs_unlocked', forbidden('saver'))
+    with pytest.raises(RuntimeError, match='^paused_registration_identity_or_state$'):
+        p.release(receipt, repo, business=business, hermes=hermes,
+                  apply=True, scheduler=scheduler)
+    assert calls == []
+    assert {path: (p.read_regular(path), path.stat().st_mtime_ns) for path in paths} == before
+    assert {root: sorted(str(path.relative_to(root)) for path in root.rglob('*'))
+            for root in (business, hermes)} == entries
+    assert not (business/'reports').exists()
+
+
 @pytest.mark.parametrize('race', ['source', 'wrapper_mode', 'record', 'lock'])
 def test_intervening_mutations_and_lock_contention_fail_closed(tmp_path, race, monkeypatch):
     f = release_fixture(tmp_path)

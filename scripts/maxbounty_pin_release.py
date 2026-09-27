@@ -184,7 +184,7 @@ def checked_plan(review_path, repo, business, hermes):
     if (job.get('enabled') is not False or job.get('state') != 'paused'
             or job.get('script') not in {WRAPPER, str(wrapper)}
             or job.get('script_sha256') != sha_bytes(expected_wrapper)
-            or job.get('fire_claim') or job.get('running')):
+            or job.get('fire_claim') or job.get('run_claim') or job.get('running')):
         raise RuntimeError('paused_registration_identity_or_state')
     import copy
     candidate = copy.deepcopy(jobs)
