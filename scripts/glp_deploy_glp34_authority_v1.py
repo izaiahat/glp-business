@@ -2078,6 +2078,44 @@ def current_pointer_intent(root: Path, prepared: dict[str, Any], deployment_id: 
                           for path, data in ((manifest_path, manifest), (terminal_path, terminal))]}
 
 
+def current_deployments(client: CloudflareClient) -> list[dict[str, Any]]:
+    """Current reconciliation: server-default page size, all environments.
+
+    Keep the historical reader frozen; retain its full-pagination guards here.
+    The provider accepts omitted per_page but rejected the legacy explicit 100.
+    """
+    deployments = []
+    seen = set()
+    page = 1
+    totals = None
+    while True:
+        response = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments?page={page}", envelope=True)
+        result = response.get("result")
+        info = response.get("result_info")
+        if not isinstance(result, list) or not isinstance(info, dict):
+            fail("deployment_list_shape_invalid")
+        pages, count = info.get("total_pages"), info.get("total_count")
+        if (type(pages) is not int or type(count) is not int or pages < 0 or count < 0
+                or type(info.get("page")) is not int or info["page"] != page):
+            fail("deployment_list_pagination_invalid")
+        if totals is None:
+            totals = (pages, count)
+        if totals != (pages, count) or (pages == 0 and (page != 1 or count != 0 or result)):
+            fail("deployment_list_changed_during_read")
+        for item in result:
+            if (not isinstance(item, dict) or not isinstance(item.get("id"), str)
+                    or not DEPLOYMENT_ID.fullmatch(item["id"]) or item["id"] in seen
+                    or item.get("environment") not in ("production", "preview")):
+                fail("deployment_list_identity_invalid")
+            seen.add(item["id"])
+            deployments.append(item)
+        if page >= pages:
+            if len(deployments) != count:
+                fail("deployment_list_incomplete")
+            return deployments
+        page += 1
+
+
 def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
@@ -2103,7 +2141,7 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         client = CloudflareClient(read_token())
         head = prepared["site_head"]
         current = production_deployment(client.project())
-        candidates = [d for d in client.deployments() if deployment_commit(d) == head
+        candidates = [d for d in current_deployments(client) if deployment_commit(d) == head
                       and d.get("environment") == "production" and deployment_branch(d) == PRODUCTION_BRANCH]
         if "rollback_intent" in stages:
             # An uncertain rollback is also reconciliation-only: never replay it.
@@ -2140,7 +2178,7 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
             checkpoint(receipt_path, receipt)
         # Same historical no-replay rule: every existing intent reconciles only.
         current = production_deployment(client.project())
-        candidates = [d for d in client.deployments() if deployment_commit(d) == head
+        candidates = [d for d in current_deployments(client) if deployment_commit(d) == head
                       and d.get("environment") == "production" and deployment_branch(d) == PRODUCTION_BRANCH]
         if (len(candidates) != 1 or current.get("id") != candidates[0].get("id")
                 or deployment_commit(current) != head or not successful_production(current)
