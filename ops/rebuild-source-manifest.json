@@ -1887,7 +1887,7 @@
         "GLP-44 existing controller GSC-only source checks"
       ],
       "kind": "test",
-      "sha256": "40f4c3869c9fdc3a8a2fe828e2a2ffb93c8c6eaf5e496bb46f67959b6aecfb91"
+      "sha256": "58984a052c98324eeff924b96604e2f6e3c33305f2783891bbac15b1b1dd56fb"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [

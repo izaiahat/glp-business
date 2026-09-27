@@ -26,21 +26,25 @@ def sha(path):
 def fixture(tmp_path, monkeypatch, *, mode='normal'):
     import urllib.request
     monkeypatch.setattr(urllib.request, 'urlopen', lambda *a, **kw: pytest.fail('network forbidden'))
-    # Relocate the real complete 20-source candidate closure, never a reduced
-    # report/rail-only manifest. The verifier itself is loaded unchanged.
+    # Exercise the unchanged full verifier over all 20 identities. Curated
+    # sources retain their real candidate bytes; host-only dependencies are
+    # fixture stand-ins on CI (not claims about installed source identity).
     original = json.loads(PIN_SOURCE.read_bytes())
     assert len(original['paths']) == 20
+    curated = json.loads((ROOT / 'ops/rebuild-source-manifest.json').read_text())['files']
     relocated = {}
     for absolute, expected in original['paths'].items():
         relative = Path(absolute).relative_to(INSTALLED_ROOT)
         source = ROOT / relative
-        if not source.is_file():
-            source = Path(absolute)  # uncurated unchanged host dependency
         dest = tmp_path / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(source.read_bytes())
-        assert sha(dest) == expected, relative
-        relocated[str(dest)] = expected
+        if source.is_file():
+            dest.write_bytes(source.read_bytes())
+            assert sha(dest) == expected, relative
+        else:
+            assert str(relative) not in curated
+            dest.write_bytes(b'fixture-only host dependency: ' + str(relative).encode())
+        relocated[str(dest)] = sha(dest)
     paths = {'controller': tmp_path / CONTROLLER.relative_to(ROOT),
              'report': tmp_path / REPORT.relative_to(ROOT),
              'rail': tmp_path / RAIL.relative_to(ROOT)}
