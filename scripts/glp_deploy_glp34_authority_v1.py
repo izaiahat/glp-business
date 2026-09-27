@@ -2008,7 +2008,8 @@ def current_runtime_readback(deployment: dict[str, Any], prepared: dict[str, Any
             if not re.fullmatch(r"/(?:best/online-glp-1-providers/|go/(?:_manifest|[a-z0-9-]+)|api/postback/affiliati|providers/\?glp43=readback)", path):
                 fail("current_runtime_probe_path_invalid")
             method = "GET" if path.startswith("/best/") else "HEAD"
-            request = urllib.request.Request(base + path, method=method, headers={"Cache-Control": "no-cache"})
+            request = urllib.request.Request(base + path, method=method, headers={"User-Agent": "glp-r13-authority-carrier/3",
+                                                                             "Cache-Control": "no-cache"})
             try:
                 response = urllib.request.build_opener(CurrentNoRedirect()).open(request, timeout=30)
             except urllib.error.HTTPError as exc:
