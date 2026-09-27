@@ -3,6 +3,7 @@
 Every APPROVE in this file is explicitly synthetic and exists only in a temporary
 fixture home. No real independent approval is authored or production call allowed.
 """
+import argparse
 import contextlib
 import copy
 import importlib.util
@@ -494,6 +495,93 @@ class CurrentReleaseTests(unittest.TestCase):
                 finally:
                     f.doCleanups()
 
+    def test_exact_rolled_back_successor_second_renewal_is_one_intent(self):
+        # Real main carrier, synthetic fixture/provider only; actual terminal
+        # digest/lineage is separately checked against the retained journal.
+        self.promotion_fixture()
+        self.readback_fail = True
+        self.assertEqual(self.promote_fixture(), 1)
+        root_path = self.promotion_receipt
+        root_bytes = root_path.read_bytes()
+        root_sha = c.sha_bytes(root_bytes)
+        first_path = self.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '-SUCCESSOR-' + root_sha + '.json')
+        self.promotion_receipt = first_path
+        first_args = {**self.promotion_args, 'expected-terminal-promotion-sha256': root_sha}
+        first_flags = ('--authorize-production', '--authorize-existing-promotion', '--authorize-renewed-promotion')
+        self.assertEqual(self.promote_fixture(first_args, first_flags), 1)
+        first_bytes = first_path.read_bytes()
+        first_sha = c.sha_bytes(first_bytes)
+        self.assertEqual(json.loads(first_bytes)['status'], 'BLOCKED_ROLLED_BACK')
+        second_path = self.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '-SUCCESSOR-' + first_sha + '.json')
+        self.promotion_receipt = second_path
+        second_args = {**self.promotion_args, 'expected-terminal-promotion-sha256': first_sha}
+        second_flags = (*first_flags, '--authorize-rolled-back-successor-renewal')
+        original_bytes, pointer_bytes = self.original_receipt.read_bytes(), self.pointer.read_bytes()
+        self.selections.clear(); self.rollbacks.clear(); self.calls.clear()
+        self.readback_fail = False
+        with (mock.patch.object(c, 'CURRENT_PROMOTION_ROOT_SHA256', root_sha),
+              mock.patch.object(c, 'CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256', first_sha)):
+            def refuse(args=second_args, flags=second_flags):
+                self.assertEqual(self.promote_fixture(args, flags), 1)
+                self.assertEqual(self.selections, [])
+                self.assertFalse(second_path.exists())
+                self.assertEqual((root_path.read_bytes(), first_path.read_bytes(),
+                                  self.original_receipt.read_bytes(), self.pointer.read_bytes()),
+                                 (root_bytes, first_bytes, original_bytes, pointer_bytes))
+            refuse(flags=first_flags)
+            refuse(flags=second_flags[:-2] + second_flags[-1:])  # no renewed grant
+            refuse(flags=second_flags[1:])  # no production grant
+            refuse(flags=(second_flags[0], *second_flags[2:]))  # no existing grant
+            refuse({**second_args, 'expected-terminal-promotion-sha256': root_sha})
+            refuse({**second_args, 'expected-terminal-promotion-sha256': '0' * 64})
+            refuse({**second_args, 'expected-approval-sha256': '0' * 64})
+            refuse({**second_args, 'site-head': '0' * 40})
+            refuse({**second_args, 'candidate-deployment-id': c.CURRENT_ROLLBACK})
+            # Root/first must both be authentic; even a freshly pinned altered
+            # successor cannot grant an intent with changed root binding.
+            first = json.loads(first_bytes)
+            bad = c.json_bytes({**first, 'binding': {**first['binding'], 'site_head': 'f' * 40}})
+            first_path.write_bytes(bad)
+            with mock.patch.object(c, 'CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256', c.sha_bytes(bad)):
+                self.assertEqual(self.promote_fixture(
+                    {**second_args, 'expected-terminal-promotion-sha256': c.sha_bytes(bad)}, second_flags), 1)
+                self.assertEqual(self.selections, [])
+                self.assertFalse(second_path.exists())
+            first_path.write_bytes(first_bytes)
+            root_path.write_bytes(root_bytes + b' ')
+            self.assertEqual(self.promote_fixture(second_args, second_flags), 1)
+            self.assertEqual(self.selections, [])
+            root_path.write_bytes(root_bytes)
+            self.current = copy.deepcopy(self.candidate)
+            refuse()
+            self.current = copy.deepcopy(self.deployments[0])
+            self.candidate = dict(self.candidate, latest_stage={'status': 'failure'})
+            refuse()
+            self.candidate = self.deployment(NEW_ID, self.head)
+            self.selection_mode = 'unsettled'
+            self.assertEqual(self.promote_fixture(second_args, second_flags), 1)
+            self.assertEqual(self.last['error'], 'current_promotion_outcome_unsettled_reconcile_only')
+            self.assertEqual(self.selections, [NEW_ID])
+            self.assertEqual(self.promote_fixture(second_args, second_flags), 1)
+            self.assertEqual(self.selections, [NEW_ID])
+            self.current = copy.deepcopy(self.candidate)
+            self.assertEqual(self.promote_fixture(second_args, second_flags), 0, self.last)
+            second = json.loads(second_path.read_bytes())
+            self.assertEqual(second['status'], 'PASS_PRODUCTION_TERMINAL')
+            self.assertEqual(second['binding']['terminal_promotion_sha256'], first_sha)
+            self.assertEqual(second['effects']['existing_candidate_selection_post_intents'], 1)
+            self.assertEqual(second['effects']['pointer_atomic_cas'], 1)
+            self.assertEqual(self.promote_fixture(second_args, second_flags), 1)
+            self.assertEqual(self.selections, [NEW_ID])
+            # No arbitrary third edge: absent the distinct second-edge flag,
+            # a terminal second journal cannot be consumed as a generic input.
+            third_args = {**second_args, 'expected-terminal-promotion-sha256': c.sha_file(second_path)}
+            self.assertEqual(self.promote_fixture(third_args, first_flags), 1)
+            self.assertEqual(self.selections, [NEW_ID])
+            self.assertEqual((root_path.read_bytes(), first_path.read_bytes(), self.original_receipt.read_bytes()),
+                             (root_bytes, first_bytes, original_bytes))
+        self.assert_promotion_custody()
+
     def test_reviewed_terminal_successor_is_one_forward_selection_only(self):
         # Both journals are fixture-local; the first terminal is produced by the
         # existing mode, not a fabricated second-promotion permission.
@@ -931,6 +1019,110 @@ class CurrentReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
                 self.email_probe(body)
             self.assert_email_raw_retained(body)
+
+    @unittest.skipUnless(os.environ.get('GLP43_RETAINED_EMAIL_ROOT'),
+                         'actual terminal journals are host evidence, not portable fixtures')
+    def test_actual_rolled_back_successor_lineage_is_exactly_supported(self):
+        root = Path(os.environ['GLP43_RETAINED_EMAIL_ROOT'])
+        run_dir = root / ('reports/glp-clinic-scout/seo-machine/current-release-'
+                          '38133df58fc5406adeb87ed88771cc6ceeb26342')
+        candidate = '8291d24b-a1c6-4340-bd42-2efa9f2ba2b7'
+        original_path = run_dir / 'CURRENT-RECEIPT.json'
+        root_path = run_dir / ('CURRENT-PROMOTION-' + candidate + '.json')
+        prior_path = run_dir / ('CURRENT-PROMOTION-' + candidate + '-SUCCESSOR-'
+                                + c.CURRENT_PROMOTION_ROOT_SHA256 + '.json')
+        before = {p: p.read_bytes() for p in (original_path, root_path, prior_path)}
+        self.assertEqual([c.sha_bytes(before[p]) for p in (original_path, root_path, prior_path)], [
+            '02c7bf5b61ddccf666583e17352845b724e31b6d664c61c8a7e2a25b5eb8e269',
+            c.CURRENT_PROMOTION_ROOT_SHA256, c.CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256])
+        prepared_path = root / 'reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/PREPARED.json'
+        self.assertEqual(c.sha_file(prepared_path), '547d1c516c77e7dfc1cf9820119a1e737b433df98056b33b27303929146812ed')
+        prepared = json.loads(prepared_path.read_bytes())
+        prior = json.loads(before[prior_path])
+        args = argparse.Namespace(authorize_existing_promotion=True, authorize_renewed_promotion=True,
+                                  authorize_rolled_back_successor_renewal=True,
+                                  site_head=prepared['site_head'], candidate_deployment_id=candidate,
+                                  expected_prepared_manifest_sha256=c.sha_file(prepared_path),
+                                  expected_approval_sha256=prior['binding']['approval_sha256'],
+                                  expected_rolled_back_receipt_sha256=c.sha_file(original_path),
+                                  expected_terminal_promotion_sha256=c.CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256)
+        source = c.current_promotion_source(args, prepared, original_path)
+        terminal = c.current_promotion_rolled_back_successor_source(args, source, original_path,
+                                                                     root_path, prior_path)
+        self.assertEqual(terminal, {**prior['binding'],
+                                    'terminal_promotion_sha256': c.CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256})
+        self.assertEqual({p: p.read_bytes() for p in before}, before)
+
+    def test_current_email_readback_terminal_body_boundary(self):
+        self.email_probe_fixture()
+        script = c.CURRENT_CF_EMAIL_DECODER_SCRIPT
+        anchor = self.email_raw.split(b'$199 ', 1)[1].split(script, 1)[0]
+        decoded = b'<a href="mailto:support@glpclinicscout.com">support@glpclinicscout.com</a>'
+        expected = b'<html><body>$199 ' + decoded + b' ' + decoded + b'</body></html>'
+        body = b'<html><body>$199 ' + anchor + b' ' + anchor + script + b'</body></html>'
+        (self.public / 'index.html').write_bytes(expected)
+        self.email_item.update(sha256=c.sha_bytes(expected), bytes=len(expected))
+        self.assertEqual(c.current_restore_cf_email(body), expected)
+        row = self.email_probe(body)
+        self.assertEqual((row['compared_bytes'], row['compared_sha256']), (len(expected), c.sha_bytes(expected)))
+        self.assert_email_raw_retained(body)
+        relocated = body.replace(script, b'', 1).replace(anchor, script + anchor, 1)
+        for name, changed, error in (
+            ('same_count_moved_before_anchor', relocated, 'cloudflare_email_decoder_script_location_invalid'),
+            ('duplicate_decoder', body.replace(script, script + script, 1), 'cloudflare_email_decoder_script_count_invalid'),
+            ('not_terminal', body.replace(script + b'</body>', script + b' <!-- gap --></body>', 1),
+             'cloudflare_email_decoder_script_location_invalid'),
+            ('changed_price', body.replace(b'$199', b'$999'), 'route_probe_invariant_failed:')):
+            with self.subTest(negative=name):
+                with self.assertRaisesRegex(c.GateError, error):
+                    self.email_probe(changed)
+                self.assert_email_raw_retained(changed)
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(body, base=f'https://{c.PROJECT}.pages.dev')
+        self.assert_email_raw_retained(body)
+
+    @unittest.skipUnless(os.environ.get('GLP43_RETAINED_EMAIL_ROOT'),
+                         'actual retained responses are host evidence, not portable fixtures')
+    def test_current_email_readback_actual_renewed_html_variants(self):
+        root = Path(os.environ['GLP43_RETAINED_EMAIL_ROOT'])
+        journal = root / ('reports/glp-clinic-scout/seo-machine/current-release-'
+                          '38133df58fc5406adeb87ed88771cc6ceeb26342/'
+                          'CURRENT-PROMOTION-8291d24b-a1c6-4340-bd42-2efa9f2ba2b7-SUCCESSOR-'
+                          '162966b57bf902f14dce9dc43a13d3c639f77af4f35fd7f375dadbda3bb7d5e6.json')
+        raw_journal = journal.read_bytes()
+        self.assertEqual(c.sha_bytes(raw_journal), c.CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256)
+        rows = json.loads(raw_journal)['stages']['route_probe_raw']
+        public = root / 'reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release/public'
+        names = ('index.html', 'providers/index.html', 'tools/glp-1-cost-calculator/index.html',
+                 'lp/quiz/index.html', 'quiz/provider-fit/index.html',
+                 'reviews/nu-image-medical-review/index.html', 'reviews/mydrhank/index.html', 'privacy/index.html')
+        self.email_probe_fixture()  # local route-probe mock; no provider or site request
+        counts = {}
+        for name in names:
+            path = '/' + name.removesuffix('index.html')
+            matching = [r for r in rows if r['url'] == c.SITE + path]
+            self.assertEqual(len(matching), 9, name)
+            expected = (public / name).read_bytes()
+            for saved in matching:
+                with self.subTest(path=path, body_sha256=saved['body_sha256']):
+                    body = Path(saved['body_path']).read_bytes()  # one body at a time
+                    self.assertEqual((len(body), c.sha_bytes(body)), (saved['bytes'], saved['body_sha256']))
+                    self.assertEqual((len(expected), c.sha_bytes(expected)),
+                                     (saved['expected_bytes'], saved['expected_sha256']))
+                    compared = body if body == expected else c.current_restore_cf_email(body)
+                    self.assertEqual((len(compared), c.sha_bytes(compared), compared),
+                                     (len(expected), c.sha_bytes(expected), expected))
+                    if saved['body_sha256'] == '613f88dce28a2896fe8674b36ede692db101ab934367abbdc194501c91416b39':
+                        (self.public / name).write_bytes(expected)
+                        self.email_item = {'url_path': '/privacy/', 'bytes': len(expected),
+                                           'sha256': c.sha_bytes(expected)}
+                        row = self.email_probe(body)
+                        self.assertEqual((row['comparison'], row['compared_sha256']),
+                                         ('exact_cf_email_reversal', c.sha_bytes(expected)))
+                        self.assert_email_raw_retained(body)
+                    counts[path] = counts.get(path, 0) + 1
+        self.assertEqual(counts['/privacy/'], 9)
+        self.assertEqual(journal.read_bytes(), raw_journal)
 
     @unittest.skipUnless(os.environ.get('GLP43_RETAINED_EMAIL_ROOT'),
                          'actual retained responses are host evidence, not portable fixtures')

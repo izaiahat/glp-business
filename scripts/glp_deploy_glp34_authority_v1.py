@@ -2084,9 +2084,10 @@ def current_restore_cf_email(value: bytes) -> bytes:
 
     anchors = list(CURRENT_CF_EMAIL_ANCHOR_RE.finditer(value))
     plain = list(CURRENT_CF_EMAIL_PLAIN_RE.finditer(value))
-    # Retained providers evidence has one plaintext region before one mailto
-    # region, each flushed at its next original script. Support exactly that
-    # extra shape, not an arbitrary number of plaintext rewrites or decoders.
+    # Retained providers evidence has two regions flushed at their next original
+    # scripts. Privacy has mailto anchors after its last original script; its
+    # one decoder instead ends immediately at the actual </body></html> boundary.
+    # Neither shape permits arbitrary placement, scripts, or byte changes.
     if plain and (len(plain) != 1 or len(anchors) != 1 or plain[0].end() > anchors[0].start()):
         fail("cloudflare_email_plaintext_shape_invalid")
     restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
@@ -2100,8 +2101,12 @@ def current_restore_cf_email(value: bytes) -> bytes:
             fail("cloudflare_email_decoder_script_count_invalid")
         for position in boundaries:
             after = position + len(CURRENT_CF_EMAIL_DECODER_SCRIPT)
+            # The only supported terminal insertion is immediately before the
+            # literal closing body, with no later original script. Exact source
+            # equality after restoration remains the final authority.
+            terminal_body = value[after:] == b"</body></html>"
             if (position < 0 or not value.startswith(CURRENT_CF_EMAIL_DECODER_SCRIPT, position)
-                    or not value.startswith((b"<script ", b"<script>"), after)):
+                    or not (value.startswith((b"<script ", b"<script>"), after) or terminal_body)):
                 fail("cloudflare_email_decoder_script_location_invalid")
         restored = restored.replace(CURRENT_CF_EMAIL_DECODER_SCRIPT, b"")
     elif script_count:
@@ -2413,10 +2418,16 @@ def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any],
             "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
 
 
+# The second forward edge is bound to the one actual rolled-back successor.
+# These are not caller-supplied journal names or a recursive renewal scheme.
+CURRENT_PROMOTION_ROOT_SHA256 = "162966b57bf902f14dce9dc43a13d3c639f77af4f35fd7f375dadbda3bb7d5e6"
+CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256 = "3d00967317267cb5b7bbb0925ad86d0809c4fd70cd6a3b25b44dc8548226377b"
+
 def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[str, Any],
-                                      original_path: Path, prior_path: Path) -> dict[str, Any]:
-    # Only the original per-deployment journal may grant one forward successor.
-    prior_sha = args.expected_terminal_promotion_sha256
+                                      original_path: Path, prior_path: Path,
+                                      *, expected_sha: str | None = None) -> dict[str, Any]:
+    # Original terminal -> first successor, or the fixed authenticated second edge.
+    prior_sha = expected_sha if expected_sha is not None else args.expected_terminal_promotion_sha256
     if (not args.authorize_renewed_promotion or not isinstance(prior_sha, str)
             or not re.fullmatch(r"[0-9a-f]{64}", prior_sha)):
         fail("current_promotion_renewal_authorization_missing")
@@ -2443,6 +2454,16 @@ def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[st
         fail("current_promotion_terminal_preimage_mismatch")
     return {**binding, "terminal_promotion_sha256": prior_sha}
 
+def current_promotion_rolled_back_successor_source(args: argparse.Namespace, binding: dict[str, Any],
+                                                    original_path: Path, root_path: Path,
+                                                    prior_path: Path) -> dict[str, Any]:
+    if (not args.authorize_rolled_back_successor_renewal
+            or args.expected_terminal_promotion_sha256 != CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256):
+        fail("current_promotion_second_renewal_authorization_missing")
+    root_binding = current_promotion_terminal_source(
+        args, binding, original_path, root_path, expected_sha=CURRENT_PROMOTION_ROOT_SHA256)
+    return current_promotion_terminal_source(args, root_binding, original_path, prior_path)
+
 
 def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
@@ -2451,22 +2472,34 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
     original_path = run_dir / "CURRENT-RECEIPT.json"
     binding = current_promotion_source(args, prepared, original_path)
-    renewing = args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
-    prior_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + ".json")
-    if renewing:
+    renewing = (args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
+                or args.authorize_rolled_back_successor_renewal)
+    second_renewal = args.authorize_rolled_back_successor_renewal
+    root_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + ".json")
+    prior_path = (run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + "-SUCCESSOR-"
+                             + CURRENT_PROMOTION_ROOT_SHA256 + ".json") if second_renewal else root_path)
+    if second_renewal:
+        binding = current_promotion_rolled_back_successor_source(args, binding, original_path, root_path, prior_path)
+    elif renewing:
         binding = current_promotion_terminal_source(args, binding, original_path, prior_path)
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     lock_fd = acquire_lock()
     try:
+        def recheck_source() -> None:
+            source = current_promotion_source(args, prepared, original_path)
+            if second_renewal:
+                current_promotion_rolled_back_successor_source(args, source, original_path, root_path, prior_path)
+            elif renewing:
+                current_promotion_terminal_source(args, source, original_path, prior_path)
+
+        recheck_source()  # full root and prior lineage while holding the native lock
         deployment_id, head = args.candidate_deployment_id, args.site_head
         receipt_path = (run_dir / ("CURRENT-PROMOTION-" + deployment_id + "-SUCCESSOR-"
                                    + binding["terminal_promotion_sha256"] + ".json") if renewing else prior_path)
         selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
                      "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
                      "effect": "select_existing_successful_production_deployment"}
-        if renewing:
-            current_promotion_terminal_source(args, current_promotion_source(args, prepared, original_path),
-                                              original_path, prior_path)
+        recheck_source()
         client = CloudflareClient(read_token())
         if receipt_path.exists():
             require_regular(package_plain_path(receipt_path))
@@ -2484,9 +2517,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_promotion_predecessor_or_candidate_mismatch")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            source_binding = current_promotion_source(args, prepared, original_path)
-            if renewing:
-                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
+            recheck_source()
             verify_signed_predecessor(prepared["predecessor_pointer"])
             receipt = {"schema": "glp43-current-promotion-receipt-v1", "status": "ACTIVE", "binding": binding,
                        "original_receipt": str(original_path), "site_head": head,
@@ -2503,10 +2534,9 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_canonical_changed_before_promotion")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            source_binding = current_promotion_source(args, prepared, original_path)
+            recheck_source()
             if renewing:
-                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
-                # An old candidate read is not a license for a renewed POST.
+                # An old candidate read is not a license for another POST.
                 candidate = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments/{deployment_id}")
                 if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
                         or deployment_commit(candidate) != head or not successful_production(candidate)):
@@ -2570,6 +2600,7 @@ def current_main(argv: list[str]) -> int:
             parser.add_argument("--" + flag, required=True)
         parser.add_argument("--authorize-existing-promotion", action="store_true")
         parser.add_argument("--authorize-renewed-promotion", action="store_true")
+        parser.add_argument("--authorize-rolled-back-successor-renewal", action="store_true")
         parser.add_argument("--expected-terminal-promotion-sha256")
     args = parser.parse_args(argv)
     try:
