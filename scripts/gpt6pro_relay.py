@@ -7,6 +7,9 @@ accepted in the operator's own words). Config: ops/gpt6pro-relay/config.json.
 What it is: a read-think-write channel. A job = one prompt file (+ optional attachments) sent as ONE message to a
 NEW GPT-6 Pro chat; its hash-bound reply lands in reports/ops/gpt6pro-relay/jobs/<job>/RESPONSE.md.
 Inputs go to Drive inbox/<job>; Drive outbox artifacts require a final-chat-bound OUTPUT-MANIFEST.json.
+A separate hash-authorized, one-shot `resume-unsent-readiness` path may continue an exact
+proven-unsent SECURITY_INTERSTITIAL job on its original retained tab; default is read-only.
+It never reuploads, opens or navigates a tab, or clears retry_blocked merely on readiness.
 
 What it is not: it never builds, tests, reads back a site, or causes a live effect. Every RESPONSE is UNTRUSTED
 seat output and passes the same gates (result_lint grounding, protected-oracle review) before anything is applied.
@@ -874,17 +877,39 @@ def browser_state(url: str | None = None) -> dict:
     return bu_json(script)
 
 
-def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = ()) -> dict:
-    """Open a NEW tab (one per job, so jobs run in parallel), verify the model, insert, send, return tab + URL."""
+def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = (),
+                 retained_tab: str | None = None, time_origin: float | None = None) -> dict:
+    """Verify full 6 Pro/maximum gate and send; only explicit resume uses an existing target."""
+    if retained_tab and (dry or type(time_origin) not in (int, float) or time_origin <= 0):
+        raise ValueError('retained submission requires a bound document and effectful authority')
     payload = json.dumps(text)
     script = BU_PRELUDE + f'''
 CHUNK={IPC_CHUNK}
+RETAINED={retained_tab!r}
+ORIGIN={time_origin!r}
 forbidden=set({list(forbidden)!r})
 forbidden.update(_conversation(t.get("url")) for t in list_tabs())
 forbidden.discard(None)
-tab={{"targetId":_new_tab("https://chatgpt.com/")}}
+if RETAINED:
+    before_tabs=[t['targetId'] for t in list_tabs()]
+    if RETAINED not in before_tabs: _binding_error('retained_target_missing', tab=RETAINED)
+    _select(RETAINED)
+    tab={{'targetId':RETAINED}}
+else:
+    tab={{"targetId":_new_tab("https://chatgpt.com/")}}
 def _fresh():
     here=_here(tab["targetId"])
+    if RETAINED:
+        evidence=_bound_js(tab['targetId'], 'https://chatgpt.com/', "(()=>{{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');const body=document.body.innerText.slice(0,2000);return {{origin:performance.timeOrigin,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length,empty:!!e&&!e.innerText.trim(),challenge:/verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human/i.test(document.title+'\\n'+body)||[...document.querySelectorAll('iframe')].some(f=>f.getClientRects().length>0&&/challenges\\.cloudflare\\.com|recaptcha|hcaptcha/i.test(f.src+' '+f.title)),interstitial:/just a moment|checking your browser|performing security verification/i.test(document.title+'\\n'+body),login:!!document.querySelector('button[data-testid=\\"login-button\\"]'),rate:/too many requests/i.test(document.title+'\\n'+body),stop:!!document.querySelector('button[data-testid=\\"stop-button\\"]'),reconnect:/Reconnect Google Drive/.test(body)}};}})()")
+        if (here!='https://chatgpt.com/' or evidence['origin']!=ORIGIN or evidence['users']!=0 or evidence['assistants']!=0 or
+                evidence['challenge'] or evidence['interstitial'] or evidence['login'] or evidence['rate'] or evidence['stop'] or evidence['reconnect'] or
+                (not _typed and not evidence['empty']) or sorted(before_tabs)!=sorted(t['targetId'] for t in list_tabs())):
+            _binding_error('retained_document_changed', tab=tab['targetId'])
+        current=_state(lambda expression: _bound_js(tab['targetId'], here, expression))
+        if (current['human_challenge'] or current['security_interstitial'] or current['logged_out'] or
+                current['rate_limited'] or current['drive_reconnect'] or current['stop'] or
+                (current['model'] and not re.match(r'^\\s*6\\s*Pro\\s*$', current['model']))):
+            _binding_error('retained_readiness_changed', tab=tab['targetId'])
     if _conversation(here) in forbidden:
         _binding_error("conversation_collision", observed_url=here, tab=tab["targetId"])
     if here!="https://chatgpt.com/" and not _conversation(here):
@@ -1824,12 +1849,257 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
         return 0
 
 
+def _reconcile_unsent_readiness(job, cfg, st, path, preimage, report_path, apply, account, inspect_only=False):
+    """Reconcile only a proven pre-insertion SECURITY_INTERSTITIAL failure.
+
+    Called by the registered model reconciler under account + global locks.
+    Requires normal heavy admission (CANDIDATE_BUILD_SEAT), explicit hash-bound
+    report evidence, and the same existing empty idle document. No navigation,
+    cleanup, insertion, or model selection. This does NOT grant replay permission:
+    retry_blocked stays true, and the original reason/error/packet are retained.
+    """
+    prefix = 'READINESS_RECONCILE_REFUSED_'
+    def refuse(reason):
+        raise SystemExit(prefix + reason + ' ' + job)
+    error = st.get('error')
+    observed = error.get('state') if isinstance(error, dict) else None
+    if (st.get('job') != job or st.get('account') != account or st.get('status') != 'failed' or
+            st.get('reason') != 'SECURITY_INTERSTITIAL' or st.get('retry_blocked') is not True or
+            st.get('typed') is not False or st.get('sent') is not False or
+            any(st.get(k) for k in ('tab', 'conversation_url', 'pending_conversation_url',
+                                  'conversation_id', 'binding_version')) or
+            not isinstance(error, dict) or error.get('error') != 'SECURITY_INTERSTITIAL' or
+            error.get('typed') is not False or error.get('sent') is not False or
+            not isinstance(error.get('tab'), str) or not error['tab'] or
+            not isinstance(observed, dict) or observed.get('url') != 'https://chatgpt.com/' or
+            observed.get('security_interstitial') is not True or
+            observed.get('composer_present') is not False or observed.get('model') is not None or
+            observed.get('assistant_count') != 0 or observed.get('last_len') != 0 or
+            any(observed.get(k) is not False for k in ('human_challenge', 'logged_out',
+                'rate_limited', 'stop', 'drive_reconnect', 'thinking_failed')) or
+            any((path.parent / name).exists() for name in ('RESPONSE.md', 'outbox')) or
+            not all(st.get(k) for k in PROVENANCE_FIELDS) or
+            not re.fullmatch(r'[0-9a-f]{64}', st.get('input_sha256') or '') or
+            not re.fullmatch(r'[0-9a-f]{64}', st.get('reply_token') or '')):
+        refuse('STATE')
+    message_path = path.parent / 'MESSAGE.md'
+    if not message_path.is_file():
+        refuse('MESSAGE')
+    message = message_path.read_bytes()
+    if _failed_generation_identity(st).encode() not in message:
+        refuse('MESSAGE')
+    # Strict decoding here: the legacy permissive ledger reader must not hide
+    # a malformed row that could contain a binding or interrupted reconciliation.
+    ledger = ledger_path(cfg)
+    ledger_preimage = ledger.read_bytes()
+    rows = []
+    try:
+        all_rows = [json.loads(line) for line in ledger_preimage.splitlines() if line.strip()]
+        rows = [row for row in all_rows if row.get('job') == job]
+    except (ValueError, AttributeError):
+        refuse('LEDGER')
+    if (len(rows) != 1 or rows[0].get('event') != 'submitted' or rows[0].get('phase') is not None or
+            rows[0].get('account') != account or rows[0].get('kind') != 'initial' or
+            rows[0].get('certainty') != 'reserved_may_send' or
+            any(rows[0].get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        refuse('LEDGER')
+    digest = hashlib.sha256(preimage).hexdigest()
+    report_file = BUSINESS / report_path
+    report_preimage = report_file.read_bytes()
+    report = json.loads(report_preimage)
+    matching = [row for row in report.get('jobs', []) if row.get('job', row.get('job_id')) == job]
+    if len(matching) != 1:
+        refuse('REPORT')
+    row = matching[0]
+    if (row.get('job_id', job) != job or row.get('reason') != st['reason'] or
+            any(row.get(k) is not False for k in ('submission_bound', 'typed', 'sent')) or
+            row.get('job_sha256') != digest or row.get('error_tab') != error['tab'] or
+            row.get('message_sha256') != hashlib.sha256(message).hexdigest() or
+            row.get('ledger_rows_sha256') != hashlib.sha256(json.dumps(rows,
+                sort_keys=True, separators=(',', ':')).encode()).hexdigest() or
+            type(row.get('time_origin')) not in (int, float) or not row['time_origin'] > 0):
+        refuse('REPORT')
+    if job in _legacy_live_jobs():
+        refuse('LIVE_RUNNER')
+    # Require, never acquire/reclaim, the caller's ordinary host-heavy admission.
+    admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
+                                'require-held'], capture_output=True, text=True)
+    if admission.returncode:
+        refuse('ADMISSION')
+    tab = error['tab']
+    witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\n' + '''
+before=[t['targetId'] for t in list_tabs()]
+if tab not in before: _binding_error('retained_target_missing', tab=tab)
+_select(tab)
+want='https://chatgpt.com/'
+probe=lambda expression: _bound_js(tab,want,expression)
+extra="""(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,time_origin:performance.timeOrigin,composer_empty:!!e&&!e.innerText.trim(),user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()"""
+first=probe(extra)
+state=_state(probe)
+last=probe(extra)
+after=[t['targetId'] for t in list_tabs()]
+print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':last,'same_tabs':sorted(before)==sorted(after)}))
+''')
+    current = witness.get('state', {})
+    first, last = witness.get('first', {}), witness.get('last', {})
+    if (witness.get('error') or witness.get('tab') != tab or witness.get('same_tabs') is not True or
+            current.get('url') != 'https://chatgpt.com/' or current.get('ready_state') != 'complete' or
+            current.get('composer_present') is not True or current.get('assistant_count') != 0 or
+            current.get('last_len') != 0 or any(current.get(k) is not False for k in
+                ('security_interstitial', 'human_challenge', 'logged_out', 'rate_limited',
+                 'stop', 'drive_reconnect', 'thinking_failed')) or
+            first != last or first.get('url') != 'https://chatgpt.com/' or
+            first.get('time_origin') != row['time_origin'] or
+            first.get('composer_empty') is not True or first.get('user_count') != 0):
+        refuse('TAB_EVIDENCE')
+    # Recheck all local custody after the browser read, including default dry-run.
+    if (path.read_bytes() != preimage or message_path.read_bytes() != message or
+            ledger.read_bytes() != ledger_preimage or report_file.read_bytes() != report_preimage):
+        refuse('STATE_DRIFT')
+    if job in _legacy_live_jobs():
+        refuse('LIVE_RUNNER')
+    if inspect_only:
+        if apply:
+            refuse('MODE')
+        return {'tab': tab, 'time_origin': row['time_origin'], 'job_sha256': digest,
+                'message_sha256': row['message_sha256'], 'report_sha256': hashlib.sha256(report_preimage).hexdigest(),
+                'ledger_sha256': hashlib.sha256(ledger_preimage).hexdigest()}
+    if not apply:
+        print('WOULD_RECONCILE_UNSENT_READINESS job=' + job + ' tab=' + tab + ' preimage_sha256=' + digest)
+        return 0
+    backup = path.with_name('JOB.pre-readiness-reconcile-' + digest + '.json')
+    try:
+        with backup.open('xb') as fh:
+            fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+    except FileExistsError:
+        if backup.read_bytes() != preimage:
+            refuse('BACKUP_CONFLICT')
+    if (path.read_bytes() != preimage or message_path.read_bytes() != message or
+            ledger.read_bytes() != ledger_preimage or report_file.read_bytes() != report_preimage):
+        refuse('STATE_DRIFT')
+    event = {'event': 'readiness_unsent_reconcile', 'job': job, 'account': account,
+             'preimage_sha256': digest, 'reason': st['reason'], 'retained_tab': tab,
+             'message_sha256': row['message_sha256'], 'time_origin': row['time_origin']}
+    ledger_append(cfg, {**event, 'phase': 'STARTED'})
+    job_write(job, {**st, 'status': 'unsent_reconciled', 'retry_blocked': True,
+                    'reconciled_at': now_iso(), 'preimage_sha256': digest})
+    ledger_append(cfg, {**event, 'phase': 'APPLIED'})
+    # Deliberately no cleanup_tabs(): the retained target is not a disposable tab.
+    print('RECONCILED_UNSENT_READINESS job=' + job + ' tab=' + tab + ' preimage_sha256=' + digest)
+    return 0
+
+
+def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | None = None) -> int:
+    """One-shot original-message send on the exact proven-unsent retained document.
+
+    No reconciliation apply, reupload, cleanup or second reservation. An absent
+    authority hash is read-only. An interrupted attempt remains retry-blocked.
+    """
+    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*', job):
+        raise SystemExit('RESUME_REFUSED_JOB')
+    resolved = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not resolved.is_relative_to(BUSINESS.resolve()) or not resolved.is_file():
+        raise SystemExit('RESUME_REFUSED_REPORT_PATH')
+    cfg = load_config()
+    path = JOBS / job / 'JOB.json'
+    if not path.is_file():
+        raise SystemExit('RESUME_REFUSED_MISSING')
+    initial = json.loads(path.read_bytes())
+    acct = account_of(cfg, initial.get('account'))
+    use_account(acct)
+    with account_lock(), global_lock():
+        preimage = path.read_bytes()
+        st = json.loads(preimage)
+        if st.get('job') != job or st.get('account') != acct['label']:
+            raise SystemExit('RESUME_REFUSED_IDENTITY')
+        proof = _reconcile_unsent_readiness(job, cfg, st, path, preimage, report, False,
+                                            acct['label'], inspect_only=True)
+        if _legacy_live_jobs():
+            raise SystemExit('RESUME_REFUSED_LIVE_RUNNER')
+        if any(s.get('tab') == proof['tab'] or
+               (s.get('status') in ACTIVE_STATES and not binding_url(s))
+               for s in sibling_bindings(acct['label'], job)):
+            raise SystemExit('RESUME_REFUSED_SIBLING')
+        active = active_registry()
+        envelope = cfg['envelope']
+        if (len(active) > min(6, envelope['max_concurrent_chats_per_ip']) or
+                sum(r['account'] == acct['label'] for r in active) >
+                min(3, envelope['max_concurrent_chats_per_account'])):
+            raise SystemExit('RESUME_REFUSED_CAPACITY')
+        used = messages_used_7d(cfg, acct['label'])
+        limit = int(acct['weekly_messages'] * (1 - cfg.get('budget_reserve_pct', 10) / 100))
+        if used > limit:
+            raise SystemExit('RESUME_REFUSED_BUDGET')
+        message_path = path.with_name('MESSAGE.md')
+        ledger = ledger_path(cfg)
+        message_bytes = message_path.read_bytes()
+        if (path.read_bytes() != preimage or
+                hashlib.sha256(message_bytes).hexdigest() != proof['message_sha256'] or
+                hashlib.sha256(ledger.read_bytes()).hexdigest() != proof['ledger_sha256'] or
+                hashlib.sha256(resolved.read_bytes()).hexdigest() != proof['report_sha256']):
+            raise SystemExit('RESUME_REFUSED_DRIFT')
+        if authorize_preimage is None:
+            print('WOULD_RESUME_RETAINED job=' + job + ' tab=' + proof['tab'] +
+                  ' preimage_sha256=' + proof['job_sha256'] + '; retry_blocked retained')
+            return 0
+        if authorize_preimage != proof['job_sha256']:
+            raise SystemExit('RESUME_REFUSED_AUTHORITY')
+        backup = path.with_name('JOB.pre-retained-resume-' + proof['job_sha256'] + '.json')
+        try:
+            with backup.open('xb') as fh:
+                fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+        except FileExistsError:
+            raise SystemExit('RESUME_REFUSED_ALREADY_ATTEMPTED')
+        attempt = now_iso()
+        meta = {'job': job, 'account': acct['label'], 'preimage_sha256': proof['job_sha256'],
+                'message_sha256': proof['message_sha256'], 'report_sha256': proof['report_sha256'],
+                'retained_tab': proof['tab'], 'attempt_at': attempt}
+        ledger_append(cfg, {'event': 'retained_resume', 'phase': 'STARTED', **meta})
+        reservation = {**st, 'status': 'resume_submitting', 'retry_blocked': True,
+                       'typed': 'UNKNOWN', 'sent': 'UNKNOWN', 'resume_attempt': meta}
+        job_write(job, reservation)
+        # Keep both locks until exact binding is committed. No sibling admission
+        # can steal the tab between the last proof and the one-shot send.
+        result = send_message(message_bytes.decode('utf-8'), retained_tab=proof['tab'],
+                              time_origin=proof['time_origin'],
+                              forbidden=[url for s in sibling_bindings(acct['label'], job)
+                                         if (url := binding_url(s))])
+        if result.get('error'):
+            job_write(job, {**reservation, 'status': 'failed', 'reason': 'RETAINED_RESUME_UNCERTAIN',
+                            'resume_error': result, 'typed': result.get('typed', 'UNKNOWN'),
+                            'sent': result.get('sent', 'UNKNOWN')})
+            raise SystemExit('RESUME_HELD ' + str(result['error']))
+        conv = binding_url(result)
+        if (result.get('tab') != proof['tab'] or not conv or
+                result.get('typed') is not True or result.get('sent') is not True):
+            raise SystemExit('RESUME_HELD_BINDING_UNVERIFIED')
+        bound = {**reservation, 'status': 'running', 'retry_blocked': False,
+                 'typed': True, 'sent': True, 'binding_version': 2,
+                 'conversation_id': conv.rsplit('/', 1)[1],
+                 'tab': proof['tab'], 'submitted': now_iso(), 'chars_in': len(message_bytes.decode('utf-8'))}
+        key = 'conversation_url' if result.get('conversation_url') else 'pending_conversation_url'
+        bound[key] = conv
+        require_binding(bound, result)
+        job_write(job, bound)
+        ledger_append(cfg, {'event': 'submission_bound', 'job': job, 'account': acct['label'],
+                            'conversation_url': conv, 'chars_in': bound['chars_in'],
+                            **{k: st[k] for k in PROVENANCE_FIELDS}})
+        print('RESUMED_RETAINED job=' + job + ' conv=' + conv)
+        return 0
+
+
 def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = None) -> int:
-    """Release a pre-insert model refusal, never a possibly-sent job.
+    """Reconcile pre-insert model/readiness refusals, never a possibly-sent job.
 
     Jobs are either allowlisted below or named with an explicit ``report``
     (a path relative to the business root) whose row must prove the job unsent;
     the account alias then comes from the job's own JOB.json.
+
+    SECURITY_INTERSTITIAL additionally requires an explicit report row with
+    reason, error_tab, job_sha256, message_sha256, ledger_rows_sha256 (SHA256
+    of the exact job rows serialized with sorted keys and compact separators),
+    and time_origin from an admitted read of the retained challenge-free tab.
+    It preserves retry_blocked and the retained tab; it is not a resume API.
     """
     incidents = {
         'glp270-20260924d-taxonomy-all-expiring-rows':
@@ -1854,11 +2124,15 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     st = job_state(job)
     if not st:
         raise SystemExit('MODEL_RECONCILE_REFUSED_MISSING ' + job)
-    use_account(account_of(cfg, st['account']))
+    selected_account = st['account']
+    use_account(account_of(cfg, selected_account))
     with account_lock(), global_lock():
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
+        if st.get('reason') == 'SECURITY_INTERSTITIAL' and report is not None:
+            return _reconcile_unsent_readiness(job, cfg, st, path, preimage,
+                                              report_path, apply, selected_account)
         if listed and st.get('reason') == 'NO_COMPOSER':
             return _reconcile_unsent_composer(job, cfg, st, path, preimage, apply)
         if listed and st.get('reason') == 'composer_not_empty':
@@ -2238,7 +2512,11 @@ def main() -> int:
     u.add_argument("--job", required=True)
     u.add_argument("--failure-log", type=Path, required=True)
     u.add_argument("--apply", action="store_true")
-    m = sub.add_parser("reconcile-unsent-model", help="dry-run first; exact pre-insert WRONG_MODEL refusal only")
+    rr = sub.add_parser('resume-unsent-readiness', help='read-only by default; explicit one-shot authority for exact unsent retained tab')
+    rr.add_argument('--job', required=True)
+    rr.add_argument('--report', required=True)
+    rr.add_argument('--authorize-preimage', help='exact original JOB.json SHA256; authorizes one effectful continuation')
+    m = sub.add_parser("reconcile-unsent-model", help="dry-run first; pre-insert WRONG_MODEL or hash-bound SECURITY_INTERSTITIAL only")
     m.add_argument("--job", required=True)
     m.add_argument("--report", help="unlisted job: report JSON (relative to business root) whose row proves it unsent")
     m.add_argument("--apply", action="store_true")
@@ -2281,6 +2559,8 @@ def main() -> int:
         return reconcile_no_reply(a.job)
     if a.cmd == "reconcile-unsent-focus":
         return reconcile_unsent_focus(a.job, a.failure_log, apply=a.apply)
+    if a.cmd == 'resume-unsent-readiness':
+        return resume_unsent_readiness(a.job, a.report, a.authorize_preimage)
     if a.cmd == "reconcile-unsent-model":
         return reconcile_unsent_model(a.job, apply=a.apply, report=a.report)
     if a.cmd == "reconcile-unsent-send-disabled":
