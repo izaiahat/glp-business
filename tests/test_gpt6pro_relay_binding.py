@@ -1428,6 +1428,69 @@ console.log(JSON.stringify(fixtures.map(f => {
         self.assertIn(tab, self.browser.pages)
         self.assertEqual(self.browser.created + self.browser.navigations + self.browser.inserts + self.browser.sent, [])
 
+    def test_terminal_admission_rejects_changed_current_job_identity(self):
+        """Actual submit must refuse raw identity drift even with spare capacity."""
+        # Reuse only the accepted synthetic setup, not its 29-negative matrix.
+        # Keep that prior regression byte-identical, as in the reviewer's probe.
+        source = Path(__file__).read_text()
+        method = next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.FunctionDef)
+                      and n.name == 'test_pr52_terminal_unsent_actual_cli')
+        prefix = []
+        for node in method.body:
+            if isinstance(node, ast.With) and "'TERMINAL_UNSENT_PR52'" in (ast.get_source_segment(source, node) or ''):
+                break
+            prefix.append(node)
+        else:
+            self.fail('terminal fixture setup boundary missing')
+        ns = {**globals(), 'self': self}
+        exec(compile(ast.Module(body=prefix, type_ignores=[]), __file__, 'exec'), ns, ns)
+        c, job, call, submit, snapshot = [ns[k] for k in ('c', 'job', 'call', 'submit', 'snapshot')]
+        with mock.patch('socket.socket.connect', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch('socket.create_connection', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(relay, 'TERMINAL_UNSENT_PR52', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            self.assertEqual(call('--apply', '--authorize-preimage', c['held'])[0], 0)
+            terminal = relay.job_state(job)
+            self.assertTrue(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(relay.active_registry(), [])
+            self.assertEqual(self.cfg['envelope']['max_concurrent_chats_per_account'], 3)
+            # Mutate exactly the stored identity; all packet/proof/journal bytes survive.
+            relay.job_write(job, {**terminal, 'job': 'changed-current-job-identity'})
+            actual = relay.job_state(job)
+            self.assertFalse(relay._verified_terminal_unsent(actual))
+            self.assertEqual([r['job'] for r in relay.active_registry()], [job])
+            before = snapshot()
+            with mock.patch.object(relay, 'admit', wraps=relay.admit) as admit, \
+                 mock.patch.object(relay, 'job_write', wraps=relay.job_write) as write, \
+                 mock.patch.object(relay, 'ledger_append', wraps=relay.ledger_append) as append:
+                with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+                    submit('distinct-future-review')
+                admit.assert_not_called()
+                write.assert_not_called()
+                append.assert_not_called()
+            self.assertEqual(snapshot(), before)  # includes MESSAGE/ledger/reservation clocks
+            self.assertFalse((relay.JOBS / 'distinct-future-review' / 'JOB.json').exists())
+            self.assertFalse((relay.JOBS / 'distinct-future-review' / 'MESSAGE.md').exists())
+            self.assertFalse(relay._verified_terminal_unsent(
+                relay.sibling_bindings('account-a', 'distinct-future-review')[0]))
+            # Valid raw-record control reaches the real admission, before any effect.
+            relay.job_write(job, terminal)
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'):
+                submit(job)
+            class AdmissionReached(BaseException):
+                pass
+            with mock.patch.object(relay, 'cleanup_tabs', side_effect=AdmissionReached):
+                with self.assertRaises(AdmissionReached):
+                    submit('distinct-future-review')
+            self.assertEqual(relay.job_state('distinct-future-review')['status'], 'submitting')
+            self.assertEqual([r['job'] for r in relay.active_registry()], ['distinct-future-review'])
+            self.assertEqual(relay.job_state(job), terminal)
+            self.assertEqual(self.browser.created + self.browser.navigations + self.browser.inserts + self.browser.sent, [])
+
     def test_consumed_canary_forward_recovery_actual_cli(self):
         """Source-only fixture: same registered CLI, real emitted sender, no live files."""
         import hashlib

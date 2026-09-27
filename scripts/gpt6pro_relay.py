@@ -2432,6 +2432,10 @@ def _verified_terminal_unsent(st):
     if st.get('job') != TERMINAL_UNSENT_PR52['job'] or not isinstance(st.get('terminal_unsent'), dict):
         return False
     try:
+        # Sibling records project the directory name over job; that projection is
+        # not evidence. Both admission callers must match the raw persisted JOB.
+        if json.loads((JOBS / st['job'] / 'JOB.json').read_bytes()) != st:
+            return False
         proof = st['terminal_unsent']
         backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + TERMINAL_UNSENT_PR52['held'] + '.json')
         preimage = backup.read_bytes()
