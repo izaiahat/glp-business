@@ -51,12 +51,14 @@ def window_constant(root, file, name):
     return int(match.group(1)) if match else None
 
 
-def gate(root, name, source_file, needle, window, records, now, *, unit="days", clock=None):
+def gate(root, name, source_file, needle, window, records, now, *, unit="days", clock=None, clock_required=False):
     """records are (identity, evidence file, field, timestamp); missing data is UNKNOWN."""
     source = source_line(root, source_file, needle)
     result = {"gate": name, "source": source, "window_days": window if unit == "days" else None,
               "window_hours": window if unit == "hours" else None,
               "evidence_timestamp": "UNKNOWN", "expiry_date": "UNKNOWN", "status": "UNKNOWN"}
+    if clock_required and clock is None:
+        return {**result, "reason": "unknown_evaluation_clock", "evaluation_clock": "UNKNOWN"}
     if (source.endswith(":UNKNOWN") or isinstance(window, bool)
             or not isinstance(window, (int, float)) or not math.isfinite(window)
             or window < 0 or not records):
@@ -251,6 +253,25 @@ def typed_capture_records(row, identity):
                    f"{position}[{index}].captured_at_utc", stamp)
 
 
+def preserved_deal_clock(root):
+    """Read native primary/ENOENT-only fallback precedence, without snapshot writes."""
+    primary = root / "artifacts/ops/wave4-deal-ingestion-manifest.json"
+    fallback = root / "artifacts/build4-preservation/ops/wave4-deal-ingestion-manifest.json"
+    try:
+        try:
+            text = primary.read_text()
+        except FileNotFoundError:
+            text = fallback.read_text()
+        value = field(json.loads(text), "evaluated_at")
+        # deal-ingestion.parseIso requires a full UTC-Z instant.
+        if not isinstance(value, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value):
+            return None
+        return moment(value)
+    except (OSError, ValueError):
+        return None
+
+
 def inventory(root=CAND, now=None, authority_root=None):
     root = Path(root)
     now = now or datetime.now(timezone.utc)
@@ -301,25 +322,24 @@ def inventory(root=CAND, now=None, authority_root=None):
         study.get("methodology", {}).get("freshness_max_age_hours"),
         [(row.get("source_id"), "data/original-data-study.json", "checked_at", row.get("checked_at"))
          for row in study.get("sources", [])], unit="hours", clock=moment(study.get("as_of_utc")))
-    preserved = root / "artifacts" / "ops" / "wave4-deal-ingestion-manifest.json"
-    frozen = moment(json.loads(preserved.read_text()).get("evaluated_at")) if preserved.is_file() else None
+    frozen = preserved_deal_clock(root)
     authority = qualification_clocks(root, authority_root) if authority_root else qualification_clocks(root)
     material_offers = {row["offer_id"]: row.get("fetched_at") for row in (authority or {}).get("material_offers", [])
                        if row.get("offer_id")}
     add("deals", "deal-ingestion.mjs", "offer_evidence_stale", window_constant(root, "deal-ingestion.mjs", "MAX_EVIDENCE_AGE_DAYS"),
         [(row.get("id"), "data/deals.json", "checked_at", row.get("checked_at"))
-         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and row.get("id") not in material_offers], clock=frozen)
+         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and row.get("id") not in material_offers], clock=frozen, clock_required=True)
     add("deal-material-offer", "deal-ingestion.mjs", "evaluated_at: receipt.fetched_at",
         window_constant(root, "deal-ingestion.mjs", "MAX_EVIDENCE_AGE_DAYS"),
         [(offer_id, "ops/evidence-freshness/material-acceptances.jsonl", "fetched_at", fetched_at)
          for offer_id, fetched_at in material_offers.items()] if authority is not None else [])
     add("deal-explicit-expiry", "deal-ingestion.mjs", "nowMs < Date.parse(offer.expires_at)", 0,
         [(row.get("id"), "data/deals.json", "expires_at", row.get("expires_at"))
-         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and ("expires_at" not in row or row["expires_at"] is not None)], clock=frozen)
+         for row in deals.get("offers", []) if row.get("status") == "VERIFIED" and ("expires_at" not in row or row["expires_at"] is not None)], clock=frozen, clock_required=True)
     add("deal-term-expiry", "deal-ingestion.mjs", "nowMs < Date.parse(term.expires_at)", 0,
         [(f"{row.get('id')}:{term.get('label')}", "data/deals.json", "pricing.expires_at", term.get("expires_at"))
          for row in deals.get("offers", []) for group in row.get("pricing", {}).values() if isinstance(group, list)
-         for term in group if isinstance(term, dict) and ("expires_at" not in term or term["expires_at"] is not None)], clock=frozen)
+         for term in group if isinstance(term, dict) and ("expires_at" not in term or term["expires_at"] is not None)], clock=frozen, clock_required=True)
     max_mystery = window_constant(root, "mystery-shop.mjs", "MAX_AGE_MS")
     # A second ledger timestamp is independently enforced in the config.
     active_mystery = (authority or {}).get("config", mystery)
