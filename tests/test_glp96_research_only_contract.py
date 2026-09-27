@@ -86,7 +86,8 @@ def run(lane, rows):
     sheet, root = lane
     folder = root / f"run-{len(list(root.iterdir()))}"
     folder.mkdir()
-    return drain.drain(rows, folder, apply=True, sleep=lambda _: None)
+    with google_import_stubs():
+        return drain.drain(rows, folder, apply=True, sleep=lambda _: None)
 
 
 def test_two_real_sources_create_held_rows_without_application_queue(lane):
