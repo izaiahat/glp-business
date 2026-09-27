@@ -227,3 +227,184 @@ def test_ordinary_does_not_refresh_pins_even_with_changed_files(completion, monk
     path.write_text(json.dumps(data))
     run_cli(monkeypatch, path)
     assert [w[0] for w in writes] == ['comment', 'state']
+
+
+@pytest.fixture
+def readonly_completion(completion, monkeypatch):
+    """Sanitized two-session portal proof; never contacts a portal or Linear."""
+    target, path, data, writes, remote, review = completion
+    target.update(title='Verify fresh portal login', description='''## Acceptance
+
+* Fresh origin-bound vault login → exact publisher identity and read-only portal access read back.
+* Second fresh session → authenticated access without fixed CDP/profile; device challenge respected.
+
+PR: pending (non-code effect: link receipt).
+Skills: credential-boundaries, headless-portal-apply-sessions.''')
+    data.update(scope='ordinary-readonly-runtime', description_sha256=digest(target['description']))
+    del data['pr']
+    data['evidence'] = []
+    for name in ('first-session', 'second-session'):
+        artifact = path.parent / (name + '.json')
+        artifact.write_text(json.dumps({'session': name, 'publisher': 'test-publisher-uuid',
+                                        'assertions': 'PASS', 'effects': {'sends': 0}}))
+        data['evidence'].append({'kind': 'runtime', 'path': str(artifact),
+                                 'sha256': lo.sha(artifact), 'observed': [name, 'test-publisher-uuid']})
+    review['body'] = ('Acceptance verified by parent: first fresh-session receipt in reports/first-session.json '
+                      'plus second in reports/second-session.json. Exact publisher test-publisher-uuid; '
+                      'both fresh sessions respected device verification. No applications/sends. '
+                      'Non-code receipt satisfies both acceptance checks.')
+    # Explicit version binding is synthetic fixture authority, not a live comment edit.
+    review['body'] += '\nAccepted description SHA256: ' + data['description_sha256']
+    data['review']['body_sha256'] = digest(review['body'])
+    path.write_text(json.dumps(data))
+    import subprocess
+    monkeypatch.setattr(subprocess, 'check_output', lambda *a, **k: pytest.fail('non-code must not invent PR/CI'))
+    return target, path, data, writes, remote, review
+
+
+@pytest.mark.parametrize('check_only', [True, False])
+def test_readonly_runtime_without_pr_or_brief_uses_single_writer(readonly_completion, monkeypatch, capsys, check_only):
+    _, path, data, writes, _, _ = readonly_completion
+    assert 'pr' not in data
+    run_cli(monkeypatch, path, *(['--check-only'] if check_only else []))
+    if check_only:
+        assert json.loads(capsys.readouterr().out)['validated'] is True
+        assert writes == []
+    else:
+        assert [w[0] for w in writes] == ['comment', 'state']
+        receipt = json.loads(writes[0][2].split('```json')[1].split('```')[0])
+        assert receipt == {'issue_id': ISSUE_ID, 'outcome': 'PASS', 'result_path': str(path),
+                           'result_sha256': lo.sha(path)}
+        assert writes[1] == ('state', ISSUE_ID, 'done')
+
+
+@pytest.mark.parametrize('prefix', [
+    '### Final check\n',
+    '#### Final check\n',
+    'Skills: credential-boundaries, headless-portal-apply-sessions.\n### Final check\n',
+    'Owner: lane:worker\n### Final check\n',
+    'PR: pending\n### Final check\n',
+    'Source issue: GLP-60\n### Final check\n',
+    'Skills: headless-portal-apply-sessions; ',
+])
+def test_protected_requirement_under_acceptance_subheading_must_refuse(
+        readonly_completion, monkeypatch, capsys, prefix):
+    target, path, data, writes, _, review = readonly_completion
+    run_cli(monkeypatch, path, '--check-only')
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    prior_comment = dict(review)
+    target['description'] = target['description'].replace(
+        '\nPR:', '\n' + prefix + '* Submit application to network after read-only check.\n\nPR:')
+    data['description_sha256'] = digest(target['description'])
+    path.write_text(json.dumps(data))
+    assert review == prior_comment
+    try:
+        with pytest.raises(SystemExit, match='protected send/application'):
+            run_cli(monkeypatch, path, '--check-only')
+    finally:
+        assert writes == []
+
+
+@pytest.mark.parametrize('binding,expand_scope', [
+    ('original', True), ('absent', True), ('absent', False), ('duplicate', False),
+])
+def test_coordinator_acceptance_must_bind_description_version(
+        readonly_completion, monkeypatch, capsys, binding, expand_scope):
+    target, path, data, writes, _, review = readonly_completion
+    run_cli(monkeypatch, path, '--check-only')
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    if binding == 'absent':
+        review['body'] = review['body'].split('\nAccepted description SHA256:')[0]
+    elif binding == 'duplicate':
+        review['body'] += '\nAccepted description SHA256: ' + data['description_sha256']
+    data['review']['body_sha256'] = digest(review['body'])
+    prior_comment = dict(review)
+    prior_evidence = json.dumps(data['evidence'])
+    if expand_scope:
+        target['description'] = target['description'].replace(
+            '\nPR:', '\n* Third fresh job session required.\n\nPR:')
+        # Refreshing a caller-controlled hash is not fresh coordinator acceptance.
+        data['description_sha256'] = digest(target['description'])
+    path.write_text(json.dumps(data))
+    assert review == prior_comment
+    assert json.dumps(data['evidence']) == prior_evidence
+    try:
+        with pytest.raises(SystemExit, match='coordinator accepted description binding'):
+            run_cli(monkeypatch, path, '--check-only')
+    finally:
+        assert writes == []
+
+
+@pytest.mark.parametrize('defect', [
+    'stale_description', 'wrong_issue', 'wrong_team', 'worker_review', 'wrong_review_issue',
+    'archived_review', 'changed_review', 'not_acceptance', 'missing_evidence', 'changed_evidence',
+    'wrong_observed', 'unbound_observed', 'unbound_path', 'path_prefix', 'check_evidence', 'no_readonly_scope',
+    'claimed_pr', 'changed_source', 'protected_effect', 'publish', 'published', 'publishing',
+    'publication', 'publisher_release', 'deploy', 'design', 'financial', 'send', 'submit', 'apply',
+])
+def test_readonly_runtime_refuses_wrong_stale_or_protected_proof(readonly_completion, monkeypatch, defect):
+    target, path, data, writes, _, review = readonly_completion
+    if defect == 'stale_description':
+        target['description'] += '\nNew acceptance'
+    elif defect == 'wrong_issue':
+        data['issue'] = 'GLP-999'
+    elif defect == 'wrong_team':
+        target['team']['id'] = 'wrong-team'
+    elif defect == 'worker_review':
+        review['user']['id'] = 'worker-not-coordinator'
+    elif defect == 'wrong_review_issue':
+        review['issue']['id'] = 'another-issue'
+    elif defect == 'archived_review':
+        review['archivedAt'] = '2026-09-27T02:00:00Z'
+    elif defect == 'changed_review':
+        review['body'] += ' Changed.'
+    elif defect == 'not_acceptance':
+        review['body'] = review['body'].replace('Acceptance verified by parent:', 'Work reported by worker:')
+        data['review']['body_sha256'] = digest(review['body'])
+    elif defect == 'missing_evidence':
+        Path(data['evidence'][1]['path']).unlink()
+    elif defect == 'changed_evidence':
+        Path(data['evidence'][1]['path']).write_text('stale bytes')
+    elif defect == 'wrong_observed':
+        data['evidence'][1]['observed'] = ['different-publisher']
+    elif defect == 'unbound_observed':
+        data['evidence'][1]['observed'] = ['sends']  # In file but not acceptance? Remove from body too.
+        review['body'] = review['body'].replace('applications/sends', 'effects')
+        data['review']['body_sha256'] = digest(review['body'])
+    elif defect == 'unbound_path':
+        original = Path(data['evidence'][1]['path'])
+        unrelated = path.parent / 'unreviewed-session.json'
+        unrelated.write_bytes(original.read_bytes())
+        data['evidence'][1]['path'] = str(unrelated)
+    elif defect == 'path_prefix':
+        review['body'] = review['body'].replace('reports/first-session.json', 'reports/first-session.json.backup')
+        data['review']['body_sha256'] = digest(review['body'])
+    elif defect == 'check_evidence':
+        data['evidence'][1]['kind'] = 'check'
+    elif defect == 'claimed_pr':
+        data['pr'] = {'url': PR}
+    elif defect == 'changed_source':
+        data['changed_files'] = ['scripts/source.py']
+    elif defect == 'protected_effect':
+        data['protected_effects'] = ['application']
+    else:
+        acceptance = {
+            'no_readonly_scope': 'Verify publisher identity in the portal.',
+            'publish': 'Publish the comparison from the read-only publisher identity.',
+            'published': 'Confirm published article from read-only publisher identity.',
+            'publishing': 'Enable publishing after read-only identity check.',
+            'publication': 'Authorize publication after read-only publisher check.',
+            'publisher_release': 'Read-only publisher identity then release content.',
+            'deploy': 'Deploy after read-only identity check.',
+            'design': 'Accept outward design after read-only identity check.',
+            'financial': 'Confirm REAL commissions with read-only portal access.',
+            'send': 'Read-only publisher check then send application.',
+            'submit': 'Read-only publisher check then submit application.',
+            'apply': 'Read-only publisher check then apply to network.',
+        }[defect]
+        target['description'] = '## Acceptance\n\n* ' + acceptance
+        data['description_sha256'] = digest(target['description'])
+    path.write_text(json.dumps(data))
+    with pytest.raises(SystemExit, match='ordinary completion'):
+        run_cli(monkeypatch, path)
+    assert writes == []
