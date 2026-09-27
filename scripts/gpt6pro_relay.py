@@ -879,6 +879,32 @@ def browser_state(url: str | None = None) -> dict:
     return bu_json(script)
 
 
+# The observed plain ProseMirror editor is DIV > P > text, or a sole
+# trailingBreak placeholder for an empty P. innerText inserts presentation LFs;
+# textContent discards paragraph boundaries. Neither is the logical message.
+# Reject unobserved rich structures; do not trim or normalize any codepoint.
+COMPOSER_TEXT_JS = r'''function composerText(e){
+    if(!e||e.tagName!=='DIV'||e.getAttribute('contenteditable')!=='true'||
+       !e.classList.contains('ProseMirror'))return null;
+    const lines=[];
+    for(const p of e.childNodes){
+        if(p.nodeType!==1||p.tagName!=='P')return null;
+        const kids=[...p.childNodes];
+        if(kids.length===1&&kids[0].nodeType===1&&kids[0].tagName==='BR'&&
+           kids[0].className==='ProseMirror-trailingBreak'&&kids[0].attributes.length===1){
+            // Capture records marker presence, not a value contract. Only this
+            // exact empty-P shape may carry the observed decoration.
+            if(p.attributes.length!==0&&!(p.attributes.length===1&&
+               p.hasAttribute('data-empty-paragraph')))return null;
+            lines.push('');continue;
+        }
+        if(p.attributes.length!==0||!kids.length||kids.some(n=>n.nodeType!==3))return null;
+        lines.push(kids.map(n=>n.data).join(''));
+    }
+    return lines.length?lines.join('\n'):null;
+}'''
+
+
 def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = (),
                  retained_tab: str | None = None, time_origin: float | None = None) -> dict:
     """Verify full 6 Pro/maximum gate and send; only explicit resume uses an existing target."""
@@ -888,10 +914,10 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
     # Retained sends must re-prove document, exact original draft and full
     # model/readiness in the synchronous evaluation that clicks Send.
     retained_click = ("(()=>{const retainedOrigin=" + json.dumps(time_origin) +
-        ";const intended=" + payload + ";" + r'''
+        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + r'''
         if(performance.timeOrigin!==retainedOrigin)return {clicked:false,reason:'document'};
         const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
-        if(!e||e.innerText!==intended)return {clicked:false,reason:'composer'};
+        if(composerText(e)!==intended)return {clicked:false,reason:'composer'};
         const visible=x=>!!x&&x.getClientRects().length>0&&getComputedStyle(x).display!=='none'&&getComputedStyle(x).visibility!=='hidden';
         const body=document.body.innerText.slice(0,2000);
         const security=document.title+'\n'+body;
@@ -919,6 +945,24 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
     # Serialize this JS as a Python string literal once, instead of relying on
     # escaping through both the outer f-string and the generated Python script.
     retained_evidence = r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');const body=document.body.innerText.slice(0,2000);return {origin:performance.timeOrigin,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length,empty:!!e&&!e.innerText.trim(),challenge:/verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human/i.test(document.title+'\n'+body)||[...document.querySelectorAll('iframe')].some(f=>f.getClientRects().length>0&&/challenges\.cloudflare\.com|recaptcha|hcaptcha/i.test(f.src+' '+f.title)),interstitial:/just a moment|checking your browser|performing security verification/i.test(document.title+'\n'+body),login:!!document.querySelector('button[data-testid="login-button"]'),rate:/too many requests/i.test(document.title+'\n'+body),stop:!!document.querySelector('button[data-testid="stop-button"]'),reconnect:/Reconnect Google Drive/.test(body)};})()'''
+    prepare_js = COMPOSER_TEXT_JS + r'''
+        const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
+        if(composerText(e)!==prefix)return false;
+        e.focus();
+        const p=e.lastChild,last=p.lastChild;
+        const node=last.nodeType===3?last:p,offset=last.nodeType===3?last.data.length:0;
+        const range=document.createRange(),selection=window.getSelection();
+        if(!selection)return false;
+        range.setStart(node,offset);range.collapse(true);
+        selection.removeAllRanges();selection.addRange(range);
+        return document.activeElement===e&&selection.isCollapsed&&
+            selection.anchorNode===node&&selection.anchorOffset===offset&&
+            composerText(e)===prefix;
+    '''
+    exact_js = COMPOSER_TEXT_JS + r'''
+        const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
+        return composerText(e)===expected;
+    '''
     script = BU_PRELUDE + f'''
 CHUNK={IPC_CHUNK}
 RETAINED={retained_tab!r}
@@ -1044,34 +1088,32 @@ if not stable:
     print("RELAY_JSON:"+json.dumps({{"error":"NO_COMPOSER","state":_state(lambda expression: _bound_js(tab["targetId"], fresh, expression))}})); raise SystemExit(0)
 def _len():
     return _bound_js(tab["targetId"], fresh, "((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))||{{innerText:''}}).innerText.length")
-def _focus():
+def _exact(expected):
+    expression="(()=>{{const expected="+json.dumps(expected)+";"+{exact_js!r}+"}})()"
+    return _bound_js(tab['targetId'], fresh, expression)
+def _prepare(prefix):
     _fresh()
-    # focus() is undefined; a bound JS object omits an undefined `value` key.
-    # Return a concrete boolean, without weakening _bound_js's required-value guard.
-    if not _bound_js(tab["targetId"], fresh, "(()=>{{const e=(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'));if(!e)return false;e.focus();return document.activeElement===e;}})()"):
-        _binding_error('FOCUS_FAILED', tab=tab["targetId"])
-_focus()
-# ProseMirror renders an empty paragraph as a newline in innerText. Keep the
-# guard against any real draft while allowing only whitespace-only hydration.
-if _bound_js(tab["targetId"], fresh, "!!((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))||{{innerText:''}}).innerText.trim().length"):
+    # Focus alone does not prove a caret position. Restore and verify the exact
+    # logical end before EVERY chunk, while refusing any changed prefix.
+    expression="(()=>{{const prefix="+json.dumps(prefix)+";"+{prepare_js!r}+"}})()"
+    if not _bound_js(tab['targetId'], fresh, expression):
+        _binding_error('INSERT_PREFIX_OR_CARET', pos=len(prefix), tab=tab['targetId'])
+if not _exact(''):
     _binding_error('composer_not_empty', tab=tab['targetId'])
-TEXT={payload}
-pos=0; retries=0
+TEXT={text!r}
+pos=0
 while pos<len(TEXT):
     chunk=TEXT[pos:pos+CHUNK]
-    before=_len()
-    _focus()
+    _prepare(TEXT[:pos])
     _input("Input.insertText", text=chunk)
     time.sleep(0.25)
-    after=_len()
-    if after>=before+len(chunk)-max(5,len(chunk)*0.02):
-        pos+=len(chunk); retries=0
-    else:
-        _binding_error("INSERT_STALLED", pos=pos, before=before, after=after)
+    if not _exact(TEXT[:pos+len(chunk)]):
+        _binding_error('INSERT_MISMATCH', pos=pos, tab=tab['targetId'])
+    pos+=len(chunk)
 time.sleep(2)
-got=_len()
-if abs(got-len(TEXT))>max(50,len(TEXT)*0.02):
-    print("RELAY_JSON:"+json.dumps({{"error":"INSERT_MISMATCH","expected":len(TEXT),"got":got}})); raise SystemExit(0)
+if not _exact(TEXT):
+    _binding_error('INSERT_MISMATCH', pos=pos, tab=tab['targetId'])
+got=len(TEXT)
 if {dry!r}:
     _input("Input.dispatchKeyEvent", type="keyDown", key="a", code="KeyA", modifiers=2, windowsVirtualKeyCode=65)
     _input("Input.dispatchKeyEvent", type="keyUp", key="a", code="KeyA", modifiers=2, windowsVirtualKeyCode=65)

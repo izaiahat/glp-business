@@ -117,7 +117,7 @@ class FakeCDP:
             requested = params["url"]
             url = (self.home_redirect if requested == HOME else self.reopen_redirect) or requested
             text = self.history.get(url, "")
-            self.pages[tid] = {"url": url, "text": text, "composer": self.blank_paragraph, "messages": bool(text), "stop": False}
+            self.pages[tid] = {"url": url, "text": text, "composer": self.blank_paragraph, "placeholder": bool(self.blank_paragraph), "messages": bool(text), "stop": False}
             self.created.append((tid, requested))
             return {"targetId": tid}  # deliberately does not change self.active
         if method == "Target.getTargetInfo":
@@ -126,6 +126,7 @@ class FakeCDP:
         page = self.pages[addressed]
         if method == "Input.insertText":
             self.inserts.append((addressed, params["text"]))
+            if page.pop('placeholder', False): page['composer'] = ''
             page["composer"] += params["text"]
             return {}
         if method == 'Input.dispatchMouseEvent':
@@ -141,7 +142,11 @@ class FakeCDP:
     def eval_retained_js(self, expression):
         page = self.pages[self.active]
         source = '''const p=JSON.parse(process.argv[1]);let clicks=0;
-            const editor={innerText:p.composer,getClientRects:()=>[1]};
+            const editor={innerText:p.composer,getClientRects:()=>[1],tagName:'DIV',
+              getAttribute:k=>k==='contenteditable'?'true':null,
+              classList:{contains:c=>c==='ProseMirror'},
+              childNodes:p.composer.split('\\n').map(t=>({nodeType:1,tagName:'P',attributes:[],
+                childNodes:t?[{nodeType:3,data:t}]:[{nodeType:1,tagName:'BR',className:'ProseMirror-trailingBreak',attributes:['class']}]}))};
             const button={disabled:false,click:()=>clicks++};
             const model={innerText:p.model||'6 Pro'};
             const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
@@ -191,6 +196,11 @@ class FakeCDP:
             return page["url"]
         if expression.startswith('(()=>{const retainedOrigin='):
             return self.eval_retained_js(expression)['result']
+        if expression.startswith(('(()=>{const prefix=', '(()=>{const expected=')):
+            # Transport fixture only; NativeComposerTests executes the actual JS
+            # and DOM selection/Input behavior independently.
+            expected, _ = json.JSONDecoder().raw_decode(expression.split('const ', 1)[1].split('=', 1)[1])
+            return ('' if page.get('placeholder') else page['composer']) == expected
         if "const mb=" in expression:
             model = None if self.pro_only_trigger or self.medium_trigger else '6 Pro'
             failure_location = page.get('failure_location', 'activity-header')
@@ -1608,7 +1618,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
             and n.func.id == '_bound_js' and len(n.args) > 2
             and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
-        self.assertEqual(len(expressions), 9)
+        self.assertEqual(len(expressions), 7)
         evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
         node = r'''const expressions=JSON.parse(process.argv[1]);
             // Compile every actual generated constant after the nested Python parse.
@@ -1628,7 +1638,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         observed = json.loads(result.stdout)
-        self.assertEqual(observed['count'], 9)
+        self.assertEqual(observed['count'], 7)
         self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
             'assistants': 0, 'empty': True, 'challenge': False,
             'interstitial': False, 'login': False, 'rate': False,
@@ -2793,6 +2803,106 @@ with r.account_lock():
                 if proc.poll() is None:
                     proc.kill()
                 proc.communicate()
+
+
+class NativeComposerTests(unittest.TestCase):
+    def test_exact_paragraph_content_and_chunk_caret_in_native_dom(self):
+        """Real generated JS + native DOM/Input, never a canned CDP result.
+
+        The incident proved reordered tails at chunk boundaries, not which UI
+        event moved the caret. Inject that displacement explicitly; do not claim
+        to emulate the private editor or to reconstruct its historical events.
+        """
+        import os
+        import shutil
+        self.assertIsNotNone(shutil.which('google-chrome'), 'native regression requires Chrome')
+        prefix = 'header\n\n\t spaces \u00a0 emoji \U0001f600\n' + 'a' * 5940 + 'FIRST-TAIL'
+        suffix = 'SECOND'
+        intended = prefix + suffix + '\n\n'
+        def emitted(text):
+            scripts = []
+            with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+                relay.send_message(text, retained_tab='fixture', time_origin=12345.5)
+            return ast.parse(scripts[0])
+        tree = emitted(intended)
+        emitted_text = next(ast.literal_eval(n.value) for n in tree.body
+            if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'TEXT' for t in n.targets))
+        self.assertEqual(emitted_text, intended)  # No surrogate splitting in Python chunk boundaries.
+        expressions = [n.args[2].value for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == '_bound_js' and len(n.args) > 2
+            and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
+        atomic = next(e for e in expressions if e.startswith('(()=>{const retainedOrigin='))
+        functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        recorded = []
+        ns = {'json': json, 'tab': {'targetId': 'fixture'}, 'fresh': HOME,
+              '_fresh': lambda: HOME, '_bound_js': lambda *args: recorded.append(args[2]) or True,
+              '_binding_error': lambda *a, **kw: None}
+        # Execute the actual emitted expression builders (not substitute JS).
+        for name in ('_prepare' if '_prepare' in functions else '_focus', '_exact' if '_exact' in functions else '_len'):
+            exec(compile(ast.Module(body=[functions[name]], type_ignores=[]), '<generated>', 'exec'), ns)
+        if '_prepare' in ns: ns['_prepare'](prefix)
+        else: ns['_focus']()
+        prepare = recorded[-1]
+        if '_exact' in ns: ns['_exact'](prefix + suffix)
+        else: ns['_len']()
+        check = recorded[-1]
+        cases = [{'name': 'correct', 'text': intended, 'expression': atomic},
+                 {'name': 'reordered', 'text': intended[:-51] + intended[-49:] + intended[-51:-49], 'expression': atomic}]
+        for name, changed in [('tab', intended.replace('\t', ' ')),
+                              ('nbsp', intended.replace('\u00a0', ' ')),
+                              ('blank_line', intended.replace('\n\n', '\n', 1)),
+                              ('trailing_lf', intended[:-1]),
+                              ('spaces', intended.replace(' spaces ', '  spaces ', 1))]:
+            cases.append({'name': name, 'text': changed, 'expression': atomic})
+        cases.append({'name': 'unknown_structure', 'text': intended, 'expression': atomic,
+                      'mutate': 'const p=document.querySelector("p");const s=document.createElement("span");s.append(...p.childNodes);p.append(s);'})
+        # The observed decoration is permitted only on the sole trailing-BR P.
+        cases.extend([
+            {'name': 'unknown_empty_attribute', 'text': intended, 'expression': atomic,
+             'mutate': 'document.querySelector("p[data-empty-paragraph]").setAttribute("data-unknown","");'},
+            {'name': 'nonempty_marker_misuse', 'text': intended, 'expression': atomic,
+             'mutate': 'document.querySelector("p").setAttribute("data-empty-paragraph","");'},
+        ])
+        # A dedicated about:blank profile, blocked requests, pipe-only CDP.
+        node = NATIVE_COMPOSER_FIXTURE
+        with tempfile.TemporaryDirectory() as tmp:
+            result = REAL_SUBPROCESS_RUN(['node', '-e', node], text=True,
+                input=json.dumps({'expressions': expressions + [prepare, check], 'cases': cases,
+                                  'caret': {'prefix': prefix, 'suffix': suffix, 'displace': 49,
+                                            'prepare': prepare, 'check': check}}),
+                capture_output=True, timeout=30, env={**os.environ, 'TMPDIR': tmp})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actual = json.loads(result.stdout)
+        self.assertEqual(actual['caret']['actual'], prefix + suffix, 'chunk insertion must restore the exact end caret')
+        self.assertIs(actual['caret']['checked'], True, 'prefix equality must be exact, not a length')
+        for row in actual['cases']:
+            self.assertEqual(row['result']['clicked'], row['name'] == 'correct', row['name'])
+            self.assertEqual(row['clicks'], int(row['name'] == 'correct'), row['name'])
+
+
+NATIVE_COMPOSER_FIXTURE = r'''
+const fs=require('fs'),cp=require('child_process'),os=require('os'),path=require('path');
+const f=JSON.parse(fs.readFileSync(0,'utf8'));
+const dir=fs.mkdtempSync(path.join(process.env.TMPDIR,'pro-composer-native-'));
+const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
+let next=0,buf='',pending=new Map();
+chrome.stdio[4].on('data',b=>{buf+=b;let pos;while((pos=buf.indexOf('\0'))>=0){const msg=JSON.parse(buf.slice(0,pos));buf=buf.slice(pos+1);if(msg.id&&pending.has(msg.id)){const [yes,no]=pending.get(msg.id);pending.delete(msg.id);msg.error?no(new Error(msg.error.message)):yes(msg.result);}}});
+function cdp(method,params={},sessionId){return new Promise((yes,no)=>{const id=++next;pending.set(id,[yes,no]);chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0');});}
+let sid;
+async function js(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},sid);if(r.exceptionDetails)throw new Error('FIXTURE_JS_EXCEPTION');return r.result.value;}
+(async()=>{try{
+const target=(await cdp('Target.createTarget',{url:'about:blank'})).targetId;
+sid=(await cdp('Target.attachToTarget',{targetId:target,flatten:true})).sessionId;
+await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*']},sid);
+await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button>6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
+const output={};
+for(const expr of f.expressions)new Function('return ('+expr+')');
+output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify(c.text)+');window.clicks=0;');if(c.mutate)await js(c.mutate);const expr=c.expression.replace('const retainedOrigin=12345.5;', 'const retainedOrigin=performance.timeOrigin;');output.cases.push({name:c.name,result:await js(expr),clicks:await js('window.clicks')});}
+const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
+process.stdout.write(JSON.stringify(output));
+}finally{await cdp('Browser.close').catch(()=>{});}})().catch(e=>{process.stderr.write(e.message);process.exitCode=1;}).finally(()=>{chrome.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));setTimeout(()=>{chrome.kill('SIGKILL');},2000).unref();});
+'''
 
 
 if __name__ == "__main__":
