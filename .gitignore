@@ -139,6 +139,11 @@
 !/scripts/glp_affiliate_wire_backlog_worker.py
 !/scripts/glp_evidence_refresh_cycle.py
 !/scripts/glp_g6_weekly_traction_report.py
+!/ops/hermes-cron-scripts/glp_maxbounty_capacity_resume.sh
+!/ops/maxbounty-pin-predecessor.json
+!/ops/maxbounty-pin-release.md
+!/scripts/maxbounty_pin_release.py
+!/tests/test_maxbounty_pin_release.py
 !/scripts/glp_maxbounty_capacity_monitor.py
 !/scripts/glp_maxbounty_fresh_probe.py
 !/tests/test_glp_maxbounty_fresh_probe.py
