@@ -1006,6 +1006,188 @@ console.log(JSON.stringify(fixtures.map(f => {
         (self.root / report).write_text(json.dumps({'jobs': [{'job_id': job, **row}]}))
         return d, state, report
 
+    def test_security_readiness_reconciliation_retains_exact_unsent_tab(self):
+        """Real registered caller + browser script; fixture-only apply, never live."""
+        import copy
+        import hashlib
+        job = 'fixture-security-readiness'
+        d = relay.job_dir(job)
+        state = {'job': job, 'account': 'account-a', 'status': 'failed',
+                 'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+                 'typed': False, 'sent': False, 'input_sha256': 'a' * 64,
+                 'reply_token': 'b' * 64,
+                 **{key: 'fixture-' + key for key in relay.PROVENANCE_FIELDS},
+                 'error': {'error': 'SECURITY_INTERSTITIAL', 'typed': False, 'sent': False,
+                           'tab': 'retained', 'state': {'url': HOME, 'model': None,
+                           'assistant_count': 0, 'last_len': 0, 'security_interstitial': True,
+                           'human_challenge': False, 'logged_out': False, 'rate_limited': False,
+                           'stop': False, 'drive_reconnect': False, 'thinking_failed': False,
+                           'composer_present': False}}}
+        relay.job_write(job, state)
+        message = ('RELAY_IDENTITY job=' + job + ' input_sha256=' + state['input_sha256'] +
+                   ' reply_token=' + state['reply_token']).encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        row = {'event': 'submitted', 'job': job, 'account': 'account-a',
+               'kind': 'initial', 'certainty': 'reserved_may_send',
+               **{key: state[key] for key in relay.PROVENANCE_FIELDS}}
+        relay.ledger_append(self.cfg, row)
+        ledger = relay.ledger_path(self.cfg)
+        ledger_preimage = ledger.read_bytes()
+        preimage = (d / 'JOB.json').read_bytes()
+        digest = lambda raw: hashlib.sha256(raw).hexdigest()
+        report = 'reports/readiness.json'
+        receipt = {'job': job, 'reason': 'SECURITY_INTERSTITIAL', 'submission_bound': False,
+                   'typed': False, 'sent': False, 'error_tab': 'retained',
+                   'job_sha256': digest(preimage), 'message_sha256': digest(message),
+                   'ledger_rows_sha256': digest(json.dumps(relay.ledger_rows(self.cfg),
+                        sort_keys=True, separators=(',', ':')).encode()),
+                   'time_origin': 12345.5}
+        (self.root / report).parent.mkdir(parents=True, exist_ok=True)
+        (self.root / report).write_text(json.dumps({'jobs': [receipt]}))
+        self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',
+                                          'messages': False, 'stop': False}
+        old_js = self.browser.js
+        extra = {'url': HOME, 'time_origin': 12345.5, 'composer_empty': True,
+                 'user_count': 0}
+        expressions = set()
+        def probe(expression):
+            if expression.startswith('(()=>{const e=') and 'time_origin' in expression:
+                expressions.add(expression)
+                return dict(extra)
+            return old_js(expression)
+        self.browser.js = probe
+        def snapshot():
+            return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in self.root.rglob('*') if p.is_file() and '.lock' not in p.name}
+        with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('retained tab must survive')):
+            before = snapshot()
+            output = io.StringIO()
+            with redirect_stdout(output), mock.patch.object(sys, 'argv',
+                    ['gpt6pro_relay.py', 'reconcile-unsent-model', '--job', job, '--report', report]):
+                self.assertEqual(relay.main(), 0)
+            self.assertIn('WOULD_RECONCILE_UNSENT_READINESS', output.getvalue())
+            self.assertEqual(snapshot(), before)
+            self.assertIn('require-held', admission.call_args.args[0])
+            # Each refusal is evaluated through the registered method in both modes.
+            mutations = [
+                ('typed', lambda s: s.update(typed=True)),
+                ('sent', lambda s: s.update(sent=True)),
+                ('unknown', lambda s: s.update(typed='UNKNOWN')),
+                ('bound', lambda s: s.update(conversation_url=WANT)),
+                ('error-typed', lambda s: s['error'].update(typed=True)),
+                ('error-sent', lambda s: s['error'].update(sent=True)),
+                ('human-original', lambda s: s['error']['state'].update(human_challenge=True)),
+                ('login-original', lambda s: s['error']['state'].update(logged_out=True)),
+                ('rate-original', lambda s: s['error']['state'].update(rate_limited=True)),
+                ('wrong-reason', lambda s: s.update(reason='APP_NOT_READY')),
+                ('error-reason', lambda s: s['error'].update(error='HUMAN_CHALLENGE')),
+                ('target', lambda s: s['error'].update(tab='sibling')),
+            ]
+            for name, mutate in mutations:
+                with self.subTest(guard=name):
+                    changed = copy.deepcopy(state); mutate(changed)
+                    (d / 'JOB.json').write_text(json.dumps(changed))
+                    for apply in (False, True):
+                        prior = snapshot()
+                        with self.assertRaises(SystemExit):
+                            relay.reconcile_unsent_model(job, apply=apply, report=report)
+                        self.assertEqual(snapshot(), prior)
+                    (d / 'JOB.json').write_bytes(preimage)
+            before = snapshot()  # reset mtime baseline after our fixture mutations
+            for key, value in [('security_interstitial', True), ('human_challenge', True),
+                               ('logged_out', True), ('rate_limited', True), ('stop', True),
+                               ('composer_present', False), ('assistant_count', 1),
+                               ('ready_state', 'loading')]:
+                with self.subTest(current_page=key):
+                    self.browser.app_overrides[key] = value
+                    for apply in (False, True):
+                        with self.assertRaisesRegex(SystemExit, 'READINESS_RECONCILE_REFUSED_TAB_EVIDENCE'):
+                            relay.reconcile_unsent_model(job, apply=apply, report=report)
+                    self.browser.app_overrides.clear()
+                    self.assertEqual(snapshot(), before)
+            for key, value in [('composer_empty', False), ('user_count', 1),
+                               ('time_origin', 999), ('url', WANT)]:
+                saved = extra[key]; extra[key] = value
+                with self.subTest(extra=key), self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                    relay.reconcile_unsent_model(job, report=report)
+                extra[key] = saved
+            self.browser.pages['retained']['url'] = WANT
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            retained = self.browser.pages.pop('retained')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            retained['url'] = HOME; self.browser.pages['retained'] = retained
+            self.browser.active = 'sibling'
+            self.browser.wrong_switch = True
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            self.browser.wrong_switch = False
+            live.return_value = {job}
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_LIVE_RUNNER'):
+                relay.reconcile_unsent_model(job, report=report)
+            live.return_value = set()
+            admission.return_value.returncode = 1
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_ADMISSION'):
+                relay.reconcile_unsent_model(job, report=report)
+            admission.return_value.returncode = 0
+            for key, value in [('job_sha256', '0' * 64), ('message_sha256', '0' * 64),
+                               ('ledger_rows_sha256', '0' * 64), ('error_tab', 'other'),
+                               ('submission_bound', True), ('typed', True), ('sent', True)]:
+                bad = {**receipt, key: value}
+                (self.root / report).write_text(json.dumps({'jobs': [bad]}))
+                with self.subTest(report=key), self.assertRaisesRegex(SystemExit, 'REFUSED_REPORT'):
+                    relay.reconcile_unsent_model(job, report=report)
+            (self.root / report).write_text(json.dumps({'jobs': [receipt]}))
+            relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'})
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_LEDGER'):
+                relay.reconcile_unsent_model(job, report=report)
+            ledger.write_bytes(ledger_preimage)
+            # Late drift in the real browser read refuses before any backup/write.
+            self.browser.on_run = lambda: (d / 'MESSAGE.md').write_bytes(b'moved')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_STATE_DRIFT'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            self.browser.on_run = lambda: None
+            (d / 'MESSAGE.md').write_bytes(message)
+            backup = d / ('JOB.pre-readiness-reconcile-' + digest(preimage) + '.json')
+            backup.write_bytes(b'conflict')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_BACKUP_CONFLICT'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            backup.unlink()
+            self.assertEqual(relay.reconcile_unsent_model(job, apply=True, report=report), 0)
+            self.assertEqual(backup.read_bytes(), preimage)
+            updated = relay.job_state(job)
+            self.assertEqual(updated['reason'], state['reason'])
+            self.assertEqual(updated['error'], state['error'])
+            self.assertIs(updated['retry_blocked'], True)  # reconciliation is not replay permission
+            self.assertEqual((d / 'MESSAGE.md').read_bytes(), message)
+            self.assertIn('retained', self.browser.pages)
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_STATE'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            events = relay.ledger_rows(self.cfg)
+            self.assertEqual([(r['event'], r.get('phase')) for r in events],
+                             [('submitted', None), ('readiness_unsent_reconcile', 'STARTED'),
+                              ('readiness_unsent_reconcile', 'APPLIED')])
+            self.assertFalse(self.browser.created or self.browser.inserts or self.browser.sent or self.browser.navigations)
+        # Execute the actual new DOM expression, not a rewritten Python oracle.
+        self.assertEqual(len(expressions), 1)
+        expression = expressions.pop()
+        for primary, fallback, text, users, empty in [
+                (True, False, '', 0, True), (False, True, ' \n', 0, True),
+                (True, False, 'draft', 0, False), (False, False, '', 0, False),
+                (True, False, '', 1, True)]:
+            setup = ('const location={href:' + json.dumps(HOME) + '};'
+                     'const performance={timeOrigin:12345.5};const e={innerText:' + json.dumps(text) + '};'
+                     'const document={querySelector:s=>s==="#prompt-textarea"?'
+                     + ('e' if primary else 'null') + ':' + ('e' if fallback else 'null') + ','
+                     'querySelectorAll:s=>Array(' + str(users) + ').fill({})};')
+            result = subprocess.run(['node', '-e', setup + 'console.log(JSON.stringify(' + expression + '))'],
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
+                             'composer_empty': empty, 'user_count': users})
+
     def test_unlisted_wrong_model_reconciles_with_explicit_report(self):
         job = 'glp999-unlisted-wrong-model'
         d, state, report = self._unlisted_wrong_model(
