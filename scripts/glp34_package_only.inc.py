@@ -931,10 +931,12 @@ def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any],
             "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
 
 
-# The second forward edge is bound to the one actual rolled-back successor.
+# Fixed reviewed forward edges are bound to actual rolled-back journals.
 # These are not caller-supplied journal names or a recursive renewal scheme.
 CURRENT_PROMOTION_ROOT_SHA256 = "162966b57bf902f14dce9dc43a13d3c639f77af4f35fd7f375dadbda3bb7d5e6"
 CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256 = "3d00967317267cb5b7bbb0925ad86d0809c4fd70cd6a3b25b44dc8548226377b"
+# One reviewed post-identity continuation, not a generic recursive renewal.
+CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256 = "501331e3ab5fed5742672960d10cf1ca3dad0e59d5c2176d012e7636b131b8b4"
 
 def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[str, Any],
                                       original_path: Path, prior_path: Path,
@@ -978,6 +980,19 @@ def current_promotion_rolled_back_successor_source(args: argparse.Namespace, bin
     return current_promotion_terminal_source(args, root_binding, original_path, prior_path)
 
 
+def current_promotion_post_identity_source(args: argparse.Namespace, binding: dict[str, Any],
+                                           original_path: Path, root_path: Path,
+                                           first_path: Path, second_path: Path) -> dict[str, Any]:
+    if (not args.authorize_post_identity_promotion or not args.authorize_rolled_back_successor_renewal
+            or args.expected_terminal_promotion_sha256 != CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256):
+        fail("current_promotion_post_identity_authorization_missing")
+    root_binding = current_promotion_terminal_source(
+        args, binding, original_path, root_path, expected_sha=CURRENT_PROMOTION_ROOT_SHA256)
+    first_binding = current_promotion_terminal_source(
+        args, root_binding, original_path, first_path,
+        expected_sha=CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256)
+    return current_promotion_terminal_source(args, first_binding, original_path, second_path)
+
 def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
@@ -986,12 +1001,18 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     original_path = run_dir / "CURRENT-RECEIPT.json"
     binding = current_promotion_source(args, prepared, original_path)
     renewing = (args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
-                or args.authorize_rolled_back_successor_renewal)
+                or args.authorize_rolled_back_successor_renewal or args.authorize_post_identity_promotion)
+    third_renewal = args.authorize_post_identity_promotion
     second_renewal = args.authorize_rolled_back_successor_renewal
     root_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + ".json")
+    first_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + "-SUCCESSOR-"
+                            + CURRENT_PROMOTION_ROOT_SHA256 + ".json")
     prior_path = (run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + "-SUCCESSOR-"
-                             + CURRENT_PROMOTION_ROOT_SHA256 + ".json") if second_renewal else root_path)
-    if second_renewal:
+                             + CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256 + ".json") if third_renewal
+                  else first_path if second_renewal else root_path)
+    if third_renewal:
+        binding = current_promotion_post_identity_source(args, binding, original_path, root_path, first_path, prior_path)
+    elif second_renewal:
         binding = current_promotion_rolled_back_successor_source(args, binding, original_path, root_path, prior_path)
     elif renewing:
         binding = current_promotion_terminal_source(args, binding, original_path, prior_path)
@@ -1000,7 +1021,9 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     try:
         def recheck_source() -> None:
             source = current_promotion_source(args, prepared, original_path)
-            if second_renewal:
+            if third_renewal:
+                current_promotion_post_identity_source(args, source, original_path, root_path, first_path, prior_path)
+            elif second_renewal:
                 current_promotion_rolled_back_successor_source(args, source, original_path, root_path, prior_path)
             elif renewing:
                 current_promotion_terminal_source(args, source, original_path, prior_path)
@@ -1114,6 +1137,7 @@ def current_main(argv: list[str]) -> int:
         parser.add_argument("--authorize-existing-promotion", action="store_true")
         parser.add_argument("--authorize-renewed-promotion", action="store_true")
         parser.add_argument("--authorize-rolled-back-successor-renewal", action="store_true")
+        parser.add_argument("--authorize-post-identity-promotion", action="store_true")
         parser.add_argument("--expected-terminal-promotion-sha256")
     args = parser.parse_args(argv)
     try:
