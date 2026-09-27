@@ -7,6 +7,7 @@ export SEAT_AUTODISPATCH_TEST_SOURCE="${PWD}/scripts/seat_autodispatch.py"
 # absolute /home/ubuntu/business paths. Run them on the host, never pretend a
 # curated GitHub checkout contains those private runtime inputs.
 suites=(tests/test_glp_seo_skill_loader.py tests/test_linear_ordinary_completion.py tests/test_gpt6pro_relay_binding.py tests/test_awin_pin_shell_conventions.py tests/test_awin_application_fit_exclusions.py tests/test_capacity_pacing.py tests/test_glp_program_liveness_check.py tests/test_seat_autodispatch.py tests/test_sync_from_repo.py tests/test_glp316_automated_notices.py tests/test_decisions_router_card.py tests/test_fable_bridge_quota_resume.py tests/test_fable_bridge_oversize.py tests/test_glp319_incomplete_period.py)
+suites+=(tests/test_glp42_package_only.py)
 suites+=(tests/test_therapeutic_taxonomy_refresh.py)
 suites+=(tests/test_glp44_weekly_gsc_aggregate.py)
 suites+=(tests/test_glp44_weekly_pin_adoption.py)
