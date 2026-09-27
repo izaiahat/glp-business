@@ -582,6 +582,94 @@ class CurrentReleaseTests(unittest.TestCase):
                              (root_bytes, first_bytes, original_bytes))
         self.assert_promotion_custody()
 
+    def test_post_identity_exact_terminal_one_shot_from_emitted_source(self):
+        # Emit the registered carrier into a new fixture directory; never alter
+        # the installed carrier or any retained production journal.
+        with tempfile.TemporaryDirectory(prefix='glp43-post-identity-source-') as temp:
+            emitted = Path(temp) / 'emitted'
+            proc = REAL_RUN(['python3', '-B', str(ROOT / 'scripts/generate_glp34_deploy_carrier.py'),
+                             '--prepare', '--emit-dir', str(emitted)], cwd=ROOT,
+                            capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            spec = importlib.util.spec_from_file_location('fixture_emitted_carrier',
+                     emitted / 'glp_deploy_glp34_authority_v1.py')
+            generated = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(generated)
+            with mock.patch.dict(globals(), {'c': generated}):
+                f = CurrentReleaseTests()
+                f.setUp()
+                try:
+                    f.promotion_fixture()
+                    f.readback_fail = True
+                    old_flags = ('--authorize-production', '--authorize-existing-promotion',
+                                 '--authorize-renewed-promotion', '--authorize-rolled-back-successor-renewal')
+                    self.assertEqual(f.promote_fixture(), 1)
+                    root_path = f.promotion_receipt
+                    root_bytes = root_path.read_bytes()
+                    root_sha = generated.sha_bytes(root_bytes)
+                    first_path = f.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '-SUCCESSOR-' + root_sha + '.json')
+                    first_args = {**f.promotion_args, 'expected-terminal-promotion-sha256': root_sha}
+                    f.promotion_receipt = first_path
+                    self.assertEqual(f.promote_fixture(first_args, old_flags[:-1]), 1)
+                    first_bytes = first_path.read_bytes()
+                    first_sha = generated.sha_bytes(first_bytes)
+                    second_path = f.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '-SUCCESSOR-' + first_sha + '.json')
+                    f.promotion_receipt = second_path
+                    second_args = {**f.promotion_args, 'expected-terminal-promotion-sha256': first_sha}
+                    with (mock.patch.object(generated, 'CURRENT_PROMOTION_ROOT_SHA256', root_sha),
+                          mock.patch.object(generated, 'CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256', first_sha)):
+                        self.assertEqual(f.promote_fixture(second_args, old_flags), 1)
+                        second_bytes = second_path.read_bytes()
+                        second_sha = generated.sha_bytes(second_bytes)
+                        self.assertEqual(json.loads(second_bytes)['status'], 'BLOCKED_ROLLED_BACK')
+                        third_path = f.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '-SUCCESSOR-' + second_sha + '.json')
+                        f.promotion_receipt = third_path
+                        third_args = {**f.promotion_args, 'expected-terminal-promotion-sha256': second_sha}
+                        third_flags = (*old_flags, '--authorize-post-identity-promotion')
+                        pointer_before = f.pointer.read_bytes()
+                        originals = {p: p.read_bytes() for p in (f.original_receipt, root_path, first_path, second_path)}
+                        f.selections.clear(); f.rollbacks.clear()
+                        with mock.patch.object(generated, 'CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256', second_sha):
+                            def refuses(args=third_args, flags=third_flags):
+                                self.assertEqual(f.promote_fixture(args, flags), 1)
+                                self.assertEqual(f.selections, [])
+                                self.assertFalse(third_path.exists())
+                                self.assertEqual(f.pointer.read_bytes(), pointer_before)
+                            refuses(flags=old_flags)  # old grant cannot retry
+                            refuses(flags=third_flags[:-2] + third_flags[-1:])  # no second-edge grant
+                            refuses(flags=third_flags[1:])  # no production grant
+                            refuses({**third_args, 'expected-terminal-promotion-sha256': first_sha})
+                            refuses({**third_args, 'expected-terminal-promotion-sha256': '0' * 64})
+                            second_path.write_bytes(second_bytes + b' ')
+                            refuses()
+                            second_path.write_bytes(second_bytes)
+                            root_path.write_bytes(root_bytes + b' ')
+                            refuses()
+                            root_path.write_bytes(root_bytes)
+                            f.current = copy.deepcopy(f.candidate)
+                            refuses()  # canonical predecessor required
+                            f.current = copy.deepcopy(f.deployments[0])
+                            f.readback_fail = False
+                            f.selection_mode = 'unsettled'
+                            self.assertEqual(f.promote_fixture(third_args, third_flags), 1)
+                            self.assertEqual(f.selections, [NEW_ID])
+                            self.assertEqual(f.promote_fixture(third_args, third_flags), 1)
+                            self.assertEqual(f.selections, [NEW_ID])  # no replay
+                            f.current = copy.deepcopy(f.candidate)
+                            self.assertEqual(f.promote_fixture(third_args, third_flags), 0, f.last)
+                            terminal = json.loads(third_path.read_bytes())
+                            self.assertEqual(terminal['status'], 'PASS_PRODUCTION_TERMINAL')
+                            self.assertEqual(terminal['binding']['terminal_promotion_sha256'], second_sha)
+                            self.assertEqual(terminal['effects']['existing_candidate_selection_post_intents'], 1)
+                            self.assertEqual(terminal['effects']['pointer_atomic_cas'], 1)
+                            self.assertNotEqual(f.pointer.read_bytes(), pointer_before)
+                            self.assertEqual(f.promote_fixture(third_args, third_flags), 1)
+                            self.assertEqual(f.selections, [NEW_ID])
+                        self.assertEqual({p: p.read_bytes() for p in originals}, originals)
+                        self.assertEqual(f.deploy_calls, [])
+                finally:
+                    f.doCleanups()
+
     def test_reviewed_terminal_successor_is_one_forward_selection_only(self):
         # Both journals are fixture-local; the first terminal is produced by the
         # existing mode, not a fabricated second-promotion permission.
