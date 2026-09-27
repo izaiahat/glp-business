@@ -55,6 +55,17 @@ def test_persisted_exact_tuple_resolves_without_financial_event():
         revenue.normalize(NoFinancialEvent(), TUPLE, document['identities'])
 
 
+def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
+    wrapper = (ROOT / 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh').read_bytes()
+    prefix = b'check_source ops/glp/reporting-v2/identity-registry.json '
+    lines = [line for line in wrapper.splitlines() if line.startswith(prefix)]
+    assert len(lines) == 1
+    pin = lines[0][len(prefix):]
+    assert pin.decode() == hashlib.sha256(CONFIG.read_bytes()).hexdigest()
+    restored = wrapper.replace(lines[0], prefix + PREDECESSOR_SHA.encode())
+    assert hashlib.sha256(restored).hexdigest() == 'd4b3a378c34013adcc65909b52b7973890b8b8523e8f5f887a5f3ea01fcf286e'
+
+
 def test_only_identity_and_freshness_changed_from_exact_predecessor():
     document = registry()
     assert '2026-09-27' in document['freshness']

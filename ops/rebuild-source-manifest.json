@@ -4,7 +4,7 @@
     "tests/test_glp85_cj_reporting_identity.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "9aa5579ba9df820e60bc46dae1f06f563eb8d535636cb60f90114c0bbb30f995"
+      "sha256": "270aad44161617b3d0e48abcd2aaaf4747980abda0f613add7bb7a6da90a8134"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
       "callers": ["scripts/glp_affiliate_weekly_reporting.py", "scripts/glp_network_revenue_import_v2.py"],
@@ -316,7 +316,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "d4b3a378c34013adcc65909b52b7973890b8b8523e8f5f887a5f3ea01fcf286e"
+      "sha256": "d42bca52c76fb0ac77abb7bc90884ebb8dab857174bb3c7d034b53e379546ee2"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
