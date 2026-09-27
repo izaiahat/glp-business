@@ -8,6 +8,7 @@ import copy
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -493,6 +494,135 @@ class CurrentReleaseTests(unittest.TestCase):
                 finally:
                     f.doCleanups()
 
+    def test_reviewed_terminal_successor_is_one_forward_selection_only(self):
+        # Both journals are fixture-local; the first terminal is produced by the
+        # existing mode, not a fabricated second-promotion permission.
+        for outcome in ("land", "unsettled"):
+            with self.subTest(outcome=outcome):
+                f = CurrentReleaseTests()
+                f.setUp()
+                try:
+                    f.promotion_fixture()
+                    f.readback_fail = True
+                    self.assertEqual(f.promote_fixture(), 1)
+                    prior_path = f.promotion_receipt
+                    prior_bytes, original_bytes, pointer_bytes = (prior_path.read_bytes(),
+                        f.original_receipt.read_bytes(), f.pointer.read_bytes())
+                    prior = json.loads(prior_bytes)
+                    self.assertEqual(prior["status"], "BLOCKED_ROLLED_BACK")
+                    self.assertEqual(prior["effects"]["guarded_rollbacks_confirmed"], 1)
+                    prior_sha = c.sha_bytes(prior_bytes)
+                    f.promotion_receipt = f.run_dir / ("CURRENT-PROMOTION-" + NEW_ID
+                                                       + "-SUCCESSOR-" + prior_sha + ".json")
+                    renewed = {**f.promotion_args, "expected-terminal-promotion-sha256": prior_sha}
+                    flags = ("--authorize-production", "--authorize-existing-promotion",
+                             "--authorize-renewed-promotion")
+                    f.readback_fail = False
+                    f.selections.clear(); f.rollbacks.clear(); f.calls.clear()
+                    def refuse(values=None, switches=flags):
+                        self.assertEqual(f.promote_fixture(values or renewed, switches), 1)
+                        self.assertEqual(f.selections, [])
+                        self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                        self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                        self.assertEqual(f.pointer.read_bytes(), pointer_bytes)
+                        self.assertFalse(f.promotion_receipt.exists())
+                    # Renewal never consumes a terminal without both old grants,
+                    # its explicit grant, and the exact terminal preimage.
+                    refuse(switches=flags[:-1])
+                    refuse(switches=(flags[0], flags[2]))
+                    refuse(switches=(flags[1], flags[2]))
+                    refuse({**renewed, "expected-terminal-promotion-sha256": "0" * 64})
+                    refuse({**renewed, "expected-terminal-promotion-sha256": "not-a-digest"})
+                    refuse({**f.promotion_args}, switches=flags)
+                    # A fresh digest of a nonterminal or differently bound journal
+                    # does not turn that journal into a grant.
+                    for changed in ({"status": "ACTIVE"}, {"binding": {**prior["binding"], "site_head": "f" * 40}},
+                                    {"effects": {**prior["effects"], "guarded_rollbacks_confirmed": 0}}):
+                        prior_path.write_bytes(c.json_bytes({**prior, **changed}))
+                        altered = prior_path.read_bytes()
+                        self.assertEqual(f.promote_fixture(
+                            {**renewed, "expected-terminal-promotion-sha256": c.sha_file(prior_path)}, flags), 1)
+                        self.assertEqual(f.selections, [])
+                        self.assertEqual(prior_path.read_bytes(), altered)
+                        self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                        self.assertEqual(f.pointer.read_bytes(), pointer_bytes)
+                        self.assertFalse(f.promotion_receipt.exists())
+                        # The pinned original digest is independently refused.
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.selections, [])
+                        prior_path.write_bytes(prior_bytes)
+                    f.pointer.write_bytes(pointer_bytes + b" ")
+                    self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                    self.assertEqual(f.selections, [])
+                    self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                    self.assertFalse(f.promotion_receipt.exists())
+                    f.pointer.write_bytes(pointer_bytes)
+                    f.review.update(verdict="CHANGES_REQUIRED", release_accepted=False); f.save_review()
+                    refuse({**renewed, "expected-approval-sha256": c.sha_file(f.approval)})
+                    f.approve_fixture()
+                    f.candidate = dict(f.candidate, latest_stage={"status": "failure"})
+                    refuse()
+                    f.candidate = f.deployment(NEW_ID, f.head)
+                    f.selection_mode = outcome
+                    if outcome == "unsettled":
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.selections, [NEW_ID])
+                        f.current = copy.deepcopy(f.candidate)
+                    self.assertEqual(f.promote_fixture(renewed, flags), 0, f.last)
+                    successor = json.loads(f.promotion_receipt.read_text())
+                    self.assertEqual(successor["binding"]["terminal_promotion_sha256"], prior_sha)
+                    self.assertEqual(successor["status"], "PASS_PRODUCTION_TERMINAL")
+                    self.assertEqual(successor["effects"]["existing_candidate_selection_post_intents"], 1)
+                    self.assertEqual(successor["effects"]["pointer_atomic_cas"], 1)
+                    raw_rows = successor["stages"]["route_probe_raw"]
+                    self.assertEqual(len(raw_rows), 3 * len(f.prepared_data["route_specs"]))
+                    for row in raw_rows:
+                        self.assertEqual(c.sha_file(Path(row["body_path"])), row["body_sha256"])
+                        self.assertEqual(row["compared_sha256"], row["expected_sha256"])
+                        self.assertEqual(row["compared_bytes"], row["expected_bytes"])
+                    self.assertEqual(f.selections, [NEW_ID]); self.assertEqual(f.rollbacks, [])
+                    self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                    self.assertEqual(f.selections, [NEW_ID])
+                    self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                    self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                    f.assert_promotion_custody()
+                finally:
+                    f.doCleanups()
+        # Mutation after exclusive intent but before POST burns the successor;
+        # restoring the preimage cannot make that ACTIVE intent send again.
+        f = CurrentReleaseTests()
+        f.setUp()
+        try:
+            f.promotion_fixture()
+            f.readback_fail = True
+            self.assertEqual(f.promote_fixture(), 1)
+            prior_path = f.promotion_receipt
+            prior_bytes = prior_path.read_bytes()
+            digest = c.sha_bytes(prior_bytes)
+            f.promotion_receipt = f.run_dir / ("CURRENT-PROMOTION-" + NEW_ID + "-SUCCESSOR-" + digest + ".json")
+            renewed = {**f.promotion_args, "expected-terminal-promotion-sha256": digest}
+            flags = ("--authorize-production", "--authorize-existing-promotion", "--authorize-renewed-promotion")
+            original_exclusive = c.exclusive_file
+            def drift_after_intent(path, data, *args):
+                original_exclusive(path, data, *args)
+                if path == f.promotion_receipt:
+                    prior_path.write_bytes(prior_bytes + b" ")
+            with mock.patch.object(c, "exclusive_file", side_effect=drift_after_intent):
+                self.assertEqual(f.promote_fixture(renewed, flags), 1)
+            self.assertEqual(f.selections, [NEW_ID])  # only the original promotion POST
+            self.assertEqual(json.loads(f.promotion_receipt.read_text())["status"], "ACTIVE")
+            prior_path.write_bytes(prior_bytes)
+            f.readback_fail = False
+            self.assertEqual(f.promote_fixture(renewed, flags), 1)
+            self.assertEqual(f.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+            self.assertEqual(f.selections, [NEW_ID])
+            self.assertEqual(prior_path.read_bytes(), prior_bytes)
+            f.assert_promotion_custody()
+        finally:
+            f.doCleanups()
+
     def test_preparation_and_drift_refusals_before_output_or_network(self):
         baseline = self.prep_args()
         source = self.source / "src/worker.mjs"
@@ -756,6 +886,92 @@ class CurrentReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:.*:503'):
             self.email_probe(self.email_raw, status=503)
         self.assert_email_raw_retained(self.email_raw)
+
+    def test_current_email_readback_providers_script_regions(self):
+        # Reduced structural fixture, NOT the actual candidate-era HTML below.
+        self.email_probe_fixture()
+        script = c.CURRENT_CF_EMAIL_DECODER_SCRIPT
+        plain = (b'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" '
+                 b'data-cfemail="b8dbd9caddf8fad1d4cceac096dbd7d5">[email&#160;protected]</a>')
+        boundary = b'<script type="application/json" data-provider-card-payloads>[]</script>'
+        expected = self.email_expected.replace(b'$199 ', b'$199 care@BiltRx.com ' + boundary)
+        body = self.email_raw.replace(b'$199 ', b'$199 ' + plain + b' ' + script + boundary)
+        (self.public / 'index.html').write_bytes(expected)
+        self.email_item.update(sha256=c.sha_bytes(expected), bytes=len(expected))
+        self.assertEqual(c.current_restore_cf_email(body), expected)
+        row = self.email_probe(body)
+        self.assertEqual(row['compared_sha256'], c.sha_bytes(expected))
+        self.assertEqual(row['compared_bytes'], len(expected))
+        self.assert_email_raw_retained(body)
+        cases = {
+            'duplicate_decoder': body.replace(script, script + script, 1),
+            'missing_decoder': body.replace(script, b'', 1),
+            'relocated_decoder': body.replace(script, b'', 1).replace(plain, script + plain, 1),
+            'wrong_boundary': body.replace(script + boundary, script + b' ' + boundary, 1),
+            'unknown_decoder': body.replace(b'/5c5dd728/', b'/deadbeef/', 1),
+            'tampered_decoder': body.replace(b'data-cfasync="false"', b'data-cfasync="true"', 1),
+            'unobserved_plaintext_count': body.replace(plain, plain + plain, 1),
+            'changed_plaintext_email': body.replace(b'b8dbd9caddf8fad1d4cceac096dbd7d5',
+                                                  b'b8dbd9caddf8fad1d4cceac096dbd7d4'),
+            'changed_price': body.replace(b'$199', b'$999'),
+            'changed_unrelated_script': body.replace(b'window.x=1', b'window.x=2'),
+        }
+        for name, changed in cases.items():
+            with self.subTest(negative=name):
+                with self.assertRaises(c.GateError):
+                    self.email_probe(changed)
+                self.assert_email_raw_retained(changed)
+        with self.subTest(negative='immutable_transformed_refuses'):
+            with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+                self.email_probe(body, base=self.current['url'])
+            self.assert_email_raw_retained(body)
+        with self.subTest(negative='non_html_source_refuses'):
+            (self.public / 'asset.js').write_bytes(expected)
+            self.email_item['url_path'] = '/asset.js'
+            with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+                self.email_probe(body)
+            self.assert_email_raw_retained(body)
+
+    @unittest.skipUnless(os.environ.get('GLP43_RETAINED_EMAIL_ROOT'),
+                         'actual retained responses are host evidence, not portable fixtures')
+    def test_current_email_readback_actual_providers_11_saved_variants(self):
+        # Explicit opt-in to pinned, read-only historical inputs. Never fetch or
+        # normalize expected HTML; never write the consumed promotion journal.
+        root = Path(os.environ['GLP43_RETAINED_EMAIL_ROOT'])
+        journal = root / ('reports/glp-clinic-scout/seo-machine/current-release-'
+                          '38133df58fc5406adeb87ed88771cc6ceeb26342/'
+                          'CURRENT-PROMOTION-8291d24b-a1c6-4340-bd42-2efa9f2ba2b7.json')
+        raw_journal = journal.read_bytes()
+        self.assertEqual(c.sha_bytes(raw_journal),
+                         '162966b57bf902f14dce9dc43a13d3c639f77af4f35fd7f375dadbda3bb7d5e6')
+        receipt = json.loads(raw_journal)
+        self.assertEqual(receipt['status'], 'BLOCKED_ROLLED_BACK')
+        rows = [r for r in receipt['stages']['route_probe_raw']
+                if r['url'] == c.SITE + '/providers/']
+        self.assertEqual(len(rows), 11)
+        self.assertEqual(len({r['body_sha256'] for r in rows}), 11)
+        expected_path = root / ('reports/ops/glp43-wrangler-shape-repair-20260927/'
+                                'prepared-final381/release/public/providers/index.html')
+        expected = expected_path.read_bytes()
+        expected_sha = '401d31e5c8a79bd1fdc1de78fc6a1bdb30d29b7c9ea8f70cb2d480d461789704'
+        self.assertEqual((len(expected), c.sha_bytes(expected)), (687450, expected_sha))
+        self.email_probe_fixture()
+        (self.public / 'providers/index.html').write_bytes(expected)
+        self.email_item = {'url_path': '/providers/', 'bytes': len(expected), 'sha256': expected_sha}
+        for saved in rows:
+            with self.subTest(retained_sha256=saved['body_sha256']):
+                self.assertNotIn('comparison', saved)  # original failed evidence stays failed
+                body = Path(saved['body_path']).read_bytes()
+                self.assertEqual((len(body), c.sha_bytes(body)), (saved['bytes'], saved['body_sha256']))
+                self.assertEqual((saved['expected_bytes'], saved['expected_sha256']), (len(expected), expected_sha))
+                row = self.email_probe(body)
+                restored = c.current_restore_cf_email(body)
+                self.assertEqual(restored, expected)
+                self.assertEqual((len(restored), c.sha_bytes(restored)), (687450, expected_sha))
+                self.assertEqual((row['compared_bytes'], row['compared_sha256']), (687450, expected_sha))
+                self.assert_email_raw_retained(body)
+        self.assertEqual(journal.read_bytes(), raw_journal)
+        self.assertEqual(expected_path.read_bytes(), expected)
 
     def test_current_deployment_list_defaults_complete_and_fail_closed(self):
         # Real provider rejected this exact legacy query with HTTP 400/8000024.

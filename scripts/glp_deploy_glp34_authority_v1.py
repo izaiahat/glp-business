@@ -2046,19 +2046,20 @@ def current_route_specs(root: Path) -> list[dict[str, Any]]:
              "bytes": (root / name).stat().st_size} for name in names]
 
 
-# Narrow reuse of verify_glp_wave2_production.normalize_cf_email_html's
-# exact mailto-anchor reversal: same XOR decoding, matching href/span mailbox,
-# approved mailboxes and literal decoder. Do NOT import its broader wrapper,
-# plaintext or query-link normalization into this current-only comparison.
+# Exact mailto/span reversal plus the retained providers plaintext shape.
+# Do not import the historical normalizer's query links or generic cleanup.
 CURRENT_CF_EMAIL_ANCHOR_RE = re.compile(
     rb'<a href="/cdn-cgi/l/email-protection#([0-9A-Fa-f]+)"><span class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</span></a>'
+)
+CURRENT_CF_EMAIL_PLAIN_RE = re.compile(
+    rb'<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</a>'
 )
 CURRENT_CF_EMAIL_DECODER_SCRIPT = b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
 
 
 def current_restore_cf_email(value: bytes) -> bytes:
-    """Reverse only the observed CF mailto/span shape; never normalize source."""
-    def decode_cloudflare_hex(encoded: bytes) -> bytes:
+    """Reverse only proven CF shapes; the caller still requires all source bytes."""
+    def decode_cloudflare_hex(encoded: bytes, *, plaintext: bool = False) -> bytes:
         if len(encoded) < 4 or len(encoded) % 2:
             fail("cloudflare_email_hex_invalid")
         try:
@@ -2066,7 +2067,11 @@ def current_restore_cf_email(value: bytes) -> bytes:
             decoded = bytes(byte ^ raw[0] for byte in raw[1:]).decode("utf-8")
         except (UnicodeDecodeError, ValueError):
             fail("cloudflare_email_decode_invalid")
-        if decoded not in {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"}:
+        # The mailto allowlist is unchanged. Only the exact retained plaintext
+        # spelling is supported; this is not a general provider-email decoder.
+        allowed = ({"care@BiltRx.com"} if plaintext else
+                   {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"})
+        if decoded not in allowed:
             fail("cloudflare_email_unapproved")
         return decoded.encode("ascii")
 
@@ -2077,11 +2082,27 @@ def current_restore_cf_email(value: bytes) -> bytes:
             fail("cloudflare_email_anchor_span_mismatch")
         return b'<a href="mailto:' + href_address + b'">' + href_address + b'</a>'
 
+    anchors = list(CURRENT_CF_EMAIL_ANCHOR_RE.finditer(value))
+    plain = list(CURRENT_CF_EMAIL_PLAIN_RE.finditer(value))
+    # Retained providers evidence has one plaintext region before one mailto
+    # region, each flushed at its next original script. Support exactly that
+    # extra shape, not an arbitrary number of plaintext rewrites or decoders.
+    if plain and (len(plain) != 1 or len(anchors) != 1 or plain[0].end() > anchors[0].start()):
+        fail("cloudflare_email_plaintext_shape_invalid")
     restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
+    restored = CURRENT_CF_EMAIL_PLAIN_RE.sub(
+        lambda match: decode_cloudflare_hex(match.group(1), plaintext=True), restored)
     script_count = value.count(CURRENT_CF_EMAIL_DECODER_SCRIPT)
-    if count:
-        if script_count < 1 or script_count > count:
+    if count or plain:
+        boundaries = {value.find(b"<script", match.end()) for match in [*anchors, *plain]}
+        if (script_count < 1 or script_count != len(boundaries)
+                or (plain and len(boundaries) != 2)):
             fail("cloudflare_email_decoder_script_count_invalid")
+        for position in boundaries:
+            after = position + len(CURRENT_CF_EMAIL_DECODER_SCRIPT)
+            if (position < 0 or not value.startswith(CURRENT_CF_EMAIL_DECODER_SCRIPT, position)
+                    or not value.startswith((b"<script ", b"<script>"), after)):
+                fail("cloudflare_email_decoder_script_location_invalid")
         restored = restored.replace(CURRENT_CF_EMAIL_DECODER_SCRIPT, b"")
     elif script_count:
         fail("cloudflare_email_decoder_without_anchor")
@@ -2392,6 +2413,37 @@ def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any],
             "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
 
 
+def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[str, Any],
+                                      original_path: Path, prior_path: Path) -> dict[str, Any]:
+    # Only the original per-deployment journal may grant one forward successor.
+    prior_sha = args.expected_terminal_promotion_sha256
+    if (not args.authorize_renewed_promotion or not isinstance(prior_sha, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", prior_sha)):
+        fail("current_promotion_renewal_authorization_missing")
+    prior = current_json(prior_path, prior_sha)
+    stages, effects = prior.get("stages"), prior.get("effects")
+    selection = {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head,
+                 "predecessor_id": CURRENT_ROLLBACK,
+                 "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+                 "effect": "select_existing_successful_production_deployment"}
+    if (prior.get("schema") != "glp43-current-promotion-receipt-v1"
+            or prior.get("status") != "BLOCKED_ROLLED_BACK" or prior.get("binding") != binding
+            or prior.get("original_receipt") != str(original_path) or prior.get("site_head") != args.site_head
+            or not isinstance(stages, dict) or not isinstance(effects, dict)
+            or stages.get("existing_candidate_selection_intent") != selection
+            or stages.get("existing_candidate_selection_result") != {"returned": True}
+            or stages.get("existing_candidate_selection_confirmed") != {
+                "deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
+            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or "pointer_intent" in stages or "pointer_cas" in stages
+            or effects != {
+                "pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                "existing_candidate_selections_confirmed": 1, "guarded_rollback_post_intents": 1,
+                "guarded_rollbacks_confirmed": 1, "pointer_atomic_cas": 0}):
+        fail("current_promotion_terminal_preimage_mismatch")
+    return {**binding, "terminal_promotion_sha256": prior_sha}
+
+
 def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
@@ -2399,14 +2451,22 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
     original_path = run_dir / "CURRENT-RECEIPT.json"
     binding = current_promotion_source(args, prepared, original_path)
+    renewing = args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
+    prior_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + ".json")
+    if renewing:
+        binding = current_promotion_terminal_source(args, binding, original_path, prior_path)
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     lock_fd = acquire_lock()
     try:
         deployment_id, head = args.candidate_deployment_id, args.site_head
-        receipt_path = run_dir / ("CURRENT-PROMOTION-" + deployment_id + ".json")
+        receipt_path = (run_dir / ("CURRENT-PROMOTION-" + deployment_id + "-SUCCESSOR-"
+                                   + binding["terminal_promotion_sha256"] + ".json") if renewing else prior_path)
         selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
                      "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
                      "effect": "select_existing_successful_production_deployment"}
+        if renewing:
+            current_promotion_terminal_source(args, current_promotion_source(args, prepared, original_path),
+                                              original_path, prior_path)
         client = CloudflareClient(read_token())
         if receipt_path.exists():
             require_regular(package_plain_path(receipt_path))
@@ -2424,7 +2484,9 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_promotion_predecessor_or_candidate_mismatch")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            current_promotion_source(args, prepared, original_path)
+            source_binding = current_promotion_source(args, prepared, original_path)
+            if renewing:
+                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
             verify_signed_predecessor(prepared["predecessor_pointer"])
             receipt = {"schema": "glp43-current-promotion-receipt-v1", "status": "ACTIVE", "binding": binding,
                        "original_receipt": str(original_path), "site_head": head,
@@ -2441,7 +2503,14 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_canonical_changed_before_promotion")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            current_promotion_source(args, prepared, original_path)
+            source_binding = current_promotion_source(args, prepared, original_path)
+            if renewing:
+                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
+                # An old candidate read is not a license for a renewed POST.
+                candidate = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments/{deployment_id}")
+                if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
+                        or deployment_commit(candidate) != head or not successful_production(candidate)):
+                    fail("current_promotion_candidate_changed_before_selection")
             verify_signed_predecessor(prepared["predecessor_pointer"])
             try:
                 client.rollback(deployment_id)
@@ -2500,6 +2569,8 @@ def current_main(argv: list[str]) -> int:
         for flag in ("site-head", "candidate-deployment-id", "expected-rolled-back-receipt-sha256"):
             parser.add_argument("--" + flag, required=True)
         parser.add_argument("--authorize-existing-promotion", action="store_true")
+        parser.add_argument("--authorize-renewed-promotion", action="store_true")
+        parser.add_argument("--expected-terminal-promotion-sha256")
     args = parser.parse_args(argv)
     try:
         runner = (run_prepare_current if preparing else run_promote_current_existing
