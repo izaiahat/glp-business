@@ -883,6 +883,37 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
     if retained_tab and (dry or type(time_origin) not in (int, float) or time_origin <= 0):
         raise ValueError('retained submission requires a bound document and effectful authority')
     payload = json.dumps(text)
+    # Retained sends must re-prove document, exact original draft and full
+    # model/readiness in the synchronous evaluation that clicks Send.
+    retained_click = ("(()=>{const retainedOrigin=" + json.dumps(time_origin) +
+        ";const intended=" + payload + ";" + r'''
+        if(performance.timeOrigin!==retainedOrigin)return {clicked:false,reason:'document'};
+        const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
+        if(!e||e.innerText!==intended)return {clicked:false,reason:'composer'};
+        const visible=x=>!!x&&x.getClientRects().length>0&&getComputedStyle(x).display!=='none'&&getComputedStyle(x).visibility!=='hidden';
+        const body=document.body.innerText.slice(0,2000);
+        const security=document.title+'\n'+body;
+        if(document.readyState!=='complete'||!visible(e)||
+           document.querySelector('[data-message-author-role]')||
+           /just a moment|checking your browser|performing security verification|verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human|too many requests/i.test(security)||
+           [...document.querySelectorAll('iframe')].some(f=>visible(f)&&/challenges\.cloudflare\.com|recaptcha|hcaptcha/i.test(f.src+' '+f.title))||
+           document.querySelector('button[data-testid="login-button"]')||
+           [...document.querySelectorAll('button')].some(b=>/^Log in$/.test(b.innerText.trim()))||
+           document.querySelector('button[data-testid="stop-button"]')||
+           /Reconnect Google Drive/.test(body)||
+           (()=>{const main=document.querySelector('main');return !!main&&[...main.querySelectorAll('div[class*="group/activity-header"] span, button')].some(x=>x.textContent.trim()==='Thinking failed'&&(x.matches('button')||x.children.length===0));})())return {clicked:false,reason:'readiness'};
+        const model=[...document.querySelectorAll('button')].map(b=>b.innerText.trim()).find(t=>/^\s*\d+\s*Pro\s*$/.test(t)||/^\s*\d+(\.\d+)?\s*(Sol)?\s*$/.test(t));
+        const view=document.querySelector('[data-model-picker-view=simple]');
+        const rows=view?[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];
+        const slider=view&&view.querySelector('[data-reasoning-slider] [role=slider]');
+        const fullPicker=rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&
+          rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&
+          !!rows[0].querySelector('[data-maximum=true]')&&!!slider&&
+          slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
+        if((model && !/^\s*6\s*Pro\s*$/.test(model))||(!model&&!fullPicker))return {clicked:false,reason:'model'};
+        const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
+        if(!b||b.disabled)return {clicked:false,reason:'send_disabled'};
+        b.click();return {clicked:true};})()''')
     script = BU_PRELUDE + f'''
 CHUNK={IPC_CHUNK}
 RETAINED={retained_tab!r}
@@ -952,6 +983,8 @@ for readiness_observations in range(1, 47):
         reason="SECURITY_INTERSTITIAL" if st["security_interstitial"] else "APP_NOT_READY"
         _binding_error(reason, state=st, tab=tab["targetId"], readiness=readiness)
     time.sleep(min(2, remaining))
+# Do not touch a model picker on a replacement document after the readiness wait.
+if RETAINED: _fresh()
 # On a fresh chat the trigger may display the selected effort (e.g. Medium),
 # not the model. Select maximum power only on the observed five-step picker;
 # never infer GPT-6 from a bare Pro trigger or from a slider click alone.
@@ -959,7 +992,9 @@ if not st["model"]:
     trigger="button[aria-label='Select ChatGPT model']"
     label=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");return b?b.innerText.trim():null;}})()")
     if label in ('Medium', 'Pro'):
-        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!b||b.innerText.trim()!=="+json.dumps(label)+")return false;b.click();return true;}})()")
+        if RETAINED: _fresh()
+        picker_guard=("performance.timeOrigin==="+json.dumps(ORIGIN)+"&&!!(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))&&!((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]')).innerText.trim())") if RETAINED else "true"
+        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!("+picker_guard+")||!b||b.innerText.trim()!=="+json.dumps(label)+")return false;b.click();return true;}})()")
         if opened and label == 'Medium':
             # The slider is visible only in the simple view. Its fifth tick was
             # observed to show the full '6 Pro' model/effort row on acct2.
@@ -978,7 +1013,8 @@ if not st["model"]:
                 time.sleep(0.3)
                 selected=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const rows=v?[...v.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];const slider=v&&v.querySelector('[data-reasoning-slider] [role=slider]');return !!b&&b.getAttribute('aria-expanded')==='true'&&rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&!!rows[0].querySelector('[data-maximum=true]')&&!!slider&&slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';}})()")
                 if selected: break
-            _bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(b&&b.getAttribute('aria-expanded')==='true')b.click();return true;}})()")
+            if RETAINED: _fresh()
+            _bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(("+picker_guard+")&&b&&b.getAttribute('aria-expanded')==='true')b.click();return true;}})()")
             if selected: st['model']='6 Pro'
 if not st["model"] or not __import__("re").match(r"^\\s*6\\s*Pro\\s*$", st["model"]):
     _binding_error("WRONG_MODEL", state=st)
@@ -1040,7 +1076,14 @@ if {dry!r}:
     print("RELAY_JSON:"+json.dumps({{"dry_run":True,"inserted":got,"left_after_clear":left}})); raise SystemExit(0)
 _fresh()
 _sent='UNKNOWN'
-ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, "(()=>{{const b=document.querySelector('button[data-testid=\\"send-button\\"]')||document.querySelector('button[type=\\"submit\\"][aria-label=\\"Send\\"]');if(!b||b.disabled)return false;b.click();return true;}})()"))
+if RETAINED:
+    # _paced_send can wait after _fresh; no Python/CDP round-trip may separate
+    # the final document/message/readiness/model guard from the DOM click.
+    ok=_paced_send(lambda: _bound_js(tab['targetId'], fresh, {retained_click!r}))
+    if not ok['clicked']:
+        _binding_error('retained_send_guard_failed', guard=ok['reason'], tab=tab['targetId'])
+else:
+    ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, "(()=>{{const b=document.querySelector('button[data-testid=\\"send-button\\"]')||document.querySelector('button[type=\\"submit\\"][aria-label=\\"Send\\"]');if(!b||b.disabled)return false;b.click();return true;}})()"))
 if not ok:
     print("RELAY_JSON:"+json.dumps({{"error":"SEND_DISABLED"}})); raise SystemExit(0)
 _sent=True

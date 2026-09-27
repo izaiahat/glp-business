@@ -18,6 +18,7 @@ spec = importlib.util.spec_from_file_location("relay_binding_test_subject", RELA
 relay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(relay)
 REAL_BU = relay.bu
+REAL_SUBPROCESS_RUN = subprocess.run
 HOME = "https://chatgpt.com/"
 SIBLING = HOME + "c/11111111-1111-1111-1111-111111111111"
 WANT = HOME + "c/22222222-2222-2222-2222-222222222222"
@@ -136,6 +137,29 @@ class FakeCDP:
             return {}
         raise AssertionError(f"unexpected CDP command: {method}")
 
+    def eval_retained_js(self, expression):
+        page = self.pages[self.active]
+        source = '''const p=JSON.parse(process.argv[1]);let clicks=0;
+            const editor={innerText:p.composer,getClientRects:()=>[1]};
+            const button={disabled:false,click:()=>clicks++};
+            const model={innerText:p.model||'6 Pro'};
+            const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
+              body:{innerText:p.challenge?'Checking your browser':'ChatGPT'},
+              querySelector:s=>s.includes('prompt-textarea')?editor:
+                s.includes('send-button')?button:null,
+              querySelectorAll:s=>s==='button'?[model]:[],};
+            const performance={timeOrigin:p.origin||12345.5};
+            const getComputedStyle=()=>({display:'block',visibility:'visible'});
+            const result=''' + expression + ''';
+            console.log(JSON.stringify({result,clicks}));'''
+        run = REAL_SUBPROCESS_RUN(['node', '-e', source, json.dumps(page)],
+                                 capture_output=True, text=True, check=True)
+        outcome = json.loads(run.stdout)
+        if outcome['clicks']:
+            # Apply FakeCDP's transition only after the actual guard clicked.
+            self.js("(()=>{const b=document.querySelector('button[data-testid=\\\"send-button\\\"]');if(!b||b.disabled)return false;b.click();return true;})()")
+        return outcome
+
     def js(self, expression):
         page = self.pages[self.active]
         if self.redirect_on_slice and ".innerText.slice(" in expression:
@@ -164,6 +188,8 @@ class FakeCDP:
         if expression.startswith("location.href="):
             self.goto_url(json.loads(expression.split("=", 1)[1]))
             return page["url"]
+        if expression.startswith('(()=>{const retainedOrigin='):
+            return self.eval_retained_js(expression)['result']
         if "const mb=" in expression:
             model = None if self.pro_only_trigger or self.medium_trigger else '6 Pro'
             failure_location = page.get('failure_location', 'activity-header')
@@ -1317,6 +1343,119 @@ console.log(JSON.stringify(fixtures.map(f => {
             with mock.patch.object(sys, 'argv', hcli), self.assertRaises(SystemExit):
                 relay.main()
             sender.assert_called_once()
+
+    def test_retained_resume_paced_send_guard_actual_cli(self):
+        for drift in ('document', 'draft', 'model', 'readiness', 'unchanged'):
+            with self.subTest(drift=drift):
+                case = type(self)()
+                case.setUp()
+                try:
+                    case._run_retained_resume_paced_send_guard(drift)
+                finally:
+                    case.doCleanups()
+
+    def _run_retained_resume_paced_send_guard(self, drift):
+        """The real CLI must keep its consumed attempt held on a post-pacing drift."""
+        import hashlib
+        import socket
+        job = 'fixture-retained-paced-' + drift
+        d = relay.job_dir(job)
+        st = {'job': job, 'account': 'account-a', 'status': 'failed',
+              'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+              'typed': False, 'sent': False, 'input_sha256': 'a' * 64, 'reply_token': 'b' * 64,
+              **{k: 'fixture-' + k for k in relay.PROVENANCE_FIELDS}}
+        st['error'] = {'error': st['reason'], 'typed': False, 'sent': False, 'tab': 'retained',
+                       'state': {'url': HOME, 'model': None, 'assistant_count': 0, 'last_len': 0,
+                                 'security_interstitial': True, 'composer_present': False,
+                                 **{k: False for k in ('human_challenge', 'logged_out', 'rate_limited',
+                                                      'stop', 'drive_reconnect', 'thinking_failed')}}}
+        relay.job_write(job, st)
+        original = (d / 'JOB.json').read_bytes()
+        message = relay._failed_generation_identity(st) + '\noriginal packet'
+        (d / 'MESSAGE.md').write_text(message)
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+            'certainty': 'reserved_may_send', 'job': job, 'account': 'account-a',
+            **{k: st[k] for k in relay.PROVENANCE_FIELDS}})
+        sha = lambda value: hashlib.sha256(value).hexdigest()
+        report = 'reports/fixture-paced-readiness.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        rp.write_text(json.dumps({'jobs': [{'job': job, 'reason': st['reason'],
+            'submission_bound': False, 'typed': False, 'sent': False, 'error_tab': 'retained',
+            'job_sha256': sha(original), 'message_sha256': sha(message.encode()),
+            'ledger_rows_sha256': sha(json.dumps(relay.ledger_rows(self.cfg), sort_keys=True,
+                separators=(',', ':')).encode()), 'time_origin': 12345.5}]}))
+        page = {'url': HOME, 'composer': '', 'text': '', 'messages': False,
+                'stop': False, 'origin': 12345.5, 'model': '6 Pro'}
+        self.browser.pages['retained'] = page
+        real_js = self.browser.js
+        admission = []
+        atomic = []
+        def probe(expression):
+            expr = expression
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                return {'url': page['url'], 'time_origin': page['origin'],
+                        'composer_empty': not page['composer'].strip(), 'user_count': 0}
+            if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
+                return {'origin': page['origin'], 'users': 0, 'assistants': 0,
+                        'empty': not page['composer'].strip(), 'challenge': False,
+                        'interstitial': bool(page.get('challenge')), 'login': False,
+                        'rate': False, 'stop': False, 'reconnect': False}
+            if expr.startswith('(()=>{const retainedOrigin='):
+                outcome = self.browser.eval_retained_js(expr)
+                atomic.append(outcome)
+                return outcome['result']
+            return real_js(expr)
+        self.browser.js = probe
+        real_sleep = self.browser.sleep
+        def paced_sleep(seconds):
+            if seconds > 20 and self.browser.inserts and not self.browser.sent:
+                admission.append(seconds)
+                if drift == 'document':
+                    page.update(origin=99999.5, composer='unrelated replacement draft')
+                elif drift == 'draft':
+                    page['composer'] = 'unrelated replacement draft'
+                elif drift == 'model':
+                    page['model'] = '6 Sol'
+                elif drift == 'readiness':
+                    page['challenge'] = True
+            real_sleep(seconds)
+        self.browser.sleep = paced_sleep
+        argv = ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', job,
+                '--report', report, '--authorize-preimage', sha(original)]
+        with mock.patch.object(socket.socket, 'connect', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(socket, 'create_connection', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO UPLOAD')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')), \
+             mock.patch.object(sys, 'argv', argv), redirect_stdout(io.StringIO()):
+            if drift == 'unchanged':
+                self.assertEqual(relay.main(), 0)
+            else:
+                with self.assertRaisesRegex(SystemExit, 'RESUME_HELD'):
+                    relay.main()
+        self.assertEqual(self.browser.inserts, [('retained', message)])
+        self.assertEqual(len(admission), 1)
+        self.assertEqual(self.browser.created + self.browser.navigations, [])
+        self.assertEqual((d / 'MESSAGE.md').read_text(), message)
+        self.assertEqual(next(d.glob('JOB.pre-retained-resume-*.json')).read_bytes(), original)
+        final = relay.job_state(job)
+        if drift == 'unchanged':
+            self.assertEqual(self.browser.sent, [('retained', message)])
+            self.assertEqual((final['status'], final['retry_blocked']), ('running', False))
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume', 'submission_bound'])
+            self.assertEqual(atomic[0]['clicks'], 1)
+        else:
+            self.assertEqual(self.browser.sent, [])
+            self.assertTrue(final['retry_blocked'])
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume'])
+            self.assertTrue(not atomic or atomic[0]['clicks'] == 0)
+            with mock.patch.object(sys, 'argv', argv), self.assertRaises(SystemExit):
+                relay.main()
+            self.assertEqual(self.browser.sent, [])
 
     def test_retained_sender_refuses_reused_missing_or_wrong_model_without_fresh_tab(self):
         self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',
