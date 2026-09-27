@@ -1,0 +1,14 @@
+{
+  "files": {
+    "/home/ubuntu/business/ops/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/ubuntu/business/ops/n8n_dt.py": "3c029b4441de0928dca4294077c9a351b4c3b17d50969cc3b4ee84ffbce5569c",
+    "/home/ubuntu/business/scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.py": "441e990d098bfea79485a6e01b713948ca3aee1b15c7140d55fc2c18e0f83da4",
+    "/home/ubuntu/business/scripts/marketplace_adapters/__init__.py": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445",
+    "/home/ubuntu/business/scripts/marketplace_adapters/_base.py": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+    "/home/ubuntu/business/scripts/marketplace_adapters/maxbounty.py": "2928cdda48370e4bcce686f6d5180c10533c43d7fac76f1308afeb6d45e21e93",
+    "/home/ubuntu/business/scripts/marketplace_adapters/maxbounty_discovery.py": "853e7cb8f16856d570d9f842a29a500d61cf1258387207d2c678406d3b72268e",
+    "/home/ubuntu/business/scripts/marketplace_adapters/portal_lane.py": "ef9b477d0a658148227bb69e6a1ed5df6d626a080511669553a2638ff7821b69"
+  },
+  "schema": "maxbounty-readonly-source-pins-v1"
+}

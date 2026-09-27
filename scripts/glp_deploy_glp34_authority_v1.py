@@ -2413,6 +2413,37 @@ def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any],
             "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
 
 
+def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[str, Any],
+                                      original_path: Path, prior_path: Path) -> dict[str, Any]:
+    # Only the original per-deployment journal may grant one forward successor.
+    prior_sha = args.expected_terminal_promotion_sha256
+    if (not args.authorize_renewed_promotion or not isinstance(prior_sha, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", prior_sha)):
+        fail("current_promotion_renewal_authorization_missing")
+    prior = current_json(prior_path, prior_sha)
+    stages, effects = prior.get("stages"), prior.get("effects")
+    selection = {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head,
+                 "predecessor_id": CURRENT_ROLLBACK,
+                 "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+                 "effect": "select_existing_successful_production_deployment"}
+    if (prior.get("schema") != "glp43-current-promotion-receipt-v1"
+            or prior.get("status") != "BLOCKED_ROLLED_BACK" or prior.get("binding") != binding
+            or prior.get("original_receipt") != str(original_path) or prior.get("site_head") != args.site_head
+            or not isinstance(stages, dict) or not isinstance(effects, dict)
+            or stages.get("existing_candidate_selection_intent") != selection
+            or stages.get("existing_candidate_selection_result") != {"returned": True}
+            or stages.get("existing_candidate_selection_confirmed") != {
+                "deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
+            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or "pointer_intent" in stages or "pointer_cas" in stages
+            or effects != {
+                "pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                "existing_candidate_selections_confirmed": 1, "guarded_rollback_post_intents": 1,
+                "guarded_rollbacks_confirmed": 1, "pointer_atomic_cas": 0}):
+        fail("current_promotion_terminal_preimage_mismatch")
+    return {**binding, "terminal_promotion_sha256": prior_sha}
+
+
 def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
@@ -2420,14 +2451,22 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
     original_path = run_dir / "CURRENT-RECEIPT.json"
     binding = current_promotion_source(args, prepared, original_path)
+    renewing = args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
+    prior_path = run_dir / ("CURRENT-PROMOTION-" + args.candidate_deployment_id + ".json")
+    if renewing:
+        binding = current_promotion_terminal_source(args, binding, original_path, prior_path)
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     lock_fd = acquire_lock()
     try:
         deployment_id, head = args.candidate_deployment_id, args.site_head
-        receipt_path = run_dir / ("CURRENT-PROMOTION-" + deployment_id + ".json")
+        receipt_path = (run_dir / ("CURRENT-PROMOTION-" + deployment_id + "-SUCCESSOR-"
+                                   + binding["terminal_promotion_sha256"] + ".json") if renewing else prior_path)
         selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
                      "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
                      "effect": "select_existing_successful_production_deployment"}
+        if renewing:
+            current_promotion_terminal_source(args, current_promotion_source(args, prepared, original_path),
+                                              original_path, prior_path)
         client = CloudflareClient(read_token())
         if receipt_path.exists():
             require_regular(package_plain_path(receipt_path))
@@ -2445,7 +2484,9 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_promotion_predecessor_or_candidate_mismatch")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            current_promotion_source(args, prepared, original_path)
+            source_binding = current_promotion_source(args, prepared, original_path)
+            if renewing:
+                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
             verify_signed_predecessor(prepared["predecessor_pointer"])
             receipt = {"schema": "glp43-current-promotion-receipt-v1", "status": "ACTIVE", "binding": binding,
                        "original_receipt": str(original_path), "site_head": head,
@@ -2462,7 +2503,14 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
                 fail("current_canonical_changed_before_promotion")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
-            current_promotion_source(args, prepared, original_path)
+            source_binding = current_promotion_source(args, prepared, original_path)
+            if renewing:
+                current_promotion_terminal_source(args, source_binding, original_path, prior_path)
+                # An old candidate read is not a license for a renewed POST.
+                candidate = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments/{deployment_id}")
+                if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
+                        or deployment_commit(candidate) != head or not successful_production(candidate)):
+                    fail("current_promotion_candidate_changed_before_selection")
             verify_signed_predecessor(prepared["predecessor_pointer"])
             try:
                 client.rollback(deployment_id)
@@ -2521,6 +2569,8 @@ def current_main(argv: list[str]) -> int:
         for flag in ("site-head", "candidate-deployment-id", "expected-rolled-back-receipt-sha256"):
             parser.add_argument("--" + flag, required=True)
         parser.add_argument("--authorize-existing-promotion", action="store_true")
+        parser.add_argument("--authorize-renewed-promotion", action="store_true")
+        parser.add_argument("--expected-terminal-promotion-sha256")
     args = parser.parse_args(argv)
     try:
         runner = (run_prepare_current if preparing else run_promote_current_existing

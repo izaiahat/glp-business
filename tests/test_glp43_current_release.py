@@ -494,6 +494,129 @@ class CurrentReleaseTests(unittest.TestCase):
                 finally:
                     f.doCleanups()
 
+    def test_reviewed_terminal_successor_is_one_forward_selection_only(self):
+        # Both journals are fixture-local; the first terminal is produced by the
+        # existing mode, not a fabricated second-promotion permission.
+        for outcome in ("land", "unsettled"):
+            with self.subTest(outcome=outcome):
+                f = CurrentReleaseTests()
+                f.setUp()
+                try:
+                    f.promotion_fixture()
+                    f.readback_fail = True
+                    self.assertEqual(f.promote_fixture(), 1)
+                    prior_path = f.promotion_receipt
+                    prior_bytes, original_bytes, pointer_bytes = (prior_path.read_bytes(),
+                        f.original_receipt.read_bytes(), f.pointer.read_bytes())
+                    prior = json.loads(prior_bytes)
+                    self.assertEqual(prior["status"], "BLOCKED_ROLLED_BACK")
+                    self.assertEqual(prior["effects"]["guarded_rollbacks_confirmed"], 1)
+                    prior_sha = c.sha_bytes(prior_bytes)
+                    f.promotion_receipt = f.run_dir / ("CURRENT-PROMOTION-" + NEW_ID
+                                                       + "-SUCCESSOR-" + prior_sha + ".json")
+                    renewed = {**f.promotion_args, "expected-terminal-promotion-sha256": prior_sha}
+                    flags = ("--authorize-production", "--authorize-existing-promotion",
+                             "--authorize-renewed-promotion")
+                    f.readback_fail = False
+                    f.selections.clear(); f.rollbacks.clear(); f.calls.clear()
+                    def refuse(values=None, switches=flags):
+                        self.assertEqual(f.promote_fixture(values or renewed, switches), 1)
+                        self.assertEqual(f.selections, [])
+                        self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                        self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                        self.assertEqual(f.pointer.read_bytes(), pointer_bytes)
+                        self.assertFalse(f.promotion_receipt.exists())
+                    # Renewal never consumes a terminal without both old grants,
+                    # its explicit grant, and the exact terminal preimage.
+                    refuse(switches=flags[:-1])
+                    refuse(switches=(flags[0], flags[2]))
+                    refuse(switches=(flags[1], flags[2]))
+                    refuse({**renewed, "expected-terminal-promotion-sha256": "0" * 64})
+                    refuse({**renewed, "expected-terminal-promotion-sha256": "not-a-digest"})
+                    refuse({**f.promotion_args}, switches=flags)
+                    # A fresh digest of a nonterminal or differently bound journal
+                    # does not turn that journal into a grant.
+                    for changed in ({"status": "ACTIVE"}, {"binding": {**prior["binding"], "site_head": "f" * 40}},
+                                    {"effects": {**prior["effects"], "guarded_rollbacks_confirmed": 0}}):
+                        prior_path.write_bytes(c.json_bytes({**prior, **changed}))
+                        altered = prior_path.read_bytes()
+                        self.assertEqual(f.promote_fixture(
+                            {**renewed, "expected-terminal-promotion-sha256": c.sha_file(prior_path)}, flags), 1)
+                        self.assertEqual(f.selections, [])
+                        self.assertEqual(prior_path.read_bytes(), altered)
+                        self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                        self.assertEqual(f.pointer.read_bytes(), pointer_bytes)
+                        self.assertFalse(f.promotion_receipt.exists())
+                        # The pinned original digest is independently refused.
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.selections, [])
+                        prior_path.write_bytes(prior_bytes)
+                    f.pointer.write_bytes(pointer_bytes + b" ")
+                    self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                    self.assertEqual(f.selections, [])
+                    self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                    self.assertFalse(f.promotion_receipt.exists())
+                    f.pointer.write_bytes(pointer_bytes)
+                    f.review.update(verdict="CHANGES_REQUIRED", release_accepted=False); f.save_review()
+                    refuse({**renewed, "expected-approval-sha256": c.sha_file(f.approval)})
+                    f.approve_fixture()
+                    f.candidate = dict(f.candidate, latest_stage={"status": "failure"})
+                    refuse()
+                    f.candidate = f.deployment(NEW_ID, f.head)
+                    f.selection_mode = outcome
+                    if outcome == "unsettled":
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+                        self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                        self.assertEqual(f.selections, [NEW_ID])
+                        f.current = copy.deepcopy(f.candidate)
+                    self.assertEqual(f.promote_fixture(renewed, flags), 0, f.last)
+                    successor = json.loads(f.promotion_receipt.read_text())
+                    self.assertEqual(successor["binding"]["terminal_promotion_sha256"], prior_sha)
+                    self.assertEqual(successor["status"], "PASS_PRODUCTION_TERMINAL")
+                    self.assertEqual(successor["effects"]["existing_candidate_selection_post_intents"], 1)
+                    self.assertEqual(successor["effects"]["pointer_atomic_cas"], 1)
+                    self.assertEqual(f.selections, [NEW_ID]); self.assertEqual(f.rollbacks, [])
+                    self.assertEqual(f.promote_fixture(renewed, flags), 1)
+                    self.assertEqual(f.selections, [NEW_ID])
+                    self.assertEqual(prior_path.read_bytes(), prior_bytes)
+                    self.assertEqual(f.original_receipt.read_bytes(), original_bytes)
+                    f.assert_promotion_custody()
+                finally:
+                    f.doCleanups()
+        # Mutation after exclusive intent but before POST burns the successor;
+        # restoring the preimage cannot make that ACTIVE intent send again.
+        f = CurrentReleaseTests()
+        f.setUp()
+        try:
+            f.promotion_fixture()
+            f.readback_fail = True
+            self.assertEqual(f.promote_fixture(), 1)
+            prior_path = f.promotion_receipt
+            prior_bytes = prior_path.read_bytes()
+            digest = c.sha_bytes(prior_bytes)
+            f.promotion_receipt = f.run_dir / ("CURRENT-PROMOTION-" + NEW_ID + "-SUCCESSOR-" + digest + ".json")
+            renewed = {**f.promotion_args, "expected-terminal-promotion-sha256": digest}
+            flags = ("--authorize-production", "--authorize-existing-promotion", "--authorize-renewed-promotion")
+            original_exclusive = c.exclusive_file
+            def drift_after_intent(path, data, *args):
+                original_exclusive(path, data, *args)
+                if path == f.promotion_receipt:
+                    prior_path.write_bytes(prior_bytes + b" ")
+            with mock.patch.object(c, "exclusive_file", side_effect=drift_after_intent):
+                self.assertEqual(f.promote_fixture(renewed, flags), 1)
+            self.assertEqual(f.selections, [NEW_ID])  # only the original promotion POST
+            self.assertEqual(json.loads(f.promotion_receipt.read_text())["status"], "ACTIVE")
+            prior_path.write_bytes(prior_bytes)
+            f.readback_fail = False
+            self.assertEqual(f.promote_fixture(renewed, flags), 1)
+            self.assertEqual(f.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+            self.assertEqual(f.selections, [NEW_ID])
+            self.assertEqual(prior_path.read_bytes(), prior_bytes)
+            f.assert_promotion_custody()
+        finally:
+            f.doCleanups()
+
     def test_preparation_and_drift_refusals_before_output_or_network(self):
         baseline = self.prep_args()
         source = self.source / "src/worker.mjs"
