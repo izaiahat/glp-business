@@ -354,13 +354,7 @@ def gsc_only(report_date: dt.date) -> dict[str, Any]:
     controller_path = BUSINESS / "scripts/glp_weekly_seo_control.py"
     rail_path = BUSINESS / "ops/glp/seo_data_rails.py"
     pin_guard = load_module("weekly_gsc_pin_guard", BUSINESS / "scripts/glp_weekly_seo_analysis.py")
-    raw_pins = pin_guard.PIN_PATH.read_bytes()
-    if hashlib.sha256(raw_pins).hexdigest() != pin_guard.PIN_SHA256:
-        raise ValueError("weekly_pin_manifest_drift")
-    pins = json.loads(raw_pins)["paths"]
-    for source in (REPORT_SCRIPT, rail_path):
-        if pins.get(str(source)) != sha256(source):
-            raise ValueError("weekly_installed_source_drift:" + str(source))
+    pin_guard.verify_pins()
     reporter = load_module("glp_weekly_gsc_collector", REPORT_SCRIPT)
     if full_report.exists() or full_receipt.exists():
         raise RuntimeError("gsc_only_full_weekly_collision")

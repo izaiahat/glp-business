@@ -13,6 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER = ROOT / 'scripts/glp_weekly_seo_control.py'
 REPORT = ROOT / 'scripts/glp_weekly_seo_ranking_report.py'
 RAIL = ROOT / 'ops/glp/seo_data_rails.py'
+ANALYSIS = ROOT / 'scripts/glp_weekly_seo_analysis.py'
+PIN_SOURCE = ROOT / 'ops/glp/seo-weekly-installed-pins.json'
+INSTALLED_ROOT = Path('/home/ubuntu/business')
+PREDECESSOR_CONTROLLER_SHA256 = 'd35dfd19b273feea449ad187cb1adcfb6161a87f3cde7a2ea2421a6306c499d2'
 
 
 def sha(path):
@@ -22,15 +26,31 @@ def sha(path):
 def fixture(tmp_path, monkeypatch, *, mode='normal'):
     import urllib.request
     monkeypatch.setattr(urllib.request, 'urlopen', lambda *a, **kw: pytest.fail('network forbidden'))
-    paths = {}
-    for name, source in [('controller', CONTROLLER), ('report', REPORT), ('rail', RAIL)]:
-        dest = tmp_path / ('ops/glp/seo_data_rails.py' if name == 'rail' else 'scripts/' + source.name)
+    # Relocate the real complete 20-source candidate closure, never a reduced
+    # report/rail-only manifest. The verifier itself is loaded unchanged.
+    original = json.loads(PIN_SOURCE.read_bytes())
+    assert len(original['paths']) == 20
+    relocated = {}
+    for absolute, expected in original['paths'].items():
+        relative = Path(absolute).relative_to(INSTALLED_ROOT)
+        source = ROOT / relative
+        if not source.is_file():
+            source = Path(absolute)  # uncurated unchanged host dependency
+        dest = tmp_path / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(source.read_bytes())
-        paths[name] = dest
+        assert sha(dest) == expected, relative
+        relocated[str(dest)] = expected
+    paths = {'controller': tmp_path / CONTROLLER.relative_to(ROOT),
+             'report': tmp_path / REPORT.relative_to(ROOT),
+             'rail': tmp_path / RAIL.relative_to(ROOT)}
     pins = tmp_path / 'pins.json'
-    pins.write_text(json.dumps({'paths': {str(paths['report']): sha(paths['report']),
-                                          str(paths['rail']): sha(paths['rail'])}}))
+    pins.write_text(json.dumps({**original, 'paths': relocated}))
+    guard_spec = importlib.util.spec_from_file_location('gsc_only_test_analysis', ANALYSIS)
+    guard = importlib.util.module_from_spec(guard_spec)
+    guard_spec.loader.exec_module(guard)
+    guard.PIN_PATH = pins
+    guard.PIN_SHA256 = sha(pins)
     spec = importlib.util.spec_from_file_location('gsc_only_test_controller', CONTROLLER)
     control = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(control)
@@ -59,7 +79,7 @@ def fixture(tmp_path, monkeypatch, *, mode='normal'):
     reporter = SimpleNamespace(**reporter_ns)
     def load(name, path):
         if name == 'weekly_gsc_pin_guard':
-            return SimpleNamespace(PIN_PATH=pins, PIN_SHA256=sha(pins))
+            return guard
         if name == 'glp_weekly_gsc_collector':
             assert path == paths['report']
             return reporter
@@ -72,6 +92,46 @@ def run(control, capsys, date=None):
     date = date or dt.datetime.now(control.PT).date()
     code = control.main(['--gsc-only', '--report-date', date.isoformat()])
     return code, json.loads(capsys.readouterr().out)
+
+
+@pytest.mark.parametrize('replay', [False, True])
+def test_full_pin_admission_refuses_predecessor_controller_before_reporter(
+        tmp_path, monkeypatch, capsys, replay):
+    control, requests, paths, pins = fixture(tmp_path, monkeypatch)
+    if replay:
+        code, first = run(control, capsys)
+        assert code == 0 and len(requests) == 4
+        aggregate = Path(first['aggregate']['path'])
+        receipt = Path(first['receipt'])
+        before = (aggregate.read_bytes(), receipt.read_bytes())
+    # Keep all 20 keys and all 19 other hashes; pair the predecessor controller
+    # leaf with its matching in-memory literal. This is candidate-only, not an
+    # installed pin write. The actual copied controller remains the new source.
+    predecessor = json.loads(pins.read_bytes())
+    assert len(predecessor['paths']) == 20
+    predecessor['paths'][str(paths['controller'])] = PREDECESSOR_CONTROLLER_SHA256
+    pins.write_text(json.dumps(predecessor))
+    guard = control.load_module('weekly_gsc_pin_guard', ANALYSIS)
+    guard.PIN_SHA256 = sha(pins)
+    with pytest.raises(ValueError, match='weekly_installed_source_drift'):
+        guard.verify_pins()  # same unmodified 20-source verifier, independent oracle
+    loaded = []
+    real_load = control.load_module
+    def track_loader(name, path):
+        if name == 'glp_weekly_gsc_collector':
+            loaded.append(name)
+        return real_load(name, path)
+    monkeypatch.setattr(control, 'load_module', track_loader)
+    monkeypatch.setattr(control, 'write_json_once',
+                        lambda *a, **kw: pytest.fail('output write before pin admission'))
+    code, blocked = run(control, capsys)
+    assert code == 2 and blocked['status'] == 'GSC_ONLY_BLOCKED'
+    assert 'weekly_installed_source_drift' in blocked['error']
+    assert not loaded and len(requests) == (4 if replay else 0)
+    if replay:
+        assert (aggregate.read_bytes(), receipt.read_bytes()) == before
+    else:
+        assert not control.REPORT_ROOT.exists() and not control.CONTROL_ROOT.exists()
 
 
 def test_explicit_branch_uses_registered_lock_pins_and_only_gsc(tmp_path, monkeypatch, capsys):
