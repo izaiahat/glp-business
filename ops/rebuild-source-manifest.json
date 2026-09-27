@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
+      "sha256": "055f3f5e40ae0a507106afa04928cd238402b7dbd2dc02b6112a7163442b0d00"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -85,6 +85,11 @@
       "callers": [],
       "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
+    },
+    "ops/GLP42-PACKAGE-ONLY.md": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "9908684502b12935a83d0746a063d46cfe218b1bf3badc33e1518fa0c707a7ff"
     },
     "ops/autonomy-envelope.json": {
       "callers": [],
@@ -931,6 +936,20 @@
       "kind": "script",
       "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
     },
+    "scripts/generate_glp34_deploy_carrier.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "b805aa88e1075744c089051f9fcd2e79444ac04bea1059b7dcf0101ff6993fcb"
+    },
+    "scripts/glp34_package_only.inc.py": {
+      "callers": [
+        "scripts/generate_glp34_deploy_carrier.py"
+      ],
+      "kind": "script",
+      "sha256": "4504109cd7e5bc4e131f3d8a7c02e97bc0956c6cd1c6e5b17df92e54679a8bef"
+    },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
         "migration-survivor"
@@ -994,6 +1013,20 @@
       ],
       "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
+    },
+    "scripts/glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "e54a4af3166e7756f1460283b346a4c76c000cdcde30af7b2d22672b5960366d"
+    },
+    "scripts/glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "a4aa6b8998667594cefd6ad59e12ef6d55e50e766b969c2d4d315b3f1f45d995"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1133,7 +1166,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "53f0e39a7852cb9ea5180be342f22a508f1eb46bbec5afd8c4d2722e46ac6c9d"
+      "sha256": "62364315019d92c25a52e51006266a5c8b2fc037e08f15c1bb80ee628f658d42"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -1270,7 +1303,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "14b50a7e8d39e91b1c107a6abfe15f9b36200d5a275d5d81684d1a118fd20f5a"
+      "sha256": "52ee6185402b43065b7eeb8a4bff3db1338015b9fbbcefc0c1bcdb9e9ffeef5a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1827,6 +1860,13 @@
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
+    "tests/test_glp42_package_only.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "54e7f2af2eadc7b055ed6f2372b9f366599afd2791d795bcec9aeb4875b13eb3"
+    },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
         "GLP-44 registered weekly ranking collector/report"
@@ -1925,6 +1965,20 @@
       ],
       "kind": "test",
       "sha256": "dda65b95b06223a8107b97a4dc478251e70a5192e5bcf0d30cd2839e84e480ba"
+    },
+    "tests/test_glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "274b602a2cf6871b91eaf6877fedba81924eb83800e189278db80feb22cb2599"
+    },
+    "tests/test_glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "95300e56a4431384ba5dd2a36e694bd1bb7548c889de66c79b518ba2aac95a23"
     },
     "tests/test_glp_earnings_notice.py": {
       "callers": [],
@@ -2074,7 +2128,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "3c2246e5b3f5e6531ad2416eba3ce8b4c9b7d769fe4929c617663df3f86963c4"
+      "sha256": "5a34162187a4b527b2dcde8790c7f4df36b74710bf3daa6f4f4cd8c8628bbeec"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -2227,5 +2281,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 341
+  "tracked_count": 349
 }
