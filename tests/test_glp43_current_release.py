@@ -862,6 +862,49 @@ class CurrentReleaseTests(unittest.TestCase):
         self.assertEqual(self.publish(), 1)
         self.assertEqual(self.calls, before)
 
+    def test_current_runtime_uses_registered_route_identity_without_changing_readbacks(self):
+        # Capture the native Requests at the opener boundary: never issue HTTP.
+        requests, handlers = [], []
+        def opener(*installed):
+            handlers.append(installed)
+            def intercepted(request, **kwargs):
+                requests.append(request)
+                return self.transport(request, **kwargs)
+            return mock.Mock(open=intercepted)
+
+        receipt_path = self.root / "readback/CURRENT-RECEIPT.json"
+        receipt_path.parent.mkdir()
+        asset = self.public / "assets/consent.js"
+        item = {"url_path": "/assets/consent.js", "sha256": c.sha_file(asset), "bytes": asset.stat().st_size}
+        prepared = {"holds": {"held": [{"id": "fella-health"}]},
+                    "source": {"go_embedded_sha256": "e" * 64,
+                               "go_internal_fallback": c.SITE + "/providers/"}}
+        with mock.patch.object(c.urllib.request, "build_opener", side_effect=opener):
+            c.current_route_probe(self.current["url"], item, self.public, receipt_path, {"stages": {}})
+            rows = c.current_runtime_readback(self.current, prepared)
+            self.assertEqual(len(rows), 15)  # five paths, three bases
+            self.assertEqual([row["method"] for row in rows[:5]],
+                             ["HEAD", "GET", "HEAD", "HEAD", "HEAD"])
+            self.assertEqual([row["status"] for row in rows[:5]], [200, 301, 405, 200, 307])
+            self.assertEqual([request.get_method() for request in requests[:6]],
+                             ["GET", "HEAD", "GET", "HEAD", "HEAD", "HEAD"])
+            for request, installed in zip(requests, handlers):
+                self.assertEqual(request.get_header("User-agent"), "glp-r13-authority-carrier/3")
+                self.assertEqual(request.get_header("Cache-control"), "no-cache")
+                self.assertTrue(any(isinstance(handler, c.CurrentNoRedirect) for handler in installed))
+                self.assertIsNone(request.data)
+            self.assertEqual(len(requests), 16)
+            self.readback_fail = True  # Callback must still refuse a non-405 response.
+            with self.assertRaisesRegex(c.GateError, "current_runtime_readback_failed:/api/postback/affiliati"):
+                c.current_runtime_readback(self.current, prepared)
+            self.readback_fail = False
+            prepared["source"]["go_embedded_sha256"] = "0" * 64
+            with self.assertRaisesRegex(c.GateError, "current_runtime_readback_failed:/go/_manifest"):
+                c.current_runtime_readback(self.current, prepared)
+        self.assertEqual(self.deploy_calls, [])
+        self.assertEqual(self.rollbacks, [])
+        self.assertEqual(self.builds, [])
+
     def email_probe_fixture(self):
         # Exact observed mailto/span shape, with different XOR keys for href/span.
         self.email_expected = (b'<html><body>$199 <a href="mailto:support@glpclinicscout.com">'
