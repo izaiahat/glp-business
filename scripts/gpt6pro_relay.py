@@ -563,7 +563,8 @@ def active_registry():
     for path in sorted(JOBS.glob('*/JOB.json')):
         st = json.loads(path.read_text())
         if st.get('status') in ACTIVE_STATES or (st.get('retry_blocked') and
-                not (st.get('status') == 'failed' and st.get('reason') == 'THINKING_FAILED')):
+                not (st.get('status') == 'failed' and st.get('reason') == 'THINKING_FAILED') and
+                not (st.get('job') == path.parent.name and _verified_terminal_unsent(st))):
             rows.append({'job': path.parent.name, 'account': st.get('account'),
                          'status': st.get('status'), 'conversation_id': st.get('conversation_id'),
                          'retry_blocked': bool(st.get('retry_blocked'))})
@@ -2345,7 +2346,158 @@ def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | Non
         return 0
 
 
-def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = None) -> int:
+# Obsolete PR52/44f52bba: source-proven initial _exact('') refusal BEFORE TEXT.
+# These immutable incident bytes are NOT a generic cancellation or retry policy.
+TERMINAL_UNSENT_PR52 = {
+    'job': 'pro-glp318-pr52-44f52bba-integration-review-20260927',
+    'held': '1547740d1c1093b628e40050db6f313a30db90ba89c02336940ccaffe5d86ac5',
+    'backup': '349f843d584f11cc5a5e6f03a092b347aa0b3676b75051ccbe282de261146f17',
+    'message': '2cc8c1c8d5b73218d3a1e0f08e038c5938e584c4d84d38de8879932f02978166',
+    'manifest': 'cb5ac9ed06e1a5c67fd6cd0118735366466db183d461391f3346e62806f67618',
+    'drive_prompt': '2aa146621777338096f0da54bdeed721d060242d986312709b8bee3b4c762a0d',
+    'ledger_lines': ('0283006ad6de6df682e6fc57a9e932b3040a024b79a6133cd028d0379299bb96',
+                     'f344dbec7d98913be323552a7aa6baf76a9313b57dbc91a91060bec983b07223'),
+    'tab': 'D3DD42837C1937487F27C4C6870EF9D9',
+    'time_origin': 1790488400308.6,
+}
+
+
+def _terminal_unsent_custody(cfg, st, preimage, report):
+    """Offline exact-byte proof shared by disposition and admission readback."""
+    c = TERMINAL_UNSENT_PR52
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    def refuse(reason):
+        raise ValueError(reason)
+    if (sha(preimage) != c['held'] or json.loads(preimage) != st or st.get('job') != c['job'] or
+            st.get('status') != 'failed' or st.get('reason') != 'RETAINED_RESUME_UNCERTAIN' or
+            st.get('typed') is not False or st.get('sent') is not False or st.get('retry_blocked') is not True or
+            st.get('resume_error') != {'error': 'composer_not_empty', 'typed': False,
+                                     'sent': False, 'tab': c['tab']}):
+        refuse('STATE')
+    d = JOBS / c['job']
+    if any((d / name).exists() for name in ('RESPONSE.md', 'outbox')):
+        refuse('OUTPUT')
+    pins = {'JOB.pre-retained-resume-' + c['backup'] + '.json': c['backup'],
+            'MESSAGE.md': c['message'], 'MANIFEST.json': c['manifest'],
+            'drive-input/PROMPT.md': c['drive_prompt']}
+    custody = {d / name: (d / name).read_bytes() for name in pins}
+    if any(sha(custody[d / name]) != digest for name, digest in pins.items()):
+        refuse('CUSTODY')
+    manifest = json.loads(custody[d / 'MANIFEST.json'])
+    paths = [d / 'PROMPT.md', *manifest['attach'], *manifest['drive_attach']]
+    if any(not Path(p).resolve().is_relative_to(d.resolve()) for p in paths):
+        refuse('PACKET_PATH')
+    custody.update({Path(p): Path(p).read_bytes() for p in paths})
+    packet = [(Path(p).name, sha(custody[Path(p)])) for p in paths]
+    if sha(json.dumps(packet, separators=(',', ':')).encode()) != st['input_sha256']:
+        refuse('PACKET')
+    ledger = ledger_path(cfg)
+    custody[ledger] = ledger.read_bytes()
+    # Parse every row strictly, including unrelated ones; never hide a binding.
+    all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
+    lines = [line for line, row in all_rows if row.get('job') == c['job']]
+    rows = [json.loads(line) for line in lines]
+    if tuple(map(sha, lines[:2])) != c['ledger_lines']:
+        refuse('LEDGER')
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        refuse('REPORT_PATH')
+    custody[rp] = rp.read_bytes()
+    matching = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_obsolete', 'reason': st['reason'],
+                'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': c['held'],
+                'message_sha256': c['message'], 'error_tab': c['tab'], 'time_origin': c['time_origin'],
+                'ledger_rows_sha256': sha(json.dumps(rows[:2], sort_keys=True, separators=(',', ':')).encode())}
+    if (len(matching) != 1 or any(matching[0].get(k) != v for k, v in expected.items()) or
+            any(matching[0].get(k) is not False for k in ('typed', 'sent', 'submission_bound'))):
+        refuse('REPORT')
+    return custody, rows
+
+
+def _terminal_unsent_event(st, report, report_bytes, observed_at):
+    c = TERMINAL_UNSENT_PR52
+    return {'event': 'terminal_unsent', 'job': c['job'], 'account': st['account'],
+            'preimage_sha256': c['held'], 'message_sha256': c['message'],
+            'retained_tab': c['tab'], 'time_origin': c['time_origin'],
+            'report': report, 'report_sha256': hashlib.sha256(report_bytes).hexdigest(),
+            'observed_at': observed_at}
+
+
+def _verified_terminal_unsent(st):
+    """No flag-based release: require exact preimage + preserved packet + APPLIED journal.
+
+    Fail closed after any interrupted apply or changed evidence. Cleanup deliberately
+    does NOT use this admission exception: retry_blocked still protects error.tab.
+    """
+    if st.get('job') != TERMINAL_UNSENT_PR52['job'] or not isinstance(st.get('terminal_unsent'), dict):
+        return False
+    try:
+        proof = st['terminal_unsent']
+        backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + TERMINAL_UNSENT_PR52['held'] + '.json')
+        preimage = backup.read_bytes()
+        original = json.loads(preimage)
+        custody, rows = _terminal_unsent_custody(load_config(), original, preimage, proof['report'])
+        expected = _terminal_unsent_event(original, proof['report'],
+            custody[(BUSINESS / proof['report']).resolve()], proof['observed_at'])
+        return (datetime.fromisoformat(proof['observed_at']).tzinfo is not None and
+                proof == expected and st == {**original, 'terminal_unsent': proof} and len(rows) == 4 and
+                all(row == {'ts': row.get('ts'), **proof, 'phase': phase}
+                    for row, phase in zip(rows[2:], ('STARTED', 'APPLIED'))))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return False
+
+
+def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize_preimage, account):
+    """Registered, forward-only disposition; NEVER restores, clears or resends."""
+    c = TERMINAL_UNSENT_PR52
+    def refuse(reason):
+        raise SystemExit('TERMINAL_UNSENT_REFUSED_' + reason + ' ' + c['job'])
+    if (st.get('account') != account or (apply and authorize_preimage != c['held']) or
+            (not apply and authorize_preimage is not None)):
+        refuse('AUTHORITY')
+    try:
+        custody, rows = _terminal_unsent_custody(cfg, st, preimage, report)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        refuse('CUSTODY')
+    backup = path.with_name('JOB.pre-terminal-unsent-' + c['held'] + '.json')
+    if len(rows) != 2 or backup.exists():
+        refuse('HISTORY')
+    if _legacy_live_jobs():
+        refuse('LIVE_RUNNER')
+    admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
+                                'require-held'], capture_output=True, text=True)
+    if admission.returncode:
+        refuse('ADMISSION')
+    if not _retained_empty_witness(c['tab'], c['time_origin']):
+        refuse('TAB_EVIDENCE')
+    def recheck():
+        if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
+                any((path.parent / name).exists() for name in ('RESPONSE.md', 'outbox')) or _legacy_live_jobs()):
+            refuse('DRIFT')
+    recheck()
+    if not apply:
+        print('WOULD_TERMINALIZE_UNSENT job=' + c['job'] + ' preimage_sha256=' + c['held'])
+        return 0
+    # Both consumed attempts/failures survive in the unchanged preimage and old rows.
+    with backup.open('xb') as fh:
+        fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+    fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+    recheck()
+    event = _terminal_unsent_event(st, report, custody[(BUSINESS / report).resolve()], now_iso())
+    ledger_append(cfg, {**event, 'phase': 'STARTED'})
+    job_write(c['job'], {**st, 'terminal_unsent': event})
+    ledger_append(cfg, {**event, 'phase': 'APPLIED'})
+    if not _verified_terminal_unsent(job_state(c['job'])):
+        refuse('READBACK')
+    # No cleanup, page close, status reset, or retry permission.
+    print('TERMINALIZED_UNSENT job=' + c['job'] + '; permanently retry-blocked; retained tab protected')
+    return 0
+
+
+def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = None,
+                           authorize_preimage: str | None = None) -> int:
     """Reconcile pre-insert model/readiness refusals, never a possibly-sent job.
 
     Jobs are either allowlisted below or named with an explicit ``report``
@@ -2357,6 +2509,10 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     of the exact job rows serialized with sorted keys and compact separators),
     and time_origin from an admitted read of the retained challenge-free tab.
     It preserves retry_blocked and the retained tab; it is not a resume API.
+    The exact pinned obsolete PR52 job instead appends terminal_unsent proof.
+    Its explicit report row must say disposition=terminal_unsent_obsolete;
+    --apply also requires --authorize-preimage for the current consumed JOB.
+    Only a DIFFERENT job can benefit from its verified terminal admission case.
     """
     incidents = {
         'glp270-20260924d-taxonomy-all-expiring-rows':
@@ -2387,6 +2543,11 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
+        if job == TERMINAL_UNSENT_PR52['job']:
+            return _reconcile_terminal_unsent(cfg, st, path, preimage, report_path,
+                                              apply, authorize_preimage, selected_account)
+        if authorize_preimage is not None:
+            raise SystemExit('MODEL_RECONCILE_REFUSED_AUTHORITY_SCOPE ' + job)
         if st.get('reason') == 'SECURITY_INTERSTITIAL' and report is not None:
             return _reconcile_unsent_readiness(job, cfg, st, path, preimage,
                                               report_path, apply, selected_account)
@@ -2486,7 +2647,8 @@ def _cmd_submit(a) -> int:
     if previous.get("status") in ("submitting", "running", "done") or previous.get("retry_blocked"):
         raise SystemExit(f"REFUSED_DUPLICATE job {a.job} already submitted or uncertain (use poll/operator recovery)")
     siblings = sibling_bindings(acct["label"], a.job)
-    if any((s.get("status") in ("submitting", "running") or s.get("retry_blocked")) and not binding_url(s) for s in siblings):
+    if any((s.get("status") in ("submitting", "running") or s.get("retry_blocked")) and
+           not binding_url(s) and not _verified_terminal_unsent(s) for s in siblings):
         raise SystemExit("BINDING_UNVERIFIED sibling has no persistent id; operator recovery needed")
     forbidden = [binding_url(s) for s in siblings if binding_url(s)]
     used, limit = (0, 0) if a.dry_run else budget_check(cfg, acct)
@@ -2777,6 +2939,7 @@ def main() -> int:
     m.add_argument("--job", required=True)
     m.add_argument("--report", help="unlisted job: report JSON (relative to business root) whose row proves it unsent")
     m.add_argument("--apply", action="store_true")
+    m.add_argument('--authorize-preimage', help='exact current JOB SHA256; required with --apply only for obsolete PR52 terminal-unsent disposition')
     sd = sub.add_parser("reconcile-unsent-send-disabled", help="dry-run first; exact intact unsent SEND_DISABLED draft")
     sd.add_argument("--job", required=True)
     sd.add_argument("--apply", action="store_true")
@@ -2819,7 +2982,8 @@ def main() -> int:
     if a.cmd == 'resume-unsent-readiness':
         return resume_unsent_readiness(a.job, a.report, a.authorize_preimage)
     if a.cmd == "reconcile-unsent-model":
-        return reconcile_unsent_model(a.job, apply=a.apply, report=a.report)
+        return reconcile_unsent_model(a.job, apply=a.apply, report=a.report,
+                                      authorize_preimage=a.authorize_preimage)
     if a.cmd == "reconcile-unsent-send-disabled":
         return reconcile_unsent_send_disabled(a.job, apply=a.apply)
     if a.cmd == "reconcile-legacy":
