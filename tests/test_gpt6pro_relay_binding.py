@@ -1212,11 +1212,17 @@ console.log(JSON.stringify(fixtures.map(f => {
         self.assertEqual(len(expressions), 1)
         expression = expressions.pop()
         for primary, fallback, text, users, empty in [
-                (True, False, '', 0, True), (False, True, ' \n', 0, True),
+                (True, False, '', 0, True), (False, True, ' \n', 0, False),
                 (True, False, 'draft', 0, False), (False, False, '', 0, False),
-                (True, False, '', 1, True)]:
+                (True, False, '', 1, True), (False, True, '', 0, True)]:
+            # Exact logical DOM contract, not the obsolete innerText-only stub.
             setup = ('const location={href:' + json.dumps(HOME) + '};'
-                     'const performance={timeOrigin:12345.5};const e={innerText:' + json.dumps(text) + '};'
+                     'const performance={timeOrigin:12345.5};const text=' + json.dumps(text) + ';'
+                     'const attrs=text?{}:{"data-empty-paragraph":"true","data-placeholder":"Ask ChatGPT","class":"placeholder"};'
+                     'const p={nodeType:1,tagName:"P",attributes:Object.keys(attrs),getAttribute:k=>attrs[k]??null,'
+                     'hasAttribute:k=>k in attrs,childNodes:text?[{nodeType:3,data:text}]:[{nodeType:1,tagName:"BR",className:"ProseMirror-trailingBreak",attributes:["class"]}]};'
+                     'const e={tagName:"DIV",getAttribute:k=>k==="contenteditable"?"true":null,'
+                     'classList:{contains:k=>k==="ProseMirror"},childNodes:[p]};'
                      'const document={querySelector:s=>s==="#prompt-textarea"?'
                      + ('e' if primary else 'null') + ':' + ('e' if fallback else 'null') + ','
                      'querySelectorAll:s=>Array(' + str(users) + ').fill({})};')
