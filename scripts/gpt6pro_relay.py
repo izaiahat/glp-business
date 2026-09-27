@@ -892,9 +892,14 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
         const kids=[...p.childNodes];
         if(kids.length===1&&kids[0].nodeType===1&&kids[0].tagName==='BR'&&
            kids[0].className==='ProseMirror-trailingBreak'&&kids[0].attributes.length===1){
-            // Capture records marker presence, not a value contract. Only this
-            // exact empty-P shape may carry the observed decoration.
-            if(p.attributes.length!==0&&!(p.attributes.length===1&&
+            // The captured initial editor has this exact placeholder only on
+            // its sole P. Do not generalize decorations to message paragraphs.
+            const initialPlaceholder=e.childNodes.length===1&&p.attributes.length===3&&
+                p.getAttribute('data-empty-paragraph')==='true'&&
+                p.getAttribute('data-placeholder')==='Ask ChatGPT'&&
+                p.getAttribute('class')==='placeholder';
+            // The earlier full-draft capture records marker presence only.
+            if(!initialPlaceholder&&p.attributes.length!==0&&!(p.attributes.length===1&&
                p.hasAttribute('data-empty-paragraph')))return null;
             lines.push('');continue;
         }
@@ -1941,13 +1946,15 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
 
 def _retained_empty_witness(tab, time_origin):
     """Read the existing document only; never activate, navigate or modify its page."""
-    witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\n' + '''
+    # Share the sender's exact logical emptiness contract before any one-shot
+    # custody write. Unsupported shapes and whitespace-only text must refuse.
+    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + COMPOSER_TEXT_JS + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()''')
+    witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\nextra={extra!r}\n' + '''
 before=[t['targetId'] for t in list_tabs()]
 if tab not in before: _binding_error('retained_target_missing', tab=tab)
 _select(tab)
 want='https://chatgpt.com/'
 probe=lambda expression: _bound_js(tab,want,expression)
-extra="""(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,time_origin:performance.timeOrigin,composer_empty:!!e&&!e.innerText.trim(),user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()"""
 first=probe(extra)
 state=_state(probe)
 last=probe(extra)

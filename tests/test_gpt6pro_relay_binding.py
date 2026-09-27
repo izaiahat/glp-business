@@ -2806,6 +2806,70 @@ with r.account_lock():
 
 
 class NativeComposerTests(unittest.TestCase):
+    def test_captured_initial_placeholder_uses_same_exact_preflight_reader(self):
+        """PR52 passive empty capture: exact attribute presence and safe values.
+
+        Root values omitted by the privacy filter use empty placeholders; these
+        are not claimed as captured values. All reader-relevant values and every
+        descendant attribute value were captured. No account/network or Send.
+        """
+        import os
+        import hashlib
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture', retained_tab='fixture', time_origin=12345.5)
+            relay._retained_empty_witness('fixture', 12345.5)
+        sender, preflight = map(ast.parse, scripts)
+        functions = {n.name: n for n in sender.body if isinstance(n, ast.FunctionDef)}
+        recorded = []
+        ns = {'json': json, 'tab': {'targetId': 'fixture'}, 'fresh': HOME,
+              '_fresh': lambda: HOME, '_bound_js': lambda *args: recorded.append(args[2]) or True,
+              '_binding_error': lambda *a, **kw: self.fail('expression builder refused')}
+        for name in ('_exact', '_prepare'):
+            exec(compile(ast.Module(body=[functions[name]], type_ignores=[]), '<generated>', 'exec'), ns)
+        ns['_exact'](''); exact = recorded[-1]
+        ns['_prepare'](''); prepare = recorded[-1]
+        extra = next(ast.literal_eval(n.value) for n in preflight.body
+                     if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
+                     and n.targets[0].id == 'extra')
+        html = ('<div contenteditable="true" aria-multiline="" dir="" role="textbox" '
+                'spellcheck="true" translate="no" class="ProseMirror" data-composer-markdown="" '
+                'aria-label="" data-virtualkeyboard="true" data-relay-id="">'
+                '<p data-empty-paragraph="true" data-placeholder="Ask ChatGPT" class="placeholder">'
+                '<br class="ProseMirror-trailingBreak"></p></div>')
+        attributes = [
+            ['contenteditable', 'aria-multiline', 'dir', 'role', 'spellcheck', 'translate',
+             'class', 'data-composer-markdown', 'aria-label', 'data-virtualkeyboard', 'data-relay-id'],
+            ['data-empty-paragraph', 'data-placeholder', 'class'], ['class']]
+        cases = [
+            {'name': 'captured_empty', 'mutate': '', 'empty': True},
+            {'name': 'unknown_attribute', 'mutate': 'p.setAttribute("data-unknown","")', 'empty': False},
+            {'name': 'different_marker', 'mutate': 'p.setAttribute("data-empty-paragraph","false")', 'empty': False},
+            {'name': 'different_placeholder', 'mutate': 'p.setAttribute("data-placeholder","Other")', 'empty': False},
+            {'name': 'different_class', 'mutate': 'p.className="placeholder extra"', 'empty': False},
+            {'name': 'nonempty_decoration', 'mutate': 'p.replaceChildren(document.createTextNode(" "))', 'empty': False},
+            {'name': 'multiple_paragraphs', 'mutate': 'e.append(p.cloneNode(true))', 'empty': False},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            result = REAL_SUBPROCESS_RUN(['node', '-e', NATIVE_COMPOSER_FIXTURE], text=True,
+                input=json.dumps({'expressions': [exact, prepare, extra], 'initial': {
+                    'html': html, 'attributes': attributes, 'cases': cases,
+                    'exact': exact, 'preflight': extra, 'prepare': prepare}}),
+                capture_output=True, timeout=30, env={**os.environ, 'TMPDIR': tmp})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actual = json.loads(result.stdout)['initial']
+        self.assertEqual(actual['attributes'], attributes)
+        self.assertEqual(actual['tags'], ['DIV', 'P', 'BR'])
+        self.assertEqual(hashlib.sha256(actual['inner'].encode()).hexdigest(),
+                         '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b')
+        self.assertEqual(actual['text'], '')
+        for row, case in zip(actual['cases'], cases, strict=True):
+            with self.subTest(shape=case['name']):
+                self.assertIs(row['exact'], case['empty'], 'initial exact-empty gate')
+                self.assertIs(row['preflight'], case['empty'], 'read-only preflight must use exact reader')
+                self.assertTrue(row['unchanged'], 'readers cannot mutate the composer')
+        self.assertIs(actual['prepared'], True, 'captured empty placeholder supports end caret')
+
     def test_exact_paragraph_content_and_chunk_caret_in_native_dom(self):
         """Real generated JS + native DOM/Input, never a canned CDP result.
 
@@ -2898,6 +2962,14 @@ await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*'
 await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button>6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
 const output={};
 for(const expr of f.expressions)new Function('return ('+expr+')');
+if(f.initial){
+const i=f.initial;
+await js('document.head.innerHTML="<style>[data-composer-markdown]{white-space:break-spaces}</style>";window.initial=()=>{document.body.innerHTML='+JSON.stringify(i.html)+';};window.initial();');
+output.initial=await js('(()=>{const e=document.querySelector("[contenteditable]");const all=[e,...e.querySelectorAll("*")];return {attributes:all.map(n=>n.getAttributeNames()),tags:all.map(n=>n.tagName),inner:e.innerText,text:e.textContent,cases:[]};})()');
+for(const c of i.cases){await js('window.initial();(()=>{const e=document.querySelector("[contenteditable]"),p=e.firstChild;'+c.mutate+';})()');const before=await js('document.body.innerHTML');output.initial.cases.push({name:c.name,exact:await js(i.exact),preflight:(await js(i.preflight)).composer_empty,unchanged:before===await js('document.body.innerHTML')});}
+await js('window.initial()');output.initial.prepared=await js(i.prepare);
+process.stdout.write(JSON.stringify(output));return;
+}
 output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify(c.text)+');window.clicks=0;');if(c.mutate)await js(c.mutate);const expr=c.expression.replace('const retainedOrigin=12345.5;', 'const retainedOrigin=performance.timeOrigin;');output.cases.push({name:c.name,result:await js(expr),clicks:await js('window.clicks')});}
 const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
 process.stdout.write(JSON.stringify(output));
