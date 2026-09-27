@@ -1,35 +1,10 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "tests/test_glp250_partner_email_hold.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "21a0634c6a8c5156207ca190dd62425cefe7b77e431bd4204623f9d9b9117b4a"
-    },
-    "ops/glp250-partner-email-hold.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
-    },
-    "scripts/glp_sheet_sync_drain.py": {
-      "callers": ["sheet_update_queue single-writer carrier"],
-      "kind": "script",
-      "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
-    },
-    "scripts/affiliate_program_relevance.py": {
-      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
-      "kind": "script",
-      "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
-    },
-    "scripts/affiliate_operator_rulings.py": {
-      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
-      "kind": "script",
-      "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
-    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
+      "sha256": "055f3f5e40ae0a507106afa04928cd238402b7dbd2dc02b6112a7163442b0d00"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -39,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4bcdc57b07cbedf7ee1734ac1a4dae57e8151725e197a39b0bbbb1a82115e58a"
+      "sha256": "a0ac22b27f9ac9fab99f01f9b4bffc9ee71b9c804b88d7b8c72a410d2886aa7c"
     },
     ".hermes.md": {
       "callers": [],
@@ -110,6 +85,11 @@
       "callers": [],
       "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
+    },
+    "ops/GLP42-PACKAGE-ONLY.md": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "9908684502b12935a83d0746a063d46cfe218b1bf3badc33e1518fa0c707a7ff"
     },
     "ops/autonomy-envelope.json": {
       "callers": [],
@@ -188,6 +168,11 @@
       ],
       "kind": "script",
       "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
+    },
+    "ops/glp250-partner-email-hold.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
     },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
       "callers": [
@@ -370,6 +355,11 @@
       ],
       "kind": "script",
       "sha256": "297623b74ceeae0969ecdbcf8f8e40e3ad2f87417c25f53231a4f7844fe2fe8d"
+    },
+    "ops/hermes-cron-scripts/glp_maxbounty_capacity_resume.sh": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "b0e7d2770fcc5918aa5eaeef122bbede96caee8e68c28fa233bbcb7349215222"
     },
     "ops/hermes-cron-scripts/glp_relationship_hygiene_daily.sh": {
       "callers": [
@@ -617,6 +607,16 @@
       "kind": "instruction_or_policy",
       "sha256": "13b41e9d81a7b6a1010fe14574338b5814dbc3528bc4cdf151ab32d4d3ef6de6"
     },
+    "ops/maxbounty-pin-predecessor.json": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "d4bdb54ffc4afa3ba3fbefd9a126688e3fff5cb1b6e5959ed802934408aedc59"
+    },
+    "ops/maxbounty-pin-release.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "768b156e5a43bbda68ee390eef131be68d9c0caba34bf10299516dae65337d8d"
+    },
     "ops/protected-oracles.json": {
       "callers": [],
       "kind": "instruction_or_policy",
@@ -625,7 +625,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "9b9f2725f2ddc0657e14b2a844059fb8ec0b5afb3dda9d17bef4b656747bd706"
+      "sha256": "07ea692567ec04c0166bf84db8f3f43742d21008bc66521942091e06ba9d456f"
     },
     "ops/sender_envelope.py": {
       "callers": [
@@ -735,12 +735,26 @@
       "kind": "script",
       "sha256": "5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e"
     },
+    "scripts/affiliate_operator_rulings.py": {
+      "callers": [
+        "scripts/affiliate_sheet_batch_writer.py"
+      ],
+      "kind": "script",
+      "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
+    },
     "scripts/affiliate_payout_policy.py": {
       "callers": [
         "scripts/affiliate_niche_geo_filter.py"
       ],
       "kind": "script",
       "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
+    },
+    "scripts/affiliate_program_relevance.py": {
+      "callers": [
+        "scripts/affiliate_sheet_batch_writer.py"
+      ],
+      "kind": "script",
+      "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
     },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
@@ -820,7 +834,7 @@
     "scripts/candidate_freshness_coverage.json": {
       "callers": [],
       "kind": "script",
-      "sha256": "2e02f1493b35042fd417e74f431124c9a56a628536b8705c8744dadb4f659ba1"
+      "sha256": "92dcb164410c4408f4099dfc45ce575fee04214d3c049b93130470401ad41ffc"
     },
     "scripts/candidate_freshness_horizon.py": {
       "callers": [],
@@ -922,6 +936,20 @@
       "kind": "script",
       "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
     },
+    "scripts/generate_glp34_deploy_carrier.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
+    },
+    "scripts/glp34_package_only.inc.py": {
+      "callers": [
+        "scripts/generate_glp34_deploy_carrier.py"
+      ],
+      "kind": "script",
+      "sha256": "4be2a008818cc475efe0737fa160bb0ec9a757c238858452bea6386c81b9cf6d"
+    },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
         "migration-survivor"
@@ -985,6 +1013,20 @@
       ],
       "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
+    },
+    "scripts/glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "e54a4af3166e7756f1460283b346a4c76c000cdcde30af7b2d22672b5960366d"
+    },
+    "scripts/glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "script",
+      "sha256": "bb6821790b5150e101023fc0311834f433861a4dc12df17479a275fb4eb32d56"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1070,6 +1112,13 @@
       "kind": "script",
       "sha256": "7b08da73ffed67dbac6545aa14ced5fdb67b6167797b017bd6b4fe08611f1234"
     },
+    "scripts/glp_sheet_sync_drain.py": {
+      "callers": [
+        "sheet_update_queue single-writer carrier"
+      ],
+      "kind": "script",
+      "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
+    },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
         "migration-survivor"
@@ -1117,7 +1166,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "53f0e39a7852cb9ea5180be342f22a508f1eb46bbec5afd8c4d2722e46ac6c9d"
+      "sha256": "a98f814668645aa575bc711fb9c2456eb7513082a17ad218f2cbb818799de332"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -1222,6 +1271,11 @@
       "kind": "script",
       "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77"
     },
+    "scripts/maxbounty_pin_release.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "169c0f761a5766fa2f22f46f1e0404d380f497c17a3da91098a9075e21d1e462"
+    },
     "scripts/pin_drift_report.py": {
       "callers": [],
       "kind": "script",
@@ -1249,7 +1303,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2a583c3c2953dadbd6b6af471882a230470366e8a1f9a89a2b26d99258bd721d"
+      "sha256": "9fbe3c44c90c59a06a26384a9a6f1c163d013e2863dffa6eaa5654a897976c53"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1773,6 +1827,13 @@
       "kind": "test",
       "sha256": "d6bb5a074e39bfc88acaa4c7cd6b75a311c2e0dc9216ae86bbca2a33650044ad"
     },
+    "tests/test_glp250_partner_email_hold.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "21a0634c6a8c5156207ca190dd62425cefe7b77e431bd4204623f9d9b9117b4a"
+    },
     "tests/test_glp315_reconciler_child_failure.py": {
       "callers": [
         "glp_affiliate_approval_reconciler"
@@ -1798,6 +1859,20 @@
       ],
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
+    },
+    "tests/test_glp42_package_only.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "54e7f2af2eadc7b055ed6f2372b9f366599afd2791d795bcec9aeb4875b13eb3"
+    },
+    "tests/test_glp43_current_release.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "2c269e4cba9b02a48d0edded50f5209ae9702595c55ac4b6be9abe9a34b884d1"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
@@ -1897,6 +1972,20 @@
       ],
       "kind": "test",
       "sha256": "dda65b95b06223a8107b97a4dc478251e70a5192e5bcf0d30cd2839e84e480ba"
+    },
+    "tests/test_glp_deploy_build6_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "274b602a2cf6871b91eaf6877fedba81924eb83800e189278db80feb22cb2599"
+    },
+    "tests/test_glp_deploy_glp34_authority_v1.py": {
+      "callers": [
+        "GLP-42 authenticated deploy-carrier lineage"
+      ],
+      "kind": "test",
+      "sha256": "95300e56a4431384ba5dd2a36e694bd1bb7548c889de66c79b518ba2aac95a23"
     },
     "tests/test_glp_earnings_notice.py": {
       "callers": [],
@@ -2046,7 +2135,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "3c2246e5b3f5e6531ad2416eba3ce8b4c9b7d769fe4929c617663df3f86963c4"
+      "sha256": "4acebfa75cd5fef993311d28c4a92892ac597424ffb2c62b9606402908db409e"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -2092,6 +2181,11 @@
       ],
       "kind": "test",
       "sha256": "c8493333ccf8b781495d255bf1585461956c7312305195049a366b6902ad80ed"
+    },
+    "tests/test_maxbounty_pin_release.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "7132829e82213cacaa2f9cf1da76383c500549c42dd070a9121112d67b734105"
     },
     "tests/test_operator_decision_duplicate_identity.py": {
       "callers": [
@@ -2194,5 +2288,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 336
+  "tracked_count": 350
 }
