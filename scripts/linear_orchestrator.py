@@ -4,11 +4,16 @@
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --brief <scope brief>  # legacy/protected contract
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --ordinary [--check-only]
         Ordinary completion: linear-ordinary-completion-v1, COMPLETE, exact issue,
-        scope ordinary-code|ordinary-runtime, protected_effects [], description_sha256,
-        pr {url,head_sha,merge_sha,checks:[{name,url}]}, review {comment_id,body_sha256},
+        scope ordinary-code|ordinary-runtime|ordinary-readonly-runtime, protected_effects [],
+        description_sha256, review {comment_id,body_sha256},
         evidence [{kind:check|runtime,path,sha256,observed:[exact identifiers/output]}].
-        Uses existing coordinator acceptance, current PR/CI and physical evidence;
-        runtime requires live acceptance, not just a merged PR. --check-only writes nothing.
+        Code/installed runtime additionally requires pr {url,head_sha,merge_sha,checks:[{name,url}]}.
+        Read-only non-code runtime instead requires explicit read-only issue acceptance,
+        no pr or changed_files, and only runtime artifacts named in the existing authenticated
+        coordinator comment (Coordinator acceptance verified: or Acceptance verified by parent:).
+        It proves no source change, installation, publication, application or send.
+        Uses current scope and physical evidence, not a fabricated PR or retrospective brief.
+        --check-only writes nothing.
         No release, outward design, financial REAL or third-party-send approval is granted.
   linear_orchestrator.py triage <GLP-n> admitted "<reason/evidence>" --root <GLP-current-root> --basis <operator-priority|escaped-safety-revenue-defect|current-acceptance-dependency> --project "<name>" --type <task|defect|incident|decision|idea> [--priority N] [--blocks GLP-m]
         Native Triage candidates become direct Todo children. Dependency basis requires --blocks.
@@ -347,10 +352,20 @@ def fenced(marker, obj): return marker + '\n```json\n' + json.dumps(obj, indent=
 def _lint_ordinary_result(path, iss):
     """Read-only ordinary outcome check, not authority for any protected effect.
 
-    The coordinator supplies a current description binding, merged PR/exact-head
-    CI, existing acceptance comment and hash-bound observed evidence. No brief,
-    clause transcription, historical packet rewrite, command execution or pins.
-    Protected/ambiguous scopes still require their independent acceptance path.
+    The coordinator supplies a current description binding, existing acceptance
+    comment and hash-bound observed evidence. Code/installed runtime also needs a
+    merged PR/exact-head CI; explicit read-only non-code work uses the same evidence
+    structures without inventing a PR. No brief, historical packet rewrite,
+    command execution or pins. Protected scopes retain independent acceptance.
+
+    Read-only non-code acceptance must include exactly one standalone line:
+    Accepted description SHA256: <64 lowercase hex characters>
+    Hash the exact issue description's UTF-8 bytes, without normalization. The
+    authenticated coordinator comment must also retain its acceptance prefix,
+    artifact paths and observed identifiers. A retained unbound comment requires
+    a NEW scoped coordinator acceptance after review, never a historical edit.
+    RESULT binds that new comment's id/body hash and the same description hash.
+    This additional binding does not change the ordinary code/runtime contract.
     """
     import re
     import subprocess
@@ -366,7 +381,8 @@ def _lint_ordinary_result(path, iss):
         require(data.get('issue') == iss['identifier'] and data.get('status') == 'COMPLETE',
                 'exact issue and COMPLETE required')
         require(iss.get('team') == {'id': TEAM, 'key': 'GLP'}, 'issue must belong to GLP')
-        require(data.get('scope') in ('ordinary-code', 'ordinary-runtime') and
+        readonly = data.get('scope') == 'ordinary-readonly-runtime'
+        require(data.get('scope') in ('ordinary-code', 'ordinary-runtime', 'ordinary-readonly-runtime') and
                 data.get('protected_effects') == [], 'protected scope requires independent acceptance')
         description = iss.get('description') or ''
         require(re.search(r'##\s*Acceptance\s*\n\s*\S', description, re.I), 'current acceptance missing')
@@ -375,29 +391,46 @@ def _lint_ordinary_result(path, iss):
         # Conservative refusal only, never an approval classifier. The coordinator
         # remains responsible for scope; this contract cannot approve these effects.
         scope = '\n'.join([iss.get('title') or '', description, *label_names(iss)])
-        protected = (r'\b(release|deploy\w*|publish\w*|production|design|Fable|'
+        # Publisher identity is a read-only account fact, not a publication action.
+        protected = (r'\b(release|deploy\w*|publish(?!ers?\b)\w*|publicat\w*|production|design|Fable|'
                      r'third.party|outreach|email|spend|budget|KYC|PHI|legal)\b|'
                      r'\b(send|deliver)\w*\s+(?:to\s+)?(?:partners?|providers?|customers?)\b|'
                      r'\b(?:verify|confirm|record|mark|claim|reconcile|establish)\w*[^\n.]{0,40}'
                      r'\b(?:real earning\w*|commission|settlement|cash)\b')
         require(not re.search(protected, scope, re.I) and not re.search(r'\bREAL\b', scope),
                 'protected release/design/financial REAL/send scope is not ordinary')
-        pr = data['pr']
-        require(re.fullmatch(r'https://github\.com/izaiahat/glp-(?:business|site-candidate)/pull/[1-9]\d*',
-                             pr['url']), 'exact authorized repository PR URL required')
-        require(all(re.fullmatch(r'[a-f0-9]{40}', pr[key]) for key in ('head_sha', 'merge_sha')),
-                'full head and merge SHA required')
-        remote = json.loads(subprocess.check_output(
-            ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
-            text=True, timeout=60))
-        require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
-                (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
-        checks = remote.get('statusCheckRollup') or []
-        require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
-                               for c in checks), 'exact-head CI is not all successful')
-        require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
-            any(c.get('name') == expected['name'] and c.get('detailsUrl') == expected['url'] for c in checks)
-            for expected in pr['checks']), 'exact CI receipts missing or changed')
+        if readonly:
+            require('pr' not in data and data.get('changed_files', []) == [],
+                    'read-only non-code work cannot claim a PR or source changes')
+            # Keep nested headings and requirements after metadata-shaped lines.
+            # Only a complete skill-name list is metadata, never a scope terminator.
+            acceptance_match = re.search(r'##\s*Acceptance\s*\n(.*)', description, re.I | re.S)
+            acceptance = acceptance_match.group(1) if acceptance_match else ''
+            skill_name = r'[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
+            acceptance = '\n'.join(line for line in acceptance.splitlines() if not re.fullmatch(
+                r'Skills:[ \t]*' + skill_name + r'(?:,[ \t]*' + skill_name + r')*\.?[ \t]*', line))
+            require(re.search(r'\bread[- ]only\b', acceptance, re.I),
+                    'explicit read-only acceptance required for non-code runtime')
+            require(not re.search(r'\b(send\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying))\b',
+                                  (iss.get('title') or '') + '\n' + acceptance, re.I),
+                    'protected send/application scope is not read-only')
+        else:
+            pr = data['pr']
+            require(re.fullmatch(r'https://github\.com/izaiahat/glp-(?:business|site-candidate)/pull/[1-9]\d*',
+                                 pr['url']), 'exact authorized repository PR URL required')
+            require(all(re.fullmatch(r'[a-f0-9]{40}', pr[key]) for key in ('head_sha', 'merge_sha')),
+                    'full head and merge SHA required')
+            remote = json.loads(subprocess.check_output(
+                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
+                text=True, timeout=60))
+            require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
+                    (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
+            checks = remote.get('statusCheckRollup') or []
+            require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
+                                   for c in checks), 'exact-head CI is not all successful')
+            require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
+                any(c.get('name') == expected['name'] and c.get('detailsUrl') == expected['url'] for c in checks)
+                for expected in pr['checks']), 'exact CI receipts missing or changed')
         review = data['review']
         comment_row = gql('query($id:String!){comment(id:$id){id body archivedAt user{id} issue{id}}}',
                           {'id': review['comment_id']})['comment']
@@ -406,12 +439,22 @@ def _lint_ordinary_result(path, iss):
                 (comment_row.get('user') or {}).get('id') == OPERATOR_USER_ID,
                 'existing coordinator acceptance comment required on exact issue')
         body = comment_row['body']
-        require(hashlib.sha256(body.encode()).hexdigest() == review['body_sha256'] and
-                body.startswith('Coordinator acceptance verified:') and pr['merge_sha'] in body,
-                'coordinator acceptance body/merge binding missing or changed')
+        require(hashlib.sha256(body.encode()).hexdigest() == review['body_sha256'],
+                'coordinator acceptance body changed')
+        if readonly:
+            require(body.startswith(('Coordinator acceptance verified:', 'Acceptance verified by parent:')),
+                    'existing coordinator acceptance required')
+            # Authenticated approval must name the accepted version, not just rely
+            # on a worker refreshing RESULT's hash. No fallback for old comments.
+            require(re.findall(r'^Accepted description SHA256: ([a-f0-9]{64})$', body, re.M) ==
+                    [data['description_sha256']],
+                    'coordinator accepted description binding missing, ambiguous or stale')
+        else:
+            require(body.startswith('Coordinator acceptance verified:') and data['pr']['merge_sha'] in body,
+                    'coordinator acceptance body/merge binding missing or changed')
         evidence = data.get('evidence')
         require(isinstance(evidence, list) and evidence, 'acceptance evidence missing')
-        runtime = data['scope'] == 'ordinary-runtime' or re.search(
+        runtime = readonly or data['scope'] == 'ordinary-runtime' or re.search(
             r'\b(installed|runtime|natural|read.?back|replayed|card|receipt|live)\b', description, re.I)
         require(not runtime or any(e.get('kind') == 'runtime' for e in evidence),
                 'live acceptance evidence required; a merged PR does not prove runtime work')
@@ -421,6 +464,11 @@ def _lint_ordinary_result(path, iss):
             require(entry.get('kind') in ('check', 'runtime') and source.is_absolute() and
                     source.resolve().is_relative_to(reports.resolve()) and source.is_file() and
                     source.resolve() != Path(path).resolve(), 'existing reports evidence required')
+            if readonly:
+                reference = 'reports/' + source.resolve().relative_to(reports.resolve()).as_posix()
+                require(entry.get('kind') == 'runtime' and re.search(
+                    r'(?<![\w/.-])' + re.escape(reference) + r'(?=$|[\s#;:)`\]]|[.,](?=\s|$))', body),
+                    'read-only runtime artifact must be named in coordinator acceptance')
             raw = source.read_bytes()
             require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'acceptance evidence hash changed')
             observed = entry.get('observed')

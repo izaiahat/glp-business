@@ -3527,6 +3527,25 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
                     "a live program that stops is a pause or a removal, not a rejection. "
                     "May create the row when the rejected program never reached the Sheet.",
     ),
+    # Email custody is NOT a portal relationship capture. This mode only records
+    # the exact retained advertiser/postback hold; it cannot create or release one.
+    "partner_email_hold": SheetSyncModeSpec(
+        key="partner_email_hold",
+        plan_schema="affiliate-partner-email-hold-plan-v1",
+        write_schema="affiliate-partner-email-hold-write-v1",
+        mutable_columns=(10, 19, 23),
+        required_columns=(10, 19, 23),
+        allowed_status=frozenset({"hold_advertiser_postback_pending"}),
+        required_flags={19: "FALSE"},
+        evidence_fields=(("event_id", "text"), ("raw_sha256", "sha256_hex"),
+                         ("received_at", "timestamp"), ("corrected_at_utc", "timestamp")),
+        note_must_cite=("event_id", "raw_sha256", "received_at", "corrected_at_utc"),
+        source_status=frozenset({"approved_active_tracking_ready"}),
+        require_tracking_link=True,
+        forbid_wired_live_source=True,
+        description="Retract readiness for the exact retained XenTraffic 3277 email hold; "
+                    "preserve all other cells and prior notes, including Last Checked UTC.",
+    ),
     # --- status_correction ----------------------------------------------------
     # The class the 2026-08-18 backfill audit found five of: the Sheet claims an
     # approval the portal does not confirm. It is one-way (it can only retract a
@@ -5188,6 +5207,7 @@ SHEET_SYNC_KIND_MODE = {
     "network_paused": "network_paused_disposition",
     "network_cancelled": "network_cancelled",
     "status_correction": "status_correction",
+    "partner_email_hold": "partner_email_hold",
     "deployed_live": "deployed_live",
     "removed": "removed",
     "evidence_blocked": "evidence_blocked",
@@ -5920,6 +5940,99 @@ def require_katalys_tracking_ready(entry: dict[str, Any], values: list[list[Any]
                 refuse("partial_target_or_source_drift")
 
 
+# Nonsecret custody pins only. The retained mailbox bytes stay outside Git.
+# This is one historical hold, not a classifier or authority to impose new holds.
+PARTNER_EMAIL_HOLD_EVENT = {
+    "event_id": "evt_b9198b5da083f97f78cd4a79685f",
+    "raw_sha256": "5bd183e1fd002fd99ffb04312c2fa57cbba75218f37cd4b5e7e7f4f61fa863e9",
+    "received_at": "2026-09-21T14:06:14Z",
+}
+PARTNER_EMAIL_HOLD_INBOX_DB = Path("/home/ubuntu/.hermes/state/email-monitor.sqlite3")
+PARTNER_EMAIL_HOLD_APPLY_URL = "https://xentraffic.everflowclient.io/offers/3277"
+
+
+def partner_email_hold_cells(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Deterministic three-cell projection; no free-form instruction/note input."""
+    source = evidence.get("source_row")
+    if (not isinstance(source, list) or len(source) != len(HEADERS)
+            or source[4] != "XenTraffic" or source[5] != PARTNER_EMAIL_HOLD_APPLY_URL
+            or source[10] != "approved_active_tracking_ready"
+            or source[19] is not True or source[20] is not False
+            or not isinstance(source[14], str) or not source[14]
+            or not isinstance(source[23], str)):
+        raise RuntimeError("partner_email_hold_source_invalid")
+    if any(evidence.get(key) != value for key, value in PARTNER_EMAIL_HOLD_EVENT.items()):
+        raise RuntimeError("partner_email_hold_exact_event_mismatch")
+    try:
+        corrected = datetime.strptime(evidence["corrected_at_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        received = datetime.strptime(evidence["received_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        if not received < corrected <= datetime.now(timezone.utc):
+            raise ValueError("correction must follow historical mail and not be in the future")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("partner_email_hold_correction_time_invalid") from exc
+    note = (f"Partner-email advertiser/postback HOLD; event_id={evidence['event_id']}; "
+            f"raw_sha256={evidence['raw_sha256']}; email_received_at={evidence['received_at']}; "
+            f"metadata_corrected_at={evidence['corrected_at_utc']}. "
+            "Advertiser clearance and postback configuration readback remain pending. "
+            "Wire-In Ready retracted; prior readiness and no-per-offer-gate claims do not release this hold. "
+            "Current network eligibility UNKNOWN: not a portal pause, withdrawal or zero-economics finding. "
+            "Existing tracker, payout and Last Checked UTC preserved, not reverified; no activation or hold release.")
+    return {"10": "hold_advertiser_postback_pending", "19": "FALSE",
+            "23": source[23] + ("\n" if source[23] else "") + note}
+
+
+def require_partner_email_hold(entry: dict[str, Any], values: list[list[Any]] | None = None) -> None:
+    """Rebind exact mail custody and the full preimage OR full postimage on replay."""
+    import sqlite3
+    from contextlib import closing
+    from email import policy
+    from email.parser import BytesParser
+    from email.utils import parseaddr
+
+    evidence = entry["evidence"]
+    desired = partner_email_hold_cells(evidence)
+    source = evidence["source_row"]
+    expected_id = f"partner-email-hold-{evidence['event_id']}-{evidence['raw_sha256']}"
+    if (entry.get("network") != "XenTraffic" or entry.get("provider_program_id") != "3277"
+            or entry.get("program") != source[2] or entry.get("queue_update_id") != expected_id
+            or entry.get("create") or entry.get("cells") != desired):
+        raise RuntimeError("partner_email_hold_identity_or_projection_mismatch")
+    # URI read-only + query_only: preview and apply never mutate inbox state.
+    with closing(sqlite3.connect(
+            PARTNER_EMAIL_HOLD_INBOX_DB.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+        db.execute("PRAGMA query_only=ON")
+        records = db.execute(
+            "SELECT event_id, received_at, raw_path, raw_sha256 FROM inbox_events WHERE event_id=?",
+            (evidence["event_id"],),
+        ).fetchall()
+    if (len(records) != 1 or records[0][1] != evidence["received_at"]
+            or records[0][3] != evidence["raw_sha256"]):
+        raise RuntimeError("partner_email_hold_retained_event_mismatch")
+    raw = Path(records[0][2]).read_bytes()
+    if hashlib.sha256(raw).hexdigest() != evidence["raw_sha256"]:
+        raise RuntimeError("partner_email_hold_raw_hash_drift")
+    message = BytesParser(policy=policy.default).parsebytes(raw)
+    sender = parseaddr(str(message.get("From") or ""))[1].lower()
+    trusted = [str(value).lower() for value in message.get_all("Authentication-Results", [])
+               if str(value).strip().lower().startswith("mx.google.com;")]
+    if (sender.rsplit("@", 1)[-1] != "xentraffic.com" or not any(
+            re.search(r"(?:^|;)\s*dmarc=pass\b[^;]*\bheader\.from=xentraffic\.com(?:\s|;|$)", auth)
+            for auth in trusted)):
+        raise RuntimeError("partner_email_hold_authentication_failed")
+    if values is not None:
+        hits = [n for n, row in enumerate(values[1:], 2)
+                if pad(row)[4] == "XenTraffic" and pad(row)[5] == PARTNER_EMAIL_HOLD_APPLY_URL]
+        if hits != [entry["row"]]:
+            raise RuntimeError("partner_email_hold_current_identity_missing_or_ambiguous")
+        post = list(source)
+        for column, value in desired.items():
+            post[int(column)] = sheet_sync_write_value(int(column), value)
+        # JSON equality preserves typed FALSE vs 0; no partial-postimage shortcut.
+        actual = json.dumps(pad(values[entry["row"] - 1]), ensure_ascii=False)
+        if actual not in (json.dumps(source, ensure_ascii=False), json.dumps(post, ensure_ascii=False)):
+            raise RuntimeError("partner_email_hold_full_preimage_or_postimage_required")
+
+
 def require_maxbounty_publisher_id(entry: dict[str, Any], actual: list[Any] | None = None) -> None:
     from urllib.parse import parse_qs, urlsplit
 
@@ -5984,6 +6097,8 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
         evidence = entry["evidence"]
         if spec.key in provider_metadata.KINDS:
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT)
+        if spec.key == "partner_email_hold":
+            require_partner_email_hold(entry)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry)
         if spec.key == "maxbounty_publisher_id":
@@ -6189,7 +6304,7 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
         if spec.note_scrub:
             require_secret_scrub_note(spec, entry, note)
         checked = str(get(24) or "").strip()
-        if spec.key not in {"maxbounty_publisher_id", provider_metadata.MAXBOUNTY_IDENTITY_KIND, *provider_metadata.SLUG_ONLY_KINDS} and (not checked or "T" not in checked):
+        if spec.key not in {"partner_email_hold", "maxbounty_publisher_id", provider_metadata.MAXBOUNTY_IDENTITY_KIND, *provider_metadata.SLUG_ONLY_KINDS} and (not checked or "T" not in checked):
             raise RuntimeError(f"{spec.key}_last_checked_invalid:{program}")
 
         if creating:
@@ -6605,6 +6720,8 @@ def require_sheet_sync_preconditions(
     """
     spec = SHEET_SYNC_MODES[mode]
     for entry in rows:
+        if spec.key == "partner_email_hold":
+            require_partner_email_hold(entry, values)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry, values)
         if entry.get("create"):
@@ -7258,7 +7375,7 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
             values, live, created
         ):
             raise RuntimeError("sheet_concurrency_drift_before_value_write")
-        if spec.key == "katalys_tracking_ready" or spec.key in provider_metadata.KINDS:
+        if spec.key in {"katalys_tracking_ready", "partner_email_hold"} or spec.key in provider_metadata.KINDS:
             require_sheet_sync_preconditions(mode, live, planned_rows)
         if changes:
             require_parent_row_protection(spec, changes, planned_rows)
