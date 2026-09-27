@@ -1066,6 +1066,11 @@
       "kind": "script",
       "sha256": "a014f4770b3c6fac6eff8cdfa1f0a1c46cbd6b36f72e152b9d55e5f106bb32c5"
     },
+    "scripts/glp_seo_updater_run.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "8b603503191a8ce94d79cbf02c225936d613014ce87328f373485c85a8ca0d62"
+    },
     "scripts/glp_served_test_contract.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
@@ -1252,7 +1257,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e5fc09402dc270dea9cd7a94d9e25c731ad735e3b6bfce924099f981bbcb379c"
+      "sha256": "61b58c07b14c56effabeea0dcfd56fc1bf1aca1014f252291191c954f09598d4"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1520,6 +1525,11 @@
       "callers": [],
       "kind": "test",
       "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
+    },
+    "tests/fixtures/glp76-material-date-resolver.cjs": {
+      "callers": [],
+      "kind": "test_fixture",
+      "sha256": "c5984e89581cf61f8aeb70f2a0270c571679ffbbfdc0f9cbf688e019e174b6f6"
     },
     "tests/fixtures/therapeutic-taxonomy-coverage.json": {
       "callers": [],
@@ -1817,6 +1827,11 @@
       ],
       "kind": "test",
       "sha256": "0338a329608636c8083f323e98e7797734fba66fe0a527c4248438f1f2b175e8"
+    },
+    "tests/test_glp76_updater_publication_date.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "2c3b139e88bb0891fa40d7874b762f61270b28fecef0c31146e44cdc24b50c07"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -2208,5 +2223,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 336
+  "tracked_count": 339
 }
