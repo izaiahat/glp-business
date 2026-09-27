@@ -1,6 +1,31 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp250_partner_email_hold.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "21a0634c6a8c5156207ca190dd62425cefe7b77e431bd4204623f9d9b9117b4a"
+    },
+    "ops/glp250-partner-email-hold.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
+    },
+    "scripts/glp_sheet_sync_drain.py": {
+      "callers": ["sheet_update_queue single-writer carrier"],
+      "kind": "script",
+      "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
+    },
+    "scripts/affiliate_program_relevance.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
+    },
+    "scripts/affiliate_operator_rulings.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
@@ -736,7 +761,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "c2a36078c3525a7ea25cb714ff4af79368cf90e693e77dde3add26ed148f87c0"
+      "sha256": "dc713c15af72f5dc2af6311fbcc9f0a56c887ff5843da7a741a6af84d376690c"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
@@ -1224,7 +1249,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9ae31b99c3871b1920d24c25729f27e71f184cca4136928953488d1a79559411"
+      "sha256": "2a583c3c2953dadbd6b6af471882a230470366e8a1f9a89a2b26d99258bd721d"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2169,5 +2194,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 331
+  "tracked_count": 336
 }
