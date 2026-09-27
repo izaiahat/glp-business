@@ -259,7 +259,7 @@ def main():
         self.assertNotIn("provider_reads", result)
 
 ''')
- # Keep legacy mode bodies byte-identical; embed maintained package-only code.
+ # Keep legacy mode bodies byte-identical; embed maintained package/current code.
  entry='if __name__ == "__main__":\n    raise SystemExit(main())'
  legacy='def main(argv: list[str] | None = None) -> int:'
  if source.count(entry)!=1 or source.count(legacy)!=1: raise SystemExit('package_dispatch_context_drift')
@@ -267,7 +267,7 @@ def main():
  source=source.replace(legacy,legacy.replace('main(', 'legacy_main('),1)
  source=source.replace(entry,extension+'\n\n'+entry,1)
  source=source.replace('The only accepted modes are ``--verify-only`` and ``--live``.',
-                       'Legacy modes are ``--verify-only`` and ``--live``.  The separate\n``--package-only`` mode packages explicitly hash-bound public bytes without\nrelease authority, signatures, or provider writes.')
+                       'Legacy modes are ``--verify-only`` and ``--live``.  The separate\n``--package-only`` mode packages explicitly hash-bound public bytes without\nrelease authority, signatures, or provider writes. ``--prepare-current`` adds\nthe exact gate-bound Functions runtime offline; ``--publish-current`` consumes\nonly that prepared closure after explicit independent and operator approval.')
  compile(source,str(TARGET),'exec')
  carrier_bytes,test_bytes=source.encode(),test.encode()
  if args.emit_dir is not None: args.emit_dir.mkdir(mode=0o700)
