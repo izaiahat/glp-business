@@ -1,4 +1,5 @@
 """Offline binding regressions: execute the real browser-use scripts against a strict fake CDP session."""
+import ast
 import importlib.util
 import io
 import json
@@ -1456,6 +1457,48 @@ console.log(JSON.stringify(fixtures.map(f => {
             with mock.patch.object(sys, 'argv', argv), self.assertRaises(SystemExit):
                 relay.main()
             self.assertEqual(self.browser.sent, [])
+
+    def test_retained_sender_generated_javascript_survives_both_python_layers(self):
+        """Capture the real sender's script, then parse and run its decoded _fresh JS."""
+        scripts = []
+        def capture(script, **kwargs):
+            scripts.append(script)
+            return {}
+        with mock.patch.object(relay, 'bu_json', side_effect=capture):
+            relay.send_message('original packet', retained_tab='retained', time_origin=12345.5)
+        self.assertEqual(len(scripts), 1)
+        generated = ast.parse(scripts[0])  # outer f-string has already been decoded
+        expressions = [n.args[2].value for n in ast.walk(generated)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == '_bound_js' and len(n.args) > 2
+            and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
+        self.assertEqual(len(expressions), 9)
+        evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
+        node = r'''const expressions=JSON.parse(process.argv[1]);
+            // Compile every actual generated constant after the nested Python parse.
+            for (const expression of expressions) new Function('return ('+expression+');');
+            const evidence=expressions.find(x=>x.includes('origin:performance.timeOrigin'));
+            function observe(title,body) {
+                const editor={innerText:''};
+                const document={title,body:{innerText:body},
+                    querySelector:s=>s==='#prompt-textarea'?editor:null,
+                    querySelectorAll:s=>[]};
+                const performance={timeOrigin:12345.5};
+                return new Function('document','performance','return ('+evidence+');')(document,performance);
+            }
+            console.log(JSON.stringify({clean:observe('ChatGPT','Ready'),
+                challenge:observe('ChatGPT','Verify you are human'),count:expressions.length}));'''
+        result = subprocess.run(['node', '-e', node, json.dumps(expressions)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        observed = json.loads(result.stdout)
+        self.assertEqual(observed['count'], 9)
+        self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
+            'assistants': 0, 'empty': True, 'challenge': False,
+            'interstitial': False, 'login': False, 'rate': False,
+            'stop': False, 'reconnect': False})
+        self.assertTrue(observed['challenge']['challenge'])
+        self.assertIn("document.title+'\\n'+body", evidence)
 
     def test_retained_sender_refuses_reused_missing_or_wrong_model_without_fresh_tab(self):
         self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',

@@ -914,6 +914,9 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
         const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
         if(!b||b.disabled)return {clicked:false,reason:'send_disabled'};
         b.click();return {clicked:true};})()''')
+    # Serialize this JS as a Python string literal once, instead of relying on
+    # escaping through both the outer f-string and the generated Python script.
+    retained_evidence = r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');const body=document.body.innerText.slice(0,2000);return {origin:performance.timeOrigin,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length,empty:!!e&&!e.innerText.trim(),challenge:/verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human/i.test(document.title+'\n'+body)||[...document.querySelectorAll('iframe')].some(f=>f.getClientRects().length>0&&/challenges\.cloudflare\.com|recaptcha|hcaptcha/i.test(f.src+' '+f.title)),interstitial:/just a moment|checking your browser|performing security verification/i.test(document.title+'\n'+body),login:!!document.querySelector('button[data-testid="login-button"]'),rate:/too many requests/i.test(document.title+'\n'+body),stop:!!document.querySelector('button[data-testid="stop-button"]'),reconnect:/Reconnect Google Drive/.test(body)};})()'''
     script = BU_PRELUDE + f'''
 CHUNK={IPC_CHUNK}
 RETAINED={retained_tab!r}
@@ -931,7 +934,7 @@ else:
 def _fresh():
     here=_here(tab["targetId"])
     if RETAINED:
-        evidence=_bound_js(tab['targetId'], 'https://chatgpt.com/', "(()=>{{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');const body=document.body.innerText.slice(0,2000);return {{origin:performance.timeOrigin,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length,empty:!!e&&!e.innerText.trim(),challenge:/verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human/i.test(document.title+'\\n'+body)||[...document.querySelectorAll('iframe')].some(f=>f.getClientRects().length>0&&/challenges\\.cloudflare\\.com|recaptcha|hcaptcha/i.test(f.src+' '+f.title)),interstitial:/just a moment|checking your browser|performing security verification/i.test(document.title+'\\n'+body),login:!!document.querySelector('button[data-testid=\\"login-button\\"]'),rate:/too many requests/i.test(document.title+'\\n'+body),stop:!!document.querySelector('button[data-testid=\\"stop-button\\"]'),reconnect:/Reconnect Google Drive/.test(body)}};}})()")
+        evidence=_bound_js(tab['targetId'], 'https://chatgpt.com/', {json.dumps(retained_evidence)})
         if (here!='https://chatgpt.com/' or evidence['origin']!=ORIGIN or evidence['users']!=0 or evidence['assistants']!=0 or
                 evidence['challenge'] or evidence['interstitial'] or evidence['login'] or evidence['rate'] or evidence['stop'] or evidence['reconnect'] or
                 (not _typed and not evidence['empty']) or sorted(before_tabs)!=sorted(t['targetId'] for t in list_tabs())):
