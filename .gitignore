@@ -12,6 +12,11 @@
 /tests/*
 !/.github/workflows/
 /.github/workflows/*
+!/ops/glp/
+/ops/glp/*
+!/ops/glp/reporting-v2/
+/ops/glp/reporting-v2/*
+!/ops/glp/reporting-v2/identity-registry.json
 !/ops/hermes-cron-scripts/
 /ops/hermes-cron-scripts/*
 !/ops/linear/

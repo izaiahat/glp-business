@@ -1,6 +1,11 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/glp/reporting-v2/identity-registry.json": {
+      "callers": ["scripts/glp_affiliate_weekly_reporting.py", "scripts/glp_network_revenue_import_v2.py"],
+      "kind": "reporting_identity_configuration",
+      "sha256": "0f46cfb248f1d20a7c976ed7baec0c6d816a3371da95bdbc0bca8e21c96cf1f8"
+    },
     "tests/test_glp250_partner_email_hold.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
@@ -39,7 +44,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4bcdc57b07cbedf7ee1734ac1a4dae57e8151725e197a39b0bbbb1a82115e58a"
+      "sha256": "2df2201126ec9c2853260cdd36f648611691c52f9517d11cfe8735e98710ec7e"
     },
     ".hermes.md": {
       "callers": [],
@@ -2194,5 +2199,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 336
+  "tracked_count": 337
 }
