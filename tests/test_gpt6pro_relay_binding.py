@@ -56,6 +56,9 @@ class FakeCDP:
         self.composer_delay = 0
         self.first_composer_probe = None
         self.clock = 0
+        self.app_ready_at = 0
+        self.app_samples = []
+        self.app_overrides = {}
         self.on_run = lambda: None
 
     def list_tabs(self):
@@ -167,15 +170,25 @@ class FakeCDP:
             failure_selector = ('main.querySelectorAll' in expression and
                                 ('div[class*="group/activity-header"] span' in expression if failure_location == 'activity-header'
                                  else "span, button')" in expression or "main.querySelectorAll('button')" in expression))
-            return {"url": page["url"], "model": model, "logged_out": False, "rate_limited": False,
+            ready = self.clock >= self.app_ready_at
+            self.app_samples.append((self.active, self.clock))
+            return {"url": page["url"], "model": model if ready else None,
+                    "title": "ChatGPT" if ready else "Just a moment...",
+                    "ready_state": "complete", "composer_present": ready,
+                    "model_trigger": ('Medium' if self.medium_trigger else 'Pro') if ready else None,
+                    "security_interstitial": not ready, "human_challenge": False,
+                    "logged_out": False, "rate_limited": False,
                     "drive_reconnect": False, "stop": page["stop"], "send": True,
                     "thinking_failed": bool(page.get("thinking_failed", False) and failure_selector),
-                    "assistant_count": int(bool(page["text"])), "last_len": len(page["text"])}
+                    "assistant_count": int(bool(page["text"])), "last_len": len(page["text"]),
+                    **self.app_overrides}
         if "user_identity_matched" not in expression and ("div.text-size-chat.whitespace-pre-wrap" in expression or '[data-message-author-role=user]' in expression):
             identity_selector = ('[data-message-author-role=user]' in expression if page.get('identity_location') == 'user-role-only'
                                  else 'div.text-size-chat.whitespace-pre-wrap' in expression or '[data-message-author-role=user]' in expression)
             return bool(identity_selector and page.get("identity_matched", False))
         if 'return b?b.innerText.trim():null' in expression:
+            if self.clock < self.app_ready_at:
+                return None
             return 'Medium' if self.medium_trigger else ('Pro' if self.pro_only_trigger else None)
         if 'r.right-13' in expression:
             return {'x': 1100, 'y': 470} if self.medium_trigger else None
@@ -243,6 +256,7 @@ class FakeCDP:
         clock = types.ModuleType("time")
         clock.sleep = self.sleep
         clock.time = lambda: self.clock
+        clock.monotonic = lambda: self.clock
         env = {"cdp": self.cdp, "js": self.js, "list_tabs": self.list_tabs, "switch_tab": self.switch_tab,
                "current_tab": self.current_tab, "goto_url": self.goto_url, "wait_for_load": lambda: None,
                "activate_tab": lambda tid: None, "close_tab": lambda tid: self.pages.pop(tid)}
@@ -508,6 +522,204 @@ class BindingTests(unittest.TestCase):
         self.assertNotIn("conversation_url", st)
         self.assertEqual(self.browser.inserts, [])
         self.assertEqual(self.browser.sent, [])
+
+    def test_passive_interstitial_clears_after_old_model_deadline_on_same_tab(self):
+        # The real pacing prelude advances the fixture to t=60 before navigation.
+        self.browser.app_ready_at = 100
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp:
+            result = relay.send_message('packet', forbidden=[SIBLING])
+        self.assertNotIn('error', result)
+        self.assertEqual(self.browser.inserts, [('new-1', 'packet')])
+        self.assertEqual(self.browser.sent, [('new-1', 'packet')])
+        self.assertGreaterEqual(self.browser.first_composer_probe, self.browser.app_ready_at)
+        self.assertEqual({tab for tab, _ in self.browser.app_samples}, {'new-1'})
+        self.assertEqual(self.browser.created, [('new-1', 'about:blank')])
+        navigation = [c for c in cdp.call_args_list if c.args[0] in ('Page.navigate', 'Page.reload')]
+        self.assertEqual(len(navigation), 1)
+        self.assertEqual(navigation[0].kwargs, {'session_id': 'session-new-1', 'url': HOME})
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.current_tab_calls, 0)
+
+    def test_human_challenge_preserves_target_without_waiting_or_interaction(self):
+        self.browser.app_overrides = {'human_challenge': True}
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp, \
+             mock.patch.object(self.browser, 'js', wraps=self.browser.js) as js:
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'HUMAN_CHALLENGE')
+        self.assertEqual(result['readiness']['elapsed_s'], 0)
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertIn(result['tab'], self.browser.pages)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertFalse(any(c.args[0].startswith('Input.') for c in cdp.call_args_list))
+        self.assertFalse(any('.click()' in c.args[0] for c in js.call_args_list))
+
+    def test_readiness_timeout_has_bounded_evidence_and_never_retries(self):
+        self.browser.app_ready_at = float('inf')
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp:
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'SECURITY_INTERSTITIAL')
+        self.assertEqual(result['readiness'], {'elapsed_s': 90, 'observations': 46, 'limit_s': 90})
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertIn(result['tab'], self.browser.pages)
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual([c.args[0] for c in cdp.call_args_list if c.args[0].startswith('Page.')], ['Page.navigate'])
+
+    def test_incomplete_app_is_not_wrong_model(self):
+        self.browser.app_overrides = {'composer_present': False, 'model': '5 Pro'}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'APP_NOT_READY')
+        self.assertEqual(result['readiness']['elapsed_s'], 90)
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_ready_wrong_model_still_refuses_before_input(self):
+        self.browser.app_overrides = {'model': '5 Pro'}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'WRONG_MODEL')
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_readiness_rate_limit_refuses_immediately_even_with_ready_model(self):
+        self.browser.app_overrides = {'rate_limited': True}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'RATE_LIMITED')
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_readiness_logged_out_preserves_unsent_flags(self):
+        self.browser.app_overrides = {'logged_out': True}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'LOGGED_OUT')
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_readiness_refusal_keeps_registered_reservation_retry_blocked(self):
+        self.browser.app_overrides = {'human_challenge': True}
+        args = self.args()
+        with self.assertRaisesRegex(SystemExit, 'SEND_FAILED HUMAN_CHALLENGE'):
+            relay.cmd_submit(args)
+        st = relay.job_state(args.job)
+        self.assertEqual(st['reason'], 'HUMAN_CHALLENGE')
+        self.assertTrue(st['retry_blocked'])
+        self.assertFalse(st['typed'])
+        self.assertFalse(st['sent'])
+        self.assertIn(st['error']['tab'], self.browser.pages)
+        self.assertNotIn('conversation_url', st)
+        self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)], ['submitted'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        created = list(self.browser.created)
+        with self.assertRaises(SystemExit):
+            relay.cmd_submit(args)
+        self.assertEqual(self.browser.created, created)
+        relay.cleanup_tabs()
+        self.assertIn(st['error']['tab'], self.browser.pages, 'registered cleanup must preserve the challenge')
+
+    def test_readiness_observation_refuses_reused_target_without_new_navigation(self):
+        self.browser.app_ready_at = float('inf')
+        original_sleep = self.browser.sleep
+        def move_target(seconds):
+            original_sleep(seconds)
+            if self.browser.app_samples:
+                self.browser.pages['new-1']['url'] = SIBLING
+        with mock.patch.object(self.browser, 'sleep', side_effect=move_target):
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'conversation_collision')
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual(self.browser.navigations, [])
+
+    def test_readiness_observation_does_not_reopen_lost_target(self):
+        self.browser.app_ready_at = float('inf')
+        original_cdp = self.browser.cdp
+        def lose_target(method, **params):
+            if method == 'Target.getTargetInfo' and self.browser.app_samples:
+                raise RuntimeError('No target with given id')
+            return original_cdp(method, **params)
+        with mock.patch.object(self.browser, 'cdp', side_effect=lose_target):
+            with self.assertRaisesRegex(RuntimeError, 'No target with given id'):
+                relay.send_message('packet')
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual(self.browser.navigations, [])
+
+    def test_late_app_readiness_still_requires_maximum_picker_gate(self):
+        self.browser.app_ready_at = 100
+        self.browser.medium_trigger = True
+        self.browser.slider_works = False
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'WRONG_MODEL')
+        self.assertGreaterEqual(self.browser.clock, 100)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_readiness_checks_deadline_before_accepting_slow_ready_observation(self):
+        original_js = self.browser.js
+        def slow_observation(expression):
+            if expression.lstrip().startswith('(()=>{') and 'const mb=' in expression and 'const here=' not in expression:
+                self.browser.clock += 91
+            return original_js(expression)
+        with mock.patch.object(self.browser, 'js', side_effect=slow_observation):
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'APP_NOT_READY')
+        self.assertEqual(result['readiness']['elapsed_s'], 91)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_real_state_javascript_distinguishes_passive_and_human_security(self):
+        # Execute the actual probe, not FakeCDP's state dictionary. No browser/network.
+        env = {'js': lambda expression: expression}
+        exec(relay.BU_PRELUDE, env)
+        expression = env['_state']()
+        fixtures = [
+            {'title': 'Just a moment...', 'text': 'Checking your browser', 'human': False, 'passive': True},
+            {'text': 'Verify you are human', 'human': True, 'passive': False},
+            {'text': 'Please complete the security check', 'human': True, 'passive': False},
+            {'frame': 'https://challenges.cloudflare.com/turnstile', 'human': True, 'passive': False},
+            {'frame': 'https://www.google.com/recaptcha/api2/anchor', 'human': True, 'passive': False},
+            {'frame': 'https://hcaptcha.com/challenge', 'human': True, 'passive': False},
+            {'frame': 'https://challenges.cloudflare.com/turnstile', 'hidden': True, 'human': False, 'passive': False},
+            {'frame': 'https://example.test/help', 'human': False, 'passive': False},
+            {'app': True, 'human': False, 'passive': False},
+        ]
+        harness = r'''
+const fixtures = FIXTURES;
+console.log(JSON.stringify(fixtures.map(f => {
+  const node = {innerText:'Medium',src:f.frame||'',title:'',getAttribute:k=>k==='src'?f.frame:null,
+    getClientRects:()=>f.hidden?[]:[{}],style:{},hidden:!!f.hidden};
+  global.getComputedStyle = ()=>({display:f.hidden?'none':'block',visibility:'visible'});
+  global.location = {href:'https://chatgpt.com/'};
+  global.document = {title:f.title||'ChatGPT',readyState:'complete',body:{innerText:f.text||''},
+    querySelector:s=>f.app&&(s.includes('prompt-textarea')||s.includes('Select ChatGPT model'))?node:null,
+    querySelectorAll:s=>s.includes('iframe')&&f.frame?[node]:[]};
+  return PROBE;
+})));
+'''.replace('FIXTURES', json.dumps(fixtures)).replace('PROBE', expression)
+        completed = subprocess.run(['node', '-e', harness], capture_output=True, text=True, check=True)
+        for fixture, state in zip(fixtures, json.loads(completed.stdout)):
+            with self.subTest(fixture=fixture):
+                self.assertEqual(state['human_challenge'], fixture['human'])
+                self.assertEqual(state['security_interstitial'], fixture['passive'])
+                self.assertEqual(state['composer_present'], fixture.get('app', False))
+                self.assertEqual(state['model_trigger'], 'Medium' if fixture.get('app') else None)
 
     def test_current_tab_is_not_the_created_target(self):
         result = relay.send_message("packet", forbidden=[SIBLING])

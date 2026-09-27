@@ -1,6 +1,31 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp250_partner_email_hold.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "21a0634c6a8c5156207ca190dd62425cefe7b77e431bd4204623f9d9b9117b4a"
+    },
+    "ops/glp250-partner-email-hold.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
+    },
+    "scripts/glp_sheet_sync_drain.py": {
+      "callers": ["sheet_update_queue single-writer carrier"],
+      "kind": "script",
+      "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
+    },
+    "scripts/affiliate_program_relevance.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
+    },
+    "scripts/affiliate_operator_rulings.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
@@ -741,7 +766,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "c2a36078c3525a7ea25cb714ff4af79368cf90e693e77dde3add26ed148f87c0"
+      "sha256": "dc713c15af72f5dc2af6311fbcc9f0a56c887ff5843da7a741a6af84d376690c"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
@@ -1125,7 +1150,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "53f0e39a7852cb9ea5180be342f22a508f1eb46bbec5afd8c4d2722e46ac6c9d"
+      "sha256": "62364315019d92c25a52e51006266a5c8b2fc037e08f15c1bb80ee628f658d42"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -1193,7 +1218,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "f25908ef4a2c4057b09b5d5b04f0d4ba3f9cde14e5cc11e41a0e1327dd532a69"
+      "sha256": "4f2ad5cf2b29f886d8cef64a550d1e3bb66ff22a1e1d75ccabdd01c0cd8c6e18"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -1257,7 +1282,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "61b58c07b14c56effabeea0dcfd56fc1bf1aca1014f252291191c954f09598d4"
+      "sha256": "f841bc47c766e4f93303438008aebf1f8b6ee68809c0b9ded5cb738bfbd8f302"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2075,7 +2100,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "3c2246e5b3f5e6531ad2416eba3ce8b4c9b7d769fe4929c617663df3f86963c4"
+      "sha256": "5a34162187a4b527b2dcde8790c7f4df36b74710bf3daa6f4f4cd8c8628bbeec"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -2106,7 +2131,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "03c8c6448e4cb8ab50a99fb4855f05e8ce3ce251a51c594d0fd15cf6671ec00f"
+      "sha256": "067b4be7b04d7324a9a131e992dddd00fd0a1bf22772d8a3946333dc5e38d5cd"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -2223,5 +2248,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 339
+  "tracked_count": 344
 }

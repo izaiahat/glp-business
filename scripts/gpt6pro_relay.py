@@ -850,7 +850,16 @@ def _state(probe=js):
       // Match the exact generation label in either UI variant, not quoted prompt text.
       const main=document.querySelector('main');
       const thinking_failed=!!main&&[...main.querySelectorAll('div[class*="group/activity-header"] span, button')].some(e=>e.textContent.trim()==='Thinking failed'&&(e.matches('button')||e.children.length===0));
-      return {url:location.href,title:document.title,model:mb||null,logged_out:login,stop:stop,drive_reconnect:drive_reconnect,rate_limited:rate_limited,send:send?!send.disabled:null,assistant_count:msgs.length,last_len:last.length,thinking_failed:thinking_failed};
+      const trigger=document.querySelector('button[aria-label="Select ChatGPT model"]');
+      const composer=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
+      const visible=e=>!!e&&e.getClientRects().length>0&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden';
+      const security_text=document.title+'\\n'+document.body.innerText.slice(0,2000);
+      const security_interstitial=/just a moment|checking your browser|performing security verification/i.test(security_text);
+      // Conservatively preserve visible CAPTCHA frames; never inspect/solve inside them.
+      const human_challenge=/verify (that )?you are human|confirm (that )?you are human|complete the security check|verify you'?re human/i.test(security_text)||
+        [...document.querySelectorAll('iframe')].some(e=>visible(e)&&/challenges\\.cloudflare\\.com|recaptcha|hcaptcha/i.test(e.src+' '+e.title));
+      return {url:location.href,title:document.title,model:mb||null,logged_out:login,stop:stop,drive_reconnect:drive_reconnect,rate_limited:rate_limited,send:send?!send.disabled:null,assistant_count:msgs.length,last_len:last.length,thinking_failed:thinking_failed,
+        ready_state:document.readyState,composer_present:visible(composer),model_trigger:visible(trigger)?trigger.innerText.trim():null,security_interstitial:security_interstitial,human_challenge:human_challenge};
     })()""")
 '''
 
@@ -893,13 +902,31 @@ def _input(method, **params):
 # Chrome throttles BACKGROUND renderers; a 60k-char composer insert then blows the daemon's 5s CDP timeout
 # (wave 1, 2026-09-16: five submits failed with zero messages sent). Foreground the tab while we type.
 activate_tab(tab["targetId"])
-time.sleep(3)
-st=_state(lambda expression: _bound_js(tab["targetId"], fresh, expression))
-for _ in range(10):  # the power/model button renders late on a fresh tab; give it up to ~20 s
-    if st["model"] or st["logged_out"] or st["rate_limited"]: break
-    time.sleep(2); st=_state(lambda expression: _bound_js(tab["targetId"], fresh, expression))
-if st["logged_out"]:
-    print("RELAY_JSON:"+json.dumps({{"error":"LOGGED_OUT","state":st}})); raise SystemExit(0)
+# A complete document can still be a passive security interstitial. Observe
+# this exact fresh target for at most 90s, without another navigation or click.
+# Readiness is NOT model approval: the full model/maximum gate below is unchanged.
+ready_started=time.monotonic()
+for readiness_observations in range(1, 47):
+    if _fresh()!=fresh:
+        _binding_error("conversation_mismatch", tab=tab["targetId"])
+    st=_state(lambda expression: _bound_js(tab["targetId"], fresh, expression))
+    readiness={{"elapsed_s":round(time.monotonic()-ready_started, 3),
+                "observations":readiness_observations,"limit_s":90}}
+    if st["human_challenge"]:
+        # Never click, solve, reload or close a human-security surface.
+        _binding_error("HUMAN_CHALLENGE", state=st, tab=tab["targetId"], readiness=readiness)
+    if st["logged_out"]:
+        _binding_error("LOGGED_OUT", state=st, tab=tab["targetId"], readiness=readiness)
+    if st["rate_limited"]:
+        _binding_error("RATE_LIMITED", state=st, tab=tab["targetId"], readiness=readiness)
+    remaining=90-(time.monotonic()-ready_started)
+    if (remaining>=0 and not st["security_interstitial"] and st["ready_state"]=="complete" and
+            st["composer_present"] and (st["model"] or st["model_trigger"])):
+        break
+    if remaining<=0 or readiness_observations==46:
+        reason="SECURITY_INTERSTITIAL" if st["security_interstitial"] else "APP_NOT_READY"
+        _binding_error(reason, state=st, tab=tab["targetId"], readiness=readiness)
+    time.sleep(min(2, remaining))
 # On a fresh chat the trigger may display the selected effort (e.g. Medium),
 # not the model. Select maximum power only on the observed five-step picker;
 # never infer GPT-6 from a bare Pro trigger or from a slider click alone.
