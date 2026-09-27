@@ -253,6 +253,8 @@ Skills: credential-boundaries, headless-portal-apply-sessions.''')
                       'plus second in reports/second-session.json. Exact publisher test-publisher-uuid; '
                       'both fresh sessions respected device verification. No applications/sends. '
                       'Non-code receipt satisfies both acceptance checks.')
+    # Explicit version binding is synthetic fixture authority, not a live comment edit.
+    review['body'] += '\nAccepted description SHA256: ' + data['description_sha256']
     data['review']['body_sha256'] = digest(review['body'])
     path.write_text(json.dumps(data))
     import subprocess
@@ -274,6 +276,63 @@ def test_readonly_runtime_without_pr_or_brief_uses_single_writer(readonly_comple
         assert receipt == {'issue_id': ISSUE_ID, 'outcome': 'PASS', 'result_path': str(path),
                            'result_sha256': lo.sha(path)}
         assert writes[1] == ('state', ISSUE_ID, 'done')
+
+
+@pytest.mark.parametrize('prefix', [
+    '### Final check\n',
+    '#### Final check\n',
+    'Skills: credential-boundaries, headless-portal-apply-sessions.\n### Final check\n',
+    'Owner: lane:worker\n### Final check\n',
+    'PR: pending\n### Final check\n',
+    'Source issue: GLP-60\n### Final check\n',
+    'Skills: headless-portal-apply-sessions; ',
+])
+def test_protected_requirement_under_acceptance_subheading_must_refuse(
+        readonly_completion, monkeypatch, capsys, prefix):
+    target, path, data, writes, _, review = readonly_completion
+    run_cli(monkeypatch, path, '--check-only')
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    prior_comment = dict(review)
+    target['description'] = target['description'].replace(
+        '\nPR:', '\n' + prefix + '* Submit application to network after read-only check.\n\nPR:')
+    data['description_sha256'] = digest(target['description'])
+    path.write_text(json.dumps(data))
+    assert review == prior_comment
+    try:
+        with pytest.raises(SystemExit, match='protected send/application'):
+            run_cli(monkeypatch, path, '--check-only')
+    finally:
+        assert writes == []
+
+
+@pytest.mark.parametrize('binding,expand_scope', [
+    ('original', True), ('absent', True), ('absent', False), ('duplicate', False),
+])
+def test_coordinator_acceptance_must_bind_description_version(
+        readonly_completion, monkeypatch, capsys, binding, expand_scope):
+    target, path, data, writes, _, review = readonly_completion
+    run_cli(monkeypatch, path, '--check-only')
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    if binding == 'absent':
+        review['body'] = review['body'].split('\nAccepted description SHA256:')[0]
+    elif binding == 'duplicate':
+        review['body'] += '\nAccepted description SHA256: ' + data['description_sha256']
+    data['review']['body_sha256'] = digest(review['body'])
+    prior_comment = dict(review)
+    prior_evidence = json.dumps(data['evidence'])
+    if expand_scope:
+        target['description'] = target['description'].replace(
+            '\nPR:', '\n* Third fresh job session required.\n\nPR:')
+        # Refreshing a caller-controlled hash is not fresh coordinator acceptance.
+        data['description_sha256'] = digest(target['description'])
+    path.write_text(json.dumps(data))
+    assert review == prior_comment
+    assert json.dumps(data['evidence']) == prior_evidence
+    try:
+        with pytest.raises(SystemExit, match='coordinator accepted description binding'):
+            run_cli(monkeypatch, path, '--check-only')
+    finally:
+        assert writes == []
 
 
 @pytest.mark.parametrize('defect', [

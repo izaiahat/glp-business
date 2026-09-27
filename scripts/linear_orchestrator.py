@@ -357,6 +357,15 @@ def _lint_ordinary_result(path, iss):
     merged PR/exact-head CI; explicit read-only non-code work uses the same evidence
     structures without inventing a PR. No brief, historical packet rewrite,
     command execution or pins. Protected scopes retain independent acceptance.
+
+    Read-only non-code acceptance must include exactly one standalone line:
+    Accepted description SHA256: <64 lowercase hex characters>
+    Hash the exact issue description's UTF-8 bytes, without normalization. The
+    authenticated coordinator comment must also retain its acceptance prefix,
+    artifact paths and observed identifiers. A retained unbound comment requires
+    a NEW scoped coordinator acceptance after review, never a historical edit.
+    RESULT binds that new comment's id/body hash and the same description hash.
+    This additional binding does not change the ordinary code/runtime contract.
     """
     import re
     import subprocess
@@ -393,11 +402,13 @@ def _lint_ordinary_result(path, iss):
         if readonly:
             require('pr' not in data and data.get('changed_files', []) == [],
                     'read-only non-code work cannot claim a PR or source changes')
-            # Inspect acceptance, not skill names such as headless-portal-apply-sessions.
-            acceptance_match = re.search(
-                r'##\s*Acceptance\s*\n(.*?)(?=\n(?:##|PR:|Owner:|Skills:|Source issue:)|\Z)',
-                description, re.I | re.S)
+            # Keep nested headings and requirements after metadata-shaped lines.
+            # Only a complete skill-name list is metadata, never a scope terminator.
+            acceptance_match = re.search(r'##\s*Acceptance\s*\n(.*)', description, re.I | re.S)
             acceptance = acceptance_match.group(1) if acceptance_match else ''
+            skill_name = r'[a-z][a-z0-9]*(?:-[a-z0-9]+)+'
+            acceptance = '\n'.join(line for line in acceptance.splitlines() if not re.fullmatch(
+                r'Skills:[ \t]*' + skill_name + r'(?:,[ \t]*' + skill_name + r')*\.?[ \t]*', line))
             require(re.search(r'\bread[- ]only\b', acceptance, re.I),
                     'explicit read-only acceptance required for non-code runtime')
             require(not re.search(r'\b(send\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying))\b',
@@ -433,6 +444,11 @@ def _lint_ordinary_result(path, iss):
         if readonly:
             require(body.startswith(('Coordinator acceptance verified:', 'Acceptance verified by parent:')),
                     'existing coordinator acceptance required')
+            # Authenticated approval must name the accepted version, not just rely
+            # on a worker refreshing RESULT's hash. No fallback for old comments.
+            require(re.findall(r'^Accepted description SHA256: ([a-f0-9]{64})$', body, re.M) ==
+                    [data['description_sha256']],
+                    'coordinator accepted description binding missing, ambiguous or stale')
         else:
             require(body.startswith('Coordinator acceptance verified:') and data['pr']['merge_sha'] in body,
                     'coordinator acceptance body/merge binding missing or changed')
