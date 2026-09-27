@@ -195,7 +195,7 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if "--prepare-current" in argv or "--publish-current" in argv:
+    if any(mode in argv for mode in ("--prepare-current", "--publish-current", "--promote-current-existing")):
         return current_main(argv)
     if "--package-only" not in argv:
         return legacy_main(argv)
@@ -821,49 +821,172 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         deployment_id = current["id"]
         stages["pages_deployment"] = {"deployment_id": deployment_id, "commit_hash": head}
         checkpoint(receipt_path, receipt)
-        try:
-            stages["route_probes"] = current_route_matrix(client, current, prepared["route_specs"],
-                                                          root / "release/public", receipt_path, receipt)
-            stages["runtime_and_holds"] = current_runtime_readback(current, prepared)
-            current_prepared(root, args.expected_prepared_manifest_sha256)
-            intent = current_pointer_intent(root, prepared, deployment_id, run_dir)
-            if "pointer_intent" in stages and stages["pointer_intent"] != intent:
-                fail("current_pointer_intent_drift")
-            stages["pointer_intent"] = intent
-            checkpoint(receipt_path, receipt)
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_canonical_changed_before_pointer")
-            stages["pointer_cas"] = atomic_pointer_cas(intent, lock_fd, production=True)
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_canonical_changed_after_pointer")
-            raw = base64.b64decode(intent["successor_bytes_base64"], validate=True)
-            _pointer_exact(POINTER, raw, int(intent["final_mode"], 8), intent["final_uid"], intent["final_gid"])
-            stages["canonical_pointer_readback"] = {"deployment_id": deployment_id, "site_head": head, "pointer_sha256": sha_bytes(raw)}
-        except Exception:
-            pointer, _ = capture_pointer(POINTER)
-            if json.loads(pointer).get("deployment_id") == deployment_id:
-                # Never roll back the provider behind an already advanced pointer.
-                receipt["status"] = "BLOCKED_POST_CAS_VALIDATION"
-                checkpoint(receipt_path, receipt)
-                raise
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_foreign_head_no_rollback")
-            verify_signed_predecessor(prepared["predecessor_pointer"])
-            stages["rollback_intent"] = {"deployment_id": CURRENT_ROLLBACK}
-            checkpoint(receipt_path, receipt)
-            try:
-                client.rollback(CURRENT_ROLLBACK)
-            finally:
-                restored = production_deployment(client.project())
-                if restored.get("id") == CURRENT_ROLLBACK and successful_production(restored):
-                    verify_signed_predecessor(prepared["predecessor_pointer"])
-                    receipt["status"] = "BLOCKED_ROLLED_BACK"
-                    checkpoint(receipt_path, receipt)
-            raise
+        current_posteffect(args, root, prepared, run_dir, receipt_path, receipt, client, current, lock_fd)
         receipt["status"] = "PASS_PRODUCTION_TERMINAL"
         receipt["effects"] = {"pages_deployments": 1, "pages_rollbacks": 0, "pointer_atomic_cas": 1,
                               "worker_deploys": 0, "d1_mutations": 0, "cron_mutations": 0, "email_sends": 0}
         checkpoint(receipt_path, receipt)
+        return {"status": receipt["status"], "receipt": str(receipt_path), "receipt_sha256": sha_file(receipt_path),
+                "deployment_id": deployment_id, "site_head": head}
+    finally:
+        os.close(lock_fd)
+
+
+def current_posteffect(args: argparse.Namespace, root: Path, prepared: dict[str, Any], run_dir: Path,
+                       receipt_path: Path, receipt: dict[str, Any], client: CloudflareClient,
+                       current: dict[str, Any], lock_fd: int) -> None:
+    # Exact dedented former publish block: same oracle, native CAS and rollback.
+    stages, deployment_id, head = receipt["stages"], current["id"], prepared["site_head"]
+    try:
+        stages["route_probes"] = current_route_matrix(client, current, prepared["route_specs"],
+                                                      root / "release/public", receipt_path, receipt)
+        stages["runtime_and_holds"] = current_runtime_readback(current, prepared)
+        current_prepared(root, args.expected_prepared_manifest_sha256)
+        intent = current_pointer_intent(root, prepared, deployment_id, run_dir)
+        if "pointer_intent" in stages and stages["pointer_intent"] != intent:
+            fail("current_pointer_intent_drift")
+        stages["pointer_intent"] = intent
+        checkpoint(receipt_path, receipt)
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_canonical_changed_before_pointer")
+        stages["pointer_cas"] = atomic_pointer_cas(intent, lock_fd, production=True)
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_canonical_changed_after_pointer")
+        raw = base64.b64decode(intent["successor_bytes_base64"], validate=True)
+        _pointer_exact(POINTER, raw, int(intent["final_mode"], 8), intent["final_uid"], intent["final_gid"])
+        stages["canonical_pointer_readback"] = {"deployment_id": deployment_id, "site_head": head, "pointer_sha256": sha_bytes(raw)}
+    except Exception:
+        pointer, _ = capture_pointer(POINTER)
+        if json.loads(pointer).get("deployment_id") == deployment_id:
+            # Never roll back the provider behind an already advanced pointer.
+            receipt["status"] = "BLOCKED_POST_CAS_VALIDATION"
+            checkpoint(receipt_path, receipt)
+            raise
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_foreign_head_no_rollback")
+        verify_signed_predecessor(prepared["predecessor_pointer"])
+        stages["rollback_intent"] = {"deployment_id": CURRENT_ROLLBACK}
+        checkpoint(receipt_path, receipt)
+        try:
+            client.rollback(CURRENT_ROLLBACK)
+        finally:
+            restored = production_deployment(client.project())
+            if restored.get("id") == CURRENT_ROLLBACK and successful_production(restored):
+                verify_signed_predecessor(prepared["predecessor_pointer"])
+                receipt["status"] = "BLOCKED_ROLLED_BACK"
+                checkpoint(receipt_path, receipt)
+        raise
+
+
+def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any], path: Path) -> dict[str, Any]:
+    # The original consumed upload receipt is input only, never a writable target.
+    original = current_json(path, args.expected_rolled_back_receipt_sha256)
+    binding = {"prepared_manifest_sha256": args.expected_prepared_manifest_sha256,
+               "approval_sha256": args.expected_approval_sha256}
+    stages = original.get("stages", {})
+    if (not args.authorize_existing_promotion or not re.fullmatch(r"[0-9a-f]{40}", args.site_head)
+            or args.site_head != prepared["site_head"] or not DEPLOYMENT_ID.fullmatch(args.candidate_deployment_id)
+            or args.candidate_deployment_id == CURRENT_ROLLBACK
+            or original.get("schema") != "glp43-current-deploy-receipt-v1"
+            or original.get("status") != "BLOCKED_ROLLED_BACK" or original.get("binding") != binding
+            or original.get("site_head") != args.site_head or original.get("rollback_deployment_id") != CURRENT_ROLLBACK
+            or original.get("deploy_directory") != prepared["deploy_directory"]
+            or stages.get("pages_deploy_cli", {}).get("returncode") != 0
+            or stages.get("pages_deploy_intent", {}).get("commit_hash") != args.site_head
+            or stages.get("pages_deploy_intent", {}).get("predecessor_id") != CURRENT_ROLLBACK
+            or stages.get("pages_deployment") != {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
+            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or "pointer_intent" in stages or "pointer_cas" in stages
+            or prepared["predecessor_pointer"].get("deployment_id") != CURRENT_ROLLBACK):
+        fail("current_promotion_source_or_authorization_mismatch")
+    return {**binding, "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+            "candidate_deployment_id": args.candidate_deployment_id, "site_head": args.site_head,
+            "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
+
+
+def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
+    root = package_plain_path(Path(args.prepared_dir))
+    prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
+    current_approval(args, prepared)
+    run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
+    original_path = run_dir / "CURRENT-RECEIPT.json"
+    binding = current_promotion_source(args, prepared, original_path)
+    verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
+    lock_fd = acquire_lock()
+    try:
+        deployment_id, head = args.candidate_deployment_id, args.site_head
+        receipt_path = run_dir / ("CURRENT-PROMOTION-" + deployment_id + ".json")
+        selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
+                     "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+                     "effect": "select_existing_successful_production_deployment"}
+        client = CloudflareClient(read_token())
+        if receipt_path.exists():
+            require_regular(package_plain_path(receipt_path))
+            receipt = load_json(receipt_path)
+            if (receipt.get("schema") != "glp43-current-promotion-receipt-v1" or receipt.get("binding") != binding
+                    or receipt.get("status") != "ACTIVE"
+                    or receipt.get("stages", {}).get("existing_candidate_selection_intent") != selection):
+                fail("current_promotion_consumed_or_binding_changed")
+        else:
+            candidate = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments/{deployment_id}")
+            current = production_deployment(client.project())
+            if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
+                    or deployment_commit(candidate) != head or not successful_production(candidate)
+                    or current.get("id") != CURRENT_ROLLBACK or not successful_production(current)):
+                fail("current_promotion_predecessor_or_candidate_mismatch")
+            current_prepared(root, args.expected_prepared_manifest_sha256)
+            current_approval(args, prepared)
+            current_promotion_source(args, prepared, original_path)
+            verify_signed_predecessor(prepared["predecessor_pointer"])
+            receipt = {"schema": "glp43-current-promotion-receipt-v1", "status": "ACTIVE", "binding": binding,
+                       "original_receipt": str(original_path), "site_head": head,
+                       "stages": {"existing_candidate_selection_intent": selection},
+                       "effects": {"pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                                   "existing_candidate_selections_confirmed": None, "guarded_rollback_post_intents": 0,
+                                   "guarded_rollbacks_confirmed": 0, "pointer_atomic_cas": 0}}
+            exclusive_file(receipt_path, json_bytes(receipt))
+            # Only this exclusive creation permits the one selection POST.
+            # Cloudflare documents /rollback as selecting a prior successful
+            # production deployment; it uploads/builds nothing.
+            immediate = production_deployment(client.project())
+            if immediate.get("id") != CURRENT_ROLLBACK or not successful_production(immediate):
+                fail("current_canonical_changed_before_promotion")
+            current_prepared(root, args.expected_prepared_manifest_sha256)
+            current_approval(args, prepared)
+            current_promotion_source(args, prepared, original_path)
+            verify_signed_predecessor(prepared["predecessor_pointer"])
+            try:
+                client.rollback(deployment_id)
+                receipt["stages"]["existing_candidate_selection_result"] = {"returned": True}
+            except Exception as exc:
+                receipt["stages"]["existing_candidate_selection_result"] = {"ambiguous": type(exc).__name__}
+            checkpoint(receipt_path, receipt)
+        stages = receipt["stages"]
+        try:
+            current = production_deployment(client.project())
+            if "rollback_intent" in stages:
+                # An uncertain guarded rollback also cannot be repeated.
+                if current.get("id") == CURRENT_ROLLBACK and successful_production(current):
+                    verify_signed_predecessor(prepared["predecessor_pointer"])
+                    receipt["status"] = "BLOCKED_ROLLED_BACK"
+                fail("current_prior_rollback_no_replay")
+            if (current.get("id") != deployment_id or deployment_commit(current) != head
+                    or not successful_production(current)):
+                fail("current_promotion_outcome_unsettled_reconcile_only")
+            stages["existing_candidate_selection_confirmed"] = {"deployment_id": deployment_id, "commit_hash": head}
+            checkpoint(receipt_path, receipt)
+            current_posteffect(args, root, prepared, run_dir, receipt_path, receipt, client, current, lock_fd)
+            receipt["status"] = "PASS_PRODUCTION_TERMINAL"
+        finally:
+            # Intent counts are upper bounds on POSTs, not fabricated outcomes.
+            # Unknown completion remains null until canonical/CAS readback.
+            receipt["effects"] = {"pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                                  "existing_candidate_selections_confirmed": 1 if "existing_candidate_selection_confirmed" in stages else None,
+                                  "guarded_rollback_post_intents": int("rollback_intent" in stages),
+                                  "guarded_rollbacks_confirmed": (1 if receipt["status"] == "BLOCKED_ROLLED_BACK"
+                                                                 else None if "rollback_intent" in stages else 0),
+                                  "pointer_atomic_cas": 1 if "pointer_cas" in stages else None if "pointer_intent" in stages else 0}
+            checkpoint(receipt_path, receipt)
         return {"status": receipt["status"], "receipt": str(receipt_path), "receipt_sha256": sha_file(receipt_path),
                 "deployment_id": deployment_id, "site_head": head}
     finally:
@@ -875,6 +998,7 @@ def current_main(argv: list[str]) -> int:
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--prepare-current", action="store_true")
     modes.add_argument("--publish-current", action="store_true")
+    modes.add_argument("--promote-current-existing", action="store_true")
     parser.add_argument("--prepared-dir", required=True)
     preparing = "--prepare-current" in argv
     flags = (("source-root", "site-head", "git-tree", "build-seat", "package-dir", "expected-package-manifest-sha256",
@@ -884,9 +1008,15 @@ def current_main(argv: list[str]) -> int:
         parser.add_argument("--" + flag, required=True)
     if not preparing:
         parser.add_argument("--authorize-production", action="store_true")
+    if "--promote-current-existing" in argv:
+        for flag in ("site-head", "candidate-deployment-id", "expected-rolled-back-receipt-sha256"):
+            parser.add_argument("--" + flag, required=True)
+        parser.add_argument("--authorize-existing-promotion", action="store_true")
     args = parser.parse_args(argv)
     try:
-        result = run_prepare_current(args) if preparing else run_publish_current(args)
+        runner = (run_prepare_current if preparing else run_promote_current_existing
+                  if args.promote_current_existing else run_publish_current)
+        result = runner(args)
         print(json.dumps(result, sort_keys=True, indent=2))
         return 0
     except (GateError, OSError, ValueError, TypeError, AttributeError, KeyError, subprocess.SubprocessError) as exc:

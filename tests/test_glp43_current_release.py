@@ -246,6 +246,253 @@ class CurrentReleaseTests(unittest.TestCase):
                 "approval": self.approval, "expected-approval-sha256": approval_pin or c.sha_file(self.approval)}
         return self.cli("--publish-current", args, *(["--authorize-production"] if authorize else []))
 
+    def promotion_fixture(self):
+        # Handwritten synthetic accepted bytes, not a preparation/compiler run.
+        self.email_probe_fixture()
+        self.prepared.mkdir()
+        c.shutil.copytree(self.public, self.prepared / "release/public")
+        c.shutil.copytree(self.public, self.prepared / "deploy-public")
+        worker = self.prepared / "deploy-public/_worker.js"
+        worker.write_bytes(b"// SYNTHETIC accepted worker; never executed\n")
+        public_hash, rows = c.package_tree(self.public)
+        package = json.loads((self.package / "PACKAGE-MANIFEST.json").read_text())
+        package.update(public_tree_sha256=public_hash, files=rows)
+        (self.prepared / "PACKAGE-MANIFEST.json").write_bytes(c.json_bytes(package))
+        (self.prepared / "gate.json").write_bytes(self.gate.read_bytes())
+        self.prepared_data = {
+            "schema": "glp43-current-prepared-v1", "prepared_dir": str(self.prepared),
+            "site_head": self.head, "site_repository": c.CURRENT_REPOSITORY,
+            "project": c.PROJECT, "branch": "main", "account_id": c.ACCOUNT_ID,
+            "public_tree_sha256": public_hash,
+            "package_manifest_sha256": c.sha_file(self.prepared / "PACKAGE-MANIFEST.json"),
+            "build_receipt": {"sha256": c.sha_file(self.gate)},
+            "source": {"git_tree": self.tree, "go_internal_fallback": c.SITE + "/providers/", "go_embedded_sha256": "e" * 64},
+            "compiled": {"worker_sha256": c.sha_file(worker)}, "toolchain": c.CURRENT_TOOLCHAIN,
+            "rollback_deployment_id": c.CURRENT_ROLLBACK, "predecessor_pointer": c.current_pointer(),
+            "release": c.file_closure(self.prepared / "release"), "deploy_directory": c.file_closure(worker.parent),
+            "holds": {"held": [{"id": "fella-health"}]}, "route_specs": c.current_route_specs(self.public)}
+        (self.prepared / "PREPARED.json").write_bytes(c.json_bytes(self.prepared_data))
+        self.approve_fixture()
+        self.promotion_args = {
+            "prepared-dir": self.prepared, "expected-prepared-manifest-sha256": c.sha_file(self.prepared / "PREPARED.json"),
+            "approval": self.approval, "expected-approval-sha256": c.sha_file(self.approval),
+            "site-head": self.head, "candidate-deployment-id": NEW_ID}
+        self.run_dir = c.SEO_REPORT_ROOT / ("current-release-" + self.head)
+        self.run_dir.mkdir(parents=True)
+        self.original_receipt = self.run_dir / "CURRENT-RECEIPT.json"
+        self.original_data = {
+            "schema": "glp43-current-deploy-receipt-v1", "status": "BLOCKED_ROLLED_BACK",
+            "binding": {"prepared_manifest_sha256": self.promotion_args["expected-prepared-manifest-sha256"],
+                        "approval_sha256": self.promotion_args["expected-approval-sha256"]},
+            "site_head": self.head, "rollback_deployment_id": c.CURRENT_ROLLBACK,
+            "deploy_directory": self.prepared_data["deploy_directory"],
+            "stages": {"pages_deploy_cli": {"returncode": 0},
+                       "pages_deploy_intent": {"commit_hash": self.head, "predecessor_id": c.CURRENT_ROLLBACK},
+                       "pages_deployment": {"commit_hash": self.head, "deployment_id": NEW_ID},
+                       "rollback_intent": {"deployment_id": c.CURRENT_ROLLBACK}}}
+        self.original_receipt.write_bytes(c.json_bytes(self.original_data))
+        self.original_bytes = self.original_receipt.read_bytes()
+        self.original_stat = self.original_receipt.stat()
+        self.promotion_args["expected-rolled-back-receipt-sha256"] = c.sha_bytes(self.original_bytes)
+        self.promotion_receipt = self.run_dir / ("CURRENT-PROMOTION-" + NEW_ID + ".json")
+        self.candidate = self.deployment(NEW_ID, self.head)
+        self.selections, self.selection_mode = [], "land"
+        self.stack.enter_context(mock.patch.object(c.urllib.request, "urlopen", side_effect=self.promotion_transport))
+        self.stack.enter_context(mock.patch.object(c.urllib.request.OpenerDirector, "open", side_effect=self.promotion_transport))
+        self.stack.enter_context(mock.patch.object(c.subprocess, "run", side_effect=AssertionError("no rebuild/upload subprocess")))
+        for name in ("run_prepare_current", "current_compile", "run_package_only"):
+            self.stack.enter_context(mock.patch.object(c, name, side_effect=AssertionError("no preparation")))
+
+    def promotion_transport(self, request, **kwargs):
+        suffix = f"/accounts/{c.ACCOUNT_ID}/pages/projects/{c.PROJECT}/deployments/{NEW_ID}"
+        if request.full_url in (c.API_BASE + suffix, c.API_BASE + suffix + "/rollback"):
+            self.calls.append((request.get_method(), request.full_url))
+            if request.full_url.endswith("/rollback"):
+                self.assertEqual(request.get_method(), "POST")
+                self.assertEqual(request.data, b"{}")
+                intent = json.loads(self.promotion_receipt.read_text())["stages"]["existing_candidate_selection_intent"]
+                self.assertEqual(intent["deployment_id"], NEW_ID)
+                self.assertEqual(intent["original_receipt_sha256"], c.sha_bytes(self.original_bytes))
+                self.selections.append(NEW_ID)
+                if self.selection_mode != "unsettled":
+                    self.current = copy.deepcopy(self.candidate)
+                if self.selection_mode != "land":
+                    raise c.urllib.error.URLError("SYNTHETIC ambiguous selection")
+            else:
+                self.assertEqual(request.get_method(), "GET")
+            response = mock.MagicMock()
+            response.__enter__.return_value = response
+            response.read.return_value = c.json_bytes({"success": True, "result": self.candidate})
+            return response
+        response = self.transport(request, **kwargs)
+        if request.full_url == c.SITE + "/" and request.get_method() == "GET":
+            response.read.return_value = self.email_raw
+            response.headers = {"Content-Type": "text/html"}
+        return response
+
+    def promote_fixture(self, values=None, switches=("--authorize-production", "--authorize-existing-promotion")):
+        return self.cli("--promote-current-existing", values or self.promotion_args, *switches)
+
+    def assert_promotion_custody(self):
+        self.assertEqual(self.original_receipt.read_bytes(), self.original_bytes)
+        self.assertEqual(self.original_receipt.stat(), self.original_stat)
+        self.assertEqual(self.deploy_calls, []); self.assertEqual(self.builds, [])
+
+    def test_current_existing_promotion_exact_authority_before_intent(self):
+        self.promotion_fixture()
+        before_pointer = self.pointer.read_bytes()
+        # Wrong pins/head/candidate, terminal source, original approval and both flags.
+        cases = [("expected-prepared-manifest-sha256", "0" * 64),
+                 ("expected-approval-sha256", "0" * 64),
+                 ("expected-rolled-back-receipt-sha256", "0" * 64),
+                 ("site-head", "0" * 40), ("candidate-deployment-id", c.CURRENT_ROLLBACK)]
+        for key, value in cases:
+            with self.subTest(key=key):
+                self.assertEqual(self.promote_fixture({**self.promotion_args, key: value}), 1)
+                self.assertFalse(self.promotion_receipt.exists())
+        for switches in (("--authorize-production",), ("--authorize-existing-promotion",)):
+            self.assertEqual(self.promote_fixture(switches=switches), 1)
+        self.original_receipt.write_bytes(c.json_bytes({**self.original_data, "status": "ACTIVE"}))
+        self.assertEqual(self.promote_fixture({**self.promotion_args,
+                         "expected-rolled-back-receipt-sha256": c.sha_file(self.original_receipt)}), 1)
+        self.original_receipt.write_bytes(self.original_bytes)
+        self.review.update(verdict="CHANGES_REQUIRED", release_accepted=False); self.save_review()
+        self.assertEqual(self.promote_fixture({**self.promotion_args, "expected-approval-sha256": c.sha_file(self.approval)}), 1)
+        self.approve_fixture()
+        self.assertEqual(self.calls, [])
+        # Old publish remains terminally refused, never reset to ACTIVE.
+        self.assertEqual(self.publish(), 1)
+        self.assertEqual(self.last["error"], "current_release_consumed_or_binding_changed")
+        self.current = self.deployment(NEW_ID, self.head)
+        self.assertEqual(self.promote_fixture(), 1)
+        self.current = copy.deepcopy(self.deployments[0])
+        self.pointer.write_bytes(before_pointer + b" ")
+        self.assertEqual(self.promote_fixture(), 1)
+        self.pointer.write_bytes(before_pointer)
+        self.assertFalse(self.promotion_receipt.exists())
+        self.assertEqual(self.selections, []); self.assertEqual(self.rollbacks, [])
+        # Valid control reaches the exclusive distinct intent, without writing it.
+        class IntentReached(BaseException): pass
+        def intent_sentinel(path, data, *args):
+            self.assertEqual(path, self.promotion_receipt)
+            self.assertEqual(json.loads(data)["binding"]["original_receipt_sha256"], c.sha_bytes(self.original_bytes))
+            raise IntentReached()
+        with mock.patch.object(c, "exclusive_file", side_effect=intent_sentinel):
+            with self.assertRaises(IntentReached):
+                self.promote_fixture()
+        self.assertEqual(self.original_receipt.read_bytes(), self.original_bytes)
+        self.assertEqual(self.pointer.read_bytes(), before_pointer)
+        self.assertFalse(self.promotion_receipt.exists())
+
+    def test_current_existing_promotion_select_once_and_reconcile_exact_readbacks(self):
+        self.promotion_fixture()
+        self.selection_mode = "unsettled"
+        self.assertEqual(self.promote_fixture(), 1)
+        self.assertEqual(self.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+        self.assertEqual(self.selections, [NEW_ID])
+        receipt = json.loads(self.promotion_receipt.read_text())
+        self.assertEqual(receipt["stages"]["existing_candidate_selection_result"], {"ambiguous": "GateError"})
+        self.assertIsNone(receipt["effects"]["existing_candidate_selections_confirmed"])
+        self.assertEqual(self.promote_fixture(), 1)  # canonical still predecessor: no replay
+        self.assertEqual(self.selections, [NEW_ID])
+        # An intent is not acceptance: exact candidate/head/production/success required.
+        for invalid in (self.deployment(NEW_ID, "f" * 40),
+                        dict(self.candidate, environment="preview"),
+                        dict(self.candidate, latest_stage={"status": "failure"})):
+            self.current = invalid
+            self.assertEqual(self.promote_fixture(), 1)
+            self.assertEqual(self.last["error"], "current_promotion_outcome_unsettled_reconcile_only")
+            self.assertNotIn("route_probe_raw", json.loads(self.promotion_receipt.read_text())["stages"])
+        self.current = copy.deepcopy(self.candidate)  # simulated eventual landing, no new POST
+        self.assertEqual(self.promote_fixture(), 0, self.last)
+        receipt = json.loads(self.promotion_receipt.read_text())
+        self.assertEqual(receipt["status"], "PASS_PRODUCTION_TERMINAL")
+        self.assertEqual(receipt["effects"], {"pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                         "existing_candidate_selections_confirmed": 1, "guarded_rollback_post_intents": 0,
+                         "guarded_rollbacks_confirmed": 0, "pointer_atomic_cas": 1})
+        rows = receipt["stages"]["route_probe_raw"]
+        domain = next(r for r in rows if r["url"] == c.SITE + "/")
+        self.assertEqual(domain["comparison"], "exact_cf_email_reversal")
+        self.assertEqual(Path(domain["body_path"]).read_bytes(), self.email_raw)
+        self.assertEqual(domain["compared_sha256"], c.sha_bytes(self.email_expected))
+        runtime = receipt["stages"]["runtime_and_holds"]
+        self.assertEqual(len(runtime), 15)
+        self.assertEqual([r["method"] for r in runtime if r["path"] == "/api/postback/affiliati"], ["HEAD"] * 3)
+        self.assertEqual([r["status"] for r in runtime if r["path"] == "/go/fella-health"], [307] * 3)
+        self.assertFalse(any(method != "HEAD" and "/api/postback/" in url for method, url in self.calls))
+        self.assertEqual(receipt["stages"]["pointer_cas"]["status"], "PASS_ATOMIC_POINTER_CAS")
+        self.assertEqual(json.loads(self.pointer.read_text())["deployment_id"], NEW_ID)
+        self.assertEqual(self.promote_fixture(), 1)
+        self.assertEqual(self.selections, [NEW_ID]); self.assertEqual(self.rollbacks, [])
+        self.assert_promotion_custody()
+
+    def test_current_existing_promotion_native_rollback_and_postcas_guards(self):
+        # Five bounded failure positions, isolated identities/receipts each time.
+        for position in ("before-cas", "ambiguous-rollback", "foreign-head", "pointer-drift", "after-cas"):
+            with self.subTest(position=position):
+                f = CurrentReleaseTests()
+                f.setUp()
+                try:
+                    f.promotion_fixture()
+                    before = f.pointer.read_bytes()
+                    f.readback_fail = position != "after-cas"
+                    runtime = c.current_runtime_readback
+                    cas = c.atomic_pointer_cas
+                    rollback = c.CloudflareClient.rollback
+                    def readback(*args):
+                        if position == "foreign-head":
+                            f.current = f.deployment("22222222-2222-4222-8222-222222222222", "a" * 40)
+                        if position == "pointer-drift":
+                            f.pointer.write_bytes(before + b" ")
+                        return runtime(*args)
+                    def landed_cas(*args, **kwargs):
+                        result = cas(*args, **kwargs)
+                        raise c.GateError("SYNTHETIC error after actual fixture CAS")
+                    def uncertain_rollback(client, deployment_id):
+                        if deployment_id == c.CURRENT_ROLLBACK:
+                            f.rollbacks.append(deployment_id)
+                            raise c.GateError("SYNTHETIC uncertain rollback")
+                        return rollback(client, deployment_id)
+                    with contextlib.ExitStack() as guards:
+                        guards.enter_context(mock.patch.object(c, "current_runtime_readback", side_effect=readback))
+                        guards.enter_context(mock.patch.object(c.time, "sleep", side_effect=AssertionError("no new wait")))
+                        if position == "after-cas":
+                            guards.enter_context(mock.patch.object(c, "atomic_pointer_cas", side_effect=landed_cas))
+                        if position == "ambiguous-rollback":
+                            guards.enter_context(mock.patch.object(c.CloudflareClient, "rollback", autospec=True, side_effect=uncertain_rollback))
+                        self.assertEqual(f.promote_fixture(), 1)
+                        receipt = json.loads(f.promotion_receipt.read_text())
+                        if position == "before-cas":
+                            self.assertEqual(receipt["status"], "BLOCKED_ROLLED_BACK")
+                            self.assertEqual(f.current["id"], c.CURRENT_ROLLBACK)
+                            self.assertEqual(f.pointer.read_bytes(), before)
+                            self.assertEqual(len(f.rollbacks), 1)
+                        elif position == "ambiguous-rollback":
+                            self.assertEqual(receipt["status"], "ACTIVE")
+                            self.assertIsNone(receipt["effects"]["guarded_rollbacks_confirmed"])
+                            self.assertEqual(len(f.rollbacks), 1)
+                            self.assertEqual(f.pointer.read_bytes(), before)
+                        elif position == "after-cas":
+                            self.assertEqual(receipt["status"], "BLOCKED_POST_CAS_VALIDATION")
+                            self.assertEqual(json.loads(f.pointer.read_text())["deployment_id"], NEW_ID)
+                            self.assertIsNone(receipt["effects"]["pointer_atomic_cas"])
+                            self.assertEqual(f.current["id"], NEW_ID)
+                            self.assertEqual(f.rollbacks, [])
+                        else:
+                            self.assertEqual(f.rollbacks, [])
+                            self.assertNotIn("rollback_intent", receipt["stages"])
+                        self.assertEqual(f.promote_fixture(), 1)  # no selection or guarded rollback replay
+                        self.assertEqual(f.selections, [NEW_ID])
+                        self.assertEqual(len(f.rollbacks), int(position in ("before-cas", "ambiguous-rollback")))
+                        if position == "ambiguous-rollback":
+                            f.current = copy.deepcopy(f.deployments[0])
+                            self.assertEqual(f.promote_fixture(), 1)
+                            self.assertEqual(json.loads(f.promotion_receipt.read_text())["status"], "BLOCKED_ROLLED_BACK")
+                            self.assertEqual(len(f.rollbacks), 1)
+                    f.assert_promotion_custody()
+                finally:
+                    f.doCleanups()
+
     def test_preparation_and_drift_refusals_before_output_or_network(self):
         baseline = self.prep_args()
         source = self.source / "src/worker.mjs"
