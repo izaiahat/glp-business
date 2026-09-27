@@ -941,14 +941,14 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "b805aa88e1075744c089051f9fcd2e79444ac04bea1059b7dcf0101ff6993fcb"
+      "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "4504109cd7e5bc4e131f3d8a7c02e97bc0956c6cd1c6e5b17df92e54679a8bef"
+      "sha256": "375d536d33bd499eb16e802e1564d9e8f2aed7eebd27d771f8933fd8f384e105"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1026,7 +1026,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "a4aa6b8998667594cefd6ad59e12ef6d55e50e766b969c2d4d315b3f1f45d995"
+      "sha256": "e6996ab9a8656e956b969d7160e616cce4d317f809b7ab2d95e5f3bdab828c39"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1166,7 +1166,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "62364315019d92c25a52e51006266a5c8b2fc037e08f15c1bb80ee628f658d42"
+      "sha256": "a98f814668645aa575bc711fb9c2456eb7513082a17ad218f2cbb818799de332"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -1303,7 +1303,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "52ee6185402b43065b7eeb8a4bff3db1338015b9fbbcefc0c1bcdb9e9ffeef5a"
+      "sha256": "9fbe3c44c90c59a06a26384a9a6f1c163d013e2863dffa6eaa5654a897976c53"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1867,6 +1867,13 @@
       "kind": "test",
       "sha256": "54e7f2af2eadc7b055ed6f2372b9f366599afd2791d795bcec9aeb4875b13eb3"
     },
+    "tests/test_glp43_current_release.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "04ae7c47c0f0260359b514ccde08c325eac813865d4b3bf470d94f46501abb33"
+    },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
         "GLP-44 registered weekly ranking collector/report"
@@ -2128,7 +2135,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "5a34162187a4b527b2dcde8790c7f4df36b74710bf3daa6f4f4cd8c8628bbeec"
+      "sha256": "4acebfa75cd5fef993311d28c4a92892ac597424ffb2c62b9606402908db409e"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -2281,5 +2288,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 349
+  "tracked_count": 350
 }
