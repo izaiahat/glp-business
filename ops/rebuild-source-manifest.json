@@ -932,14 +932,14 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "b805aa88e1075744c089051f9fcd2e79444ac04bea1059b7dcf0101ff6993fcb"
+      "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "4504109cd7e5bc4e131f3d8a7c02e97bc0956c6cd1c6e5b17df92e54679a8bef"
+      "sha256": "e376dd1a018510b11aa19e241297b7426c03c58d8fcca7f032297f4cc58710ab"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1017,7 +1017,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "a4aa6b8998667594cefd6ad59e12ef6d55e50e766b969c2d4d315b3f1f45d995"
+      "sha256": "017157024aa2eca0779bed1b32301b08b5239a8be1f27d97692d2fa21f547040"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1282,7 +1282,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f841bc47c766e4f93303438008aebf1f8b6ee68809c0b9ded5cb738bfbd8f302"
+      "sha256": "ee46c1aa1364cabff17e517686d3c7dc601f280f1934cca271decfd8aa260561"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2238,6 +2238,13 @@
       ],
       "kind": "script",
       "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
+    },
+    "tests/test_glp43_current_release.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "c3d8c242c09fe7bae49dfe47589271b934376a2cc552ddd0cb517d9a9a993231"
     }
   },
   "omitted_runtime_inputs": [
@@ -2248,5 +2255,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 344
+  "tracked_count": 345
 }
