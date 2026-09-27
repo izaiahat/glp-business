@@ -1391,6 +1391,11 @@ def build_entry(
             "23": _note(queue_row, head), "24": checked,
         }}
 
+    if kind == "partner_email_hold":
+        return {"row": row_num, "program": program, "network": queue_row.get("network"),
+                "provider_program_id": queue_row.get("program_id"), "evidence": evidence,
+                "cells": writer.partner_email_hold_cells(evidence)}
+
     if kind == "status_correction":
         relationship = str(evidence.get("portal_relationship") or "").strip()
         status = writer.STATUS_CORRECTION_RELATIONSHIP_STATUS.get(relationship)
@@ -2601,7 +2606,7 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         try:
             entry = build_entry(kind, queue_row, evidence, row_num, row_values)
         except (ValueError, RuntimeError) as exc:
-            base["status"] = RESULT_REFUSED if kind in writer.provider_metadata.KINDS else RESULT_ESCALATED
+            base["status"] = RESULT_REFUSED if kind in {*writer.provider_metadata.KINDS, "partner_email_hold"} else RESULT_ESCALATED
             base["reason"] = str(exc)
             if kind == "new_approval" and str(exc).startswith(
                     "new_approval_requires_researched_row_cells"):
@@ -2760,10 +2765,12 @@ def require_katalys_queue_id_consistency(rows: list[dict[str, Any]]) -> None:
     for row in rows:
         groups.setdefault(str(row.get("update_id") or ""), []).append(row)
     for update_id, copies in groups.items():
-        if not any(row.get("kind") == "katalys_tracking_ready" for row in copies):
+        guarded = next((row.get("kind") for row in copies
+                        if row.get("kind") in {"katalys_tracking_ready", "partner_email_hold"}), None)
+        if guarded is None:
             continue
         if not update_id or update_id != update_id.strip():
-            raise RuntimeError("katalys_tracking_ready_update_id_missing_or_invalid")
+            raise RuntimeError(f"{guarded}_update_id_missing_or_invalid")
         if len(copies) == 1:
             continue  # per-row evidence failures remain the drain's row result
         payloads = set()
@@ -2773,7 +2780,7 @@ def require_katalys_queue_id_consistency(rows: list[dict[str, Any]]) -> None:
             payload["evidence"] = parse_evidence(row)
             payloads.add(canonical(payload))
         if len(payloads) != 1:
-            raise RuntimeError(f"katalys_tracking_ready_duplicate_update_id_conflict:{update_id}")
+            raise RuntimeError(f"{guarded}_duplicate_update_id_conflict:{update_id}")
 
 
 def dedupe_by_update_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
