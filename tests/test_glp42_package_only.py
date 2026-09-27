@@ -327,6 +327,41 @@ class PackageTests(unittest.TestCase):
             self.assertFalse(self.output.exists())
         self.assertEqual(self.requests, [])
 
+    def test_slash_alias_overlap_refuses_before_reads_or_creation(self):
+        # Linux treats / and // as the same root; pathlib keeps distinct anchors.
+        original_mkdir = Path.mkdir
+        for double_slash_input in (False, True):
+            with self.subTest(double_slash_input=double_slash_input):
+                self.requests.clear()
+                self.github_requests.clear()
+                single_input = str(self.public)
+                double_input = "/" + single_input
+                public = double_input if double_slash_input else single_input
+                output = (single_input if double_slash_input else double_input) + "/nested-package"
+                created = []
+
+                def guard_creation(path, *args, **kwargs):
+                    if str(path) == output:
+                        created.append(str(path))
+                        raise AssertionError("overlapping input-tree creation attempted")
+                    return original_mkdir(path, *args, **kwargs)
+
+                with mock.patch.object(Path, "mkdir", autospec=True, side_effect=guard_creation):
+                    self.assertEqual(self.run_package(**{"public-root": public, "package-dir": output}), 1)
+                self.assertEqual(json.loads(self.stderr.getvalue()),
+                                 {"status": "BLOCK", "error": "package_output_overlaps_input"})
+                self.assertEqual(self.github_requests, [])
+                self.assertEqual(self.requests, [])
+                self.assertEqual(created, [])
+                self.assertEqual([p.name for p in self.public.iterdir()], ["index.html"])
+                self.assertEqual((self.public / "index.html").read_bytes(), b"<h1>fixture</h1>")
+
+        # The same fully intercepted fixture still packages a disjoint output.
+        self.assertEqual(self.run_package(), 0)
+        self.assertEqual(len(self.github_requests), 1)
+        self.assertEqual(len(self.requests), 3)
+        self.assertEqual((self.output / "public/index.html").read_bytes(), b"<h1>fixture</h1>")
+
     def test_existing_output_is_never_replaced(self):
         self.output.mkdir()
         sentinel = self.output / "keep"

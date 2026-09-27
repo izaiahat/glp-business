@@ -124,7 +124,11 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
         fail("package_rollback_id_invalid")
     public = package_plain_path(Path(args.public_root))
     output = package_plain_path(Path(args.package_dir))
-    if output == public or public in output.parents or output in public.parents:
+    # POSIX pathlib preserves //, but Linux resolves it to the same / root.
+    # Compare normalized anchors before any remote read or output creation.
+    overlap_public = Path("/" + str(public).lstrip("/"))
+    overlap_output = Path("/" + str(output).lstrip("/"))
+    if overlap_output == overlap_public or overlap_public in overlap_output.parents or overlap_output in overlap_public.parents:
         fail("package_output_overlaps_input")
     if output.exists() or not output.parent.is_dir():
         fail("package_output_must_be_new_with_existing_parent")
