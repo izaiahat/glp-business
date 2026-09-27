@@ -1683,7 +1683,7 @@ def run_package_only(args: argparse.Namespace) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if "--prepare-current" in argv or "--publish-current" in argv:
+    if any(mode in argv for mode in ("--prepare-current", "--publish-current", "--promote-current-existing")):
         return current_main(argv)
     if "--package-only" not in argv:
         return legacy_main(argv)
@@ -2046,6 +2046,128 @@ def current_route_specs(root: Path) -> list[dict[str, Any]]:
              "bytes": (root / name).stat().st_size} for name in names]
 
 
+# Narrow reuse of verify_glp_wave2_production.normalize_cf_email_html's
+# exact mailto-anchor reversal: same XOR decoding, matching href/span mailbox,
+# approved mailboxes and literal decoder. Do NOT import its broader wrapper,
+# plaintext or query-link normalization into this current-only comparison.
+CURRENT_CF_EMAIL_ANCHOR_RE = re.compile(
+    rb'<a href="/cdn-cgi/l/email-protection#([0-9A-Fa-f]+)"><span class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</span></a>'
+)
+CURRENT_CF_EMAIL_DECODER_SCRIPT = b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+
+
+def current_restore_cf_email(value: bytes) -> bytes:
+    """Reverse only the observed CF mailto/span shape; never normalize source."""
+    def decode_cloudflare_hex(encoded: bytes) -> bytes:
+        if len(encoded) < 4 or len(encoded) % 2:
+            fail("cloudflare_email_hex_invalid")
+        try:
+            raw = bytes.fromhex(encoded.decode("ascii"))
+            decoded = bytes(byte ^ raw[0] for byte in raw[1:]).decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            fail("cloudflare_email_decode_invalid")
+        if decoded not in {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"}:
+            fail("cloudflare_email_unapproved")
+        return decoded.encode("ascii")
+
+    def restore_anchor(match: re.Match[bytes]) -> bytes:
+        href_address = decode_cloudflare_hex(match.group(1))
+        span_address = decode_cloudflare_hex(match.group(2))
+        if href_address != span_address:
+            fail("cloudflare_email_anchor_span_mismatch")
+        return b'<a href="mailto:' + href_address + b'">' + href_address + b'</a>'
+
+    restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
+    script_count = value.count(CURRENT_CF_EMAIL_DECODER_SCRIPT)
+    if count:
+        if script_count < 1 or script_count > count:
+            fail("cloudflare_email_decoder_script_count_invalid")
+        restored = restored.replace(CURRENT_CF_EMAIL_DECODER_SCRIPT, b"")
+    elif script_count:
+        fail("cloudflare_email_decoder_without_anchor")
+    if any(marker in restored for marker in (b"/cdn-cgi/l/email-protection", b"__cf_email__",
+                                             b"data-cfemail", b"email-decode.min.js")):
+        fail("cloudflare_email_transform_unhandled")
+    return restored
+
+
+def current_route_probe(base: str, item: dict[str, Any], public: Path,
+                        receipt_path: Path, receipt: dict[str, Any]) -> dict[str, Any]:
+    path = item["url_path"]
+    if (not isinstance(path, str) or not re.fullmatch(r"/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]*", path)
+            or any(part in (".", "..") for part in path.split("/"))):
+        fail("current_route_path_invalid")
+    source = package_plain_path(public / (path.lstrip("/") + ("index.html" if path.endswith("/") else "")))
+    require_regular(source)
+    expected = source.read_bytes()
+    if len(expected) != item["bytes"] or sha_bytes(expected) != item["sha256"]:
+        fail("current_route_expected_bytes_drift")
+    url = base + path
+    request = urllib.request.Request(url, headers={"User-Agent": "glp-r13-authority-carrier/3",
+                                                   "Cache-Control": "no-cache"})
+    try:
+        try:
+            response = urllib.request.build_opener(CurrentNoRedirect()).open(request, timeout=30)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        with response:
+            body = response.read()
+            status_code, headers = response.status, response.headers
+    except urllib.error.URLError as exc:
+        fail(f"route_probe_failed:{url}:{type(exc).__name__}")
+    # Use the existing run report + receipt. Save RAW bytes and their digest
+    # before status, parsing or comparison can refuse; never overwrite a probe.
+    body_path = receipt_path.parent / ("route-probe-" + uuid.uuid4().hex + ".body")
+    exclusive_file(body_path, body)
+    row = {"url": url, "status": status_code, "bytes": len(body), "body_sha256": sha_bytes(body),
+           "body_path": str(body_path), "expected_sha256": item["sha256"], "expected_bytes": item["bytes"],
+           "headers": {name: headers.get(name) for name in
+                       ("Content-Type", "Cache-Control", "ETag", "Location", "CF-Cache-Status", "Content-Encoding")}}
+    receipt["stages"].setdefault("route_probe_raw", []).append(row)
+    checkpoint(receipt_path, receipt)
+    compared, comparison = body, "raw_exact"
+    if (status_code == 200 and body != expected and base == SITE and source.suffix == ".html"
+            and headers.get("Content-Type", "").split(";", 1)[0].strip().lower() == "text/html"):
+        compared, comparison = current_restore_cf_email(body), "exact_cf_email_reversal"
+    if (status_code != 200 or len(compared) != item["bytes"] or sha_bytes(compared) != item["sha256"]
+            or compared != expected):
+        fail(f"route_probe_invariant_failed:{url}:{status_code}")
+    row.update(comparison=comparison, compared_sha256=sha_bytes(compared), compared_bytes=len(compared))
+    checkpoint(receipt_path, receipt)
+    return row
+
+
+def current_route_matrix(client: CloudflareClient, deployment: dict[str, Any],
+                         route_specs: list[dict[str, Any]], public: Path,
+                         receipt_path: Path, receipt: dict[str, Any], *, timeout_seconds: int = 120) -> list[dict[str, Any]]:
+    # Carry historical ordering, canonical-head guard and convergence policy.
+    # The historical route_matrix/route_probe and their authority pins stay frozen.
+    deployment_id = str(deployment.get("id", ""))
+    immutable = str(deployment.get("url", "")).rstrip("/")
+    if (not DEPLOYMENT_ID.fullmatch(deployment_id) or not immutable.startswith("https://")
+            or not immutable.endswith(f".{PROJECT}.pages.dev")):
+        fail("deployment_immutable_identity_invalid")
+    bases = [immutable, f"https://{PROJECT}.pages.dev", SITE]
+    deadline = time.monotonic() + timeout_seconds
+    last_error = "route_matrix_not_attempted"
+    while True:
+        project = client.project()
+        canonical_head = production_deployment(project)
+        if canonical_head.get("id") != deployment_id:
+            fail(f"canonical_head_changed_during_route_matrix:{canonical_head.get('id')}")
+        try:
+            results = []
+            for base in bases:
+                for item in route_specs:
+                    results.append(current_route_probe(base, item, public, receipt_path, receipt))
+            return results
+        except GateError as exc:
+            last_error = str(exc)
+            if time.monotonic() >= deadline:
+                fail(f"route_matrix_did_not_converge:{last_error}")
+            time.sleep(5)
+
+
 def current_pointer_intent(root: Path, prepared: dict[str, Any], deployment_id: str, run_dir: Path) -> dict[str, Any]:
     spec = prepared["predecessor_pointer"]
     predecessor = base64.b64decode(spec["bytes_base64"], validate=True)
@@ -2187,48 +2309,172 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         deployment_id = current["id"]
         stages["pages_deployment"] = {"deployment_id": deployment_id, "commit_hash": head}
         checkpoint(receipt_path, receipt)
-        try:
-            stages["route_probes"] = route_matrix(client, current, prepared["route_specs"])
-            stages["runtime_and_holds"] = current_runtime_readback(current, prepared)
-            current_prepared(root, args.expected_prepared_manifest_sha256)
-            intent = current_pointer_intent(root, prepared, deployment_id, run_dir)
-            if "pointer_intent" in stages and stages["pointer_intent"] != intent:
-                fail("current_pointer_intent_drift")
-            stages["pointer_intent"] = intent
-            checkpoint(receipt_path, receipt)
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_canonical_changed_before_pointer")
-            stages["pointer_cas"] = atomic_pointer_cas(intent, lock_fd, production=True)
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_canonical_changed_after_pointer")
-            raw = base64.b64decode(intent["successor_bytes_base64"], validate=True)
-            _pointer_exact(POINTER, raw, int(intent["final_mode"], 8), intent["final_uid"], intent["final_gid"])
-            stages["canonical_pointer_readback"] = {"deployment_id": deployment_id, "site_head": head, "pointer_sha256": sha_bytes(raw)}
-        except Exception:
-            pointer, _ = capture_pointer(POINTER)
-            if json.loads(pointer).get("deployment_id") == deployment_id:
-                # Never roll back the provider behind an already advanced pointer.
-                receipt["status"] = "BLOCKED_POST_CAS_VALIDATION"
-                checkpoint(receipt_path, receipt)
-                raise
-            if production_deployment(client.project()).get("id") != deployment_id:
-                fail("current_foreign_head_no_rollback")
-            verify_signed_predecessor(prepared["predecessor_pointer"])
-            stages["rollback_intent"] = {"deployment_id": CURRENT_ROLLBACK}
-            checkpoint(receipt_path, receipt)
-            try:
-                client.rollback(CURRENT_ROLLBACK)
-            finally:
-                restored = production_deployment(client.project())
-                if restored.get("id") == CURRENT_ROLLBACK and successful_production(restored):
-                    verify_signed_predecessor(prepared["predecessor_pointer"])
-                    receipt["status"] = "BLOCKED_ROLLED_BACK"
-                    checkpoint(receipt_path, receipt)
-            raise
+        current_posteffect(args, root, prepared, run_dir, receipt_path, receipt, client, current, lock_fd)
         receipt["status"] = "PASS_PRODUCTION_TERMINAL"
         receipt["effects"] = {"pages_deployments": 1, "pages_rollbacks": 0, "pointer_atomic_cas": 1,
                               "worker_deploys": 0, "d1_mutations": 0, "cron_mutations": 0, "email_sends": 0}
         checkpoint(receipt_path, receipt)
+        return {"status": receipt["status"], "receipt": str(receipt_path), "receipt_sha256": sha_file(receipt_path),
+                "deployment_id": deployment_id, "site_head": head}
+    finally:
+        os.close(lock_fd)
+
+
+def current_posteffect(args: argparse.Namespace, root: Path, prepared: dict[str, Any], run_dir: Path,
+                       receipt_path: Path, receipt: dict[str, Any], client: CloudflareClient,
+                       current: dict[str, Any], lock_fd: int) -> None:
+    # Exact dedented former publish block: same oracle, native CAS and rollback.
+    stages, deployment_id, head = receipt["stages"], current["id"], prepared["site_head"]
+    try:
+        stages["route_probes"] = current_route_matrix(client, current, prepared["route_specs"],
+                                                      root / "release/public", receipt_path, receipt)
+        stages["runtime_and_holds"] = current_runtime_readback(current, prepared)
+        current_prepared(root, args.expected_prepared_manifest_sha256)
+        intent = current_pointer_intent(root, prepared, deployment_id, run_dir)
+        if "pointer_intent" in stages and stages["pointer_intent"] != intent:
+            fail("current_pointer_intent_drift")
+        stages["pointer_intent"] = intent
+        checkpoint(receipt_path, receipt)
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_canonical_changed_before_pointer")
+        stages["pointer_cas"] = atomic_pointer_cas(intent, lock_fd, production=True)
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_canonical_changed_after_pointer")
+        raw = base64.b64decode(intent["successor_bytes_base64"], validate=True)
+        _pointer_exact(POINTER, raw, int(intent["final_mode"], 8), intent["final_uid"], intent["final_gid"])
+        stages["canonical_pointer_readback"] = {"deployment_id": deployment_id, "site_head": head, "pointer_sha256": sha_bytes(raw)}
+    except Exception:
+        pointer, _ = capture_pointer(POINTER)
+        if json.loads(pointer).get("deployment_id") == deployment_id:
+            # Never roll back the provider behind an already advanced pointer.
+            receipt["status"] = "BLOCKED_POST_CAS_VALIDATION"
+            checkpoint(receipt_path, receipt)
+            raise
+        if production_deployment(client.project()).get("id") != deployment_id:
+            fail("current_foreign_head_no_rollback")
+        verify_signed_predecessor(prepared["predecessor_pointer"])
+        stages["rollback_intent"] = {"deployment_id": CURRENT_ROLLBACK}
+        checkpoint(receipt_path, receipt)
+        try:
+            client.rollback(CURRENT_ROLLBACK)
+        finally:
+            restored = production_deployment(client.project())
+            if restored.get("id") == CURRENT_ROLLBACK and successful_production(restored):
+                verify_signed_predecessor(prepared["predecessor_pointer"])
+                receipt["status"] = "BLOCKED_ROLLED_BACK"
+                checkpoint(receipt_path, receipt)
+        raise
+
+
+def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any], path: Path) -> dict[str, Any]:
+    # The original consumed upload receipt is input only, never a writable target.
+    original = current_json(path, args.expected_rolled_back_receipt_sha256)
+    binding = {"prepared_manifest_sha256": args.expected_prepared_manifest_sha256,
+               "approval_sha256": args.expected_approval_sha256}
+    stages = original.get("stages", {})
+    if (not args.authorize_existing_promotion or not re.fullmatch(r"[0-9a-f]{40}", args.site_head)
+            or args.site_head != prepared["site_head"] or not DEPLOYMENT_ID.fullmatch(args.candidate_deployment_id)
+            or args.candidate_deployment_id == CURRENT_ROLLBACK
+            or original.get("schema") != "glp43-current-deploy-receipt-v1"
+            or original.get("status") != "BLOCKED_ROLLED_BACK" or original.get("binding") != binding
+            or original.get("site_head") != args.site_head or original.get("rollback_deployment_id") != CURRENT_ROLLBACK
+            or original.get("deploy_directory") != prepared["deploy_directory"]
+            or stages.get("pages_deploy_cli", {}).get("returncode") != 0
+            or stages.get("pages_deploy_intent", {}).get("commit_hash") != args.site_head
+            or stages.get("pages_deploy_intent", {}).get("predecessor_id") != CURRENT_ROLLBACK
+            or stages.get("pages_deployment") != {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
+            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or "pointer_intent" in stages or "pointer_cas" in stages
+            or prepared["predecessor_pointer"].get("deployment_id") != CURRENT_ROLLBACK):
+        fail("current_promotion_source_or_authorization_mismatch")
+    return {**binding, "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+            "candidate_deployment_id": args.candidate_deployment_id, "site_head": args.site_head,
+            "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
+
+
+def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
+    root = package_plain_path(Path(args.prepared_dir))
+    prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
+    current_approval(args, prepared)
+    run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
+    original_path = run_dir / "CURRENT-RECEIPT.json"
+    binding = current_promotion_source(args, prepared, original_path)
+    verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
+    lock_fd = acquire_lock()
+    try:
+        deployment_id, head = args.candidate_deployment_id, args.site_head
+        receipt_path = run_dir / ("CURRENT-PROMOTION-" + deployment_id + ".json")
+        selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
+                     "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
+                     "effect": "select_existing_successful_production_deployment"}
+        client = CloudflareClient(read_token())
+        if receipt_path.exists():
+            require_regular(package_plain_path(receipt_path))
+            receipt = load_json(receipt_path)
+            if (receipt.get("schema") != "glp43-current-promotion-receipt-v1" or receipt.get("binding") != binding
+                    or receipt.get("status") != "ACTIVE"
+                    or receipt.get("stages", {}).get("existing_candidate_selection_intent") != selection):
+                fail("current_promotion_consumed_or_binding_changed")
+        else:
+            candidate = client.request("GET", f"/accounts/{ACCOUNT_ID}/pages/projects/{PROJECT}/deployments/{deployment_id}")
+            current = production_deployment(client.project())
+            if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
+                    or deployment_commit(candidate) != head or not successful_production(candidate)
+                    or current.get("id") != CURRENT_ROLLBACK or not successful_production(current)):
+                fail("current_promotion_predecessor_or_candidate_mismatch")
+            current_prepared(root, args.expected_prepared_manifest_sha256)
+            current_approval(args, prepared)
+            current_promotion_source(args, prepared, original_path)
+            verify_signed_predecessor(prepared["predecessor_pointer"])
+            receipt = {"schema": "glp43-current-promotion-receipt-v1", "status": "ACTIVE", "binding": binding,
+                       "original_receipt": str(original_path), "site_head": head,
+                       "stages": {"existing_candidate_selection_intent": selection},
+                       "effects": {"pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                                   "existing_candidate_selections_confirmed": None, "guarded_rollback_post_intents": 0,
+                                   "guarded_rollbacks_confirmed": 0, "pointer_atomic_cas": 0}}
+            exclusive_file(receipt_path, json_bytes(receipt))
+            # Only this exclusive creation permits the one selection POST.
+            # Cloudflare documents /rollback as selecting a prior successful
+            # production deployment; it uploads/builds nothing.
+            immediate = production_deployment(client.project())
+            if immediate.get("id") != CURRENT_ROLLBACK or not successful_production(immediate):
+                fail("current_canonical_changed_before_promotion")
+            current_prepared(root, args.expected_prepared_manifest_sha256)
+            current_approval(args, prepared)
+            current_promotion_source(args, prepared, original_path)
+            verify_signed_predecessor(prepared["predecessor_pointer"])
+            try:
+                client.rollback(deployment_id)
+                receipt["stages"]["existing_candidate_selection_result"] = {"returned": True}
+            except Exception as exc:
+                receipt["stages"]["existing_candidate_selection_result"] = {"ambiguous": type(exc).__name__}
+            checkpoint(receipt_path, receipt)
+        stages = receipt["stages"]
+        try:
+            current = production_deployment(client.project())
+            if "rollback_intent" in stages:
+                # An uncertain guarded rollback also cannot be repeated.
+                if current.get("id") == CURRENT_ROLLBACK and successful_production(current):
+                    verify_signed_predecessor(prepared["predecessor_pointer"])
+                    receipt["status"] = "BLOCKED_ROLLED_BACK"
+                fail("current_prior_rollback_no_replay")
+            if (current.get("id") != deployment_id or deployment_commit(current) != head
+                    or not successful_production(current)):
+                fail("current_promotion_outcome_unsettled_reconcile_only")
+            stages["existing_candidate_selection_confirmed"] = {"deployment_id": deployment_id, "commit_hash": head}
+            checkpoint(receipt_path, receipt)
+            current_posteffect(args, root, prepared, run_dir, receipt_path, receipt, client, current, lock_fd)
+            receipt["status"] = "PASS_PRODUCTION_TERMINAL"
+        finally:
+            # Intent counts are upper bounds on POSTs, not fabricated outcomes.
+            # Unknown completion remains null until canonical/CAS readback.
+            receipt["effects"] = {"pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
+                                  "existing_candidate_selections_confirmed": 1 if "existing_candidate_selection_confirmed" in stages else None,
+                                  "guarded_rollback_post_intents": int("rollback_intent" in stages),
+                                  "guarded_rollbacks_confirmed": (1 if receipt["status"] == "BLOCKED_ROLLED_BACK"
+                                                                 else None if "rollback_intent" in stages else 0),
+                                  "pointer_atomic_cas": 1 if "pointer_cas" in stages else None if "pointer_intent" in stages else 0}
+            checkpoint(receipt_path, receipt)
         return {"status": receipt["status"], "receipt": str(receipt_path), "receipt_sha256": sha_file(receipt_path),
                 "deployment_id": deployment_id, "site_head": head}
     finally:
@@ -2240,6 +2486,7 @@ def current_main(argv: list[str]) -> int:
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--prepare-current", action="store_true")
     modes.add_argument("--publish-current", action="store_true")
+    modes.add_argument("--promote-current-existing", action="store_true")
     parser.add_argument("--prepared-dir", required=True)
     preparing = "--prepare-current" in argv
     flags = (("source-root", "site-head", "git-tree", "build-seat", "package-dir", "expected-package-manifest-sha256",
@@ -2249,9 +2496,15 @@ def current_main(argv: list[str]) -> int:
         parser.add_argument("--" + flag, required=True)
     if not preparing:
         parser.add_argument("--authorize-production", action="store_true")
+    if "--promote-current-existing" in argv:
+        for flag in ("site-head", "candidate-deployment-id", "expected-rolled-back-receipt-sha256"):
+            parser.add_argument("--" + flag, required=True)
+        parser.add_argument("--authorize-existing-promotion", action="store_true")
     args = parser.parse_args(argv)
     try:
-        result = run_prepare_current(args) if preparing else run_publish_current(args)
+        runner = (run_prepare_current if preparing else run_promote_current_existing
+                  if args.promote_current_existing else run_publish_current)
+        result = runner(args)
         print(json.dumps(result, sort_keys=True, indent=2))
         return 0
     except (GateError, OSError, ValueError, TypeError, AttributeError, KeyError, subprocess.SubprocessError) as exc:
