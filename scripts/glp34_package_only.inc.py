@@ -350,6 +350,15 @@ def current_compile(workspace: Path) -> dict[str, Any]:
             "pages_random_comment_replacements": count, "routes": current_routes(fixed)}
 
 
+def current_deploy_public(deploy: Path, public_rows: list[dict[str, str]], worker_sha256: str) -> None:
+    """Require accepted public bytes plus exactly the compiled worker, not a self-recorded closure."""
+    rows = package_tree(deploy)[1]
+    if ([r for r in rows if r["file"] != "_worker.js"] != public_rows
+            or [r for r in rows if r["file"] == "_worker.js"] !=
+            [{"file": "_worker.js", "sha256": worker_sha256}]):
+        fail("current_deploy_public_package_mismatch")
+
+
 def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
     source, package, output = [package_plain_path(Path(p)) for p in
                                (args.source_root, args.package_dir, args.prepared_dir)]
@@ -428,6 +437,7 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
         verify_signed_predecessor(pointer)
         if current_source(source, args.site_head, args.git_tree, gate) != binding or package_tree(public) != (tree_hash, rows):
             fail("current_inputs_changed_before_completion")
+        current_deploy_public(deploy, rows, compiled["worker_sha256"])
         raw = json_bytes(prepared)
         exclusive_file(output / "PREPARED.json", raw, 0o444)
         current_prepared(output, sha_bytes(raw))
@@ -452,6 +462,7 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
             or sha_file(root / "deploy-public/_worker.js") != value["compiled"]["worker_sha256"]):
         fail("current_prepared_bytes_drift")
     package = current_json(root / "PACKAGE-MANIFEST.json", value["package_manifest_sha256"])
+    current_deploy_public(root / "deploy-public", package["files"], value["compiled"]["worker_sha256"])
     gate = current_json(root / "gate.json", value["build_receipt"]["sha256"])
     if (package_tree(root / "release/public") != (value["public_tree_sha256"], package["files"])
             or current_route_specs(root / "release/public") != value["route_specs"]):

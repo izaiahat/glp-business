@@ -264,6 +264,54 @@ class CurrentReleaseTests(unittest.TestCase):
             self.assertFalse(self.prepared.exists()); self.assertEqual(self.calls, [])
         self.prepare()
 
+    def test_final_deploy_public_binding(self):
+        # Reviewer R1: drift after the actual copy-time comparison, before the
+        # manifest records its own closure. Package/retained public stay intact.
+        real_copyfile = c.shutil.copyfile
+        original_public = c.package_tree(self.public)
+        injections = []
+
+        def copyfile_then_drift(source, destination, *args, **kwargs):
+            result = real_copyfile(source, destination, *args, **kwargs)
+            if Path(destination) == self.prepared / "deploy-public/_worker.js":
+                victim = self.prepared / "deploy-public/index.html"
+                victim.write_bytes(victim.read_bytes() + b"\nUNREVIEWED PUBLIC DRIFT\n")
+                injections.append("deploy-public/index.html")
+                self.assertEqual(c.package_tree(self.prepared / "release/public"), original_public)
+            return result
+
+        with mock.patch.object(c.shutil, "copyfile", side_effect=copyfile_then_drift):
+            result = self.cli("--prepare-current", self.prep_args())
+        self.assertEqual(injections, ["deploy-public/index.html"])
+        self.assertEqual(result, 1, "Preparation blessed public bytes outside the pinned package")
+        self.assertEqual(self.last["error"], "current_deploy_public_package_mismatch")
+        self.assertFalse(self.prepared.exists())
+        self.assertEqual(c.package_tree(self.public), original_public)
+
+        # Valid control through both real entry points, with no approval/publish.
+        self.assertEqual(self.cli("--prepare-current", self.prep_args()), 0, self.last)
+        manifest = self.prepared / "PREPARED.json"
+        prepared = c.current_prepared(self.prepared, c.sha_file(manifest))
+        public_rows = c.package_tree(self.prepared / "deploy-public")[1]
+        self.assertEqual([r for r in public_rows if r["file"] != "_worker.js"], original_public[1])
+        self.assertEqual([r for r in public_rows if r["file"] == "_worker.js"],
+                         [{"file": "_worker.js", "sha256": prepared["compiled"]["worker_sha256"]}])
+
+        # Recreate the predecessor's self-blessed closure at consumption: the
+        # separate package/retained public still match, so closure-only fails.
+        victim = self.prepared / "deploy-public/index.html"
+        victim.write_bytes(victim.read_bytes() + b"\nUNREVIEWED PUBLIC DRIFT\n")
+        prepared["deploy_directory"] = c.file_closure(self.prepared / "deploy-public")
+        manifest.unlink()
+        c.exclusive_file(manifest, c.json_bytes(prepared), 0o444)
+        with self.assertRaisesRegex(c.GateError, "current_deploy_public_package_mismatch"):
+            c.current_prepared(self.prepared, c.sha_file(manifest))
+        self.assertEqual(c.package_tree(self.public), original_public)
+        self.assertEqual(c.package_tree(self.prepared / "release/public"), original_public)
+        self.assertEqual(len(self.builds), 2)
+        self.assertEqual(self.deploy_calls, []); self.assertEqual(self.rollbacks, [])
+        self.assertFalse(self.approval.exists())
+
     def test_publish_refuses_missing_rejected_and_mismatched_exact_approval(self):
         self.prepare(); self.approve_fixture()
         before = list(self.calls)
