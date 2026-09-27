@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """One Sunday SEO control job: learn, measure, reorient, report.
 
-The existing publishing/indexation rails are deliberately not rebuilt. This job
-runs the proven weekly learning artifacts, collects live ranking/indexation
-proof, writes a bounded fail-open targeting policy, and posts one Discord report.
+The existing publishing/indexation rails are deliberately not rebuilt. The
+original full-weekly path retains its learning, collection, policy and Discord
+behavior. Explicit --gsc-only uses only the maintained GSC sitewide collector
+under the same controller lock, and never claims full-weekly acceptance.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import subprocess
 import sys
@@ -268,6 +270,159 @@ def render_message(reporter, report: dict[str, Any], policy: dict[str, Any], lea
     return message
 
 
+def write_json_once(path: Path, value: dict[str, Any]) -> None:
+    """Commit a dated GSC artifact once; an interrupted write needs reconciliation."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    raw = (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(raw)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def gsc_review(aggregate: dict[str, Any], report_date: dt.date, reporter,
+               *, now: dt.datetime) -> dict[str, Any]:
+    """Review only the two independent property totals in persisted evidence."""
+    if aggregate.get("schema") != "glp.weekly-gsc-sitewide-aggregate.v1":
+        raise ValueError("gsc_aggregate_schema_invalid")
+    window = reporter.report_windows(report_date)["gsc_current"]
+    days = [(window[0] + dt.timedelta(days=n)).isoformat()
+            for n in range((window[1] - window[0]).days + 1)]
+    if len(days) != 7 or set(aggregate.get("scopes") or {}) != {
+            "consumer_https_apex", "domain_including_partners"}:
+        raise ValueError("gsc_aggregate_scopes_invalid")
+    fields = ("clicks", "impressions", "ctr", "position")
+    output = {}
+    for label, property_uri in (("consumer_https_apex", "https://glpclinicscout.com/"),
+                                ("domain_including_partners", "sc-domain:glpclinicscout.com")):
+        item = aggregate["scopes"][label]
+        ctx = item.get("context") or {}
+        expected = {"property": property_uri, "start_date": days[0], "end_date": days[-1],
+                    "window_days": 7, "search_type": "web", "data_state": "final",
+                    "dimensions": [], "aggregation_type": "byProperty",
+                    "timezone": "America/Los_Angeles"}
+        if any(ctx.get(key) != value for key, value in expected.items()) or not ctx.get("denominator"):
+            raise ValueError("gsc_aggregate_context_invalid:" + label)
+        began, captured = (parse_utc(str(item.get(key) or "")) for key in
+                           ("request_started_at_utc", "captured_at_utc"))
+        if (not item["request_started_at_utc"].endswith(("Z", "+00:00"))
+                or not item["captured_at_utc"].endswith(("Z", "+00:00"))
+                or began > captured or captured > now + dt.timedelta(minutes=6)
+                or (now - captured).total_seconds() > REPORT_MAX_AGE_HOURS * 3600):
+            raise ValueError("gsc_capture_clock_invalid:" + label)
+        rows = item.get("date_availability")
+        if not isinstance(rows, list) or [row.get("date") for row in rows] != days:
+            raise ValueError("gsc_date_coverage_invalid:" + label)
+        def valid_metrics(metrics: Any, known: bool) -> bool:
+            return (isinstance(metrics, dict) and set(metrics) == set(fields)
+                    and all((type(metrics[key]) in (int, float) and math.isfinite(metrics[key])
+                             and metrics[key] >= 0) if known else metrics[key] is None
+                            for key in fields))
+        missing = []
+        for row in rows:
+            state = row.get("state")
+            if state not in ("SOURCE_REPORTED", "UNKNOWN") or not valid_metrics(
+                    row.get("metrics"), state == "SOURCE_REPORTED"):
+                raise ValueError("gsc_date_metrics_invalid:" + label)
+            if state == "UNKNOWN":
+                missing.append(row["date"])
+        state = item.get("state")
+        expected_state = ("UNKNOWN_DATE_COVERAGE" if missing else
+                          "UNKNOWN_NO_AGGREGATE_ROW" if not valid_metrics(item.get("totals"), True)
+                          else "SOURCE_REPORTED")
+        if (state != expected_state or item.get("missing_dates") != missing
+                or not valid_metrics(item.get("totals"), state == "SOURCE_REPORTED")):
+            raise ValueError("gsc_totals_state_invalid:" + label)
+        output[label] = {"property": property_uri, "denominator": ctx["denominator"],
+                         "state": state, "totals": item["totals"],
+                         "missing_dates": missing, "request_started_at_utc": item["request_started_at_utc"],
+                         "captured_at_utc": item["captured_at_utc"]}
+    return {"status": "GSC_ONLY_PARTIAL_REVIEW", "report_date": report_date.isoformat(),
+            "window": f"{days[0]}..{days[-1]}", "window_holdback_days": 3,
+            "scope": "GSC sitewide only; separate denominators, never added",
+            "interpretation": "Final requested dates are not a global watermark; Search clicks are not users, conversions or revenue.",
+            "scopes": output}
+
+
+def gsc_only(report_date: dt.date) -> dict[str, Any]:
+    """Explicit manual branch of the registered locked controller, not full weekly."""
+    aggregate_path = REPORT_ROOT / f"{report_date.isoformat()}-gsc-sitewide-aggregate.json"
+    receipt_path = CONTROL_ROOT / report_date.isoformat() / "gsc-only-receipt.json"
+    full_report = REPORT_ROOT / f"{report_date.isoformat()}.json"
+    full_receipt = receipt_path.with_name("receipt.json")
+    controller_path = BUSINESS / "scripts/glp_weekly_seo_control.py"
+    rail_path = BUSINESS / "ops/glp/seo_data_rails.py"
+    pin_guard = load_module("weekly_gsc_pin_guard", BUSINESS / "scripts/glp_weekly_seo_analysis.py")
+    raw_pins = pin_guard.PIN_PATH.read_bytes()
+    if hashlib.sha256(raw_pins).hexdigest() != pin_guard.PIN_SHA256:
+        raise ValueError("weekly_pin_manifest_drift")
+    pins = json.loads(raw_pins)["paths"]
+    for source in (REPORT_SCRIPT, rail_path):
+        if pins.get(str(source)) != sha256(source):
+            raise ValueError("weekly_installed_source_drift:" + str(source))
+    reporter = load_module("glp_weekly_gsc_collector", REPORT_SCRIPT)
+    if full_report.exists() or full_receipt.exists():
+        raise RuntimeError("gsc_only_full_weekly_collision")
+    if receipt_path.is_symlink() or receipt_path.parent.is_symlink():
+        raise RuntimeError("gsc_only_symlink_conflict")
+    if receipt_path.exists():
+        receipt_raw = receipt_path.read_bytes()
+        receipt = json.loads(receipt_raw)
+        if receipt_raw != (json.dumps(receipt, indent=2, sort_keys=True,
+                                      ensure_ascii=False) + "\n").encode():
+            raise RuntimeError("gsc_only_receipt_bytes_drift")
+        unsigned = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+        digest = hashlib.sha256(json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if (receipt.get("receipt_sha256") != digest or receipt.get("status") != "GSC_ONLY_PARTIAL_REVIEW"
+                or receipt.get("trigger_identity") != "manual_explicit_gsc_only"
+                or receipt.get("report_date") != report_date.isoformat()
+                or receipt.get("aggregate", {}).get("path") != str(aggregate_path)
+                or {key: value.get("path") for key, value in receipt.get("sources", {}).items()} != {
+                    "producer": str(REPORT_SCRIPT), "consumer": str(controller_path),
+                    "gsc_rail": str(rail_path)}):
+            raise RuntimeError("gsc_only_receipt_conflict")
+        for binding in (receipt["aggregate"], *receipt["sources"].values()):
+            path = Path(binding["path"])
+            if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+                    or sha256(path) != binding["sha256"]
+                    or ("bytes" in binding and path.stat().st_size != binding["bytes"])):
+                raise RuntimeError("gsc_only_source_drift")
+        aggregate = json.loads(aggregate_path.read_bytes())
+        # Replay validates shape and original chronology, not present-day freshness.
+        captured = max(parse_utc(row["captured_at_utc"]) for row in aggregate["scopes"].values())
+        if receipt["review"] != gsc_review(aggregate, report_date, reporter, now=captured):
+            raise RuntimeError("gsc_only_review_drift")
+        return {**receipt, "receipt": str(receipt_path), "idempotent_replay": True}
+    if aggregate_path.exists() or receipt_path.parent.exists():
+        raise RuntimeError("gsc_only_incomplete_or_colliding_state")
+    if report_date != dt.datetime.now(PT).date():
+        raise ValueError("gsc_only_historical_collection_refused")
+    sources = {"producer": {"path": str(REPORT_SCRIPT), "sha256": sha256(REPORT_SCRIPT)},
+               "consumer": {"path": str(controller_path), "sha256": sha256(controller_path)},
+               "gsc_rail": {"path": str(rail_path), "sha256": sha256(rail_path)}}
+    aggregate = reporter.collect_sitewide_gsc(
+        reporter.GoogleRail(), reporter.report_windows(report_date)["gsc_current"])
+    if any(sha256(Path(binding["path"])) != binding["sha256"] for binding in sources.values()):
+        raise RuntimeError("gsc_only_source_changed_during_collection")
+    # Validate before writing; review will be recomputed from reopened bytes.
+    gsc_review(aggregate, report_date, reporter, now=dt.datetime.now(dt.timezone.utc))
+    write_json_once(aggregate_path, aggregate)
+    raw = aggregate_path.read_bytes()
+    binding = {"path": str(aggregate_path), "sha256": hashlib.sha256(raw).hexdigest(),
+               "bytes": len(raw)}
+    review = gsc_review(json.loads(raw), report_date, reporter, now=dt.datetime.now(dt.timezone.utc))
+    receipt = {"schema": "glp.weekly-gsc-only-consumer.v1", "machine": "glp_weekly_seo_control",
+               "status": "GSC_ONLY_PARTIAL_REVIEW", "trigger_identity": "manual_explicit_gsc_only",
+               "report_date": report_date.isoformat(), "reviewed_at_utc": utc_now(),
+               "aggregate": binding, "review": review, "sources": sources,
+               "full_weekly_pass": False, "natural_weekly_run_observed": False}
+    receipt["receipt_sha256"] = hashlib.sha256(json.dumps(receipt, sort_keys=True,
+                                                   separators=(",", ":")).encode()).hexdigest()
+    write_json_once(receipt_path, receipt)
+    return {**receipt, "receipt": str(receipt_path)}
+
+
 def execute(report_date: dt.date, module_input: Path | None = None) -> dict[str, Any]:
     from ops.glp.seo_business_context import load_business_context
     business_context = load_business_context('weekly_control')
@@ -419,6 +574,8 @@ def resume_modules(report_date: dt.date, prior: dict[str, Any]) -> dict[str, Any
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report-date")
+    parser.add_argument("--gsc-only", action="store_true",
+                        help="Explicit manual GSC aggregate collect-and-review; no weekly strategy or sends")
     parser.add_argument("--module-input", type=Path)
     parser.add_argument("--analysis-only", action="store_true",
                         help="Run evidence-only WS-S modules; no original loop, sends or policy writes")
@@ -426,6 +583,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true",
                         help="bypass the week-scoped completed-receipt replay guard")
     args = parser.parse_args(argv)
+    if args.gsc_only and (args.force or args.analysis_only or args.analysis_output is not None
+                          or args.module_input is not None):
+        parser.error("--gsc-only cannot combine with --force, analysis or module inputs")
     if args.analysis_only:
         if args.module_input is None or args.analysis_output is None:
             parser.error("--analysis-only requires --module-input and --analysis-output")
@@ -447,6 +607,19 @@ def main(argv: list[str] | None = None) -> int:
                 "machine": "glp_weekly_seo_control", "status": "NOOP_ALREADY_RUNNING",
                 "report_date": report_date.isoformat(),
             }, sort_keys=True))
+            return 0
+        if args.gsc_only:
+            try:
+                result = gsc_only(report_date)
+            except Exception as exc:
+                # This branch must not enter the full-weekly Discord/error path.
+                print(json.dumps({"machine": "glp_weekly_seo_control", "mode": "gsc_only",
+                                  "status": "GSC_ONLY_BLOCKED", "report_date": report_date.isoformat(),
+                                  "error": f"{type(exc).__name__}:{str(exc)[:220]}",
+                                  "full_weekly_pass": False, "natural_weekly_run_observed": False},
+                                 sort_keys=True))
+                return 2
+            print(json.dumps(result, sort_keys=True))
             return 0
         try:
             result = None if args.force else completed_receipt(report_date)
