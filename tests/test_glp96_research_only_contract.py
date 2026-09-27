@@ -71,8 +71,6 @@ class FixtureSheet:
 @pytest.fixture
 def lane(monkeypatch, tmp_path):
     sheet = FixtureSheet()
-    import googleapiclient.discovery
-    monkeypatch.setattr(googleapiclient.discovery, "build", lambda *a, **kw: sheet)
     monkeypatch.setattr(writer, "build", lambda *a, **kw: sheet)
     monkeypatch.setattr(writer, "creds", lambda: None)
     monkeypatch.setattr(writer, "require_checkbox_schema_pass", lambda *a: {"status": "PASS"})

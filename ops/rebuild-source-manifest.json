@@ -14,7 +14,7 @@
     "scripts/affiliate_supply_discovery.py": {"callers": ["research-only source observation -> sheet_update_queue"], "kind": "script", "sha256": "aed573fee696365bfc00efa207f71ae40a1a3aa4883c39d4af7085fee9df64e0"},
     "scripts/affiliate_marketplace_update_sheet.py": {"callers": ["legacy ready-to-apply parser regression only; never used for held writes"], "kind": "script", "sha256": "d535143c946c00f6ea4d70a9a6a55be4aa5212f80247fa088bc0f8df43f5c6b2"},
     "scripts/affiliate_supply_expansion.py": {"callers": ["scripts/affiliate_supply_discovery.py"], "kind": "script", "sha256": "6d583ab1523ca852c1f9342c036fac0766fe1b89819671c40b2d6612ad6fddf1"},
-    "tests/test_glp96_research_only_contract.py": {"callers": ["scripts/run_tests.sh"], "kind": "test", "sha256": "de393a670c122947e3861ce3950999b41fdee0ce0e3280df17dbfb33fb871369"},
+    "tests/test_glp96_research_only_contract.py": {"callers": ["scripts/run_tests.sh"], "kind": "test", "sha256": "68a410c76cc9080bafc448c8ed59211905e6a299596019eccf477679048d6726"},
     "tests/support/google_stubs.py": {"callers": ["tests/test_glp96_research_only_contract.py"], "kind": "test", "sha256": "4b24b436a54b6ee19956a3de7a601ceab31c8b2262c25421cf5e746bcfb56899"},
     "reports/ops/glp96-research-intake-followthrough-20260927/two-prospects-report-only.json": {"callers": ["scripts/affiliate_supply_discovery.py"], "kind": "test_fixture", "sha256": "0067bb9b4080f683f44ccb070801954321e38ed4d5123d1ea2f00c7c3f024332"},
     "reports/ops/glp96-full-current-join-20260927/raw/page-001.html": {"callers": ["scripts/affiliate_supply_discovery.py", "scripts/affiliate_sheet_batch_writer.py"], "kind": "test_fixture", "sha256": "80291f47bedb1c74b7df0909a7f97ef869ac9f7e3b48f3f2ee285702236a1043"},
