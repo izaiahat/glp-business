@@ -1,6 +1,21 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/glp_sheet_sync_drain.py": {
+      "callers": ["sheet_update_queue single-writer carrier"],
+      "kind": "script",
+      "sha256": "9da47670306ed0427f47b9b4d8959783729575bdce54370bf3095e3ecea6f2e9"
+    },
+    "scripts/affiliate_program_relevance.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
+    },
+    "scripts/affiliate_operator_rulings.py": {
+      "callers": ["scripts/affiliate_sheet_batch_writer.py"],
+      "kind": "script",
+      "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
@@ -2169,5 +2184,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 331
+  "tracked_count": 334
 }
