@@ -1,8 +1,23 @@
 {
   "schema": "freshness-source-coverage-v1",
-  "candidate_head": "c04745f7585ab372a4fad3f128b562042b61d0fe",
-  "candidate_tree": "26fbc4c487f36fb005d79b9f1c2f900a086acb3a",
-  "note": "Frozen PR8 head (PR14 merge), clean source checkout; not installed-candidate acceptance or release permission. Every src byte and listed caller is guarded. Other candidate revisions still fail closed. Historical clocks and event-driven stamps are not wall-clock freshness.",
+  "candidate_head": "7eff54508e89dbf0566de1f97f25f9a21349973b",
+  "candidate_tree": "79e7f9ec6b1681b5d5c025632adac0a71c2fd472",
+  "note": "Frozen final PR16 head, clean read-only source checkout; not installed-candidate acceptance or release permission. Every src byte and listed caller is guarded; byte drift still fails closed. Historical clocks and event-driven stamps are not wall-clock freshness. Prior PR8 review is retained below as historical provenance.",
+  "final_candidate_review": {
+    "previous_candidate_head": "c04745f7585ab372a4fad3f128b562042b61d0fe",
+    "previous_candidate_tree": "26fbc4c487f36fb005d79b9f1c2f900a086acb3a",
+    "scope": "Complete src and two declared caller delta reviewed: one changed src file, one added src file; 128 prior src pins and both caller pins unchanged. No new candidate evidence-age predicate or concrete adapter mismatch found. Horizon producer and regression bytes remain those of business PR56 head 7ce208bfd825b51d467d7bdc8b82f4968192ee40.",
+    "files": {
+      "src/consent-runtime.mjs": "Reviewed complete c04745f..7eff545 delta and current clock predicates. Adds ga4Transport import, production-seal/GPC/consent callback, ga4.load in sync and lane-specific disable handling. Existing advertising scope/receipt expires_at_ms checks against Date.now are unchanged runtime permission checks, not candidate evidence-age windows. saved_at is recorded metadata and Max-Age=31536000 is cookie retention, not candidate freshness. Correction to historical PR8 rationale: this source has no CONSENT_MAX_AGE_MS preference expiry predicate; that earlier description is not relied on. No horizon clock/expiry behavior changes or vendor/privacy acceptance inferred.",
+      "src/ga4-runtime.mjs": "Reviewed all 152 added lines: exact route/context/consent gates, diagnostic transport barriers, minimized event fields, cookie clearing and revocation/navigation guards. new Date() is only the GA js initialization command; epoch/ticket is a cancellation counter, not elapsed time; Max-Age=0 deletes cookies. No evidence-age, expiry deadline or freshness comparison exists in this module. No adapter or fabricated calendar deadline is warranted; coverage review does not approve analytics deployment."
+    },
+    "callers": {
+      "scripts/build-staging.mjs": "Byte-identical to PR8, including primary/ENOENT-only preservation fallback and preserved evaluated_at deal caller. Existing CLOCK1 repair remains applicable.",
+      "scripts/validate-provider-pricing-matrix.mjs": "Byte-identical to PR8; pricing age window and caller clock unchanged."
+    },
+    "other_changed_callers": "Reviewed scripts/ci-release-gate.mjs and new consent-emitted-binding.mjs/release-executed-provenance.mjs: exact source/emitted/executed hash bindings, browser denominators, diagnostic flag refusal and unique lock seat; no evidence-age window added. No build or browser execution performed, and these release-proof checks are not represented as calendar deadlines.",
+    "limits": "Source coverage only. Preserve UNKNOWN data/stamp findings, historical clocks, provider holds and prior RED receipts. Installed taxonomy schedule proof remains separate; no refresh, scheduler edit, build, release or independent acceptance."
+  },
   "review": {
     "previous_candidate_head": "2927c1ea184d2ed23aa2dd448c8fc0d04df8c37d",
     "scope": "12 emitted source differences reviewed; 11 changed and one added. Other pins unchanged. Source coverage does not assert that all data or build gates pass.",
@@ -45,7 +60,7 @@
     "src/citation-attribution.mjs": "5c10bc66371d34aab8428490d565f0315239e1be77e045fb55a153502b98ebc7",
     "src/comparison-presets.mjs": "bd4b52dff19707778c0b80cbd0dd27e5943e35fe0bac6438f150b44e5c406748",
     "src/compounded-category.mjs": "a7edaa71715e942feecdc82a2e87f94b469e6543cda043c2ce728ccf93a2ac2a",
-    "src/consent-runtime.mjs": "1c81be6dd504f9f84aec94e566a4fde982e5cb86dc78ac8c9519a76b19e11bdf",
+    "src/consent-runtime.mjs": "ac8b477d1bf15eba5504fa99f830d36cf5e416894b15a1ed738c5dc247adcda9",
     "src/consent-runtime.mjs.orig": "5c88238bd32124c9dad50eaef758c8521c159e7e959fa63ff5d1b53cd381a248",
     "src/content-upgrade.mjs": "06b13662f0cf643febae98db206dfadd958e76f83070c8bd3e231b5e8561f782",
     "src/cost-affiliate-email-manifest.generated.mjs": "889c076e5272a18f3bcce30df89cf397c7e04f0146580e8449d4e07a6d98b9c4",
@@ -58,6 +73,7 @@
     "src/directory.mjs": "fe44cfdf0c2dad9ccd242ff133f9b526d047bb171e253c2a039b01d574f5f17b",
     "src/economics.mjs": "468536e6c5d27b245fc974f124d365599704d5b1f0cb1301739da54d705f1684",
     "src/freshness.mjs": "e45b6c8cdfae332ab94f46b80e0f240ef2d7954e689fe800b234a66318e53b04",
+    "src/ga4-runtime.mjs": "fdd0b662104309ec97ee06a846b00bff33ea3d7a5e4923f8b3f0246382183457",
     "src/go-commercial-labels.mjs": "e7a3dd2c929d0d7de53a7869703bf98b237634da934e96b9b4f994c010853198",
     "src/go-price-basis.mjs": "97c8b49881d5b844e4c46ad2b6e853a0ee52be06f119dac85309af7e30c90b0e",
     "src/go-promotion-contract.mjs": "f33979da215d0387b08a3b3d4e7e6e1dece4ef1425a2ada8018f0cab7cadb94b",

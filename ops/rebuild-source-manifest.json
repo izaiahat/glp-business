@@ -820,7 +820,7 @@
     "scripts/candidate_freshness_coverage.json": {
       "callers": [],
       "kind": "script",
-      "sha256": "438ac0f0bcebbab1150b07c8d5c906e29caac5884420f573cbc5e7c856a763c9"
+      "sha256": "2e02f1493b35042fd417e74f431124c9a56a628536b8705c8744dadb4f659ba1"
     },
     "scripts/candidate_freshness_horizon.py": {
       "callers": [],
