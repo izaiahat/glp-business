@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""Pinned installed weekly SEO analysis only; no collection, queue or release."""
+import argparse, hashlib, json, sys
+from pathlib import Path
+B = Path('/home/ubuntu/business')
+PIN_PATH = B / 'ops/glp/seo-weekly-installed-pins.json'
+PIN_SHA256 = '2a037a7f9ef0f3d53d227a2c4bc37202a9d697c84f79a0dce5d5c656d577b753'
+def verify_pins():
+    raw = PIN_PATH.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != PIN_SHA256:
+        raise ValueError('weekly_pin_manifest_drift')
+    pins = json.loads(raw)
+    for path, expected in pins['paths'].items():
+        if hashlib.sha256(Path(path).read_bytes()).hexdigest() != expected:
+            raise ValueError('weekly_installed_source_drift:' + path)
+    return pins
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--module-input', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    args = parser.parse_args()
+    verify_pins()
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(B))
+    from ops.glp.seo_weekly_continuation import run_week
+    result = run_week(args.module_input, args.output)
+    print(json.dumps({k: result[k] for k in ('status', 'module_statuses', 'source_operations', 'module_implementation')}))
+    return 0 if result['status'] == 'PASS_DRY_RUN' else 2
+
+if __name__ == '__main__':
+    raise SystemExit(main())
