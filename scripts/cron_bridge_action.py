@@ -445,6 +445,47 @@ def finish_action(action, args, job, state, state_path, *, call=None):
         from scripts.cron_ports.ads_zero_spend_monitor import finish
         return finish(action, args, job, state, state_path)
     rc = job.get("rc")
+    if action == "glp_seo_updater":
+        r = machine_receipt(job, schema="n8n.seo_updater.v1")
+        if "review-request" in args or r.get("review_only") is True or r.get("status") == "PASS_REVIEW_ONLY":
+            if ("review-request" not in args or r.get("status") != "PASS_REVIEW_ONLY"
+                    or r.get("review_only") is not True or r.get("published") is not False
+                    or r.get("refreshed") is not False
+                    or r.get("request_sha256") != args["review-request-sha256"]):
+                raise RuntimeError("seo_updater_review_only_contract_invalid")
+            return {"machine_status": r["status"], "review_only": True, "published": False,
+                    "output_count": 0, "receipt_path": r.get("receipt_path"),
+                    "operation_id": r.get("operation_id")}
+        if r.get("status") not in ("PASS_REFRESHED",
+                "PASS_NOTHING_DUE", "PASS_ALREADY_RUNNING", "PASS_DAILY_QUOTA_COMPLETE"):
+            # The updater deliberately exits zero on domain refusals, including
+            # failures after partial effects. Keep pending for GET-only readback.
+            raise RuntimeError("seo_updater_nonpass_see_machine_receipt")
+        published = r["status"] == "PASS_REFRESHED"
+        if r.get("published") is not published or r.get("refreshed") is not published:
+            raise RuntimeError("seo_updater_effect_contract_invalid")
+        effects = {"machine_status": r["status"], "published": published, "output_count": int(published)}
+        if published:
+            import requests
+            from urllib.parse import urlsplit
+            url = str(r.get("url") or "")
+            parsed = urlsplit(url)
+            if (parsed.scheme != "https" or parsed.netloc not in ("glpclinicscout.com", "www.glpclinicscout.com")
+                    or not parsed.path.startswith("/") or parsed.path.startswith("/go/")
+                    or parsed.path != r.get("route") or parsed.query or parsed.fragment):
+                raise RuntimeError("seo_updater_live_url_not_exact_first_party_route")
+            # Do not follow an affiliate/offsite redirect while checking a page.
+            response = requests.get(url, timeout=30, allow_redirects=False)
+            if response.status_code != 200:
+                raise RuntimeError("seo_updater_published_but_not_live")
+            effects["live_status"] = response.status_code
+        receipt = r.get("receipt_path") or r.get("claim_path") or job["receipt_path"]
+        note = str(r.get("route") or "route unknown") if published else r["status"]
+        effects["heartbeat"] = heartbeat("seo_update_carrier", int(published), receipt, note, job)
+        effects["notification"] = post_once(
+            f"SEO updater: {r['status']} ({'1 article live' if published else 'nothing published'})\n"
+            f"{note}\n{r.get('url') or ''}\nReceipt: {receipt}", job, state, state_path)
+        return effects
     if action == "decisions_router":
         return finish_decisions(job, state, state_path, call)
     if action == "sheet_sync_drain" and rc in (0, 75):
@@ -746,6 +787,21 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
     actions = json.loads(ACTIONS_PATH.read_text()) if actions is None else actions
     if action not in actions or not re.fullmatch(r"[A-Za-z0-9_-]+", action):
         return {"status": "REFUSED_UNKNOWN_ACTION", "rc": 64}
+    if action == "glp_seo_updater":
+        # This successor is an explicitly invoked transport, not R2 enablement.
+        if invocation != "manual" or due_slot is not None:
+            return {"status": "REFUSED_SEO_UPDATER_UNSCHEDULED_ONLY", "rc": 64}
+        # Port Mode's shape checks. Calendar/future, request hash, authority,
+        # operation claims and all publication gates stay in the same updater.
+        keys = set(args)
+        refresh = (not args or keys == {"pt-date"} and isinstance(args["pt-date"], str)
+                   and re.fullmatch(r"\d{4}-\d{2}-\d{2}", args["pt-date"]))
+        review = (keys == {"review-request", "review-request-sha256"}
+                  and isinstance(args["review-request"], str) and args["review-request"].startswith("/")
+                  and isinstance(args["review-request-sha256"], str)
+                  and re.fullmatch(r"[0-9a-f]{64}", args["review-request-sha256"]))
+        if not (refresh or review):
+            return {"status": "REFUSED_SEO_UPDATER_ARGS", "rc": 64}
     if action == "sheet_sync_drain" and args:
         return {"status": "REFUSED_SHEET_DRAIN_REQUIRES_REGISTERED_QUEUE", "rc": 64}
     if action == "decisions_router" and args:

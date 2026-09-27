@@ -1,0 +1,26 @@
+{
+  "provenance": "Read-only installed acceptance and published graph readback; no execution in this fixture",
+  "registered_action": {
+    "glp_seo_updater": {
+      "argv": ["python3", "scripts/glp_seo_updater_run.py"],
+      "cwd": "/home/ubuntu/business",
+      "timeout_s": 8400,
+      "allowed_args": ["pt-date", "review-request", "review-request-sha256"]
+    }
+  },
+  "actual_bridge_child_interpreter": "/usr/bin/python3",
+  "refused_execution": {
+    "id": "19075",
+    "workflowId": "qlugNldijmBDs3Em",
+    "status": "error",
+    "nodeName": "Manual Run",
+    "error_contains": "Execution limit reached.",
+    "downstream_bridge_dispatched": false
+  },
+  "published_version": "0eea627b-29d1-4fc5-a9a5-7f4916370777",
+  "webhook_path": "/webhook/glp-seo-updater-run",
+  "host_bridge_base": "http://127.0.0.1:8791",
+  "bridge_endpoint": "/run",
+  "bridge_auth": "Bearer via existing make_call credential loaders",
+  "source_evidence": "reports/ops/glp76-installed-acceptance-20260927/{published-updater-registration,latest-updater-execution-readback,bridge-live-registration}.json"
+}

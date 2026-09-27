@@ -1,6 +1,21 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp76_host_transport.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "f5569597bdd80b349fe03f923256c0492eaeb5b6ff8e7140943f56b02a055d05"
+    },
+    "tests/fixtures/glp76-transport-contract.json": {
+      "callers": ["tests/test_glp76_host_transport.py"],
+      "kind": "test_fixture",
+      "sha256": "9b6321e78a0bbfbb91c99fa52e13d7b8b2c6b579280bf22036ba5ad9bf8389df"
+    },
+    "ops/glp76-host-transport.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "7ad4dc51b614f0f074b2c46f0d3195349e4a6566b5b58d00d32eafba185db11b"
+    },
     "tests/test_glp250_partner_email_hold.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
@@ -29,7 +44,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dc65e651285eb760ab80e534efb32bc7272306fd5a99efde457e27fba45a7181"
+      "sha256": "7d4dad0ad02a9cde3bce181e2a8f7c7d1b069593b3f0d06955aae0b784df9f02"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -864,7 +879,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "4e8da708900178d32b2f165e1d18067750b45dabb5a115d3487b4d1a9d2d6bcb"
+      "sha256": "9c422bf5218f54148583c2a4c3293c07a1642b64630afafaa355773b31a0b098"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -2194,5 +2209,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 336
+  "tracked_count": 339
 }
