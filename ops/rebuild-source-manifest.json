@@ -1872,7 +1872,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "7e56d9f378da7b84f37a721eed4744561fac6fda61c820333f456e37fc5ef8d2"
+      "sha256": "36811bbc7b2126b225af6fddb9589fa0e99998ba49d59de5f8c0e6faba3d9c4d"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [

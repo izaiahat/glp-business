@@ -576,6 +576,12 @@ class CurrentReleaseTests(unittest.TestCase):
                     self.assertEqual(successor["status"], "PASS_PRODUCTION_TERMINAL")
                     self.assertEqual(successor["effects"]["existing_candidate_selection_post_intents"], 1)
                     self.assertEqual(successor["effects"]["pointer_atomic_cas"], 1)
+                    raw_rows = successor["stages"]["route_probe_raw"]
+                    self.assertEqual(len(raw_rows), 3 * len(f.prepared_data["route_specs"]))
+                    for row in raw_rows:
+                        self.assertEqual(c.sha_file(Path(row["body_path"])), row["body_sha256"])
+                        self.assertEqual(row["compared_sha256"], row["expected_sha256"])
+                        self.assertEqual(row["compared_bytes"], row["expected_bytes"])
                     self.assertEqual(f.selections, [NEW_ID]); self.assertEqual(f.rollbacks, [])
                     self.assertEqual(f.promote_fixture(renewed, flags), 1)
                     self.assertEqual(f.selections, [NEW_ID])
