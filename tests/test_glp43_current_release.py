@@ -397,6 +397,119 @@ class CurrentReleaseTests(unittest.TestCase):
         self.assertEqual(self.publish(), 1)
         self.assertEqual(self.calls, before)
 
+    def email_probe_fixture(self):
+        # Exact observed mailto/span shape, with different XOR keys for href/span.
+        self.email_expected = (b'<html><body>$199 <a href="mailto:support@glpclinicscout.com">'
+                               b'support@glpclinicscout.com</a><script>window.x=1</script></body></html>')
+        self.email_raw = (b'<html><body>$199 <a href="/cdn-cgi/l/email-protection#'
+                          b'6a191f1a1a05181e2a0d061a0906030403091909051f1e44090507">'
+                          b'<span class="__cf_email__" data-cfemail="'
+                          b'265553565649545266414a56454a4f484f4555454953520845494b">'
+                          b'[email&#160;protected]</span></a>'
+                          b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+                          b'<script>window.x=1</script></body></html>')
+        (self.public / 'index.html').write_bytes(self.email_expected)
+        self.email_item = {'url_path': '/', 'sha256': c.sha_bytes(self.email_expected), 'bytes': len(self.email_expected)}
+        self.email_receipt = {'stages': {}}
+        self.email_receipt_path = self.root / 'readback/CURRENT-RECEIPT.json'
+
+    def email_probe(self, body, base=None, status=200, content_type='text/html; charset=utf-8'):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.status = response.code = status
+        response.headers = {'Content-Type': content_type}
+        response.read.return_value = body
+        with mock.patch.object(c.urllib.request.OpenerDirector, 'open', return_value=response):
+            return c.current_route_probe(base or c.SITE, self.email_item, self.public,
+                                         self.email_receipt_path, self.email_receipt)
+
+    def assert_email_raw_retained(self, body):
+        row = json.loads(self.email_receipt_path.read_text())['stages']['route_probe_raw'][-1]
+        self.assertEqual(row['body_sha256'], c.sha_bytes(body))
+        self.assertEqual(row['bytes'], len(body))
+        self.assertEqual(Path(row['body_path']).read_bytes(), body)
+        self.assertEqual(Path(row['body_path']).stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.deploy_calls, []); self.assertEqual(self.rollbacks, []); self.assertEqual(self.builds, [])
+
+    def test_current_email_readback_exact_reversal_retains_raw_before_comparison(self):
+        self.email_probe_fixture()
+        real_restore = c.current_restore_cf_email
+
+        def restore(raw):
+            self.assert_email_raw_retained(raw)  # disk evidence exists before parsing
+            self.assertEqual(real_restore(raw), self.email_expected)
+            return real_restore(raw)
+
+        with mock.patch.object(c, 'current_restore_cf_email', side_effect=restore):
+            row = self.email_probe(self.email_raw)
+        self.assertEqual(row['comparison'], 'exact_cf_email_reversal')
+        self.assertEqual(row['compared_sha256'], self.email_item['sha256'])
+        self.assertEqual(row['compared_bytes'], len(self.email_expected))
+        self.assertNotEqual(row['body_sha256'], row['compared_sha256'])
+
+    def test_current_email_readback_rejects_changed_price(self):
+        self.email_probe_fixture()
+        changed = self.email_raw.replace(b'$199', b'$999')
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(changed)
+        self.assert_email_raw_retained(changed)
+
+    def test_current_email_readback_rejects_changed_email(self):
+        self.email_probe_fixture()
+        def token(key):
+            return bytes([key, *[x ^ key for x in b'privacy@glpclinicscout.com']]).hex().encode()
+        changed = self.email_raw.replace(b'6a191f1a1a05181e2a0d061a0906030403091909051f1e44090507', token(0x6a))
+        changed = changed.replace(b'265553565649545266414a56454a4f484f4555454953520845494b', token(0x26))
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(changed)
+        self.assert_email_raw_retained(changed)
+
+    def test_current_email_readback_rejects_unrelated_script_change(self):
+        self.email_probe_fixture()
+        changed = self.email_raw.replace(b'window.x=1', b'window.x=2')
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(changed)
+        self.assert_email_raw_retained(changed)
+
+    def test_current_email_readback_pages_alias_remains_raw_strict(self):
+        self.email_probe_fixture()
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(self.email_raw, base=f'https://{c.PROJECT}.pages.dev')
+        self.assert_email_raw_retained(self.email_raw)
+
+    def test_current_email_readback_immutable_raw_match(self):
+        self.email_probe_fixture()
+        row = self.email_probe(self.email_expected, base=self.current['url'])
+        self.assertEqual(row['comparison'], 'raw_exact')
+        self.assertEqual(row['body_sha256'], row['compared_sha256'])
+        self.assert_email_raw_retained(self.email_expected)
+
+    def test_current_email_readback_malformed_xor_refuses(self):
+        self.email_probe_fixture()
+        changed = self.email_raw.replace(b'6a191f1a1a05181e2a0d061a0906030403091909051f1e44090507', b'abc')
+        with self.assertRaisesRegex(c.GateError, 'cloudflare_email_hex_invalid'):
+            self.email_probe(changed)
+        self.assert_email_raw_retained(changed)
+
+    def test_current_email_readback_unknown_decoder_refuses(self):
+        self.email_probe_fixture()
+        changed = self.email_raw.replace(b'/5c5dd728/', b'/deadbeef/')
+        with self.assertRaisesRegex(c.GateError, 'cloudflare_email_decoder_script_count_invalid'):
+            self.email_probe(changed)
+        self.assert_email_raw_retained(changed)
+
+    def test_current_email_readback_non_html_response_refuses(self):
+        self.email_probe_fixture()
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:'):
+            self.email_probe(self.email_raw, content_type='application/octet-stream')
+        self.assert_email_raw_retained(self.email_raw)
+
+    def test_current_email_readback_status_refuses(self):
+        self.email_probe_fixture()
+        with self.assertRaisesRegex(c.GateError, 'route_probe_invariant_failed:.*:503'):
+            self.email_probe(self.email_raw, status=503)
+        self.assert_email_raw_retained(self.email_raw)
+
     def test_current_deployment_list_defaults_complete_and_fail_closed(self):
         # Real provider rejected this exact legacy query with HTTP 400/8000024.
         # Omitted per_page returned 25, not evidence of a universal size cap.

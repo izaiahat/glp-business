@@ -2046,6 +2046,128 @@ def current_route_specs(root: Path) -> list[dict[str, Any]]:
              "bytes": (root / name).stat().st_size} for name in names]
 
 
+# Narrow reuse of verify_glp_wave2_production.normalize_cf_email_html's
+# exact mailto-anchor reversal: same XOR decoding, matching href/span mailbox,
+# approved mailboxes and literal decoder. Do NOT import its broader wrapper,
+# plaintext or query-link normalization into this current-only comparison.
+CURRENT_CF_EMAIL_ANCHOR_RE = re.compile(
+    rb'<a href="/cdn-cgi/l/email-protection#([0-9A-Fa-f]+)"><span class="__cf_email__" data-cfemail="([0-9A-Fa-f]+)">\[email&#160;protected\]</span></a>'
+)
+CURRENT_CF_EMAIL_DECODER_SCRIPT = b'<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>'
+
+
+def current_restore_cf_email(value: bytes) -> bytes:
+    """Reverse only the observed CF mailto/span shape; never normalize source."""
+    def decode_cloudflare_hex(encoded: bytes) -> bytes:
+        if len(encoded) < 4 or len(encoded) % 2:
+            fail("cloudflare_email_hex_invalid")
+        try:
+            raw = bytes.fromhex(encoded.decode("ascii"))
+            decoded = bytes(byte ^ raw[0] for byte in raw[1:]).decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            fail("cloudflare_email_decode_invalid")
+        if decoded not in {"ops@glpclinicscout.com", "support@glpclinicscout.com", "privacy@glpclinicscout.com"}:
+            fail("cloudflare_email_unapproved")
+        return decoded.encode("ascii")
+
+    def restore_anchor(match: re.Match[bytes]) -> bytes:
+        href_address = decode_cloudflare_hex(match.group(1))
+        span_address = decode_cloudflare_hex(match.group(2))
+        if href_address != span_address:
+            fail("cloudflare_email_anchor_span_mismatch")
+        return b'<a href="mailto:' + href_address + b'">' + href_address + b'</a>'
+
+    restored, count = CURRENT_CF_EMAIL_ANCHOR_RE.subn(restore_anchor, value)
+    script_count = value.count(CURRENT_CF_EMAIL_DECODER_SCRIPT)
+    if count:
+        if script_count < 1 or script_count > count:
+            fail("cloudflare_email_decoder_script_count_invalid")
+        restored = restored.replace(CURRENT_CF_EMAIL_DECODER_SCRIPT, b"")
+    elif script_count:
+        fail("cloudflare_email_decoder_without_anchor")
+    if any(marker in restored for marker in (b"/cdn-cgi/l/email-protection", b"__cf_email__",
+                                             b"data-cfemail", b"email-decode.min.js")):
+        fail("cloudflare_email_transform_unhandled")
+    return restored
+
+
+def current_route_probe(base: str, item: dict[str, Any], public: Path,
+                        receipt_path: Path, receipt: dict[str, Any]) -> dict[str, Any]:
+    path = item["url_path"]
+    if (not isinstance(path, str) or not re.fullmatch(r"/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]*", path)
+            or any(part in (".", "..") for part in path.split("/"))):
+        fail("current_route_path_invalid")
+    source = package_plain_path(public / (path.lstrip("/") + ("index.html" if path.endswith("/") else "")))
+    require_regular(source)
+    expected = source.read_bytes()
+    if len(expected) != item["bytes"] or sha_bytes(expected) != item["sha256"]:
+        fail("current_route_expected_bytes_drift")
+    url = base + path
+    request = urllib.request.Request(url, headers={"User-Agent": "glp-r13-authority-carrier/3",
+                                                   "Cache-Control": "no-cache"})
+    try:
+        try:
+            response = urllib.request.build_opener(CurrentNoRedirect()).open(request, timeout=30)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        with response:
+            body = response.read()
+            status_code, headers = response.status, response.headers
+    except urllib.error.URLError as exc:
+        fail(f"route_probe_failed:{url}:{type(exc).__name__}")
+    # Use the existing run report + receipt. Save RAW bytes and their digest
+    # before status, parsing or comparison can refuse; never overwrite a probe.
+    body_path = receipt_path.parent / ("route-probe-" + uuid.uuid4().hex + ".body")
+    exclusive_file(body_path, body)
+    row = {"url": url, "status": status_code, "bytes": len(body), "body_sha256": sha_bytes(body),
+           "body_path": str(body_path), "expected_sha256": item["sha256"], "expected_bytes": item["bytes"],
+           "headers": {name: headers.get(name) for name in
+                       ("Content-Type", "Cache-Control", "ETag", "Location", "CF-Cache-Status", "Content-Encoding")}}
+    receipt["stages"].setdefault("route_probe_raw", []).append(row)
+    checkpoint(receipt_path, receipt)
+    compared, comparison = body, "raw_exact"
+    if (status_code == 200 and body != expected and base == SITE and source.suffix == ".html"
+            and headers.get("Content-Type", "").split(";", 1)[0].strip().lower() == "text/html"):
+        compared, comparison = current_restore_cf_email(body), "exact_cf_email_reversal"
+    if (status_code != 200 or len(compared) != item["bytes"] or sha_bytes(compared) != item["sha256"]
+            or compared != expected):
+        fail(f"route_probe_invariant_failed:{url}:{status_code}")
+    row.update(comparison=comparison, compared_sha256=sha_bytes(compared), compared_bytes=len(compared))
+    checkpoint(receipt_path, receipt)
+    return row
+
+
+def current_route_matrix(client: CloudflareClient, deployment: dict[str, Any],
+                         route_specs: list[dict[str, Any]], public: Path,
+                         receipt_path: Path, receipt: dict[str, Any], *, timeout_seconds: int = 120) -> list[dict[str, Any]]:
+    # Carry historical ordering, canonical-head guard and convergence policy.
+    # The historical route_matrix/route_probe and their authority pins stay frozen.
+    deployment_id = str(deployment.get("id", ""))
+    immutable = str(deployment.get("url", "")).rstrip("/")
+    if (not DEPLOYMENT_ID.fullmatch(deployment_id) or not immutable.startswith("https://")
+            or not immutable.endswith(f".{PROJECT}.pages.dev")):
+        fail("deployment_immutable_identity_invalid")
+    bases = [immutable, f"https://{PROJECT}.pages.dev", SITE]
+    deadline = time.monotonic() + timeout_seconds
+    last_error = "route_matrix_not_attempted"
+    while True:
+        project = client.project()
+        canonical_head = production_deployment(project)
+        if canonical_head.get("id") != deployment_id:
+            fail(f"canonical_head_changed_during_route_matrix:{canonical_head.get('id')}")
+        try:
+            results = []
+            for base in bases:
+                for item in route_specs:
+                    results.append(current_route_probe(base, item, public, receipt_path, receipt))
+            return results
+        except GateError as exc:
+            last_error = str(exc)
+            if time.monotonic() >= deadline:
+                fail(f"route_matrix_did_not_converge:{last_error}")
+            time.sleep(5)
+
+
 def current_pointer_intent(root: Path, prepared: dict[str, Any], deployment_id: str, run_dir: Path) -> dict[str, Any]:
     spec = prepared["predecessor_pointer"]
     predecessor = base64.b64decode(spec["bytes_base64"], validate=True)
@@ -2188,7 +2310,8 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         stages["pages_deployment"] = {"deployment_id": deployment_id, "commit_hash": head}
         checkpoint(receipt_path, receipt)
         try:
-            stages["route_probes"] = route_matrix(client, current, prepared["route_specs"])
+            stages["route_probes"] = current_route_matrix(client, current, prepared["route_specs"],
+                                                          root / "release/public", receipt_path, receipt)
             stages["runtime_and_holds"] = current_runtime_readback(current, prepared)
             current_prepared(root, args.expected_prepared_manifest_sha256)
             intent = current_pointer_intent(root, prepared, deployment_id, run_dir)

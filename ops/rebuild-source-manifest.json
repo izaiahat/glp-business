@@ -939,7 +939,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "bd2286ea5012edf71d3c462237bdb0746f0595fa4859644c21280e416fc4fc6a"
+      "sha256": "71b71f3c39e4730172aa0609dbc4d1470f1b040c3f7aaffbf589d53c227bc316"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1017,7 +1017,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "31b1308608d3c3c55d89224beb1cdbd668f51f959cdcee7b1145bf8b4a9dcdb7"
+      "sha256": "9271a2edf72c8f7a3ead641ae3d572d39f6acedfc4c89abe76bf63d796a80d13"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -2244,7 +2244,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "470ced19ba346911f56549a8f69d76280c95f9d0de9f9bfb9c1b6533b4388ba9"
+      "sha256": "2ac9bc2686bf3120c4bfb7786aef50b7d558d36c9de13d4c9d9efb4c0f78ba46"
     }
   },
   "omitted_runtime_inputs": [
