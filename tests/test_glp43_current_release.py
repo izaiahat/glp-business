@@ -264,6 +264,65 @@ class CurrentReleaseTests(unittest.TestCase):
             self.assertFalse(self.prepared.exists()); self.assertEqual(self.calls, [])
         self.prepare()
 
+    def test_compile_project_root_comment(self):
+        # Pinned Wrangler 4.114.0 uses nearest package.json (else cwd) for
+        # .wrangler/tmp, but esbuild renders comments from cwd/functions.
+        # Real final381 diagnostic: six ../ segments, one comment, zero old matches.
+        standalone = self.root / "standalone"
+        project = self.root / "project"
+        project.mkdir()
+        (project / "package.json").write_text("{}")
+        nested = project / "reports/ops/repair/diagnostic/compile"
+        observed = b"// ../../../../../../.wrangler/tmp/pages-TbBgkE/functionsRoutes-0.0954432228302402.mjs"
+        prior = b"// ../.wrangler/tmp/pages-bBGgqJ/functionsRoutes-0.542726740931041.mjs"
+        canonical = b"// r13-canonical-functions-routes.mjs"
+        fixture_comment = b"// ../.wrangler/tmp/pages-fixture/functionsRoutes-fixture.mjs"
+        cases = [
+            (standalone, prior, True),
+            (nested, observed, True),
+            (nested, prior, False),  # valid only for the standalone layout
+            (nested, observed.replace(b".wrangler/tmp/", b".wrangler/unknown/"), False),
+            (nested, observed.replace(b"../../../../../../", b"/unknown/root/"), False),
+            (nested, b"// unknown compiler shape", False),
+            (nested, observed + b"\n" + observed, False),
+        ]
+        for workspace, comment, accepted in cases:
+            with self.subTest(workspace=workspace.name, comment=comment):
+                workspace.mkdir(parents=True, exist_ok=True)
+                output = workspace / ".wrangler/pages-functions-build/index.js"
+                if output.exists():
+                    output.unlink(); output.parent.rmdir()
+                captured = []
+
+                def compiler(command, **kwargs):
+                    self.assertEqual(command, [str(c.NODE), str(c.WRANGLER), "pages", "functions", "build",
+                                               "functions", "--outdir", str(output.parent)])
+                    self.assertEqual(kwargs["cwd"], str(workspace))
+                    self.assertEqual(kwargs["env"], c.wrangler_env(workspace))
+                    result = self.process(command, **kwargs)
+                    raw = output.read_bytes().replace(fixture_comment, comment)
+                    output.write_bytes(raw); captured.append(raw)
+                    return result
+
+                with mock.patch.object(c.subprocess, "run", side_effect=compiler):
+                    if accepted:
+                        result = c.current_compile(workspace)
+                        raw, = captured
+                        fixed = output.read_bytes()
+                        self.assertEqual(fixed, raw.replace(comment, canonical))
+                        self.assertEqual(result["pages_random_comment_replacements"], 1)
+                        self.assertEqual(result["raw_worker_sha256"], c.sha_bytes(raw))
+                        self.assertEqual(result["worker_sha256"], c.sha_bytes(fixed))
+                        self.assertEqual(result["routes"], c.current_routes(raw))
+                    else:
+                        with self.assertRaisesRegex(c.GateError, "^current_wrangler_nondeterminism_shape_drift$"):
+                            c.current_compile(workspace)
+                        self.assertEqual(output.read_bytes(), captured[0])
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.deploy_calls, [])
+        self.assertEqual(self.rollbacks, [])
+        self.assertFalse(self.approval.exists())
+
     def test_final_deploy_public_binding(self):
         # Reviewer R1: drift after the actual copy-time comparison, before the
         # manifest records its own closure. Package/retained public stay intact.

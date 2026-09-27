@@ -338,8 +338,11 @@ def current_compile(workspace: Path) -> dict[str, Any]:
         fail("current_functions_build_failed")
     path = pages_out / "index.js"
     raw = path.read_bytes()
-    # Same exact comment-only canonicalization as the historical Pages probe.
-    fixed, count = re.subn(rb"// \.\./\.wrangler/tmp/pages-[^/\r\n]+/functionsRoutes-[^\r\n]+",
+    # Wrangler 4.114.0 getPagesProjectRoot: nearest package.json, else cwd.
+    # Its esbuild projectRoot is functions/, not that Pages temporary root.
+    project_root = next((p for p in (workspace, *workspace.parents) if (p / "package.json").is_file()), workspace)
+    routes_tmp = os.path.relpath(project_root / ".wrangler/tmp", workspace / "functions").encode()
+    fixed, count = re.subn(rb"(?m)^// " + re.escape(routes_tmp) + rb"/pages-[^/\r\n]+/functionsRoutes-[^\r\n]+$",
                           b"// r13-canonical-functions-routes.mjs", raw)
     if count != 1:
         fail("current_wrangler_nondeterminism_shape_drift")
