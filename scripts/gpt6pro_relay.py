@@ -8,8 +8,10 @@ What it is: a read-think-write channel. A job = one prompt file (+ optional atta
 NEW GPT-6 Pro chat; its hash-bound reply lands in reports/ops/gpt6pro-relay/jobs/<job>/RESPONSE.md.
 Inputs go to Drive inbox/<job>; Drive outbox artifacts require a final-chat-bound OUTPUT-MANIFEST.json.
 A separate hash-authorized, one-shot `resume-unsent-readiness` path may continue an exact
-proven-unsent SECURITY_INTERSTITIAL job on its original retained tab; default is read-only.
-It never reuploads, opens or navigates a tab, or clears retry_blocked merely on readiness.
+proven-unsent SECURITY_INTERSTITIAL job on its original retained tab, or the single
+source-diagnosed consumed six-PR first-evaluation failure with fresh current custody.
+Default is read-only; neither path reuploads, opens or navigates a tab, or clears
+retry_blocked merely on readiness.
 
 What it is not: it never builds, tests, reads back a site, or causes a live effect. Every RESPONSE is UNTRUSTED
 seat output and passes the same gates (result_lint grounding, protected-oracle review) before anything is applied.
@@ -1895,6 +1897,35 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
         return 0
 
 
+def _retained_empty_witness(tab, time_origin):
+    """Read the existing document only; never activate, navigate or modify its page."""
+    witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\n' + '''
+before=[t['targetId'] for t in list_tabs()]
+if tab not in before: _binding_error('retained_target_missing', tab=tab)
+_select(tab)
+want='https://chatgpt.com/'
+probe=lambda expression: _bound_js(tab,want,expression)
+extra="""(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,time_origin:performance.timeOrigin,composer_empty:!!e&&!e.innerText.trim(),user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()"""
+first=probe(extra)
+state=_state(probe)
+last=probe(extra)
+after=[t['targetId'] for t in list_tabs()]
+print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':last,'same_tabs':sorted(before)==sorted(after)}))
+''')
+    current = witness.get('state', {})
+    first, last = witness.get('first', {}), witness.get('last', {})
+    return (not witness.get('error') and witness.get('tab') == tab and
+            witness.get('same_tabs') is True and
+            current.get('url') == 'https://chatgpt.com/' and current.get('ready_state') == 'complete' and
+            current.get('composer_present') is True and current.get('assistant_count') == 0 and
+            current.get('last_len') == 0 and all(current.get(k) is False for k in
+                ('security_interstitial', 'human_challenge', 'logged_out', 'rate_limited',
+                 'stop', 'drive_reconnect', 'thinking_failed')) and
+            first == last and first.get('url') == 'https://chatgpt.com/' and
+            first.get('time_origin') == time_origin and
+            first.get('composer_empty') is True and first.get('user_count') == 0)
+
+
 def _reconcile_unsent_readiness(job, cfg, st, path, preimage, report_path, apply, account, inspect_only=False):
     """Reconcile only a proven pre-insertion SECURITY_INTERSTITIAL failure.
 
@@ -1973,30 +2004,7 @@ def _reconcile_unsent_readiness(job, cfg, st, path, preimage, report_path, apply
     if admission.returncode:
         refuse('ADMISSION')
     tab = error['tab']
-    witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\n' + '''
-before=[t['targetId'] for t in list_tabs()]
-if tab not in before: _binding_error('retained_target_missing', tab=tab)
-_select(tab)
-want='https://chatgpt.com/'
-probe=lambda expression: _bound_js(tab,want,expression)
-extra="""(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,time_origin:performance.timeOrigin,composer_empty:!!e&&!e.innerText.trim(),user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()"""
-first=probe(extra)
-state=_state(probe)
-last=probe(extra)
-after=[t['targetId'] for t in list_tabs()]
-print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':last,'same_tabs':sorted(before)==sorted(after)}))
-''')
-    current = witness.get('state', {})
-    first, last = witness.get('first', {}), witness.get('last', {})
-    if (witness.get('error') or witness.get('tab') != tab or witness.get('same_tabs') is not True or
-            current.get('url') != 'https://chatgpt.com/' or current.get('ready_state') != 'complete' or
-            current.get('composer_present') is not True or current.get('assistant_count') != 0 or
-            current.get('last_len') != 0 or any(current.get(k) is not False for k in
-                ('security_interstitial', 'human_challenge', 'logged_out', 'rate_limited',
-                 'stop', 'drive_reconnect', 'thinking_failed')) or
-            first != last or first.get('url') != 'https://chatgpt.com/' or
-            first.get('time_origin') != row['time_origin'] or
-            first.get('composer_empty') is not True or first.get('user_count') != 0):
+    if not _retained_empty_witness(tab, row['time_origin']):
         refuse('TAB_EVIDENCE')
     # Recheck all local custody after the browser read, including default dry-run.
     if (path.read_bytes() != preimage or message_path.read_bytes() != message or
@@ -2035,6 +2043,149 @@ print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':las
     return 0
 
 
+# Fixed source incident, not an admission rule for other uncertain failures.
+CONSUMED_CANARY = {
+    'job': 'pro-source-bundle-six-pr56-pr57-pr58-site17-pr59-pr60-20260927',
+    'held': '88041b25bf3cd6f2388c1b84aaa3f4f23ea659a9237ca3e58bed7d4878fc15c6',
+    'backup': 'ef0ddbcb8e8921544cae919ff6ddbe74d33a151ec92adf570eab0a694a69d7e4',
+    'message': '0e84873bcd5fe7e4ad5eac8efd7366fe21481cdc23b983c8aa0d3b8fa9a71ea0',
+    'manifest': '739af62e396b50637f721ffc9a8da25067a633b985d8ef955f963542d6efe968',
+    'drive_prompt': '4f83a600306fa493295c7206378d7e471b9fabfa3f442cbcdb2222f264c85707',
+    'ledger_lines': ('456e7ab3712416432cb049a2b202b049b1a37e21fbe429887a42bef9e0262935',
+                     '948358a0bb196ed6a44d861e54ecd8f1f6a13dad6cb46d40c43a8fa373de11af'),
+    'witness_sha256': '36033bb2572dfddd7c8f5358f89c6ca581ce16cd5e01755de1000e29d7ad02d0',
+    'tab': '096B6BD311B590EA7895CBD6E103BA3C',
+    'time_origin': 1790498286675.7,
+}
+
+
+def _prove_consumed_canary(job, cfg, st, path, preimage, report_path, account):
+    """Exact failed first-evaluation canary only; source barrier is not a live-page claim."""
+    c = CONSUMED_CANARY
+    def refuse(reason):
+        raise SystemExit('CANARY_RECOVERY_REFUSED_' + reason + ' ' + job)
+    digest = hashlib.sha256(preimage).hexdigest()
+    original_path = path.with_name('JOB.pre-retained-resume-' + c['backup'] + '.json')
+    message_path = path.with_name('MESSAGE.md')
+    manifest_path = path.with_name('MANIFEST.json')
+    drive_prompt_path = path.parent / 'drive-input/PROMPT.md'
+    if (job != c['job'] or digest != c['held'] or st.get('job') != job or
+            st.get('account') != account or st.get('status') != 'failed' or
+            st.get('reason') != 'RETAINED_RESUME_UNCERTAIN' or st.get('retry_blocked') is not True or
+            st.get('typed') is not False or st.get('sent') is not False or
+            any(st.get(k) for k in ('tab', 'conversation_url', 'pending_conversation_url',
+                                     'conversation_id', 'binding_version')) or
+            st.get('resume_error') != {'error': 'page_evaluation_failed', 'typed': False,
+                                       'sent': False, 'tab': c['tab']} or
+            any((path.parent / name).exists() for name in ('RESPONSE.md', 'outbox')) or
+            not all(st.get(k) for k in PROVENANCE_FIELDS) or
+            not re.fullmatch(r'[0-9a-f]{64}', st.get('input_sha256') or '') or
+            not re.fullmatch(r'[0-9a-f]{64}', st.get('reply_token') or '')):
+        refuse('STATE')
+    try:
+        original_bytes = original_path.read_bytes()
+        message = message_path.read_bytes()
+        manifest_bytes = manifest_path.read_bytes()
+        drive_prompt = drive_prompt_path.read_bytes()
+        original = json.loads(original_bytes)
+        manifest = json.loads(manifest_bytes)
+    except (OSError, ValueError):
+        refuse('PACKET')
+    attempt = st.get('resume_attempt')
+    if (hashlib.sha256(original_bytes).hexdigest() != c['backup'] or
+            hashlib.sha256(message).hexdigest() != c['message'] or
+            hashlib.sha256(manifest_bytes).hexdigest() != c['manifest'] or
+            hashlib.sha256(drive_prompt).hexdigest() != c['drive_prompt'] or
+            not isinstance(attempt, dict) or
+            attempt != {'job': job, 'account': account, 'preimage_sha256': c['backup'],
+                        'message_sha256': c['message'], 'report_sha256': attempt.get('report_sha256'),
+                        'retained_tab': c['tab'], 'attempt_at': attempt.get('attempt_at')} or
+            not re.fullmatch(r'[0-9a-f]{64}', attempt['report_sha256'] or '') or
+            not isinstance(attempt['attempt_at'], str) or
+            original.get('status') != 'failed' or original.get('reason') != 'SECURITY_INTERSTITIAL' or
+            original.get('retry_blocked') is not True or original.get('typed') is not False or
+            original.get('sent') is not False or original.get('account') != account or
+            original.get('error', {}).get('tab') != c['tab'] or
+            original.get('error', {}).get('error') != 'SECURITY_INTERSTITIAL' or
+            {k: v for k, v in st.items() if k not in ('status', 'reason', 'resume_attempt', 'resume_error')}
+            != {k: v for k, v in original.items() if k != 'status' and k != 'reason'} or
+            _failed_generation_identity(st).encode() not in message or
+            any(st.get(k) != original.get(k) for k in PROVENANCE_FIELDS) or
+            any(manifest.get(k) != st.get(k) for k in (*PROVENANCE_FIELDS, 'job', 'job_class'))):
+        refuse('CUSTODY')
+    # Recompute the registered input identity from the original packet in its
+    # original order; a matching manifest alone does not prove attachment bytes.
+    paths = [path.parent / 'PROMPT.md', *manifest.get('attach', []), *manifest.get('drive_attach', [])]
+    try:
+        if (not isinstance(manifest.get('attach'), list) or
+                not isinstance(manifest.get('drive_attach'), list) or
+                any(not isinstance(p, (str, Path)) or not Path(p).resolve().is_relative_to(path.parent.resolve())
+                    for p in paths)):
+            refuse('PACKET')
+        packet = [(Path(p).name, hashlib.sha256(Path(p).read_bytes()).hexdigest()) for p in paths]
+    except OSError:
+        refuse('PACKET')
+    if hashlib.sha256(json.dumps(packet, separators=(',', ':')).encode()).hexdigest() != st['input_sha256']:
+        refuse('PACKET')
+    ledger = ledger_path(cfg)
+    ledger_preimage = ledger.read_bytes()
+    try:
+        lines = [line for line in ledger_preimage.splitlines() if line.strip() and
+                 json.loads(line).get('job') == job]
+        rows = [json.loads(line) for line in lines]
+        # Parse every line, even unrelated rows: never overlook a malformed binding.
+        [json.loads(line) for line in ledger_preimage.splitlines() if line.strip()]
+    except (ValueError, AttributeError):
+        refuse('LEDGER')
+    if (tuple(hashlib.sha256(line).hexdigest() for line in lines) != c['ledger_lines'] or
+            [(r.get('event'), r.get('phase')) for r in rows] !=
+            [('submitted', None), ('retained_resume', 'STARTED')] or
+            rows[0].get('account') != account or rows[0].get('kind') != 'initial' or
+            rows[0].get('certainty') != 'reserved_may_send' or
+            any(rows[0].get(k) != st[k] for k in PROVENANCE_FIELDS) or
+            any(rows[1].get(k) != attempt.get(k) for k in attempt)):
+        refuse('LEDGER')
+    report_file = BUSINESS / report_path
+    report_preimage = report_file.read_bytes()
+    if hashlib.sha256(report_preimage).hexdigest() != c['witness_sha256']:
+        refuse('WITNESS_CUSTODY')
+    report = json.loads(report_preimage)
+    custody = report['custody_after']
+    if (report.get('schema') != 'pro-consumed-canary-existing-target-witness-v1' or
+            report.get('status') != 'EXACT_TARGET_PASSIVE_WITNESS_HELD_NO_RECOVERY' or
+            report.get('job') != job or report.get('target') != c['tab'] or
+            report['witness']['first'] != report['witness']['last'] or
+            report['witness']['first']['time_origin'] != c['time_origin'] or
+            custody['files']['JOB.json']['sha256'] != digest or
+            custody['files']['MESSAGE.md']['sha256'] != c['message'] or
+            custody['files'][original_path.name]['sha256'] != c['backup'] or
+            [r['sha256'] for r in custody['ledger_rows']] != list(c['ledger_lines']) or
+            custody['ordered_input_sha256'] != st['input_sha256']):
+        refuse('WITNESS_EVIDENCE')
+    if job in _legacy_live_jobs():
+        refuse('LIVE_RUNNER')
+    admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
+                                'require-held'], capture_output=True, text=True)
+    if admission.returncode:
+        refuse('ADMISSION')
+    if not _retained_empty_witness(c['tab'], c['time_origin']):
+        refuse('TAB_EVIDENCE')
+    def recheck():
+        if (path.read_bytes() != preimage or original_path.read_bytes() != original_bytes or
+                message_path.read_bytes() != message or manifest_path.read_bytes() != manifest_bytes or
+                drive_prompt_path.read_bytes() != drive_prompt or
+                any(hashlib.sha256(Path(p).read_bytes()).hexdigest() != item[1]
+                    for p, item in zip(paths, packet)) or
+                ledger.read_bytes() != ledger_preimage or report_file.read_bytes() != report_preimage or
+                job in _legacy_live_jobs()):
+            refuse('DRIFT')
+    recheck()
+    return {'tab': c['tab'], 'time_origin': c['time_origin'], 'job_sha256': digest,
+            'message_sha256': c['message'], 'report_sha256': hashlib.sha256(report_preimage).hexdigest(),
+            'ledger_sha256': hashlib.sha256(ledger_preimage).hexdigest(),
+            'recheck': recheck, 'original_attempt': attempt}
+
+
 def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | None = None) -> int:
     """One-shot original-message send on the exact proven-unsent retained document.
 
@@ -2058,8 +2209,11 @@ def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | Non
         st = json.loads(preimage)
         if st.get('job') != job or st.get('account') != acct['label']:
             raise SystemExit('RESUME_REFUSED_IDENTITY')
-        proof = _reconcile_unsent_readiness(job, cfg, st, path, preimage, report, False,
-                                            acct['label'], inspect_only=True)
+        recovery = job == CONSUMED_CANARY['job'] and st.get('reason') == 'RETAINED_RESUME_UNCERTAIN'
+        proof = (_prove_consumed_canary(job, cfg, st, path, preimage, report, acct['label'])
+                 if recovery else
+                 _reconcile_unsent_readiness(job, cfg, st, path, preimage, report, False,
+                                             acct['label'], inspect_only=True))
         if _legacy_live_jobs():
             raise SystemExit('RESUME_REFUSED_LIVE_RUNNER')
         if any(s.get('tab') == proof['tab'] or
@@ -2090,7 +2244,10 @@ def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | Non
             return 0
         if authorize_preimage != proof['job_sha256']:
             raise SystemExit('RESUME_REFUSED_AUTHORITY')
-        backup = path.with_name('JOB.pre-retained-resume-' + proof['job_sha256'] + '.json')
+        if recovery:
+            proof['recheck']()
+        backup = path.with_name(('JOB.pre-canary-recovery-' if recovery else
+                                 'JOB.pre-retained-resume-') + proof['job_sha256'] + '.json')
         try:
             with backup.open('xb') as fh:
                 fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
@@ -2100,9 +2257,14 @@ def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | Non
         meta = {'job': job, 'account': acct['label'], 'preimage_sha256': proof['job_sha256'],
                 'message_sha256': proof['message_sha256'], 'report_sha256': proof['report_sha256'],
                 'retained_tab': proof['tab'], 'attempt_at': attempt}
-        ledger_append(cfg, {'event': 'retained_resume', 'phase': 'STARTED', **meta})
+        if recovery:
+            meta['original_preimage_sha256'] = CONSUMED_CANARY['backup']
+        ledger_append(cfg, {'event': 'canary_forward_recovery' if recovery else 'retained_resume',
+                            'phase': 'STARTED', **meta})
         reservation = {**st, 'status': 'resume_submitting', 'retry_blocked': True,
-                       'typed': 'UNKNOWN', 'sent': 'UNKNOWN', 'resume_attempt': meta}
+                       'typed': 'UNKNOWN', 'sent': 'UNKNOWN',
+                       'resume_attempt': meta,
+                       **({'resume_history': [proof['original_attempt']]} if recovery else {})}
         job_write(job, reservation)
         # Keep both locks until exact binding is committed. No sibling admission
         # can steal the tab between the last proof and the one-shot send.

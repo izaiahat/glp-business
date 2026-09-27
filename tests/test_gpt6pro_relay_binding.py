@@ -1215,6 +1215,142 @@ console.log(JSON.stringify(fixtures.map(f => {
             self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
                              'composer_empty': empty, 'user_count': users})
 
+    def test_consumed_canary_forward_recovery_actual_cli(self):
+        """Source-only fixture: same registered CLI, real emitted sender, no live files."""
+        import hashlib
+        sha = lambda data: hashlib.sha256(data).hexdigest()
+        job = relay.CONSUMED_CANARY['job']
+        d = relay.job_dir(job)
+        tab = relay.CONSUMED_CANARY['tab']
+        origin = relay.CONSUMED_CANARY['time_origin']
+        prompt = b'original six-PR prompt fixture'
+        (d / 'PROMPT.md').write_bytes(prompt)
+        (d / 'drive-input').mkdir()
+        (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+        packet_sha = sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode())
+        original = {'job': job, 'account': 'account-a', 'job_class': 'review',
+                    'status': 'failed', 'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+                    'typed': False, 'sent': False, 'input_sha256': packet_sha,
+                    'reply_token': 'b'*64, **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS}}
+        original['error'] = {'error': 'SECURITY_INTERSTITIAL', 'tab': tab,
+                             'typed': False, 'sent': False}
+        original_bytes = (json.dumps(original, sort_keys=True) + '\n').encode()
+        (d / ('JOB.pre-retained-resume-' + sha(original_bytes) + '.json')).write_bytes(original_bytes)
+        message = (relay._failed_generation_identity(original) + '\noriginal packet').encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        manifest = {k: original[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+        manifest.update(attach=[], drive_attach=[])
+        manifest_bytes = json.dumps(manifest).encode()
+        (d / 'MANIFEST.json').write_bytes(manifest_bytes)
+        old_attempt = {'job': job, 'account': 'account-a', 'preimage_sha256': sha(original_bytes),
+                       'message_sha256': sha(message), 'report_sha256': 'e'*64,
+                       'retained_tab': tab, 'attempt_at': '2026-09-27T09:51:20+00:00'}
+        held = {**original, 'status': 'failed', 'reason': 'RETAINED_RESUME_UNCERTAIN',
+                'resume_attempt': old_attempt,
+                'resume_error': {'error': 'page_evaluation_failed', 'typed': False,
+                                 'sent': False, 'tab': tab}}
+        relay.job_write(job, held)
+        held_bytes = (d / 'JOB.json').read_bytes()
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+            'certainty': 'reserved_may_send', 'job': job, 'account': 'account-a',
+            **{k: original[k] for k in relay.PROVENANCE_FIELDS}})
+        relay.ledger_append(self.cfg, {'event': 'retained_resume', 'phase': 'STARTED', **old_attempt})
+        ledger = relay.ledger_path(self.cfg)
+        ledger_bytes = ledger.read_bytes()
+        lines = ledger_bytes.splitlines()
+        rows = relay.ledger_rows(self.cfg)
+        report = 'reports/current-canary.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        witness = {'url': HOME, 'time_origin': origin, 'composer_empty': True, 'user_count': 0}
+        rp.write_text(json.dumps({'schema': 'pro-consumed-canary-existing-target-witness-v1',
+            'status': 'EXACT_TARGET_PASSIVE_WITNESS_HELD_NO_RECOVERY', 'job': job,
+            'target': tab, 'witness': {'first': witness, 'last': witness},
+            'custody_after': {'files': {'JOB.json': {'sha256': sha(held_bytes)},
+                'MESSAGE.md': {'sha256': sha(message)},
+                'JOB.pre-retained-resume-' + sha(original_bytes) + '.json': {'sha256': sha(original_bytes)}},
+                'ledger_rows': [{'sha256': sha(line)} for line in lines],
+                'ordered_input_sha256': original['input_sha256']}}))
+        c = dict(relay.CONSUMED_CANARY, held=sha(held_bytes), backup=sha(original_bytes),
+                 message=sha(message), manifest=sha(manifest_bytes), drive_prompt=sha(prompt),
+                 ledger_lines=tuple(map(sha, lines)), witness_sha256=sha(rp.read_bytes()))
+        self.browser.pages[tab] = {'url': HOME, 'composer': '', 'text': '',
+                                   'messages': False, 'stop': False, 'origin': origin}
+        real_js = self.browser.js
+        def probe(expr):
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                return {'url': self.browser.pages[tab]['url'], 'time_origin': origin,
+                        'composer_empty': not self.browser.pages[tab]['composer'].strip(), 'user_count': 0}
+            if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
+                p = self.browser.pages[tab]
+                return {'origin': origin, 'users': 0, 'assistants': int(bool(p['text'])),
+                        'empty': not p['composer'].strip(), 'challenge': bool(self.browser.app_overrides.get('human_challenge')),
+                        'interstitial': False, 'login': False, 'rate': False, 'stop': p['stop'],
+                        'reconnect': False}
+            return real_js(expr)
+        self.browser.js = probe
+        cli = lambda *args: ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', job,
+                              '--report', report, *args]
+        with mock.patch.object(relay, 'CONSUMED_CANARY', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO UPLOAD')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            def call(*args):
+                with mock.patch.object(sys, 'argv', cli(*args)), redirect_stdout(io.StringIO()) as out:
+                    return relay.main(), out.getvalue()
+            self.assertEqual(call()[0], 0)
+            self.assertEqual((d / 'JOB.json').read_bytes(), held_bytes)
+            self.assertEqual(ledger.read_bytes(), ledger_bytes)
+            self.assertEqual(list(d.glob('JOB.pre-canary-recovery-*')), [])
+            self.assertEqual(self.browser.inserts + self.browser.sent, [])
+            self.assertIn('require-held', admission.call_args.args[0])
+            def refused(label, action, restore, *args):
+                with self.subTest(label=label):
+                    action()
+                    with self.assertRaises(SystemExit):
+                        call(*args)
+                    restore()
+                    self.assertEqual((d / 'JOB.json').read_bytes(), held_bytes)
+                    self.assertEqual(ledger.read_bytes(), ledger_bytes)
+                    self.assertEqual(self.browser.inserts + self.browser.sent, [])
+            refused('wrong authority', lambda: None, lambda: None, '--authorize-preimage', '0'*64)
+            refused('packet drift', lambda: (d / 'PROMPT.md').write_bytes(b'changed'),
+                    lambda: (d / 'PROMPT.md').write_bytes(prompt), '--authorize-preimage', sha(held_bytes))
+            refused('unexpected binding', lambda: ledger.write_bytes(ledger_bytes +
+                    b'{"job":"' + job.encode() + b'","event":"submission_bound"}\n'),
+                    lambda: ledger.write_bytes(ledger_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('used state', lambda: (d / 'JOB.json').write_bytes(held_bytes + b' '),
+                    lambda: (d / 'JOB.json').write_bytes(held_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('generic failure', lambda: relay.job_write(job, {**held, 'reason': 'OTHER_FAILURE'}),
+                    lambda: (d / 'JOB.json').write_bytes(held_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('missing target', lambda: self.browser.pages.pop(tab),
+                    lambda: self.browser.pages.__setitem__(tab, {'url': HOME, 'composer': '',
+                        'text': '', 'messages': False, 'stop': False, 'origin': origin}),
+                    '--authorize-preimage', sha(held_bytes))
+            refused('changed target', lambda: self.browser.pages[tab].update(url=WANT),
+                    lambda: self.browser.pages[tab].update(url=HOME), '--authorize-preimage', sha(held_bytes))
+            refused('nonempty draft', lambda: self.browser.pages[tab].update(composer='draft'),
+                    lambda: self.browser.pages[tab].update(composer=''), '--authorize-preimage', sha(held_bytes))
+            refused('challenge', lambda: self.browser.app_overrides.update(human_challenge=True),
+                    lambda: self.browser.app_overrides.clear(), '--authorize-preimage', sha(held_bytes))
+            self.assertEqual(call('--authorize-preimage', sha(held_bytes))[0], 0)
+            self.assertEqual(self.browser.inserts, [(tab, message.decode())])
+            self.assertEqual(self.browser.sent, [(tab, message.decode())])
+            self.assertEqual(self.browser.created + self.browser.navigations, [])
+            bound = relay.job_state(job)
+            self.assertEqual((bound['status'], bound['retry_blocked']), ('running', False))
+            self.assertEqual(bound['resume_history'], [old_attempt])
+            self.assertEqual(bound['error'], original['error'])
+            self.assertEqual(bound['resume_error'], held['resume_error'])
+            self.assertEqual((d / ('JOB.pre-canary-recovery-' + sha(held_bytes) + '.json')).read_bytes(), held_bytes)
+            self.assertEqual((d / ('JOB.pre-retained-resume-' + sha(original_bytes) + '.json')).read_bytes(), original_bytes)
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume', 'canary_forward_recovery', 'submission_bound'])
+            with self.assertRaises(SystemExit):
+                call('--authorize-preimage', sha(held_bytes))
+            self.assertEqual(len(self.browser.sent), 1)
+
     def test_retained_resume_registered_one_shot_and_guards(self):
         """RED/GREEN: actual CLI, exact browser script, fixture JOB/report/ledger."""
         import hashlib
