@@ -11,7 +11,7 @@
       "tenant_kind": "not_applicable"
     }
   ],
-  "freshness": "DATED_S2_SNAPSHOT; full identities intentionally unresolved; not a replacement live registry",
+  "freshness": "DATED_S2_GAPS_PRESERVED; one CJ/TRT Nation reporting identity bound to retained 2026-09-27 evidence; not full current network, program or financial coverage",
   "gaps": [
     {
       "account_id": null,
@@ -8814,7 +8814,43 @@
       "tenant_id": null
     }
   ],
-  "identities": [],
+  "identities": [
+    {
+      "account_id": "8010186",
+      "evidence_pointer": "/validated_mapping",
+      "evidence_ref": "/home/ubuntu/business/reports/ops/glp85-cj-adoption-readiness-20260927/RESULT.json",
+      "evidence_sha256": "18f478363908b5790d777826e3608cd424e36061906dcc391fd8629940e35b53",
+      "network": "cj",
+      "program_id": "7538517",
+      "provider_slug": "trt-nation",
+      "source_refs": [
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp85-cj-current-binding-20260927/account-001.json",
+          "pointer": "/rows/0/publisherId",
+          "sha256": "d3b72470eb1c8f067e4658b7b5ece3a5569f78dccce92b4d77d5844d0afd210f"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp85-cj-current-binding-20260927/api-001.json",
+          "pointer": "/rows/4",
+          "sha256": "90cf55a8fa65fc18120c5ef75c2877f9e223561a68555101d3e6ed518f732792"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp96-full-current-join-20260927/joined-data.json",
+          "pointer": "/52",
+          "sha256": "6966e80d990b0fa94be5c2dee0358826eef25df0ed0f14dd5f4539aa7c72543b"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp96-full-current-join-20260927/contract-join.json",
+          "pointer": "/69",
+          "sha256": "83fc8f67517ff5c4c226130f86ef3a8209273dc7c999cd48b3df1d822f8c271e"
+        }
+      ],
+      "status": "verified",
+      "tenant_id": "not_applicable",
+      "tenant_kind": "not_applicable",
+      "verification_scope": "reporting_identity_only_not_activation_or_financial_coverage"
+    }
+  ],
   "marketplace_count": 56,
   "schema": "reporting-identity-registry-v1",
   "source_roster": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json",

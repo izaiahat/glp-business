@@ -12,6 +12,7 @@
 /tests/*
 !/.github/workflows/
 /.github/workflows/*
+!/tests/test_glp85_cj_reporting_identity.py
 !/ops/glp/
 /ops/glp/*
 !/ops/glp/reporting-v2/
