@@ -14,7 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 LIVE = Path('/home/ubuntu/business')
 SOURCES = ('ops/glp/seo_data_rails.py', 'scripts/glp_weekly_seo_ranking_report.py',
-           'ops/glp/seo_business_context.py')
+           'ops/glp/seo_business_context.py', 'scripts/glp_weekly_seo_control.py')
 
 
 def load_analysis():

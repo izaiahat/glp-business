@@ -152,7 +152,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "2a037a7f9ef0f3d53d227a2c4bc37202a9d697c84f79a0dce5d5c656d577b753"
+      "sha256": "22e5340daae9903b3ae52abd0946a2e3b2207c1db89caef9f011932d14e3d273"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -1138,7 +1138,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "9103e2172c012f29be18bc9d95f0a8acc27957d60022c9f3c56ed366480890d3"
+      "sha256": "590fc74092b00dc342d5c5ddc908d919edd3a0cdb90c0aa226cd2adea818484c"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -1901,7 +1901,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0338a329608636c8083f323e98e7797734fba66fe0a527c4248438f1f2b175e8"
+      "sha256": "9d9446b403753cb58157d032b3037cc3457d62d5348a9ad52f38f45ca2940424"
     },
     "tests/test_glp76_updater_publication_date.py": {
       "callers": [],
