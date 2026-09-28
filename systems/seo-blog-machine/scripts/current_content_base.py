@@ -22,7 +22,7 @@ SOURCE_ROOT = Path(__file__).resolve().parents[3]
 if str(SOURCE_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(SOURCE_ROOT / "scripts"))
 from glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape  # noqa: E402
-from glp_price_index_weekly import _validate_base_evidence  # noqa: E402
+from glp_price_index_weekly import _read_bound_regular_file, _validate_base_evidence  # noqa: E402
 DEFAULT_FLAGSHIP_ROOT = BUSINESS_ROOT / "site-system/flagship-v2"
 POINTER_SCHEMA = "glp-opus-current-content-base-v1"
 POINTER_STATUS = "PASS"
@@ -174,6 +174,7 @@ def resolve_current_content_base(
             "final_receipt": dict(pointer["final_receipt"]),
             "supersedes": dict(pointer["supersedes"]),
         },
+        "prepared_binding": evidence["prepared_binding"],
         "flagship_root": str(flagship_root.resolve(strict=True)),
         "catalogs": resolved_catalogs,
         "program_registry": {
@@ -217,6 +218,17 @@ def verify_resolution(resolution: dict[str, Any]) -> None:
         resolution["pointer"]["release_root"]
     ).resolve():
         raise RuntimeError("current_content_base_release_root_drift")
+    if is_prepared_pointer(pointer):
+        binding = resolution.get("prepared_binding")
+        if not isinstance(binding, dict) or not isinstance(binding.get("files"), dict):
+            raise RuntimeError("current_content_base_prepared_binding_missing")
+        for raw_path, (original_sha, original_identity) in binding["files"].items():
+            _path, raw, identity = _read_bound_regular_file(raw_path, "prepared_dependency")
+            if hashlib.sha256(raw).hexdigest() != original_sha or identity != tuple(original_identity):
+                raise RuntimeError(f"current_content_base_prepared_dependency_drift:{raw_path}")
+        fresh = _validate_base_evidence(pointer, Path(resolution["pointer"]["release_root"]))
+        if fresh["prepared_binding"] != binding or fresh["release_tree_sha256"] != resolution["pointer"]["release_tree_sha256"] or fresh["public_tree_sha256"] != resolution["pointer"]["public_tree_sha256"]:
+            raise RuntimeError("current_content_base_prepared_transitive_drift")
     rows = list(resolution.get("catalogs") or []) + [resolution.get("program_registry") or {}]
     for row in rows:
         path = Path(str(row.get("path") or ""))

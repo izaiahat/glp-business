@@ -998,7 +998,7 @@ def _load_base_document(data: bytes, label: str) -> dict[str, Any]:
 def _prepared_base_links(
     pointer: dict[str, Any], release: Path, manifest_path: Path, receipt_path: Path,
     manifest: dict[str, Any], release_rows: list[dict[str, Any]],
-) -> None:
+) -> dict[str, Any]:
     """Bind the GLP-43 publisher's preparation to its public terminal evidence."""
     head = pointer["site_head"]
     prepared_dir = release.parent
@@ -1064,9 +1064,133 @@ def _prepared_base_links(
             or manifest.get("deploy_directory") != deploy_closure
             or pointer["deploy_directory_sha256"] != deploy_closure["tree_sha256"]):
         raise RuntimeError("current_content_base_prepared_closure_mismatch")
+    binding = _registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path)
     _, final_bytes, final_identity = _read_bound_regular_file(str(prepared_path), "prepared")
     if final_identity != identity or final_bytes != raw:
         raise RuntimeError("current_content_base_prepared_identity_changed")
+    binding["files"][str(prepared_path)] = (sha_bytes(raw), identity)
+    return binding
+
+
+def _registered_prepared_binding(
+    pointer: dict[str, Any], root: Path, prepared: dict[str, Any], raw: bytes, manifest_path: Path,
+) -> dict[str, Any]:
+    """Consume the registered producer's read-only preparation and publication validators."""
+    # The carrier's guarded __main__ is not entered on import: no prepare,
+    # publish, provider request, or publisher write is performed here.
+    import glp_deploy_glp34_authority_v1 as producer
+
+    native_keys = {
+        "schema", "prepared_dir", "site_head", "site_repository", "project", "branch",
+        "account_id", "public_tree_sha256", "package_manifest_sha256", "build_receipt",
+        "source", "compiled", "toolchain", "rollback_deployment_id", "predecessor_pointer",
+        "release", "deploy_directory", "holds", "route_specs", "provider_reads",
+        "provider_mutations", "release_authorized",
+    }
+    if (set(prepared) != native_keys
+            or set(prepared.get("source", {})) != {
+                "authority_files", "built_source_sha256", "generated_diff_paths",
+                "generated_diff_sha256", "git_tree", "go_embedded_sha256",
+                "go_internal_fallback", "go_manifest_sha256", "runtime", "tracked_files",
+                "wrangler_config_sha256"}
+            or set(prepared.get("compiled", {})) != {
+                "argv", "pages_random_comment_replacements", "raw_worker_sha256",
+                "returncode", "routes", "stderr_sha256", "stdout_sha256", "worker_sha256"}):
+        raise RuntimeError("current_content_base_prepared_native_fields_invalid")
+    try:
+        if producer.current_prepared(root, sha_bytes(raw)) != prepared:
+            raise RuntimeError("current_content_base_prepared_native_mismatch")
+        package_path, gate_path = root / "PACKAGE-MANIFEST.json", root / "gate.json"
+        package = json.loads(_read_bound_regular_file(str(package_path), "package")[1])
+        gate = json.loads(_read_bound_regular_file(str(gate_path), "gate")[1])
+        rows = producer.package_tree(root / "release/public")[1]
+        gate_binding = producer.package_build_receipt(argparse.Namespace(
+            build_receipt=prepared["build_receipt"]["path"], expected_build_receipt_sha256=prepared["build_receipt"]["sha256"],
+            site_head=prepared["site_head"], expected_tree_sha256=prepared["public_tree_sha256"]), rows)
+        source = prepared["source"]
+        if (prepared["build_receipt"] != gate_binding
+                or package.get("schema") != "glp34-deploy-package-v1"
+                or package.get("site_head") != pointer["site_head"]
+                or package.get("site_repository") != prepared["site_repository"]
+                or package.get("account_id") != prepared["account_id"]
+                or package.get("project") != prepared["project"]
+                or package.get("rollback_branch") != prepared["branch"]
+                or package.get("rollback_deployment_id") != prepared["rollback_deployment_id"]
+                or package.get("public_tree_sha256") != prepared["public_tree_sha256"]
+                or package.get("files") != rows or package.get("build_receipt") != gate_binding
+                or gate.get("built_source_sha256") != source["built_source_sha256"]
+                or gate.get("generated_diff_sha256") != source["generated_diff_sha256"]
+                or gate.get("generated_diff_paths") != source["generated_diff_paths"]
+                or gate.get("authority_files") != source["authority_files"]
+                or prepared["holds"] != next((step["evidence"]["raw_held"] for step in gate["steps"]
+                    if step["id"] == "affiliate-census" and step["status"] == "PASS"), None)
+                or prepared["release_authorized"] is not False
+                or prepared["provider_mutations"] != 0 or prepared["provider_reads"] != 3):
+            raise RuntimeError("current_content_base_prepared_producer_binding_invalid")
+        for name, digest in source["tracked_files"]:
+            if producer.sha_file(root / "release" / name) != digest:
+                raise RuntimeError("current_content_base_prepared_source_drift")
+        for row in source["authority_files"]:
+            if producer.sha_file(root / "release" / row["file"]) != row["sha256"]:
+                raise RuntimeError("current_content_base_prepared_authority_drift")
+        for name, closure in source["runtime"].items():
+            if producer.file_closure(root / "release" / name) != closure:
+                raise RuntimeError("current_content_base_prepared_runtime_drift")
+        run_dir = manifest_path.parent
+        original_path = run_dir / "CURRENT-RECEIPT.json"
+        deployment_id = pointer["deployment_id"]
+        prefix = "CURRENT-PROMOTION-" + deployment_id
+        root_path = run_dir / (prefix + ".json")
+        first_path = run_dir / (prefix + "-SUCCESSOR-" + producer.CURRENT_PROMOTION_ROOT_SHA256 + ".json")
+        second_path = run_dir / (prefix + "-SUCCESSOR-" + producer.CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256 + ".json")
+        terminal_path = run_dir / (prefix + "-SUCCESSOR-" + producer.CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256 + ".json")
+        terminal = json.loads(_read_bound_regular_file(str(terminal_path), "promotion")[1])
+        if (set(package) != {
+                "account_id", "authority_created", "build_receipt", "file_count", "files",
+                "github_reads", "mode", "project", "provider_mutations", "provider_reads",
+                "public_root", "public_tree_sha256", "release_authorized", "rollback_branch",
+                "rollback_checked_at_utc", "rollback_deployment_id", "rollback_environment",
+                "schema", "scope", "signature_created", "site_head", "site_head_binding",
+                "site_repository", "tree_hash_algorithm"}
+                or set(terminal) != {"schema", "status", "binding", "effects", "original_receipt", "site_head", "stages"}):
+            raise RuntimeError("current_content_base_registered_fields_invalid")
+        binding = terminal["binding"]
+        args = argparse.Namespace(
+            authorize_existing_promotion=True, authorize_renewed_promotion=True,
+            authorize_rolled_back_successor_renewal=True, authorize_post_identity_promotion=True,
+            expected_prepared_manifest_sha256=sha_bytes(raw),
+            expected_approval_sha256=binding["approval_sha256"],
+            expected_rolled_back_receipt_sha256=binding["original_receipt_sha256"],
+            expected_terminal_promotion_sha256=producer.CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256,
+            candidate_deployment_id=deployment_id, site_head=pointer["site_head"],
+        )
+        registered = producer.current_promotion_post_identity_source(args,
+            producer.current_promotion_source(args, prepared, original_path),
+            original_path, root_path, first_path, second_path)
+        intent = producer.current_pointer_intent(root, prepared, deployment_id, run_dir)
+        successor = base64.b64decode(intent["successor_bytes_base64"], validate=True)
+        stages = terminal["stages"]
+        if (terminal.get("schema") != "glp43-current-promotion-receipt-v1"
+                or terminal.get("status") != "PASS_PRODUCTION_TERMINAL"
+                or terminal.get("original_receipt") != str(original_path)
+                or terminal.get("site_head") != pointer["site_head"] or binding != registered
+                or stages.get("pointer_intent") != intent
+                or stages.get("pointer_cas", {}).get("sha256") != sha_bytes(successor)
+                or stages.get("canonical_pointer_readback") != {
+                    "deployment_id": deployment_id, "site_head": pointer["site_head"],
+                    "pointer_sha256": sha_bytes(successor)}
+                or successor != CURRENT_BASE.read_bytes()
+                or terminal.get("effects", {}).get("pointer_atomic_cas") != 1):
+            raise RuntimeError("current_content_base_promotion_binding_invalid")
+        dependencies = (package_path, gate_path, Path(prepared["build_receipt"]["path"]),
+                        original_path, root_path, first_path, second_path, terminal_path)
+        bound = {str(path): (sha_bytes(data), identity)
+                 for path in dependencies
+                 for _path, data, identity in [_read_bound_regular_file(str(path), "prepared_dependency")]}
+    except (producer.GateError, KeyError, TypeError, ValueError, OSError, IndexError) as exc:
+        raise RuntimeError(f"current_content_base_registered_preparation_invalid:{exc}") from exc
+    return {"files": bound, "source": source, "compiled": prepared["compiled"],
+            "release": prepared["release"], "deploy": prepared["deploy_directory"]}
 
 
 def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str, Any]:
@@ -1128,10 +1252,11 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
         if actual_rows != manifest_rows or manifest.get("release_tree_sha256") != release_tree:
             raise RuntimeError("current_content_base_closure_mismatch")
 
+    prepared_binding = None
     if prepared_format:
         if closure_schema != "legacy-path-size-sha256-v1":
             raise RuntimeError("prepared_manifest_row_schema_invalid")
-        _prepared_base_links(pointer, release, manifest_path, receipt_path, manifest, actual_rows)
+        prepared_binding = _prepared_base_links(pointer, release, manifest_path, receipt_path, manifest, actual_rows)
 
     pointer_release_tree = pointer.get("release_tree_sha256")
     pointer_public_tree = pointer.get("public_tree_sha256")
@@ -1191,6 +1316,7 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
         "row_count": len(actual_rows),
         "manifest": {"path": manifest_path, "sha256": manifest_bound["sha256"]},
         "final_receipt": {"path": receipt_path, "sha256": receipt_bound["sha256"]},
+        "prepared_binding": prepared_binding,
     }
 
 

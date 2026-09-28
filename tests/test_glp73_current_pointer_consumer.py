@@ -31,6 +31,7 @@ sys.modules[module.__name__] = module
 exec(compile(ast.fix_missing_locations(tree), str(source_path), "exec"), module.__dict__)
 module.BUILDER = None
 
+import glp_deploy_glp34_authority_v1 as producer  # noqa: E402
 import current_content_base as reader  # noqa: E402
 import glp_price_index_weekly as evidence  # noqa: E402
 from glp_current_content_base_schema import validate_pointer_shape  # noqa: E402
@@ -95,24 +96,86 @@ def fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prepared: bool) -> 
                "immutable_closure": {"release_tree_sha256": release_closure["tree_sha256"],
                                      "public_tree_sha256": public_closure["tree_sha256"]}}
     if prepared:
+        # Native GLP-43 preparation: all 22 producer fields, a copied build
+        # gate, package manifest, full public+Worker tree and pointer intent.
+        monkeypatch.setattr(producer, "CURRENT_ROLLBACK", prior["deployment_id"])
+        monkeypatch.setattr(producer, "POINTER", pointer_path)
         deploy = release.parent / "deploy-public"
         deploy.mkdir(parents=True)
         (deploy / "index.html").write_bytes(b"current public\n")
         (deploy / "_worker.js").write_bytes(b"worker\n")
+        names = ("providers/index.html", "tools/glp-1-cost-calculator/index.html",
+                 "lp/quiz/index.html", "quiz/provider-fit/index.html",
+                 "reviews/nu-image-medical-review/index.html", "reviews/mydrhank/index.html",
+                 "privacy/index.html", "privacy/cookies/index.html", "sitemap.xml")
+        for name in names:
+            (release / "public" / name).parent.mkdir(parents=True, exist_ok=True)
+            (release / "public" / name).write_bytes(b"native public\n")
+            (deploy / name).parent.mkdir(parents=True, exist_ok=True)
+            (deploy / name).write_bytes(b"native public\n")
+        rows, release_closure = closure(release)
+        _, public_closure = closure(release / "public")
         _, deploy_closure = closure(deploy)
-        manifest.update({"site_head": head, "deploy_directory": deploy_closure})
+        pointer["release_tree_sha256"] = release_closure["tree_sha256"]
+        pointer["public_tree_sha256"] = public_closure["tree_sha256"]
+        manifest.update({"site_head": head, "deploy_directory": deploy_closure,
+                         "release_rows": rows, "release_tree_sha256": release_closure["tree_sha256"]})
         receipt["site_head"] = head
         pointer.update({"site_head": head, "deploy_directory_sha256": deploy_closure["tree_sha256"]})
-        write(release.parent / "PREPARED.json", {
-            "schema": "glp43-current-prepared-v1", "prepared_dir": str(release.parent),
-            "site_head": head, "site_repository": "izaiahat/glp-site-candidate", "project": "glp-clinic-scout",
-            "branch": "main", "release_authorized": False, "provider_mutations": 0,
-            "rollback_deployment_id": prior["deployment_id"], "release": release_closure,
-            "deploy_directory": deploy_closure, "compiled": {"worker_sha256": digest(b"worker\n")},
-            "predecessor_pointer": {"path": str(pointer_path), "bytes_base64": base64.b64encode(prior_raw).decode(),
-                                    "bytes": len(prior_raw), "sha256": digest(prior_raw),
-                                    "deployment_id": prior["deployment_id"], "release_root": str(prior_root)},
-        })
+        public_hash, public_rows = producer.package_tree(release / "public")
+        build_path = report / "full-gate/gate.json"
+        source = {"tracked_files": [], "authority_files": [], "runtime": {},
+                  "built_source_sha256": "2" * 64, "generated_diff_sha256": "3" * 64,
+                  "generated_diff_paths": [], "git_tree": "4" * 40,
+                  "go_embedded_sha256": "5" * 64, "go_internal_fallback": False,
+                  "go_manifest_sha256": "6" * 64, "wrangler_config_sha256": "7" * 64}
+        holds = {"held": [{"id": "held"}]}
+        gate = {"schema": "glp-d1-release-result-v1", "status": "PASS", "head": head,
+                "output_before": {"sha256": public_hash, "files": public_rows},
+                "output_after": {"sha256": public_hash, "files": public_rows},
+                "built_source_sha256": source["built_source_sha256"],
+                "generated_diff_sha256": source["generated_diff_sha256"],
+                "generated_diff_paths": [], "authority_files": [],
+                "steps": [{"id": "affiliate-census", "status": "PASS", "evidence": {"raw_held": holds}}]}
+        gate_sha = write(build_path, gate)
+        (release.parent / "gate.json").write_bytes(build_path.read_bytes())
+        build_binding = {"path": str(build_path), "sha256": gate_sha,
+                         "schema": "glp-d1-release-result-v1"}
+        package = {"schema": "glp34-deploy-package-v1", "site_head": head,
+                   "site_repository": producer.CURRENT_REPOSITORY, "project": producer.PROJECT,
+                   "account_id": producer.ACCOUNT_ID, "rollback_branch": producer.PRODUCTION_BRANCH,
+                   "rollback_deployment_id": prior["deployment_id"], "public_tree_sha256": public_hash,
+                   "files": public_rows, "build_receipt": build_binding,
+                   "authority_created": False, "file_count": len(public_rows),
+                   "github_reads": 1, "mode": "package-only", "provider_mutations": 0,
+                   "provider_reads": 1, "public_root": str(release / "public"),
+                   "release_authorized": False, "rollback_checked_at_utc": "2026-09-01T00:00:00Z",
+                   "rollback_environment": "production", "scope": "package-only",
+                   "signature_created": False, "site_head_binding": {},
+                   "tree_hash_algorithm": "glp34-public-tree-v1"}
+        package_sha = write(release.parent / "PACKAGE-MANIFEST.json", package)
+        prepared_doc = {"schema": "glp43-current-prepared-v1", "prepared_dir": str(release.parent),
+                    "site_head": head, "site_repository": producer.CURRENT_REPOSITORY,
+                    "project": producer.PROJECT, "branch": producer.PRODUCTION_BRANCH,
+                    "account_id": producer.ACCOUNT_ID, "public_tree_sha256": public_hash,
+                    "package_manifest_sha256": package_sha, "build_receipt": build_binding,
+                    "source": source, "compiled": {
+                        "worker_sha256": digest(b"worker\n"), "raw_worker_sha256": digest(b"worker\n"),
+                        "argv": [], "pages_random_comment_replacements": 0, "returncode": 0,
+                        "routes": [], "stderr_sha256": digest(b""), "stdout_sha256": digest(b"")},
+                    "toolchain": producer.CURRENT_TOOLCHAIN,
+                    "rollback_deployment_id": prior["deployment_id"],
+                    "predecessor_pointer": {"path": str(pointer_path),
+                        "bytes_base64": base64.b64encode(prior_raw).decode(),
+                        "bytes": len(prior_raw), "sha256": digest(prior_raw),
+                        "deployment_id": prior["deployment_id"], "release_root": str(prior_root),
+                        "st_dev": 1, "st_ino": 2, "uid": 1000, "gid": 1000,
+                        "mode": "0600", "nlink": 1},
+                    "release": release_closure, "deploy_directory": deploy_closure,
+                    "holds": holds, "route_specs": producer.current_route_specs(release / "public"),
+                    "provider_reads": 3, "provider_mutations": 0, "release_authorized": False}
+        prepared_sha = write(release.parent / "PREPARED.json", prepared_doc)
+        assert producer.current_prepared(release.parent, prepared_sha) == prepared_doc
     else:
         manifest.update({"created_at_utc": "2026-09-01T00:00:00Z", "note": "legacy"})
         receipt["created_at_utc"] = "2026-09-01T00:00:00Z"
@@ -121,12 +184,88 @@ def fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prepared: bool) -> 
     pointer["manifest"] = {"path": str(manifest_path), "sha256": manifest_sha}
     pointer["final_receipt"] = {"path": str(receipt_path), "sha256": write(receipt_path, receipt)}
     write(pointer_path, pointer)
+    if prepared:
+        intent = producer.current_pointer_intent(release.parent, prepared_doc, pointer["deployment_id"], report)
+        for artifact in intent["artifacts"]:
+            Path(artifact["path"]).write_bytes(base64.b64decode(artifact["bytes_base64"]))
+        pointer_path.write_bytes(base64.b64decode(intent["successor_bytes_base64"]))
+        pointer = json.loads(pointer_path.read_bytes())
+        # Prior publication files are inert synthetic receipt stand-ins; only
+        # the registered post-identity reader is substituted for this fixture.
+        original = report / "CURRENT-RECEIPT.json"
+        original_sha = write(original, {"schema": "glp43-current-promotion-receipt-v1"})
+        prefix = "CURRENT-PROMOTION-" + pointer["deployment_id"]
+        first_sha = write(report / (prefix + ".json"), {"status": "BLOCKED_ROLLED_BACK"})
+        second_sha = write(report / (prefix + "-SUCCESSOR-" + first_sha + ".json"),
+                           {"status": "BLOCKED_ROLLED_BACK"})
+        terminal_sha = write(report / (prefix + "-SUCCESSOR-" + second_sha + ".json"),
+                             {"status": "BLOCKED_ROLLED_BACK"})
+        monkeypatch.setattr(producer, "CURRENT_PROMOTION_ROOT_SHA256", first_sha)
+        monkeypatch.setattr(producer, "CURRENT_PROMOTION_ROLLED_BACK_SUCCESSOR_SHA256", second_sha)
+        monkeypatch.setattr(producer, "CURRENT_PROMOTION_POST_IDENTITY_TERMINAL_SHA256", terminal_sha)
+        monkeypatch.setattr(producer, "current_promotion_source", lambda args, prepared, original_path: prepared_doc)
+        def post_identity(*args):
+            return {"prepared_manifest_sha256": prepared_sha, "site_head": head,
+                    "candidate_deployment_id": pointer["deployment_id"],
+                    "predecessor_id": prior["deployment_id"],
+                    "predecessor_pointer_sha256": digest(prior_raw),
+                    "original_receipt_sha256": original_sha,
+                    "terminal_promotion_sha256": terminal_sha,
+                    "approval_sha256": "9" * 64}
+        monkeypatch.setattr(producer, "current_promotion_post_identity_source", post_identity)
+        terminal_path = report / (prefix + "-SUCCESSOR-" + terminal_sha + ".json")
+        write(terminal_path, {"schema": "glp43-current-promotion-receipt-v1",
+                              "status": "PASS_PRODUCTION_TERMINAL", "site_head": head,
+                              "binding": post_identity(None), "original_receipt": str(original),
+                              "stages": {"pointer_intent": intent,
+                                         "pointer_cas": {"sha256": digest(pointer_path.read_bytes()), "status": "PASS"},
+                                         "canonical_pointer_readback": {"pointer_sha256": digest(pointer_path.read_bytes()),
+                                                                        "deployment_id": pointer["deployment_id"],
+                                                                        "site_head": head}},
+                              "effects": {"pointer_atomic_cas": 1}})
+
     monkeypatch.setattr(evidence, "BUSINESS", business)
     monkeypatch.setattr(evidence, "CURRENT_BASE", pointer_path)
     config = {"paths": {"current_content_base_state": str(pointer_path), "content_catalogs": [
         {"catalog_id": n, "kind": "article", "release_relative_path": f"data/{n}.json"}
         for n in "abc"]}, "program_set": {"release_relative_path": "data/programs.json"}}
     return config, flagship, pointer, pointer_path
+
+
+def test_prepared_dependency_drift_after_consumption(tmp_path, monkeypatch):
+    config, flagship, pointer, pointer_path = fixture(tmp_path, monkeypatch, True)
+    resolution = reader.resolve_current_content_base(config, flagship_root=flagship)
+    reader.verify_resolution(resolution)
+    prepared_path = Path(pointer["release_root"]).parent / "PREPARED.json"
+    prepared = json.loads(prepared_path.read_bytes())
+    prepared["site_head"] = "e" * 40
+    write(prepared_path, prepared)
+    assert json.loads(pointer_path.read_bytes()) == pointer
+    with pytest.raises(RuntimeError, match="prepared_dependency_drift|prepared_transitive_drift"):
+        reader.verify_resolution(resolution)
+    with pytest.raises(RuntimeError):
+        reader.resolve_current_content_base(config, flagship_root=flagship)
+    write(prepared_path, {**prepared, "site_head": "f" * 40})
+    resolution = reader.resolve_current_content_base(config, flagship_root=flagship)
+    # The compiled Worker is not a pointer/catalog or top-level PREPARED byte:
+    # the native producer closure must be replayed after consumption.
+    worker = prepared_path.parent / "deploy-public/_worker.js"
+    worker.write_bytes(b"wORker\n")
+    with pytest.raises(RuntimeError, match="prepared|registered"):
+        reader.verify_resolution(resolution)
+
+
+def test_self_asserted_prepared_subset_is_not_registered(tmp_path, monkeypatch):
+    config, flagship, pointer, pointer_path = fixture(tmp_path, monkeypatch, True)
+    prepared_path = Path(pointer["release_root"]).parent / "PREPARED.json"
+    prepared = json.loads(prepared_path.read_bytes())
+    for key in ("account_id", "public_tree_sha256", "package_manifest_sha256", "build_receipt",
+                "source", "toolchain", "holds", "route_specs", "provider_reads"):
+        del prepared[key]
+    write(prepared_path, prepared)
+    assert json.loads(pointer_path.read_bytes()) == pointer
+    with pytest.raises(RuntimeError, match="prepared_native_fields_invalid"):
+        reader.resolve_current_content_base(config, flagship_root=flagship)
 
 
 def test_publisher_prepared_pointer_resolves_exact_root_and_custody(tmp_path, monkeypatch):
@@ -156,7 +295,7 @@ def test_prepared_pointer_cannot_escape_verified_root_or_change_receipt(tmp_path
     pointer["release_root"] = str((tmp_path / "business/reports/ops/run/prepared/release"))
     pointer["deployment_id"] = "dddddddd-dddd-dddd-dddd-dddddddddddd"
     write(path, pointer)
-    with pytest.raises(RuntimeError, match="final_receipt_deployment_mismatch"):
+    with pytest.raises(RuntimeError, match="promotion_path_invalid|final_receipt_deployment_mismatch"):
         reader.resolve_current_content_base(config, flagship_root=flagship)
     pointer["deployment_id"] = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     original_deploy_hash = pointer["deploy_directory_sha256"]
