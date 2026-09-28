@@ -1,16 +1,6 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "tests/test_glp85_cj_reporting_identity.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "18bcfe67c2f6af199b2c92a1b456a54bb6ea4df25e1931f4cea7c2bebf45e89b"
-    },
-    "ops/glp/reporting-v2/identity-registry.json": {
-      "callers": ["scripts/glp_affiliate_weekly_reporting.py", "scripts/glp_network_revenue_import_v2.py"],
-      "kind": "reporting_identity_configuration",
-      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
-    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
@@ -1024,6 +1014,13 @@
       "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
     },
+    "scripts/glp_current_content_base_schema.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "e1c2c57c90f08503742a1d0ad7256c10f89473e39f1feb7c717764e749bbc479"
+    },
     "scripts/glp_deploy_build6_authority_v1.py": {
       "callers": [
         "GLP-42 authenticated deploy-carrier lineage"
@@ -1087,6 +1084,13 @@
       "callers": [],
       "kind": "script",
       "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
+    },
+    "scripts/glp_price_index_weekly.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -1321,7 +1325,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5e958cb0b0f5571c6aa7153de061bbbf399c7fd653af980b0373159e152f7413"
+      "sha256": "32e6bc267d39c0a1c8a69571c0c9e42746a36dafcf2d7c6bdfc6bda0c00f55a0"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1468,6 +1472,13 @@
       ],
       "kind": "script",
       "sha256": "d59dbbb83a2f1b3f9ec883a1ffba31997b29aec073d3c5b9eaa4c0aab990cc18"
+    },
+    "systems/seo-blog-machine/scripts/current_content_base.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "2a925d3b5f12fec7ae094f0face633e5b9e58208cc19f3b2f0176c60d17a8f94"
     },
     "systems/seo-blog-machine/scripts/defect_remediation.py": {
       "callers": [
@@ -1913,6 +1924,13 @@
       "kind": "test",
       "sha256": "9d9446b403753cb58157d032b3037cc3457d62d5348a9ad52f38f45ca2940424"
     },
+    "tests/test_glp73_current_pointer_consumer.py": {
+      "callers": [
+        "GLP-73 source-only regression"
+      ],
+      "kind": "test",
+      "sha256": "b73cec2052d4cd6bcf456beb7882a33c45e71d8f349856ca132da718a53c4568"
+    },
     "tests/test_glp76_updater_publication_date.py": {
       "callers": [],
       "kind": "test",
@@ -2303,6 +2321,21 @@
       ],
       "kind": "script",
       "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
+    },
+    "ops/glp/reporting-v2/identity-registry.json": {
+      "callers": [
+        "scripts/glp_affiliate_weekly_reporting.py",
+        "scripts/glp_network_revenue_import_v2.py"
+      ],
+      "kind": "reporting_identity_configuration",
+      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
+    },
+    "tests/test_glp85_cj_reporting_identity.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "18bcfe67c2f6af199b2c92a1b456a54bb6ea4df25e1931f4cea7c2bebf45e89b"
     }
   },
   "omitted_runtime_inputs": [
@@ -2313,5 +2346,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 354
+  "tracked_count": 358
 }

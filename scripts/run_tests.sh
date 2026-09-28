@@ -23,6 +23,7 @@ suites+=(tests/test_glp_awin_portal_login.py tests/test_awin_fresh_preflight.py)
 suites+=(tests/test_maxbounty_pin_release.py)
 suites+=(tests/test_glp_maxbounty_fresh_probe.py)
 suites+=(tests/test_glp76_updater_publication_date.py)
+suites+=(tests/test_glp73_current_pointer_consumer.py)
 suites+=(tests/test_glp250_partner_email_hold.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
