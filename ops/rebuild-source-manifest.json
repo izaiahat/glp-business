@@ -1040,7 +1040,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8bb793aae786c1c0c0b736cb7b4d3d3d57d6ab877a2be3b6ed0dc5a0665462cd"
+      "sha256": "b2547ba292d4f4a1422d1d80a1244ce9b5c7e7c94ab764a9488525b01038d436"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -2047,7 +2047,7 @@
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1bbe4175dd132df3de670d523d11ebbdcd87cd67caf3c04a9fe4aad5356bbe79"
+      "sha256": "a3ff72701575f5f14e8eef8c3c5bbe4bdad86768d78290611c514ffba2054d87"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [

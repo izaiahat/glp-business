@@ -116,7 +116,9 @@ def adopt(checkout, root, hermes, review, *, scheduler):
     original = {root / p: value for p, value in before.items()}
     original[root / syncer.STATE] = state
     original[wrapper] = wrapper_before
-    with scheduler._jobs_file_lock:
+    with scheduler._fire_job_lock(JOB) as fenced, scheduler._jobs_file_lock:
+        if not fenced:
+            raise RuntimeError('reporting_fire_fence_unavailable')
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

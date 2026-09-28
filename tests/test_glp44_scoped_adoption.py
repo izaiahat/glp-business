@@ -1,5 +1,6 @@
 """Isolated GLP-44 importer and paired scheduler regressions; never touch host jobs."""
 import copy
+from contextlib import nullcontext
 import hashlib
 import json
 from pathlib import Path
@@ -73,6 +74,9 @@ def fixture(tmp_path, monkeypatch):
     monkeypatch.setattr(pair, 'APPROVED', git(repo, 'rev-parse', 'HEAD'))
     class Scheduler:
         _jobs_file_lock = threading.RLock()
+        @staticmethod
+        def _fire_job_lock(_job_id):
+            return nullcontext(True)
         def __init__(self):
             self.saves = 0
         def _current_cron_store(self):
