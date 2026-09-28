@@ -1014,6 +1014,13 @@
       "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
     },
+    "scripts/glp_current_content_base_schema.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "a2a65183b8f501213e9f03730a64101e141c79c43035009a7bf7b28c0a676e46"
+    },
     "scripts/glp_deploy_build6_authority_v1.py": {
       "callers": [
         "GLP-42 authenticated deploy-carrier lineage"
@@ -1077,6 +1084,13 @@
       "callers": [],
       "kind": "script",
       "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
+    },
+    "scripts/glp_price_index_weekly.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "efe4185455b03c141bb289355318f95654442cf7ecc6bf77e8971c5e8086a9f4"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -1458,6 +1472,13 @@
       ],
       "kind": "script",
       "sha256": "d59dbbb83a2f1b3f9ec883a1ffba31997b29aec073d3c5b9eaa4c0aab990cc18"
+    },
+    "systems/seo-blog-machine/scripts/current_content_base.py": {
+      "callers": [
+        "GLP-73 article current-base reader"
+      ],
+      "kind": "script",
+      "sha256": "841e7f4330f6ee435d3b0f1ab551cf789bc2f0b3e5cf47deca4190c2ca98588c"
     },
     "systems/seo-blog-machine/scripts/defect_remediation.py": {
       "callers": [
@@ -2303,5 +2324,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 352
+  "tracked_count": 355
 }
