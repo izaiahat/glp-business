@@ -19,6 +19,7 @@ spec = importlib.util.spec_from_file_location("relay_binding_test_subject", RELA
 relay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(relay)
 REAL_BU = relay.bu
+REAL_DRIVE_SUBFOLDER = relay.drive_subfolder
 REAL_SUBPROCESS_RUN = subprocess.run
 HOME = "https://chatgpt.com/"
 SIBLING = HOME + "c/11111111-1111-1111-1111-111111111111"
@@ -352,6 +353,150 @@ class BindingTests(unittest.TestCase):
               "submitted": relay.now_iso(), **extra}
         relay.job_write(name, st)
         return st
+
+    def test_drive_folder_timeout_registered_cli_one_shot(self):
+        """Actual submit CLI timeout-after-create, then same-reservation recovery CLI."""
+        import hashlib
+        sha = lambda b: hashlib.sha256(b).hexdigest()
+        job = relay.DRIVE_TIMEOUT_PR60['job']
+        self.cfg['job_classes_allowed'].append('independent-review')
+        d = relay.job_dir(job)
+        prompt = d / 'PROMPT.md'
+        prompt.write_text('# retained prompt\n')
+        (d / 'drive-input').mkdir()
+        files = [d / f'DRIVE-{i:02}.txt' for i in range(27)]
+        for i, p in enumerate(files):
+            p.write_text(f'retained attachment {i}\n')
+        manifest = {'job': job, 'job_class': 'independent-review', 'kind': 'freeform', 'attach': [],
+                    'drive_attach': [str(Path('/home/ubuntu/business/reports/ops/gpt6pro-relay/jobs') / job / p.name)
+                                     for p in files],
+                    **{k: 'fixture-' + k for k in relay.PROVENANCE_FIELDS}}
+        (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+        folder_id = 'retained-folder-id'
+        folder = {'id': folder_id, 'name': job, 'mimeType': 'application/vnd.google-apps.folder'}
+        created = []
+        def listing(**kw):
+            q = kw['q']
+            return types.SimpleNamespace(execute=lambda: {'files':
+                ([folder] if created else []) if "mimeType = 'application/vnd.google-apps.folder'" in q else []})
+        def create(**kw):
+            created.append(kw)
+            return types.SimpleNamespace(execute=lambda: (_ for _ in ()).throw(TimeoutError('after create')))
+        self.svc.files.return_value.list.side_effect = listing
+        self.svc.files.return_value.create.side_effect = create
+        args = ['gpt6pro_relay.py', 'submit', '--job', job, '--account', 'account-a',
+                '--job-class', 'independent-review', '--prompt', str(prompt), '--prompt-on-drive',
+                '--drive-attach', *map(str, files)]
+        cli = ['gpt6pro_relay.py', 'resume-drive-timeout', '--job', job]
+        with mock.patch.object(relay, 'drive_subfolder', wraps=REAL_DRIVE_SUBFOLDER), \
+             mock.patch.object(relay, 'cleanup_tabs', return_value=0), \
+             mock.patch.object(sys, 'argv', args), self.assertRaisesRegex(TimeoutError, 'after create'):
+            relay.main()
+        self.assertEqual(len(created), 1)
+        self.assertEqual(len(self.browser.sent), 0)
+        held = (d / 'JOB.json').read_bytes()
+        message = (d / 'MESSAGE.md').read_bytes()
+        st = json.loads(held)
+        self.assertEqual((st['status'], st['typed'], st['sent'], st['retry_blocked']),
+                         ('submitting', 'UNKNOWN', 'UNKNOWN', True))
+        self.assertEqual(len(relay.ledger_rows(self.cfg)), 1)
+        incident = {'job_sha256': sha(held), 'message_sha256': sha(message),
+                    'reservation_ledger_line': 1, 'submission_bound_count': 0,
+                    'fully_paginated_exact_inbox_query': True,
+                    'drive_inbox_folders': [{'folder_id_sha256': sha(folder_id.encode()),
+                                             'file_count': 0, 'media': []}]}
+        rp = self.root / 'reports/ops/glp96-current-integration-pro-review-20260928'
+        rp.mkdir(parents=True)
+        (rp / 'SUBMISSION-INCIDENT.json').write_text(json.dumps(incident))
+        (rp / '20260928T011108Z-submit.json').write_text(json.dumps(
+            {'returncode': 1, 'stderr': 'TimeoutError in _cmd_submit in drive_subfolder'}))
+        c = {'job': job, 'job_sha256': sha(held), 'message_sha256': sha(message),
+             'manifest_sha256': sha((d / 'MANIFEST.json').read_bytes()),
+             'prompt_sha256': sha(prompt.read_bytes()),
+             'incident_sha256': sha((rp / 'SUBMISSION-INCIDENT.json').read_bytes()),
+             'submit_sha256': sha((rp / '20260928T011108Z-submit.json').read_bytes()),
+             'folder_id_sha256': sha(folder_id.encode()), 'input_sha256': st['input_sha256'],
+             'reservation_ledger_line': 1, 'account': 'account-a'}
+        def call(*extra):
+            with mock.patch.object(sys, 'argv', cli + list(extra)), redirect_stdout(io.StringIO()) as out:
+                return relay.main(), out.getvalue()
+        with mock.patch.object(relay, 'DRIVE_TIMEOUT_PR60', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('no cleanup')), \
+             mock.patch.object(relay, 'drive_subfolder', side_effect=AssertionError('no second folder create')), \
+             mock.patch.object(relay, 'drive_upload', return_value='uploaded') as upload:
+            original_ledger = relay.ledger_path(self.cfg).read_bytes()
+            self.assertIn('WOULD_RESUME_DRIVE_FOLDER', call()[1])
+            self.assertEqual((d / 'JOB.json').read_bytes(), held)
+            self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
+            self.assertEqual(upload.call_count, 0)
+            self.assertEqual(len(self.browser.sent), 0)
+            self.clock += 61  # make pacing eligible before every mutation refusal
+            backup = d / ('JOB.pre-drive-timeout-' + sha(held) + '.json')
+            def refused(label, reason, modify, restore=lambda: None, default=False):
+                with self.subTest(label=label):
+                    modify()
+                    try:
+                        before = relay.ledger_path(self.cfg).read_bytes()
+                        job_before = (d / 'JOB.json').read_bytes()
+                        attempts = ((), ('--authorize-preimage', sha(held))) if default else (('--authorize-preimage', sha(held)),)
+                        for extra in attempts:
+                            with self.assertRaises(SystemExit) as cm:
+                                call(*extra)
+                            self.assertEqual(str(cm.exception), 'DRIVE_RESUME_REFUSED_' + reason)
+                            self.assertEqual((d / 'JOB.json').read_bytes(), job_before)
+                            self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), before)
+                            self.assertFalse(backup.exists())
+                            self.assertEqual(upload.call_count, 0)
+                            self.assertEqual(len(self.browser.sent), 0)
+                    finally:
+                        restore()
+                    self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
+                    self.assertEqual((d / 'JOB.json').read_bytes(), held)
+            with self.assertRaisesRegex(SystemExit, 'DRIVE_RESUME_REFUSED_AUTHORITY'):
+                call('--authorize-preimage', '0'*64)
+            original_list = self.svc.files.return_value.list.side_effect
+            def duplicate(**kw):
+                if 'mimeType =' in kw['q']:
+                    return types.SimpleNamespace(execute=lambda: {'files': [folder, folder]})
+                return original_list(**kw)
+            refused('duplicate folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', duplicate),
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
+            def nonempty(**kw):
+                if f"'{folder_id}' in parents" in kw['q']:
+                    return types.SimpleNamespace(execute=lambda: {'files': [{'id': 'payload'}]})
+                return original_list(**kw)
+            refused('nonempty folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', nonempty),
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
+            transported_prompt = d / 'drive-input/PROMPT.md'
+            original_transport = transported_prompt.read_bytes()
+            refused('preexisting transport prompt replacement', 'PACKET_OR_RESERVATION',
+                    lambda: transported_prompt.write_bytes(b'# substituted review instructions\n'),
+                    lambda: transported_prompt.write_bytes(original_transport), default=True)
+            refused('packet drift', 'PACKET_OR_RESERVATION',
+                    lambda: files[0].write_text('changed'),
+                    lambda: files[0].write_text('retained attachment 0\n'))
+            refused('send evidence', 'PACKET_OR_RESERVATION',
+                    lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
+                    lambda: relay.ledger_path(self.cfg).write_bytes(original_ledger))
+            refused('changed state', 'STATE_OR_PACKET',
+                    lambda: (d / 'JOB.json').write_bytes(held+b' '),
+                    lambda: (d / 'JOB.json').write_bytes(held))
+            self.assertEqual(call('--authorize-preimage', sha(held))[0], 0)
+            self.assertEqual(upload.call_count, 29)
+            self.assertEqual(len(created), 1)
+            self.assertEqual(len(self.browser.sent), 1)
+            self.assertEqual(self.browser.sent[0][1], message.decode())
+            self.assertEqual((d / 'MESSAGE.md').read_bytes(), message)
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'drive_timeout_resume', 'submission_bound'])
+            self.assertEqual((relay.job_state(job)['typed'], relay.job_state(job)['sent']), (True, True))
+            with self.assertRaises(SystemExit):
+                call('--authorize-preimage', sha(held))
+            self.assertEqual(len(self.browser.sent), 1)
 
     def test_cleanup_reclaims_terminal_chat_tabs_but_preserves_generating_binding(self):
         self.browser.pages['active'] = {"url": WANT, "text": "", "composer": "", "messages": True, "stop": True}
