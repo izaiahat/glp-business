@@ -79,7 +79,8 @@ def test_pricing_witness_and_legacy_noon_clocks_are_discovered(tmp_path):
     assert gates["pricing-legacy-capture"]["expiry_date"] == "2026-12-01"
 
 
-def test_adopted_deal_clock_is_distinct_from_frozen_base(tmp_path, monkeypatch):
+@pytest.mark.parametrize("clock_case", ["primary", "fallback", "primary-precedence"])
+def test_adopted_deal_clock_is_distinct_from_frozen_base(tmp_path, monkeypatch, clock_case):
     (tmp_path / "src").mkdir()
     (tmp_path / "data").mkdir()
     (tmp_path / "artifacts/ops").mkdir(parents=True)
@@ -87,14 +88,26 @@ def test_adopted_deal_clock_is_distinct_from_frozen_base(tmp_path, monkeypatch):
         "const MAX_EVIDENCE_AGE_DAYS = 45;\n"
         "throw new Error('offer_evidence_stale');\n"
         "evaluated_at: receipt.fetched_at,\n"
+        "nowMs < Date.parse(offer.expires_at)\nnowMs < Date.parse(term.expires_at)\n"
     )
     (tmp_path / "data/deals.json").write_text(json.dumps({"offers": [
-        {"id": name, "status": "VERIFIED", "checked_at": "2026-08-02T01:41:56Z"}
+        {"id": name, "status": "VERIFIED", "checked_at": "2026-08-02T01:41:56Z",
+         "expires_at": "2026-09-01T00:00:00Z",
+         "pricing": {"current_terms": [{"label": "term", "expires_at": "2026-09-01T00:00:00Z"}]}}
         for name in ("base", "accepted")
     ]}))
     (tmp_path / "artifacts/ops/wave4-deal-ingestion-manifest.json").write_text(
         '{"evaluated_at":"2026-08-08T23:52:45Z"}'
     )
+    primary = tmp_path / "artifacts/ops/wave4-deal-ingestion-manifest.json"
+    fallback = tmp_path / "artifacts/build4-preservation/ops/wave4-deal-ingestion-manifest.json"
+    if clock_case == "fallback":
+        fallback.parent.mkdir(parents=True)
+        primary.rename(fallback)
+    elif clock_case == "primary-precedence":
+        fallback.parent.mkdir(parents=True)
+        fallback.write_text('{"evaluated_at":"2026-09-24T00:00:00Z"}')
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     monkeypatch.setattr(HORIZON, "qualification_clocks", lambda root: {
         "material_offers": [{"offer_id": "accepted", "fetched_at": "2026-09-14T19:27:04.300Z"}],
         "qualifications": {},
@@ -103,11 +116,62 @@ def test_adopted_deal_clock_is_distinct_from_frozen_base(tmp_path, monkeypatch):
         tmp_path, datetime(2026, 9, 24, tzinfo=timezone.utc)
     )}
     assert gates["deals"]["row"] == "base"
+    assert gates["deals"]["status"] == "CURRENT"
+    assert gates["deals"]["evaluated_at_utc"] == "2026-08-08T23:52:45+00:00"
+    assert gates["deals"]["expiry_date"] == "2026-09-16"
+    assert before == {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     assert gates["deals"]["evaluation_clock"] == "historical_as_of"
+    for name in ("deal-explicit-expiry", "deal-term-expiry"):
+        assert gates[name]["status"] == "CURRENT"
+        assert gates[name]["evaluation_clock"] == "historical_as_of"
+        assert gates[name]["evaluated_at_utc"] == gates["deals"]["evaluated_at_utc"]
+        assert gates[name]["expiry_date"] == "2026-09-01"
     assert gates["deal-material-offer"]["row"] == "accepted"
     assert gates["deal-material-offer"]["source"] == "src/deal-ingestion.mjs:3"
     assert gates["deal-material-offer"]["evidence_timestamp"] == "2026-09-14T19:27:04.300Z"
     assert gates["deal-material-offer"]["expiry_at_utc"] == "2026-10-29T19:27:04.300000+00:00"
+
+
+@pytest.mark.parametrize("selected", ["primary", "fallback"])
+@pytest.mark.parametrize("body", [None, '{broken', 'null', '[]', '{}',
+                                    '{"evaluated_at":false}', '{"evaluated_at":"bad"}',
+                                    '{"evaluated_at":"2026-08-08"}',
+                                    '{"evaluated_at":"2026-08-08T23:52:45+00:00"}'])
+def test_unknown_preserved_clock_never_uses_wall_time(tmp_path, monkeypatch, selected, body):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "data").mkdir()
+    (tmp_path / "src/deal-ingestion.mjs").write_text(
+        'const MAX_EVIDENCE_AGE_DAYS = 45;\noffer_evidence_stale\n'
+        'nowMs < Date.parse(offer.expires_at)\nnowMs < Date.parse(term.expires_at)\n'
+        'evaluated_at: receipt.fetched_at')
+    (tmp_path / "data/deals.json").write_text(json.dumps({"offers": [{
+        "id": "base", "status": "VERIFIED", "checked_at": "2026-08-02T01:41:56Z",
+        "expires_at": "2026-09-01T00:00:00Z",
+        "pricing": {"current_terms": [{"label": "term", "expires_at": "2026-09-01T00:00:00Z"}]},
+    }]}))
+    primary = tmp_path / "artifacts/ops/wave4-deal-ingestion-manifest.json"
+    fallback = tmp_path / "artifacts/build4-preservation/ops/wave4-deal-ingestion-manifest.json"
+    path = primary if selected == "primary" else fallback
+    if body is not None:
+        path.parent.mkdir(parents=True)
+        path.write_text(body)
+        if selected == "primary":
+            fallback.parent.mkdir(parents=True)
+            fallback.write_text('{"evaluated_at":"2026-08-08T23:52:45Z"}')
+    monkeypatch.setattr(HORIZON, "qualification_clocks", lambda root: {
+        "qualifications": {}, "material_offers": [{"offer_id": "accepted", "fetched_at": "2026-09-14T19:27:04.300Z"}]})
+    before = {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    gates = {g["gate"]: g for g in HORIZON.inventory(tmp_path, NOW)}
+    for name in ("deals", "deal-explicit-expiry", "deal-term-expiry"):
+        row = gates[name]
+        assert row["status"] == "UNKNOWN"
+        assert row["reason"] == "unknown_evaluation_clock"
+        assert row["evaluation_clock"] == "UNKNOWN"
+        assert row["expiry_date"] == "UNKNOWN"
+        assert "hours_left" not in row and "evaluated_at_utc" not in row
+    assert gates["deal-material-offer"]["status"] == "CURRENT"
+    assert gates["deal-material-offer"]["evaluation_clock"] == "wall_clock"
+    assert before == {str(p.relative_to(tmp_path)): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 
 
 def test_css_missing_required_pair_and_hash_drift_are_not_current(tmp_path):
@@ -168,6 +232,10 @@ def test_each_calendar_clock(kind, src, code, file, data, window, expiry, tmp_pa
     (tmp_path / "data").mkdir()
     (tmp_path / "src" / src).write_text(code)
     (tmp_path / "data" / file).write_text(json.dumps(data))
+    if kind == "deals":
+        manifest = tmp_path / "artifacts/ops/wave4-deal-ingestion-manifest.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text('{"evaluated_at":"2026-09-26T00:00:00Z"}')
     row = next(r for r in HORIZON.inventory(tmp_path, NOW) if r["gate"] == kind)
     assert row["source"] == f"src/{src}:{len(code.splitlines())}"
     assert (row["window_hours"] if kind == "original-study" else row["window_days"]) == window
@@ -412,6 +480,10 @@ def test_optional_expiry_only_native_absence_is_skipped(tmp_path, name, value):
     elif name == "promo-explicit-expiry":
         data = {"pages": [{"program_id": row["program_id"], "promo": row} for row in [good, bad]]}
     (tmp_path / "data" / file).write_text(json.dumps(data))
+    if name.startswith("deal-"):
+        manifest = tmp_path / "artifacts/ops/wave4-deal-ingestion-manifest.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text('{"evaluated_at":"2026-09-26T00:00:00Z"}')
     result = next(g for g in HORIZON.inventory(tmp_path, NOW) if g["gate"] == name)
     optional = value is None or (name == "promo-explicit-expiry" and value == "MISSING")
     assert result["status"] == ("CURRENT" if optional else "UNKNOWN")
