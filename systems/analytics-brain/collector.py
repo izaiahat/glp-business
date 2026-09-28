@@ -872,6 +872,13 @@ SINK_LAG_FLOOR_HOURS = {"ga4": 48.0}
 CORROBORATING_TRAFFIC_SOURCE = {"ga4": "posthog", "posthog": "ga4"}
 
 
+POSTHOG_APPROVED_SOURCE_SHA256 = "0a0a7729cb628fc7afb694080bd07f82df28975409030ca7f19850f4dd2fb22a"
+POSTHOG_APPROVED_PROMOTION_UTC = "2026-09-27T23:40:59.897740Z"
+POSTHOG_APPROVED_NEUTRAL_PATHS = (
+    "/", "/providers/", "/compare/", "/privacy/", "/privacy/cookies/", "/terms/", "/about/",
+)
+
+
 def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
                            now: dt.datetime | None = None) -> None:
     activated = _provider_time(str(control["activated_at_utc"]))
@@ -879,12 +886,27 @@ def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
     configured = control.get("source_dark_threshold_hours") or {}
     posthog = (data.get("sources") or {}).get("posthog") or {}
     expectation = (control.get("measurement_expectations") or {}).get("posthog") or {}
-    # Transport/schema failures must remain failures. The expectation describes
-    # absent identity, never grants permission to collect or fabricate identity.
-    if (expectation.get("host_page_identity") == "unmeasured_by_design"
-            and expectation.get("authority") and posthog.get("complete") is True
-            and posthog.get("state") in {"healthy", "measured_zero"}
-            and posthog.get("observed_schema") == EXPECTED_SCHEMAS["posthog"]):
+    # Transport/schema failures remain failures. A source contract grants only
+    # field eligibility; zero host rows is not an ingestion receipt. Keep click
+    # identity and every health/unknown route unmeasured under the new scope.
+    verified = (expectation.get("authority") and posthog.get("complete") is True
+                and posthog.get("state") in {"healthy", "measured_zero"}
+                and posthog.get("observed_schema") == EXPECTED_SCHEMAS["posthog"])
+    if (verified and expectation.get("host_page_identity") == "neutral_routes_only"
+            and expectation.get("click_identity") == "unmeasured_by_design"
+            and expectation.get("source_sha256") == POSTHOG_APPROVED_SOURCE_SHA256
+            and expectation.get("production_promotion_at_utc") == POSTHOG_APPROVED_PROMOTION_UTC
+            and expectation.get("neutral_route_paths") == list(POSTHOG_APPROVED_NEUTRAL_PATHS)):
+        posthog.update({"measurement_state": "unmeasured_by_design",
+                        "measurement_scope": "click_and_non_neutral_route_identity",
+                        "host_identity_available": True,
+                        "neutral_route_paths": list(POSTHOG_APPROVED_NEUTRAL_PATHS),
+                        "neutral_route_window_clean_after_utc": (
+                            _provider_time(str(expectation["production_promotion_at_utc"]))
+                            + dt.timedelta(days=3)).isoformat().replace("+00:00", "Z"),
+                        "measurement_authority": expectation["authority"],
+                        "reason": "neutral_route_host_eligible_click_and_health_path_absent"})
+    elif verified and expectation.get("host_page_identity") == "unmeasured_by_design":
         posthog.update({"measurement_state": "unmeasured_by_design",
                         "measurement_scope": "host_page_click_identity",
                         "measurement_authority": expectation["authority"],
@@ -892,7 +914,8 @@ def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
     for name, default_threshold in {"ga4": 2, "posthog": 2, "d1_clicks": 24}.items():
         source = (data.get("sources") or {}).get(name)
         if (not source or source.get("state") not in {"healthy", "measured_zero"}
-                or source.get("measurement_state") == "unmeasured_by_design"):
+                or (source.get("measurement_state") == "unmeasured_by_design"
+                    and source.get("measurement_scope") != "click_and_non_neutral_route_identity")):
             continue
         watermark = source.get("event_watermark")
         last_event = _provider_time(str(watermark)) if watermark else activated

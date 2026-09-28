@@ -8,9 +8,13 @@
   "minimum_revenue_sample": 20,
   "measurement_expectations": {
     "posthog": {
-      "host_page_identity": "unmeasured_by_design",
-      "authority": "reports/ops/orchestration-restore-20260907/briefs/plan/K4b-MACHINES-RESTORE-2.md#D",
-      "reason": "Deployed privacy export allowlist omits host/page/click identity. This does not authorize exports; replace expectation only with reviewed train4 measurement proof."
+      "host_page_identity": "neutral_routes_only",
+      "neutral_route_paths": ["/", "/providers/", "/compare/", "/privacy/", "/privacy/cookies/", "/terms/", "/about/"],
+      "click_identity": "unmeasured_by_design",
+      "authority": "reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release/public/assets/analytics.js:31-50",
+      "source_sha256": "0a0a7729cb628fc7afb694080bd07f82df28975409030ca7f19850f4dd2fb22a",
+      "production_promotion_at_utc": "2026-09-27T23:40:59.897740Z",
+      "reason": "Accepted published source retains exact host and minimized neutral-route URL/path only after analytics consent; health/unknown route URL/path and click identity remain absent. This is source eligibility, not proof of ingestion or a new export authorization."
     }
   },
   "affiliate_obligations": {

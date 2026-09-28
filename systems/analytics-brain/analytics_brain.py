@@ -156,6 +156,7 @@ def _validate_source(name: str, row: dict[str, Any]) -> dict[str, Any]:
         "complete", "pages_fetched", "provider_host_filter", "host_distribution", "event_watermark",
         "non_allowlisted_event_count", "collection_window", "property", "project", "site",
         "page_rows", "query_rows", "measurement_state", "measurement_scope",
+        "host_identity_available", "neutral_route_paths", "neutral_route_window_clean_after_utc",
         "measurement_authority", "freshness_state", "reporting_latency_hours",
         "collector_state", "collector_age_hours", "collector_max_age_hours",
         "reporting_latency_days", "reporting_documentation", "reporting_age_days",
@@ -253,6 +254,29 @@ def _prior_probe_state(prior_matrix: dict[str, Any] | None) -> dict[str, dict[st
         if isinstance(row, dict) and row.get("path"):
             state[row["path"]] = row
     return state
+
+
+def _neutral_posthog_route_available(source: dict[str, Any], path: str) -> bool:
+    """Published field scope, not a claim that any event was ingested."""
+    return bool(source.get("measurement_state") == "unmeasured_by_design"
+                and source.get("measurement_scope") == "click_and_non_neutral_route_identity"
+                and source.get("state") in {"healthy", "measured_zero"}
+                and source.get("complete") is True
+                and source.get("host_identity_available") is True
+                and source.get("host_filter", {}).get("exact") == PRODUCTION_HOST
+                and path in (source.get("neutral_route_paths") or []))
+
+
+def _neutral_posthog_probe_window_clean(source: dict[str, Any], generated: str) -> bool:
+    """The collector's rolling three-day route aggregate cannot date individual rows."""
+    cutoff = source.get("neutral_route_window_clean_after_utc")
+    if not cutoff:
+        return False
+    try:
+        return (dt.datetime.fromisoformat(generated.replace("Z", "+00:00")) >=
+                dt.datetime.fromisoformat(str(cutoff).replace("Z", "+00:00")))
+    except (TypeError, ValueError):
+        return False
 
 
 def route_matrix(data: dict[str, Any],
@@ -399,8 +423,17 @@ def route_matrix(data: dict[str, Any],
         # make a route-level absence actionable.
         asym_now = row["ga4_traffic_seen"] != row["posthog_traffic_seen"]
         posthog_source = (data.get("sources") or {}).get("posthog") or {}
-        identity_unmeasured = posthog_source.get("measurement_state") == "unmeasured_by_design"
-        row["probe_measurement_state"] = "unmeasured_by_design" if identity_unmeasured else "measured"
+        neutral_eligible = _neutral_posthog_route_available(posthog_source, path)
+        neutral_window_clean = (neutral_eligible and _neutral_posthog_probe_window_clean(
+            posthog_source, str(data.get("generated_at_utc") or "")))
+        identity_unmeasured = (posthog_source.get("measurement_state") == "unmeasured_by_design"
+                               and not neutral_window_clean)
+        row["probe_measurement_state"] = (
+            "eligible_window_mixed" if neutral_eligible and not neutral_window_clean else
+            "unmeasured_by_design" if identity_unmeasured else
+            "observed_neutral_route" if neutral_window_clean and row["posthog_traffic_seen"] else
+            "eligible_unobserved" if neutral_window_clean else "measured"
+        )
         row["probe_evidence_sufficient"] = bool(
             not identity_unmeasured and asym_now and max(row["ga4_pageviews"], row["posthog_pageviews"])
             >= ROUTE_PROBE_MINIMUM_PAGEVIEWS
@@ -606,7 +639,10 @@ def affiliate_reconciliation(data: dict[str, Any]) -> dict[str, Any]:
                 "maximum_ratio": SINK_DIVERGENCE_MAX_RATIO,
                 "processing_lag_hours": SINK_PROCESSING_LAG_HOURS,
                 "divergence_exceeded": False, "measurement_state": "unmeasured_by_design",
-                "reason": "privacy_export_allowlist_omits_host_page_identity",
+                "reason": ("click_identity_unmeasured_by_design"
+                           if ((data.get("sources") or {}).get("posthog") or {}).get("measurement_scope")
+                           == "click_and_non_neutral_route_identity"
+                           else "privacy_export_allowlist_omits_host_page_identity"),
             }
             continue
         missing = len(mature_browser - set(sink))
@@ -906,7 +942,10 @@ def page_facts(data: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
             "engagement": {
                 "ga4_sessions": metric(sessions, "measured" if sessions else "measured_zero", "ga4"),
                 "posthog_engaged_sessions": (
-                    metric(None, "unavailable", "posthog", reason="unmeasured_by_design")
+                    metric(None, "unavailable", "posthog",
+                           reason=("engaged_sessions_not_proven_by_neutral_pageview"
+                                   if _neutral_posthog_route_available(sources.get("posthog") or {}, route)
+                                   else "unmeasured_by_design"))
                     if sources.get("posthog", {}).get("measurement_state") == "unmeasured_by_design"
                     else metric(engaged, "measured" if engaged else "measured_zero", "posthog")),
             },
