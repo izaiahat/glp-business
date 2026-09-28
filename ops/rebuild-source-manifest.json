@@ -2,2400 +2,1107 @@
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
     ".github/workflows/business-source-ci.yml": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "9fec8ac426fd2c9244e22e46692cd99d3ff7474b7374e7fa428e45022efb70a4"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "db93042ee7911c9385902691b96a9c4648d50ec367334ba4d34a15bb138f18b3"
     },
     ".gitignore": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "ed925d87ffa13b85b9dfe655a0476fe0beac80e9d44d74858b6bab53100e03db"
     },
     ".hermes.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "e41fb4f7836c4a1d755286110b33ffeb478cfa5a75c688186d12c557c7fabecb"
     },
     "AGENTS.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "f1301b984e0db1cdbfda07b88c3d02c340e87de1ea51dc1889a9245b645bafd9"
     },
     "CLAUDE.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "f1301b984e0db1cdbfda07b88c3d02c340e87de1ea51dc1889a9245b645bafd9"
     },
     "README.md": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "f043c24fe9dd9a48dfa29076904b87121d7766d160d9c338757bf7ea14af2b9e"
     },
     "inbox_control_plane/__init__.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "3c9d0de8e779cad2b23aa984c636307de273b6ae7e248db9cc2c34c64ae4f764"
     },
     "inbox_control_plane/affiliate_network_registry.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "075fed013ff6e35365aa6d3e654ad90d420d836a3c8564403b97e5f8a2428095"
     },
     "inbox_control_plane/affiliate_supply_intake.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "ebe5b729d1a6b599f19093293f8c31431357c7a17f4133eea0074da59e7722d7"
     },
     "inbox_control_plane/approved_gmail_sender.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "7c12348a7705f4b3e815270e865f09e99a3587c115a3309cbe8800ce09fa8fbc"
     },
     "inbox_control_plane/control_plane.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "19c1e920c445d86de891d6c5b68650f5276aa3dbb2cdfac856a3f0fcdba47162"
     },
     "inbox_control_plane/gmail_client.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "4172c1089dd355f6ce48174667e9d9b36a5783ce28218acc24d47830a98e4b55"
     },
     "inbox_control_plane/mark_read_after_action.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "7669d06529a9bdca48df3e079a40fd64987a3026058c0b9c735bffa0768074fc"
     },
     "inbox_control_plane/network_grounding.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "066c44876df272aa23f3217a37e613c837939c10f997570918967dd0f4f6475f"
     },
     "inbox_control_plane/outbound_style_guard.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "0be29c1f32b86ecc04a19d8c89148c5bad4e31ae9071997ff32c6728cf294cb8"
     },
     "inbox_control_plane/validate_inbox_control_plane.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "39d672272affeaa55f285612516dec8bcaf99ddcbb5d29006367a8c569a7c53c"
     },
     "ops/GLP42-PACKAGE-ONLY.md": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "9908684502b12935a83d0746a063d46cfe218b1bf3badc33e1518fa0c707a7ff"
     },
     "ops/autonomy-envelope.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "3b46a664e1023d09676da2c728f2c768aa7d97b69dcb830bcb8212de9408fd92"
     },
     "ops/awin-fresh-preflight.candidate.json": {
-      "callers": [
-        "candidate:GLP-317"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "afd96403068675fde46a9f612d268418af3bf56def1637d3672853b1eb77f653"
     },
     "ops/awin-fresh-preflight.md": {
-      "callers": [
-        "candidate:GLP-317"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "876d99e0c60afad99d5e3188a67c087ee4400302ee2556850219e19f57497ec1"
     },
     "ops/claude-model-policy.json": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "746239b3badb6442e453ab64eea6a0176a58b0195651deb98f5088110c68cdfc"
     },
     "ops/claude_model_policy.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "script",
       "sha256": "0cb92558f8a88ccd3fa76d7f954d8eda1eff634d1825db17f424c6c039f7f011"
     },
     "ops/cron-medic-model-policy.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "9879d46ec00039d7c16293bf60af9123bd9c94a1054237169f219bf3b4113947"
     },
     "ops/decisions_router.py": {
-      "callers": [
-        "n8n-bridge:decisions_router",
-        "cron_bridge_action:decisions_router"
-      ],
-      "kind": "script",
       "sha256": "1cb48c8ceb8306bf18fdf86a8acca18635e1a7c75129e47cc446590f63c8b31f"
     },
     "ops/disk-retention-policy.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "b4a0f4aafa6941daa34ea0af21bf5cdba39ca44daafdf20be8d8e8e5cf495e84"
     },
     "ops/fable-mention-recovery.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "1e60c6806310c1c23197562abed2f170c8cced96a65098dfed5d3eb4414b8319"
     },
     "ops/glp/analytics-brain-control.json": {
-      "callers": [
-        "scripts/glp_analytics_brain_cadence.py"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
-      "callers": [
-        "scripts/glp_affiliate_weekly_reporting.py",
-        "scripts/glp_network_revenue_import_v2.py"
-      ],
-      "kind": "reporting_identity_configuration",
       "sha256": "70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
-      "callers": [
-        "scripts/glp_weekly_seo_control.py"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "467b074c657fcc07f00bd081bdc6a6904ccf73ac113c48d140107822073fc90f"
     },
     "ops/glp/seo_business_context.py": {
-      "callers": [
-        "scripts/glp_weekly_seo_control.py",
-        "ops/glp/seo_weekly_modules.py"
-      ],
-      "kind": "script",
       "sha256": "def00df050f44bdc90305a9a3bc412af7a8f44e7cf0c70a78fef0ac2abf724b8"
     },
     "ops/glp/seo_data_rails.py": {
-      "callers": [
-        "GLP-44 registered weekly ranking collector/report"
-      ],
-      "kind": "script",
       "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
     },
     "ops/glp250-partner-email-hold.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
     },
     "ops/glp76-host-transport.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "7ad4dc51b614f0f074b2c46f0d3195349e4a6566b5b58d00d32eafba185db11b"
     },
     "ops/hermes-cron-scripts/affiliate_backrun_daily.sh": {
-      "callers": [
-        "hermes:a8bd5651f1d8"
-      ],
-      "kind": "script",
       "sha256": "344f0abfb43719cc076274367bd5e9e7f977391a8bc6e3d6b29d29f26a828ac9"
     },
     "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh": {
-      "callers": [
-        "hermes:58202b06bdc0"
-      ],
-      "kind": "script",
       "sha256": "2525bbb73f290ee8242c72d5800cd781f5dc50a4286fbb8f580d2e4b03616ab4"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
-      "callers": [
-        "hermes:ecbe6fdc0163"
-      ],
-      "kind": "script",
       "sha256": "356ed9ffed0d5feed7477d05d6bd7214f0767d3f65c420bb86f668704ca2ac9c"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
-      "callers": [
-        "hermes:eb6a4b2a47a3"
-      ],
-      "kind": "script",
       "sha256": "294fb8147b59d605c3f9800f4aefd0c10bd9773d268878c68737b9f597ab6f5a"
     },
     "ops/hermes-cron-scripts/cbs_pool_monitor.py": {
-      "callers": [
-        "hermes:21087dea19fe"
-      ],
-      "kind": "script",
       "sha256": "f61b1e1ed461cf26d71dcce6f7365d33d5449ba66316139035b9d53c60a49d9d"
     },
     "ops/hermes-cron-scripts/cbs_pool_research_context.py": {
-      "callers": [
-        "hermes:7dbca59e9dbb"
-      ],
-      "kind": "script",
       "sha256": "47054f0a059c72010b6524466ea784c7769c91cb6d7831f11e084e995aa2d933"
     },
     "ops/hermes-cron-scripts/cgroup_headroom_guardian.py": {
-      "callers": [
-        "hermes:f918ef069c4a"
-      ],
-      "kind": "script",
       "sha256": "4a137a9081b5b42cef5422690dc3214015f5359d99df3b7b093c3e97ffe5b6a2"
     },
     "ops/hermes-cron-scripts/codex_gate_watchdog.py": {
-      "callers": [
-        "hermes:167be2b70817"
-      ],
-      "kind": "script",
       "sha256": "62bce6009b2a319fabf69f7910a6d8147a19a099ce881b2ff00ff2932851b6df"
     },
     "ops/hermes-cron-scripts/cron_scope_guard.py": {
-      "callers": [
-        "hermes:4731091d0d7c"
-      ],
-      "kind": "script",
       "sha256": "ba2993316fb0799b5b8fb21bb5c2afc96e7daddd82b7b4e21c5fcaadcbdbe0e2"
     },
     "ops/hermes-cron-scripts/daily_outcome_cards_cron.sh": {
-      "callers": [
-        "hermes:777ee08cf53b"
-      ],
-      "kind": "script",
       "sha256": "4c0bae63f07fcb9e98388f3bfade6eee3612d76a701e488a264044de679ecfcc"
     },
     "ops/hermes-cron-scripts/disk_monitor.sh": {
-      "callers": [
-        "crontab:10"
-      ],
-      "kind": "script",
       "sha256": "1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447"
     },
     "ops/hermes-cron-scripts/glp_affiliate_approval_reconciler.sh": {
-      "callers": [
-        "hermes:b0c800751b88"
-      ],
-      "kind": "script",
       "sha256": "090e1b54a1d8f6dd66a3b95584db2f889b2163582a2ac9e45f33ad78a915e8a3"
     },
     "ops/hermes-cron-scripts/glp_affiliate_blocker_ack_ingest.sh": {
-      "callers": [
-        "hermes:f61e5f029743"
-      ],
-      "kind": "script",
       "sha256": "ec654c9cba8443c075599945ceaef350b66d334c5123d671179dfbf7411f35fd"
     },
     "ops/hermes-cron-scripts/glp_affiliate_daily_report_cron.sh": {
-      "callers": [
-        "hermes:ef70059fa85b"
-      ],
-      "kind": "script",
       "sha256": "29d62f97fc519352d5cfa04ea140000df8e5ac044ef26cbfe4808ef06400d969"
     },
     "ops/hermes-cron-scripts/glp_affiliate_link_rot.py": {
-      "callers": [
-        "hermes:1367d82d1a6e"
-      ],
-      "kind": "script",
       "sha256": "356efb6da1d4db0373ce16c4847a6bf0caf2b8cb4df645f5482b89cc3e8b7fab"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
-      "callers": [
-        "hermes:f0c6a95a371c"
-      ],
-      "kind": "script",
       "sha256": "119fdf2c23d748888cf29e6449e4e7a149826141213e944e38ea8a1e122b0e6d"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh": {
-      "callers": [
-        "hermes:aadf6677c7f0"
-      ],
-      "kind": "script",
       "sha256": "197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
-      "callers": [
-        "hermes:113e1599dbbb"
-      ],
-      "kind": "script",
       "sha256": "337c50438585491518b339309b8d331f0d357c488fabfc275ba1dae1973bdc1b"
     },
     "ops/hermes-cron-scripts/glp_article_publish_notifier.py": {
-      "callers": [
-        "hermes:6b90e90e3347"
-      ],
-      "kind": "script",
       "sha256": "313c89e63d62234249514a73482b7269e9e92df4ae6fefa56a648348cbac1535"
     },
     "ops/hermes-cron-scripts/glp_best_terms_weekly.py": {
-      "callers": [
-        "hermes:d5d5b954f303"
-      ],
-      "kind": "script",
       "sha256": "59f3789b072511029f0c2b11358b05e1e393613c04a2fc077b75b04e34c230be"
     },
     "ops/hermes-cron-scripts/glp_cron_error_sensor.py": {
-      "callers": [
-        "hermes:1150a7c03636"
-      ],
-      "kind": "script",
       "sha256": "96fc8619c1fbecfa094748f1030110cfa0dafef7d4ee083d7fcd12f627b8f554"
     },
     "ops/hermes-cron-scripts/glp_deploy_completeness_sensor_daily.sh": {
-      "callers": [
-        "hermes:583daf76f49b"
-      ],
-      "kind": "script",
       "sha256": "599acc395458a08e0f41517b264c0b5d0c2f2150bd8dbd74bfc5c1bb199006b1"
     },
     "ops/hermes-cron-scripts/glp_digital_pr_weekly_cron.py": {
-      "callers": [
-        "hermes:de3fec71cd2e"
-      ],
-      "kind": "script",
       "sha256": "33dc00f0b53397086efa92bc75ac7fa34fd8c5f872861eac967f16f58d06b03a"
     },
     "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py": {
-      "callers": [
-        "hermes:1ef582b6c7a0"
-      ],
-      "kind": "script",
       "sha256": "69f22b42cbafb75e4decd50fb02aac67503dea37639e48bb3e30b0881b850d27"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
-      "callers": [
-        "hermes:0d734f16c0e9"
-      ],
-      "kind": "script",
       "sha256": "29692f247224b472ddb047719dea215fe5b239521e29f67b69e03a51b380bf17"
     },
     "ops/hermes-cron-scripts/glp_google_ads_spend_guard.py": {
-      "callers": [
-        "hermes:3c4c3c075554"
-      ],
-      "kind": "script",
       "sha256": "297623b74ceeae0969ecdbcf8f8e40e3ad2f87417c25f53231a4f7844fe2fe8d"
     },
     "ops/hermes-cron-scripts/glp_maxbounty_capacity_resume.sh": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "b0e7d2770fcc5918aa5eaeef122bbede96caee8e68c28fa233bbcb7349215222"
     },
     "ops/hermes-cron-scripts/glp_relationship_hygiene_daily.sh": {
-      "callers": [
-        "hermes:dc3649d3c84c"
-      ],
-      "kind": "script",
       "sha256": "353e382af382dd7535aab4cba9a65fd875d0ca3c367473b12ca13e4719649491"
     },
     "ops/hermes-cron-scripts/glp_seo_daily_article_watchdog.py": {
-      "callers": [
-        "hermes:a782df6fad1d"
-      ],
-      "kind": "script",
       "sha256": "41c29890950aed734897245be7e17d39c811df3d2c4b611cd71620e3a51fb309"
     },
     "ops/hermes-cron-scripts/glp_seo_publish_failure_alert_cron.sh": {
-      "callers": [
-        "hermes:76de44046a9b"
-      ],
-      "kind": "script",
       "sha256": "bc11df966517025e109519d2840ea24ca4eadfdb9f7c5c339ccd455afe6751a2"
     },
     "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py": {
-      "callers": [
-        "hermes:ea5bad730e53"
-      ],
-      "kind": "script",
       "sha256": "b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d9871"
     },
     "ops/hermes-cron-scripts/hermes_state_archive_weekly.py": {
-      "callers": [
-        "hermes:a0d5cb0609b9"
-      ],
-      "kind": "script",
       "sha256": "036e61bf4476633314254bc16018a3c24220ce57ce4bb408c04ba58e5f3bfeee"
     },
     "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py": {
-      "callers": [
-        "hermes:ce7dbf4a797b"
-      ],
-      "kind": "script",
       "sha256": "975ed46fcbd22f588b4b41293d289cc45ce42c7f8769052ce771202774b479ae"
     },
     "ops/hermes-cron-scripts/host_disk_pruner.py": {
-      "callers": [
-        "hermes:075ed81c6b43"
-      ],
-      "kind": "script",
       "sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2"
     },
     "ops/hermes-cron-scripts/inbox_control_plane_cron.py": {
-      "callers": [
-        "hermes:3c79a0b5f7b2"
-      ],
-      "kind": "script",
       "sha256": "cf8ebde12014e28cf1cf176d2b272ad72d6d76b4dac3d2173c4995157d120594"
     },
     "ops/hermes-cron-scripts/investment_ops_daily_snapshot.sh": {
-      "callers": [
-        "hermes:13f7742ec749"
-      ],
-      "kind": "script",
       "sha256": "3185a75cc390a94f15cec1bd46cc701d07644c335242789bc14c103b61c17a4f"
     },
     "ops/hermes-cron-scripts/investment_ops_mercury_sync.sh": {
-      "callers": [
-        "hermes:f74fc22d342e"
-      ],
-      "kind": "script",
       "sha256": "36899cd0e80c67611c841b109bae13d1294402cd19f804eba3903383578d55b6"
     },
     "ops/hermes-cron-scripts/kael_ops_standup.sh": {
-      "callers": [
-        "hermes:6b4baa232362"
-      ],
-      "kind": "script",
       "sha256": "72c8af2efc499873ce4efe4d6d75ae148042d967981dbe7ee376c206ac7ac029"
     },
     "ops/hermes-cron-scripts/loom_guard_events_poller.py": {
-      "callers": [
-        "hermes:b316c6df82b0"
-      ],
-      "kind": "script",
       "sha256": "a0ea36922f2e9bd54e8369395e756fb2682ac69c88d46306c3df3179b3df3c5b"
     },
     "ops/hermes-cron-scripts/n8n_workflow_registry_sensor.py": {
-      "callers": [
-        "hermes:db3fb99c1044"
-      ],
-      "kind": "script",
       "sha256": "b78245e97243f90655a1a4ca649481f6aefa5be56fb8c700ad6711aaa5e60934"
     },
     "ops/hermes-cron-scripts/process_partner_info_replies_watchdog.sh": {
-      "callers": [
-        "hermes:bb577641ebd9"
-      ],
-      "kind": "script",
       "sha256": "9e4933fc48b1b2a232308b560f446120dc2f84ea334df2ed4237eca1685ebaf6"
     },
     "ops/hermes-cron-scripts/ram_monitor.sh": {
-      "callers": [
-        "crontab:11"
-      ],
-      "kind": "script",
       "sha256": "9490a337f969fea9ac91d411b5df0b679d0eb65b7380c19e4a0c904e6d4a81bf"
     },
     "ops/hermes-cron-scripts/scheduled_job_health_manager.py": {
-      "callers": [
-        "hermes:b86ec8937c20"
-      ],
-      "kind": "script",
       "sha256": "d652c1d7bd3b6968af117d36ebbdd39ce119aa6c9b0fcadb0f0fd79191370dc9"
     },
     "ops/hermes-cron-scripts/session_bloat_watchdog.py": {
-      "callers": [
-        "hermes:361906b756da"
-      ],
-      "kind": "script",
       "sha256": "dce105790b73b191e903ccac244aabf9201b3da798135165f7b520c8a97b89d7"
     },
     "ops/hermes-cron-scripts/shared_email_flow_scheduler.py": {
-      "callers": [
-        "hermes:169f77ee8b30"
-      ],
-      "kind": "script",
       "sha256": "58492a76146acd81c50b053aae8f2424af387eaa9da15d0846bffd715cdacd7f"
     },
     "ops/hermes-cron-scripts/state_guard_watchdog.py": {
-      "callers": [
-        "hermes:571c0284d590"
-      ],
-      "kind": "script",
       "sha256": "1768fca2272f1b009f8bfce45dbac32e4fe723c03d1bfc70f5fc14aff12796c2"
     },
     "ops/hermes-cron-scripts/subscription_capacity_monitor.py": {
-      "callers": [
-        "hermes:617a6a6ab907"
-      ],
-      "kind": "script",
       "sha256": "98c60b2ef4ab054d3ffd30453ee8e00d413c23a7cc3d68fe89c9a6924bed9e14"
     },
     "ops/hermes-cron-scripts/swap_pressure_guard.sh": {
-      "callers": [
-        "hermes:419c6ade4e69"
-      ],
-      "kind": "script",
       "sha256": "adb0ea09b18020444e31af06c1305c2aee22c82bc5512e210a4cce4aaed29e63"
     },
     "ops/hermes-cron-scripts/weekly_strategy_review_gate.py": {
-      "callers": [
-        "hermes:020bcdd7f0e1"
-      ],
-      "kind": "script",
       "sha256": "484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e"
     },
     "ops/linear/CONVENTIONS.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "49b74ee72cf7772203eb208ca77de3c0d07375116ef02b8c9cc44e8cb509c47a"
     },
     "ops/linear/DISCORD-RELAY.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "dc01bcf1d3f58442c770715f82642d8527175a21beaa0aff84f87f271de00b11"
     },
     "ops/linear/DISPATCH-TEMPLATE.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "115b26f14ff76289b7992bb19b97ebb0d526ebf6d7e981eba47be7ed901d037d"
     },
     "ops/linear/EXECUTION-STANDARD.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "753dfb2ff6b21325cce83a59fcb9ace77f338d6762f9aa77837ce40d1a637893"
     },
     "ops/linear/HERMES-INSTRUCTIONS.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "a0b87d17afcff4692e9d574ddd237ac3eae2f1ed001bec8ee9522aaccaba74d8"
     },
     "ops/linear/MCP-AND-NOTIFICATIONS.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "8819e13150f57780c6870a0a5e9e0152880f0ca28ad9f10eaefaa956ba6c8dec"
     },
     "ops/linear/OPTIMIZATION-CHECKLIST.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "9dc2d546cea838b25fc1513df8ab65210b8f9a13cd0e209ac338ba1fdb842045"
     },
     "ops/linear/ORCHESTRATOR-MANUAL.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "7c0c550e7196a919cc07644da35b10ce24c9cb47f8ce1e0ebb59dd7f782156fb"
     },
     "ops/linear/PLANNER-BRIEF.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "3bf2342ecd61bd87bb9e3f9e1002453b62fd5a492771c04ae34696375488def9"
     },
     "ops/linear/REGISTER-WRITER.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "ce52446e6c85d067f19c22296be6ed27262824f7216ed3abecd2e355bd85f2f0"
     },
     "ops/linear/REMINDERS.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "57006da48f231ac01b3c645dc20981fca4f5178bf746d71f96c69219b23cad3c"
     },
     "ops/linear/SELECTOR-CONTRACT.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "71e8e08f1c325814d9281435be7c5808fe6597ccd6ddca5ff7f6b1c4a9510122"
     },
     "ops/linear/SKILL-INDEX.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "f84e589d13e47bca6b455edfe16f334ffa3cb62f7b17546813bd9ce90e796a59"
     },
     "ops/linear/SOP.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "55cdedbff0106e21aedc5c846e1aaa760078f6ddd4c072dcdcddadfb7bdf424e"
     },
     "ops/linear/TRIAGE-INTAKE.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "148638d28cf1bc973849b0c506367dee53597222572e645e738cd0994c786bbf"
     },
     "ops/linear/WEBHOOK-RECEIVER.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "631ca6c0aa6e7463073192298d1890c253c4a3b55043d6107adb0bbe0f133868"
     },
     "ops/linear/WORKER-STANDARD.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "475a004aeaf672eb0b24d24a882f7418e93fbb4a2e3de46dbbd6ff915a608f42"
     },
     "ops/maxbounty-fresh-probe.md": {
-      "callers": [
-        "glp_maxbounty_capacity_monitor"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "13b41e9d81a7b6a1010fe14574338b5814dbc3528bc4cdf151ab32d4d3ef6de6"
     },
     "ops/maxbounty-pin-predecessor.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "d4bdb54ffc4afa3ba3fbefd9a126688e3fff5cb1b6e5959ed802934408aedc59"
     },
     "ops/maxbounty-pin-release.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "768b156e5a43bbda68ee390eef131be68d9c0caba34bf10299516dae65337d8d"
     },
     "ops/protected-oracles.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "ee12c01f76fdab6ee645370b261459146330ed74257d8c6d24725f61c0fa2384"
     },
     "ops/registered-producers.json": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "07ea692567ec04c0166bf84db8f3f43742d21008bc66521942091e06ba9d456f"
     },
     "ops/sender_envelope.py": {
-      "callers": [
-        "inbox_control_plane/control_plane.py"
-      ],
-      "kind": "script",
       "sha256": "c5278d18427faec74195dfecfb4119c78f71664ce820eb9699725fd94fd06e3c"
     },
     "reports/BUILD-SOURCE-OF-TRUTH.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
       "sha256": "d4f5b50cd9f90429481aaee244aba6f68347a9e5901adc6778e95c56e1128008"
     },
     "scripts/.retired-20260925/fastmode_revert.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "fd4cf4237d53c6db4df6fb001ff0caf243cbb520d670402de245571489a351fb"
     },
     "scripts/.retired-20260925/fix_misrouted_handoffs.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "bb80e4567f8a1a9130ce6c948fd58f6585c195b21cef5ff671c6d1e655371cfd"
     },
     "scripts/.retired-20260925/glp_standing_brief_guard.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "2fc423a36c5c486635c0934000f56e639ab476ac9ac47cd700f0fef059760467"
     },
     "scripts/.retired-20260925/katalys_session_keepalive.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "e42a0a10727da10155caf8e865dde3bd207feba28b3417ca9da79ee1fb0386f3"
     },
     "scripts/.retired-20260925/linear_cycle_time.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "a31402461badce4eba1a275dd43cdde3e313498fff784d0eb1b8c408590fafd6"
     },
     "scripts/.retired-20260925/linear_pins_refresh.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "2fca0a1a59571b28214d7b24f777b5e73770bda55ae1325c6326ea3d8f9197b0"
     },
     "scripts/.retired-20260925/linear_project_dashboard.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "908cc649b4c21c61bba59d3e5fe34aeaaf90958a36f3121c82ad5c42bfc27b60"
     },
     "scripts/.retired-20260925/linear_state_reconciler.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "f9626c8df9aa0d8a5845c8f2bc77523011f73756396bb4ffba2270ea2a4dfd0f"
     },
     "scripts/.retired-20260925/operator_console_daily_post.sh": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "b962927d6b2b6a6876495328902f7b937603d38c11443df1cb9b18cbbd19f7eb"
     },
     "scripts/.retired-20260925/pro_relay_landing_monitor.py.p71b-20260923.bak": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "0215448ed7868d0e9cc914a6e2fb95486bf5c29bd2ad639ebc278a2c68de32e8"
     },
     "scripts/.retired-20260925/resume_on_capacity.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "c592fd641bef6891cffc7541db39f6f44074473aba6190f171b4c77c01d5456c"
     },
     "scripts/.retired-20260925/seat_send.py": {
-      "callers": [],
-      "kind": "retired_script",
       "sha256": "1fa2886b43dec4866e9efcf952260335d5d46aeaaf750f82c4e76edca61e1253"
     },
     "scripts/account_capacity_collector.py": {
-      "callers": [
-        "subscription_capacity_monitor"
-      ],
-      "kind": "script",
       "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
     },
     "scripts/affiliate_application_executor_gate.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
-      "kind": "script",
       "sha256": "bbb23e1e5b6f6a52d002a3896b514912d8a58a13c349996643570db91e5a21cb"
     },
     "scripts/affiliate_approval_auto_reconciler.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "2f1570bee7fe372fdc54af6dce7257d074d0d565e03cdccbf29cf088bdf7450f"
     },
     "scripts/affiliate_best_terms_machine.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_best_terms_weekly.py",
-        "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
-      ],
-      "kind": "script",
       "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
     },
     "scripts/affiliate_niche_geo_filter.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
-      "kind": "script",
       "sha256": "5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e"
     },
     "scripts/affiliate_operator_rulings.py": {
-      "callers": [
-        "scripts/affiliate_sheet_batch_writer.py"
-      ],
-      "kind": "script",
       "sha256": "6126c74048619778628c895b2506265ea8e8833bdfafbf7492cbc7761f97518c"
     },
     "scripts/affiliate_payout_policy.py": {
-      "callers": [
-        "scripts/affiliate_niche_geo_filter.py"
-      ],
-      "kind": "script",
       "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
     },
     "scripts/affiliate_program_relevance.py": {
-      "callers": [
-        "scripts/affiliate_sheet_batch_writer.py"
-      ],
-      "kind": "script",
       "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
     },
     "scripts/affiliate_provider_metadata.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "04eb33474fc6a0d9791659f0bee8834ea430cbd1d5f37332bbbe06a5ab4be348"
     },
     "scripts/affiliate_provider_row_scope.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "4c2eb769723efbde2c7cb6fcb5f5bd7da2b236333dc1376098cd08056db4af90"
     },
     "scripts/affiliate_sheet_batch_writer.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "dc713c15af72f5dc2af6311fbcc9f0a56c887ff5843da7a741a6af84d376690c"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "c224fd6c67547af345e8d06fefaadc95f37816df70091d3ad088a3ae472c0d99"
     },
     "scripts/article_carrier_gate_health.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "59ce6e9b952f1a305ccbee6152578d65a95c78d69b13c81bab57eb1519c33016"
     },
     "scripts/awin_fresh_preflight.py": {
-      "callers": [
-        "candidate:GLP-317"
-      ],
-      "kind": "script",
       "sha256": "2f4029cc289da3b605cd42a53e059923a9c158676eb287641a32c392108e00ef"
     },
     "scripts/awin_pin_release.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "fdacf59a7faf9c45d396da87b15aaed2e2ce83878fe3ec712da80fc725d730c4"
     },
     "scripts/brief_model_effort.py": {
-      "callers": [
-        "scripts/seat_autodispatch.py"
-      ],
-      "kind": "script",
       "sha256": "317cdc3c43730ca383f6c4363549deb5d7251b8d6860003ef0015a1b44974e34"
     },
     "scripts/browser_session_reaper.py": {
-      "callers": [
-        "crontab:47"
-      ],
-      "kind": "script",
       "sha256": "3ccd1716662e21a3d12b3d50cc8ade8862934b0b096234ea8f94d1965fd924c8"
     },
     "scripts/build_glp_affiliate_wirein_incremental_v2.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432"
     },
     "scripts/business_output_health_sensor.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/business_output_health_cron.sh"
-      ],
-      "kind": "script",
       "sha256": "47da490e7d110e3640d4458762db6a67797b98cd683d4fbf8cb50ad19ad8ded9"
     },
     "scripts/candidate_freshness_coverage.json": {
-      "callers": [],
-      "kind": "script",
       "sha256": "92dcb164410c4408f4099dfc45ce575fee04214d3c049b93130470401ad41ffc"
     },
     "scripts/candidate_freshness_horizon.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "f14de226b9eee30351abeacf1ca36ec6ac0ef5cf81b7aca3100559c13c7fd129"
     },
     "scripts/capacity_pacing.py": {
-      "callers": [
-        "crontab:32"
-      ],
-      "kind": "script",
       "sha256": "d99f6a4d07086f599b9d49d124e241d50d147fa1cfbecffb9f622d40ba8ef102"
     },
     "scripts/codex_capacity_alert.py": {
-      "callers": [
-        "crontab:33"
-      ],
-      "kind": "script",
       "sha256": "411ef6262baedbcb863380034519df8b50127f2442cd6751a473c99e244527a2"
     },
     "scripts/cron_bridge_action.py": {
-      "callers": [
-        "crontab:56",
-        "crontab:57",
-        "crontab:58",
-        "crontab:59",
-        "crontab:60",
-        "crontab:61",
-        "crontab:62",
-        "crontab:63",
-        "crontab:64",
-        "crontab:65",
-        "crontab:66",
-        "crontab:67",
-        "crontab:68",
-        "crontab:69",
-        "crontab:70",
-        "crontab:71",
-        "crontab:72",
-        "crontab:73",
-        "crontab:77"
-      ],
-      "kind": "script",
       "sha256": "420e2012c6d98e665bc5deb261ee1af251169680ef6598840d70475dba6f29cb"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
-      "callers": [
-        "crontab:79"
-      ],
-      "kind": "script",
       "sha256": "466ac7756845d46c428f790349347b0076dbbbfebc5e8170dd9d057dd70d1e35"
     },
     "scripts/cron_ports_sheet/applications.py": {
-      "callers": [
-        "crontab:75"
-      ],
-      "kind": "script",
       "sha256": "a64d02d4e07bc2cc7972ae8a7955d4d849018d8dc1f35275999be8d41e487449"
     },
     "scripts/cron_ports_sheet/approval_watch.py": {
-      "callers": [
-        "crontab:76"
-      ],
-      "kind": "script",
       "sha256": "d8286fde1e415e88c2a7e1c757c7da6d63ef250ba2d4331f832013b13c229448"
     },
     "scripts/cron_ports_sheet/inbox_mirror.py": {
-      "callers": [
-        "crontab:74"
-      ],
-      "kind": "script",
       "sha256": "6009dbe2a59a1145ac1cc986d80e5133974eaeb2fd0bf757611021760ab264e6"
     },
     "scripts/cron_ports_sheet/program_liveness.py": {
-      "callers": [
-        "crontab:78"
-      ],
-      "kind": "script",
       "sha256": "ac2836d8f7c5ea4d0e84f7bf067e80ca956233756f0b24af10d23b6aa241cbbd"
     },
     "scripts/deploy_freeze_guard.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "dc5b5ae91c1a26942f31de82053e765031b264b6034699a83739172bad240459"
     },
     "scripts/disk_guard.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "470ea1dd5c90b471ef7a6f09c9846329b48369171f1c345c3c367e9ba5006330"
     },
     "scripts/fable_bridge.py": {
-      "callers": [
-        "registered:fable-bridge"
-      ],
-      "kind": "script",
       "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
-      "callers": [
-        "GLP-42 authenticated deploy-carrier lineage"
-      ],
-      "kind": "script",
       "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
     "scripts/glp34_package_only.inc.py": {
-      "callers": [
-        "scripts/generate_glp34_deploy_carrier.py"
-      ],
-      "kind": "script",
       "sha256": "c530e001e25fe2c57a4f67467eb9c7552b12c2d567cd43dcd8891511309d857c"
     },
+    "scripts/glp44_scoped_adoption.py": {
+      "sha256": "8bb793aae786c1c0c0b736cb7b4d3d3d57d6ab877a2be3b6ed0dc5a0665462cd"
+    },
     "scripts/glp_ads_three_platform_monitor.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
     },
     "scripts/glp_affiliate_link_rails.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd58b30c6c70d6"
     },
     "scripts/glp_affiliate_link_rot.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_link_rot.py"
-      ],
-      "kind": "script",
       "sha256": "871bf9af354a1e3d163fa22f98ea680b288232bf1f1daef00f8b283cb78bf784"
     },
     "scripts/glp_affiliate_reconciliation_honesty.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "f91595edee8f8cc8d0fd0e31039cdc2fdc523fa333e4750b7d0daf3dc49d86d3"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
-      "callers": [
-        "scripts/glp_affiliate_weekly_reporting_job.py"
-      ],
-      "kind": "script",
       "sha256": "c8a0503f3e092a162ca027403974235d14e7c800523bde15792de10d2243feb9"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
-      ],
-      "kind": "script",
       "sha256": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
-      "callers": [
-        "hermes:f0c6a95a371c",
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21"
     },
     "scripts/glp_affiliate_wire_backlog_worker.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "b313063f54848dbf4e7e8ff8b4dbf2bf697ff1ccb7245837d950b61c3ed255a0"
     },
     "scripts/glp_awin_portal_login.py": {
-      "callers": [
-        "on-demand:browser_vault_glp54"
-      ],
-      "kind": "script",
       "sha256": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5"
     },
     "scripts/glp_current_content_base_schema.py": {
-      "callers": [
-        "GLP-73 article current-base reader"
-      ],
-      "kind": "script",
       "sha256": "e1c2c57c90f08503742a1d0ad7256c10f89473e39f1feb7c717764e749bbc479"
     },
     "scripts/glp_deploy_build6_authority_v1.py": {
-      "callers": [
-        "GLP-42 authenticated deploy-carrier lineage"
-      ],
-      "kind": "script",
       "sha256": "e54a4af3166e7756f1460283b346a4c76c000cdcde30af7b2d22672b5960366d"
     },
     "scripts/glp_deploy_glp34_authority_v1.py": {
-      "callers": [
-        "GLP-42 authenticated deploy-carrier lineage"
-      ],
-      "kind": "script",
       "sha256": "8fd71a979f078cdbe2eaec83b07445a3ba4e6b0fedfda09099333ae41fb80b0f"
     },
     "scripts/glp_earnings_notice.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "8a7410c288bc31b5fbbe5871a44a71e79ec8df99e7acbeb2b43be11eecb1c0f5"
     },
     "scripts/glp_evidence_refresh_cycle.py": {
-      "callers": [
-        "crontab:40"
-      ],
-      "kind": "script",
       "sha256": "c1a7a73919328f7a40de2fb80efb80619965a207ff5091f7646e622e65a4f2bf"
     },
     "scripts/glp_g6_weekly_traction_report.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh"
-      ],
-      "kind": "script",
       "sha256": "f4d86f0d41f968db01551c7ed16c7b78f534f2ed6f9103eefbb63552b4d71e54"
     },
     "scripts/glp_maxbounty_capacity_monitor.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "a80092bb830a68931383f5819ecb81b0fc726ff69d4583cb02d7d3bf63c22f73"
     },
     "scripts/glp_maxbounty_fresh_probe.py": {
-      "callers": [
-        "glp_maxbounty_capacity_monitor"
-      ],
-      "kind": "script",
       "sha256": "bbfca936af93758ec6f2cf5c9a1f146810b4b48d4e21d969b1d3deb32ed8356a"
     },
     "scripts/glp_network_revenue_v2.py": {
-      "callers": [
-        "scripts/glp_affiliate_weekly_reporting.py"
-      ],
-      "kind": "script",
       "sha256": "cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1"
     },
     "scripts/glp_onboarding_authoring_dispatch.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "6595ca0d89ff119649e26386dd576f491e51dd989597c405e4ead3785ec1ea6b"
     },
     "scripts/glp_onboarding_authoring_status.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
     },
     "scripts/glp_price_index_weekly.py": {
-      "callers": [
-        "GLP-73 article current-base reader"
-      ],
-      "kind": "script",
       "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
     },
     "scripts/glp_program_liveness_check.py": {
-      "callers": [
-        "scripts/run_tests.sh",
-        "ops/n8n-bridge/actions.json"
-      ],
-      "kind": "script",
       "sha256": "a1c7c0f89374fe31fb84085021d48399bdb70f20a288e0638143509ef7008eb9"
     },
     "scripts/glp_provider_cardinality_test_refresh.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa"
     },
     "scripts/glp_reddit_pack_scout.py": {
-      "callers": [
-        "hermes:11f21051d2e8"
-      ],
-      "kind": "script",
       "sha256": "a014f4770b3c6fac6eff8cdfa1f0a1c46cbd6b36f72e152b9d55e5f106bb32c5"
     },
     "scripts/glp_seo_updater_run.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "8b603503191a8ce94d79cbf02c225936d613014ce87328f373485c85a8ca0d62"
     },
     "scripts/glp_served_test_contract.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "7b08da73ffed67dbac6545aa14ced5fdb67b6167797b017bd6b4fe08611f1234"
     },
     "scripts/glp_sheet_sync_drain.py": {
-      "callers": [
-        "sheet_update_queue single-writer carrier"
-      ],
-      "kind": "script",
       "sha256": "5108b65aec7f26b7f572bfb4fed51128c175232d7e8f138e365cbaac941b9bca"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "d3aae9ee3313fdd7319e74205a02e361765a095451fb0b0315bb7ff0e00df682"
     },
     "scripts/glp_sitemap_lastmod_gate.py": {
-      "callers": [
-        "migration-survivor"
-      ],
-      "kind": "script",
       "sha256": "061c01d7cf60903040d929bde9b7ee0e1521ee4ec5ad5b9d0a242913440b3321"
     },
     "scripts/glp_weekly_seo_analysis.py": {
-      "callers": [
-        "scripts/glp_weekly_seo_control.py"
-      ],
-      "kind": "script",
       "sha256": "469d5655c6b4e0c02e56feb6af95629adde37019dfecf6d4d93ab8528c8aece2"
     },
     "scripts/glp_weekly_seo_control.py": {
-      "callers": [
-        "cron:registered_weekly_control",
-        "GLP-44 manual GSC-only branch; activation held"
-      ],
-      "kind": "script",
       "sha256": "5a52510eab2b5cf98fa198a6cc1aa78a66ef137f59265bdcf67121cbad9f5260"
     },
     "scripts/glp_weekly_seo_ranking_report.py": {
-      "callers": [
-        "GLP-44 registered weekly ranking collector/report"
-      ],
-      "kind": "script",
       "sha256": "0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf"
     },
     "scripts/glp_wire_in_ready_queue.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "f1c097bbdfcb2a64e9445d89f0896a020b7c3f2eea9dde0f983a5e39140190c1"
     },
     "scripts/gpt6pro_packet.py": {
-      "callers": [
-        "on-demand:gpt6pro_wave"
-      ],
-      "kind": "script",
       "sha256": "8690c30d339a539069b69027432c532a7b2599f7461acadaf7ed9f301a852446"
     },
     "scripts/gpt6pro_relay.py": {
-      "callers": [
-        "on-demand:gpt6pro_wave"
-      ],
-      "kind": "script",
       "sha256": "0fa9f5ec807fea55415028e7c997bd9b9abb1dea06817158dc2b839d5d83335d"
     },
     "scripts/gpt6pro_wave.py": {
-      "callers": [
-        "on-demand:orchestrator"
-      ],
-      "kind": "script",
       "sha256": "8e113774bb839fb6c6f6fd9054cf648d628e240d9022217fd321799deb2974f7"
     },
     "scripts/hermes-state-backup.sh": {
-      "callers": [
-        "crontab:20"
-      ],
-      "kind": "script",
       "sha256": "494b0edb5d1c0dc6605c6ac86045694abb944462578a6191bbe6e11fc84b4f20"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/hermes_state_archive_weekly.py"
-      ],
-      "kind": "script",
       "sha256": "564163bb0e9c4fc4a4d671b2b507cf4d24ef5154d6a8d134c7a557fb401f82a2"
     },
     "scripts/host_disk_pruner.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/host_disk_pruner.py"
-      ],
-      "kind": "script",
       "sha256": "75b0bee361d7f5bed35f3f307d8de94f21e062c3ea6f4ccf6cfbb66f99346117"
     },
     "scripts/inbox_token_health_preflight.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
-      ],
-      "kind": "script",
       "sha256": "d57cd67c1709d3e82c8def3eece4bd249436ec034ad740707bf1e43a666a969c"
     },
     "scripts/kael_ops_standup.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/kael_ops_standup.sh"
-      ],
-      "kind": "script",
       "sha256": "61cc4a5e5b1b98cecd49218457dcc2103fbae849629c56e5c87bda616a7a5098"
     },
     "scripts/katalys_approved_link_resolver.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "46c0c8c259c25ab94ea9c1337b550b15569e7a01523f6da5d8a7260741fbd085"
     },
     "scripts/katalys_generate_tracking_links.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "kind": "script",
       "sha256": "7bad1d2ea2084004f98aefd85b5785f15771cebe61237d76c7884d1a293a2cd6"
     },
     "scripts/linear_audit.py": {
-      "callers": [
-        "crontab:45"
-      ],
-      "kind": "script",
       "sha256": "39f17781c5b42c5dcfebec442817d2ac84196e702e2e6adf64c81b3c8a7b0a19"
     },
     "scripts/linear_orchestrator.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "4f2ad5cf2b29f886d8cef64a550d1e3bb66ff22a1e1d75ccabdd01c0cd8c6e18"
     },
     "scripts/loom_delivery_rails.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/loom_guard_events_poller.py"
-      ],
-      "kind": "script",
       "sha256": "a5e7dcf66f14ff19487c4bfedfba0f0c6423152451085d9f07fdd40390919c35"
     },
     "scripts/marketplace_adapters/__init__.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
-      "kind": "script",
       "sha256": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445"
     },
     "scripts/marketplace_adapters/_base.py": {
-      "callers": [
-        "scripts/awin_fresh_preflight.py"
-      ],
-      "kind": "script",
       "sha256": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72"
     },
     "scripts/marketplace_adapters/awin.py": {
-      "callers": [
-        "scripts/awin_fresh_preflight.py"
-      ],
-      "kind": "script",
       "sha256": "864b16dc7816ec92a19964f465e08d833311462c0c4cb6c469d101b5f2854de8"
     },
     "scripts/marketplace_adapters/portal_apply.py": {
-      "callers": [
-        "GLP-317 Awin paused source review"
-      ],
-      "kind": "script",
       "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77"
     },
     "scripts/maxbounty_pin_release.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "169c0f761a5766fa2f22f46f1e0404d380f497c17a3da91098a9075e21d1e462"
     },
     "scripts/pin_drift_report.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "48b514394afb45bf255df2b765d27251bfa409e3d124e8c5a9e0ec69de90dfa5"
     },
     "scripts/post_discord_message.py": {
-      "callers": [
-        "scripts/fable_bridge.py"
-      ],
-      "kind": "script",
       "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
     },
     "scripts/pro_relay_landing_monitor.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
     "scripts/result_contract.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_weekly_ads_analytics.py"
-      ],
-      "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
     "scripts/run_tests.sh": {
-      "callers": [],
-      "kind": "repository_control",
-      "sha256": "f64af2277fe642ba14cb7b06aa6f4a566803a0597443d132a5d74557f172aff3"
+      "sha256": "df46efd8292dfcf1d0f29e4893308639c3786e69f635db50480f5b83ed4239a4"
     },
     "scripts/seat_autodispatch.py": {
-      "callers": [
-        "scripts/seat_continuation.py"
-      ],
-      "kind": "script",
       "sha256": "1d5da370d7d91d69f5d28405178def8782acc0a32a7999383f6d36bf8ca97406"
     },
     "scripts/seat_continuation.py": {
-      "callers": [
-        "protected:ops/protected-oracles.json"
-      ],
-      "kind": "script",
       "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
     },
     "scripts/site_tree_materializer.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4"
     },
     "scripts/skill_router.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "1459ac12ab4cdd4d987a1b34e23d03370d218730d2c644e1a26681376f977253"
     },
     "scripts/state_guard.py": {
-      "callers": [
-        "migration-survivor",
-        "wrapper:ops/hermes-cron-scripts/state_guard_watchdog.py"
-      ],
-      "kind": "script",
       "sha256": "0f715f9275db9d3accb019d45fe2e11ab205373123271d15a51259e4351ef5d0"
     },
     "scripts/subscription_capacity_monitor.py": {
-      "callers": [
-        "migration-survivor",
-        "wrapper:ops/hermes-cron-scripts/subscription_capacity_monitor.py"
-      ],
-      "kind": "script",
       "sha256": "02fb6d6f2558bf1c662b137cddde30d75ca2402057f1903904836bd093b445b3"
     },
     "scripts/sync_from_repo.py": {
-      "callers": [],
-      "kind": "repository_control",
-      "sha256": "afb8bd57af4b65b227dd332754651c83cb13e15d4797133e1e410d818b832743"
+      "sha256": "89d1b531580f35a5dfd123c7028765cbc0bb4367b69864ddee4b5bc9a9e593bf"
     },
     "scripts/sync_from_repo.sh": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "1eb5bfc3e29119a01ce51af159f25e0a5826835400d704112fca7fc4c5771b72"
     },
     "scripts/wiki_maintenance.py": {
-      "callers": [
-        "crontab:5"
-      ],
-      "kind": "script",
       "sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "f5b8b7039439d7f43f8a5416f01818a9a89f5ec806dcc9e1787b90713d520e61"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
-      "callers": [],
-      "kind": "policy",
       "sha256": "c9b7e7b2881f43f076c2f4815eb4b47a09d7f89c4fef18ad75d7f316f84adba4"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "3906d61b94ff5931de45928166c2899d3f491e2ec3503c3588f71df6c1015e89"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/src/blog-system.mjs": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "71dfeda2b50cf0c0df0c20eae541d6b79f73cbc13aac372bc9fab3d26ec89ce9"
     },
     "systems/analytics-brain/analytics_brain.py": {
-      "callers": [
-        "scripts/glp_analytics_brain_cadence.py"
-      ],
-      "kind": "script",
       "sha256": "19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa"
     },
     "systems/analytics-brain/collector.py": {
-      "callers": [
-        "scripts/glp_analytics_brain_cadence.py"
-      ],
-      "kind": "script",
       "sha256": "24f3798f4e31c400a82fa7ae0dffaab27509636d0f4188265235247321b95b3c"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
-      "callers": [
-        "source-only-focused-regression"
-      ],
-      "kind": "test",
       "sha256": "409f0f5c9adbaaf604d4829484d8bfd15f28d0e39a22dbc6b0b0234aa7de5468"
     },
     "systems/seo-blog-machine/scripts/accepted_failure_contract.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "42b8b2c82c6663cca3aa9d57f05c526a9046f880874a1f404ad8e3e76b79463e"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
-      "callers": [
-        "GLP-7 registered article buffer"
-      ],
-      "kind": "script",
       "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
-      "callers": [
-        "GLP-7 registered article buffer"
-      ],
-      "kind": "script",
       "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "346631d530a2989fc28bc9880b5ddc9d717b5bb2cb20df0a4d19c25c63546ce2"
     },
     "systems/seo-blog-machine/scripts/article_images.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "792d813f58d3da108905c617be03bcdf02547d8fcf03d2efa0bb53ab79196d8d"
     },
     "systems/seo-blog-machine/scripts/build_opus_article_release.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "54de35c3bb622127b584dbafb4f511ff8cc6dd1d8f83bced34cfc8bb830cd82a"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "1dc7a08b80e25e7448843cb2c2e2ae077abd67402e4936428502c57114d1d054"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "10e90004795c150b1a459f78b34b990d96494cf75c923e35dfd33e348ca4c9cf"
     },
     "systems/seo-blog-machine/scripts/compile_review_packet_article.py": {
-      "callers": [
-        "GLP-7 publication-date binding"
-      ],
-      "kind": "script",
       "sha256": "d59dbbb83a2f1b3f9ec883a1ffba31997b29aec073d3c5b9eaa4c0aab990cc18"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
-      "callers": [
-        "GLP-73 article current-base reader"
-      ],
-      "kind": "script",
       "sha256": "2a925d3b5f12fec7ae094f0face633e5b9e58208cc19f3b2f0176c60d17a8f94"
     },
     "systems/seo-blog-machine/scripts/defect_remediation.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "dcbf7dd9094e1bbd1dc9c46fea6183e6713aea9e2b7424f78b75f116f9ff6abe"
     },
     "systems/seo-blog-machine/scripts/existing_article_updates.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144"
     },
     "systems/seo-blog-machine/scripts/machine_config.py": {
-      "callers": [
-        "GLP-7 registered article buffer"
-      ],
-      "kind": "script",
       "sha256": "76d04a30fdca5183f7788cc9f29b1408999cd5f9fb9a3d09b59392c5489fe0d4"
     },
     "systems/seo-blog-machine/scripts/materialize_opus_run.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "1b6600045de75c1600b7b0fe11f93e128318beb6e657d4b69d572f654fd0a165"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
-      "callers": [
-        "GLP-7 publication-date binding"
-      ],
-      "kind": "script",
       "sha256": "07dfbd34b702e93179f8ecbe7357d7cc2941c5fa865b2d6de0217f79e6391728"
     },
     "systems/seo-blog-machine/scripts/r2_execution_control.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "eea97573c0c269aa6092b57300bb86fe196d00c28b5181e5f080f476d53f93cc"
     },
     "systems/seo-blog-machine/scripts/review_transports.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "script",
       "sha256": "07f5afe93e2467fe4bc6a117c323b3399f1faff134274a4e842cfa8007fe39c4"
     },
     "systems/seo-blog-machine/scripts/selection_receipt.py": {
-      "callers": [
-        "GLP-7 registered article buffer"
-      ],
-      "kind": "script",
       "sha256": "ab0f9a18484fdb3c4e62c3b7e835cf4aa63954f8a79fec7a5c7a68be12eac301"
     },
     "systems/seo-blog-machine/tests/test_article_buffer.py": {
-      "callers": [
-        "GLP-7 registered article buffer"
-      ],
-      "kind": "test",
       "sha256": "47a2e3ab5a454572b83ba683ef708bac458a4ca1158727cd5604595234111da5"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "test",
       "sha256": "293c4e3c29793e299424a9d7f9dc190409433fd47b947d9a4c8f80f64d8d4b89"
     },
     "systems/seo-blog-machine/tests/test_article_images.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "test",
       "sha256": "ca2a7048963310de791e0fa82dade5a5ad7b77c3d9b477e602c307e2795ea6dd"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
-      "callers": [
-        "GLP-7 publication-date binding regression"
-      ],
-      "kind": "test",
       "sha256": "4f3a21d79b76a4a6afb3031e2fd6794faf7afb4ce7d56997ee0ddb4d0cd0eec0"
     },
     "systems/seo-blog-machine/tests/test_text_only_image_fallback.py": {
-      "callers": [
-        "GLP-73 article image release and text-only rendering"
-      ],
-      "kind": "test",
       "sha256": "3e3b14c68e3a4a5d80fdb1d8e89f2abef672e9298dc3cac3210b316831d24f1c"
     },
     "tests/.retired-20260925/test_fastmode_revert_deadline.py": {
-      "callers": [],
-      "kind": "retired_test",
       "sha256": "31aaf73d32fc970464b25c2635c2dc0899a35df8665c6d11420d073791bfb711"
     },
     "tests/.retired-20260925/test_linear_cycle_time_history.py": {
-      "callers": [],
-      "kind": "retired_test",
       "sha256": "0b54db77a2345380e62c1d430623a126bdfa3b032ff290bee4de5ac294c8fafd"
     },
     "tests/.retired-20260925/test_linear_project_dashboard.py": {
-      "callers": [],
-      "kind": "retired_test",
       "sha256": "46bb3f44055b6101ac328d23d3890aa65167be6c9c1497032d67b7558c6a7d14"
     },
     "tests/.retired-20260925/test_pro_relay_landing_monitor.py.p71b-20260923.bak": {
-      "callers": [],
-      "kind": "retired_test",
       "sha256": "b50ba014cbfedce94d7acd34395c9dec91a11d29e793bfcce3d2565a52530174"
     },
     "tests/.retired-20260925/test_seat_send.py": {
-      "callers": [],
-      "kind": "retired_test",
       "sha256": "d35b2dffb32f900f738028ed1f0fbc5689775ab9cf24f5e14600d7be345bf955"
     },
     "tests/fixtures/glp186_binding_refusals.json": {
-      "callers": [],
-      "kind": "test",
       "sha256": "d737e3302f12b931df48a2d1115876c4591bdd65876464d67a867f9a44f4eadf"
     },
     "tests/fixtures/glp76-material-date-resolver.cjs": {
-      "callers": [],
-      "kind": "test_fixture",
       "sha256": "c5984e89581cf61f8aeb70f2a0270c571679ffbbfdc0f9cbf688e019e174b6f6"
     },
     "tests/fixtures/glp76-transport-contract.json": {
-      "callers": [
-        "tests/test_glp76_host_transport.py"
-      ],
-      "kind": "test_fixture",
       "sha256": "9b6321e78a0bbfbb91c99fa52e13d7b8b2c6b579280bf22036ba5ad9bf8389df"
     },
     "tests/fixtures/therapeutic-taxonomy-coverage.json": {
-      "callers": [],
-      "kind": "policy",
       "sha256": "6e113d93146cbef76d17ed1ba801385ed5a03b65777c78912148bc47332ff0f9"
     },
     "tests/test_affiliate_approval_event_fact_recovery.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "1817791564616acb7986d1679d81b613786c9d6bc9ad3b4af2e16acae2f74b57"
     },
     "tests/test_affiliate_approved_unlinked_disposition.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer",
-        "business_output_health_sensor"
-      ],
-      "kind": "test",
       "sha256": "46fae946e17f89b238fe0eeae68d5789a73e53e7bf49646e3e2649d014494400"
     },
     "tests/test_affiliate_best_terms_machine.py": {
-      "callers": [
-        "affiliate_best_terms_machine"
-      ],
-      "kind": "test",
       "sha256": "61afcc1bba211461e2c2a91d83d55a3d598f4ddca559a72c4959e9858fb9dd31"
     },
     "tests/test_affiliate_cancellation_intake.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "2b2806045a5b842b14244b6d5a26bcf480cf8511bd705d902db3c2cc5b9452ab"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "3f46cf1585616cd3e8bae55049db02bdcff604bffcf1a03f30ac94c9cfa52350"
     },
     "tests/test_affiliate_provider_metadata.py": {
-      "callers": [
-        "affiliate_provider_metadata"
-      ],
-      "kind": "test",
       "sha256": "2d98c983287de74c1ca01b8cd984d318b793a8d5da3dfceb683abaf6c7746f51"
     },
     "tests/test_affiliate_sheet_add_approved_row.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "caf72c7cc1f6091911d85173a74672737e92253ef946577789cedd1f19b8dfb0"
     },
     "tests/test_affiliate_sheet_existing_row_preservation.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "c72a58396bd5e681f58997d0a8dffaae139bd142599fa9d93f9531f77abc85ad"
     },
     "tests/test_affiliate_sheet_network_paused_disposition.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "80e11aab6c60401631f2baf6b96212f83b4cbf2bbf36b8f64dbf56f0e3f38e78"
     },
     "tests/test_affiliate_sheet_schema_guard.py": {
-      "callers": [
-        "affiliate_sheet_schema_guard"
-      ],
-      "kind": "test",
       "sha256": "4e880b4cdd2e558baac158f92553aa785e3a40f219f7d24573dac27ac38aedf9"
     },
     "tests/test_affiliate_sheet_wire_in_link_click_qa.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "3528ea6b15d1a930448730e6f53ff9dc58a13e7c64cfbba42a17d4dde172ebb9"
     },
     "tests/test_affiliate_sheet_writer_authority_discovery.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "4a19964e49760bde9cb5b60b61cf560b60b967e8f9fc1becc257bd8610b93037"
     },
     "tests/test_affiliate_sheet_writer_idempotency.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "3bb1eca401ca8e08b82e7686df48ba539bed6433fca7d096b10d6e210476053e"
     },
     "tests/test_audit_20260916_gates.py": {
-      "callers": [
-        "glp_evidence_refresh_cycle"
-      ],
-      "kind": "test",
       "sha256": "98faf0aadb455b5bc73ce2222c70c0e580c8b7bb0b6b7a9d38102899f6ca92e3"
     },
     "tests/test_awin_application_fit_exclusions.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "f21cbeb0dcaee2448a2bae148a026159ca8f4e77c98fa4d715f2cf5aef65a7c0"
     },
     "tests/test_awin_fresh_preflight.py": {
-      "callers": [
-        "scripts/awin_fresh_preflight.py"
-      ],
-      "kind": "test",
       "sha256": "dd3036b25aae909842f3cc08847b7d703241099ec0aff807ae2c725a567375ed"
     },
     "tests/test_awin_pin_shell_conventions.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "713ad18d0430268e8274ac4af853b798b603ae5f2ce13cb83e251ce127f8f8e9"
     },
     "tests/test_brief_lint_deep.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "ec32ffe20e7acf1cd3de0c17b8768ca931bbef0b45c98631ccd296a52eaf327a"
     },
     "tests/test_brief_lint_short.py": {
-      "callers": [
-        "linear_audit"
-      ],
-      "kind": "test",
       "sha256": "8d9aed6a290611677f1ec1e5d1022680614b8ba226c71023053925bc60cf7045"
     },
     "tests/test_candidate_freshness_horizon.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "53bf1dfa83c9ca6b7a9d5e52e3ef874e55251eea1f67eb34a701b71ffdd29feb"
     },
     "tests/test_capacity_pacing.py": {
-      "callers": [
-        "capacity_pacing"
-      ],
-      "kind": "test",
       "sha256": "d15fe2eb106a4b6d6cfbb4af168528465e75029b7d7208e98b21042c230faf3f"
     },
     "tests/test_cron_applications_note_reconcile.py": {
-      "callers": [
-        "applications"
-      ],
-      "kind": "test",
       "sha256": "7db417e648734fa69134ef74d8b5ba20e2ede8018c2014348e3d52289112a7f1"
     },
     "tests/test_cron_bridge_action.py": {
-      "callers": [
-        "cron_bridge_action"
-      ],
-      "kind": "test",
       "sha256": "31440266dd06ec251627c2568ddbe341947be05f1e3783c714264112272d0f02"
     },
     "tests/test_decisions_router_card.py": {
-      "callers": [
-        "ops/decisions_router.py"
-      ],
-      "kind": "test",
       "sha256": "179ecde5f664b72d5dfc5e5b6096555a5e20c51c2004007ac102a5e78d51b154"
     },
     "tests/test_fable_bridge_identity.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "test",
       "sha256": "5040a06c8affe1c07d653b491f0979db0e8a51e8e5ee7eb5c193f597a1816054"
     },
     "tests/test_fable_bridge_native_review.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "test",
       "sha256": "c068f749100455a5386cf30e0933d58973e93a8421d6b0d95194c4bbf5a0d369"
     },
     "tests/test_fable_bridge_oversize.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "test",
       "sha256": "cff56ed052c003c0206b93ba2c4a1110a3b1758b57cd6752d94f36958b1d9dc9"
     },
     "tests/test_fable_bridge_quota_resume.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "test",
       "sha256": "3d79558b1f1797a2d488de2c5694ddcb6571473ef79e0e54113bf8e6667956f6"
     },
     "tests/test_fable_bridge_reviewer_routing.py": {
-      "callers": [
-        "fable_bridge"
-      ],
-      "kind": "test",
       "sha256": "93ff7db942617fab9593d99c66b23cdfe686af93c71095cad22abb0306c635c6"
     },
     "tests/test_fable_mention_recovery.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "46dd3b5cf52a2ee2099a9be4f997035689af09d59ef3aa1c20f0e96120d4abdc"
     },
     "tests/test_fleet_sentinel.py": {
-      "callers": [
-        "fleet_sentinel"
-      ],
-      "kind": "test",
       "sha256": "deba7d44114feadc58eaea1f9e3bc47be666712d38b87a96b7e87fc5cc2224ed"
     },
     "tests/test_glp183_builder_checked_as_of.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
     },
     "tests/test_glp186_binding_diagnostics.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "eacfae490ca68fdf6a9337d7becf9ae6c464095fc2c0516d93eb7c2e79d47fe5"
     },
     "tests/test_glp193_capture_source_binding.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "ace4b65acfc98cd1e4fd27e88990a01d9f9263403955835e5514e54cbcb87362"
     },
     "tests/test_glp196_price_index_contract.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "1b7681e5f1a50fadb8ee6b356d14a7a322c16b8949cc12e60945dae1e231da14"
     },
     "tests/test_glp250_maxbounty_held_identity.py": {
-      "callers": [
-        "glp_affiliate_approval_reconciler"
-      ],
-      "kind": "test",
       "sha256": "d6bb5a074e39bfc88acaa4c7cd6b75a311c2e0dc9216ae86bbca2a33650044ad"
     },
     "tests/test_glp250_partner_email_hold.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "21a0634c6a8c5156207ca190dd62425cefe7b77e431bd4204623f9d9b9117b4a"
     },
     "tests/test_glp315_reconciler_child_failure.py": {
-      "callers": [
-        "glp_affiliate_approval_reconciler"
-      ],
-      "kind": "test",
       "sha256": "e6123786aeff8fef84a90325d400336d754f4dec0741653f68228b7426ab2e8f"
     },
     "tests/test_glp316_automated_notices.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "c57b0c5d2c59d50aab838ce332284c8af2accc8bbc1256f96bb62fcbf3cb0bb5"
     },
     "tests/test_glp319_incomplete_period.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "41678b63f7d50fec37e3c7a8adb6a326b8d01ac945dee9194ad5945370b7729e"
     },
     "tests/test_glp324_unassigned_commission_preflight.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
     "tests/test_glp42_package_only.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "54e7f2af2eadc7b055ed6f2372b9f366599afd2791d795bcec9aeb4875b13eb3"
     },
     "tests/test_glp43_current_release.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
     },
     "tests/test_glp44_gsc_only_consumer.py": {
-      "callers": [
-        "GLP-44 existing controller GSC-only source checks"
-      ],
-      "kind": "test",
       "sha256": "58984a052c98324eeff924b96604e2f6e3c33305f2783891bbac15b1b1dd56fb"
     },
     "tests/test_glp44_reporting_source_pin_pair.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "7ecab524cdd49c8a0713f053ef55a02e3fb722ca3b112d1a887b5e1fdca17ae0"
     },
+    "tests/test_glp44_scoped_adoption.py": {
+      "sha256": "1bbe4175dd132df3de670d523d11ebbdcd87cd67caf3c04a9fe4aad5356bbe79"
+    },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
-      "callers": [
-        "GLP-44 registered weekly ranking collector/report"
-      ],
-      "kind": "test",
       "sha256": "de6fee9cc25eaa0185fca58d39300439782cde523e1969baf95fe0224089cdc1"
     },
     "tests/test_glp44_weekly_pin_adoption.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "9d9446b403753cb58157d032b3037cc3457d62d5348a9ad52f38f45ca2940424"
     },
     "tests/test_glp73_current_pointer_consumer.py": {
-      "callers": [
-        "GLP-73 source-only regression"
-      ],
-      "kind": "test",
       "sha256": "b73cec2052d4cd6bcf456beb7882a33c45e71d8f349856ca132da718a53c4568"
     },
     "tests/test_glp76_host_transport.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
       "sha256": "9cfc0dccaba287c1ac8ca9aceec41a93d4b85411a73e0a95b9a95b3def347bc6"
     },
     "tests/test_glp76_updater_publication_date.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "2c3b139e88bb0891fa40d7874b762f61270b28fecef0c31146e44cdc24b50c07"
     },
     "tests/test_glp85_cj_reporting_identity.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "0d7fe3355fa6185ff2df1b3a7db42824c4a7dc414272266f4c5253c231dbfd6f"
     },
     "tests/test_glp_ads_three_platform_monitor.py": {
-      "callers": [
-        "glp_ads_three_platform_monitor"
-      ],
-      "kind": "test",
       "sha256": "a6de2aeca29a1b918e1923ef8d41a69da80712db80a4497cebc8d0be940cc90f"
     },
     "tests/test_glp_affiliate_daily_decisions_report.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "6fc77dbd9040504ae15daeb51d91e988f2629322db8efa77c5e433da6375e17e"
     },
     "tests/test_glp_affiliate_inbox_mirror.py": {
-      "callers": [
-        "inbox_mirror"
-      ],
-      "kind": "test",
       "sha256": "7c29656a86b627a320bea1acf2c524fb04211bc3a59a624a69054f311dd9c9e9"
     },
     "tests/test_glp_affiliate_reconciliation_honesty.py": {
-      "callers": [
-        "glp_affiliate_reconciliation_honesty"
-      ],
-      "kind": "test",
       "sha256": "debf5b6233a166cddf331676b6822901aee25096050cc1f6ae2b12b98b3c55f6"
     },
     "tests/test_glp_affiliate_staging_packet.py": {
-      "callers": [
-        "affiliate_sheet_schema_guard",
-        "affiliate_approval_auto_reconciler",
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "8f3edcc5301b1a1c56512c4026c8ce7cf4edea3e60143cfa8094644464846ca3"
     },
     "tests/test_glp_applications_daily_liveness.py": {
-      "callers": [
-        "applications"
-      ],
-      "kind": "test",
       "sha256": "b23d8b5ba8225e20af023da2a4bce77ad47fd25beb08bf440cac329a22c36290"
     },
     "tests/test_glp_approval_watch_entry_contract.py": {
-      "callers": [
-        "approval_watch"
-      ],
-      "kind": "test",
       "sha256": "249218203d4f76940a52a1df02e1e834b1480caf9d1c7cf18e002aad5fdee578"
     },
     "tests/test_glp_awin_portal_login.py": {
-      "callers": [
-        "glp_awin_portal_login"
-      ],
-      "kind": "test",
       "sha256": "4c504b0c485a0790c44a6cbaa35ab1dcd76b9b1bb34a5be7368184e1e30a7af3"
     },
     "tests/test_glp_candidate_quarantine.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "b07edfde0b6373643e906e2904dbce028ce2313cfe3671506f9addfab6dcbfc6"
     },
     "tests/test_glp_cardinality_refresh_repeat_safe.py": {
-      "callers": [
-        "glp_provider_cardinality_test_refresh"
-      ],
-      "kind": "test",
       "sha256": "bcd45124296c6e621e803cc35a4bb855cb3cc7d653c2eb35ca8b9e04ec2efb0d"
     },
     "tests/test_glp_contract_row_starting_price_sort.py": {
-      "callers": [
-        "build_glp_affiliate_wirein_incremental_v2",
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "dda65b95b06223a8107b97a4dc478251e70a5192e5bcf0d30cd2839e84e480ba"
     },
     "tests/test_glp_deploy_build6_authority_v1.py": {
-      "callers": [
-        "GLP-42 authenticated deploy-carrier lineage"
-      ],
-      "kind": "test",
       "sha256": "274b602a2cf6871b91eaf6877fedba81924eb83800e189278db80feb22cb2599"
     },
     "tests/test_glp_deploy_glp34_authority_v1.py": {
-      "callers": [
-        "GLP-42 authenticated deploy-carrier lineage"
-      ],
-      "kind": "test",
       "sha256": "95300e56a4431384ba5dd2a36e694bd1bb7548c889de66c79b518ba2aac95a23"
     },
     "tests/test_glp_earnings_notice.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "2fd5cb717e13a1eaf2dfb53872ca201f6b6bfc697a85bf85e23c6be121694805"
     },
     "tests/test_glp_evidence_schedule.py": {
-      "callers": [
-        "glp_evidence_refresh_cycle"
-      ],
-      "kind": "test",
       "sha256": "6ab76eef94e2c55e9e3f0e107fa07ee168eb4600e27e5789aac5d7789a8aa077"
     },
     "tests/test_glp_go_anchor_taxonomy_and_migration_order.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "95ce26d3401d2c71bc3858d53b3177fe08ed3a5a7c796f15bf98b41b2e8cefb3"
     },
     "tests/test_glp_go_held_by_default_consumer.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "989595c1ff52319a496873dcd7d2c7f111d131f24cc82b74041cade5ffd2e3d8"
     },
     "tests/test_glp_go_runtime_refresh_passes_promotion_authority.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "420b35733a377fdb411c235ff5cbf12578e339aaec272dc6854e0417024e13df"
     },
     "tests/test_glp_inside_account_applications.py": {
-      "callers": [
-        "applications"
-      ],
-      "kind": "test",
       "sha256": "3a93168f2832f392b749c1f62e1fc1ddfc9d44f010343c7780891e0421eef63c"
     },
     "tests/test_glp_landed_sensor_pending_state.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "1cce4c9b19c51dcaa4af498a538be63dd81f3c23b2aaa1b4e5aed27303bea92f"
     },
     "tests/test_glp_landed_uncertain_deployment_reconcile.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "c563c76528e2462b2004d90e0f7424e341db26530b2120a59c5c499f1ece221c"
     },
     "tests/test_glp_maxbounty_fresh_probe.py": {
-      "callers": [
-        "glp_maxbounty_capacity_monitor"
-      ],
-      "kind": "test",
       "sha256": "635c6f35dd222046a195cab85fdabee3dc59306210f36da8cea5793dbd1501a8"
     },
     "tests/test_glp_never_monetized_derived.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "a8acf8254d2c45e7dcb2d1579c44c3bfab66263bf186f9664ca4eccdde58fdd3"
     },
     "tests/test_glp_p77_network_authority.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "ac533b2003712670990e4825d2a4599d9857985b6b21bcdc93e023c9eabde03e"
     },
     "tests/test_glp_parent_row_authorization_20260820.py": {
-      "callers": [
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "776bc411544e40079eead7bf1c59742abeb8525e8ab7a9275c74683b3a49dd8f"
     },
     "tests/test_glp_payout_switch_rail_identity.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "cfd039558210bc4262a21f0758a4690dcf6f82f197e5a5d54cfe6e6b08fd917e"
     },
     "tests/test_glp_program_authority_checked_as_of.py": {
-      "callers": [
-        "build_glp_affiliate_wirein_incremental_v2"
-      ],
-      "kind": "test",
       "sha256": "ba823387da99a54efddc003f82c973937e96859ca0cb9af334a5a0f7b16f0357"
     },
     "tests/test_glp_program_liveness_check.py": {
-      "callers": [
-        "program_liveness"
-      ],
-      "kind": "test",
       "sha256": "de1c539b3d7c62a59a9929fae86469560483de82978dff58fff88f29026658c7"
     },
     "tests/test_glp_provider_cardinality_test_refresh.py": {
-      "callers": [
-        "glp_provider_cardinality_test_refresh"
-      ],
-      "kind": "test",
       "sha256": "0ee9a97798c44d4169ee5699649734a7206eb2d43c7dff33bfb753d05ea233e2"
     },
     "tests/test_glp_reddit_pack_scout.py": {
-      "callers": [
-        "glp_reddit_pack_scout"
-      ],
-      "kind": "test",
       "sha256": "57caf7ca84032d6b36973bf2c998cb7ca836c07e250d512670ee3eb12cce9ff9"
     },
     "tests/test_glp_research_autowire.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "1c713289993244b256177aa6c33f4a02ed0ed3911760f136dc35fd5108195716"
     },
     "tests/test_glp_seo_skill_loader.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
       "sha256": "b3b10ae2ef0449ba59b1616efb5907a85db8e1c7bfb574f5a80973467a9db9f6"
     },
     "tests/test_glp_wire_backlog_wired_repair.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "250ace45197e6dccb1c3228bbfbdd86cb0c46a6a81ea902493a11903330d71c9"
     },
     "tests/test_glp_wirein_declared_routes.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "cc5bc57b3ec25bbb71e9dbfd30a851d39f2925e93e12e1d01b9e98f2b97b5196"
     },
     "tests/test_gpt6pro_relay_binding.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "1e8e040bcae9b681ee6aaa2071069eb5b0b6bf58c44860100b7baabb5bbed4ab"
     },
     "tests/test_gpt6pro_wave.py": {
-      "callers": [
-        "on-demand:orchestrator"
-      ],
-      "kind": "test",
       "sha256": "f0007b5adfa37c8c273ee88af0cb836542878654617bfcd498653786525b1b0d"
     },
     "tests/test_inbox_control_plane.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "14d8dd5c289604c04ac53279d85e997edc81501f5e93f631b97bc3caafaaedb8"
     },
     "tests/test_katalys_approved_link_resolver.py": {
-      "callers": [
-        "katalys_approved_link_resolver"
-      ],
-      "kind": "test",
       "sha256": "c23d8a1c1640f812895c28dd576b5c92e1f299935bbc8af2b1ca4b6304be5d34"
     },
     "tests/test_linear_audit.py": {
-      "callers": [
-        "linear_audit"
-      ],
-      "kind": "test",
       "sha256": "1a51ae06e8ab19bf2c75a07d1856b5158d0f3d4096528cd2a57f08f18581b91b"
     },
     "tests/test_linear_ordinary_completion.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "067b4be7b04d7324a9a131e992dddd00fd0a1bf22772d8a3946333dc5e38d5cd"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
-      "callers": [
-        "linear_audit"
-      ],
-      "kind": "test",
       "sha256": "de45e9db43e497f975c1c4b81fd10628f78f1eb3c4555d17f05435cd075112ab"
     },
     "tests/test_loom_delivery_rails.py": {
-      "callers": [
-        "loom_delivery_rails"
-      ],
-      "kind": "test",
       "sha256": "c8493333ccf8b781495d255bf1585461956c7312305195049a366b6902ad80ed"
     },
     "tests/test_maxbounty_pin_release.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "7132829e82213cacaa2f9cf1da76383c500549c42dd070a9121112d67b734105"
     },
     "tests/test_operator_decision_duplicate_identity.py": {
-      "callers": [
-        "affiliate_approval_auto_reconciler"
-      ],
-      "kind": "test",
       "sha256": "f0bfb45b1817ed4670fa453cd8d47657dcafd22adeaeed95e1d8a6e315ca6195"
     },
     "tests/test_pro_relay_landing_monitor.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "0d46881b4f7497d3c20e7d853db3e71c0228f996365e30c3abe0b17347455fc8"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
-      "callers": [
-        "glp_affiliate_wire_backlog_worker"
-      ],
-      "kind": "test",
       "sha256": "9d12dcf130e01cb300c02a003d515d2d959fffb2e9c843c8b9dac9f374e070fa"
     },
     "tests/test_restore_affiliate_marketplace_parent_rows.py": {
-      "callers": [
-        "affiliate_sheet_schema_guard",
-        "affiliate_approval_auto_reconciler",
-        "affiliate_sheet_batch_writer"
-      ],
-      "kind": "test",
       "sha256": "b15113ac2febaa1aa4231802bda57679b96a42953a13958cda81aa5328dda1bf"
     },
     "tests/test_result_lint_skills.py": {
-      "callers": [
-        "linear_audit"
-      ],
-      "kind": "test",
       "sha256": "8d44d10c87ebdf797cd277083db29359066232207f26f3c4a02e063f0dc4d212"
     },
     "tests/test_seat_autodispatch.py": {
-      "callers": [
-        "scripts/seat_autodispatch.py"
-      ],
-      "kind": "test",
       "sha256": "fd36b526ba6a7e36acfb6ba01734f7075212f45e6bfb44fd11c219b76f718f67"
     },
     "tests/test_seo_buffer_output_health.py": {
-      "callers": [
-        "business_output_health_sensor"
-      ],
-      "kind": "test",
       "sha256": "cb6c5589ba9112ab6273b3856eaecfd5f80a003df0b0512f409fa19b7100576b"
     },
     "tests/test_site_tree_generator_cow_gates.py": {
-      "callers": [
-        "build_glp_affiliate_wirein_incremental_v2"
-      ],
-      "kind": "test",
       "sha256": "4097975fab1dd4edc126c0ec64ef83ec294ba31647d4bcf34d253404058b9f69"
     },
     "tests/test_skill_router_surface_fields.py": {
-      "callers": [],
-      "kind": "test",
       "sha256": "7a7f5c9c543d43a945ebfb4ea6daf6f1fd3ca26dd481d1f142d94c66df39fde0"
     },
     "tests/test_subscription_capacity_monitor.py": {
-      "callers": [
-        "subscription_capacity_monitor"
-      ],
-      "kind": "test",
       "sha256": "e839c07dfd4e6aebed41d16db1f77e4f4f5e223ef738102722925a7b9317fa68"
     },
     "tests/test_sync_from_repo.py": {
-      "callers": [],
-      "kind": "repository_control",
       "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
     },
     "tests/test_therapeutic_taxonomy_refresh.py": {
-      "callers": [],
-      "kind": "script",
       "sha256": "28cc7db0c8b3de90758c1dc62492a2d1fe6cd03239d9850b2f545acef33bd04e"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
-      "callers": [
-        "scripts/fable_bridge.py"
-      ],
-      "kind": "instruction_or_policy",
       "sha256": "e64bd588cbc038a2bcc76227d9e6cf99d5636bb5481b66e6c73af71e9aa3e054"
     },
     "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py": {
-      "callers": [
-        "scripts/fable_bridge.py"
-      ],
-      "kind": "script",
       "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
     }
   },
@@ -2407,5 +1114,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 367
+  "tracked_count": 369
 }
