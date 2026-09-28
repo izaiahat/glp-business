@@ -1040,8 +1040,8 @@ GRID_ROW_CEILING = 20000
 
 
 def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
-                          needed: int, mode_key: str) -> list[int]:
-    """Append blank rows to the tab and return the new row numbers, schema applied.
+                          needed: int, mode_key: str, apply: bool = True) -> list[int]:
+    """Reserve new row numbers; append and apply schema only when applying.
 
     2026-08-26: the Sheet filled up. rowCount was 778 with 777 rows carrying
     business value and **zero** blank rows, so every `create` refused with
@@ -1067,17 +1067,18 @@ def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
             "Needing this many rows means an upstream queue or matcher is "
             "producing duplicates; grow the ceiling only after checking that.")
 
-    svc.spreadsheets().batchUpdate(
-        spreadsheetId=SHEET_ID,
-        body={"requests": [{"appendDimension": {
-            "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
-    ).execute()
-
-    new_rows = list(range(current_row_count + 1, target + 1))
-    requests = schema_requests(sheet_id_num, new_rows)
-    if requests:
+    if apply:
         svc.spreadsheets().batchUpdate(
-            spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+            spreadsheetId=SHEET_ID,
+            body={"requests": [{"appendDimension": {
+                "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
+        ).execute()
+    new_rows = list(range(current_row_count + 1, target + 1))
+    if apply:
+        requests = schema_requests(sheet_id_num, new_rows)
+        if requests:
+            svc.spreadsheets().batchUpdate(
+                spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
     return new_rows
 
 
@@ -7445,9 +7446,8 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
                 if item.get("create") and str(item["program"]) not in target_rows)
             grown = grow_grid_for_creates(
                 svc, int(props["sheetId"]), int(grid_before["rowCount"]),
-                still_needed, spec.key)
+                still_needed, spec.key, apply=apply)
             blank_rows.extend(grown)
-            grid_before["rowCount"] = int(grid_before["rowCount"]) + len(grown)
         if not blank_rows:
             raise RuntimeError(f"{spec.key}_no_blank_grid_row_available")
         target_rows[program] = blank_rows.pop(0)

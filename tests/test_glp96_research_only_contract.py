@@ -41,6 +41,9 @@ class FixtureSheet:
                 self.rows.append([""] * len(writer.HEADERS))
             self.rows[row_num - 1][2] = f"Reserved parent {row_num}"
         self.writes = 0
+        self.grid_row_count = 12
+        self.structural_calls = []
+        self.value_calls = []
     def spreadsheets(self):
         return self
     def values(self):
@@ -49,10 +52,11 @@ class FixtureSheet:
         if "range" in kwargs:
             return Request(lambda: {"values": copy.deepcopy(self.rows)})
         return Request({"sheets": [{"properties": {"title": writer.TAB, "sheetId": 1,
-                    "gridProperties": {"rowCount": 12, "columnCount": len(writer.HEADERS)}}}]})
+                    "gridProperties": {"rowCount": self.grid_row_count, "columnCount": len(writer.HEADERS)}}}]})
     def batchUpdate(self, **kwargs):
         if "body" in kwargs and "data" in kwargs["body"]:
             def write():
+                self.value_calls.append(copy.deepcopy(kwargs["body"]))
                 for item in kwargs["body"]["data"]:
                     match = re.search(r"!([A-Z]+)(\d+)$", item["range"])
                     col = 0
@@ -65,7 +69,13 @@ class FixtureSheet:
                     self.writes += 1
                 return {}
             return Request(write)
-        return Request({})
+        def mutate_structure():
+            self.structural_calls.append(copy.deepcopy(kwargs["body"]))
+            for request in kwargs["body"].get("requests", []):
+                if "appendDimension" in request:
+                    self.grid_row_count += request["appendDimension"]["length"]
+            return {}
+        return Request(mutate_structure)
 
 
 @pytest.fixture
@@ -88,6 +98,30 @@ def run(lane, rows):
     folder.mkdir()
     with google_import_stubs():
         return drain.drain(rows, folder, apply=True, sleep=lambda _: None)
+
+
+def test_full_grid_dry_run_plans_create_without_any_sheet_mutation(lane):
+    sheet, root = lane
+    # The single unused row in the fixture is filled; the next create needs growth.
+    sheet.rows[2][2] = "Existing provider at row 3"
+    preimage = copy.deepcopy(sheet.rows)
+    grid_before = sheet.grid_row_count
+    queue_row = queue()[0]
+    entry = drain.build_entry(queue_row["kind"], queue_row,
+                              drain.parse_evidence(queue_row), None, None)
+    plan = drain.plan_for(queue_row["kind"], entry, queue_row)
+    plan_path, receipt_path = root / "plan.json", root / "receipt.json"
+    plan_path.write_text(json.dumps(plan))
+
+    assert writer.run_sheet_sync_mode(queue_row["kind"], plan_path, receipt_path, apply=False) == 0
+    receipt = json.loads(receipt_path.read_text())
+    assert receipt["dry_run"] is True and receipt["no_sheet_write"] is True
+    assert receipt["created_rows"] == [grid_before + 1]
+    assert receipt["grid_before"]["rowCount"] == grid_before
+    assert sheet.grid_row_count == grid_before
+    assert sheet.rows == preimage
+    assert sheet.structural_calls == []  # appendDimension, schema and formatting
+    assert sheet.value_calls == [] and sheet.writes == 0
 
 
 def test_two_real_sources_create_held_rows_without_application_queue(lane):
