@@ -448,6 +448,12 @@ def finish_action(action, args, job, state, state_path, *, call=None):
     if action == "glp_seo_updater":
         r = machine_receipt(job, schema="n8n.seo_updater.v1")
         if "review-request" in args or r.get("review_only") is True or r.get("status") == "PASS_REVIEW_ONLY":
+            if ("review-request" in args and r.get("status") != "PASS_REVIEW_ONLY"
+                    and r.get("published") is False and r.get("refreshed") is False):
+                # Review-only never publishes and the updater replays its own
+                # persisted terminal receipt, so re-reading this finished job
+                # can only repeat the verdict. Archive it; do not hold it.
+                raise TerminalRefusal(r.get("status"), "seo_updater_review_only_refused")
             if ("review-request" not in args or r.get("status") != "PASS_REVIEW_ONLY"
                     or r.get("review_only") is not True or r.get("published") is not False
                     or r.get("refreshed") is not False
@@ -458,6 +464,13 @@ def finish_action(action, args, job, state, state_path, *, call=None):
                     "operation_id": r.get("operation_id")}
         if r.get("status") not in ("PASS_REFRESHED",
                 "PASS_NOTHING_DUE", "PASS_ALREADY_RUNNING", "PASS_DAILY_QUOTA_COMPLETE"):
+            # These return before any claim, attempt or publication. Replaying
+            # the finished job cannot change them, and holding it would block
+            # the updater's own later reconciliation of this same argument.
+            if (r.get("status") in ("BLOCKED_CURRENT_GENERATION_PLAN_MISSING", "BLOCKED_NO_READY_PACKET")
+                    and r.get("published") is False and r.get("refreshed") is False
+                    and not r.get("operation_id")):
+                raise TerminalRefusal(r["status"], "seo_updater_refused_before_claim")
             # The updater deliberately exits zero on domain refusals, including
             # failures after partial effects. Keep pending for GET-only readback.
             raise RuntimeError("seo_updater_nonpass_see_machine_receipt")

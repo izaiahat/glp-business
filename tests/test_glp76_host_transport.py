@@ -34,15 +34,58 @@ def test_semantic_release_refusal_is_not_rc_zero_success(tmp_path, monkeypatch):
     monkeypatch.setattr(cron, "post_once", post)
     result = run(tmp_path, call, {"pt-date": "2026-09-03"})
     assert result["status"] == "FAIL" and result["rc"] != 0
-    assert result["reason"] == "seo_updater_nonpass_see_machine_receipt"
+    assert result["reason"] == "seo_updater_refused_before_claim"
+    assert result["machine_status"] == "BLOCKED_CURRENT_GENERATION_PLAN_MISSING"
     assert calls[0] == ("/run", {"action": "script", "name": ACTION,
                                    "args": {"pt-date": "2026-09-03"}})
-    # A conclusively blocked machine can still have landed a partial effect.
-    # Preserve its identity for GET-only reconciliation, not another POST.
+    # Refused before any claim: the terminal job is archived, not replayed by
+    # GET forever. A later invocation reaches the updater's own gates again.
     assert run(tmp_path, call, {"pt-date": "2026-09-03"})["status"] == "FAIL"
-    assert [p for p, _ in calls] == ["/run", "/job/fixture-only"]
+    assert [p for p, _ in calls] == ["/run", "/run"]
     hb.assert_not_called()
     post.assert_not_called()
+
+
+def test_possible_partial_effect_refusal_is_held_for_get_only_readback(tmp_path, monkeypatch):
+    hb, post = Mock(), Mock()
+    monkeypatch.setattr(cron, "heartbeat", hb)
+    monkeypatch.setattr(cron, "post_once", post)
+    for status, fields in (("BLOCKED_UPDATE_FAILED", {"operation_id": "fixture-operation"}),
+                           ("BLOCKED_EFFECTFUL_CHILD_OUTCOME_AMBIGUOUS", {"operation_id": "fixture-operation"}),
+                           ("BLOCKED_CURRENT_GENERATION_PLAN_MISSING", {"operation_id": "fixture-operation"}),
+                           ("BLOCKED_NO_READY_PACKET", {"published": True}),
+                           ("BLOCKED_ADAPTER_ERROR", {}), ("BLOCKED_UNKNOWN", {})):
+        calls = []
+        def call(path, payload=None):
+            calls.append(path)
+            return 200, job(status, **fields)
+        state = tmp_path / status
+        for _ in range(2):
+            result = run(state, call, {"pt-date": "2026-09-03"})
+            assert result["status"] == "FAIL" and "machine_status" not in result
+        # A conclusively blocked machine can still have landed a partial effect.
+        # Preserve its identity for GET-only reconciliation, not another POST.
+        assert calls == ["/run", "/job/fixture-only"], status
+    hb.assert_not_called()
+    post.assert_not_called()
+
+
+def test_review_only_refusal_is_archived_without_publication_or_replay(tmp_path, monkeypatch):
+    args = {"review-request": "/fixture/request.json", "review-request-sha256": "a" * 64}
+    monkeypatch.setattr(cron, "heartbeat", Mock(side_effect=AssertionError("bookkeeping")))
+    monkeypatch.setattr(cron, "post_once", Mock(side_effect=AssertionError("notification")))
+    for i, status in enumerate(("BLOCKED_REVIEW_ONLY", "BLOCKED_REVIEW_SUBJECT_DRIFT", "BLOCKED_ADAPTER_ERROR")):
+        call = Mock(return_value=(200, job(status, review_only=status != "BLOCKED_ADAPTER_ERROR")))
+        for _ in range(2):
+            result = run(tmp_path / str(i), call, args)
+            assert result["status"] == "FAIL" and result["machine_status"] == status
+            assert result["reason"] == "seo_updater_review_only_refused"
+        assert [c.args[0] for c in call.call_args_list] == ["/run", "/run"]
+    # A review-only receipt reporting any effect stays held for reconciliation.
+    call = Mock(return_value=(200, job("BLOCKED_REVIEW_ONLY", review_only=True, published=True)))
+    for _ in range(2):
+        assert run(tmp_path / "effect", call, args)["reason"] == "seo_updater_review_only_contract_invalid"
+    assert [c.args[0] for c in call.call_args_list] == ["/run", "/job/fixture-only"]
 
 
 def test_mode_admission_preserves_registered_arguments_without_a_schedule(tmp_path):

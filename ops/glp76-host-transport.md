@@ -48,6 +48,17 @@ is a non-installable excerpt, not a replacement `actions.json` or authority.
   blocked/unknown statuses, truncated output and contradictory effect flags.
   A failed postcondition retains the known pending job for GET-only readback;
   do not delete it or change arguments to circumvent reconciliation.
+- Terminal replay: a finished bridge job is immutable, so re-reading it can only
+  repeat its verdict. `BLOCKED_CURRENT_GENERATION_PLAN_MISSING` and
+  `BLOCKED_NO_READY_PACKET` with no operation and both effect flags false are
+  returned before any claim, attempt or publication; they are archived as a
+  terminal refusal (rc 125, alert raised) rather than held forever, so a later
+  authorized invocation of the same argument reaches the updater's own gates.
+  Review-only refusals with both effect flags false are archived the same way;
+  the updater replays its own persisted review receipt and never republishes.
+  Every other blocked/unknown status (update failure, effectful child
+  in-progress/ambiguous, adapter error, contract violation) may follow a partial
+  effect and stays held for GET-only reconciliation.
 - Review-only has no publication heartbeat/send. Its returned digest must match
   the request and both effect flags must be false.
 - Refresh success requires PASS_REFRESHED and both true effect flags, then a
