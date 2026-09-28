@@ -844,12 +844,12 @@
     "scripts/candidate_freshness_coverage.json": {
       "callers": [],
       "kind": "script",
-      "sha256": "9b9b673f9c435340849da527e83ce3d9bcd36cf8e86ea71272d79a8a9dc34aa2"
+      "sha256": "92dcb164410c4408f4099dfc45ce575fee04214d3c049b93130470401ad41ffc"
     },
     "scripts/candidate_freshness_horizon.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "eec094267d93aed3adf40e2475d71270127363afa28321c0e475da198f5c6afa"
+      "sha256": "f14de226b9eee30351abeacf1ca36ec6ac0ef5cf81b7aca3100559c13c7fd129"
     },
     "scripts/capacity_pacing.py": {
       "callers": [
@@ -1733,7 +1733,7 @@
     "tests/test_candidate_freshness_horizon.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "7a9451d0953350f22a2a454aa6097ff9d8123e61c29ca7fac4f0b73457fea9b7"
+      "sha256": "53bf1dfa83c9ca6b7a9d5e52e3ef874e55251eea1f67eb34a701b71ffdd29feb"
     },
     "tests/test_capacity_pacing.py": {
       "callers": [
