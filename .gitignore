@@ -14,6 +14,11 @@
 /.github/workflows/*
 !/ops/hermes-cron-scripts/
 /ops/hermes-cron-scripts/*
+!/ops/glp/
+/ops/glp/*
+!/ops/glp/reporting-v2/
+/ops/glp/reporting-v2/*
+!/ops/glp/reporting-v2/source-manifest.json
 !/ops/linear/
 /ops/linear/*
 !/scripts/cron_ports/

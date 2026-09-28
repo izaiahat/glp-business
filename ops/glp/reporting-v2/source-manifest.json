@@ -1,0 +1,13 @@
+{
+  "files": {
+    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting.py": "c8a0503f3e092a162ca027403974235d14e7c800523bde15792de10d2243feb9",
+    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8",
+    "/home/ubuntu/business/scripts/glp_network_revenue_import_v2.py": "0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c",
+    "/home/ubuntu/business/scripts/glp_network_revenue_v2.py": "cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1",
+    "/home/ubuntu/business/scripts/marketplace_adapters/__init__.py": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445",
+    "/home/ubuntu/business/scripts/marketplace_adapters/_base.py": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+    "/home/ubuntu/business/scripts/marketplace_adapters/cj.py": "16eb39ee1d04c3d3e08e38547080273c45ea74f98ee5e916bd1d63cd5a9478db",
+    "/home/ubuntu/business/systems/analytics-brain/analytics_brain.py": "6aa593832fbcc0b91f534a8cb6fe8ad4ec92b4832425c643d65f299d2991a2a0"
+  },
+  "schema": "reporting-source-pins-v1"
+}
