@@ -1,0 +1,1299 @@
+#!/usr/bin/env python3
+"""Collect GLP analytics sources and emit the five canonical brain outputs.
+
+Live provider reads are disabled until ``ops/glp/analytics-brain-control.json``
+is explicitly activated at launch. Fixture runs ignore that switch and are the
+pre-launch integration path. This script never reads the site candidate tree.
+"""
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import datetime as dt
+import hashlib
+import importlib.util
+import json
+import re
+import sqlite3
+import sys
+import urllib.request
+from pathlib import Path
+from typing import Any
+from urllib.parse import urljoin, urlsplit
+from zoneinfo import ZoneInfo
+
+HERE = Path(__file__).resolve().parent
+BUSINESS = HERE.parents[1]
+sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(BUSINESS))
+
+from analytics_brain import (  # noqa: E402
+    BING_SITE,
+    GSC_PROPERTY,
+    PRODUCTION_HOST,
+    apply_fact_model,
+    build_outputs,
+    fact_model_statements,
+    record_source_facts,
+    utc_now,
+    write_outputs,
+)
+
+CONTROL = BUSINESS / "ops/glp/analytics-brain-control.json"
+DEPLOY_TRIGGER = BUSINESS / "ops/glp/analytics-brain-state/deploy-trigger.json"
+DEFAULT_DB = BUSINESS / "reports/glp-clinic-scout/operator-national-wow-20260723/data/glp-observability.sqlite"
+DEFAULT_OUTPUT = BUSINESS / "reports/glp-clinic-scout/analytics/current"
+MIGRATION = HERE / "migrations/001_analytics_brain_additive.sql"
+SITEMAP_URL = f"https://{PRODUCTION_HOST}/sitemap.xml"
+USER_AGENT = "glp-analytics-brain/1.0 (+https://glpclinicscout.com)"
+GA4_MEASUREMENT_ID = "G-2WQ42JY0WK"
+GTM_CONTAINER_ID = "GTM-PWR49VVK"
+SOURCE_DATA_KEYS = {
+    "gsc": ("gsc_rows",),
+    "bing": ("bing_rows", "bing_query_rows"),
+    "ga4": ("ga4_rows", "ga4_events"),
+    "posthog": ("posthog_rows", "posthog_events"),
+    "d1_clicks": ("d1_clicks", "browser_clicks", "d1_noncommercial_clicks"),
+    "network_revenue": ("revenue_events", "noncommercial_revenue_events"),
+    "dataforseo": (),
+}
+ROUTE_DATA_KEYS = ("sitemap_routes", "sitemap_complete", "sitemap_sources", "static_routes")
+EXPECTED_SCHEMAS = {
+    "gsc": "gsc-searchanalytics-v3",
+    "bing": "bing-webmaster-v1",
+    "ga4": "ga4-data-v1beta",
+    "posthog": "posthog-hogql-v1",
+    "d1_clicks": "affiliate-click-map-v1",
+    "dataforseo": "glp-topic-data-score-v1",
+    "network_revenue": "analytics-revenue-ledger-v1",
+}
+
+
+def _utc_days_ago(days: int) -> str:
+    return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).date().isoformat()
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _http_text(url: str, timeout: int = 45) -> tuple[int, str]:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return int(response.status), response.read().decode("utf-8", "replace")
+
+
+def _http_page(url: str, timeout: int = 45) -> tuple[int, str, dict[str, str]]:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        headers = {str(key).lower(): str(value) for key, value in response.headers.items()}
+        return int(response.status), response.read().decode("utf-8", "replace"), headers
+
+
+def sitemap_routes(url: str = SITEMAP_URL) -> tuple[list[str], list[str]]:
+    """Read every URL from a sitemap tree. There is intentionally no route cap."""
+    pending = [url]
+    visited: set[str] = set()
+    routes: set[str] = set()
+    sitemap_urls: list[str] = []
+    while pending:
+        current = pending.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        _status, text = _http_text(current)
+        sitemap_urls.append(current)
+        locations = [value.strip() for value in re.findall(r"<loc>\s*([^<]+?)\s*</loc>", text, re.I)]
+        if "<sitemapindex" in text.lower():
+            for child in locations:
+                parsed = urlsplit(child)
+                if parsed.hostname != PRODUCTION_HOST:
+                    raise RuntimeError(f"sitemap_foreign_host:{parsed.hostname}")
+                if child not in visited:
+                    pending.append(child)
+            continue
+        for location in locations:
+            parsed = urlsplit(location)
+            if parsed.hostname != PRODUCTION_HOST:
+                raise RuntimeError(f"sitemap_foreign_host:{parsed.hostname}")
+            route = "/" + parsed.path.strip("/")
+            routes.add("/" if route == "/" else route + "/")
+    if not routes:
+        raise RuntimeError("sitemap_routes_empty")
+    return sorted(routes), sitemap_urls
+
+
+def _slot_ids(html: str) -> list[str]:
+    values: set[str] = set()
+    for pattern in (
+        r"data-slot-id\s*=\s*['\"]([^'\"]+)['\"]",
+        r"data-sponsor-slot\s*=\s*['\"]([^'\"]+)['\"]",
+        r"data-placement-id\s*=\s*['\"]([^'\"]+)['\"]",
+    ):
+        values.update(re.findall(pattern, html, re.I))
+    return sorted(values)
+
+
+def _internal_html_routes(html: str) -> list[str]:
+    routes: set[str] = set()
+    for href in re.findall(r"<a\b[^>]*\bhref\s*=\s*['\"]([^'\"#]+)", html, re.I):
+        parsed = urlsplit(urljoin(f"https://{PRODUCTION_HOST}/", href))
+        if parsed.hostname != PRODUCTION_HOST:
+            continue
+        path = parsed.path or "/"
+        if path.startswith(("/go/", "/api/", "/cdn-cgi/")):
+            continue
+        final = path.rsplit("/", 1)[-1]
+        if "." in final:
+            continue
+        route = "/" + path.strip("/")
+        routes.add("/" if route == "/" else route + "/")
+    return sorted(routes)
+
+
+# 2026-08-27 declared excluded hosts: our own subdomains and the operator's
+# review tunnels legitimately carry the tag but are NOT production traffic.
+# Facts already filter to the exact production host; these are recorded and
+# excluded from the pollution verdict. A host outside this set still fails.
+#: 2026-08-28: Cloudflare Pages PREVIEW deployments (`<hash>.glp-clinic-scout.pages.dev`
+#: and branch aliases) are OUR OWN review infrastructure. They ship the real
+#: analytics wiring on purpose — a preview whose tag is stripped cannot prove the
+#: production build's instrumentation — so they emit real GA4 events from a
+#: non-production host. Execution 2002 correctly flagged 14 such events
+#: (4136ff89 / cfa10eb2, the paid-acquisition funnel previews) as
+#: FAIL_HOST_POLLUTION. Same category as the operator's trycloudflare review
+#: tunnels already declared below: recorded, excluded from the pollution verdict,
+#: never counted as production traffic. The project name is pinned — an arbitrary
+#: *.pages.dev host is still someone else's site and still fails.
+DECLARED_EXCLUDED_HOST_RE = re.compile(
+    r"^(?:www\.glpclinicscout\.com|partners\.glpclinicscout\.com"
+    r"|[a-z0-9-]+\.trycloudflare\.com"
+    r"|[a-z0-9-]+\.glp-clinic-scout\.pages\.dev|glp-clinic-scout\.pages\.dev"
+    r"|localhost|127\.0\.0\.1)$")
+
+
+def _non_allowlisted(host_distribution: dict[str, int]) -> int:
+    return sum(value for host, value in host_distribution.items()
+               if host != PRODUCTION_HOST and not DECLARED_EXCLUDED_HOST_RE.match(str(host or "")))
+
+
+def _csp(html: str, headers: dict[str, str]) -> str:
+    header = headers.get("content-security-policy") or ""
+    meta = re.search(
+        r"<meta\b[^>]*http-equiv\s*=\s*['\"]Content-Security-Policy['\"][^>]*content\s*=\s*['\"]([^'\"]+)",
+        html,
+        re.I,
+    )
+    return header or (meta.group(1) if meta else "")
+
+
+def inspect_route(route: str, control: dict[str, Any]) -> dict[str, Any]:
+    url = urljoin(f"https://{PRODUCTION_HOST}/", route.lstrip("/"))
+    try:
+        status, html, headers = _http_page(url)
+    except Exception as exc:  # noqa: BLE001 - recorded per route
+        return {
+            "path": route,
+            "http_status": None,
+            "error": f"{type(exc).__name__}:{str(exc)[:200]}",
+            "ga4_static_present": False,
+            "ga4_direct_loader_present": False,
+            "gtm_static_present": False,
+            "posthog_static_present": False,
+            "clarity_static_present": False,
+            "csp_present": False,
+            "csp_gtm_allowed": False,
+            "csp_posthog_allowed": False,
+            "consent_default_denied_present": False,
+            "sponsored_anchor_count": 0,
+            "client_marker_count": 0,
+            "first_party_redirect_count": 0,
+            "sponsor_slot_ids": [],
+            "internal_routes": [],
+            "affiliate_route_expected": route in set(control.get("affiliate_routes") or []),
+            "representative_probe_required": route in set(control.get("representative_probe_routes") or []),
+            "static_contract_exempt": route in set(control.get("static_exempt_routes") or []),
+        }
+    sponsored_tags = re.findall(
+        r"<a\b[^>]*\brel\s*=\s*['\"][^'\"]*\bsponsored\b[^'\"]*['\"][^>]*>", html, re.I
+    )
+    sponsored = len(sponsored_tags)
+    # 2026-08-27 launch as-built grammar: sponsored anchors carry the CR-5
+    # marker set (data-analytics-event="affiliate_click" + data-program +
+    # data-network + element/rank/page-type + baked sub slots) and link
+    # transparent-direct to the network with baked identity; /go/ remains only
+    # on redirect-carrying surfaces (quiz held routes). The pre-launch grammar
+    # (data-link-position markers, universal /go/ hrefs) stays accepted so an
+    # older release never reads as uninstrumented.
+    client_markers = sum(
+        (bool(re.search(r"\bdata-program\s*=", tag, re.I))
+         and bool(re.search(r"\bdata-link-position\s*=", tag, re.I)))
+        or (bool(re.search(r"\bdata-analytics-event\s*=\s*['\"]affiliate_click", tag, re.I))
+            and bool(re.search(r"\bdata-program\s*=", tag, re.I)))
+        for tag in sponsored_tags
+    )
+    first_party_redirects = sum(
+        bool(re.search(r"\bhref\s*=\s*['\"](?:https://glpclinicscout\.com)?/go/", tag, re.I))
+        or (bool(re.search(r"\bdata-analytics-event\s*=\s*['\"]affiliate_click", tag, re.I))
+            and bool(re.search(r"\bdata-network\s*=", tag, re.I)))
+        for tag in sponsored_tags
+    )
+    csp = _csp(html, headers)
+    gtm_present = GTM_CONTAINER_ID in html
+    # 2026-08-27: the measurement ID string legitimately appears in the page
+    # (GCS_ANALYTICS event-routing config + the inline synthetic ga-disable
+    # guard). "Direct loader" means the gtag.js LOADER itself — GTM is the only
+    # sanctioned loader after the cutover.
+    direct_ga4 = "googletagmanager.com/gtag/js" in html
+    # 2026-08-27: operative consent model is the operator-approved default-on
+    # policy (analytics-default-on-20260801): the consent DEFAULT lives in the
+    # GTM container at Consent Initialization, ad_* stays denied via the
+    # consent.js update path, and an inline synthetic guard precedes the GTM
+    # loader. Accept that as-built shape alongside the original inline
+    # default-denied grammar.
+    consent_default_denied = bool(
+        (re.search(r"consent.{0,120}default", html, re.I | re.S)
+         and re.search(r"analytics_storage.{0,80}denied", html, re.I | re.S))
+        or ("ga-disable-" + GA4_MEASUREMENT_ID in html and "/assets/consent.js" in html)
+    )
+    return {
+        "path": route,
+        "http_status": status,
+        "ga4_static_present": gtm_present or direct_ga4,
+        "ga4_direct_loader_present": direct_ga4,
+        "gtm_static_present": gtm_present,
+        "posthog_static_present": bool(re.search(r"posthog", html, re.I)),
+        "clarity_static_present": bool(re.search(r"clarity\.ms|clarity\s*\(", html, re.I)),
+        "csp_present": bool(csp),
+        "csp_gtm_allowed": "googletagmanager.com" in csp,
+        "csp_posthog_allowed": "us.i.posthog.com" in csp and "us-assets.i.posthog.com" in csp,
+        "consent_default_denied_present": consent_default_denied,
+        "sponsored_anchor_count": sponsored,
+        "client_marker_count": client_markers,
+        "first_party_redirect_count": first_party_redirects,
+        "sponsor_slot_ids": _slot_ids(html),
+        "internal_routes": _internal_html_routes(html),
+        "affiliate_route_expected": route in set(control.get("affiliate_routes") or []),
+        "representative_probe_required": route in set(control.get("representative_probe_routes") or []),
+        "static_contract_exempt": route in set(control.get("static_exempt_routes") or []),
+    }
+
+
+def inspect_routes(routes: list[str], control: dict[str, Any]) -> list[dict[str, Any]]:
+    pending = sorted(set(routes))
+    inspected: dict[str, dict[str, Any]] = {}
+    while pending:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            rows = list(pool.map(lambda route: inspect_route(route, control), pending))
+        for row in rows:
+            inspected[str(row["path"])] = row
+        discovered = {
+            path for row in rows for path in row.get("internal_routes") or []
+            if path not in inspected
+        }
+        pending = sorted(discovered)
+    return [inspected[path] for path in sorted(inspected)]
+
+
+def _rail_module():
+    path = BUSINESS / "ops/glp/seo_data_rails.py"
+    spec = importlib.util.spec_from_file_location("analytics_brain_rails", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("seo_data_rails_import_failed")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _d1_client():
+    path = BUSINESS / "reports/glp-clinic-scout/operator-national-wow-20260723/scripts/glp_observability_collect.py"
+    spec = importlib.util.spec_from_file_location("analytics_brain_d1", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("d1_client_import_failed")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    values = module.load_env(module.D1_SECRET)
+    token = values.get("CLOUDFLARE_API_TOKEN") or values.get("CF_API_TOKEN")
+    if not token:
+        raise RuntimeError("d1_token_missing")
+    return module.D1Client(token)
+
+
+def record_d1_fact_model(outputs: dict[str, dict[str, Any]], client: Any | None = None) -> int:
+    """Write the same source-specific facts to D1 with parameterized statements."""
+    remote = client or _d1_client()
+    statements = fact_model_statements(outputs)
+    remote.batch(statements)
+    return len(statements)
+
+
+def _source(state: str, rows: int | None, *, host_scope: str | None = None,
+            watermark: str | None = None, reason: str | None = None,
+            schema: str, expected_rows: int | None = None) -> dict[str, Any]:
+    return {
+        "state": state,
+        "actual_rows": rows,
+        "expected_rows": expected_rows,
+        "watermark": watermark,
+        "host_scope": host_scope,
+        "host_filter": ({"dimension": "hostName", "exact": PRODUCTION_HOST}
+                        if host_scope == PRODUCTION_HOST else None),
+        "expected_schema": schema,
+        "observed_schema": schema if state in {"healthy", "measured_zero"} else None,
+        "last_successful_readback": utc_now() if state in {"healthy", "measured_zero"} else None,
+        "reason": reason,
+        "metric_value": None,
+    }
+
+
+def _collect_gsc(data: dict[str, Any], sources: dict[str, Any], google: Any) -> None:
+    prior_success = (sources.get("gsc") or {}).get("last_successful_readback")
+    attempted_at = utc_now()
+    try:
+        gsc_doc = google.gsc_search_analytics(
+            property_uri=GSC_PROPERTY,
+            start_date=_utc_days_ago(30),
+            end_date=_utc_days_ago(3),
+            dimensions=["page", "query"],
+            row_limit=25000,
+            fetch_all=True,
+        )
+        if not gsc_doc.get("ok") or gsc_doc.get("complete") is not True:
+            raise RuntimeError(str(gsc_doc.get("error") or "gsc_read_failed"))
+        gsc_rows = []
+        for row in gsc_doc.get("rows") or []:
+            keys = row.get("keys") or []
+            page = urlsplit(str(keys[0] if keys else "")).path or "/"
+            gsc_rows.append({
+                "path": page,
+                "query": keys[1] if len(keys) > 1 else None,
+                "clicks": int(row.get("clicks") or 0),
+                "impressions": int(row.get("impressions") or 0),
+                "ctr": row.get("ctr"),
+                "position": row.get("position"),
+            })
+        # A requested end date is not a provider reporting watermark. Verify the
+        # latest returned date independently, as recommended by Google's API doc.
+        dates_doc = google.gsc_search_analytics(
+            property_uri=GSC_PROPERTY, start_date=_utc_days_ago(30),
+            end_date=_utc_days_ago(3), dimensions=["date"], row_limit=25000, fetch_all=True,
+        )
+        if not dates_doc.get("ok") or dates_doc.get("complete") is not True:
+            raise RuntimeError(str(dates_doc.get("error") or "gsc_date_read_failed"))
+        observed_dates = [dt.date.fromisoformat(str(row["keys"][0])).isoformat()
+                          for row in dates_doc.get("rows") or [] if row.get("keys")]
+        data["gsc_rows"] = gsc_rows
+        gsc_state = "healthy" if gsc_rows else "measured_zero"
+        sources["gsc"] = {
+            **_source(gsc_state, len(gsc_rows), watermark=max(observed_dates, default=None),
+                      schema=EXPECTED_SCHEMAS["gsc"]),
+            "watermark_kind": "provider_report_date" if observed_dates else "unknown",
+            "property": GSC_PROPERTY,
+            "pages_fetched": int(gsc_doc.get("pages") or 0),
+            "complete": True,
+            "collection_window": {"start": _utc_days_ago(30), "end": _utc_days_ago(3)},
+        }
+    except Exception as exc:  # noqa: BLE001
+        sources["gsc"] = _source("error", None, reason=str(exc)[:300],
+                                 schema=EXPECTED_SCHEMAS["gsc"])
+        sources["gsc"]["last_successful_readback"] = prior_success
+    sources["gsc"].update(last_attempt_at=attempted_at, prior_last_successful_readback=prior_success)
+
+
+def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> None:
+    try:
+        ga4_doc = google.ga4_run_report(
+            start_date=_utc_days_ago(2),
+            end_date="today",
+            dimensions=["dateHourMinute", "hostName", "pagePath", "eventName", "customEvent:cs_click_id"],
+            metrics=["eventCount", "sessions", "engagedSessions"],
+            limit=250000,
+            fetch_all=True,
+        )
+        if (not ga4_doc.get("ok") or ga4_doc.get("complete") is not True
+                or ga4_doc.get("host_filtered") is not True):
+            raise RuntimeError(str(ga4_doc.get("error") or "ga4_read_failed"))
+        host_doc = google.ga4_run_report(
+            start_date=_utc_days_ago(2), end_date="today", dimensions=["hostName"],
+            metrics=["eventCount"], limit=250000, host_filter=None, fetch_all=True,
+        )
+        if not host_doc.get("ok") or host_doc.get("complete") is not True:
+            raise RuntimeError(str(host_doc.get("error") or "ga4_host_distribution_read_failed"))
+        host_distribution = {
+            str(row.get("dimensions", [""])[0]): int(float((row.get("metrics") or [0])[0]))
+            for row in host_doc.get("rows") or [] if row.get("dimensions")
+        }
+        non_allowlisted = _non_allowlisted(host_distribution)
+        ga4_rows = []
+        ga4_events = []
+        for row in ga4_doc.get("rows") or []:
+            dimensions = row.get("dimensions") or []
+            metrics = row.get("metrics") or []
+            observed_at = dimensions[0] if dimensions else None
+            host = dimensions[1] if len(dimensions) > 1 else None
+            page = dimensions[2] if len(dimensions) > 2 else "/"
+            event_name = dimensions[3] if len(dimensions) > 3 else None
+            click_id = dimensions[4] if len(dimensions) > 4 else None
+            record = {"host": host, "path": page, "event_name": event_name,
+                      "provider_time": observed_at,
+                      "event_count": int(float(metrics[0])) if metrics else 0,
+                      "sessions": int(float(metrics[1])) if len(metrics) > 1 else 0,
+                      "engaged_sessions": int(float(metrics[2])) if len(metrics) > 2 else 0}
+            ga4_rows.append(record)
+            if click_id and event_name in {"sponsor_click", "affiliate_click"}:
+                ga4_events.append({**record, "cs_click_id": click_id})
+        data["ga4_rows"] = ga4_rows
+        data["ga4_events"] = ga4_events
+        ga4_state = "healthy" if ga4_rows else "measured_zero"
+        event_watermark = max((str(row.get("provider_time") or "") for row in ga4_rows), default="") or None
+        sources["ga4"] = {
+            **_source(ga4_state, len(ga4_rows), host_scope=PRODUCTION_HOST,
+                      watermark=event_watermark or utc_now(), schema=EXPECTED_SCHEMAS["ga4"]),
+            "event_watermark": event_watermark,
+            "pages_fetched": int(ga4_doc.get("pages") or 0),
+            "complete": True,
+            "provider_host_filter": ga4_doc.get("host_filter"),
+            "host_distribution": host_distribution,
+            "non_allowlisted_event_count": non_allowlisted,
+        }
+    except Exception as exc:  # noqa: BLE001
+        sources["ga4"] = _source("error", None, host_scope=PRODUCTION_HOST,
+                                 reason=str(exc)[:300], schema=EXPECTED_SCHEMAS["ga4"])
+
+
+def _bing_report_date(value: Any) -> str | None:
+    if not value:
+        return None
+    text = str(value)
+    match = re.fullmatch(r"/Date\((-?\d+)(?:[+-]\d{4})?\)/", text)
+    try:
+        if match:
+            return dt.datetime.fromtimestamp(int(match.group(1)) / 1000, dt.timezone.utc).date().isoformat()
+        return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).date().isoformat()
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
+def _collect_bing(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> None:
+    prior_success = (sources.get("bing") or {}).get("last_successful_readback")
+    attempted_at = utc_now()
+    try:
+        bing = rails.BingWebmaster(site=BING_SITE)
+        # Same authenticated rail and two read-only endpoints. The shared
+        # convenience transforms discard Date, so retain it here without
+        # changing the shared SEO/scout rail or adding extra provider calls.
+        pages = bing._get("GetPageStats", {"siteUrl": BING_SITE})
+        queries = bing._get("GetQueryStats", {"siteUrl": BING_SITE})
+        if not isinstance(pages, list) or not isinstance(queries, list):
+            raise RuntimeError("bing_stats_response_shape_invalid")
+        bing_rows = [{
+            "path": urlsplit(str(row.get("Query") or "")).path or "/",
+            "impressions": int(row.get("Impressions") or 0),
+            "clicks": int(row.get("Clicks") or 0),
+            "position": row.get("AvgImpressionPosition"),
+        } for row in pages]
+        query_rows = [{"query": row.get("Query"), "impressions": row.get("Impressions"),
+                       "clicks": row.get("Clicks"), "avg_position": row.get("AvgImpressionPosition"),
+                       "avg_click_position": row.get("AvgClickPosition")} for row in queries]
+        watermarks = {name: max((date for row in rows if (date := _bing_report_date(row.get("Date")))), default=None)
+                      for name, rows in (("pages", pages), ("queries", queries))}
+        # Conservative common reporting horizon. Missing nonempty-stream dates
+        # remain unknown rather than relabeling the collection clock as data.
+        complete_dates = all(not rows or watermarks[name] for name, rows in (("pages", pages), ("queries", queries)))
+        watermark = min((v for v in watermarks.values() if v), default=None) if complete_dates else None
+        data["bing_rows"] = bing_rows
+        data["bing_query_rows"] = query_rows
+        total_rows = len(bing_rows) + len(query_rows)
+        sources["bing"] = {
+            **_source("healthy" if total_rows else "measured_zero", total_rows,
+                      watermark=watermark, schema=EXPECTED_SCHEMAS["bing"]),
+            "watermark_kind": "provider_report_date" if watermark else "unknown",
+            "reporting_watermarks": watermarks,
+            "site": BING_SITE,
+            "page_rows": len(bing_rows),
+            "query_rows": len(query_rows),
+            "complete": True,
+        }
+    except Exception as exc:  # noqa: BLE001
+        sources["bing"] = _source("error", None, reason=str(exc)[:300], schema=EXPECTED_SCHEMAS["bing"])
+        sources["bing"]["last_successful_readback"] = prior_success
+    sources["bing"].update(last_attempt_at=attempted_at, prior_last_successful_readback=prior_success)
+
+
+def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> None:
+    try:
+        posthog = rails.PostHog()
+        aggregate = posthog.page_conversion(days=3, host=PRODUCTION_HOST)
+        if not aggregate.get("ok"):
+            raise RuntimeError(str(aggregate.get("error") or "posthog_read_failed"))
+        # `host` is REQUIRED on every traffic row. analytics_brain builds
+        # posthog_traffic_paths with `row.get("host") == PRODUCTION_HOST`, exactly as
+        # it does for ga4_rows; omitting the key made that filter drop 100% of
+        # PostHog rows, so posthog_traffic_seen was False on every route forever and
+        # the cross-sink probe failed every trafficked path (FAIL_ROUTE_COVERAGE on
+        # /, /quiz/provider-fit/, /tools/glp-1-cost-calculator/ — which then blocked
+        # the SEO mint). The empty posthog host_distribution was the visible tell.
+        # Stamping the constant is factual, not laundering: page_conversion filters
+        # server-side with `domain(properties.$current_url) = host`, so every row it
+        # returns is already scoped to PRODUCTION_HOST.
+        data["posthog_rows"] = [
+            {"path": row.get("path"), "host": PRODUCTION_HOST,
+             "views": int(row.get("views") or 0),
+             "affiliate_clicks": int(row.get("clicks") or 0)}
+            for row in aggregate.get("rows") or []
+        ]
+        raw = posthog.hogql(
+            "SELECT properties.cs_click_id, path(properties.$current_url), "
+            "properties.$host, event, min(timestamp) "
+            "FROM events WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND properties.$host = 'glpclinicscout.com' "
+            "AND event IN ('sponsor_click','affiliate_click') "
+            "GROUP BY properties.cs_click_id, path(properties.$current_url), properties.$host, event "
+            "LIMIT 100000"
+        )
+        if not raw.get("ok"):
+            raise RuntimeError(str(raw.get("error") or "posthog_click_read_failed"))
+        data["posthog_events"] = [
+            {"cs_click_id": row[0], "path": row[1], "host": row[2], "event_name": row[3],
+             "occurred_at": str(row[4])}
+            for row in raw.get("rows") or [] if row and row[0]
+        ]
+        latest = posthog.hogql(
+            "SELECT max(timestamp), count() FROM events "
+            "WHERE properties.$host = 'glpclinicscout.com' "
+            "AND timestamp > now() - INTERVAL 3 DAY"
+        )
+        if not latest.get("ok"):
+            raise RuntimeError(str(latest.get("error") or "posthog_watermark_read_failed"))
+        latest_row = (latest.get("rows") or [[None, 0]])[0]
+        watermark = str(latest_row[0]) if latest_row and latest_row[0] else None
+        event_count = int(latest_row[1] or 0) if len(latest_row) > 1 else 0
+        host_counts = posthog.hogql(
+            "SELECT properties.$host, count() FROM events "
+            "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND properties.cs_click_id IS NOT NULL "
+            "GROUP BY properties.$host LIMIT 10000"
+        )
+        if not host_counts.get("ok"):
+            raise RuntimeError(str(host_counts.get("error") or "posthog_host_distribution_read_failed"))
+        host_distribution = {
+            str(row[0] or ""): int(row[1] or 0) for row in host_counts.get("rows") or [] if row
+        }
+        non_allowlisted = _non_allowlisted(host_distribution)
+        count = len(data["posthog_rows"])
+        sources["posthog"] = {
+            **_source("healthy" if event_count else "measured_zero", count,
+                      host_scope=PRODUCTION_HOST, watermark=watermark or utc_now(),
+                      schema=EXPECTED_SCHEMAS["posthog"]),
+            "event_watermark": watermark,
+            "project": "508172",
+            "provider_host_filter": {"property": "$host", "exact": PRODUCTION_HOST},
+            "host_distribution": host_distribution,
+            "non_allowlisted_event_count": non_allowlisted,
+            "complete": True,
+        }
+    except Exception as exc:  # noqa: BLE001
+        sources["posthog"] = _source("error", None, host_scope=PRODUCTION_HOST,
+                                     reason=str(exc)[:300], schema=EXPECTED_SCHEMAS["posthog"])
+
+
+def _noncommercial_kind(row: dict[str, Any]) -> str | None:
+    """Recognize explicit provenance only; unmarked historical rows stay unknown.
+
+    A Katalys network label, browser UA, absent referrer or denied consent is
+    NOT a probe marker. The historical liveness job calls the network directly
+    without a durable click identity, so its probes cannot be retroactively
+    joined by time/program or subtracted from these rows.
+    """
+    def marked(value: Any) -> bool:
+        return value is True or (type(value) is int and value == 1) or value == "true"
+
+    if marked(row.get("is_probe")) or row.get("probe_kind") == "program_liveness":
+        return "probe"
+    if marked(row.get("is_test")):
+        return "test"
+    return None
+
+
+def _map_runtime_click(row: dict[str, Any]) -> dict[str, Any]:
+    slug = str(row.get("page_slug") or "").strip("/")
+    kind = _noncommercial_kind(row)
+    return {
+        "cs_click_id": row.get("click_token"),
+        "path": "/" + slug + "/" if slug else "/",
+        "slot_id": row.get("link_position"),
+        "program_id": row.get("program_id"),
+        "network": row.get("network"),
+        # This table stores our outbound token, NOT a network acceptance ID.
+        "network_click_id": None,
+        "occurred_at": row.get("created_at"),
+        "analytics_consent": row.get("analytics_consent"),
+        "provenance": "affiliate_click_map",
+        "noncommercial_kind": kind,
+        "probe_classification": "explicit_probe" if kind == "probe" else "unknown",
+        "test_classification": "explicit_test" if kind == "test" else "unknown",
+    }
+
+
+def _collect_d1(data: dict[str, Any], sources: dict[str, Any]) -> None:
+    # Clear stale cached populations before a fresh read; server durability does
+    # not prove a browser sent an event (especially on consent-denied rows).
+    for key in ("d1_clicks", "browser_clicks", "d1_noncommercial_clicks", "revenue_events",
+                "noncommercial_revenue_events"):
+        data[key] = []
+    try:
+        client = _d1_client()
+        tables = {row["name"] for row in client.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN "
+            "('affiliate_click_map','analytics_revenue_ledger_v1')"
+        )}
+        if "affiliate_click_map" not in tables:
+            raise RuntimeError("affiliate_click_map_missing")
+        columns = {row["name"] for row in client.query("PRAGMA table_info(affiliate_click_map)")}
+        # Optional future provenance columns are projected only when present;
+        # no migration or historical relabel is performed by the collector.
+        optional = [name for name in ("is_probe", "probe_kind", "is_test") if name in columns]
+        projection = "click_token,page_slug,link_position,program_id,network,created_at,analytics_consent"
+        if optional:
+            projection += "," + ",".join(optional)
+        raw_clicks = client.query(f"SELECT {projection} FROM affiliate_click_map ORDER BY created_at,click_token")
+        all_click_rows = [_map_runtime_click(row) for row in raw_clicks]
+        click_rows = [row for row in all_click_rows if row["noncommercial_kind"] is None]
+        excluded_clicks = [row for row in all_click_rows if row["noncommercial_kind"] is not None]
+        data["d1_clicks"] = click_rows
+        data["d1_noncommercial_clicks"] = excluded_clicks
+        click_watermark = max((str(row.get("occurred_at") or "") for row in all_click_rows), default="") or None
+        sources["d1_clicks"] = {
+            **_source("healthy" if all_click_rows else "measured_zero", len(all_click_rows),
+                      watermark=click_watermark or utc_now(), schema=EXPECTED_SCHEMAS["d1_clicks"]),
+            "event_watermark": click_watermark,
+            "collection_window": {
+                "scope": "all_historical_rows", "table": "affiliate_click_map",
+                "actual_rows_basis": "raw_runtime_rows_including_noncommercial",
+                "economics_click_rows": len(click_rows),
+                "explicit_probe_rows": sum(row["noncommercial_kind"] == "probe" for row in excluded_clicks),
+                "explicit_test_rows": sum(row["noncommercial_kind"] == "test" for row in excluded_clicks),
+                "unclassified_rows": len(click_rows),
+                "historical_unmarked_probes": "unknown_not_inferred",
+                "browser_emission_evidence": "not_provided_by_d1",
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        sources["d1_clicks"] = _source("error", None, reason=str(exc)[:300],
+                                       schema=EXPECTED_SCHEMAS["d1_clicks"])
+        sources["network_revenue"] = _source("unavailable", None, reason="click_source_read_failed",
+                                             schema=EXPECTED_SCHEMAS["network_revenue"])
+        return
+    try:
+        if "analytics_revenue_ledger_v1" not in tables:
+            sources["network_revenue"] = _source(
+                "unavailable", None, reason="analytics_revenue_ledger_v1_missing",
+                schema=EXPECTED_SCHEMAS["network_revenue"])
+            data["revenue_events"] = []
+            return
+        revenue = client.query(
+            "SELECT revenue_event_id,network,program_id,network_click_id,cs_click_id,event_type,"
+            "event_status,conversion_id,currency,order_amount_minor,commission_minor,occurred_at,"
+            "imported_at,attributes_json FROM analytics_revenue_ledger_v1 "
+            "WHERE network<>'__receiver_selftest__' "
+            "ORDER BY occurred_at"
+        )
+        click_by_cs = {str(row.get("cs_click_id")): row for row in all_click_rows if row.get("cs_click_id")}
+        economic_revenue = []
+        for row in revenue:
+            click = click_by_cs.get(str(row.get("cs_click_id") or ""))
+            # Do not borrow ownership/probe status across conflicting rail/program.
+            if click and (row.get("program_id") != click.get("program_id")
+                          or (click.get("network") and row.get("network") != click.get("network"))):
+                click = None
+            raw_attributes = row.pop("attributes_json", "{}")
+            try:
+                attributes = json.loads(raw_attributes)
+            except (TypeError, ValueError):
+                attributes = None
+            kind = _noncommercial_kind(attributes) if isinstance(attributes, dict) else None
+            kind = kind or (click.get("noncommercial_kind") if click else None)
+            row["noncommercial_kind"] = kind
+            row["test_classification"] = "explicit_test" if kind == "test" else "unknown"
+            row["probe_classification"] = "explicit_probe" if kind == "probe" else "unknown"
+            row["path"] = click.get("path") if click else None
+            row["slot_id"] = click.get("slot_id") if click else None
+            if kind:
+                data["noncommercial_revenue_events"].append(row)
+            else:
+                economic_revenue.append(row)
+        data["revenue_events"] = economic_revenue
+        # A completed import with no rows is a measured zero only when an explicit
+        # network-import watermark was recorded. Empty table alone is unavailable.
+        watermarks = client.query(
+            "SELECT watermark,state,last_successful_readback FROM analytics_source_watermark_v1 "
+            "WHERE source='network_revenue' AND host_scope=''"
+        )
+        if not watermarks:
+            sources["network_revenue"] = _source(
+                "unavailable", None, reason="no_network_import_watermark",
+                schema=EXPECTED_SCHEMAS["network_revenue"])
+        elif (not watermarks[0].get("watermark")
+              or watermarks[0].get("state") not in {"healthy", "measured_zero"}):
+            sources["network_revenue"] = _source(
+                "unavailable", None, reason="network_import_watermark_not_complete",
+                schema=EXPECTED_SCHEMAS["network_revenue"])
+        else:
+            state = "healthy" if economic_revenue else "measured_zero"
+            sources["network_revenue"] = {
+                **_source(state, len(revenue), watermark=watermarks[0].get("watermark"),
+                          schema=EXPECTED_SCHEMAS["network_revenue"]),
+                "collection_window": {
+                    "actual_rows_basis": "ledger_rows_excluding_receiver_selftest",
+                    "economics_rows": len(economic_revenue),
+                    "explicit_noncommercial_rows": len(data["noncommercial_revenue_events"]),
+                    "unmarked_test_or_probe_classification": "unknown_not_real",
+                },
+            }
+    except Exception as exc:  # noqa: BLE001
+        data["revenue_events"] = []
+        sources["network_revenue"] = _source("unavailable", None, reason=str(exc)[:300],
+                                             schema=EXPECTED_SCHEMAS["network_revenue"])
+
+
+def _collect_dataforseo(sources: dict[str, Any]) -> None:
+    directory = BUSINESS / "reports/glp-clinic-scout/seo-machine/topic-data-score"
+    candidates = sorted(directory.glob("topic-data-score-*.json"), key=lambda path: path.stat().st_mtime)
+    if not candidates:
+        sources["dataforseo"] = _source("unavailable", None, reason="topic_data_score_artifact_absent",
+                                        schema=EXPECTED_SCHEMAS["dataforseo"])
+        return
+    path = candidates[-1]
+    payload = read_json(path)
+    if payload.get("schema") != EXPECTED_SCHEMAS["dataforseo"]:
+        sources["dataforseo"] = {
+            **_source("error", None, reason="dataforseo_artifact_schema_drift",
+                      schema=EXPECTED_SCHEMAS["dataforseo"]),
+            "observed_schema": payload.get("schema"),
+        }
+        return
+    rows = int((payload.get("signals") or {}).get("dataforseo_terms_priced") or 0)
+    state = "healthy" if rows else "measured_zero"
+    sources["dataforseo"] = _source(state, rows, watermark=payload.get("finished_utc"),
+                                    schema=EXPECTED_SCHEMAS["dataforseo"])
+
+
+def _load_cache(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"sources": {}}
+    payload = read_json(path)
+    if payload.get("schema") != "glp-analytics-source-cache-v1":
+        raise RuntimeError("analytics_source_cache_schema_invalid")
+    data = payload.get("data")
+    if not isinstance(data, dict) or not isinstance(data.get("sources"), dict):
+        raise RuntimeError("analytics_source_cache_data_invalid")
+    return data
+
+
+def _write_cache(path: Path, data: dict[str, Any], phase: str) -> None:
+    payload = {
+        "schema": "glp-analytics-source-cache-v1",
+        "updated_at_utc": utc_now(),
+        "last_phase": phase,
+        "data": data,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def _mark_stale_cached_sources(data: dict[str, Any], refreshed: set[str]) -> None:
+    now = dt.datetime.now(dt.timezone.utc)
+    max_age_hours = {
+        "gsc": 30, "bing": 30, "ga4": 2, "posthog": 2, "d1_clicks": 2,
+        "network_revenue": 30, "dataforseo": 24 * 8,
+    }
+    for name, source in (data.get("sources") or {}).items():
+        if name in refreshed or source.get("state") not in {"healthy", "measured_zero"}:
+            continue
+        readback = source.get("last_successful_readback")
+        if not readback:
+            source.update({"state": "stale", "reason": "last_successful_readback_missing",
+                           "metric_value": None})
+            continue
+        observed = dt.datetime.fromisoformat(str(readback).replace("Z", "+00:00"))
+        age = (now - observed.astimezone(dt.timezone.utc)).total_seconds() / 3600.0
+        threshold = float(max_age_hours.get(name, 24))
+        if age > threshold:
+            source.update({
+                "state": "stale", "reason": f"cached_source_stale:{age:.2f}h>{threshold:.2f}h",
+                "metric_value": None,
+            })
+
+
+# Bound to this collector's property 541440529. runReport metadata readback
+# 2026-09-09 confirmed America/Los_Angeles (K4 SOURCE-API-READBACK.json).
+# dateHourMinute is property-local, unlike PostHog's ISO UTC timestamps.
+# A property/timezone migration must update this binding; never relabel it UTC.
+GA4_REPORT_TIME_ZONE = "America/Los_Angeles"
+
+
+def _provider_time(value: str) -> dt.datetime:
+    text = str(value).strip()
+    if re.fullmatch(r"\d{12}", text):
+        return dt.datetime.strptime(text, "%Y%m%d%H%M").replace(
+            tzinfo=ZoneInfo(GA4_REPORT_TIME_ZONE)
+        ).astimezone(dt.timezone.utc)
+    parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(dt.timezone.utc)
+
+
+#: 2026-08-28 execution 1973 (FAIL_SOURCE_DARK): GA4 went "dark" at 8.43h>2h
+#: while PostHog proved production traffic in that exact window — the GA4 Data
+#: API routinely lags HOURS behind collection, so a freshness bar tighter than
+#: the sink's own reporting latency declares a working sink dead every quiet
+#: evening. Same disease the probe's persistence gate fixed, second organ. A
+#: sink cannot be judged dark before its reporting lag has elapsed: the lag
+#: floor below is the minimum effective dark threshold per laggy sink. Past the
+#: floor, darkness binds exactly as before. (Mirrors GA4_MISSING_HORIZON_HOURS
+#: in analytics_brain.py.)
+# Google documents processing up to 24–48h (not an SLA):
+# https://support.google.com/analytics/answer/11198161?hl=en
+SINK_LAG_FLOOR_HOURS = {"ga4": 48.0}
+#: A successful provider read with no traffic is a measured zero, not evidence
+#: that the sink is dead. A silent-sink alarm is therefore warranted only when
+#: the paired sink observed newer production traffic that this sink should have
+#: corroborated. Execution 2137 exposed both parts of the defect: GA4's last
+#: reported event was 15.24h old, while PostHog had observed production traffic
+#: only 8.23h earlier. The pair remains falsifiable: if that newer PostHog event
+#: is still absent from GA4 after the 12h reporting allowance, GA4 goes dark.
+#: Provider/API failures remain `error` and stale successful readbacks remain
+#: `stale`; neither can be healed by this correlation rule.
+CORROBORATING_TRAFFIC_SOURCE = {"ga4": "posthog", "posthog": "ga4"}
+
+
+def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
+                           now: dt.datetime | None = None) -> None:
+    activated = _provider_time(str(control["activated_at_utc"]))
+    current = now or dt.datetime.now(dt.timezone.utc)
+    configured = control.get("source_dark_threshold_hours") or {}
+    posthog = (data.get("sources") or {}).get("posthog") or {}
+    expectation = (control.get("measurement_expectations") or {}).get("posthog") or {}
+    # Transport/schema failures must remain failures. The expectation describes
+    # absent identity, never grants permission to collect or fabricate identity.
+    if (expectation.get("host_page_identity") == "unmeasured_by_design"
+            and expectation.get("authority") and posthog.get("complete") is True
+            and posthog.get("state") in {"healthy", "measured_zero"}
+            and posthog.get("observed_schema") == EXPECTED_SCHEMAS["posthog"]):
+        posthog.update({"measurement_state": "unmeasured_by_design",
+                        "measurement_scope": "host_page_click_identity",
+                        "measurement_authority": expectation["authority"],
+                        "reason": "privacy_export_allowlist_omits_host_page_identity"})
+    for name, default_threshold in {"ga4": 2, "posthog": 2, "d1_clicks": 24}.items():
+        source = (data.get("sources") or {}).get(name)
+        if (not source or source.get("state") not in {"healthy", "measured_zero"}
+                or source.get("measurement_state") == "unmeasured_by_design"):
+            continue
+        watermark = source.get("event_watermark")
+        last_event = _provider_time(str(watermark)) if watermark else activated
+        corroborating_name = CORROBORATING_TRAFFIC_SOURCE.get(name)
+        if not corroborating_name:
+            # A successful D1 read with zero click rows proves availability. With
+            # no independent click sink, inactivity alone cannot distinguish a
+            # quiet site from silent ingestion failure.
+            continue
+        corroborating = (data.get("sources") or {}).get(corroborating_name) or {}
+        corroborating_watermark = corroborating.get("event_watermark")
+        if (corroborating.get("state") not in {"healthy", "measured_zero"}
+                or not corroborating_watermark):
+            continue
+        corroborating_event = _provider_time(str(corroborating_watermark))
+        if corroborating_event <= last_event:
+            # Both providers agree that no newer traffic exists. Their fresh
+            # successful readbacks are healthy measured silence, not darkness.
+            continue
+        last_event = corroborating_event
+        age = (current - last_event).total_seconds() / 3600.0
+        threshold = max(float(configured.get(name, default_threshold)),
+                        SINK_LAG_FLOOR_HOURS.get(name, 0.0))
+        if name == "ga4" and age <= threshold:
+            source.update({"freshness_state": "lagging", "reporting_latency_hours": 48,
+                           "reason": "documented_ga4_processing_latency_24_48h"})
+        if age > threshold:
+            # 2026-08-27 launch grace (#106 designed-idle doctrine): a source
+            # whose last production event predates ACTIVATION is awaiting its
+            # first real visitor — inside the declared grace window that is a
+            # designed state, not a dead sink. Once a post-activation event has
+            # ever landed (or the grace expires with none), the dark alarm
+            # binds exactly as before.
+            grace_hours = float(control.get("launch_dark_grace_hours", 72))
+            since_activation = (current - activated).total_seconds() / 3600.0
+            # 2026-08-27 second hole, found live at execution 1786: ONE real
+            # visitor at 09:44Z ended "awaiting_first_traffic" and re-armed the
+            # 2h threshold — which near-zero launch traffic can then never
+            # satisfy, so the first organic pageview CAUSED a dead-sink alarm.
+            # A silence gap is only meaningful once the source has demonstrated
+            # flow: inside the grace window the threshold binds only after the
+            # source has produced at least minimum_flow post-activation events.
+            minimum_flow = int(control.get("launch_dark_minimum_flow_events", 20))
+            rows_key = {"ga4": "ga4_rows", "posthog": "posthog_rows", "d1_clicks": "d1_clicks"}.get(name)
+            post_activation_rows = 0
+            for row in (data.get(rows_key) or []):
+                stamp = row.get("provider_time") or row.get("timestamp") or row.get("observed_at")
+                try:
+                    if stamp and _provider_time(str(stamp)) > activated:
+                        post_activation_rows += 1
+                except Exception:
+                    continue
+            if since_activation <= grace_hours and post_activation_rows < minimum_flow:
+                label = "awaiting_first_traffic" if post_activation_rows == 0 else "sub_minimum_traffic_grace"
+                source.update({
+                    "designed_idle": label,
+                    "reason": f"{label}:post_activation_events_{post_activation_rows}<{minimum_flow}:activated_{since_activation:.2f}h_ago:grace_{grace_hours:.0f}h",
+                })
+            else:
+                source.update({
+                    "state": "dark", "reason": f"no_production_event:{age:.2f}h>{threshold:.2f}h",
+                    "metric_value": None,
+                })
+
+
+# Provider reporting cadence is NOT collector liveness. These are typical
+# reporting expectations (calendar days), not API availability SLAs.
+SEARCH_REPORT_EXPECTATIONS = {
+    "gsc": {"days": 3, "documentation": "https://developers.google.com/webmaster-tools/v1/how-tos/all-your-data"},
+    "bing": {"days": 7, "documentation": "https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getpagestats?view=bing-webmaster-dotnet"},
+}
+
+
+def _apply_search_freshness(data: dict[str, Any], now: dt.datetime | None = None) -> None:
+    current = now or dt.datetime.now(dt.timezone.utc)
+    for name, expectation in SEARCH_REPORT_EXPECTATIONS.items():
+        source = (data.get("sources") or {}).get(name)
+        if not source:
+            continue
+        source.update(collector_max_age_hours=30, reporting_latency_days=expectation["days"],
+                      reporting_documentation=expectation["documentation"])
+        if source.get("state") not in {"healthy", "measured_zero"}:
+            source["collector_state"] = "dark"
+            source["freshness_state"] = "dark"
+            continue  # Never heal an existing transport/schema/dark gate.
+        try:
+            age = (current - _provider_time(source["last_successful_readback"])).total_seconds() / 3600
+        except (KeyError, TypeError, ValueError):
+            age = None
+        source["collector_age_hours"] = age
+        if age is None or age < 0 or age > 30:
+            source.update(state="dark", collector_state="dark", freshness_state="dark",
+                          metric_value=None, reason="collector_readback_stale_or_invalid")
+            continue
+        source["collector_state"] = "fresh"
+        # Legacy cache watermarks were request end date (GSC) / now (Bing).
+        # Without an explicit provider-date witness they are not reporting truth.
+        watermark = source.get("watermark") if source.get("watermark_kind") == "provider_report_date" else None
+        try:
+            days = (current.date() - _provider_time(watermark).date()).days if watermark else None
+        except (TypeError, ValueError):
+            days = None
+        source["reporting_age_days"] = days
+        source["reporting_expectation_exceeded"] = (days > expectation["days"]) if days is not None else None
+        source["freshness_state"] = "unknown" if days is None or days < 0 else ("lagging" if days else "current")
+        source["freshness_reason"] = ("reporting_watermark_unknown" if days is None else
+            "reporting_latency_beyond_typical_expectation" if days > expectation["days"] else "within_documented_reporting_cadence")
+
+
+def _search_refresh_due(source: dict[str, Any], now: dt.datetime | None = None) -> bool:
+    """Daily source reads share this collector; hourly repairs an overdue cache.
+
+    Reporting latency never extends collector freshness. This does not run the
+    legacy daily compatibility writer or create another scheduling owner.
+    """
+    current = now or dt.datetime.now(dt.timezone.utc)
+    try:
+        age = (current - _provider_time(source["last_successful_readback"])).total_seconds() / 3600
+    except (KeyError, TypeError, ValueError):
+        return True
+    return age < 0 or age >= 24
+
+def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, set[str]]:
+    """Bind governed program authority to the manifest actually deployed at /go."""
+    policy = control["affiliate_obligations"]
+    url = f"https://{PRODUCTION_HOST}/go/_manifest"
+    if policy["deployed_manifest"] != url:
+        raise RuntimeError("affiliate_manifest_host_mismatch")
+    pointer = read_json(BUSINESS / policy["release_pointer"])
+    if pointer.get("status") != "PASS":
+        raise RuntimeError("affiliate_release_pointer_unaccepted")
+    if not pointer.get("manifest"):
+        raise RuntimeError("affiliate_release_manifest_missing")
+    for key in ("final_receipt", "manifest"):
+        seal = pointer.get(key)
+        if seal and hashlib.sha256(Path(seal["path"]).read_bytes()).hexdigest() != seal["sha256"]:
+            raise RuntimeError(f"affiliate_release_{key}_drift")
+    release = Path(pointer["release_root"]).resolve(strict=True)
+    manifest = read_json(Path(pointer["manifest"]["path"]))
+    sealed_rows = {row["path"]: row["sha256"] for row in manifest["release_rows"]}
+    for name in ("artifacts/ops/worker-manifest.staging.json",
+                 "data/program-registry.json", "data/go-runtime-promotion-authority.json"):
+        expected = sealed_rows.get(name)
+        if not expected or hashlib.sha256((release / name).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f"affiliate_release_authority_drift:{name}")
+    staged = release / "artifacts/ops/worker-manifest.staging.json"
+    staged_bytes = staged.read_bytes()
+    local = json.loads(staged_bytes)
+    status, body = _http_text(url)
+    live = json.loads(body)
+    if (status != 200 or live.get("schema") != local.get("schema")
+            or live.get("manifest_sha256") != hashlib.sha256(staged_bytes).hexdigest()):
+        raise RuntimeError("affiliate_deployed_release_manifest_mismatch")
+    return release, set(live.get("program_ids") or [])
+
+def derive_affiliate_obligations(control: dict[str, Any],
+                                 observed_routes: set[str] | None = None) -> dict[str, str]:
+    """Keep the covered routes, but derive each program's anchor duty from live authority."""
+    release, public_ids = _bound_affiliate_release(control)
+    registry = read_json(release / "data/program-registry.json")
+    authority = read_json(release / "data/go-runtime-promotion-authority.json")
+    programs = {row["program_id"]: row for row in registry["programs"]}
+    reviews = {row["review_path"]: row["program_id"] for row in registry["programs"]
+               if row.get("review_path")}
+    covered = set(control["affiliate_routes"])
+    observed = set(observed_routes or ())
+    for program_id, program in programs.items():
+        promotion = (authority.get("programs") or {}).get(program_id)
+        review = program.get("review_path")
+        if promotion is None:
+            for route in (f"/providers/{program_id}/", review):
+                if route in observed:
+                    covered.add(route)
+            continue
+        allowed = promotion.get("promotion_authorized")
+        published_provider = program_id in public_ids
+        published_review = bool(review and review.strip("/").split("/")[-1] in public_ids)
+        if allowed is False or (allowed is True and published_provider):
+            covered.add(f"/providers/{program_id}/")
+        if review and (allowed is False or (allowed is True and (published_provider or published_review))):
+            covered.add(review)
+    obligations: dict[str, str] = {}
+    for route in sorted(covered):
+        parts = route.strip("/").split("/")
+        program_id = None
+        if len(parts) == 2 and parts[0] == "providers":
+            program_id = parts[1]
+        elif len(parts) == 2 and parts[0] == "reviews":
+            program_id = reviews.get(route)
+            if program_id is None:
+                raise RuntimeError(f"affiliate_review_identity_missing:{route}")
+        if program_id is None:
+            obligations[route] = "required"
+            continue
+        program = programs.get(program_id)
+        promotion = (authority.get("programs") or {}).get(program_id)
+        if program is None:
+            raise RuntimeError(f"affiliate_program_authority_missing:{route}")
+        if promotion is None:
+            obligations[route] = "unknown"
+            continue
+        if not isinstance(promotion, dict):
+            raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
+        allowed = promotion.get("promotion_authorized")
+        status = promotion.get("status")
+        if (allowed is True and status != "VERIFIED") or (allowed is False and status != "WITHHELD"):
+            raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
+        if type(allowed) is not bool:
+            raise RuntimeError(f"affiliate_program_authority_unknown:{program_id}")
+        if program.get("commercial_state") == "held":
+            meta = (((program.get("profiles") or {}).get("glp-clinic-scout") or {})
+                    .get("exceptions") or {}).get("go") or {}
+            receipt_path = release / meta.get("authority_path", "")
+            receipt_bytes = receipt_path.read_bytes() if receipt_path.is_file() else b""
+            receipt = json.loads(receipt_bytes) if receipt_bytes else {}
+            if (allowed is not False or meta.get("enabled") is not True
+                    or hashlib.sha256(receipt_bytes).hexdigest() != meta.get("authority_sha256")
+                    or receipt.get("schema") != "glp-receipted-research-hold-v1"
+                    or receipt.get("program_id") != program_id
+                    or receipt.get("disposition") != "HOLD"
+                    or receipt.get("promotion_authorized") is not False
+                    or receipt.get("live_link_allowed") is not False):
+                raise RuntimeError(f"affiliate_operator_hold_invalid:{program_id}")
+        obligations[route] = "required" if allowed else "forbidden"
+    return obligations
+
+
+def collect_live(control: dict[str, Any], phase: str, cache_path: Path | None = None) -> dict[str, Any]:
+    generated = utc_now()
+    cache = cache_path or (DEFAULT_OUTPUT / "canonical-source-cache.json")
+    data = _load_cache(cache)
+    data["generated_at_utc"] = generated
+    data.setdefault("sources", {})
+    refreshed: set[str] = set()
+
+    if phase in {"deploy", "route-census"}:
+        routes, sitemap_sources = sitemap_routes()
+        data["sitemap_routes"] = routes
+        data["sitemap_complete"] = True
+        data["sitemap_sources"] = sitemap_sources
+        data["static_routes"] = inspect_routes(routes, control)
+
+    observed = set(data.get("sitemap_routes") or []) | {
+        row["path"] for row in data.get("static_routes") or []}
+    data["affiliate_route_obligations"] = derive_affiliate_obligations(
+        control, observed_routes=observed)
+
+    rails = _rail_module()
+    high_frequency = phase in {"deploy", "hourly", "daily"}
+    if phase == "daily" or (high_frequency and _search_refresh_due(data["sources"].get("gsc") or {})):
+        try:
+            google = rails.GoogleRail()
+        except Exception as exc:  # noqa: BLE001
+            data["sources"]["gsc"] = _source("error", None, reason=str(exc)[:300],
+                                                    schema=EXPECTED_SCHEMAS["gsc"])
+        else:
+            _collect_gsc(data, data["sources"], google)
+        refreshed.add("gsc")
+    if phase == "daily" or (high_frequency and _search_refresh_due(data["sources"].get("bing") or {})):
+        _collect_bing(data, data["sources"], rails)
+        refreshed.add("bing")
+    if high_frequency:
+        try:
+            google = rails.GoogleRail()
+        except Exception as exc:  # noqa: BLE001
+            data["sources"]["ga4"] = _source("error", None, host_scope=PRODUCTION_HOST,
+                                                    reason=str(exc)[:300], schema=EXPECTED_SCHEMAS["ga4"])
+        else:
+            _collect_ga4(data, data["sources"], google)
+        refreshed.add("ga4")
+        _collect_posthog(data, data["sources"], rails)
+        refreshed.add("posthog")
+        _collect_d1(data, data["sources"])
+        refreshed.update({"d1_clicks", "network_revenue"})
+    elif phase == "monthly":
+        _collect_d1(data, data["sources"])
+        refreshed.update({"d1_clicks", "network_revenue"})
+    if phase in {"daily", "weekly"}:
+        _collect_dataforseo(data["sources"])
+        refreshed.add("dataforseo")
+
+    _apply_dark_thresholds(data, control)
+    _apply_search_freshness(data)
+    _mark_stale_cached_sources(data, refreshed)
+    data["collection_cadence"] = {
+        "phase": phase,
+        "sources_refreshed": sorted(refreshed),
+        "route_census_refreshed": phase in {"deploy", "route-census"},
+        "gsc_end_date_lag_days": 3 if "gsc" in refreshed else None,
+    }
+    _write_cache(cache, data, phase)
+    return data
+
+
+def control_status(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"activated": False, "reason": "control_file_missing"}
+    payload = read_json(path)
+    if payload.get("schema") != "glp-analytics-brain-control-v1":
+        raise RuntimeError("analytics_brain_control_schema_invalid")
+    if payload.get("activated") is True:
+        if not payload.get("activated_at_utc"):
+            raise RuntimeError("analytics_brain_activation_timestamp_required")
+        _provider_time(str(payload["activated_at_utc"]))
+    return payload
+
+def family_deploy_readback() -> dict[str, Any]:
+    """Registered deploy leg; no identity means no provider calls or fabricated PASS."""
+    path = BUSINESS / "scripts/glp_analytics_every_family_verifier.py"
+    spec = importlib.util.spec_from_file_location("glp44_registered_family_readback", path)
+    if spec is None or spec.loader is None:
+        return {"verdict": "BLOCKED_VERIFIER_NOT_INSTALLED", "provider_calls": 0}
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        trigger = read_json(DEPLOY_TRIGGER) if DEPLOY_TRIGGER.is_file() else None
+        return module.registered_deploy_readback(trigger)
+    except Exception as exc:  # noqa: BLE001 - collector's existing output remains inspectable
+        return {"verdict": "BLOCKED_FAMILY_READBACK_ERROR", "provider_calls": 0,
+                "error_type": type(exc).__name__}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fixture", type=Path)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--database", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--control", type=Path, default=CONTROL)
+    parser.add_argument("--phase", choices=["deploy", "hourly", "daily", "route-census", "weekly", "monthly"],
+                        default="hourly")
+    parser.add_argument("--decision-class", choices=["search", "profitability", "cro"], default="search")
+    parser.add_argument("--minimum-revenue-sample", type=int, default=20)
+    args = parser.parse_args(argv)
+
+    control = control_status(args.control)
+    if args.fixture:
+        data = read_json(args.fixture.resolve(strict=True))
+    elif control.get("activated") is not True:
+        print(json.dumps({
+            "schema": "glp-analytics-brain-run-v1",
+            "status": "PRELAUNCH_INACTIVE",
+            "output_count": 0,
+            "provider_calls": 0,
+            "reason": control.get("reason") or "launch_activation_required",
+            "candidate_tree_reads": 0,
+            "candidate_tree_writes": 0,
+        }, sort_keys=True))
+        return 0
+    else:
+        data = collect_live(control, args.phase, args.output_dir / "canonical-source-cache.json")
+
+    # The prior run's matrix feeds the probe's persistence gate: a cross-sink
+    # asymmetry only FAILS once it has outlived the slower sink's reporting
+    # latency, and the episode onset is carried across runs. Absence or
+    # corruption of the prior file degrades to "first sighting", never a crash.
+    prior_matrix = None
+    prior_path = args.output_dir / "route-instrumentation-matrix.json"
+    try:
+        prior_matrix = json.loads(prior_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - first run or corrupt prior
+        prior_matrix = None
+    outputs = build_outputs(data, decision_class=args.decision_class,
+                            minimum_revenue_sample=args.minimum_revenue_sample,
+                            prior_matrix=prior_matrix)
+    write_outputs(args.output_dir, outputs)
+    args.database.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(args.database)
+    try:
+        apply_fact_model(connection, MIGRATION)
+        record_source_facts(connection, outputs)
+    finally:
+        connection.close()
+    remote_fact_statements = 0
+    if args.fixture is None:
+        remote_fact_statements = record_d1_fact_model(outputs)
+    mode = outputs["analytics-source-health.json"]["mode"]
+    result = {
+        "schema": "glp-analytics-brain-run-v1",
+        "status": mode,
+        "output_count": len(outputs),
+        "outputs": [str(args.output_dir / name) for name in outputs],
+        "source_count": len(outputs["analytics-source-health.json"]["sources"]),
+        "route_count": outputs["route-instrumentation-matrix.json"]["sitemap_route_count"],
+        "reconciled_clicks": outputs["affiliate-reconciliation.json"]["counts"]["browser"],
+        "fact_model_sinks": {
+            "local": "written",
+            "d1": "written" if args.fixture is None else "fixture_not_eligible",
+            "d1_statement_count": remote_fact_statements,
+        },
+        "candidate_tree_reads": 0,
+        "candidate_tree_writes": 0,
+    }
+    if args.phase == "deploy" and args.fixture is None:
+        result["family_release_readback"] = family_deploy_readback()
+    print(json.dumps(result, sort_keys=True))
+    if mode.startswith("FAIL_"):
+        return 2
+    if mode == "HOLD_REVENUE_OPTIMIZATION":
+        return 3
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
