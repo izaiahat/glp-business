@@ -25,6 +25,7 @@ suites+=(tests/test_maxbounty_pin_release.py)
 suites+=(tests/test_glp_maxbounty_fresh_probe.py)
 suites+=(tests/test_glp76_updater_publication_date.py)
 suites+=(tests/test_glp250_partner_email_hold.py)
+suites+=(tests/test_glp85_cj_reporting_identity.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \
       -f /home/ubuntu/business/reports/glp-clinic-scout/growth/build-3/reddit-firecrawl-search-captures-20260811-r5.json ]]; then

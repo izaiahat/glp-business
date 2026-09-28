@@ -12,13 +12,15 @@
 /tests/*
 !/.github/workflows/
 /.github/workflows/*
-!/ops/hermes-cron-scripts/
-/ops/hermes-cron-scripts/*
+!/tests/test_glp85_cj_reporting_identity.py
 !/ops/glp/
 /ops/glp/*
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
+!/ops/glp/reporting-v2/identity-registry.json
 !/ops/glp/reporting-v2/source-manifest.json
+!/ops/hermes-cron-scripts/
+/ops/hermes-cron-scripts/*
 !/ops/linear/
 /ops/linear/*
 !/scripts/cron_ports/
