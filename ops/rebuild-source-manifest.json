@@ -1090,7 +1090,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "5a8db6942127c84bdce8b079a772b61aeb1beb02f536af96e448ad404f544a3c"
+      "sha256": "62a1a12666248414f2b56d2a65105229f512c595d1de335a195aca6915e81122"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -1478,7 +1478,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "94241b5c93b78fcb36df4cdcace1be05978989456c15117b520e3f0dedc99f54"
+      "sha256": "2a925d3b5f12fec7ae094f0face633e5b9e58208cc19f3b2f0176c60d17a8f94"
     },
     "systems/seo-blog-machine/scripts/defect_remediation.py": {
       "callers": [
@@ -1929,7 +1929,7 @@
         "GLP-73 source-only regression"
       ],
       "kind": "test",
-      "sha256": "425de878e1b89fac4cdf85ed9dff2d6a7fb93f0a842545bb87f46dbbc24186e7"
+      "sha256": "b73cec2052d4cd6bcf456beb7882a33c45e71d8f349856ca132da718a53c4568"
     },
     "tests/test_glp76_updater_publication_date.py": {
       "callers": [],
