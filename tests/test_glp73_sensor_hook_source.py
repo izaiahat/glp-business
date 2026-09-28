@@ -80,6 +80,7 @@ def test_r1_requires_project_canonical_not_newest_successful(tmp_path, monkeypat
     result = sensor.check_base_chain(offline=False)
     assert result["status"] == "FAIL" and not result.get("live_canonical_deployment_id")
     assert len(queries) == 3 and all(not url.endswith("/deployments") for url, _ in queries)
+    assert Path(sensor.validate_pointer_shape.__code__.co_filename) == SCRIPTS / "glp_current_content_base_schema.py"
 
 
 def test_r2_raw_receipt_target_checks_and_freshness(tmp_path):

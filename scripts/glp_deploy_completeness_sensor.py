@@ -64,8 +64,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 BUSINESS = Path("/home/ubuntu/business")
-if str(BUSINESS / "scripts") not in sys.path:
-    sys.path.insert(0, str(BUSINESS / "scripts"))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 from glp_current_content_base_schema import validate_pointer_shape  # noqa: E402
 RELEASES = BUSINESS / "site-system/flagship-v2/releases"
 MACHINE_DIR = BUSINESS / "reports/glp-clinic-scout/affiliate-machine"
