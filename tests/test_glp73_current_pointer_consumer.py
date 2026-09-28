@@ -1,16 +1,36 @@
 """Focused source regression for GLP-43's registered prepared pointer format."""
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import json
 import sys
+import types
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(ROOT / "systems/seo-blog-machine/scripts"))
+sys.path.insert(0, str(SCRIPTS))
+# Portable fixture: isolate the weekly module's eager article-builder import.
+# Legacy-path-size-sha256 rows never invoke BUILDER in these tests. A separate
+# read-only actual-pointer probe exercises the unmodified candidate source.
+source_path = SCRIPTS / "glp_price_index_weekly.py"
+tree = ast.parse(source_path.read_text(), filename=str(source_path))
+eager = [node for node in tree.body if isinstance(node, ast.Assign)
+         and any(isinstance(t, ast.Name) and t.id == "BUILDER" for t in node.targets)]
+assert len(eager) == 1 and isinstance(eager[0].value, ast.Call)
+assert isinstance(eager[0].value.func, ast.Name) and eager[0].value.func.id == "load_builder"
+tree.body.remove(eager[0])
+module = types.ModuleType("glp_price_index_weekly")
+module.__file__ = str(source_path)
+sys.modules[module.__name__] = module
+exec(compile(ast.fix_missing_locations(tree), str(source_path), "exec"), module.__dict__)
+module.BUILDER = None
+
 import current_content_base as reader  # noqa: E402
 import glp_price_index_weekly as evidence  # noqa: E402
 from glp_current_content_base_schema import validate_pointer_shape  # noqa: E402

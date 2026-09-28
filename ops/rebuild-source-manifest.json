@@ -1929,7 +1929,7 @@
         "GLP-73 source-only regression"
       ],
       "kind": "test",
-      "sha256": "5872e7cdf16a7e986cc393894dcb58af81db08cfbca64559fec60bf5444ee539"
+      "sha256": "425de878e1b89fac4cdf85ed9dff2d6a7fb93f0a842545bb87f46dbbc24186e7"
     },
     "tests/test_glp76_updater_publication_date.py": {
       "callers": [],
