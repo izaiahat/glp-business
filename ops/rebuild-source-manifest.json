@@ -1464,7 +1464,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89d1b531580f35a5dfd123c7028765cbc0bb4367b69864ddee4b5bc9a9e593bf"
+      "sha256": "e712c334a8a9b8a2480d257b00e1776b09d6b055274911897a483c62c5492afe"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -2047,7 +2047,7 @@
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a3ff72701575f5f14e8eef8c3c5bbe4bdad86768d78290611c514ffba2054d87"
+      "sha256": "f8d8ee89d393d7bfd300314892553c0f10447158756130adc872bc9394b193e9"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [

@@ -106,8 +106,10 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
         expected[p] = current
         target = target_hashes.get(p)
         parts = Path(p).parts
+        # Only a full import may retire (move) a live original; a scoped import
+        # never moves or deletes an unselected path and copies the archive instead.
         retirement_source = (safe(root, str(Path(parts[0]) / parts[2]))
-                             if len(parts) == 3 and parts[0] in {"scripts", "tests"}
+                             if not selected and len(parts) == 3 and parts[0] in {"scripts", "tests"}
                              and parts[1] == ".retired-20260925" else None)
         if retirement_source is not None and retirement_source.is_file():
             if sha(retirement_source) != target or (current is not None and current != target):

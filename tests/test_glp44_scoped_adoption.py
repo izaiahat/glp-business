@@ -136,3 +136,33 @@ def test_paired_hash_only_adoption_and_preimage_refusal(tmp_path, monkeypatch):
         k: v for k, v in before_jobs[0].items() if k != 'script_sha256'}
     assert jobs[0]['script_sha256'] == sha((hermes / 'scripts' / pair.WRAPPER).read_bytes())
     assert (root / 'scripts/unapproved.py').read_bytes() == b'old\n'
+
+
+def test_scoped_import_copies_retired_archive_without_moving_unselected_original(tmp_path):
+    repo, root = tmp_path / 'repo', tmp_path / 'live'
+    root.mkdir()
+    live, archive = 'scripts/fastmode_revert.py', 'scripts/.retired-20260925/fastmode_revert.py'
+    body = b'retire me\n'
+    def commit(paths):
+        files = {p: {'sha256': sha((repo / p).read_bytes())} for p in paths}
+        (repo / syncer.MANIFEST).write_text(json.dumps({'schema': 'GLP_BUSINESS_SOURCE_V1',
+                                                        'tracked_count': len(files) + 1, 'files': files}))
+        git(repo, 'add', '-A')
+        git(repo, 'commit', '-qm', 'rev')
+    for d in ('scripts', 'ops'):
+        (repo / d).mkdir(parents=True)
+    (repo / live).write_bytes(body)
+    git(repo, 'init', '-q')
+    commit([live])
+    assert syncer.sync(root, repo, True) == 0
+    (repo / archive).parent.mkdir()
+    git(repo, 'mv', live, archive)
+    commit([archive])
+    baseline = json.loads((root / syncer.STATE).read_text())['hashes'][live]
+    assert syncer.sync(root, repo, True, only=(archive,)) == 0
+    assert (root / live).read_bytes() == body
+    assert (root / archive).read_bytes() == body
+    assert json.loads((root / syncer.STATE).read_text())['hashes'][live] == baseline
+    # Full-mode positive control: the retirement move still removes the original.
+    assert syncer.sync(root, repo, True) == 0
+    assert not (root / live).exists() and (root / archive).read_bytes() == body
