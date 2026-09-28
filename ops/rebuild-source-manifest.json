@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "055f3f5e40ae0a507106afa04928cd238402b7dbd2dc02b6112a7163442b0d00"
+      "sha256": "31f990b9058868c303e3ab0ca687b559ab2da57f6a19987f8dff4e99994a0da6"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -878,7 +878,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "4e8da708900178d32b2f165e1d18067750b45dabb5a115d3487b4d1a9d2d6bcb"
+      "sha256": "420e2012c6d98e665bc5deb261ee1af251169680ef6598840d70475dba6f29cb"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -2336,6 +2336,25 @@
       ],
       "kind": "test",
       "sha256": "270aad44161617b3d0e48abcd2aaaf4747980abda0f613add7bb7a6da90a8134"
+    },
+    "ops/glp76-host-transport.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "7ad4dc51b614f0f074b2c46f0d3195349e4a6566b5b58d00d32eafba185db11b"
+    },
+    "tests/fixtures/glp76-transport-contract.json": {
+      "callers": [
+        "tests/test_glp76_host_transport.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "9b6321e78a0bbfbb91c99fa52e13d7b8b2c6b579280bf22036ba5ad9bf8389df"
+    },
+    "tests/test_glp76_host_transport.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "9cfc0dccaba287c1ac8ca9aceec41a93d4b85411a73e0a95b9a95b3def347bc6"
     }
   },
   "omitted_runtime_inputs": [
@@ -2346,5 +2365,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 358
+  "tracked_count": 361
 }
