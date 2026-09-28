@@ -4,12 +4,12 @@
     "tests/test_glp85_cj_reporting_identity.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "270aad44161617b3d0e48abcd2aaaf4747980abda0f613add7bb7a6da90a8134"
+      "sha256": "18bcfe67c2f6af199b2c92a1b456a54bb6ea4df25e1931f4cea7c2bebf45e89b"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
       "callers": ["scripts/glp_affiliate_weekly_reporting.py", "scripts/glp_network_revenue_import_v2.py"],
       "kind": "reporting_identity_configuration",
-      "sha256": "70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638"
+      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -301,7 +301,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "d42bca52c76fb0ac77abb7bc90884ebb8dab857174bb3c7d034b53e379546ee2"
+      "sha256": "f9f1eb4f871ab89a290347438a2604e50cceaf5bf171f80ae57fe8f5a9528e7c"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
