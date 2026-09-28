@@ -26,6 +26,7 @@ suites+=(tests/test_glp_maxbounty_fresh_probe.py)
 suites+=(tests/test_glp76_updater_publication_date.py)
 suites+=(tests/test_glp73_current_pointer_consumer.py)
 suites+=(tests/test_glp250_partner_email_hold.py)
+suites+=(tests/test_glp96_research_only_contract.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \

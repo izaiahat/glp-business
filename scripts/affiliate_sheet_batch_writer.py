@@ -1040,8 +1040,8 @@ GRID_ROW_CEILING = 20000
 
 
 def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
-                          needed: int, mode_key: str) -> list[int]:
-    """Append blank rows to the tab and return the new row numbers, schema applied.
+                          needed: int, mode_key: str, apply: bool = True) -> list[int]:
+    """Reserve new row numbers; append and apply schema only when applying.
 
     2026-08-26: the Sheet filled up. rowCount was 778 with 777 rows carrying
     business value and **zero** blank rows, so every `create` refused with
@@ -1067,17 +1067,18 @@ def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
             "Needing this many rows means an upstream queue or matcher is "
             "producing duplicates; grow the ceiling only after checking that.")
 
-    svc.spreadsheets().batchUpdate(
-        spreadsheetId=SHEET_ID,
-        body={"requests": [{"appendDimension": {
-            "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
-    ).execute()
-
-    new_rows = list(range(current_row_count + 1, target + 1))
-    requests = schema_requests(sheet_id_num, new_rows)
-    if requests:
+    if apply:
         svc.spreadsheets().batchUpdate(
-            spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+            spreadsheetId=SHEET_ID,
+            body={"requests": [{"appendDimension": {
+                "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
+        ).execute()
+    new_rows = list(range(current_row_count + 1, target + 1))
+    if apply:
+        requests = schema_requests(sheet_id_num, new_rows)
+        if requests:
+            svc.spreadsheets().batchUpdate(
+                spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
     return new_rows
 
 
@@ -4049,6 +4050,34 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
                     "approval, a link or a live wire, and refuses any network the Sheet "
                     "already names.",
     ),
+    # A published care subject, not a publisher programme or application.
+    # Domain identity is deliberately separate from any known retail rail tuple.
+    "research_only_provider": SheetSyncModeSpec(
+        key="research_only_provider",
+        plan_schema="affiliate-research-only-provider-plan-v1",
+        write_schema="affiliate-research-only-provider-write-v1",
+        mutable_columns=(0, 1, 10, 11, 19, 20, 21, 23, 24),
+        required_columns=(0, 1, 10, 11, 19, 20, 21, 23, 24),
+        allowed_status=frozenset({"research_only_hold"}),
+        required_flags={1: "FALSE", 11: "FALSE", 19: "FALSE", 20: "FALSE"},
+        evidence_fields=(
+            ("research_capture_path", "repo_path"),
+            ("research_capture_sha256", "sha256_of:research_capture_path"),
+            ("provider_id", "text"), ("official_url", "url"),
+            ("observed_at_utc", "timestamp"), ("application_hold", "text"),
+        ),
+        note_must_cite=("research_capture_path", "observed_at_utc", "provider_id"),
+        source_status=frozenset(),
+        forbidden_source_status=SHEET_SYNC_LIVE_STATUS,
+        forbid_source_approval_claim=True,
+        allowed_link_qa=frozenset({"not_tested_no_link"}),
+        require_tracking_link=False,
+        may_create=True,
+        create_required_columns=(0, 1, 2, 3, 4, 6, 7, 10, 11, 19, 20, 21, 23, 24, 25, 26),
+        cells_from_evidence={6: "official_url"},
+        description="Hold a source-bound consumer care subject for internal research only; "
+                    "no application, publisher relationship, link, payout or SEO promotion.",
+    ),
     # --- Impact programme candidate ------------------------------------------
     # The Partner API can resolve a KNOWN campaign id and return public terms even
     # though marketplace browse is denied. `Never Joined` is therefore a real
@@ -5220,6 +5249,7 @@ SHEET_SYNC_KIND_MODE = {
     "cross_network_duplicate_relationship": "cross_network_duplicate_relationship",
     "approval_confirmed": "approval_confirmed",
     "invitation_disposition": "invitation_disposition",
+    "research_only_provider": "research_only_provider",
     "marketplace_candidate": "marketplace_candidate",
     "impact_program_candidate": "impact_program_candidate",
     "commercial_economics_hold": "commercial_economics_hold",
@@ -5254,7 +5284,7 @@ SHEET_SYNC_KIND_MODE = {
     "junk_row_purge": "junk_row_purge",
 }
 
-_REPO_ROOT = Path("/home/ubuntu/business")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 _EVIDENCE_PATH_PREFIXES = ("reports/", "site-system/", "data/")
 _TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T[\d:.+\-]+Z?")
 
@@ -5287,7 +5317,10 @@ def sheet_sync_changed_cells(
         actual = pad(values[row_num - 1] if len(values) >= row_num else [])
         for column, expected in entry["cells"].items():
             column = int(column)
-            if not sheet_sync_cell_equal(column, actual[column], expected):
+            if (entry.get("create") and entry.get("network") == "Research-only provider"
+                    and column in SHEET_SYNC_CHECKBOX_COLUMNS and actual[column] == ""):
+                changes.append((row_num, column, expected))
+            elif not sheet_sync_cell_equal(column, actual[column], expected):
                 changes.append((row_num, column, expected))
     return changes
 
@@ -6053,6 +6086,82 @@ def require_maxbounty_publisher_id(entry: dict[str, Any], actual: list[Any] | No
             raise RuntimeError(f"publisher_id_drift:{entry['row']}:MaxBounty")
 
 
+def research_only_provider_cells(entry: dict[str, Any]) -> dict[str, str]:
+    """Derive the entire held row from a hash-checked source snapshot, not queue cells."""
+    from urllib.parse import urlsplit
+
+    e = entry["evidence"]
+    allowed_evidence = {"research_capture_path", "research_capture_sha256", "provider_id",
+                        "official_url", "observed_at_utc", "source_observations",
+                        "known_program_observation", "application_hold"}
+    if (set(e) != allowed_evidence or set(entry) - {"program", "network", "provider_program_id",
+                                                   "evidence", "create", "row", "cells",
+                                                   "queue_update_id"}):
+        raise RuntimeError("research_only_provider_forbidden_claim")
+    path = _REPO_ROOT / str(e["research_capture_path"])
+    try:
+        prospects = json.loads(path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("research_only_provider_capture_invalid") from exc
+    domain_id = str(e.get("provider_id") or "")
+    domain = domain_id.removeprefix("domain:")
+    matches = [p for p in prospects if isinstance(p, dict) and p.get("provider_id") == domain_id]
+    if (not domain_id.startswith("domain:") or not domain or len(matches) != 1
+            or entry.get("provider_program_id") != domain_id
+            or entry.get("network") != "Research-only provider"
+            or entry.get("program") != matches[0].get("identity")):
+        raise RuntimeError("research_only_provider_identity_conflict")
+    p = matches[0]
+    observations = p.get("source_observations") or []
+    official = next((o for o in observations if isinstance(o, dict) and
+                     (urlsplit(str(o.get("url") or "")).hostname == domain or
+                      str(urlsplit(str(o.get("url") or "")).hostname or "").endswith("." + domain))), None)
+    if (p.get("requested_state") != "research_only_hold"
+            or p.get("recorded_in_remote_intake") is not False
+            or p.get("report_only_not_queue_fact") is not True
+            or "fella" in domain.casefold()
+            or (p.get("known_program_observation") is not None and
+                p.get("rail") != p["known_program_observation"].get("rail"))
+            or p.get("research_intake_eligible") is not True
+            or p.get("application_eligible") is not False or p.get("apply") is not False
+            or p.get("wire_in_ready") is not False or p.get("wired_live") is not False
+            or not p.get("unknowns_and_application_hold") or not official
+            or not all(isinstance(o, dict) and o.get("source_sha256") and o.get("observed_at")
+                       and o.get("quote") for o in observations)
+            or e.get("source_observations") != observations
+            or e.get("known_program_observation") != p.get("known_program_observation")
+            or e.get("application_hold") != p["unknowns_and_application_hold"]
+            or e.get("official_url") != official["url"]
+            or e.get("observed_at_utc") != official["observed_at"]):
+        raise RuntimeError("research_only_provider_source_identity_drift")
+    for observation in observations:
+        source_path = str(observation.get("source_path") or "")
+        source_sha = str(observation.get("source_sha256") or "")
+        if (not source_path.startswith("reports/") or ".." in source_path
+                or not re.fullmatch(r"[a-f0-9]{64}", source_sha)
+                or not (_REPO_ROOT / source_path).is_file()
+                or hashlib.sha256((_REPO_ROOT / source_path).read_bytes()).hexdigest() != source_sha):
+            raise RuntimeError("research_only_provider_source_hash_drift")
+    url = urlsplit(official["url"])
+    if url.scheme != "https" or not url.hostname:
+        raise RuntimeError("research_only_provider_official_url_invalid")
+    note = ("RESEARCH ONLY — NOT APPLIED; no affiliate approval, payable event, "
+            "or tracking link established. " + domain_id + " source " +
+            e["research_capture_path"] + " sha256 " + e["research_capture_sha256"] +
+            " observed_at_utc " + e["observed_at_utc"] +
+            "; application hold: " + str(e["application_hold"]) +
+            "; known rail observation (not a clinical payable event): " +
+            json.dumps(p.get("known_program_observation"), sort_keys=True, ensure_ascii=False))
+    return {"0": "LOW", "1": "FALSE", "2": p["identity"],
+            "3": "Provider research (held)", "4": "Research-only provider", "5": "",
+            "6": official["url"], "7": "Published care subject; affiliate route and paid event unverified.",
+            "8": "", "9": "", "10": "research_only_hold", "11": "FALSE",
+            "12": "", "13": "", "14": "", "15": "", "16": "", "17": "",
+            "18": "", "19": "FALSE", "20": "FALSE", "21": "not_tested_no_link",
+            "22": "", "23": note, "24": e["observed_at_utc"],
+            "25": "glp1-weightloss", "26": ""}
+
+
 def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Validate a queue-drained plan for one mode and return its row entries."""
     spec = SHEET_SYNC_MODES.get(mode)
@@ -6095,6 +6204,13 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
 
         require_sheet_sync_evidence(spec, entry, program)
         evidence = entry["evidence"]
+        if spec.key == "research_only_provider":
+            expected = research_only_provider_cells(entry)
+            if not creating:
+                expected = {key: value for key, value in expected.items()
+                            if int(key) in spec.mutable_columns}
+            if entry.get("cells") != expected:
+                raise RuntimeError("research_only_provider_forbidden_or_conflicting_cells")
         if spec.key in provider_metadata.KINDS:
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT)
         if spec.key == "partner_email_hold":
@@ -6733,6 +6849,13 @@ def require_sheet_sync_preconditions(
         actual = pad(values[row_num - 1])
         if str(actual[2]).strip() != program:
             raise RuntimeError(f"{spec.key}_program_mismatch:{row_num}:{str(actual[2]).strip()!r}")
+        if spec.key == "research_only_provider":
+            expected = research_only_provider_cells(entry)
+            if str(actual[4]) != "Research-only provider" or any(
+                not sheet_sync_cell_equal(int(column), actual[int(column)], value)
+                for column, value in expected.items()
+            ):
+                raise RuntimeError(f"research_only_provider_existing_identity_or_source_conflict:{row_num}")
         if spec.key in provider_metadata.KINDS:
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT, values,
                                              provider_metadata.SLUG_APPROVED_STATUSES)
@@ -7016,6 +7139,21 @@ def require_sheet_sync_create_preconditions(
         if not entry.get("create"):
             continue
         program = str(entry["program"])
+        if spec.key == "research_only_provider":
+            from urllib.parse import urlsplit
+            domain = str(entry["provider_program_id"]).removeprefix("domain:")
+            collisions = []
+            for index, existing in enumerate(values[1:], 2):
+                actual = pad(existing)
+                if not row_has_business_value(actual):
+                    continue
+                host = urlsplit(str(actual[6] or "")).hostname or ""
+                if (norm(actual[2]) == norm(program) or host == domain
+                        or host.endswith("." + domain)):
+                    collisions.append(index)
+            if collisions:
+                raise RuntimeError(
+                    f"research_only_provider_existing_identity_conflict:{program}:{collisions}")
         matches = sheet_sync_existing_matches(values, entry)
         row_num = target_rows.get(program)
         if spec.require_marketplace_candidate_row:
@@ -7279,6 +7417,14 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
             if str(pad(values[item["row"] - 1])[10] or "") in spec.allowed_status
         ]
         if reused:
+            if spec.key == "research_only_provider":
+                if len(reused) != 1:
+                    raise RuntimeError("research_only_provider_replay_ambiguous")
+                prior = pad(values[reused[0]["row"] - 1])
+                expected = research_only_provider_cells(entry)
+                if any(not sheet_sync_cell_equal(int(key), prior[int(key)], value)
+                       for key, value in expected.items()):
+                    raise RuntimeError("research_only_provider_replay_source_conflict")
             target_rows[program] = reused[0]["row"]
             continue
         # Relevance gate on CREATES only (existing rows are never filtered).
@@ -7286,12 +7432,13 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
         # account into the Sheet -- Netgear Germany, Sports Direct DK, Indeed
         # AU, Etihad Holidays GCC, 32 rows in one drain. Enforced here at the
         # single writer so no future producer can bypass it by forgetting.
-        verdict = program_relevance.create_verdict(
-            program, fit_verified=bool(entry.get("fit_verified")))
-        if not verdict["allow"]:
-            raise RuntimeError(
-                f"{spec.key}_program_not_relevant:{program}:"
-                f"{verdict['reason']}:{verdict['detail']}")
+        if spec.key != "research_only_provider":
+            verdict = program_relevance.create_verdict(
+                program, fit_verified=bool(entry.get("fit_verified")))
+            if not verdict["allow"]:
+                raise RuntimeError(
+                    f"{spec.key}_program_not_relevant:{program}:"
+                    f"{verdict['reason']}:{verdict['detail']}")
         if not blank_rows:
             # The grid is full. Grow it rather than refusing every new provider.
             still_needed = sum(
@@ -7299,9 +7446,8 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
                 if item.get("create") and str(item["program"]) not in target_rows)
             grown = grow_grid_for_creates(
                 svc, int(props["sheetId"]), int(grid_before["rowCount"]),
-                still_needed, spec.key)
+                still_needed, spec.key, apply=apply)
             blank_rows.extend(grown)
-            grid_before["rowCount"] = int(grid_before["rowCount"]) + len(grown)
         if not blank_rows:
             raise RuntimeError(f"{spec.key}_no_blank_grid_row_available")
         target_rows[program] = blank_rows.pop(0)

@@ -1071,6 +1071,24 @@ def build_entry(
     program = str(queue_row.get("program_name") or "").strip()
     checked = utc_now()
 
+    if kind == "research_only_provider":
+        if (queue_row.get("sheet_row") not in (None, "", 0, "0")
+                or queue_row.get("network") != "Research-only provider"
+                or str(queue_row.get("program_id") or "") != evidence.get("provider_id")
+                or any(key in evidence for key in ("row_cells", "approval_date", "tracking_link",
+                                                    "payout", "apply", "signup_complete"))):
+            raise ValueError("research_only_provider_forbidden_queue_claim")
+        entry = {"program": program, "network": "Research-only provider",
+                 "provider_program_id": evidence.get("provider_id"), "evidence": evidence,
+                 "create": row_num is None}
+        if row_num is not None:
+            entry["row"] = row_num
+        projected = writer.research_only_provider_cells(entry)
+        entry["cells"] = (projected if row_num is None else {
+            key: value for key, value in projected.items()
+            if int(key) in writer.SHEET_SYNC_MODES[kind].mutable_columns})
+        return entry
+
     if kind == "maxbounty_publisher_id":
         return {"row": row_num, "program": program,
                 "network": queue_row.get("network"),
@@ -2580,7 +2598,7 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         # the same rail already carries is a re-report, and the only two things
         # that can happen to it downstream are a wasted refusal or a duplicate
         # row. Neither is worth a permanent escalation.
-        if kind == "new_approval" or base.get("creates_row"):
+        if (kind == "new_approval" or base.get("creates_row")) and kind != "research_only_provider":
             already = create_supersession_reason(values, queue_row)
             if already:
                 base["status"] = RESULT_NOOP
@@ -2606,7 +2624,7 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         try:
             entry = build_entry(kind, queue_row, evidence, row_num, row_values)
         except (ValueError, RuntimeError) as exc:
-            base["status"] = RESULT_REFUSED if kind in {*writer.provider_metadata.KINDS, "partner_email_hold"} else RESULT_ESCALATED
+            base["status"] = RESULT_REFUSED if kind in {*writer.provider_metadata.KINDS, "partner_email_hold", "research_only_provider"} else RESULT_ESCALATED
             base["reason"] = str(exc)
             if kind == "new_approval" and str(exc).startswith(
                     "new_approval_requires_researched_row_cells"):
