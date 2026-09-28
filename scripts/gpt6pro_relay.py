@@ -40,6 +40,7 @@ import urllib.request
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import NoReturn
 
 BUSINESS = Path("/home/ubuntu/business")
 CONFIG = BUSINESS / "ops/gpt6pro-relay/config.json"
@@ -2628,6 +2629,209 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         return 0
 
 
+# Only the PR60 reservation whose folder-create traceback and empty-folder
+# readback were retained. This is not an UNKNOWN-as-unsent policy.
+DRIVE_TIMEOUT_PR60 = {
+    'job': 'pro-glp96-pr60-8b6b1b8-held-intake-union-review-20260928',
+    'job_sha256': 'ef90a0be255a39c2c8b7c2e04662a7cddf54d0fdf0eb1ba4ac2de00494b2e2c4',
+    'message_sha256': 'ed588ade8680e8675007fa7da986cc97cd79c13b639881c9aebe877af1bd73b4',
+    'manifest_sha256': 'd4abdf3b18e62cf69f3b6cdf442d19e304921fff12c35323ca7255d8ab368c15',
+    'prompt_sha256': '82ad8c037ed945cb32a9a6ff2fe5ecd223ae2d3a64c60c0c3c4ed0f8562238cd',
+    'incident_sha256': 'ad825788d91be035210e5192306bff5d472adf2a534ef2384c8803323d8c8d93',
+    'submit_sha256': '2c7d6978b3b6954d31a00a45b7f9447bfb857739d2dd8b11240b6a0b96e7a361',
+    'folder_id_sha256': '504a34c4803f3a8c6348740fc48b84d525925285634370142b77ebfd3dc72832',
+    'reservation_ledger_line': 667,
+    'input_sha256': 'a5fe0ae77f68aaf5736ba265af21c0bfdcbe6c5bf1fa82878d1bb8e5cce4647a',
+    'account': 'izaiahtilton1@gmail.com',
+}
+
+
+def resume_drive_timeout(job: str, authorize_preimage: str | None = None) -> int:
+    """Inspect the exact stranded reservation; explicit hash authorizes one continuation.
+
+    Never call drive_subfolder: a timed-out create may already have landed.
+    The original UNKNOWN fields remain until the existing send guards bind a chat.
+    """
+    c = DRIVE_TIMEOUT_PR60
+    if job != c['job']:
+        raise SystemExit('DRIVE_RESUME_REFUSED_JOB')
+    cfg = load_config()
+    acct = account_of(cfg, c['account'])
+    use_account(acct)
+    d = JOBS / job
+    path = d / 'JOB.json'
+    def refuse(reason: str) -> NoReturn:
+        raise SystemExit('DRIVE_RESUME_REFUSED_' + reason)
+    with account_lock(), global_lock():
+        try:
+            preimage = path.read_bytes()
+            st = json.loads(preimage)
+            message = (d / 'MESSAGE.md').read_bytes()
+            manifest_bytes = (d / 'MANIFEST.json').read_bytes()
+            manifest = json.loads(manifest_bytes)
+            prompt_bytes = (d / 'PROMPT.md').read_bytes()
+            incident_bytes = (BUSINESS / 'reports/ops/glp96-current-integration-pro-review-20260928/SUBMISSION-INCIDENT.json').read_bytes()
+            submit_bytes = (BUSINESS / 'reports/ops/glp96-current-integration-pro-review-20260928/20260928T011108Z-submit.json').read_bytes()
+            incident = json.loads(incident_bytes)
+            submit = json.loads(submit_bytes)
+        except (OSError, ValueError, TypeError):
+            refuse('CUSTODY')
+        sha = lambda data: hashlib.sha256(data).hexdigest()
+        if (sha(preimage) != c['job_sha256'] or sha(message) != c['message_sha256'] or
+                sha(manifest_bytes) != c['manifest_sha256'] or sha(prompt_bytes) != c['prompt_sha256'] or
+                sha(incident_bytes) != c['incident_sha256'] or sha(submit_bytes) != c['submit_sha256'] or
+                st.get('job') != job or st.get('account') != acct['label'] or
+                st.get('job_class') != 'independent-review' or st.get('status') != 'submitting' or
+                st.get('retry_blocked') is not True or st.get('typed') != 'UNKNOWN' or
+                st.get('sent') != 'UNKNOWN' or st.get('input_sha256') != c['input_sha256'] or
+                any(st.get(k) for k in ('tab', 'conversation_url', 'pending_conversation_url', 'binding_version')) or
+                not all(st.get(k) and manifest.get(k) == st[k] for k in PROVENANCE_FIELDS) or
+                manifest.get('job') != job or manifest.get('job_class') != st['job_class'] or
+                manifest.get('attach') != [] or manifest.get('kind') != 'freeform' or
+                not isinstance(manifest.get('drive_attach'), list) or
+                len(manifest['drive_attach']) != 27 or
+                _failed_generation_identity(st).encode() not in message or
+                (d / 'RESPONSE.md').exists() or (d / 'outbox').exists()):
+            refuse('STATE_OR_PACKET')
+        # The original manifest has absolute installed paths. Resolve only their
+        # basenames within this job; the pinned manifest and packet hash bind order.
+        names = [Path(p).name for p in manifest['drive_attach']]
+        if (len(set(names)) != len(names) or any(Path(p).parent !=
+                Path('/home/ubuntu/business/reports/ops/gpt6pro-relay/jobs') / job
+                for p in manifest['drive_attach']) or
+                any(not n.startswith('DRIVE-') for n in names)):
+            refuse('PATHS')
+        paths = [d / 'PROMPT.md', *(d / n for n in names)]
+        uploads = [d / 'MESSAGE.md', d / 'drive-input/PROMPT.md', *(d / n for n in names)]
+        try:
+            packet = [(p.name, sha(p.read_bytes())) for p in paths]
+            upload_bytes = [p.read_bytes() for p in uploads]
+            ledger_bytes = ledger_path(cfg).read_bytes()
+            rows = [json.loads(line) for line in ledger_bytes.splitlines() if line.strip()]
+        except (OSError, ValueError, TypeError):
+            refuse('PACKET_OR_LEDGER')
+        if (sha(json.dumps(packet, separators=(',', ':')).encode()) != c['input_sha256'] or
+                sha(upload_bytes[0]) != c['message_sha256'] or
+                len(set(p.name for p in uploads)) != len(uploads) or
+                not upload_bytes[1].startswith(b'#') or
+                any(r.get('job') == job for r in rows if r.get('event') != 'submitted') or
+                len([r for r in rows if r.get('job') == job]) != 1 or
+                len(rows) < c['reservation_ledger_line'] or
+                rows[c['reservation_ledger_line'] - 1].get('job') != job):
+            refuse('PACKET_OR_RESERVATION')
+        reservation = next(r for r in rows if r.get('job') == job)
+        if (reservation.get('event') != 'submitted' or reservation.get('kind') != 'initial' or
+                reservation.get('certainty') != 'reserved_may_send' or
+                reservation.get('account') != acct['label'] or
+                any(reservation.get(k) != st[k] for k in PROVENANCE_FIELDS) or
+                incident.get('job_sha256') != c['job_sha256'] or
+                incident.get('message_sha256') != c['message_sha256'] or
+                incident.get('reservation_ledger_line') != c['reservation_ledger_line'] or
+                incident.get('submission_bound_count') != 0 or
+                incident.get('drive_inbox_folders') != [{'folder_id_sha256': c['folder_id_sha256'],
+                                                           'file_count': 0, 'media': []}] or
+                incident.get('fully_paginated_exact_inbox_query') is not True or
+                submit.get('returncode') != 1 or
+                'in _cmd_submit' not in submit.get('stderr', '') or
+                'in drive_subfolder' not in submit.get('stderr', '') or
+                'TimeoutError' not in submit.get('stderr', '')):
+            refuse('INCIDENT')
+        if _legacy_live_jobs() or any(
+                (s.get('status') in ACTIVE_STATES or s.get('retry_blocked')) and
+                not binding_url(s) and not _verified_terminal_unsent(s)
+                for s in sibling_bindings(acct['label'], job)):
+            refuse('SIBLING_OR_RUNNER')
+        active = active_registry()
+        if (len(active) > min(6, cfg['envelope']['max_concurrent_chats_per_ip']) or
+                sum(r['account'] == acct['label'] for r in active) >
+                min(3, cfg['envelope']['max_concurrent_chats_per_account'])):
+            refuse('CAPACITY')
+        svc = drive()
+        folder_query = (f"'{cfg['drive']['inbox_id']}' in parents and name = '{job}' "
+                        "and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+        try:
+            folders = drive_list_all(svc, folder_query)
+            if (len(folders) != 1 or sha(folders[0]['id'].encode()) != c['folder_id_sha256'] or
+                    folders[0].get('name') != job or
+                    folders[0].get('mimeType') != 'application/vnd.google-apps.folder' or
+                    drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")):
+                refuse('FOLDER')
+        except (KeyError, ValueError, TypeError):
+            refuse('FOLDER')
+        if authorize_preimage is None:
+            print('WOULD_RESUME_DRIVE_FOLDER job=' + job + ' preimage_sha256=' + sha(preimage) +
+                  '; retry_blocked and UNKNOWN retained')
+            return 0
+        if authorize_preimage != sha(preimage):
+            refuse('AUTHORITY')
+        # Fresh effect authority must also pass the existing heavy-seat admission.
+        admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
+                                    'require-held'], capture_output=True, text=True)
+        if admission.returncode:
+            refuse('ADMISSION')
+        clock_path = BUSINESS / 'ops/gpt6pro-relay/admission.json'
+        clock = json.loads(clock_path.read_text()) if clock_path.exists() else {}
+        if time.time() < float(clock.get('last_submit', 0)) + max(60, cfg['envelope']['min_seconds_between_submits']):
+            refuse('PACING')
+        used = messages_used_7d(cfg, acct['label'])
+        limit = int(acct['weekly_messages'] * (1 - cfg.get('budget_reserve_pct', 10) / 100))
+        if used > limit:
+            refuse('BUDGET')
+        if (path.read_bytes() != preimage or (d / 'MESSAGE.md').read_bytes() != message or
+                (d / 'MANIFEST.json').read_bytes() != manifest_bytes or
+                (d / 'PROMPT.md').read_bytes() != prompt_bytes or
+                ledger_path(cfg).read_bytes() != ledger_bytes or
+                any(p.read_bytes() != data for p, data in zip(uploads, upload_bytes)) or
+                drive_list_all(svc, folder_query) != folders or
+                drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")):
+            refuse('DRIFT')
+        backup = d / ('JOB.pre-drive-timeout-' + sha(preimage) + '.json')
+        try:
+            with backup.open('xb') as fh:
+                fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
+        except FileExistsError:
+            refuse('ALREADY_ATTEMPTED')
+        attempt = {'job': job, 'account': acct['label'], 'preimage_sha256': sha(preimage),
+                   'message_sha256': sha(message), 'incident_sha256': sha(incident_bytes),
+                   'folder_id_sha256': c['folder_id_sha256'], 'attempt_at': now_iso()}
+        ledger_append(cfg, {'event': 'drive_timeout_resume', 'phase': 'STARTED', **attempt})
+        pending = {**st, 'status': 'drive_resume_submitting', 'drive_resume_attempt': attempt}
+        job_write(job, pending)
+        clock['last_submit'] = time.time()
+        _atomic_json(clock_path, clock)
+        # No second folder create and no new reservation: original upload set,
+        # original message, then the installed Pro/model/atomic-send guards.
+        links = {p.name: drive_upload(svc, folders[0]['id'], p) for p in uploads}
+        forbidden = [url for s in sibling_bindings(acct['label'], job)
+                     if (url := binding_url(s))]
+        result = send_message(message.decode('utf-8'), forbidden=forbidden)
+        if 'error' not in result and (not binding_url(result) or binding_url(result) in forbidden):
+            result = {'error': 'conversation_collision' if binding_url(result) in forbidden else 'binding_unverified',
+                      'typed': True, 'sent': True, 'result': result}
+        if 'error' in result:
+            job_write(job, {**pending, 'status': 'failed', 'reason': result['error'],
+                            'error': result, 'typed': result.get('typed', 'UNKNOWN'),
+                            'sent': result.get('sent', 'UNKNOWN')})
+            raise SystemExit('DRIVE_RESUME_HELD ' + str(result['error']))
+        bound = {**pending, 'status': 'running', 'retry_blocked': False,
+                 'typed': True, 'sent': True, 'binding_version': 2,
+                 'conversation_id': binding_url(result).rsplit('/', 1)[1],
+                 'tab': result.get('tab'), 'submitted': now_iso(),
+                 'chars_in': len(message.decode('utf-8')),
+                 'drive_files': [str(p) for p in uploads[1:]], 'drive_inbox': links,
+                 'prompt': str(d / 'drive-input/PROMPT.md'), 'attachments': []}
+        key = 'conversation_url' if result.get('conversation_url') else 'pending_conversation_url'
+        bound[key] = binding_url(result)
+        require_binding(bound, result)
+        job_write(job, bound)
+        ledger_append(cfg, {'event': 'submission_bound', 'job': job, 'account': acct['label'],
+                            'job_class': st['job_class'], 'conversation_url': binding_url(result),
+                            'chars_in': bound['chars_in'], 'used_7d_after': used,
+                            'limit': limit, **{k: st[k] for k in PROVENANCE_FIELDS}})
+        print('RESUMED_DRIVE_FOLDER job=' + job + ' conv=' + binding_url(result))
+        return 0
+
+
 def cmd_submit(a) -> int:
     if not a.account:
         raise SystemExit('ACCOUNT_REQUIRED')
@@ -2935,6 +3139,9 @@ def main() -> int:
     u.add_argument("--job", required=True)
     u.add_argument("--failure-log", type=Path, required=True)
     u.add_argument("--apply", action="store_true")
+    df = sub.add_parser('resume-drive-timeout', help='read-only by default; exact PR60 empty-folder reservation only')
+    df.add_argument('--job', required=True)
+    df.add_argument('--authorize-preimage', help='exact current JOB.json SHA256; one effectful continuation')
     rr = sub.add_parser('resume-unsent-readiness', help='read-only by default; explicit one-shot authority for exact unsent retained tab')
     rr.add_argument('--job', required=True)
     rr.add_argument('--report', required=True)
@@ -2983,6 +3190,8 @@ def main() -> int:
         return reconcile_no_reply(a.job)
     if a.cmd == "reconcile-unsent-focus":
         return reconcile_unsent_focus(a.job, a.failure_log, apply=a.apply)
+    if a.cmd == 'resume-drive-timeout':
+        return resume_drive_timeout(a.job, a.authorize_preimage)
     if a.cmd == 'resume-unsent-readiness':
         return resume_unsent_readiness(a.job, a.report, a.authorize_preimage)
     if a.cmd == "reconcile-unsent-model":
