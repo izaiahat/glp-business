@@ -66,7 +66,7 @@ def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     # Undo the other parent's two reviewed manifest-pin substitutions too;
     # the common predecessor must still match byte-for-byte.
     old_manifest = b'5c022f814c9d3160cd61185b24b952974347689b7dd2349e846bb34e75795da5'
-    new_manifest = b'd930d99169ab63d33d9c9587a1eff4b2e42f34ba927d47184c2369b5d183e2a2'
+    new_manifest = b'34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb'
     assert restored.count(new_manifest) == 2
     restored = restored.replace(new_manifest, old_manifest)
     assert hashlib.sha256(restored).hexdigest() == 'd4b3a378c34013adcc65909b52b7973890b8b8523e8f5f887a5f3ea01fcf286e'
