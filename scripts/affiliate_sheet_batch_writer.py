@@ -1780,6 +1780,8 @@ def run_add_approved_row(plan_path: Path, out: Path, apply: bool) -> int:
         if row_has_business_value(row)
     }
     blank_rows = [row for row in range(2, int(grid_before["rowCount"]) + 1) if row not in used]
+    # Track growth locally so the receipt keeps the original pre-growth grid.
+    grid_row_count = int(grid_before["rowCount"])
     target_rows: dict[str, int] = {}
     for entry in rows:
         program = str(entry["program"])
@@ -1794,10 +1796,10 @@ def run_add_approved_row(plan_path: Path, out: Path, apply: bool) -> int:
             # The grid is full. Grow it rather than refusing a real approval.
             still_needed = sum(1 for item in rows if str(item["program"]) not in target_rows)
             grown = grow_grid_for_creates(
-                svc, int(props["sheetId"]), int(grid_before["rowCount"]),
-                still_needed, "add_approved_row")
+                svc, int(props["sheetId"]), grid_row_count,
+                still_needed, "add_approved_row", apply=apply)
             blank_rows.extend(grown)
-            grid_before["rowCount"] = int(grid_before["rowCount"]) + len(grown)
+            grid_row_count += len(grown)
         if not blank_rows:
             raise RuntimeError("add_approved_row_no_blank_grid_row_available")
         target_rows[program] = blank_rows.pop(0)
