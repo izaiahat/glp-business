@@ -18,9 +18,10 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 BUSINESS_ROOT = Path("/home/ubuntu/business")
-if str(BUSINESS_ROOT / "scripts") not in sys.path:
-    sys.path.insert(0, str(BUSINESS_ROOT / "scripts"))
-from glp_current_content_base_schema import validate_pointer_shape  # noqa: E402
+SOURCE_ROOT = Path(__file__).resolve().parents[3]
+if str(SOURCE_ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT / "scripts"))
+from glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape  # noqa: E402
 from glp_price_index_weekly import _validate_base_evidence  # noqa: E402
 DEFAULT_FLAGSHIP_ROOT = BUSINESS_ROOT / "site-system/flagship-v2"
 POINTER_SCHEMA = "glp-opus-current-content-base-v1"
@@ -100,7 +101,7 @@ def resolve_current_content_base(
     try:
         validate_pointer_shape(
             pointer,
-            releases_root=flagship_root / "releases",
+            releases_root=None if is_prepared_pointer(pointer) else flagship_root / "releases",
             require_release_dirs=True,
         )
     except RuntimeError as exc:
@@ -108,9 +109,13 @@ def resolve_current_content_base(
     root_value = pointer.get("release_root")
     if not isinstance(root_value, str) or not os.path.isabs(root_value):
         raise RuntimeError("current_content_base_release_root_invalid")
-    release_root = _contained(Path(root_value), flagship_root, "current_content_base")
+    release_root = Path(root_value) if is_prepared_pointer(pointer) else _contained(
+        Path(root_value), flagship_root, "current_content_base"
+    )
     if not release_root.is_dir() or release_root.is_symlink():
         raise RuntimeError("current_content_base_release_root_invalid")
+    # The prepared branch's root custody is checked by _validate_base_evidence
+    # against PREPARED.json, the manifest, and the actual release/deploy trees.
     evidence = _validate_base_evidence(pointer, release_root)
 
     catalogs = paths.get("content_catalogs")

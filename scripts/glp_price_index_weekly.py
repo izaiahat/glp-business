@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import io
 import fcntl
@@ -44,6 +45,7 @@ from glp_current_content_base_schema import (  # noqa: E402
     COUNT_KEYS as MOVING_BASE_COUNT_KEYS,
     POINTER_ALLOWED_KEYS as MOVING_BASE_ALLOWED_KEYS,
     POINTER_REQUIRED_KEYS as MOVING_BASE_REQUIRED_KEYS,
+    is_prepared_pointer,
     validate_pointer_shape,
 )
 
@@ -54,7 +56,7 @@ RELEASES = SITE_ROOT / "releases"
 CURRENT_BASE = BUSINESS / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
 GROWTH_ROOT = BUSINESS / "reports/glp-clinic-scout/growth/price-index"
 REMINT = BUSINESS / "systems/seo-blog-machine/scripts/remint_content_base.py"
-BUILDER_PATH = BUSINESS / "systems/seo-blog-machine/scripts/build_opus_article_release.py"
+BUILDER_PATH = SCRIPT_DIR.parent / "systems/seo-blog-machine/scripts/build_opus_article_release.py"
 OBSERVER_SOURCE = BUSINESS / "scripts/glp_price_index_weekly_sources/update-price-index.mjs"
 SUPPORT_ROOT = OBSERVER_SOURCE.parent
 SUITE_PATCHES_SHA256 = "58b767379939d91281ee57fa7e89d1363b7b3d2a9557a7e5b7636e0fdc1a60b8"
@@ -993,6 +995,80 @@ def _load_base_document(data: bytes, label: str) -> dict[str, Any]:
     return payload
 
 
+def _prepared_base_links(
+    pointer: dict[str, Any], release: Path, manifest_path: Path, receipt_path: Path,
+    manifest: dict[str, Any], release_rows: list[dict[str, Any]],
+) -> None:
+    """Bind the GLP-43 publisher's preparation to its public terminal evidence."""
+    head = pointer["site_head"]
+    prepared_dir = release.parent
+    ops_root = BUSINESS / "reports/ops"
+    if (release.name != "release" or ops_root.resolve(strict=True) not in prepared_dir.parents
+            or prepared_dir.resolve(strict=True) != prepared_dir
+            or release.resolve(strict=True) != release
+            or prepared_dir.is_symlink()):
+        raise RuntimeError("current_content_base_prepared_root_invalid")
+    if (manifest_path != CURRENT_BASE.parent / f"current-release-{head}/01-deployment-manifest.json"
+            or receipt_path != manifest_path.parent / "10-final-publication-receipt.json"):
+        raise RuntimeError("current_content_base_prepared_publication_path_invalid")
+    prepared_path, raw, identity = _read_bound_regular_file(str(prepared_dir / "PREPARED.json"), "prepared")
+    prepared = _load_base_document(raw, "prepared")
+    if (prepared.get("schema") != "glp43-current-prepared-v1"
+            or prepared.get("prepared_dir") != str(prepared_dir)
+            or prepared.get("site_head") != head
+            or prepared.get("site_repository") != "izaiahat/glp-site-candidate"
+            or prepared.get("project") != "glp-clinic-scout"
+            or prepared.get("branch") != "main"
+            or prepared.get("release_authorized") is not False
+            or prepared.get("provider_mutations") != 0):
+        raise RuntimeError("current_content_base_prepared_identity_mismatch")
+    previous = prepared.get("predecessor_pointer")
+    if not isinstance(previous, dict):
+        raise RuntimeError("current_content_base_predecessor_invalid")
+    try:
+        prior_bytes = base64.b64decode(previous["bytes_base64"], validate=True)
+        prior = json.loads(prior_bytes)
+        validate_pointer_shape(prior, require_release_dirs=True)
+    except (KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError):
+        raise RuntimeError("current_content_base_predecessor_invalid") from None
+    if (previous.get("path") != str(CURRENT_BASE)
+            or previous.get("sha256") != sha_bytes(prior_bytes)
+            or previous.get("bytes") != len(prior_bytes)
+            or previous.get("deployment_id") != prior["deployment_id"]
+            or previous.get("release_root") != prior["release_root"]
+            or pointer["supersedes"] != {
+                "deployment_id": prior["deployment_id"], "release_root": prior["release_root"]
+            }
+            or prepared.get("rollback_deployment_id") != prior["deployment_id"]):
+        raise RuntimeError("current_content_base_predecessor_mismatch")
+    release_closure = {
+        "tree_sha256": _legacy_closure(release_rows), "file_count": len(release_rows),
+        "total_bytes": sum(row["size"] for row in release_rows),
+    }
+    deploy = prepared_dir / "deploy-public"
+    if deploy.resolve(strict=True) != deploy or deploy.is_symlink() or not deploy.is_dir():
+        raise RuntimeError("current_content_base_deploy_directory_invalid")
+    compiled = prepared.get("compiled")
+    if (not isinstance(compiled, dict) or not _valid_sha256(compiled.get("worker_sha256"))
+            or not (deploy / "_worker.js").is_file()
+            or (deploy / "_worker.js").is_symlink()
+            or sha_file(deploy / "_worker.js") != compiled["worker_sha256"]):
+        raise RuntimeError("current_content_base_prepared_worker_mismatch")
+    deploy_rows = _legacy_rows(_complete_current_rows(deploy))
+    deploy_closure = {
+        "tree_sha256": _legacy_closure(deploy_rows), "file_count": len(deploy_rows),
+        "total_bytes": sum(row["size"] for row in deploy_rows),
+    }
+    if (prepared.get("release") != release_closure
+            or prepared.get("deploy_directory") != deploy_closure
+            or manifest.get("deploy_directory") != deploy_closure
+            or pointer["deploy_directory_sha256"] != deploy_closure["tree_sha256"]):
+        raise RuntimeError("current_content_base_prepared_closure_mismatch")
+    _, final_bytes, final_identity = _read_bound_regular_file(str(prepared_path), "prepared")
+    if final_identity != identity or final_bytes != raw:
+        raise RuntimeError("current_content_base_prepared_identity_changed")
+
+
 def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str, Any]:
     manifest_bound = _checked_base_evidence(
         pointer, "manifest", "01-deployment-manifest.json"
@@ -1007,12 +1083,25 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
 
     manifest = _load_base_document(manifest_bound["bytes"], "manifest")
     _recheck_base_evidence(manifest_bound, "manifest")
-    _require_outer_keys_v1(
-        manifest,
-        _MANIFEST_REQUIRED_KEYS_V1,
-        _MANIFEST_ALLOWED_KEYS_V1,
-        "legacy_manifest_fields_invalid",
-    )
+    prepared_format = is_prepared_pointer(pointer)
+    if prepared_format:
+        _require_outer_keys_v1(
+            manifest,
+            frozenset({"schema", "release_root", "release_rows", "release_tree_sha256",
+                       "site_head", "deploy_directory"}),
+            frozenset({"schema", "release_root", "release_rows", "release_tree_sha256",
+                       "site_head", "deploy_directory"}),
+            "prepared_manifest_fields_invalid",
+        )
+        if manifest["site_head"] != pointer["site_head"]:
+            raise RuntimeError("prepared_manifest_site_head_mismatch")
+    else:
+        _require_outer_keys_v1(
+            manifest,
+            _MANIFEST_REQUIRED_KEYS_V1,
+            _MANIFEST_ALLOWED_KEYS_V1,
+            "legacy_manifest_fields_invalid",
+        )
     if manifest.get("schema") != "glp-opus-release-deployment-manifest-v1":
         raise RuntimeError("legacy_manifest_schema_invalid")
     if manifest.get("release_root") != str(release):
@@ -1039,6 +1128,11 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
         if actual_rows != manifest_rows or manifest.get("release_tree_sha256") != release_tree:
             raise RuntimeError("current_content_base_closure_mismatch")
 
+    if prepared_format:
+        if closure_schema != "legacy-path-size-sha256-v1":
+            raise RuntimeError("prepared_manifest_row_schema_invalid")
+        _prepared_base_links(pointer, release, manifest_path, receipt_path, manifest, actual_rows)
+
     pointer_release_tree = pointer.get("release_tree_sha256")
     pointer_public_tree = pointer.get("public_tree_sha256")
     if not _valid_sha256(pointer_release_tree) or not _valid_sha256(pointer_public_tree):
@@ -1048,12 +1142,24 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
 
     receipt = _load_base_document(receipt_bound["bytes"], "final_receipt")
     _recheck_base_evidence(receipt_bound, "final_receipt")
-    _require_outer_keys_v1(
-        receipt,
-        _FINAL_RECEIPT_REQUIRED_KEYS_V1,
-        _FINAL_RECEIPT_ALLOWED_KEYS_V1,
-        "legacy_final_receipt_fields_invalid",
-    )
+    if prepared_format:
+        _require_outer_keys_v1(
+            receipt,
+            frozenset({"schema", "status", "deployment", "evidence_sha256",
+                       "immutable_closure", "site_head"}),
+            frozenset({"schema", "status", "deployment", "evidence_sha256",
+                       "immutable_closure", "site_head"}),
+            "prepared_final_receipt_fields_invalid",
+        )
+        if receipt["site_head"] != pointer["site_head"]:
+            raise RuntimeError("prepared_final_receipt_site_head_mismatch")
+    else:
+        _require_outer_keys_v1(
+            receipt,
+            _FINAL_RECEIPT_REQUIRED_KEYS_V1,
+            _FINAL_RECEIPT_ALLOWED_KEYS_V1,
+            "legacy_final_receipt_fields_invalid",
+        )
     if receipt.get("schema") != "glp-opus-production-terminal-receipt-v1":
         raise RuntimeError("legacy_final_receipt_schema_invalid")
     if receipt.get("status") != "PASS_PRODUCTION_TERMINAL":
@@ -1089,10 +1195,13 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
 
 
 def validate_base(pointer: dict[str, Any], token: str) -> dict[str, Any]:
+    if is_prepared_pointer(pointer):
+        validate_pointer_shape(pointer, require_release_dirs=True)
     _require_outer_keys_v1(
         pointer,
         _POINTER_REQUIRED_KEYS_V1,
-        _POINTER_ALLOWED_KEYS_V1,
+        _POINTER_ALLOWED_KEYS_V1 | (frozenset({"site_head", "deploy_directory_sha256"})
+                                    if is_prepared_pointer(pointer) else frozenset()),
         "current_content_base_fields_invalid",
     )
     if pointer.get("status") != "PASS":

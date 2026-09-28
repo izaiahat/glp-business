@@ -37,6 +37,13 @@ POINTER_REQUIRED_KEYS = frozenset(
 )
 POINTER_OPTIONAL_KEYS = frozenset({"reminted_at_utc"}) | COUNT_KEYS
 POINTER_ALLOWED_KEYS = POINTER_REQUIRED_KEYS | POINTER_OPTIONAL_KEYS
+# The registered GLP-43 publisher emits these together, not as arbitrary extras.
+PREPARED_POINTER_KEYS = frozenset({"site_head", "deploy_directory_sha256"})
+SITE_HEAD_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def is_prepared_pointer(pointer: Any) -> bool:
+    return isinstance(pointer, dict) and bool(set(pointer) & PREPARED_POINTER_KEYS)
 
 
 def require_deployment_id(value: Any, label: str) -> str:
@@ -145,10 +152,15 @@ def validate_pointer_shape(
     """
     if not isinstance(pointer, dict):
         raise RuntimeError(f"{label}_not_object")
+    prepared = is_prepared_pointer(pointer)
     missing = POINTER_REQUIRED_KEYS - set(pointer) - set(allow_missing)
-    unexpected = set(pointer) - POINTER_ALLOWED_KEYS
-    if missing or unexpected:
+    unexpected = set(pointer) - (POINTER_ALLOWED_KEYS | (PREPARED_POINTER_KEYS if prepared else frozenset()))
+    if missing or unexpected or (prepared and not PREPARED_POINTER_KEYS <= set(pointer)):
         raise RuntimeError(f"{label}_fields_invalid")
+    if prepared:
+        if not isinstance(pointer["site_head"], str) or SITE_HEAD_RE.fullmatch(pointer["site_head"]) is None:
+            raise RuntimeError(f"{label}_site_head_invalid")
+        require_sha256(pointer["deploy_directory_sha256"], f"{label}_deploy_directory")
     if "schema" in pointer and pointer.get("schema") != POINTER_SCHEMA:
         raise RuntimeError(f"{label}_schema_invalid")
     if "status" in pointer and pointer.get("status") != POINTER_STATUS:
