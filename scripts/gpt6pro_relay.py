@@ -2713,7 +2713,7 @@ def resume_drive_timeout(job: str, authorize_preimage: str | None = None) -> int
         if (sha(json.dumps(packet, separators=(',', ':')).encode()) != c['input_sha256'] or
                 sha(upload_bytes[0]) != c['message_sha256'] or
                 len(set(p.name for p in uploads)) != len(uploads) or
-                not upload_bytes[1].startswith(b'#') or
+                upload_bytes[1] != prompt_bytes or
                 any(r.get('job') == job for r in rows if r.get('event') != 'submitted') or
                 len([r for r in rows if r.get('job') == job]) != 1 or
                 len(rows) < c['reservation_ledger_line'] or

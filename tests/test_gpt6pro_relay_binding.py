@@ -432,36 +432,59 @@ class BindingTests(unittest.TestCase):
             self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
             self.assertEqual(upload.call_count, 0)
             self.assertEqual(len(self.browser.sent), 0)
-            def refused(label, modify, restore=lambda: None):
+            self.clock += 61  # make pacing eligible before every mutation refusal
+            backup = d / ('JOB.pre-drive-timeout-' + sha(held) + '.json')
+            def refused(label, reason, modify, restore=lambda: None, default=False):
                 with self.subTest(label=label):
                     modify()
-                    with self.assertRaises(SystemExit):
-                        call('--authorize-preimage', sha(held))
-                    self.assertEqual(upload.call_count, 0)
-                    restore()
+                    try:
+                        before = relay.ledger_path(self.cfg).read_bytes()
+                        job_before = (d / 'JOB.json').read_bytes()
+                        attempts = ((), ('--authorize-preimage', sha(held))) if default else (('--authorize-preimage', sha(held)),)
+                        for extra in attempts:
+                            with self.assertRaises(SystemExit) as cm:
+                                call(*extra)
+                            self.assertEqual(str(cm.exception), 'DRIVE_RESUME_REFUSED_' + reason)
+                            self.assertEqual((d / 'JOB.json').read_bytes(), job_before)
+                            self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), before)
+                            self.assertFalse(backup.exists())
+                            self.assertEqual(upload.call_count, 0)
+                            self.assertEqual(len(self.browser.sent), 0)
+                    finally:
+                        restore()
+                    self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
                     self.assertEqual((d / 'JOB.json').read_bytes(), held)
-            with self.assertRaisesRegex(SystemExit, 'AUTHORITY'):
+            with self.assertRaisesRegex(SystemExit, 'DRIVE_RESUME_REFUSED_AUTHORITY'):
                 call('--authorize-preimage', '0'*64)
             original_list = self.svc.files.return_value.list.side_effect
             def duplicate(**kw):
                 if 'mimeType =' in kw['q']:
                     return types.SimpleNamespace(execute=lambda: {'files': [folder, folder]})
                 return original_list(**kw)
-            refused('duplicate folder', lambda: setattr(self.svc.files.return_value.list, 'side_effect', duplicate),
+            refused('duplicate folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', duplicate),
                     lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
             def nonempty(**kw):
-                if "'{folder_id}' in parents" in kw['q']:
+                if f"'{folder_id}' in parents" in kw['q']:
                     return types.SimpleNamespace(execute=lambda: {'files': [{'id': 'payload'}]})
                 return original_list(**kw)
-            refused('nonempty folder', lambda: setattr(self.svc.files.return_value.list, 'side_effect', nonempty),
+            refused('nonempty folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', nonempty),
                     lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
-            refused('packet drift', lambda: files[0].write_text('changed'),
+            transported_prompt = d / 'drive-input/PROMPT.md'
+            original_transport = transported_prompt.read_bytes()
+            refused('preexisting transport prompt replacement', 'PACKET_OR_RESERVATION',
+                    lambda: transported_prompt.write_bytes(b'# substituted review instructions\n'),
+                    lambda: transported_prompt.write_bytes(original_transport), default=True)
+            refused('packet drift', 'PACKET_OR_RESERVATION',
+                    lambda: files[0].write_text('changed'),
                     lambda: files[0].write_text('retained attachment 0\n'))
-            refused('send evidence', lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
+            refused('send evidence', 'PACKET_OR_RESERVATION',
+                    lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
                     lambda: relay.ledger_path(self.cfg).write_bytes(original_ledger))
-            refused('changed state', lambda: (d / 'JOB.json').write_bytes(held+b' '),
+            refused('changed state', 'STATE_OR_PACKET',
+                    lambda: (d / 'JOB.json').write_bytes(held+b' '),
                     lambda: (d / 'JOB.json').write_bytes(held))
-            self.clock += 61  # same original reservation, but shared submit pacing must expire
             self.assertEqual(call('--authorize-preimage', sha(held))[0], 0)
             self.assertEqual(upload.call_count, 29)
             self.assertEqual(len(created), 1)
