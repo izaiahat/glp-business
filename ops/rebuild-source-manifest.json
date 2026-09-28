@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9fec8ac426fd2c9244e22e46692cd99d3ff7474b7374e7fa428e45022efb70a4"
+      "sha256": "b11d36980d380a877fff0d36d627a1e2a8eabafeea16c066055ff3533e3ac1b5"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "35df7377eb3c52d5b6d77ceca9aa60ba9215209588032d867479253f39317911"
+      "sha256": "da41b7058506ae66ee6bc070bfaf1aa614d76a8d941ac9ebd9009012ead2b44a"
     },
     ".hermes.md": {
       "callers": [],
@@ -1134,7 +1134,7 @@
         "scripts/glp_deploy_completeness_sensor.py"
       ],
       "kind": "script",
-      "sha256": "953c98503178f511b571bf87b79ab35a95815c27561f8a94700a73f951b52a4c"
+      "sha256": "1da3d99130dddcab68279c60753cc66b9100150f6620903fee36c08a05165c4e"
     },
     "scripts/glp_deploy_glp34_authority_v1.py": {
       "callers": [
@@ -1155,7 +1155,7 @@
         "scripts/glp_deploy_completeness_sensor.py"
       ],
       "kind": "script",
-      "sha256": "88471ac7b8073a48d91dda3a66cac4320d99ab98b2d1112f45e6a569828060c4"
+      "sha256": "4bac8cb5d74175a739f64774d5026ac0e1a97b29782a6cf5222686f0248a2f6b"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -2116,6 +2116,13 @@
       "kind": "test",
       "sha256": "b73cec2052d4cd6bcf456beb7882a33c45e71d8f349856ca132da718a53c4568"
     },
+    "tests/test_glp73_sensor_hook_source.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "9650625327c3da5435c18696f51bd3eef3873a495d26eee87d022bc2aafaf2fe"
+    },
     "tests/test_glp76_host_transport.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
@@ -2537,5 +2544,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 385
+  "tracked_count": 386
 }

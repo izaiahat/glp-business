@@ -299,3 +299,4 @@
 !/scripts/glp_robots_gate.py
 !/scripts/glp_deploy_provider_routes.mjs
 !/ops/discord_fmt.py
+!/tests/test_glp73_sensor_hook_source.py

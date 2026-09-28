@@ -19,6 +19,7 @@ No Sheet writes, no outreach, no tracking-link clicks, no secrets printed.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 import stat
@@ -31,8 +32,8 @@ MACHINE_DIR = BUSINESS / "reports/glp-clinic-scout/affiliate-machine"
 OPS_ALERTS = "1487300132054765629"
 ENV_FILE = Path("/home/ubuntu/.hermes/.env")
 
-sys.path.insert(0, str(BUSINESS / "scripts"))
-sys.path.insert(0, str(BUSINESS / "ops"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ops"))
 
 
 def _stamp() -> str:
@@ -124,6 +125,8 @@ def attach_sensor_result(receipt_path: Path | str, release_root: Path | str | No
         summary = {
             "schema": result.get("schema"),
             "status": result.get("status"),
+            "offline": offline,
+            "release_root": result.get("release_root"),
             "release": result.get("release"),
             "live_programs": result.get("live_programs"),
             "failed_checks": result.get("failed_checks"),
@@ -169,16 +172,81 @@ def attach_sensor_result(receipt_path: Path | str, release_root: Path | str | No
     return summary
 
 
+# The required run_sensor checks, in source order. A truncated receipt is not a
+# completed live audit, even if its top-level status claims PASS.
+LIVE_CHECKS = (
+    "coverage", "surface_completeness", "publishable_provider_routes",
+    "affiliate_surface_tracking", "provider_link_monetization",
+    "therapeutic_facet_bindings", "count_copy", "derived_tallies",
+    "research_binding", "freshness_stamps", "page_facts", "identity",
+    "identity_dedup", "selectable_option_dedup", "link_graph",
+    "score_binding", "aeo_surface", "base_chain",
+)
+# Existing business output-health contract for this same completeness receipt.
+MAX_SENSOR_AGE = dt.timedelta(hours=36)
+
+
 def receipt_is_sensor_verified(receipt: dict[str, Any]) -> tuple[bool, str]:
-    """Contract for validators: a deploy receipt must carry a passing sensor_result."""
+    """Verify an exact-target, fresh, complete *live* raw sensor receipt.
+
+    Offline PASS_PARTIAL remains a useful pre-deploy report, never live proof.
+    Do not trust the small mutable summary as a substitute for its hashed raw
+    receipt or infer canonical identity from deployment creation order.
+    """
     sensor = receipt.get("sensor_result")
     if not isinstance(sensor, dict):
         return False, "deploy receipt carries no sensor_result (deploy is unverified)"
-    status = sensor.get("status")
-    if status not in ("PASS", "PASS_PARTIAL"):
-        return False, (f"deploy receipt sensor_result status is {status!r} with "
-                       f"{sensor.get('failure_count')} failure(s)")
-    return True, "sensor_result present and passing"
+    if sensor.get("status") != "PASS" or sensor.get("offline") is True:
+        return False, "sensor_result is not a complete live PASS"
+    path, digest = sensor.get("receipt_path"), sensor.get("receipt_sha256")
+    if not isinstance(path, str) or not path or not isinstance(digest, str) or len(digest) != 64:
+        return False, "sensor raw receipt path/hash missing"
+    try:
+        raw_bytes = Path(path).read_bytes()
+        if hashlib.sha256(raw_bytes).hexdigest() != digest:
+            return False, "sensor raw receipt hash mismatch"
+        raw = json.loads(raw_bytes)
+    except (OSError, ValueError, TypeError):
+        return False, "sensor raw receipt unreadable"
+    if not isinstance(raw, dict) or raw.get("schema") != "glp-deploy-completeness-sensor-v1":
+        return False, "sensor raw receipt schema invalid"
+    if any(sensor.get(key) != raw.get(key) for key in (
+            "schema", "status", "release", "release_root", "captured_at_utc",
+            "failure_count", "failed_checks", "skipped_checks")):
+        return False, "sensor summary differs from raw receipt"
+    if (raw.get("status") != "PASS" or type(raw.get("failure_count")) is not int
+            or raw["failure_count"] != 0 or raw.get("failed_checks") != []
+            or raw.get("skipped_checks") != [] or raw.get("failures") != []):
+        return False, "sensor raw receipt is partial or failed"
+    checks = raw.get("checks")
+    if (not isinstance(checks, list) or len(checks) != len(LIVE_CHECKS)
+            or [c.get("check") for c in checks if isinstance(c, dict)] != list(LIVE_CHECKS)
+            or any(not isinstance(c, dict) or c.get("status") != "PASS" for c in checks)):
+        return False, "required live checks missing, skipped or failed"
+    # Both forms are produced by existing deploy callers; never use a
+    # predecessor or a sensor-supplied ID as the expected deployment target.
+    deploy = receipt.get("deployment")
+    deployment_id = receipt.get("deployment_id") or (deploy.get("id") if isinstance(deploy, dict) else None)
+    release = receipt.get("release")
+    release_root = (receipt.get("release_root") or receipt.get("candidate_root")
+                    or (release.get("path") if isinstance(release, dict) else None))
+    if (not isinstance(deployment_id, str) or not deployment_id
+            or not isinstance(release_root, str) or not Path(release_root).is_absolute()
+            or raw.get("release_root") != release_root
+            or raw.get("release") != Path(release_root).name):
+        return False, "sensor release/deployment target unestablished or mismatched"
+    base = checks[-1]
+    if (base.get("base_deployment_id") != deployment_id
+            or base.get("live_canonical_deployment_id") != deployment_id):
+        return False, "sensor canonical deployment differs from deploy receipt"
+    try:
+        captured = dt.datetime.fromisoformat(raw["captured_at_utc"].replace("Z", "+00:00"))
+        age = dt.datetime.now(dt.timezone.utc) - captured
+    except (KeyError, AttributeError, TypeError, ValueError):
+        return False, "sensor capture time invalid"
+    if captured.tzinfo is None or not dt.timedelta(0) <= age <= MAX_SENSOR_AGE:
+        return False, "sensor receipt stale or in the future"
+    return True, "fresh complete live sensor receipt matches deployment and raw hash"
 
 
 if __name__ == "__main__":

@@ -3243,17 +3243,10 @@ def check_base_chain(offline: bool) -> dict[str, Any]:
     live_deployment = None
     try:
         body = session.get(api, timeout=60).json()
-        if body.get("success"):
-            live_deployment = ((body.get("result") or {}).get("canonical_deployment") or {}).get("id")
-        if not live_deployment:
-            # Same query pattern the deploy scripts use for the production head.
-            body = session.get(api + "/deployments",
-                               params={"env": "production", "per_page": 25}, timeout=60).json()
-            rows = [r for r in (body.get("result") or [])
-                    if r.get("environment") == "production" and not r.get("is_skipped")
-                    and (r.get("latest_stage") or {}).get("status") == "success"]
-            rows.sort(key=lambda r: r.get("created_on") or "", reverse=True)
-            live_deployment = rows[0].get("id") if rows else None
+        if body.get("success") and isinstance(body.get("result"), dict):
+            canonical = body["result"].get("canonical_deployment")
+            if isinstance(canonical, dict):
+                live_deployment = canonical.get("id")
     except Exception as exc:  # network/API shape — report, never crash the deploy
         return check("base_chain", False, base_deployment_id=base_deployment,
                      failures=[f"cloudflare_query_failed: {type(exc).__name__}"])
