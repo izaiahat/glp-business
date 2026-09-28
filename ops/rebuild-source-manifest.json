@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed925d87ffa13b85b9dfe655a0476fe0beac80e9d44d74858b6bab53100e03db"
+      "sha256": "35df7377eb3c52d5b6d77ceca9aa60ba9215209588032d867479253f39317911"
     },
     ".hermes.md": {
       "callers": [],
@@ -136,6 +136,13 @@
       ],
       "kind": "script",
       "sha256": "1cb48c8ceb8306bf18fdf86a8acca18635e1a7c75129e47cc446590f63c8b31f"
+    },
+    "ops/discord_fmt.py": {
+      "callers": [
+        "scripts/glp_deploy_sensor_hook.py"
+      ],
+      "kind": "script",
+      "sha256": "e6e0ed7231282b2f222a435d8879ca22cfe2317900f6cbb122f48a83e9263acc"
     },
     "ops/disk-retention-policy.json": {
       "callers": [],
@@ -871,6 +878,13 @@
       "kind": "script",
       "sha256": "6d583ab1523ca852c1f9342c036fac0766fe1b89819671c40b2d6612ad6fddf1"
     },
+    "scripts/affiliate_surface_coverage_audit.py": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "a1db344a9a46fcc60a4205786fbfb78ad509ea074a5446eded5b667e580f6d56"
+    },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
         "migration-survivor"
@@ -1115,12 +1129,33 @@
       "kind": "script",
       "sha256": "e54a4af3166e7756f1460283b346a4c76c000cdcde30af7b2d22672b5960366d"
     },
+    "scripts/glp_deploy_completeness_sensor.py": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "953c98503178f511b571bf87b79ab35a95815c27561f8a94700a73f951b52a4c"
+    },
     "scripts/glp_deploy_glp34_authority_v1.py": {
       "callers": [
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
       "sha256": "8fd71a979f078cdbe2eaec83b07445a3ba4e6b0fedfda09099333ae41fb80b0f"
+    },
+    "scripts/glp_deploy_provider_routes.mjs": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "98f403c710671f4d5e4544ab982574bb3b736031e04e7f74ea4633d24510a14a"
+    },
+    "scripts/glp_deploy_sensor_hook.py": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "88471ac7b8073a48d91dda3a66cac4320d99ab98b2d1112f45e6a569828060c4"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -1140,6 +1175,13 @@
       ],
       "kind": "script",
       "sha256": "f4d86f0d41f968db01551c7ed16c7b78f534f2ed6f9103eefbb63552b4d71e54"
+    },
+    "scripts/glp_llms_txt_gate.py": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "85885f37baafd09494439a3108fdaa11148170a82d327fb04694ef448c5b0666"
     },
     "scripts/glp_maxbounty_capacity_monitor.py": {
       "callers": [
@@ -1200,6 +1242,13 @@
       ],
       "kind": "script",
       "sha256": "a014f4770b3c6fac6eff8cdfa1f0a1c46cbd6b36f72e152b9d55e5f106bb32c5"
+    },
+    "scripts/glp_robots_gate.py": {
+      "callers": [
+        "scripts/glp_deploy_completeness_sensor.py"
+      ],
+      "kind": "script",
+      "sha256": "8086732046b456893c7c5757171a6f86f21c337b6df3d59f35d3ed71b0ffa3e1"
     },
     "scripts/glp_seo_updater_run.py": {
       "callers": [],
@@ -2488,5 +2537,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 378
+  "tracked_count": 385
 }
