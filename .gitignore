@@ -229,6 +229,7 @@
 !/tests/test_glp_provider_cardinality_test_refresh.py
 !/tests/test_glp_reddit_pack_scout.py
 !/tests/test_glp_research_autowire.py
+!/tests/test_glp44_reporting_source_pin_pair.py
 !/tests/test_glp_wire_backlog_wired_repair.py
 !/tests/test_glp_wirein_declared_routes.py
 !/tests/test_katalys_approved_link_resolver.py
