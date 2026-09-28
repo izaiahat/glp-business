@@ -1325,7 +1325,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d19db607759f2de600e92d3367016606b33f9820f193532cdfb48598e93e36c8"
+      "sha256": "fefabb211a4039a17bf38d94da2998f662d563ae22d05777dc0cdd4b5a999eb2"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
