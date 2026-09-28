@@ -1090,7 +1090,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "62a1a12666248414f2b56d2a65105229f512c595d1de335a195aca6915e81122"
+      "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [

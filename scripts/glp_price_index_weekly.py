@@ -1189,7 +1189,9 @@ def _registered_prepared_binding(
                  for _path, data, identity in [_read_bound_regular_file(str(path), "prepared_dependency")]}
     except (producer.GateError, KeyError, TypeError, ValueError, OSError, IndexError) as exc:
         raise RuntimeError(f"current_content_base_registered_preparation_invalid:{exc}") from exc
-    return {"files": bound, "source": source, "compiled": prepared["compiled"],
+    return {"files": bound,
+            "source_sha256": sha_bytes(json.dumps(source, sort_keys=True, separators=(",", ":")).encode()),
+            "compiled_sha256": sha_bytes(json.dumps(prepared["compiled"], sort_keys=True, separators=(",", ":")).encode()),
             "release": prepared["release"], "deploy": prepared["deploy_directory"]}
 
 
