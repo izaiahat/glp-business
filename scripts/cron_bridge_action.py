@@ -951,6 +951,10 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                 raise RuntimeError("bridge_interrupted_effects_ambiguous_pending_preserved")
             if job.get("rc") is None:
                 raise RuntimeError("terminal_exit_code_missing_pending_preserved")
+            if action == "glp_seo_updater" and (job["status"] == "error" or job.get("timed_out")):
+                # Terminal bridge failure cannot establish that the updater had
+                # no partial effect. Keep the known job for GET-only readback.
+                raise RuntimeError("seo_updater_terminal_effects_ambiguous_pending_preserved")
             result["rc"] = int(job["rc"]) if job.get("rc") is not None else 125
             result["status"] = "PASS" if job["status"] == "done" and result["rc"] == 0 and not job.get("timed_out") else "FAIL"
             if result["status"] == "FAIL" and result["rc"] == 0:

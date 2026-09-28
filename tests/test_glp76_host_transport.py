@@ -214,6 +214,39 @@ def test_ambiguous_ack_and_bad_readbacks_never_repost(tmp_path, monkeypatch):
     post.assert_not_called()
 
 
+def test_terminal_ambiguous_updater_job_repeated_identity_get_only(tmp_path, monkeypatch):
+    """A terminal bridge failure is not proof the updater had no effect."""
+    hb, post, finish = Mock(), Mock(), Mock(side_effect=AssertionError("finish called"))
+    monkeypatch.setattr(cron, "heartbeat", hb)
+    monkeypatch.setattr(cron, "post_once", post)
+    args = {"pt-date": "2026-09-03"}
+    for name, changes in (("error", {"status": "error", "rc": 0}),
+                          ("timeout", {"status": "done", "rc": 0, "timed_out": True})):
+        paths = []
+        reply = {**job("PASS_NOTHING_DUE"), **changes}
+        def call(path, payload=None):
+            paths.append(path)
+            assert path in ("/run", "/job/fixture-only")
+            if path == "/run":
+                assert payload == {"action": "script", "name": ACTION, "args": args}
+            else:
+                assert payload is None
+            return 200, reply
+        state_dir = tmp_path / name
+        for _ in range(2):
+            result = run(state_dir, call, args, finish=finish)
+            assert result["status"] == "FAIL" and result["rc"] == 125
+            state_files = list(state_dir.glob(f"{ACTION}-*.state.json"))
+            assert len(state_files) == 1
+            pending = json.loads(state_files[0].read_text())["pending"]
+            assert pending["job_id"] == "fixture-only"
+            assert pending["payload_sha256"] == result["payload_sha256"]
+        assert paths == ["/run", "/job/fixture-only"]
+    finish.assert_not_called()
+    hb.assert_not_called()
+    post.assert_not_called()
+
+
 @pytest.fixture(autouse=True)
 def deny_live_effects(monkeypatch):
     import socket
