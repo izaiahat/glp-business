@@ -157,6 +157,7 @@ def _validate_source(name: str, row: dict[str, Any]) -> dict[str, Any]:
         "non_allowlisted_event_count", "collection_window", "property", "project", "site",
         "page_rows", "query_rows", "measurement_state", "measurement_scope",
         "host_identity_available", "neutral_route_paths", "neutral_route_window_clean_after_utc",
+        "route_query_window",
         "measurement_authority", "freshness_state", "reporting_latency_hours",
         "collector_state", "collector_age_hours", "collector_max_age_hours",
         "reporting_latency_days", "reporting_documentation", "reporting_age_days",
@@ -267,15 +268,21 @@ def _neutral_posthog_route_available(source: dict[str, Any], path: str) -> bool:
                 and path in (source.get("neutral_route_paths") or []))
 
 
-def _neutral_posthog_probe_window_clean(source: dict[str, Any], generated: str) -> bool:
-    """The collector's rolling three-day route aggregate cannot date individual rows."""
+GA4_NEUTRAL_ROUTE_PATHS = frozenset(("/", "/about/", "/privacy/", "/privacy/cookies/", "/terms/"))
+
+
+def _neutral_posthog_probe_window_clean(source: dict[str, Any]) -> bool:
+    """Only a source-captured query window can establish post-promotion truth."""
     cutoff = source.get("neutral_route_window_clean_after_utc")
-    if not cutoff:
+    window = source.get("route_query_window") or {}
+    if not cutoff or window.get("basis") != "capture_before_query_minus_3_days":
         return False
     try:
-        return (dt.datetime.fromisoformat(generated.replace("Z", "+00:00")) >=
-                dt.datetime.fromisoformat(str(cutoff).replace("Z", "+00:00")))
-    except (TypeError, ValueError):
+        start = parse_utc(window["start_utc"])
+        end = parse_utc(window["end_utc"])
+        readback = parse_utc(source["last_successful_readback"])
+        return parse_utc(cutoff) <= start <= end <= readback
+    except (KeyError, TypeError, ValueError):
         return False
 
 
@@ -424,10 +431,11 @@ def route_matrix(data: dict[str, Any],
         asym_now = row["ga4_traffic_seen"] != row["posthog_traffic_seen"]
         posthog_source = (data.get("sources") or {}).get("posthog") or {}
         neutral_eligible = _neutral_posthog_route_available(posthog_source, path)
-        neutral_window_clean = (neutral_eligible and _neutral_posthog_probe_window_clean(
-            posthog_source, str(data.get("generated_at_utc") or "")))
+        neutral_window_clean = (neutral_eligible and _neutral_posthog_probe_window_clean(posthog_source))
         identity_unmeasured = (posthog_source.get("measurement_state") == "unmeasured_by_design"
                                and not neutral_window_clean)
+        ga4_comparable = path in GA4_NEUTRAL_ROUTE_PATHS
+        row["ga4_comparison_state"] = "applicable" if ga4_comparable else "not_applicable"
         row["probe_measurement_state"] = (
             "eligible_window_mixed" if neutral_eligible and not neutral_window_clean else
             "unmeasured_by_design" if identity_unmeasured else
@@ -435,12 +443,13 @@ def route_matrix(data: dict[str, Any],
             "eligible_unobserved" if neutral_window_clean else "measured"
         )
         row["probe_evidence_sufficient"] = bool(
-            not identity_unmeasured and asym_now and max(row["ga4_pageviews"], row["posthog_pageviews"])
+            ga4_comparable and not identity_unmeasured and asym_now
+            and max(row["ga4_pageviews"], row["posthog_pageviews"])
             >= ROUTE_PROBE_MINIMUM_PAGEVIEWS
         )
         row["probe_lagging_sink"] = (
-            "ga4" if asym_now and row["posthog_traffic_seen"]
-            else "posthog" if asym_now else None
+            "ga4" if ga4_comparable and asym_now and row["posthog_traffic_seen"]
+            else "posthog" if ga4_comparable and asym_now else None
         )
         row["probe_horizon_hours"] = (
             GA4_MISSING_HORIZON_HOURS if row["probe_lagging_sink"] == "ga4"

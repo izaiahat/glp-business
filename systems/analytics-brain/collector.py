@@ -525,9 +525,19 @@ def _collect_bing(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> 
 def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> None:
     try:
         posthog = rails.PostHog()
+        # HogQL uses server-side now() - INTERVAL 3 DAY. The local instant
+        # BEFORE dispatch is a conservative lower bound on its query start;
+        # report generation and later cache reuse are not query provenance.
+        query_started = dt.datetime.now(dt.timezone.utc)
         aggregate = posthog.page_conversion(days=3, host=PRODUCTION_HOST)
+        query_finished = dt.datetime.now(dt.timezone.utc)
         if not aggregate.get("ok"):
             raise RuntimeError(str(aggregate.get("error") or "posthog_read_failed"))
+        route_query_window = {
+            "start_utc": (query_started - dt.timedelta(days=3)).isoformat().replace("+00:00", "Z"),
+            "end_utc": query_finished.isoformat().replace("+00:00", "Z"),
+            "basis": "capture_before_query_minus_3_days",
+        }
         # `host` is REQUIRED on every traffic row. analytics_brain builds
         # posthog_traffic_paths with `row.get("host") == PRODUCTION_HOST`, exactly as
         # it does for ga4_rows; omitting the key made that filter drop 100% of
@@ -588,6 +598,7 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
                       host_scope=PRODUCTION_HOST, watermark=watermark or utc_now(),
                       schema=EXPECTED_SCHEMAS["posthog"]),
             "event_watermark": watermark,
+            "route_query_window": route_query_window,
             "project": "508172",
             "provider_host_filter": {"property": "$host", "exact": PRODUCTION_HOST},
             "host_distribution": host_distribution,
@@ -873,10 +884,12 @@ CORROBORATING_TRAFFIC_SOURCE = {"ga4": "posthog", "posthog": "ga4"}
 
 
 POSTHOG_APPROVED_SOURCE_SHA256 = "0a0a7729cb628fc7afb694080bd07f82df28975409030ca7f19850f4dd2fb22a"
+POSTHOG_APPROVED_AUTHORITY = "reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release/public/assets/analytics.js:31-50"
 POSTHOG_APPROVED_PROMOTION_UTC = "2026-09-27T23:40:59.897740Z"
 POSTHOG_APPROVED_NEUTRAL_PATHS = (
     "/", "/providers/", "/compare/", "/privacy/", "/privacy/cookies/", "/terms/", "/about/",
 )
+GA4_APPROVED_NEUTRAL_PATHS = frozenset(("/", "/about/", "/privacy/", "/privacy/cookies/", "/terms/"))
 
 
 def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
@@ -889,9 +902,13 @@ def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
     # Transport/schema failures remain failures. A source contract grants only
     # field eligibility; zero host rows is not an ingestion receipt. Keep click
     # identity and every health/unknown route unmeasured under the new scope.
-    verified = (expectation.get("authority") and posthog.get("complete") is True
+    verified = (expectation.get("authority") == POSTHOG_APPROVED_AUTHORITY
+                and posthog.get("complete") is True
                 and posthog.get("state") in {"healthy", "measured_zero"}
                 and posthog.get("observed_schema") == EXPECTED_SCHEMAS["posthog"])
+    for key in ("host_identity_available", "neutral_route_paths",
+                "neutral_route_window_clean_after_utc", "measurement_authority"):
+        posthog.pop(key, None)  # Cached eligibility belongs to the previous contract.
     if (verified and expectation.get("host_page_identity") == "neutral_routes_only"
             and expectation.get("click_identity") == "unmeasured_by_design"
             and expectation.get("source_sha256") == POSTHOG_APPROVED_SOURCE_SHA256
@@ -901,16 +918,14 @@ def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
                         "measurement_scope": "click_and_non_neutral_route_identity",
                         "host_identity_available": True,
                         "neutral_route_paths": list(POSTHOG_APPROVED_NEUTRAL_PATHS),
-                        "neutral_route_window_clean_after_utc": (
-                            _provider_time(str(expectation["production_promotion_at_utc"]))
-                            + dt.timedelta(days=3)).isoformat().replace("+00:00", "Z"),
-                        "measurement_authority": expectation["authority"],
+                        "neutral_route_window_clean_after_utc": POSTHOG_APPROVED_PROMOTION_UTC,
+                        "measurement_authority": POSTHOG_APPROVED_AUTHORITY,
                         "reason": "neutral_route_host_eligible_click_and_health_path_absent"})
-    elif verified and expectation.get("host_page_identity") == "unmeasured_by_design":
-        posthog.update({"measurement_state": "unmeasured_by_design",
-                        "measurement_scope": "host_page_click_identity",
-                        "measurement_authority": expectation["authority"],
-                        "reason": "privacy_export_allowlist_omits_host_page_identity"})
+    else:
+        posthog.update(measurement_state="unmeasured_by_design",
+                       measurement_scope="host_page_click_identity")
+        if posthog.get("state") in {"healthy", "measured_zero"}:
+            posthog["reason"] = "posthog_host_page_identity_contract_unverified"
     for name, default_threshold in {"ga4": 2, "posthog": 2, "d1_clicks": 24}.items():
         source = (data.get("sources") or {}).get(name)
         if (not source or source.get("state") not in {"healthy", "measured_zero"}
@@ -931,6 +946,27 @@ def _apply_dark_thresholds(data: dict[str, Any], control: dict[str, Any],
                 or not corroborating_watermark):
             continue
         corroborating_event = _provider_time(str(corroborating_watermark))
+        if name == "posthog" and source.get("host_identity_available") is True:
+            # Pre-promotion GA4 truth cannot indict the newly approved neutral
+            # PostHog export. Require a dated pageview on a GA4-approved route;
+            # the host-wide watermark alone may belong to an excluded path.
+            eligible = []
+            for row in data.get("ga4_rows") or []:
+                stamp = row.get("provider_time") or row.get("timestamp") or row.get("observed_at")
+                if (row.get("host") != PRODUCTION_HOST
+                        or row.get("path") not in GA4_APPROVED_NEUTRAL_PATHS
+                        or row.get("event_name") != "page_view"
+                        or int(row.get("event_count") or 0) <= 0 or not stamp):
+                    continue
+                try:
+                    seen = _provider_time(str(stamp))
+                except (TypeError, ValueError):
+                    continue
+                if seen > _provider_time(POSTHOG_APPROVED_PROMOTION_UTC):
+                    eligible.append(seen)
+            if not eligible:
+                continue
+            corroborating_event = min(max(eligible), corroborating_event)
         if corroborating_event <= last_event:
             # Both providers agree that no newer traffic exists. Their fresh
             # successful readbacks are healthy measured silence, not darkness.

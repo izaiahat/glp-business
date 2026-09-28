@@ -1,7 +1,9 @@
+import copy
 import datetime as dt
 import json
 import sys
 from pathlib import Path
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import collector
 import analytics_brain as brain
@@ -25,7 +27,7 @@ def test_published_neutral_scope_config_and_transport_fail_closed():
     assert source['measurement_scope'] == 'click_and_non_neutral_route_identity'
     assert source['host_identity_available'] is True
     assert source['neutral_route_paths'] == expected['neutral_route_paths']
-    assert source['neutral_route_window_clean_after_utc'] == '2026-09-30T23:40:59.897740Z'
+    assert source['neutral_route_window_clean_after_utc'] == '2026-09-27T23:40:59.897740Z'
     assert source['state'] == 'measured_zero' and source.get('event_watermark') is None
     readback = brain.source_health(data)
     posthog_health = next(row for row in readback['sources'] if row['source'] == 'posthog')
@@ -54,7 +56,11 @@ def test_neutral_probe_available_not_ingested_health_absent():
     source.update(complete=True, measurement_state='unmeasured_by_design',
                   measurement_scope='click_and_non_neutral_route_identity',
                   host_identity_available=True, neutral_route_paths=['/', '/providers/'],
-                  neutral_route_window_clean_after_utc='2026-09-30T23:40:59.897740Z')
+                  neutral_route_window_clean_after_utc='2026-09-27T23:40:59.897740Z',
+                  route_query_window={'start_utc': '2026-09-27T00:00:00Z',
+                                      'end_utc': '2026-09-27T23:00:00Z',
+                                      'basis': 'capture_before_query_minus_3_days'},
+                  last_successful_readback='2026-10-01T01:00:00Z')
     static = {'http_status': 200, 'ga4_static_present': True,
               'gtm_static_present': True, 'posthog_static_present': True,
               'csp_present': True, 'csp_gtm_allowed': True, 'csp_posthog_allowed': True,
@@ -71,14 +77,17 @@ def test_neutral_probe_available_not_ingested_health_absent():
     assert before['/providers/']['probe_evidence_sufficient'] is False
     assert before['/reviews/health/']['probe_measurement_state'] == 'unmeasured_by_design'
     data['generated_at_utc'] = '2026-10-01T23:40:59Z'
+    source['route_query_window'].update(start_utc='2026-09-28T00:00:00Z',
+                                        end_utc='2026-10-01T00:00:00Z')
     result = brain.route_matrix(data, prior_matrix=prior)
     rows = {row['path']: row for row in result['routes']}
     assert rows['/providers/']['probe_measurement_state'] == 'eligible_unobserved'
-    assert rows['/providers/']['probe_evidence_sufficient'] is True
-    assert rows['/providers/']['probe_pass'] is True  # first clean-window observation
+    assert rows['/providers/']['ga4_comparison_state'] == 'not_applicable'
+    assert rows['/providers/']['probe_evidence_sufficient'] is False
+    assert rows['/providers/']['probe_pass'] is True
     data['generated_at_utc'] = '2026-10-05T23:40:59Z'
     mature = brain.route_matrix(data, prior_matrix=result)
-    assert next(row for row in mature['routes'] if row['path'] == '/providers/')['probe_pass'] is False
+    assert next(row for row in mature['routes'] if row['path'] == '/providers/')['probe_pass'] is True
     assert rows['/reviews/health/']['probe_measurement_state'] == 'unmeasured_by_design'
     assert rows['/reviews/health/']['probe_evidence_sufficient'] is False
     policy = {'mode': 'PASS_SEARCH_ONLY', 'revenue_blind': True}
@@ -196,3 +205,161 @@ def test_identity_free_click_sink_is_unevaluable():
     assert sink['measurement_state']=='unmeasured_by_design'
     data['ga4_events']=[]
     assert brain.build_outputs(data)['analytics-source-health.json']['mode']=='FAIL_SINK_DIVERGENCE'
+
+
+# All four defects are provider-free; only F1 runs the real cache/caller path.
+def _expectation_control():
+    return json.loads((Path(__file__).resolve().parents[3] / 'ops/glp/analytics-brain-control.json').read_text())
+
+
+def _probe_fixture(path='/', at='2026-10-01T00:00:00Z', views=25):
+    def source(name):
+        return dict(state='measured_zero', actual_rows=0, complete=True,
+                    expected_schema=collector.EXPECTED_SCHEMAS[name],
+                    observed_schema=collector.EXPECTED_SCHEMAS[name],
+                    host_scope=brain.PRODUCTION_HOST,
+                    host_filter={'exact': brain.PRODUCTION_HOST},
+                    last_successful_readback=at, watermark=at, event_watermark=None)
+    return {'generated_at_utc': at, 'sources': {name: source(name) for name in ('ga4', 'posthog')},
+            'sitemap_routes': [path], 'sitemap_complete': True,
+            'static_routes': [{'path': path, 'http_status': 200, 'representative_probe_required': True}],
+            'posthog_rows': [{'path': path, 'host': brain.PRODUCTION_HOST, 'views': views}] if views else [],
+            'ga4_rows': [], 'posthog_events': [], 'ga4_events': []}
+
+
+def _probe_row(data, prior=None):
+    return brain.route_matrix(data, prior_matrix=prior)['routes'][0]
+
+
+def test_cached_posthog_query_window_is_not_report_generation_time(tmp_path):
+    control = _expectation_control()
+    cache_path = tmp_path / 'cache.json'
+    initial = _probe_fixture(at='2026-09-30T23:00:00Z')
+    class Clock(dt.datetime):
+        current = dt.datetime(2026, 9, 30, 23, 0, tzinfo=dt.timezone.utc)
+        @classmethod
+        def now(cls, tz=None):
+            return cls.current.astimezone(tz) if tz else cls.current.replace(tzinfo=None)
+    class PostHog:
+        def page_conversion(self, *, days, host):
+            assert (days, host) == (3, brain.PRODUCTION_HOST)
+            return {'ok': True, 'rows': [{'path': '/', 'views': 25}]}
+        def hogql(self, query):
+            if 'max(timestamp)' in query:
+                return {'ok': True, 'rows': [['2026-09-30T22:00:00Z', 25]]}
+            return {'ok': True, 'rows': []}
+    Rails = type('Rails', (), {'PostHog': PostHog})
+    with patch.object(collector.dt, 'datetime', Clock):
+        collector._collect_posthog(initial, initial['sources'], Rails)
+        collector._apply_dark_thresholds(initial, control, Clock.current)
+        collector._write_cache(cache_path, initial, 'hourly')
+        assert _probe_row(initial)['probe_evidence_sufficient'] is False
+        Clock.current = dt.datetime(2026, 9, 30, 23, 50, tzinfo=dt.timezone.utc)
+        with (patch.object(collector, '_rail_module', return_value=object()),
+              patch.object(collector, 'derive_affiliate_obligations', return_value={}),
+              patch.object(collector, '_collect_dataforseo')):
+            reused = collector.collect_live(control, 'weekly', cache_path)
+    source = reused['sources']['posthog']
+    assert reused['collection_cadence']['sources_refreshed'] == ['dataforseo']
+    assert source['last_successful_readback'] == initial['sources']['posthog']['last_successful_readback']
+    assert source['route_query_window'] == initial['sources']['posthog']['route_query_window']
+    health = brain.source_health(reused)
+    assert next(s for s in health['sources'] if s['source'] == 'posthog')['route_query_window'] == source['route_query_window']
+    assert _probe_row(reused)['probe_measurement_state'] == 'eligible_window_mixed'
+    assert _probe_row(reused)['probe_evidence_sufficient'] is False
+    assert collector._load_cache(cache_path)['sources']['posthog']['route_query_window'] == source['route_query_window']
+    # A separately dated fresh read with a post-promotion query start is usable.
+    Clock.current = dt.datetime(2026, 10, 1, 1, 0, tzinfo=dt.timezone.utc)
+    with patch.object(collector.dt, 'datetime', Clock):
+        collector._collect_posthog(reused, reused['sources'], Rails)
+        reused['generated_at_utc'] = '2026-10-01T01:00:00Z'
+        collector._apply_dark_thresholds(reused, control, Clock.current)
+    source = reused['sources']['posthog']
+    assert source['route_query_window']['start_utc'] == '2026-09-28T01:00:00Z'
+    assert _probe_row(reused)['probe_measurement_state'] == 'observed_neutral_route'
+    del source['route_query_window']  # old receipts must not be backfilled from the report clock
+    assert _probe_row(reused)['probe_evidence_sufficient'] is False
+
+
+def test_wrong_approved_binding_restricts_identity_and_clears_cached_eligibility():
+    control = _expectation_control()
+    data = _probe_fixture('/health-unknown/')
+    collector._apply_dark_thresholds(data, control)
+    source = data['sources']['posthog']
+    assert source['host_identity_available'] is True
+    for field, value in [('source_sha256', '0' * 64), ('authority', 'unsupported'),
+                         ('host_page_identity', 'unknown'), ('production_promotion_at_utc', None),
+                         ('neutral_route_paths', None), ('click_identity', 'unknown')]:
+        broken = copy.deepcopy(control)
+        broken['measurement_expectations']['posthog'][field] = value
+        collector._apply_dark_thresholds(data, broken)
+        assert source['state'] == 'measured_zero'
+        assert source['measurement_state'] == 'unmeasured_by_design'
+        assert source.get('host_identity_available') is not True
+        assert 'neutral_route_paths' not in source
+        assert 'neutral_route_window_clean_after_utc' not in source
+        assert 'measurement_authority' not in source
+        assert _probe_row(data)['probe_evidence_sufficient'] is False
+    missing = copy.deepcopy(control)
+    missing.pop('measurement_expectations')
+    collector._apply_dark_thresholds(data, missing)
+    assert source['measurement_state'] == 'unmeasured_by_design'
+    assert _probe_row(data)['probe_evidence_sufficient'] is False
+    for state in ('error', 'stale'):
+        source.update(state=state, reason='retained_provider_failure')
+        collector._apply_dark_thresholds(data, broken)
+        assert source['state'] == state and source['reason'] == 'retained_provider_failure'
+
+
+def test_posthog_only_routes_not_subject_to_ga4_absence():
+    control = _expectation_control()
+    data = _probe_fixture('/providers/')
+    collector._apply_dark_thresholds(data, control)
+    data['sources']['posthog']['route_query_window'] = {
+        'start_utc': '2026-09-28T00:00:00Z', 'end_utc': '2026-10-01T00:00:00Z',
+        'basis': 'capture_before_query_minus_3_days'}
+    first = brain.route_matrix(data)
+    data['generated_at_utc'] = '2026-10-03T01:00:00Z'
+    row = _probe_row(data, first)
+    assert row['probe_measurement_state'] == 'observed_neutral_route'
+    assert row['probe_evidence_sufficient'] is False
+    assert row['probe_lagging_sink'] is None and row['probe_pass'] is True
+    assert row['ga4_comparison_state'] == 'not_applicable'
+    data['sitemap_routes'] = ['/compare/']
+    data['static_routes'][0]['path'] = '/compare/'
+    data['posthog_rows'][0]['path'] = '/compare/'
+    compare = _probe_row(data)
+    assert compare['probe_measurement_state'] == 'observed_neutral_route'
+    assert compare['ga4_comparison_state'] == 'not_applicable'
+    assert compare['probe_pass'] is True
+    # The common route retains the original sample and 48h persistence test.
+    data['sitemap_routes'] = ['/']
+    data['static_routes'][0]['path'] = '/'
+    data['posthog_rows'][0]['path'] = '/'
+    common = brain.route_matrix(data)
+    data['generated_at_utc'] = '2026-10-05T02:00:00Z'
+    assert _probe_row(data, common)['probe_pass'] is False
+
+
+def test_posthog_host_darkness_needs_postpromotion_eligible_corroboration():
+    control = _expectation_control()
+    data = _probe_fixture(at='2026-09-28T00:30:00Z', views=0)
+    data['sources']['ga4'].update(state='healthy', event_watermark='2026-09-27T12:00:00Z')
+    collector._apply_dark_thresholds(data, control,
+                                     dt.datetime(2026, 9, 28, 0, 30, tzinfo=dt.timezone.utc))
+    assert data['sources']['posthog']['state'] == 'measured_zero'
+    data['ga4_rows'] = [{'host': brain.PRODUCTION_HOST, 'path': '/health-unknown/',
+                         'event_name': 'page_view', 'event_count': 25,
+                         'provider_time': '2026-09-28T00:00:00Z'}]
+    data['sources']['ga4']['event_watermark'] = '2026-09-28T00:00:00Z'
+    collector._apply_dark_thresholds(data, control,
+                                     dt.datetime(2026, 9, 28, 3, 1, tzinfo=dt.timezone.utc))
+    assert data['sources']['posthog']['state'] == 'measured_zero'
+    # A genuine post-promotion eligible pageview still re-arms the original 2h gate.
+    data['ga4_rows'] = [{'host': brain.PRODUCTION_HOST, 'path': '/', 'event_name': 'page_view',
+                         'event_count': 25, 'provider_time': '2026-09-28T00:00:00Z'}]
+    data['sources']['ga4']['event_watermark'] = '2026-09-28T00:00:00Z'
+    collector._apply_dark_thresholds(data, control,
+                                     dt.datetime(2026, 9, 28, 3, 1, tzinfo=dt.timezone.utc))
+    assert data['sources']['posthog']['state'] == 'dark'
+    assert '2.00h' in data['sources']['posthog']['reason']
