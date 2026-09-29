@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b11d36980d380a877fff0d36d627a1e2a8eabafeea16c066055ff3533e3ac1b5"
+      "sha256": "56699eb45ce999c51995df1f3daa6960aed6ce76885d4671913348d22c872408"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1612,14 +1612,14 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "54de35c3bb622127b584dbafb4f511ff8cc6dd1d8f83bced34cfc8bb830cd82a"
+      "sha256": "ad711878f8c6b6bc0ed198c977319fc0efa90d68f4c7922bda8514a33d15e858"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "1dc7a08b80e25e7448843cb2c2e2ae077abd67402e4936428502c57114d1d054"
+      "sha256": "b0ef98f3448cdbeaa06f62a1d85ea612d6a13a4312ef5e319b8a032abe7f0e90"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -1689,7 +1689,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "07f5afe93e2467fe4bc6a117c323b3399f1faff134274a4e842cfa8007fe39c4"
+      "sha256": "8bbcd09b7e666ec14b0cdb8bd18a9d5d0892208b275b8fa9a64c63ced13e7f4c"
     },
     "systems/seo-blog-machine/scripts/selection_receipt.py": {
       "callers": [
@@ -1718,6 +1718,13 @@
       ],
       "kind": "test",
       "sha256": "ca2a7048963310de791e0fa82dade5a5ad7b77c3d9b477e602c307e2795ea6dd"
+    },
+    "systems/seo-blog-machine/tests/test_glp73_builder_fixture_transport_fix.py": {
+      "callers": [
+        "GLP-73 B-01/F-01/T-01 source-only regressions"
+      ],
+      "kind": "test",
+      "sha256": "3c7c92c16175ab7a1b298d74bab4db1e6585611d983aac523a9620fe49e63fe4"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -2554,5 +2561,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 388
+  "tracked_count": 389
 }
