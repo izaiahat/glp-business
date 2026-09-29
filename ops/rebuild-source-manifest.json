@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "079677a192a8df61da3c4f83cede226fb34d12b1ef9a1c5482e60bc13952c68d"
+      "sha256": "ef484e3314865152f712c49255caed3a1fa176feaae0074c7ce45b64546d4715"
     },
     ".hermes.md": {
       "callers": [],
@@ -647,7 +647,7 @@
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "8a72e90604f4da06e3092af971a54b2d833e44123677bc543cee827d8dd3274d"
+      "sha256": "bfdfada4de6ac165b5a5c4fc226de149f4bd367e43155e9d660796f98afb19f0"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -1422,7 +1422,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f921d5fa55ebb2fd7ae25f874857107b3171ad010c357c54351a7206f416634"
+      "sha256": "8ea0ae860cb211d88c6093029e8d7cfe0719af1d363794c81175fb78c773cad5"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2049,6 +2049,11 @@
       "kind": "test",
       "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
     },
+    "tests/test_glp44_bridge_source_admission.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "89f9582b3209e18b01d6ca7fd79d68f36a3642362f8b63ffec53f89ffac3ec7e"
+    },
     "tests/test_glp44_gsc_only_consumer.py": {
       "callers": [
         "GLP-44 existing controller GSC-only source checks"
@@ -2510,5 +2515,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 382
+  "tracked_count": 383
 }

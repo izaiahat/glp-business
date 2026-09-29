@@ -20,6 +20,8 @@ Design notes:
 from __future__ import annotations
 
 import base64
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import hmac
 import json
@@ -73,6 +75,15 @@ RECEIPT_DIR = os.environ.get(
     "/home/ubuntu/business/reports/ops/n8n-bridge-jobs",
 )
 JOB_STATE_DIR = os.path.join(RECEIPT_DIR, ".job-state")
+
+# Separate from analytics_brain.lock (held by the cadence child) and the
+# reporting scheduler locks.  Never unlink this inode: the installer takes EX
+# on the same path before the old-byte gate bootstrap and through readback.
+SOURCE_ADMISSION_LOCK = "/home/ubuntu/business/ops/glp/glp44-source-admission.lock"
+SOURCE_READER_ACTIONS = frozenset({
+    "analytics_brain", "affiliate_postback_receive", "topic_data_score",
+    "glp_ads_monitor", "glp_ads_monitor_daily_digest",
+})
 
 MAX_CONCURRENT_JOBS = int(os.environ.get("N8N_BRIDGE_MAX_JOBS", "3"))
 MAX_QUEUED_JOBS = int(os.environ.get("N8N_BRIDGE_MAX_QUEUED_JOBS", "100"))
@@ -1054,7 +1065,31 @@ def _drain(stream, sink: list, cap: int) -> None:
             pass
 
 
+@contextmanager
+def source_reader_admission(cmd: dict):
+    """Defer affected launches while the installer holds EX, without dropping jobs.
+
+    Acquire before exec and hold until the child exits; admitted callback jobs
+    retain their FIFO ticket and ordinary jobs retain their durable job ID.
+    Unrelated bridge actions and receiver HTTP endpoints remain available.
+    """
+    if cmd.get("name") not in SOURCE_READER_ACTIONS:
+        yield
+        return
+    fd = os.open(SOURCE_ADMISSION_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH)
+        yield
+    finally:
+        os.close(fd)
+
+
 def run_command(cmd: dict, job_id: str = "") -> dict:
+    with source_reader_admission(cmd):
+        return _run_command_unlocked(cmd, job_id)
+
+
+def _run_command_unlocked(cmd: dict, job_id: str = "") -> dict:
     argv = list(cmd["argv"])
     started = time.time()
     out_chunks: list = []
