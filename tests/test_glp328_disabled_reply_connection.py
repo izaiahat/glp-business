@@ -154,3 +154,43 @@ def test_missing_local_source_or_mailbox_refuses_before_mail(tmp_path):
     got = evidence.decide_follow_up_current(receipt(), [], tmp_path, BOXES,
                                              lambda b: calls.append(b), now=NOW)
     assert got['reason'] == 'suppression_snapshot_incomplete' and calls == []
+
+
+def test_conflicting_singleton_initial_identity_refuses(tmp_path):
+    first = {**INITIAL, 'payload': {'headers': [
+        {'name': 'From', 'value': 'conflicting@example.net'},
+        *INITIAL['payload']['headers']]}}
+    got, _ = run(tmp_path, initial=first)
+    assert got['status'] == 'REFUSED_INCOMPLETE_SOURCES' and got['decision'] is None
+
+
+@pytest.mark.parametrize('headers', [
+    {'From': 'route@network.example', 'To': 'elsewhere@network.example',
+     'Cc': 'partners@glpclinicscout.com'},
+    {},
+    {'From': '<>', 'To': 'undisclosed-recipients:;'},
+])
+def test_scoped_unresolved_routing_refuses_zero_event_completeness(tmp_path, headers):
+    event = record('unresolved-id', 'other-thread',
+                   str(int((SENT + timedelta(days=1)).timestamp() * 1000)),
+                   ['INBOX'], **headers)
+    got, services = run(tmp_path, events=[event])
+    assert got['status'] == 'REFUSED_INCOMPLETE_SOURCES' and got['decision'] is None
+    assert any('Cc' in call[1]['metadataHeaders'] for call in services['ops'].calls if call[0] == 'get')
+    if not headers:
+        bound = {**event, 'threadId': 'thread-id'}
+        got, _ = run(tmp_path, events=[bound])
+        assert got['decision']['reason'] == 'stop_reply'
+
+
+def test_distinct_related_adverse_at_initial_millisecond_stops_reply(tmp_path):
+    event = record('equal-time-adverse', 'other-thread', MS, ['INBOX'],
+                   From='bd@nu.example', To='partners@glpclinicscout.com')
+    got, _ = run(tmp_path, events=[event])
+    assert got['status'] == 'DISABLED_DECISION_ONLY'
+    assert got['decision']['reason'] == 'stop_reply'
+    assert got['decision']['eligible'] is False and got['decision']['sendable'] is False
+    unrelated = record('older-unrelated', 'other-thread', str(int(MS) - 1), ['INBOX'],
+                       From='stranger@unrelated.example', To='ops@glpclinicscout.com')
+    older, _ = run(tmp_path, events=[unrelated])
+    assert older['decision']['reason'] == 'follow_up_allowed_disabled'

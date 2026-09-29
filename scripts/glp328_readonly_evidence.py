@@ -434,6 +434,13 @@ def decide_follow_up_current(receipt, prior_follow_ups, root, mailboxes, gmail_f
         if any(not isinstance(h, dict) or not isinstance(h.get('name'), str)
                or not isinstance(h.get('value'), str) for h in pairs):
             raise ValueError('message_headers_incomplete')
+        # These identity/routing headers are singletons; last-wins projection
+        # would certify a contradictory envelope or discard a reply binding.
+        singleton = {'from', 'to', 'cc', 'reply-to', 'message-id',
+                     'in-reply-to', 'references'}
+        names = [h['name'].casefold() for h in pairs]
+        if any(names.count(name) > 1 for name in singleton):
+            raise ValueError('message_identity_headers_ambiguous')
         return {h['name'].casefold(): h['value'] for h in pairs}
 
     def addresses(raw):
@@ -444,7 +451,7 @@ def decide_follow_up_current(receipt, prior_follow_ups, root, mailboxes, gmail_f
         messages = gmail_factory(ops).users().messages()
         def get(service, identity):
             return service.get(userId='me', id=identity, format='metadata',
-                               metadataHeaders=['From', 'To', 'Reply-To', 'Date', 'Message-ID',
+                               metadataHeaders=['From', 'To', 'Cc', 'Reply-To', 'Date', 'Message-ID',
                                                 'In-Reply-To', 'References', 'Subject'],
                                fields='id,threadId,labelIds,internalDate,payload/headers').execute()
         initial = get(messages, mid)
@@ -481,12 +488,12 @@ def decide_follow_up_current(receipt, prior_follow_ups, root, mailboxes, gmail_f
                     mh = headers(msg)
                     if msg['id'] != identity[1]:
                         raise ValueError('list_readback_mismatch')
-                    if int(msg['internalDate']) <= int(initial['internalDate']) or identity == ('ops', mid):
+                    if identity == ('ops', mid) or int(msg['internalDate']) < int(initial['internalDate']):
                         continue
                     if 'SENT' in msg['labelIds']:
                         continue
                     sender = addresses(mh.get('from', ''))
-                    targets = addresses(mh.get('to', ''))
+                    targets = addresses(mh.get('to', '')) | addresses(mh.get('cc', ''))
                     related = msg['threadId'] == tid or any(
                         policy._same_adverse_org(policy._email(e)[1], domain) for e in sender | targets)
                     references = mh.get('in-reply-to', '') + ' ' + mh.get('references', '')
@@ -497,6 +504,11 @@ def decide_follow_up_current(receipt, prior_follow_ups, root, mailboxes, gmail_f
                         raise ValueError('unbound_inbound_to_partner_alias')
                     if related:
                         events.append({'domain': domain, 'kind': 'bounce' if delivery_notice else 'reply'})
+                    elif not sender or not targets:
+                        # A legal empty recipient group is not malformed, but
+                        # without a positive thread/reference or usable route it
+                        # cannot prove a clean nonmatch inside this mailbox.
+                        raise ValueError('inbound_routing_unresolved')
                 next_token = page.get('nextPageToken')
                 if not next_token:
                     break

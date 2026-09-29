@@ -1076,7 +1076,7 @@
     "scripts/glp328_readonly_evidence.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "5748db622e4adc0a4f309526b759e27aebf1d522689b814d9cbf4761990b16dd"
+      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
     },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
@@ -2172,7 +2172,7 @@
     "tests/test_glp328_disabled_reply_connection.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "991636463fad9421c48f65f11796be69d6cfb64dd83e8bcacb75dd22716949c1"
+      "sha256": "a1729b88fb42735a4e579a8b9cd9d606c4f20e1c285b2013652c75c1a3edc5ce"
     },
     "tests/test_glp328_outreach_policy.py": {
       "callers": [
