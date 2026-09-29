@@ -178,12 +178,91 @@ LIVE_CHECKS = (
     "coverage", "surface_completeness", "publishable_provider_routes",
     "affiliate_surface_tracking", "provider_link_monetization",
     "therapeutic_facet_bindings", "count_copy", "derived_tallies",
-    "research_binding", "freshness_stamps", "page_facts", "identity",
-    "identity_dedup", "selectable_option_dedup", "link_graph",
+    "research_binding", "freshness_stamps", "page_fact_consistency", "identity_agreement",
+    "identity_dedup", "selectable_option_dedup", "link_graph_floor",
     "score_binding", "aeo_surface", "base_chain",
 )
 # Existing business output-health contract for this same completeness receipt.
 MAX_SENSOR_AGE = dt.timedelta(hours=36)
+
+
+def _utc_time(value: Any) -> dt.datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(dt.timezone.utc) if parsed.tzinfo else None
+
+
+def _bound_event_time(receipt: dict[str, Any], deployment_id: str,
+                      release_root: str) -> dt.datetime | None:
+    """Find the successful target event in the two registered receipt schemas.
+
+    Legacy completion precedes the hook; weekly chain completion follows it.
+    The weekly remint readback needs its successful matching command, not just
+    an optional timestamp string on an unrelated pointer.
+    """
+    deploy = receipt.get("deployment")
+    if not isinstance(deploy, dict) or deploy.get("id") != deployment_id:
+        return None
+    if receipt.get("deployment_id") not in (None, deployment_id):
+        return None
+    if receipt.get("schema") == "glp-enrichment-production-deployment-receipt-v1":
+        stage = deploy.get("latest_stage")
+        apply = receipt.get("apply")
+        created = _utc_time(deploy.get("created_on"))
+        completed = _utc_time(receipt.get("completed_at_utc"))
+        if (receipt.get("status") != "PASS_DEPLOYED_READBACK_REQUIRED"
+                or not isinstance(stage, dict) or stage.get("status") != "success"
+                or not isinstance(apply, dict) or apply.get("exit_code") != 0
+                or not created or not completed or created > completed):
+            return None
+        if "ended_on" in stage:
+            ended = _utc_time(stage["ended_on"])
+            if not ended or not created <= ended <= completed:
+                return None
+        return completed
+
+    if receipt.get("schema") == "glp-price-index-release-chain-v1":
+        remint = receipt.get("remint")
+        effects = receipt.get("external_effects")
+        if not isinstance(remint, dict) or not isinstance(effects, dict):
+            return None
+        pointer = remint.get("readback")
+        if (receipt.get("status") not in ("REMINTED_SENSOR_PENDING",
+                                            "SENSOR_PASSED_INDEXNOW_PENDING", "PASS")
+                or remint.get("status") != "PASS" or not isinstance(pointer, dict)
+                or pointer.get("schema") != "glp-opus-current-content-base-v1"
+                or pointer.get("status") != "PASS"
+                or pointer.get("deployment_id") != deployment_id
+                or pointer.get("release_root") != release_root
+                or effects.get("cloudflare_deployments") != 1
+                or effects.get("current_content_base_remints") != 1
+                or deploy.get("status") != "success"):
+            return None
+        minted = _utc_time(pointer.get("reminted_at_utc"))
+        commands = receipt.get("commands")
+        if not minted or not isinstance(commands, list):
+            return None
+        remint_commands = [command for command in commands
+                           if isinstance(command, dict)
+                           and isinstance(command.get("command"), str)
+                           and "remint_content_base.py" in command["command"]]
+        if len(remint_commands) != 1:
+            return None
+        command = remint_commands[0]
+        started = _utc_time(command.get("started_at_utc"))
+        # The producer rounds reminted_at_utc to whole seconds. Reject a stale
+        # replay, while allowing the command start to carry subsecond precision.
+        if (command.get("exit_code") != 0 or not started
+                or minted < started.replace(microsecond=0)
+                or f"--deployment-id {deployment_id}" not in command["command"]
+                or f"--release {release_root}" not in command["command"]):
+            return None
+        return minted
+    return None
 
 
 def receipt_is_sensor_verified(receipt: dict[str, Any]) -> tuple[bool, str]:
@@ -246,6 +325,9 @@ def receipt_is_sensor_verified(receipt: dict[str, Any]) -> tuple[bool, str]:
         return False, "sensor capture time invalid"
     if captured.tzinfo is None or not dt.timedelta(0) <= age <= MAX_SENSOR_AGE:
         return False, "sensor receipt stale or in the future"
+    event = _bound_event_time(receipt, deployment_id, release_root)
+    if event is None or captured.astimezone(dt.timezone.utc) < event:
+        return False, "successful deployment/remint event missing, invalid or after sensor capture"
     return True, "fresh complete live sensor receipt matches deployment and raw hash"
 
 

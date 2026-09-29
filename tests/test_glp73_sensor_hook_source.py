@@ -1,4 +1,5 @@
 """Source-contract regressions only: synthetic receipts, no native sensor or network."""
+import ast
 import datetime as dt
 import hashlib
 import importlib.util
@@ -113,7 +114,14 @@ def test_r2_raw_receipt_target_checks_and_freshness(tmp_path):
             "captured_at_utc", "failure_count", "failed_checks", "skipped_checks")}
         summary.update(receipt_path=str(file), receipt_sha256=hashlib.sha256(body).hexdigest(),
                        offline=False)
-        return {"deployment_id": target, "release_root": release, "sensor_result": summary}
+        return {"schema": "glp-enrichment-production-deployment-receipt-v1",
+                "status": "PASS_DEPLOYED_READBACK_REQUIRED", "deployment_id": target,
+                "release_root": release, "deployment": {"id": target,
+                    "created_on": (now - dt.timedelta(seconds=2)).isoformat(),
+                    "latest_stage": {"status": "success"}},
+                "apply": {"exit_code": 0},
+                "completed_at_utc": (now - dt.timedelta(seconds=1)).isoformat(),
+                "sensor_result": summary}
 
     good = pair()
     assert hook.receipt_is_sensor_verified(good)[0] is True  # complete healthy control
@@ -137,3 +145,99 @@ def test_r2_raw_receipt_target_checks_and_freshness(tmp_path):
     offline = pair(raw_status="PASS_PARTIAL", skip=True)
     offline["sensor_result"]["offline"] = True
     assert hook.receipt_is_sensor_verified(offline)[0] is False
+
+
+def _complete_receipt(tmp_path, names, captured):
+    target = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    release = str(tmp_path / "release")
+    checks = [{"check": name, "status": "PASS"} for name in names]
+    checks[-1].update(base_deployment_id=target, live_canonical_deployment_id=target)
+    raw = {"schema": "glp-deploy-completeness-sensor-v1", "status": "PASS",
+           "release": "release", "release_root": release,
+           "captured_at_utc": captured.isoformat(), "checks": checks,
+           "failure_count": 0, "failures": [], "failed_checks": [], "skipped_checks": []}
+    path, digest = sensor.write_receipt(raw, tmp_path / "native.json")
+    summary = {key: raw[key] for key in ("schema", "status", "release", "release_root",
+                "captured_at_utc", "failure_count", "failed_checks", "skipped_checks")}
+    summary.update(receipt_path=path, receipt_sha256=digest, offline=False)
+    return {"deployment_id": target, "release_root": release, "sensor_result": summary}
+
+
+def test_r2_capture_follows_bound_event_for_each_caller_schema(tmp_path):
+    now = dt.datetime.now(dt.timezone.utc)
+    target = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    receipt = _complete_receipt(tmp_path, hook.LIVE_CHECKS, now - dt.timedelta(hours=35))
+    receipt.update(schema="glp-enrichment-production-deployment-receipt-v1",
+                   status="PASS_DEPLOYED_READBACK_REQUIRED", apply={"exit_code": 0},
+                   deployment={"id": target, "created_on": (now - dt.timedelta(hours=1)).isoformat(),
+                               "latest_stage": {"status": "success"}},
+                   completed_at_utc=(now - dt.timedelta(minutes=50)).isoformat())
+    assert hook.receipt_is_sensor_verified(receipt)[0] is False  # within TTL, before deploy
+    old_event = {**receipt, "deployment": {**receipt["deployment"],
+                 "created_on": (now - dt.timedelta(hours=35, minutes=10)).isoformat()},
+                 "completed_at_utc": (now - dt.timedelta(hours=35, minutes=5)).isoformat()}
+    assert hook.receipt_is_sensor_verified(old_event)[0] is True  # TTL is not shortened
+    # Restore the raw hash/capture together, rather than laundering the summary.
+    receipt["sensor_result"] = _complete_receipt(tmp_path, hook.LIVE_CHECKS, now)["sensor_result"]
+    assert hook.receipt_is_sensor_verified(receipt)[0] is True
+    for field, value in (("completed_at_utc", None), ("completed_at_utc", "bad"),
+                         ("completed_at_utc", (now + dt.timedelta(minutes=1)).isoformat())):
+        bad = {**receipt, field: value}
+        assert hook.receipt_is_sensor_verified(bad)[0] is False
+    bad = {**receipt, "deployment": {**receipt["deployment"], "latest_stage": {"status": "failed"}}}
+    assert hook.receipt_is_sensor_verified(bad)[0] is False
+
+    # Weekly completion follows the sensor, so it must not be its lower bound.
+    weekly = {**receipt, "schema": "glp-price-index-release-chain-v1", "status": "REMINTED_SENSOR_PENDING",
+              "completed_at_utc": (now + dt.timedelta(minutes=1)).isoformat(),
+              "deployment": {"id": target, "status": "success"},
+              "external_effects": {"cloudflare_deployments": 1, "current_content_base_remints": 1},
+              "remint": {"status": "PASS", "readback": {
+                  "schema": "glp-opus-current-content-base-v1", "status": "PASS",
+                  "deployment_id": target, "release_root": receipt["release_root"],
+                  "reminted_at_utc": (now - dt.timedelta(seconds=30)).replace(microsecond=0).isoformat()}},
+              "commands": [{"command": f"sudo -n python3 /repo/remint_content_base.py --release {receipt['release_root']} --deployment-id {target}",
+                            "started_at_utc": (now - dt.timedelta(seconds=40)).isoformat(), "exit_code": 0}]}
+    assert hook.receipt_is_sensor_verified(weekly)[0] is True
+    for changed in (
+        {"remint": {**weekly["remint"], "readback": {**weekly["remint"]["readback"], "deployment_id": "other"}}},
+        {"remint": {**weekly["remint"], "readback": {**weekly["remint"]["readback"], "reminted_at_utc": "bad"}}},
+        {"commands": [{**weekly["commands"][0], "exit_code": 1}]},
+        {"commands": [{**weekly["commands"][0], "started_at_utc": (now + dt.timedelta(seconds=1)).isoformat()}]},
+    ):
+        assert hook.receipt_is_sensor_verified({**weekly, **changed})[0] is False
+    early = {**weekly, "sensor_result": _complete_receipt(
+        tmp_path, hook.LIVE_CHECKS, now - dt.timedelta(minutes=1))["sensor_result"]}
+    assert hook.receipt_is_sensor_verified(early)[0] is False
+
+
+def test_r2_native_producer_names_are_ordered_mandatory_pass(tmp_path):
+    tree = ast.parse((SCRIPTS / "glp_deploy_completeness_sensor.py").read_text())
+    producer = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "run_sensor")
+    runner = next(n for n in ast.walk(producer) if isinstance(n, ast.FunctionDef) and n.name == "run_checks")
+    returns = [n.value for n in runner.body if isinstance(n, ast.Return)]
+    assert len(returns) == 1 and isinstance(returns[0], ast.List)
+    calls = returns[0].elts
+    labels = []
+    for call in calls:
+        assert isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+        bodies = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == call.func.id]
+        assert len(bodies) == 1
+        emitted = {c.args[0].value for c in ast.walk(bodies[0])
+                   if isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id == "check"
+                   and c.args and isinstance(c.args[0], ast.Constant) and isinstance(c.args[0].value, str)}
+        assert len(emitted) == 1, (call.func.id, emitted)
+        labels.append(emitted.pop())
+    assert len(labels) == 18 and tuple(labels) == hook.LIVE_CHECKS
+    now = dt.datetime.now(dt.timezone.utc)
+    native = _complete_receipt(tmp_path, labels, now)
+    native.update(schema="glp-enrichment-production-deployment-receipt-v1",
+                  status="PASS_DEPLOYED_READBACK_REQUIRED", apply={"exit_code": 0},
+                  deployment={"id": native["deployment_id"],
+                              "created_on": (now - dt.timedelta(minutes=2)).isoformat(),
+                              "latest_stage": {"status": "success"}},
+                  completed_at_utc=(now - dt.timedelta(minutes=1)).isoformat())
+    assert hook.receipt_is_sensor_verified(native)[0] is True
+    missing = _complete_receipt(tmp_path, labels[:-1], now)
+    missing.update({key: native[key] for key in ("schema", "status", "apply", "deployment", "completed_at_utc")})
+    assert hook.receipt_is_sensor_verified(missing)[0] is False
