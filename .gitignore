@@ -122,6 +122,7 @@
 !/scripts/affiliate_best_terms_machine.py
 !/scripts/affiliate_provider_metadata.py
 !/scripts/affiliate_provider_row_scope.py
+!/scripts/glp328_outreach_policy.py
 !/scripts/affiliate_sheet_batch_writer.py
 !/scripts/affiliate_sheet_schema_guard.py
 !/scripts/article_carrier_gate_health.py
@@ -192,6 +193,7 @@
 !/tests/test_affiliate_cancellation_intake.py
 !/tests/test_affiliate_cron_domain_repair.py
 !/tests/test_affiliate_provider_metadata.py
+!/tests/test_glp328_outreach_policy.py
 !/tests/test_affiliate_sheet_add_approved_row.py
 !/tests/test_affiliate_sheet_existing_row_preservation.py
 !/tests/test_affiliate_sheet_network_paused_disposition.py
@@ -307,3 +309,10 @@
 !/scripts/glp_deploy_provider_routes.mjs
 !/ops/discord_fmt.py
 !/tests/test_glp73_sensor_hook_source.py
+
+!/scripts/root_custody/
+/scripts/root_custody/*
+!/scripts/root_custody/phased.py
+!/scripts/root_custody/single_unit.py
+!/tests/test_glp320_readonly_grouping.py
+!/ops/glp320-source-only.md

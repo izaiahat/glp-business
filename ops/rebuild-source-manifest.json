@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b709cd513188111f3acc9a8dc0749e6c23fcfec902e6ced76c27102821f31c2"
+      "sha256": "35e1b2ae7a8c9f6591602976335050e4ba239b75ef4646ac4435bfa939f2d0c9"
     },
     ".hermes.md": {
       "callers": [],
@@ -202,6 +202,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
+    },
+    "ops/glp320-source-only.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "47babdc3e1fd7b13ed1b394a64e87302f154b23d82f01d1d71a54fc76a4b5a81"
     },
     "ops/glp76-host-transport.md": {
       "callers": [],
@@ -1049,6 +1054,11 @@
       "kind": "script",
       "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
+    "scripts/glp328_outreach_policy.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "b7db0578ddc30ea0d95459b8ea219dee6d0889caee02198ba39219a9d2eff9b3"
+    },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
         "scripts/generate_glp34_deploy_carrier.py"
@@ -1490,10 +1500,20 @@
       "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
+    "scripts/root_custody/phased.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "f7c34c7cee887c972a40b8de451aae848b1695a91af78105e3c398aa742d7de2"
+    },
+    "scripts/root_custody/single_unit.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "66def05203638c05c091f36b4b097ca8a06077abf762b76fb87f74a0feb5b9b2"
+    },
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "08c853c3e453ed4c9663e0e2f1f4d5016dcb54876ecc5f2d3633e3ef17cca8ed"
+      "sha256": "43d94705401e79eaa8abda7164c05948e0c1226ba3bbb4978fe907f936a3cf79"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2092,12 +2112,24 @@
       "kind": "test",
       "sha256": "41678b63f7d50fec37e3c7a8adb6a326b8d01ac945dee9194ad5945370b7729e"
     },
+    "tests/test_glp320_readonly_grouping.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "dc71709809fe42d2039e10f6d374e66a3d2a26e6848046650a3a2b435d75e97f"
+    },
     "tests/test_glp324_unassigned_commission_preflight.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
+    },
+    "tests/test_glp328_outreach_policy.py": {
+      "callers": [
+        "glp328_outreach_policy"
+      ],
+      "kind": "test",
+      "sha256": "c6723fc831c1b02127372aa15c61c825e377fb2853ba987ad79668522ce9a329"
     },
     "tests/test_glp329_add_approved_row_full_grid_dry_run.py": {
       "callers": [
@@ -2619,5 +2651,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 398
+  "tracked_count": 404
 }
