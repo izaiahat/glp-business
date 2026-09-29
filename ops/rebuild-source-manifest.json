@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "78a769663fe0910df85108ff6c00da42872132b5cd77ddd8544a37a280e7bfe4"
+      "sha256": "9e26c463e4cd424ba419b769a7c66f2482b436758b552699b81309ffa75be18a"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -651,6 +651,11 @@
       "kind": "instruction_or_policy",
       "sha256": "768b156e5a43bbda68ee390eef131be68d9c0caba34bf10299516dae65337d8d"
     },
+    "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "fe3705b35f340c18de92fb0b49e9c8131f2f905651b9f774433f163ff0adbb9b"
+    },
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
       "kind": "script",
@@ -1055,6 +1060,11 @@
       ],
       "kind": "script",
       "sha256": "c530e001e25fe2c57a4f67467eb9c7552b12c2d567cd43dcd8891511309d857c"
+    },
+    "scripts/glp44_safe_bridge_activation.py": {
+      "callers": ["ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"],
+      "kind": "repository_control",
+      "sha256": "5805130e754c72bf4e6b024a796ade2c6d757b862cf933f487bd05cbcd192f77"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2136,6 +2146,11 @@
       ],
       "kind": "test",
       "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
+    },
+    "tests/test_glp44_safe_bridge_activation.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "repository_control",
+      "sha256": "eca8ec56c51f2a3217787040b4f4dc0e87408e83bfa5a65ab2718ef8e2c33b02"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
