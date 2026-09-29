@@ -126,6 +126,7 @@
 !/scripts/capacity_pacing.py
 !/scripts/codex_capacity_alert.py
 !/scripts/cron_bridge_action.py
+!/scripts/glp_analytics_brain_cadence.py
 !/scripts/cron_ports/fleet_sentinel.py
 !/scripts/cron_ports_sheet/applications.py
 !/scripts/cron_ports_sheet/approval_watch.py
@@ -232,6 +233,7 @@
 !/tests/test_glp_reddit_pack_scout.py
 !/tests/test_glp_research_autowire.py
 !/tests/test_glp44_reporting_source_pin_pair.py
+!/tests/test_glp44_reader_exclusion.py
 !/tests/test_glp_wire_backlog_wired_repair.py
 !/tests/test_glp_wirein_declared_routes.py
 !/tests/test_katalys_approved_link_resolver.py
@@ -290,6 +292,16 @@
 !/scripts/post_discord_message.py
 !/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py
 !/ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json
+
+# GLP-73 exact unapproved source custody; required nonsecret branches
+!/scripts/glp_deploy_completeness_sensor.py
+!/scripts/glp_deploy_sensor_hook.py
+!/scripts/affiliate_surface_coverage_audit.py
+!/scripts/glp_llms_txt_gate.py
+!/scripts/glp_robots_gate.py
+!/scripts/glp_deploy_provider_routes.mjs
+!/ops/discord_fmt.py
+!/tests/test_glp73_sensor_hook_source.py
 
 !/scripts/root_custody/
 /scripts/root_custody/*
