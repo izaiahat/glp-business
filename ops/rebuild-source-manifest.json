@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5a494e680c1938bb42838757c494c1875903ceef0ac33552dd43cb05ac56e8b7"
+      "sha256": "78a769663fe0910df85108ff6c00da42872132b5cd77ddd8544a37a280e7bfe4"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a02f6721ae999b961ef79e59980ae01d1e922f1375c9d45b59a0d4a22f123951"
+      "sha256": "35e1b2ae7a8c9f6591602976335050e4ba239b75ef4646ac4435bfa939f2d0c9"
     },
     ".hermes.md": {
       "callers": [],
@@ -202,6 +202,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
+    },
+    "ops/glp320-source-only.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "47babdc3e1fd7b13ed1b394a64e87302f154b23d82f01d1d71a54fc76a4b5a81"
     },
     "ops/glp76-host-transport.md": {
       "callers": [],
@@ -650,6 +655,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "768b156e5a43bbda68ee390eef131be68d9c0caba34bf10299516dae65337d8d"
+    },
+    "ops/n8n-bridge/bridge.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "b02f156a8d247acc02c61c6dbc24c365ee6b22a9a7afc79646b30c49c897f072"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -1476,10 +1486,20 @@
       "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
+    "scripts/root_custody/phased.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "f7c34c7cee887c972a40b8de451aae848b1695a91af78105e3c398aa742d7de2"
+    },
+    "scripts/root_custody/single_unit.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "66def05203638c05c091f36b4b097ca8a06077abf762b76fb87f74a0feb5b9b2"
+    },
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "71ab88d1cd2149f729e4dc8c4211353d763c010000a4fe5785b99e1e42f5b9ac"
+      "sha256": "9d3d9697b5991f678ed617eb543f3af96c5bf4b217bb26490bd3bf79aad85dbe"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2078,6 +2098,11 @@
       "kind": "test",
       "sha256": "41678b63f7d50fec37e3c7a8adb6a326b8d01ac945dee9194ad5945370b7729e"
     },
+    "tests/test_glp320_readonly_grouping.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "dc71709809fe42d2039e10f6d374e66a3d2a26e6848046650a3a2b435d75e97f"
+    },
     "tests/test_glp324_unassigned_commission_preflight.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -2112,6 +2137,16 @@
       ],
       "kind": "test",
       "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
+    },
+    "tests/test_glp44_bridge_fence_successor.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "b20ddbff089876e76b49ed3e52622a0d1efe94ac4b1a4163c8f506b7f8e87968"
+    },
+    "tests/test_glp44_bridge_source_admission.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "89f9582b3209e18b01d6ca7fd79d68f36a3642362f8b63ffec53f89ffac3ec7e"
     },
     "tests/test_glp44_gsc_only_consumer.py": {
       "callers": [
@@ -2595,5 +2630,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 394
+  "tracked_count": 401
 }
