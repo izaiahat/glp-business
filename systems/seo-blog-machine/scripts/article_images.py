@@ -603,7 +603,9 @@ def _fallback_receipt(visual_key: str, subject: dict[str, str] | None, reason: s
 
 def provider_order() -> list[str]:
     values = [p.strip() for p in _env("GLP_ARTICLE_IMAGE_PROVIDERS", "gpt_image_2_native").split(",") if p.strip()]
-    if not values or len(values) != len(set(values)) or any(p not in PROVIDER_MODELS for p in values):
+    # Historical Higgsfield receipts remain readable, but the production
+    # environment cannot authorize a credit-spending render or fallback.
+    if values != ["gpt_image_2_native"]:
         raise ImageLaneError("provider_chain_invalid")
     return values
 
