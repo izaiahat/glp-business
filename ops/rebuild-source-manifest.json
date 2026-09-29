@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6d89394eee0cd78ee5fe50e0712085668af2fa4259357a5e1df350fb1d25f630"
+      "sha256": "b5775b52bc4140ef79eeb2a5441de471ded52e093b67f179b588b7a44459ce8b"
     },
     ".hermes.md": {
       "callers": [],
@@ -1084,6 +1084,11 @@
       "kind": "script",
       "sha256": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8"
     },
+    "scripts/glp328_outreach_policy.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "62e42383f617b757ee3f4c989fc399cb0dccb6cfe86fed1d6e75934ca9057f57"
+    },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": ["n8n-bridge:analytics_brain", "direct:cadence"],
       "kind": "script",
@@ -2063,6 +2068,11 @@
       "kind": "test",
       "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
     },
+    "tests/test_glp328_outreach_policy.py": {
+      "callers": ["glp328_outreach_policy"],
+      "kind": "test",
+      "sha256": "70e2b72fd1c7113eaed7444aca5acde812c1c90b69b50fe308ae6bf7d6cc2b69"
+    },
     "tests/test_glp44_reader_exclusion.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
@@ -2522,5 +2532,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 382
+  "tracked_count": 386
 }
