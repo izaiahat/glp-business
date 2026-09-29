@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import hashlib
 import importlib.util
 import json
@@ -22,6 +23,9 @@ BUSINESS = Path(__file__).resolve().parent.parent
 COLLECTOR = BUSINESS / "systems/analytics-brain/collector.py"
 OBSERVABILITY_COLLECTOR = Path.home() / ".hermes/scripts/glp_observability_collect.sh"
 RUN_ROOT = BUSINESS / "reports/glp-clinic-scout/analytics/runs"
+# This is the existing installer/cron reader fence, not a new lock authority.
+# The cron caller holds its distinct state lock while awaiting this child.
+READER_LOCK = BUSINESS / "reports/ops/n8n-to-cron-20260924/runs/analytics_brain.lock"
 DEPLOY_TRIGGER = BUSINESS / "ops/glp/analytics-brain-state/deploy-trigger.json"
 ADS_STATE = BUSINESS / "ops/glp/analytics-brain-state/ads-digest-state.json"
 APPROVAL_LOOP = BUSINESS / "scripts/ads_approval_loop.py"
@@ -463,8 +467,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--database", type=Path)
     args = parser.parse_args(argv)
-    receipt, code = run(args.phase, fixture=args.fixture, alert_sink=args.alert_sink,
-                        output_dir=args.output_dir, database=args.database)
+    # The bridge /run invokes this CLI directly, bypassing cron_bridge_action.
+    # Acquire before deploy-trigger or collector reads/writes, and keep the
+    # descriptor open through every child and receipt/alert completion.
+    READER_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with READER_LOCK.open("a") as reader_lock:
+        try:
+            fcntl.flock(reader_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(json.dumps({"status": "REFUSED_READER_EXCLUSION", "phase": args.phase,
+                              "output_count": 0}, sort_keys=True))
+            return 75
+        receipt, code = run(args.phase, fixture=args.fixture, alert_sink=args.alert_sink,
+                            output_dir=args.output_dir, database=args.database)
     print(json.dumps({
         "status": receipt["status"], "phase": receipt["phase"],
         "output_count": receipt["output_count"], "receipt": receipt.get("receipt_path"),

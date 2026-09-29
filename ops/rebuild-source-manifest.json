@@ -965,7 +965,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "420e2012c6d98e665bc5deb261ee1af251169680ef6598840d70475dba6f29cb"
+      "sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -1087,7 +1087,7 @@
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": ["n8n-bridge:analytics_brain", "direct:cadence"],
       "kind": "script",
-      "sha256": "61ca597689080f6f3e5de9b00c733009df258850f58bce7f592843e527f17c53"
+      "sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
       "callers": [
@@ -1422,7 +1422,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f921d5fa55ebb2fd7ae25f874857107b3171ad010c357c54351a7206f416634"
+      "sha256": "ed3ac3e68156f803d6d2e3fa7ebab1eaaf95fdf197735d5c8d8631f8768f1549"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2056,6 +2056,11 @@
       "kind": "test",
       "sha256": "7ecab524cdd49c8a0713f053ef55a02e3fb722ca3b112d1a887b5e1fdca17ae0"
     },
+    "tests/test_glp44_reader_exclusion.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "d970c267969b1d1cb974311cf901365c376c45c4aca634815e0c4fe0a5c0647b"
+    },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
@@ -2503,5 +2508,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 381
+  "tracked_count": 382
 }
