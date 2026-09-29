@@ -160,7 +160,7 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638"
+      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -318,7 +318,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83"
+      "sha256": "2f393f863bfb41bb46254b3b7f6544497bb6a9996757ea21f2abfdb1680d26ca"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2056,7 +2056,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "7ecab524cdd49c8a0713f053ef55a02e3fb722ca3b112d1a887b5e1fdca17ae0"
+      "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
@@ -2108,7 +2108,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0d7fe3355fa6185ff2df1b3a7db42824c4a7dc414272266f4c5253c231dbfd6f"
+      "sha256": "c2befbbef9c2813e3766949fb6fbbbbcfc918412681bfdf3e04dd4edf91e76d9"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
