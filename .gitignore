@@ -13,6 +13,11 @@
 !/.github/workflows/
 /.github/workflows/*
 !/tests/test_glp85_cj_reporting_identity.py
+!/tests/test_glp44_bridge_source_admission.py
+!/tests/test_glp44_bridge_fence_successor.py
+!/ops/n8n-bridge/
+/ops/n8n-bridge/*
+!/ops/n8n-bridge/bridge.py
 !/ops/glp/
 /ops/glp/*
 !/ops/glp/reporting-v2/

@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5a494e680c1938bb42838757c494c1875903ceef0ac33552dd43cb05ac56e8b7"
+      "sha256": "78a769663fe0910df85108ff6c00da42872132b5cd77ddd8544a37a280e7bfe4"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ae148eaa9912d0b9d9833727782b2a1951a0aec29f05009302d2563bb107d57b"
+      "sha256": "3b709cd513188111f3acc9a8dc0749e6c23fcfec902e6ced76c27102821f31c2"
     },
     ".hermes.md": {
       "callers": [],
@@ -650,6 +650,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "768b156e5a43bbda68ee390eef131be68d9c0caba34bf10299516dae65337d8d"
+    },
+    "ops/n8n-bridge/bridge.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "b02f156a8d247acc02c61c6dbc24c365ee6b22a9a7afc79646b30c49c897f072"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -1488,7 +1493,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f5072d4bd9400ee77b0bb67994311c5d82e619c8b35d789747f436c19a42277"
+      "sha256": "08c853c3e453ed4c9663e0e2f1f4d5016dcb54876ecc5f2d3633e3ef17cca8ed"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2115,6 +2120,16 @@
       "kind": "test",
       "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
     },
+    "tests/test_glp44_bridge_fence_successor.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "b20ddbff089876e76b49ed3e52622a0d1efe94ac4b1a4163c8f506b7f8e87968"
+    },
+    "tests/test_glp44_bridge_source_admission.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "89f9582b3209e18b01d6ca7fd79d68f36a3642362f8b63ffec53f89ffac3ec7e"
+    },
     "tests/test_glp44_gsc_only_consumer.py": {
       "callers": [
         "GLP-44 existing controller GSC-only source checks"
@@ -2604,5 +2619,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 395
+  "tracked_count": 398
 }
