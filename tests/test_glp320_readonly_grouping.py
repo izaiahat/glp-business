@@ -52,6 +52,16 @@ with patch.dict(sys.modules, stubs):
         caller = module('glp320_caller', SOURCE/'single_unit.py')
 
 
+def ast_digest(node):
+    # Python 3.12 adds an empty FunctionDef.type_params field. Normalize only
+    # that absent-in-3.11 field; nonempty generic parameters remain hash-bound.
+    node=copy.deepcopy(node)
+    for item in ast.walk(node):
+        if getattr(item,'type_params',None)==[]:
+            item._fields=tuple(k for k in item._fields if k!='type_params')
+    return hashlib.sha256(ast.dump(node,include_attributes=False).encode()).hexdigest()
+
+
 def predecessor_advance():
     """Undo only additive callback/group seams; authenticate exact predecessor AST.
     This avoids curating a second source/runner or requiring Git history in CI.
@@ -66,7 +76,7 @@ def predecessor_advance():
             return self.generic_visit(node)
     fn=RemoveAdditions().visit(fn); fn.name='advance'
     fn.args.kwonlyargs=[]; fn.args.kw_defaults=[]
-    assert hashlib.sha256(ast.dump(fn,include_attributes=False).encode()).hexdigest() == '02391ce8885d10e4f2b381b446c67c4adbc9d7a2732fc7a79541df3947f5e067'
+    assert ast_digest(fn) == '02391ce8885d10e4f2b381b446c67c4adbc9d7a2732fc7a79541df3947f5e067'
     env=dict(vars(p)); exec(compile(ast.fix_missing_locations(ast.Module(body=[fn],type_ignores=[])),'authenticated-predecessor-advance','exec'),env)
     return env['advance']
 
@@ -267,7 +277,7 @@ class Acceptance(unittest.TestCase):
               'footer':'4ac6e42e2f3b3ef5ce3b2b3e3229df61a02176ba49e0c8918bfb1248177dab41'}
         for node in cls.body:
             if isinstance(node,ast.FunctionDef) and node.name in pins:
-                self.assertEqual(hashlib.sha256(ast.dump(node,include_attributes=False).encode()).hexdigest(),pins[node.name])
+                self.assertEqual(ast_digest(node),pins[node.name])
         self.assertEqual((p.WORK_SECONDS,p.SDK_SECONDS,p.DIAGNOSTIC_SECONDS,p.RECOVERY_SECONDS,p.FOOTER_SECONDS,p.CALL_SECONDS,p.WAIT_SECONDS),(75,65,5,140,10,230,65))
         predecessor_advance()
         EVIDENCE['carried_evidence']={'protected_methods':sorted(pins),'predecessor_sha256':'3931c9d50602137d887f3a5fd3dfe0e3a14ee434eb15e627e49c9679a3e4c7f7','unchanged_ast':True,'old_matrix_rerun':False}
@@ -316,6 +326,7 @@ class Acceptance(unittest.TestCase):
 
     def test_phase_mutation_wait_approval_barriers(self):
         h=self.h
+        seed_ledger=(h.d/'PHASES.jsonl').read_bytes()
         for name in ['stage:candidate','stage:guard','rehearse:rollback','rehearse:guard','apply:binding',
                      'apply:delete_old_inline','apply:detach_cw','apply:detach_admin','phase180:wait',
                      'cleanup:permission','cleanup:remove','cleanup:accept','unknown:read']:
@@ -326,6 +337,7 @@ class Acceptance(unittest.TestCase):
                 self.assertEqual(d.r['unit'],1)
                 # Reset only synthetic fixture, not a live retry.
                 d.r.update(unit=0,call_number=1); d.save()
+                (h.d/'PHASES.jsonl').write_bytes(seed_ledger)
         d=h.make(); d.plan=lambda:[('rehearsal-preimage:role',lambda:d.call('iam','get_role'))]
         a,v=h.callbacks(); self.assertEqual(d.advance(readonly_units=8,admission=a,verified=v),0)
         self.assertEqual((d.r['stage'],d.r['unit']),('apply',0))
@@ -416,8 +428,10 @@ class Acceptance(unittest.TestCase):
                 if seam=='admission': h.clock.charge(40)
                 if seam=='diagnostic': raise ValueError('PRIVATE_ERROR_MUST_NOT_PERSIST')
                 d.local('credential')
+            charged_intents=set()
             def save():
-                if seam=='intent' and d.r['inflight'] and not d.r['status'].startswith('FAILED'): h.clock.charge(40)
+                if seam=='intent' and d.r.get('inflight') and d.r['call_number'] not in charged_intents:
+                    charged_intents.add(d.r['call_number']); h.clock.charge(45)
                 original_save()
             def receipt(kind,**kw):
                 if seam=='footer' and kind=='bounded_call_complete': h.clock.charge(40)

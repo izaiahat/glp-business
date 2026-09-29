@@ -779,6 +779,12 @@ class Driver:
         require(len(rows) >= 2 and rows[-1]['event'] == 'bounded_call_complete'
                 and rows[-2]['event'] == 'unit_committed', 'Missing durable footer')
         require(rows[-1]['phase'] == rows[-2]['phase'] == self.phase, 'Footer phase drift')
+        starts = [row for row in rows if row['event'] == 'unit_started']
+        require(starts and starts[-1]['phase'] == self.phase
+                and starts[-1]['call_number'] == durable['call_number'], 'Footer unit identity drift')
+        require(all(sum(row['event'] == event for row in rows) == durable['call_number']
+                    for event in ('unit_started', 'unit_committed', 'bounded_call_complete')),
+                'Durable per-unit record count drift')
         require((rows[-2]['next_stage'], rows[-2]['next_unit']) ==
                 (durable['stage'], durable['unit']), 'Commit cursor drift')
 
