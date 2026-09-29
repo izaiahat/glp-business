@@ -292,3 +292,13 @@
 !/scripts/post_discord_message.py
 !/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py
 !/ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json
+
+# GLP-73 exact unapproved source custody; required nonsecret branches
+!/scripts/glp_deploy_completeness_sensor.py
+!/scripts/glp_deploy_sensor_hook.py
+!/scripts/affiliate_surface_coverage_audit.py
+!/scripts/glp_llms_txt_gate.py
+!/scripts/glp_robots_gate.py
+!/scripts/glp_deploy_provider_routes.mjs
+!/ops/discord_fmt.py
+!/tests/test_glp73_sensor_hook_source.py
