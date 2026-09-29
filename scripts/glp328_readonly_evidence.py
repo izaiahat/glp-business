@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
+import os
+import fcntl
+import stat
+import struct
+import sys
+import tempfile
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from email.utils import getaddresses
 from pathlib import Path
@@ -23,14 +31,85 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
+@contextmanager
+def _sqlite_snapshot(path):
+    """Linux/local Unix-VFS SQLite only; never give SQLite a source pathname.
+
+    OFD read locks conflict with SQLite's POSIX write locks even in this process:
+    DB pending/reserved/shared bytes prevent rollback writes and mode changes;
+    SHM lock bytes plus its dead-man switch prevent WAL writes, checkpoint/reset,
+    recovery and SHM reinitialization.
+    Missing SHM in WAL mode is unsupported, not permission to ignore the WAL.
+    Ordinary SQLite locking is required (no nolock/immutable/noncooperating writers).
+    """
+    if sys.platform != 'linux' or struct.calcsize('P') != 8:
+        raise OSError('sqlite_snapshot_locking_unsupported')
+    # Linux UAPI F_OFD_SETLK=37; some Python builds omit its symbolic export.
+    # Unsupported kernels/filesystems return an error; there is no lock fallback.
+    ofd_setlk = getattr(fcntl, 'F_OFD_SETLK', 37)
+    with tempfile.TemporaryDirectory(prefix='glp328-sqlite-') as private:
+        with ExitStack() as handles:
+            def open_read(p):
+                fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NOATIME | os.O_NONBLOCK)
+                handles.callback(os.close, fd)
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise OSError('sqlite_snapshot_not_regular')
+                return fd
+
+            def lock(fd, start, length):
+                fcntl.fcntl(fd, ofd_setlk,
+                            struct.pack('hhqqi', fcntl.F_RDLCK, os.SEEK_SET, start, length, 0))
+
+            db = open_read(path)
+            lock(db, 0x40000000, 512)
+            header = os.pread(db, 100, 0)
+            if header[:16] != b'SQLite format 3\x00' or header[18:20] not in (b'\x01\x01', b'\x02\x02'):
+                raise OSError('sqlite_snapshot_header_unsupported')
+            shm = None
+            if header[18:20] == b'\x02\x02':
+                shm = open_read(Path(str(path) + '-shm'))  # never create it
+                lock(shm, 120, 9)  # Unix VFS: eight WAL locks + dead-man switch
+                if os.fstat(shm).st_size < 32768:
+                    raise OSError('sqlite_snapshot_shm_incomplete')
+            journal = Path(str(path) + '-journal')
+            if journal.exists() and journal.stat().st_size:
+                raise OSError('sqlite_snapshot_journal_recovery_required')
+            members = {path: db}
+            wal_path = Path(str(path) + '-wal')
+            try:
+                wal = open_read(wal_path)
+            except FileNotFoundError:
+                wal = None
+            if wal is not None:
+                if header[18:20] != b'\x02\x02' and os.fstat(wal).st_size:
+                    raise OSError('sqlite_snapshot_unexpected_wal')
+                members[wal_path] = wal
+            hashes = {}
+            for source, fd in members.items():
+                before = os.fstat(fd)
+                digest = hashlib.sha256()
+                with (Path(private) / source.name).open('wb') as dest:
+                    while chunk := os.read(fd, 1024 * 1024):
+                        digest.update(chunk)
+                        dest.write(chunk)
+                # Identity/drift diagnostics supplement locks; they are NOT the fence.
+                if before != os.fstat(fd) or before != source.stat(follow_symlinks=False):
+                    raise OSError('sqlite_snapshot_source_changed')
+                hashes[source.name] = digest.hexdigest()
+            if shm is not None and os.fstat(shm) != Path(str(path) + '-shm').stat(follow_symlinks=False):
+                raise OSError('sqlite_snapshot_shm_replaced')
+        yield Path(private) / path.name, hashes
+
+
 def read_local_sources(root: Path, now: datetime) -> dict:
-    """Strict file reads + one SQLite read transaction; no legacy writer imports.
+    """Strict file reads + locked private SQLite snapshot; no legacy writer imports.
 
     Return only control identities, not message bodies, personal contact guesses
-    or patient fields. Unknown target references remain errors even where another
-    domain is present: that domain cannot establish the missing organization's
-    identity. An explicit inactive row never cancels an active row in another
-    source. Source positions are 1-based, not potentially sensitive raw rows.
+    or patient fields. Explicit domain-scoped controls need no surviving target:
+    unresolved historical references remain diagnostics, not recovered identity.
+    Target-dependent unresolved identity still refuses. An inactive row never
+    cancels an active row in another source. Source positions are 1-based, not
+    potentially sensitive raw rows.
     """
     sources, faults, files = {}, [], {}
     for name in ('targets.jsonl', 'suppression_list.jsonl', 'message_ledger.jsonl',
@@ -55,24 +134,27 @@ def read_local_sources(root: Path, now: datetime) -> dict:
         files[name] = rows
     db_targets, db_controls = [], []
     try:
-        # mode=ro refuses a missing database; query_only is a second write gate.
-        con = sqlite3.connect((root / 'outreach.sqlite').resolve().as_uri() + '?mode=ro', uri=True)
-        try:
-            con.row_factory = sqlite3.Row
-            con.execute('PRAGMA query_only=ON')
-            con.execute('BEGIN')
-            db_targets = [dict(r) for r in con.execute(
-                'SELECT target_id,url FROM targets ORDER BY target_id')]
-            db_controls = [dict(r) for r in con.execute(
-                'SELECT target_id,email,domain,scope,active FROM suppressions '
-                'ORDER BY suppression_id')]
-            sources['sqlite'] = {'path': str(root / 'outreach.sqlite'),
-                                 'uri_mode': 'ro', 'query_only': con.execute('PRAGMA query_only').fetchone()[0],
-                                 'target_rows': len(db_targets), 'suppression_rows': len(db_controls),
-                                 'selected_rows_sha256': _digest([db_targets, db_controls])}
-        finally:
-            con.close()
-    except sqlite3.Error as exc:
+        with _sqlite_snapshot(root / 'outreach.sqlite') as (snapshot, hashes):
+            # Native SQLite sidecar writes are confined to this private directory.
+            con = sqlite3.connect(snapshot.as_uri() + '?mode=ro', uri=True)
+            try:
+                con.row_factory = sqlite3.Row
+                con.execute('PRAGMA query_only=ON')
+                con.execute('BEGIN')
+                db_targets = [dict(r) for r in con.execute(
+                    'SELECT target_id,url FROM targets ORDER BY target_id')]
+                db_controls = [dict(r) for r in con.execute(
+                    'SELECT target_id,email,domain,scope,active FROM suppressions '
+                    'ORDER BY suppression_id')]
+                sources['sqlite'] = {'path': str(root / 'outreach.sqlite'),
+                                     'access': 'private_snapshot_linux_ofd_locks',
+                                     'snapshot_sha256': hashes,
+                                     'uri_mode': 'ro', 'query_only': con.execute('PRAGMA query_only').fetchone()[0],
+                                     'target_rows': len(db_targets), 'suppression_rows': len(db_controls),
+                                     'selected_rows_sha256': _digest([db_targets, db_controls])}
+            finally:
+                con.close()
+    except (sqlite3.Error, OSError) as exc:
         faults.append(f'outreach.sqlite:{type(exc).__name__}')
     targets = {}
     for source, rows in [('targets.jsonl', files['targets.jsonl']),
@@ -86,17 +168,14 @@ def read_local_sources(root: Path, now: datetime) -> dict:
             else:
                 targets[key] = host
 
-    def domains(row, source, number):
+    reference_diagnostics = []
+
+    def domains(row, source, number, *, suppression=False):
         found = set()
+        prior_faults = len(faults)
         key = row.get('target_id')
-        if key:
-            host = targets.get(key) if isinstance(key, str) else None
-            if not host:
-                faults.append(f'{source}:{number}:target_identity_unresolved')
-            else:
-                found.add(host)
         for field in ('email', 'from_addr', 'to_email'):
-            if row.get(field):
+            if row.get(field) not in (None, ''):
                 addresses = getaddresses([row[field]]) if isinstance(row[field], str) else []
                 if not addresses:
                     faults.append(f'{source}:{number}:{field}_invalid')
@@ -106,12 +185,28 @@ def read_local_sources(root: Path, now: datetime) -> dict:
                         faults.append(f'{source}:{number}:{field}_invalid')
                     else:
                         found.add(domain)
-        if row.get('domain'):
-            domain = policy.canonical_host(row['domain'])
-            if not domain:
+        if row.get('domain') not in (None, ''):
+            domain = policy.canonical_host(row['domain']) if isinstance(row['domain'], str) else ''
+            if not re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+', domain):
                 faults.append(f'{source}:{number}:domain_invalid')
             else:
                 found.add(domain)
+        independent_domain = (suppression and row.get('scope') == 'domain'
+                              and bool(found) and len(faults) == prior_faults)
+        if key not in (None, ''):
+            host = targets.get(key) if isinstance(key, str) else None
+            if host:
+                found.add(host)
+            elif independent_domain and isinstance(key, str):
+                # Keep the historical reference, without inventing its identity.
+                reference_diagnostics.append({'source': source, 'position': number,
+                                              'target_id': key, 'scope': 'domain',
+                                              'code': 'historical_target_identity_unresolved'})
+            else:
+                faults.append(f'{source}:{number}:target_identity_unresolved')
+        if suppression and row.get('scope') == 'domain' and any(
+                not policy._same_org(a, b) for a in found for b in found):
+            faults.append(f'{source}:{number}:control_identity_conflict')
         if not found:
             faults.append(f'{source}:{number}:control_identity_missing')
         return sorted(found)
@@ -130,7 +225,7 @@ def read_local_sources(root: Path, now: datetime) -> dict:
                     or (isinstance(active, str) and active in ('1', 'true', 'yes', 'active'))):
                 faults.append(f'{source}:{n}:active_invalid')
             scope = row.get('scope')
-            if scope and scope not in ('email', 'domain', 'organization', 'target'):
+            if scope not in (None, '', 'email', 'domain', 'organization', 'target'):
                 faults.append(f'{source}:{n}:scope_unsupported')
             wildcard = str(row.get('email') or '').strip().lower()
             if (wildcard.endswith('@*') and wildcard[:-2] in policy.FORBIDDEN_PREFIXES
@@ -140,7 +235,7 @@ def read_local_sources(root: Path, now: datetime) -> dict:
                 prefix_controls.append({'source': source, 'position': n, 'prefix': wildcard[:-2]})
                 continue
             suppression.extend({'domain': d, 'source': source, 'position': n}
-                               for d in domains(row, source, n))
+                               for d in domains(row, source, n, suppression=True))
     # Any retained conversation, even an unsent local draft, is conservatively
     # active. Never infer closed/resolved from absence of a send or reply row.
     conversations, sends = [], []
@@ -154,6 +249,7 @@ def read_local_sources(root: Path, now: datetime) -> dict:
                               'provider_thread_id': row.get('provider_thread_id'),
                               'source_position': n})
     return {'sources': sources, 'faults': faults, 'policy_prefix_controls': prefix_controls,
+            'reference_diagnostics': reference_diagnostics,
             'suppression': {'complete': not faults, 'checked_utc': now.isoformat(),
                             'entries': suppression},
             'conversations': conversations, 'sends': sends,

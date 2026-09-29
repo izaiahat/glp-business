@@ -23,10 +23,30 @@ when executing from an isolated worktree; do not install candidate bytes just
 to test this call. Record actual import paths/hashes. No mirror `main`, cursor,
 queue method, legacy suppression helper or schema initializer may be invoked.
 
-`read_local_sources` opens `outreach.sqlite` with URI `mode=ro`, asserts the
-observed `query_only` state in provenance, and reads targets/suppressions in one
-transaction. It reads all five existing JSONL files strictly, preserves the
-union of adverse controls, and resolves target identity across both sources.
+`read_local_sources` never passes an original database pathname to SQLite.
+It copies DB/WAL bytes to a private temporary directory while holding Linux
+64-bit OFD read locks across SQLite's DB pending/reserved/shared lock region
+and all SHM WAL locks plus the dead-man switch. Source descriptors are
+`O_RDONLY|O_NOFOLLOW|O_NOATIME`; only private copies can receive native SQLite
+sidecar writes. Ordinary local Unix-VFS SQLite locking is required: no
+noncooperating raw-file, `nolock`, or `immutable` writers. Unsupported locks,
+contention, nonregular/symlinked files, pending rollback-journal recovery and
+WAL without an existing full SHM refuse, with no original sidecar creation.
+An existing SHM alone is not the fence: the held kernel locks exclude writers,
+checkpoints, recovery and mode changes during the copy. Stat/hash checks are
+supplemental diagnostics, not pre-effect protection. A coherent supported WAL
+snapshot includes committed WAL-only rows; there is no original `immutable=1`
+fallback or WAL-dropping path. Private snapshot DB/WAL hashes are provenance.
+
+SQLite opens only that private snapshot with URI `mode=ro` plus `query_only`
+and reads targets/suppressions in one transaction. All five JSONL files are
+read strictly; adverse controls are unioned across both sources. Explicit valid
+`scope=domain` adverse identities need no surviving historical target row.
+Unresolved historical target IDs are retained in `reference_diagnostics` with
+source/position, and original records/receipts remain untouched. This does not
+recover target identity or promote suppression addresses into contacts.
+Target-dependent unresolved references, malformed identity/scope, conflicting
+domain identities and incomplete reads still refuse, preserving adverse domains.
 Legacy display-name addresses are parsed with stdlib `getaddresses`. Only
 wildcard prefixes already forbidden by the accepted policy are represented as
 `policy_prefix_controls`; unknown wildcard/global controls refuse. Expirations
@@ -68,8 +88,10 @@ Prices/templates remain UNAPPROVED. No Gmail drafts or contact sends.
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider tests/test_glp328_readonly_evidence.py
 ```
 
-Four tests cover local projection/no writes, missing/malformed/unresolved
+Six tests cover local projection/no writes, missing/malformed/unresolved
 refusal through the real planner, mailbox pagination/readback completeness,
-and source drift. All test records/mail clients are explicit fixtures; they
+source drift, WAL sidecar isolation/lock contention, and explicitly domain-scoped
+retired references with malformed/target-dependent refusal controls.
+All test records/mail clients are explicit fixtures; they
 prove no live routing or sent campaign. Actual host read receipts belong in the
 private report directory, not this curated source repository.

@@ -56,6 +56,113 @@ def test_real_file_projection_preserves_union_without_writes_or_contacts(tmp_pat
     assert adapter.read_local_sources(tmp_path, NOW)['suppression']['complete'] is False
 
 
+def test_wal_evidence_never_mutates_source_sidecars(tmp_path, monkeypatch):
+    import shutil
+    import os
+    adapter = importlib.import_module('glp328_readonly_evidence')
+    origin = tmp_path / 'origin'
+    origin.mkdir()
+    fixture(origin)
+    writer = sqlite3.connect(origin / 'outreach.sqlite')
+    try:
+        assert writer.execute('PRAGMA journal_mode=WAL').fetchone()[0] == 'wal'
+        writer.execute("insert into suppressions values ('wal-only','','','wal.example','domain',1)")
+        writer.commit()
+        cold = tmp_path / 'without-shm'
+        cold.mkdir()
+        for p in origin.iterdir():
+            if not p.name.endswith('-shm'):
+                shutil.copy2(p, cold / p.name)
+        def inventory(root):
+            return {p.name: (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ctime_ns)
+                    for p in root.iterdir()}
+        before = inventory(cold)
+        from affiliate_sheet_schema_guard import EXPECTED_HEADERS
+        calls = []
+        result = adapter.plan_current([list(EXPECTED_HEADERS)], cold, BOXES,
+                                      lambda b: calls.append(b), now=NOW)
+        local = result['local']
+        assert inventory(cold) == before  # predecessor creates SHM here
+        assert result['planner_refusal'] == 'suppression_snapshot_incomplete'
+        assert not calls and result['plan'] is None
+        # Unsupported no-SHM coherence must refuse, never silently drop WAL.
+        assert not local['suppression']['complete']
+        assert local['faults']
+        before = inventory(origin)
+        local = adapter.read_local_sources(origin, NOW)
+        assert local['suppression']['complete'], local['faults']
+        assert 'wal.example' in {e['domain'] for e in local['suppression']['entries']}
+        assert inventory(origin) == before
+        # Real SQLite write-lock contention must refuse without a private read.
+        writer.execute('BEGIN IMMEDIATE')
+        local = adapter.read_local_sources(origin, NOW)
+        assert not local['suppression']['complete']
+        writer.rollback()
+        before = inventory(origin)  # exclude deliberate fixture writer's SHM read-mark changes
+        # The kernel locks must stay held throughout the DB/WAL copy.
+        real_read = os.read
+        attempts = []
+        def try_writer(fd, size):
+            if not attempts:
+                writer.execute('PRAGMA busy_timeout=0')
+                try:
+                    writer.execute('BEGIN IMMEDIATE')
+                except sqlite3.OperationalError:
+                    attempts.append('locked')
+                else:
+                    writer.rollback()
+                    raise AssertionError('snapshot did not exclude SQLite writer')
+            return real_read(fd, size)
+        with monkeypatch.context() as m:
+            m.setattr(adapter.os, 'read', try_writer)
+            assert adapter.read_local_sources(origin, NOW)['suppression']['complete']
+        assert attempts == ['locked']
+        assert inventory(origin) == before
+    finally:
+        writer.close()
+
+
+def test_domain_controls_keep_retired_references_without_global_refusal(tmp_path):
+    fixture(tmp_path)
+    adapter = importlib.import_module('glp328_readonly_evidence')
+    from affiliate_sheet_schema_guard import EXPECTED_HEADERS
+    row = {'target_id': 'retired-fixture', 'domain': 'retired.example',
+           'email': 'bd@retired.example', 'scope': 'domain', 'active': True,
+           'source': 'fixture-rollback', 'receipt_json': {'target_id': 'retired-fixture',
+                                                       'note': 'removed before send'}}
+    (tmp_path / 'suppression_list.jsonl').write_text(json.dumps(row)+'\n')
+    with sqlite3.connect(tmp_path / 'outreach.sqlite') as con:
+        con.execute('insert into suppressions values (?,?,?,?,?,?)',
+                    ('retired-control', row['target_id'], row['email'], row['domain'], 'domain', 1))
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    mail = Mail()
+    result = adapter.plan_current([list(EXPECTED_HEADERS)], tmp_path, BOXES, lambda b: mail, now=NOW)
+    local = result['local']
+    assert local['suppression']['complete'], local['faults']
+    assert result['status'] == 'DISABLED_PLAN_ONLY' and result['plan']['candidates'] == []
+    assert not result['send_enabled'] and result['contact_evidence']['supplied_contacts'] == 0
+    assert len([e for e in local['suppression']['entries'] if e['domain'] == 'retired.example']) == 2
+    diagnostics = local['reference_diagnostics']
+    assert len(diagnostics) == 2
+    assert {d['source'] for d in diagnostics} == {'suppression_list.jsonl', 'sqlite.suppressions'}
+    assert all(d['target_id'] == row['target_id'] and d['code'] == 'historical_target_identity_unresolved'
+               and d['position'] >= 1 for d in diagnostics)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+    # Same reference is NOT independent identity for these malformed/ambiguous
+    # or target-dependent rows. Keep every resolvable adverse domain on refusal.
+    for delta in ({'scope': 'target'}, {'scope': 'organization'}, {'scope': []},
+                  {'domain': 'bad host.example'}, {'email': 'broken'},
+                  {'email': 'bd@conflict.example'}, {'domain': '', 'email': ''},
+                  {'target_id': ['malformed']}):
+        (tmp_path / 'suppression_list.jsonl').write_text(json.dumps(row | delta)+'\n')
+        calls = []
+        result = adapter.plan_current([list(EXPECTED_HEADERS)], tmp_path, BOXES,
+                                      lambda b: calls.append(b), now=NOW)
+        assert result['planner_refusal'] == 'suppression_snapshot_incomplete', delta
+        assert not calls and result['plan'] is None
+        assert 'retired.example' in {e['domain'] for e in result['local']['suppression']['entries']}
+
+
 def test_incomplete_sources_refuse_actual_planner_without_mail_calls(tmp_path):
     fixture(tmp_path)
     adapter = importlib.import_module('glp328_readonly_evidence')
