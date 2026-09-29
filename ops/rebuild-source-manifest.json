@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed925d87ffa13b85b9dfe655a0476fe0beac80e9d44d74858b6bab53100e03db"
+      "sha256": "6d89394eee0cd78ee5fe50e0712085668af2fa4259357a5e1df350fb1d25f630"
     },
     ".hermes.md": {
       "callers": [],
@@ -965,7 +965,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "420e2012c6d98e665bc5deb261ee1af251169680ef6598840d70475dba6f29cb"
+      "sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -1083,6 +1083,11 @@
       ],
       "kind": "script",
       "sha256": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8"
+    },
+    "scripts/glp_analytics_brain_cadence.py": {
+      "callers": ["n8n-bridge:analytics_brain", "direct:cadence"],
+      "kind": "script",
+      "sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
       "callers": [
@@ -1417,7 +1422,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f921d5fa55ebb2fd7ae25f874857107b3171ad010c357c54351a7206f416634"
+      "sha256": "ed3ac3e68156f803d6d2e3fa7ebab1eaaf95fdf197735d5c8d8631f8768f1549"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2057,6 +2062,11 @@
       ],
       "kind": "test",
       "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
+    },
+    "tests/test_glp44_reader_exclusion.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "d970c267969b1d1cb974311cf901365c376c45c4aca634815e0c4fe0a5c0647b"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
