@@ -1,6 +1,11 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/agent_exec.py": {
+      "callers": ["on-demand:orchestrator"],
+      "kind": "script",
+      "sha256": "d6b32f9ff31f14f03e5da4f7735675e7b98052b047cdcf238feb6c11e1623957"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
@@ -14,7 +19,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99fad62e5534e0e6aa98d6b27a95e1f8369d782d008e7e7ef56197ba23a1065a"
+      "sha256": "c489f6f51e467e4901c1ee2475bd3cbf81808ba26001d4156caeaa771a4f3c60"
     },
     ".hermes.md": {
       "callers": [],
@@ -2716,5 +2721,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 418
+  "tracked_count": 419
 }
