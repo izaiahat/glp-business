@@ -1227,12 +1227,26 @@
       "kind": "script",
       "sha256": "9b00fc915d6499f0dd29ad3f62c0c565f7fafdeed95fcaa2a4b6623a5a9b5af5"
     },
+    "scripts/glp_price_index_recovery.py": {
+      "callers": [
+        "registered GLP-73 weekly price-index entry and recovery"
+      ],
+      "kind": "script",
+      "sha256": "20d84ddc3f27eb18aba86de11d80177ca66ad46b5059ca3ed816beac04300ef9"
+    },
     "scripts/glp_price_index_weekly.py": {
       "callers": [
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
       "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
+    },
+    "scripts/glp_price_index_weekly_successor.py": {
+      "callers": [
+        "registered GLP-73 weekly price-index entry and recovery"
+      ],
+      "kind": "script",
+      "sha256": "d70510d518021e1da9f5a8987b2b11ff0942425920aaaa5c036d3879fb91f241"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -2583,5 +2597,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 392
+  "tracked_count": 394
 }
