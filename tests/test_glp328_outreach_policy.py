@@ -155,6 +155,47 @@ def test_reviewed_ww_weightwatchers_identity_without_losing_org_safety():
     assert no_us['candidates'] == []
     assert reasons(no_us)['weightwatchers.com'] == 'us_location_evidence_missing'
 
+def test_reviewed_ww_alias_carries_subdomain_adverse_identity_without_extra_row():
+    for host, alias in (('weightwatchers.com', 'ww.com'),
+                        ('ww.com', 'weightwatchers.com')):
+        brand = row(2020, 'WW fixture', f'https://{host}/us/')
+        official = contact(f'affiliates@{alias}', host)
+        baseline = plan([brand], [official])
+        assert len(baseline['candidates']) == 1
+        assert baseline['mode'] == 'disabled' and baseline['send_enabled'] is False
+        assert baseline['candidates'][0]['send_permission'] is False
+        for adverse in (alias, f'us.{alias}'):
+            held = plan([brand, row(2021, 'Held WW', f'https://{adverse}/',
+                                    status='hold_legal')], [official])
+            assert held['candidates'] == []
+            assert reasons(held)[host] == 'status_hold_preserved'
+            for entry in ({'domain': adverse}, {'email': f'optout@{adverse}'}):
+                suppressed = plan([brand], [official], suppression=snapshot([entry]))
+                assert suppressed['candidates'] == []
+                assert reasons(suppressed)[host] == 'organization_opted_out'
+            active = plan([brand], [official], conversation=snapshot([
+                {'email': f'other@{adverse}', 'state': 'active'}]))
+            assert active['candidates'] == []
+            assert reasons(active)[host] == 'organization_active_conversation'
+
+        # Adverse closure does not make alias-side subdomains official contact
+        # or evidence sources; only the reviewed roots have that permission.
+        rejected = plan([brand], [contact(f'affiliates@us.{alias}', host)])
+        assert rejected['candidates'] == []
+        assert reasons(rejected)[host] == 'contact_domain_not_official_host'
+        rejected = plan([brand], [contact(f'affiliates@{alias}', host,
+                                         source=f'https://us.{alias}/affiliate')])
+        assert rejected['candidates'] == []
+        assert reasons(rejected)[host] == 'contact_evidence_not_official_source'
+        unrelated = plan([brand, row(2022, 'Other hold',
+                                     f'https://us.{alias}.evil.example/', status='hold_legal')],
+                         [official], suppression=snapshot([
+                             {'domain': f'us.{alias}.evil.example'}]),
+                         conversation=snapshot([
+                             {'email': f'other@us.{alias}.evil.example', 'state': 'active'}]))
+        assert len(unrelated['candidates']) == 1
+        assert unrelated['candidates'][0]['send_permission'] is False
+
 
 def test_fella_holds_nonproviders_nonglp_and_non_population_statuses_excluded():
     parent = REQUIRED_MARKETPLACE_PARENT_ROWS['Impact.com']

@@ -96,15 +96,24 @@ def _raise(reason: str) -> str:
 def _same_org(domain: str, host: str) -> bool:
     # Reviewed first-party identity: weightwatchers.com/us/affiliate names
     # affiliates@ww.com; ww.com/us/ redirects to weightwatchers.com/us/.
-    # Use the same exact pair for contacts, holds, snapshots and org dedupe.
+    # Affirmative contact/source evidence crosses only the exact root pair.
     if {domain, host} == {'ww.com', 'weightwatchers.com'}:
         return True
     return bool(domain and host) and (domain == host or domain.endswith('.' + host)
                                       or host.endswith('.' + domain))
 
+def _same_adverse_org(domain: str, host: str) -> bool:
+    """Carry holds and stop identities across the reviewed roots' subdomains."""
+    if _same_org(domain, host):
+        return True
+    ww = ('ww.com', 'weightwatchers.com')
+    return any((domain == left or domain.endswith('.' + left))
+               and (host == right or host.endswith('.' + right))
+               for left, right in (ww, ww[::-1]))
+
 
 def _organization_groups(hosts: Iterable[str]) -> list[list[str]]:
-    """Connected parent/subdomain components under the snapshot's _same_org rule."""
+    """Connected parent/subdomain components, including the reviewed WW identity."""
     remaining = set(hosts)
     groups = []
     while remaining:
@@ -112,7 +121,7 @@ def _organization_groups(hosts: Iterable[str]) -> list[list[str]]:
         remaining -= group
         while True:
             related = {host for host in remaining
-                       if any(_same_org(host, member) for member in group)}
+                       if any(_same_adverse_org(host, member) for member in group)}
             if not related:
                 break
             group.update(related)
@@ -172,7 +181,7 @@ def _entry_hits(entries: Iterable[dict[str, Any]], host: str) -> list[dict[str, 
         domain = _entry_domain(entry)
         if not domain:
             raise OutreachPolicyError('snapshot_entry_identity_missing')
-        if _same_org(domain, host):
+        if _same_adverse_org(domain, host):
             hits.append(entry)
     return hits
 
@@ -304,7 +313,7 @@ def plan_outreach(sheet: dict[str, Any], contacts: list[dict[str, Any]],
                   'program_rows': [{key: v[key] for key in ('row', 'program', 'host', 'population')}
                                    for v in program_rows]}
         reason = next((why for domain, why in blocked.items()
-                       if any(_same_org(domain, member) for member in hosts)), '')
+                       if any(_same_adverse_org(domain, member) for member in hosts)), '')
         if not reason:
             for member in hosts:
                 reason = _location_problem(location_evidence.get(member), member)
@@ -414,8 +423,8 @@ def decide_follow_up(send_receipt: dict[str, Any], prior_follow_ups: list[dict[s
     if not isinstance(prior_follow_ups, list):
         raise OutreachPolicyError('prior_follow_ups_invalid')
     prior = [f for f in prior_follow_ups
-             if _same_org(_entry_domain({'email': f.get('recipient'), 'domain': f.get('domain')})
-                          or _raise('prior_follow_up_identity_missing'), domain)]
+             if _same_adverse_org(_entry_domain({'email': f.get('recipient'), 'domain': f.get('domain')})
+                                  or _raise('prior_follow_up_identity_missing'), domain)]
     if len(prior) >= MAX_FOLLOW_UPS:
         return decision(False, 'follow_up_limit_reached')
     if now - sent < FOLLOW_UP_MIN_DELAY:
