@@ -810,7 +810,11 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
         return {"status": "REFUSED_ONBOARDING_CRON_SCAN_ONLY", "rc": 64}
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
-    with (state_dir / f"{action}.lock").open("a") as lock:
+    # Analytics' cadence now holds the existing installer reader lock inside
+    # the bridge child. Holding it across this HTTP wait would self-deadlock;
+    # retain the cron state/pending/slot serialization under a separate name.
+    lock_name = f"{action}.state.lock" if action == "analytics_brain" else f"{action}.lock"
+    with (state_dir / lock_name).open("a") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:

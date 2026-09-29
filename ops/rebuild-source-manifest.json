@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ef484e3314865152f712c49255caed3a1fa176feaae0074c7ce45b64546d4715"
+      "sha256": "12edbe16c0fe01de7e045c54ff881c6b8307f505d4af1add259373af9b11700a"
     },
     ".hermes.md": {
       "callers": [],
@@ -160,7 +160,7 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638"
+      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -318,7 +318,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83"
+      "sha256": "2f393f863bfb41bb46254b3b7f6544497bb6a9996757ea21f2abfdb1680d26ca"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -647,7 +647,7 @@
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "bfdfada4de6ac165b5a5c4fc226de149f4bd367e43155e9d660796f98afb19f0"
+      "sha256": "b02f156a8d247acc02c61c6dbc24c365ee6b22a9a7afc79646b30c49c897f072"
     },
     "ops/protected-oracles.json": {
       "callers": [],
@@ -970,7 +970,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "420e2012c6d98e665bc5deb261ee1af251169680ef6598840d70475dba6f29cb"
+      "sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -1103,6 +1103,14 @@
       ],
       "kind": "script",
       "sha256": "b313063f54848dbf4e7e8ff8b4dbf2bf697ff1ccb7245837d950b61c3ed255a0"
+    },
+    "scripts/glp_analytics_brain_cadence.py": {
+      "callers": [
+        "n8n-bridge:analytics_brain",
+        "direct:cadence"
+      ],
+      "kind": "script",
+      "sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
     },
     "scripts/glp_awin_portal_login.py": {
       "callers": [
@@ -1422,7 +1430,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8ea0ae860cb211d88c6093029e8d7cfe0719af1d363794c81175fb78c773cad5"
+      "sha256": "6aac551c7d8c3248f1ad668b7648678cc79f990c460ae2eaf4c257124ecadc45"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2049,6 +2057,11 @@
       "kind": "test",
       "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
     },
+    "tests/test_glp44_bridge_fence_successor.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "b20ddbff089876e76b49ed3e52622a0d1efe94ac4b1a4163c8f506b7f8e87968"
+    },
     "tests/test_glp44_bridge_source_admission.py": {
       "callers": [],
       "kind": "test",
@@ -2061,12 +2074,19 @@
       "kind": "test",
       "sha256": "58984a052c98324eeff924b96604e2f6e3c33305f2783891bbac15b1b1dd56fb"
     },
+    "tests/test_glp44_reader_exclusion.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d970c267969b1d1cb974311cf901365c376c45c4aca634815e0c4fe0a5c0647b"
+    },
     "tests/test_glp44_reporting_source_pin_pair.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "7ecab524cdd49c8a0713f053ef55a02e3fb722ca3b112d1a887b5e1fdca17ae0"
+      "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
@@ -2118,7 +2138,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0d7fe3355fa6185ff2df1b3a7db42824c4a7dc414272266f4c5253c231dbfd6f"
+      "sha256": "c2befbbef9c2813e3766949fb6fbbbbcfc918412681bfdf3e04dd4edf91e76d9"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
@@ -2522,5 +2542,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 384
+  "tracked_count": 387
 }

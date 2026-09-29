@@ -9,9 +9,20 @@
       "status": "verified",
       "tenant_id": "not_applicable",
       "tenant_kind": "not_applicable"
+    },
+    {
+      "account_id": "14",
+      "evidence_ref": "/home/ubuntu/business/reports/ops/glp253-ro-rail-20260926/ro-account-confirmed.json",
+      "evidence_sha256": "ebd9731ec95adae34e8adc10a8a914039406845e47615e484e569d8f929a755e",
+      "network": "roeverflowwhitelabeltenant4131",
+      "scope": "publisher_account_only_not_private_offer_approval_or_financial_coverage",
+      "status": "verified",
+      "tenant_id": "ro.everflowclient.io",
+      "tenant_kind": "host",
+      "tenant_network_id": "4131"
     }
   ],
-  "freshness": "DATED_S2_GAPS_PRESERVED; one CJ/TRT Nation reporting identity bound to retained 2026-09-27 evidence; not full current network, program or financial coverage",
+  "freshness": "DATED_S2_GAPS_PRESERVED; CJ/TRT Nation and Ro Everflow/Ro reporting identities bound to retained 2026-09-26/27 evidence; not full current network, program or financial coverage",
   "gaps": [
     {
       "account_id": null,
@@ -8849,6 +8860,37 @@
       "tenant_id": "not_applicable",
       "tenant_kind": "not_applicable",
       "verification_scope": "reporting_identity_only_not_activation_or_financial_coverage"
+    },
+    {
+      "account_id": "14",
+      "evidence_pointer": "/responses/~1api~1affiliates~1offers~11",
+      "evidence_ref": "/home/ubuntu/business/reports/ops/glp253-ro-rail-20260926/ro-live.json",
+      "evidence_sha256": "3f5c422aafb8967e8c3052f556fb93f4658b92051302f9168e53c7f6cb86b92a",
+      "network": "roeverflowwhitelabeltenant4131",
+      "program_id": "1",
+      "provider_slug": "ro-wegovy-glp1-quiz-us-cpl",
+      "source_refs": [
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp253-ro-rail-20260926/ro-account-confirmed.json",
+          "pointer": "/result/~1api~1affiliates~1users~111",
+          "sha256": "ebd9731ec95adae34e8adc10a8a914039406845e47615e484e569d8f929a755e"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp253-ro-rail-20260926/ro-live.json",
+          "pointer": "/responses/~1api~1affiliates~1affiliate",
+          "sha256": "3f5c422aafb8967e8c3052f556fb93f4658b92051302f9168e53c7f6cb86b92a"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/glp96-full-current-join-20260927/joined-data.json",
+          "pointer": "/40",
+          "sha256": "6966e80d990b0fa94be5c2dee0358826eef25df0ed0f14dd5f4539aa7c72543b"
+        }
+      ],
+      "status": "verified",
+      "tenant_id": "ro.everflowclient.io",
+      "tenant_kind": "host",
+      "tenant_network_id": "4131",
+      "verification_scope": "reporting_identity_only_public_offer_access_not_private_approval_or_financial_coverage"
     }
   ],
   "marketplace_count": 56,

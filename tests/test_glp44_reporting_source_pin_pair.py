@@ -30,4 +30,4 @@ def test_reporting_source_pin_pair_is_coherent():
     shell_pin = re.findall(r'^check_source ops/glp/reporting-v2/source-manifest\.json ([0-9a-f]{64})$', text, re.M)
     job_pin = re.findall(r'^  --manifest-sha256 ([0-9a-f]{64}) \\$', text, re.M)
     assert shell_pin == job_pin == [digest]
-    assert 'check_source ops/glp/reporting-v2/identity-registry.json 70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638' in text
+    assert 'check_source ops/glp/reporting-v2/identity-registry.json 93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271' in text

@@ -28,6 +28,7 @@ import json
 import os
 import re
 import secrets
+import selectors
 import signal
 import stat
 import subprocess
@@ -608,6 +609,7 @@ class JobStore:
         self._jobs: "OrderedDict[str, dict]" = OrderedDict()
         self._events: dict = {}
         self._queue = deque()
+        self._eligible = set()
         self._next_ticket = 0
         self.running = 0
         #: Slot-leak accounting. `running` is a counter, not a fact: any path
@@ -633,7 +635,7 @@ class JobStore:
             while True:
                 # A synchronous caller may wait for capacity, but it must not
                 # leapfrog callback jobs the bridge has already accepted.
-                if self.running < MAX_CONCURRENT_JOBS and not self._queue:
+                if self.running < MAX_CONCURRENT_JOBS and not self._eligible:
                     self.running += 1
                     return True
                 remaining = deadline - time.monotonic()
@@ -641,7 +643,7 @@ class JobStore:
                     return False
                 self._lock.wait(timeout=min(remaining, 1.0))
 
-    def enqueue(self):
+    def enqueue(self, eligible: bool = True):
         """Add one callback job to the bounded FIFO admission queue.
 
         Queued jobs consume no execution slot. The bound prevents a caller storm
@@ -653,6 +655,8 @@ class JobStore:
             self._next_ticket += 1
             ticket = self._next_ticket
             self._queue.append(ticket)
+            if eligible:
+                self._eligible.add(ticket)
             self._lock.notify_all()
             return ticket
 
@@ -662,18 +666,21 @@ class JobStore:
                 self._queue.remove(ticket)
             except ValueError:
                 return
+            self._eligible.discard(ticket)
             self._lock.notify_all()
 
     def claim_queued(self, ticket: int) -> None:
-        """Wait until `ticket` is first in line and an execution slot is free."""
+        """Claim the oldest eligible ticket, skipping fence waiters without slots."""
         with self._lock:
+            self._eligible.add(ticket)
+            self._lock.notify_all()
             while True:
                 if (
-                    self._queue
-                    and self._queue[0] == ticket
+                    next((t for t in self._queue if t in self._eligible), None) == ticket
                     and self.running < MAX_CONCURRENT_JOBS
                 ):
-                    self._queue.popleft()
+                    self._queue.remove(ticket)
+                    self._eligible.remove(ticket)
                     self.running += 1
                     self._lock.notify_all()
                     return
@@ -1083,8 +1090,22 @@ def source_reader_admission(cmd: dict):
     finally:
         os.close(fd)
 
+def acquire_source_reader(cmd: dict):
+    """Acquire before reserving a slot; the worker owns the returned fd."""
+    if cmd.get("name") not in SOURCE_READER_ACTIONS:
+        return None
+    fd = os.open(SOURCE_ADMISSION_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
 
-def run_command(cmd: dict, job_id: str = "") -> dict:
+
+def run_command(cmd: dict, job_id: str = "", source_admitted: bool = False) -> dict:
+    if source_admitted:
+        return _run_command_unlocked(cmd, job_id)
     with source_reader_admission(cmd):
         return _run_command_unlocked(cmd, job_id)
 
@@ -1143,34 +1164,63 @@ def _run_command_unlocked(cmd: dict, job_id: str = "") -> dict:
             except OSError:
                 pass
 
-    t_out = threading.Thread(
-        target=_drain, args=(proc.stdout, out_chunks, CAP_CAPTURE), daemon=True
-    )
-    t_err = threading.Thread(
-        target=_drain, args=(proc.stderr, err_chunks, CAP_CAPTURE), daemon=True
-    )
-    t_out.start()
-    t_err.start()
-
+    started_drains = []
+    t_out = t_err = None
     try:
-        rc = proc.wait(timeout=cmd["timeout_s"])
-    except subprocess.TimeoutExpired:
-        timed_out = True
+        t_out = threading.Thread(
+            target=_drain, args=(proc.stdout, out_chunks, CAP_CAPTURE), daemon=True
+        )
+        t_err = threading.Thread(
+            target=_drain, args=(proc.stderr, err_chunks, CAP_CAPTURE), daemon=True
+        )
+        t_out.start()
+        started_drains.append(t_out)
+        t_err.start()
+        started_drains.append(t_err)
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
-        try:
-            rc = proc.wait(timeout=10)
+            rc = proc.wait(timeout=cmd["timeout_s"])
         except subprocess.TimeoutExpired:
+            timed_out = True
             try:
-                os.killpg(proc.pid, signal.SIGKILL)
+                os.killpg(proc.pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 pass
-            rc = proc.wait()
-
-    t_out.join(timeout=5)
-    t_err.join(timeout=5)
+            try:
+                rc = proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+                rc = proc.wait()
+        t_out.join()
+        t_err.join()
+    except BaseException:
+        # An unexpected post-Popen error must not release SH or the slot while
+        # a child still has effects in flight. Do not terminate it for a bridge
+        # bookkeeping failure; drain unowned pipes so it can exit naturally.
+        # A single sequential read can deadlock if both pipes fill. Select
+        # over precisely the streams without an already-running drain thread.
+        assert proc.stdout is not None and proc.stderr is not None
+        with selectors.DefaultSelector() as pending:
+            if t_out is None or t_out not in started_drains:
+                pending.register(proc.stdout.fileno(), selectors.EVENT_READ, proc.stdout)
+            if t_err is None or t_err not in started_drains:
+                pending.register(proc.stderr.fileno(), selectors.EVENT_READ, proc.stderr)
+            while pending.get_map():
+                for key, _ in pending.select():
+                    if not os.read(key.fd, 65536):
+                        pending.unregister(key.fd)
+                        key.data.close()
+        if proc.returncode is None:
+            try:
+                proc.wait()
+            except Exception:
+                # Even an unexpectedly broken Popen.wait must not end the hold.
+                os.waitpid(proc.pid, 0)
+        for drain in started_drains:
+            drain.join()
+        raise
 
     stdout = b"".join(out_chunks)[-CAP_CAPTURE:]
     stderr = b"".join(err_chunks)[-CAP_CAPTURE:]
@@ -1259,7 +1309,7 @@ def post_callback(url: str, result: dict) -> None:
                             callback_attempts=attempts)
 
 
-def execute_job(job_id: str, action: str, cmd: dict, callback_url) -> None:
+def execute_job(job_id: str, action: str, cmd: dict, callback_url, source_fd=None) -> None:
     """Run one job and ALWAYS give the concurrency slot back.
 
     DEFECT 2026-09-03: the release lived on the success path, so any exception
@@ -1269,12 +1319,17 @@ def execute_job(job_id: str, action: str, cmd: dict, callback_url) -> None:
     completely idle. The release belongs in a finally, and nowhere else.
     """
     try:
-        _execute_job_body(job_id, action, cmd, callback_url)
+        _execute_job_body(job_id, action, cmd, callback_url, source_fd is not None)
     finally:
-        STORE.release()
+        try:
+            if source_fd is not None:
+                os.close(source_fd)
+        finally:
+            STORE.release()
 
-
-def _execute_job_body(job_id: str, action: str, cmd: dict, callback_url) -> None:
+def _execute_job_body(job_id: str, action: str, cmd: dict, callback_url,
+                      source_admitted: bool = False,
+                      admission_error: Exception | None = None) -> None:
     started_utc = utc_now()
     record = STORE.get(job_id) or {}
     record.update({"status": "running", "started_utc": started_utc})
@@ -1285,7 +1340,9 @@ def _execute_job_body(job_id: str, action: str, cmd: dict, callback_url) -> None
         log("running state persistence FAILED job=%s err=%s" % (job_id, exc))
 
     try:
-        raw = run_command(cmd, job_id=job_id)
+        if admission_error is not None:
+            raise admission_error
+        raw = run_command(cmd, job_id=job_id, source_admitted=source_admitted)
         finished_utc = utc_now()
         stdout_bytes = len(raw["stdout"])
         stderr_bytes = len(raw["stderr"])
@@ -1388,7 +1445,22 @@ def execute_queued_job(
     job_id: str, action: str, cmd: dict, callback_url: str, ticket: int
 ) -> None:
     """Admit one accepted callback job in FIFO order, then execute normally."""
-    STORE.claim_queued(ticket)
+    # The fence precedes the slot. Ineligible tickets remain bounded and durable
+    # but cannot starve an unrelated job; eligible tickets retain FIFO order.
+    try:
+        source_fd = acquire_source_reader(cmd)
+    except Exception as exc:
+        # The ID was already accepted. A failed lock open still gets a terminal
+        # receipt, without taking or releasing another job's execution slot.
+        STORE.cancel_queued(ticket)
+        _execute_job_body(job_id, action, cmd, callback_url, admission_error=exc)
+        return
+    try:
+        STORE.claim_queued(ticket)
+    except BaseException:
+        if source_fd is not None:
+            os.close(source_fd)
+        raise
     # From here the slot IS held. execute_job's finally gives it back, but the
     # admission bookkeeping below runs first, so it needs its own guard.
     try:
@@ -1403,9 +1475,13 @@ def execute_queued_job(
             % (job_id, action, cmd.get("name"), STORE.queued_count(),
                STORE.running_count()))
     except BaseException:
-        STORE.release()
+        try:
+            if source_fd is not None:
+                os.close(source_fd)
+        finally:
+            STORE.release()
         raise
-    execute_job(job_id, action, cmd, callback_url)
+    execute_job(job_id, action, cmd, callback_url, source_fd)
 
 
 # --------------------------------------------------------------------------
@@ -1574,7 +1650,7 @@ class Handler(BaseHTTPRequestHandler):
         # five identical HTTP 429 failures. The execution cap remains unchanged:
         # a queued job consumes a slot only when `execute_queued_job` admits it.
         if callback_url:
-            ticket = STORE.enqueue()
+            ticket = STORE.enqueue(eligible=cmd.get("name") not in SOURCE_READER_ACTIONS)
             if ticket is None:
                 for p in cmd.get("cleanup", []):
                     try:
@@ -1639,8 +1715,13 @@ class Handler(BaseHTTPRequestHandler):
             })
             return
 
+        # A synchronous reader waits for SH *before* reserving execution
+        # capacity; its fd is transferred to the worker through completion.
+        source_fd = acquire_source_reader(cmd)
         admit_started = time.monotonic()
         if not STORE.try_reserve(ADMIT_WAIT_S):
+            if source_fd is not None:
+                os.close(source_fd)
             for p in cmd.get("cleanup", []):
                 try:
                     os.unlink(p)
@@ -1680,6 +1761,8 @@ class Handler(BaseHTTPRequestHandler):
             persist_job_record(record)
         except Exception as exc:  # noqa: BLE001
             STORE.release()
+            if source_fd is not None:
+                os.close(source_fd)
             for p in cmd.get("cleanup", []):
                 try:
                     os.unlink(p)
@@ -1695,7 +1778,7 @@ class Handler(BaseHTTPRequestHandler):
 
         worker = threading.Thread(
             target=execute_job,
-            args=(job_id, action, cmd, callback_url),
+            args=(job_id, action, cmd, callback_url, source_fd),
             daemon=True,
             name=JOB_THREAD_PREFIX + job_id,
         )
