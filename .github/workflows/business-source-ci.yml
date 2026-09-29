@@ -41,3 +41,5 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
       - name: Article-buffer exact-entry hold regression (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_buffer.py -k registered_exact_entry_hold_states
+      - name: GLP-73 native-only article image boundary (offline fixtures)
+        run: .venv/bin/python -m pytest -q tests/test_glp73_image_native_only.py
