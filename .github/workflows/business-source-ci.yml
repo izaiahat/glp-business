@@ -51,3 +51,9 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_builder_fixture_transport_fix.py
       - name: GLP-73 native-only article image boundary (offline fixtures)
         run: .venv/bin/python -m pytest -q tests/test_glp73_image_native_only.py
+      - name: GLP-73 retention prepared authority consumer (effect-denied fixtures)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp73_retention_prepared_consumer.py

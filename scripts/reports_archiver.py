@@ -37,7 +37,7 @@ from typing import Any, Callable, Iterable, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import r2_offload  # noqa: E402
-from glp_current_content_base_schema import validate_pointer_shape  # noqa: E402
+from glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape  # noqa: E402
 
 BUSINESS = Path("/home/ubuntu/business")
 HOME = Path("/home/ubuntu")
@@ -2962,27 +2962,46 @@ def _validate_predecessor_identity_evidence(
     return proved[0]
 
 
+def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -> dict[str, Any]:
+    """Delegate prepared custody to the maintained read-only producer consumer."""
+    from glp_price_index_weekly import _validate_base_evidence
+
+    return _validate_base_evidence(base, release)
+
+
 def load_site_tree_authority() -> dict[str, Any]:
     """Load and cross-validate the canonical current/predecessor authority chain."""
     base_path = _canonical_base_path()
     base, base_raw = _read_json_bytes(base_path, label="current_content_base")
+    prepared_format = is_prepared_pointer(base)
     try:
         validate_pointer_shape(
             base,
-            releases_root=FLAGSHIP / "releases",
+            # The registered prepared publisher owns a reports/ops release;
+            # its full native evidence, not a broad reports-root lane, proves it.
+            releases_root=None if prepared_format else FLAGSHIP / "releases",
             require_release_dirs=True,
         )
     except RuntimeError as exc:
         raise SiteAuthorityError(f"current_content_base_pointer_invalid:{exc}") from exc
+    prepared_binding = None
+    if prepared_format:
+        try:
+            prepared_evidence = _registered_prepared_release_evidence(base, Path(base["release_root"]))
+            prepared_binding = prepared_evidence["prepared_binding"]
+            if not prepared_binding:
+                raise RuntimeError("prepared_binding_missing")
+        except (ImportError, RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+            raise SiteAuthorityError(f"current_content_prepared_evidence_invalid:{exc}") from exc
     deployment_id = base.get("deployment_id")
     if not isinstance(deployment_id, str) or not deployment_id:
         raise SiteAuthorityError("current_content_base_deployment_id_invalid")
-    current = _site_direct_reference(
+    current = (Path(base["release_root"]) if prepared_format else _site_direct_reference(
         base.get("release_root"),
         label="current_release",
         lanes={"releases"},
         require_directory=True,
-    )
+    ))
     release_tree_sha = _validate_hash(base.get("release_tree_sha256"), "current_release_tree")
     public_tree_sha = _validate_hash(base.get("public_tree_sha256"), "current_public_tree")
 
@@ -2996,13 +3015,13 @@ def load_site_tree_authority() -> dict[str, Any]:
     )
     if not isinstance(manifest.get("schema"), str):
         raise SiteAuthorityError("current_content_manifest_schema_invalid")
-    manifest_release = _site_direct_reference(
+    manifest_release = (manifest.get("release_root") if prepared_format else _site_direct_reference(
         manifest.get("release_root"),
         label="manifest_release",
         lanes={"releases"},
         require_directory=True,
-    )
-    if manifest_release != current:
+    ))
+    if manifest_release != (str(current) if prepared_format else current):
         raise SiteAuthorityError("current_content_manifest_release_mismatch")
     if manifest.get("release_tree_sha256") != release_tree_sha:
         raise SiteAuthorityError("current_content_manifest_tree_hash_mismatch")
@@ -3063,6 +3082,17 @@ def load_site_tree_authority() -> dict[str, Any]:
                     require_directory=True,
                 )
             )
+    if prepared_format:
+        # Re-run the registered read-only transitive check after consuming the
+        # pointer/manifest/receipt; a same-run Worker or preparation rewrite
+        # must not survive on the strength of their outer hashes alone.
+        try:
+            if _registered_prepared_release_evidence(base, current)["prepared_binding"] != prepared_binding:
+                raise RuntimeError("prepared_binding_changed")
+            if _read_json_bytes(base_path, label="current_content_base")[1] != base_raw:
+                raise RuntimeError("prepared_pointer_changed")
+        except (ImportError, RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+            raise SiteAuthorityError(f"current_content_prepared_evidence_drift:{exc}") from exc
     return {
         "status": "VALID",
         "base_path": str(base_path),
@@ -3075,6 +3105,7 @@ def load_site_tree_authority() -> dict[str, Any]:
         "predecessor_release": str(predecessor) if predecessor else None,
         "predecessor_deployment_id": supersedes["deployment_id"],
         "predecessor_identity_evidence": predecessor_identity_evidence,
+        "prepared_binding": prepared_binding,
         "deployment_id": deployment_id,
         "refs": refs,
     }
