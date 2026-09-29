@@ -35,6 +35,8 @@ jobs:
         run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
+      - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)
+        run: .venv/bin/python -m pytest -q systems/analytics-brain/tests/test_expectations.py
       - name: Publication-date binding regression (no deployment)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
       - name: Article-buffer exact-entry hold regression (isolated fixtures)

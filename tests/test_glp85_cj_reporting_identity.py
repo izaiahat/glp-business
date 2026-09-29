@@ -82,9 +82,15 @@ def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     pin = lines[0][len(prefix):]
     assert pin.decode() == hashlib.sha256(CONFIG.read_bytes()).hexdigest()
     restored = wrapper.replace(lines[0], prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638')
-    assert hashlib.sha256(restored).hexdigest() == 'd42bca52c76fb0ac77abb7bc90884ebb8dab857174bb3c7d034b53e379546ee2'
+    assert hashlib.sha256(restored).hexdigest() == '197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83'
     prior = restored.replace(prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638',
                              prefix + PREDECESSOR_SHA.encode())
+    # Undo the other parent's two reviewed manifest-pin substitutions too;
+    # the common predecessor must still match byte-for-byte.
+    old_manifest = b'5c022f814c9d3160cd61185b24b952974347689b7dd2349e846bb34e75795da5'
+    new_manifest = b'34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb'
+    assert prior.count(new_manifest) == 2
+    prior = prior.replace(new_manifest, old_manifest)
     assert hashlib.sha256(prior).hexdigest() == 'd4b3a378c34013adcc65909b52b7973890b8b8523e8f5f887a5f3ea01fcf286e'
 
 
