@@ -4,7 +4,7 @@
     "scripts/agent_exec.py": {
       "callers": ["on-demand:orchestrator"],
       "kind": "script",
-      "sha256": "4711627e9d657826e1efe0226d727a7fb3ba3eeff1f53aff972d9518b244400f"
+      "sha256": "c7a0535da018a87a9fc5c833be2c518110fda372197fb44b2b8da5a36f99557a"
     },
     "ops/linear/MODEL-ROUTING.md": {
       "callers": ["on-demand:orchestrator"],
@@ -14,7 +14,7 @@
     "tests/test_agent_exec_routing.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "f8ee692247e6e1e2cc7c027f6ed64ad6b053ce4a397b8a0860b9325c67f01f31"
+      "sha256": "f69c376571dc544df6f3a4fcffc32babeb7345a631aab61c2d7ddef8890d4154"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],

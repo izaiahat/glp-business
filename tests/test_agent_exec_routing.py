@@ -55,3 +55,41 @@ def test_explicit_codex_dispatch_and_refusals(tmp_path, monkeypatch):
         module.codex_route(["codex", "exec"], {"model": "unknown"})
     with pytest.raises(ValueError, match="Fast"):
         module.codex_route(["codex", "exec"], {"model": "gpt-6-astra-900k", "speed": "fast"})
+
+
+def test_disabled_policy_preserves_codex_authentication(tmp_path, monkeypatch):
+    admission = types.ModuleType("tools.delegation_admission")
+    setattr(admission, "admission_problem", lambda: None)
+    setattr(admission, "try_reserve_host_children", lambda n: ([object()], 0, 8))
+    policy = types.ModuleType("tools.delegate_tool_config")
+    setattr(policy, "resolve_worker_route", lambda *args, **kwargs: None)
+    monkeypatch.setitem(sys.modules, "tools.delegation_admission", admission)
+    monkeypatch.setitem(sys.modules, "tools.delegate_tool_config", policy)
+    spec = importlib.util.spec_from_file_location("agent_exec_auth", Path(__file__).parents[1] / "scripts/agent_exec.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    command = ["codex", "exec", "-c", 'forced_login_method="api"', "offline"]
+    assert module.codex_route(command, {}) == (command, None)
+
+
+def test_codex_native_bare_config_values(tmp_path, monkeypatch):
+    admission = types.ModuleType("tools.delegation_admission")
+    setattr(admission, "admission_problem", lambda: None)
+    setattr(admission, "try_reserve_host_children", lambda n: ([object()], 0, 8))
+    policy = types.ModuleType("tools.delegate_tool_config")
+    seen = []
+    def resolve(route, **kwargs):
+        seen.append(route.copy())
+        return None
+    setattr(policy, "resolve_worker_route", resolve)
+    monkeypatch.setitem(sys.modules, "tools.delegation_admission", admission)
+    monkeypatch.setitem(sys.modules, "tools.delegate_tool_config", policy)
+    spec = importlib.util.spec_from_file_location("agent_exec_bare", Path(__file__).parents[1] / "scripts/agent_exec.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for value in ("high", '"high"'):
+        command = ["codex", "exec", "-c", f"model_reasoning_effort={value}", "offline"]
+        assert module.codex_route(command, {}) == (command, None)
+        assert seen[-1]["reasoning_effort"] == "high"

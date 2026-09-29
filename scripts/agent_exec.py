@@ -29,6 +29,8 @@ def codex_route(argv: list[str], task: dict) -> tuple[list[str], dict | None]:
     i = 2
     while i < len(argv):
         arg = argv[i]
+        if arg == "--":
+            break
         if arg in ("-c", "--config", "-m", "--model"):
             i += 1
             if i == len(argv):
@@ -40,7 +42,14 @@ def codex_route(argv: list[str], task: dict) -> tuple[list[str], dict | None]:
             i += 1
             continue
         if arg in ("-c", "--config"):
-            config.update(tomllib.loads(value))
+            key, separator, raw = value.partition("=")
+            if not separator:
+                raise ValueError("Codex config overrides require key=value")
+            try:
+                config[key.strip()] = tomllib.loads("value=" + raw)["value"]
+            except tomllib.TOMLDecodeError:
+                # Codex accepts unquoted strings when TOML value parsing fails.
+                config[key.strip()] = raw
         else:
             config["model"] = value
         i += 1
@@ -59,11 +68,11 @@ def codex_route(argv: list[str], task: dict) -> tuple[list[str], dict | None]:
         if "speed" in requested and requested["speed"] != speed:
             raise ValueError("conflicting explicit speed values")
         requested["speed"] = speed
-    if config.get("forced_login_method", "chatgpt") != "chatgpt":
-        raise ValueError("this admitted route requires included ChatGPT subscription authentication")
     resolved = resolve_worker_route(requested, inherited_provider="openai-codex")
     if resolved is None:
         return argv, None
+    if config.get("forced_login_method", "chatgpt") != "chatgpt":
+        raise ValueError("this admitted route requires included ChatGPT subscription authentication")
     # Validate the selected CLI model/effort/tier against its actual local catalog.
     home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
     catalog = json.loads((home / "models_cache.json").read_text())
