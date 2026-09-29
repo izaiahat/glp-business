@@ -1493,6 +1493,14 @@
       "kind": "script",
       "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
+    "scripts/reports_archiver.py": {
+      "callers": [
+        "scripts/f13_growth_retention.py",
+        "scripts/f12_generator_archiver.py"
+      ],
+      "kind": "source",
+      "sha256": "ef09a4ab7b1cb4119340c233e07422a3702cc9bcef0583371fc316823a6462cf"
+    },
     "scripts/result_contract.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_weekly_ads_analytics.py"
