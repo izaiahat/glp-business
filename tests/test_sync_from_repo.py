@@ -1,6 +1,7 @@
 import hashlib
 import json
 import shutil
+import stat
 import subprocess
 import sys
 import pytest
@@ -131,6 +132,49 @@ def test_clean_upstream_change_applies(tmp_path):
     assert (root / "scripts/sample.py").read_bytes() == b"old\n"
     assert sync(root, repo, True) == 0
     assert (root / "scripts/sample.py").read_bytes() == b"new\n"
+
+
+@pytest.mark.parametrize("destination_mode,source_mode", [(0o700, 0o755), (0o600, 0o644)])
+def test_scoped_replacement_preserves_mode_and_refuses_mode_only_drift(
+        tmp_path, monkeypatch, destination_mode, source_mode):
+    repo, root = checkout(tmp_path)
+    source = repo / "scripts/sample.py"
+    source.chmod(source_mode)
+    # A new destination still inherits checkout mode, including in a scoped import.
+    assert sync(root, repo, True, only=["scripts/sample.py"]) == 0
+    destination = root / "scripts/sample.py"
+    assert stat.S_IMODE(destination.stat().st_mode) == source_mode
+
+    destination.chmod(destination_mode)
+    source.write_bytes(b"new\n")
+    manifest_path = repo / "ops/rebuild-source-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["scripts/sample.py"]["sha256"] = digest(b"new\n")
+    manifest_path.write_text(json.dumps(manifest))
+    state_path = root / sync_from_repo.STATE
+    state_before = state_path.read_bytes()
+    real_fsync = sync_from_repo.os.fsync
+    changed = [False]
+
+    def mode_only_intervening_edit(fd):
+        if not changed[0]:
+            destination.chmod(source_mode)
+            changed[0] = True
+        return real_fsync(fd)
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(sync_from_repo.os, "fsync", mode_only_intervening_edit)
+        with pytest.raises(ValueError, match="destination mode changed during sync"):
+            sync(root, repo, True, only=["scripts/sample.py"])
+    assert changed[0]
+    assert destination.read_bytes() == b"old\n"
+    assert stat.S_IMODE(destination.stat().st_mode) == source_mode
+    assert state_path.read_bytes() == state_before
+
+    destination.chmod(destination_mode)
+    assert sync(root, repo, True, only=["scripts/sample.py"]) == 0
+    assert destination.read_bytes() == b"new\n"
+    assert stat.S_IMODE(destination.stat().st_mode) == destination_mode
 
 
 def test_retirement_moves_matching_uncurated_source(tmp_path, capsys):

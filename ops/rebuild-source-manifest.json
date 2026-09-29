@@ -1578,7 +1578,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e712c334a8a9b8a2480d257b00e1776b09d6b055274911897a483c62c5492afe"
+      "sha256": "f8bebd79c505670853ac574ec028f8aacd8263e02fb3282702a8c2bbc26aee34"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -2651,7 +2651,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a8dccb69ddd2b2529d4b5d9e8c05aab431c26c0fdf3068470e00430d6b8ef523"
+      "sha256": "ca29fe02abdd74db6293078cbcf432e9e09647d8f350a4a522db5cafc6c08c79"
     },
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
