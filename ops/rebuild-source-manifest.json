@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b0997aada2eeb52ef3f9fecbe2c61a09fc3f05ea88126ecaa43fdc99081c1e0e"
+      "sha256": "17602cf331f7e0752937d54325c7e9e6592480dfe3382f6b0c790c13eba8d7eb"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1556,7 +1556,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "792d813f58d3da108905c617be03bcdf02547d8fcf03d2efa0bb53ab79196d8d"
+      "sha256": "e99660fd03440307ea516e68da3886b0411a445071932b4a6087f4255db081c3"
     },
     "systems/seo-blog-machine/scripts/build_opus_article_release.py": {
       "callers": [
@@ -2084,6 +2084,13 @@
       "kind": "test",
       "sha256": "b73cec2052d4cd6bcf456beb7882a33c45e71d8f349856ca132da718a53c4568"
     },
+    "tests/test_glp73_image_native_only.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "ef751716194b7b47443082892162958e6ee0336d14f3a7329f35c4b93b3d5bd1"
+    },
     "tests/test_glp76_host_transport.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
@@ -2505,5 +2512,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 381
+  "tracked_count": 382
 }
