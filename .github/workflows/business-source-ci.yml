@@ -30,7 +30,7 @@ jobs:
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
-          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0'
+          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
       - name: GLP-76 host transport acceptance (no network or updater execution)
         run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py
       - name: Curated business control tests
