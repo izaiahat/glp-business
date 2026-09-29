@@ -206,7 +206,7 @@
     "ops/glp328-readonly-evidence.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "13061bf3dd7556bc8c2daab402fdd99399bcb2848ff4840fe335db73ab9fca70"
+      "sha256": "28925ac7454d6d353a4eeb498aecd9dd93ff49e51dfa604a2e7f84ff30025426"
     },
     "ops/glp320-source-only.md": {
       "callers": [],
@@ -1076,7 +1076,7 @@
     "scripts/glp328_readonly_evidence.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "b52cc54a182ba69fd3ffe0fa7f80a4f0df54fa7426b75f2d8c29984ba0deaf53"
+      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
     },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
@@ -1553,7 +1553,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "897e6804178e33c54deeec5c0711ba65fcb2753cfff39cc9f019c1d4ffc51d11"
+      "sha256": "b08171c184421dcbdfa0ff0a065a49d1788c730b46030a8babf70d7e36524cd9"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2169,6 +2169,11 @@
       "kind": "test",
       "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
     },
+    "tests/test_glp328_disabled_reply_connection.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "a1729b88fb42735a4e579a8b9cd9d606c4f20e1c285b2013652c75c1a3edc5ce"
+    },
     "tests/test_glp328_outreach_policy.py": {
       "callers": [
         "glp328_outreach_policy"
@@ -2711,5 +2716,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 417
+  "tracked_count": 418
 }

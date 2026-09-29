@@ -389,6 +389,154 @@ def read_mail_sources(hosts, local_conversations, sends, mailboxes, gmail_factor
             'faults': faults, 'sent_readbacks': readbacks}
 
 
+def decide_follow_up_current(receipt, prior_follow_ups, root, mailboxes, gmail_factory, *, now=None):
+    """Read-only, disabled exact initial-message and post-send reply-stop connection.
+
+    Both registered mailboxes are paginated across all post-send mail including
+    spam/trash. Thread-only coverage cannot establish absent replies/bounces.
+    """
+    from datetime import timedelta
+    now = policy._utc(now or datetime.now(timezone.utc), 'now')
+    def refuse(reason):
+        return {'schema': 'glp328.follow_up_readonly.v1', 'mode': 'disabled',
+                'send_enabled': False, 'status': 'REFUSED_INCOMPLETE_SOURCES',
+                'reason': reason, 'decision': None}
+    expected = {('ops', 'ops@glpclinicscout.com'), ('izaiah', 'izaiah@glpclinicscout.com')}
+    if not isinstance(mailboxes, (list, tuple)) or len(mailboxes) != 2 or \
+            {(b.get('key'), b.get('address')) for b in mailboxes if isinstance(b, dict)} != expected:
+        return refuse('registered_mailbox_coverage_missing')
+    if not isinstance(receipt, dict) or receipt.get('kind') != 'initial' or \
+            receipt.get('sender') != 'partners@glpclinicscout.com' or \
+            any(receipt.get(flag) for flag in ('pilot', 'simulated', 'fixture', 'dry_run')):
+        return refuse('initial_receipt_invalid')
+    mid, tid = receipt.get('provider_message_id'), receipt.get('provider_thread_id')
+    recipient, domain = policy._email(receipt.get('recipient'))
+    if not all(isinstance(x, str) and x for x in (mid, tid)) or \
+            receipt.get('message_id') != mid or not recipient:
+        return refuse('initial_identity_invalid')
+    try:
+        sent = policy._utc(receipt.get('sent_utc'), 'send_receipt')
+    except policy.OutreachPolicyError:
+        return refuse('initial_timestamp_invalid')
+    if sent >= now:
+        return refuse('initial_timestamp_invalid')
+    local = read_local_sources(root, now)
+    if not local['suppression']['complete']:
+        return refuse('suppression_snapshot_incomplete')
+
+    def headers(msg):
+        if not isinstance(msg, dict) or not isinstance(msg.get('id'), str) or \
+                not isinstance(msg.get('threadId'), str) or not isinstance(msg.get('labelIds'), list) or \
+                not str(msg.get('internalDate', '')).isdigit() or \
+                not isinstance(msg.get('payload', {}).get('headers'), list):
+            raise ValueError('message_metadata_incomplete')
+        pairs = msg['payload']['headers']
+        if any(not isinstance(h, dict) or not isinstance(h.get('name'), str)
+               or not isinstance(h.get('value'), str) for h in pairs):
+            raise ValueError('message_headers_incomplete')
+        # These identity/routing headers are singletons; last-wins projection
+        # would certify a contradictory envelope or discard a reply binding.
+        singleton = {'from', 'to', 'cc', 'reply-to', 'message-id',
+                     'in-reply-to', 'references'}
+        names = [h['name'].casefold() for h in pairs]
+        if any(names.count(name) > 1 for name in singleton):
+            raise ValueError('message_identity_headers_ambiguous')
+        return {h['name'].casefold(): h['value'] for h in pairs}
+
+    def addresses(raw):
+        return {e for _, value in getaddresses([raw]) if (e := policy._email(value)[0])}
+
+    try:
+        ops = next(box for box in mailboxes if box['key'] == 'ops')
+        messages = gmail_factory(ops).users().messages()
+        def get(service, identity):
+            return service.get(userId='me', id=identity, format='metadata',
+                               metadataHeaders=['From', 'To', 'Cc', 'Reply-To', 'Date', 'Message-ID',
+                                                'In-Reply-To', 'References', 'Subject'],
+                               fields='id,threadId,labelIds,internalDate,payload/headers').execute()
+        initial = get(messages, mid)
+        h = headers(initial)
+        actual_sent = datetime.fromtimestamp(int(initial['internalDate']) / 1000, timezone.utc)
+        if initial['id'] != mid or initial['threadId'] != tid or 'SENT' not in initial['labelIds'] \
+                or addresses(h.get('from', '')) != {'partners@glpclinicscout.com'} \
+                or addresses(h.get('to', '')) != {recipient} \
+                or addresses(h.get('reply-to', '')) != {'partners@glpclinicscout.com'} \
+                or not h.get('message-id') or abs((actual_sent - sent).total_seconds()) > 1:
+            raise ValueError('initial_readback_mismatch')
+        query = 'after:' + (sent - timedelta(days=1)).strftime('%Y/%m/%d')
+        events, seen = [], set()
+        for box in mailboxes:
+            service = messages if box['key'] == 'ops' else gmail_factory(box).users().messages()
+            token, tokens, pages = None, set(), 0
+            while True:
+                kwargs = dict(userId='me', q=query, includeSpamTrash=True, maxResults=500)
+                if token:
+                    kwargs['pageToken'] = token
+                page = service.list(**kwargs).execute()
+                if not isinstance(page, dict) or ('messages' not in page and
+                        page.get('resultSizeEstimate') != 0) or not isinstance(page.get('messages', []), list):
+                    raise ValueError('list_response_incomplete')
+                pages += 1
+                for item in page.get('messages', []):
+                    identity = (box['key'], item.get('id') if isinstance(item, dict) else None)
+                    if not identity[1]:
+                        raise ValueError('list_identity_incomplete')
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    msg = get(service, identity[1])
+                    mh = headers(msg)
+                    if msg['id'] != identity[1]:
+                        raise ValueError('list_readback_mismatch')
+                    if identity == ('ops', mid) or int(msg['internalDate']) < int(initial['internalDate']):
+                        continue
+                    if 'SENT' in msg['labelIds']:
+                        continue
+                    sender = addresses(mh.get('from', ''))
+                    targets = addresses(mh.get('to', '')) | addresses(mh.get('cc', ''))
+                    related = msg['threadId'] == tid or any(
+                        policy._same_adverse_org(policy._email(e)[1], domain) for e in sender | targets)
+                    references = mh.get('in-reply-to', '') + ' ' + mh.get('references', '')
+                    related = related or h['message-id'] in references
+                    delivery_notice = 'mailer-daemon' in mh.get('from', '').casefold() or \
+                        'delivery status' in mh.get('subject', '').casefold()
+                    if (delivery_notice or 'partners@glpclinicscout.com' in targets) and not related:
+                        raise ValueError('unbound_inbound_to_partner_alias')
+                    if related:
+                        events.append({'domain': domain, 'kind': 'bounce' if delivery_notice else 'reply'})
+                    elif not sender or not targets:
+                        # A legal empty recipient group is not malformed, but
+                        # without a positive thread/reference or usable route it
+                        # cannot prove a clean nonmatch inside this mailbox.
+                        raise ValueError('inbound_routing_unresolved')
+                next_token = page.get('nextPageToken')
+                if not next_token:
+                    break
+                if not isinstance(next_token, str) or next_token in tokens or pages >= 100:
+                    raise ValueError('pagination_incomplete')
+                tokens.add(next_token)
+                token = next_token
+        recheck = read_local_sources(root, now)
+        if recheck['faults'] or recheck['sources'] != local['sources']:
+            raise ValueError('local_sources_changed_during_mail_read')
+        bound = {'verified': True, 'verification_source': 'gmail_exact_sent_readback',
+                 'sender': 'partners@glpclinicscout.com', 'message_id': mid,
+                 'provider_message_id': mid, 'provider_thread_id': tid,
+                 'kind': 'initial', 'recipient': recipient, 'sent_utc': actual_sent.isoformat(),
+                 'checks': {'all_passed': True}}
+        replies = {'complete': True, 'checked_utc': now.isoformat(), 'entries': events}
+        decision = policy.decide_follow_up(bound, prior_follow_ups, replies,
+                                           local['suppression'], now)
+        return {'schema': 'glp328.follow_up_readonly.v1', 'mode': 'disabled',
+                'send_enabled': False, 'status': 'DISABLED_DECISION_ONLY',
+                'initial_readback_sha256': _digest(initial), 'checked_utc': now.isoformat(),
+                'scope': 'registered_mailboxes_post_send_metadata_not_external_delivery_proof',
+                'decision': decision}
+    except Exception as exc:
+        # API failures may contain private content; only the error type escapes.
+        return refuse('read_or_policy_refusal:' + type(exc).__name__)
+
+
 def plan_current(values, root, mailboxes, gmail_factory, *, now=None,
                  contacts=(), location_evidence=None):
     """Connect supplied canonical Sheet read + actual source snapshots to policy.

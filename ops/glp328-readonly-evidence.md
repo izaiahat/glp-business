@@ -67,7 +67,34 @@ refuses. Coverage is **official-host query scope**, not a guarantee about
 network-mediated aliases or unknown organization domains. Exact known relevant
 SENT IDs are checked in ops (owner of partners@), but a label/thread readback is
 not an accepted initial-send or follow-up receipt: `verified` remains false.
-There is no reply-stop/follow-up authority or activation in this adapter.
+The initial-plan path supplies no reply-stop/follow-up authority or activation.
+
+## Disabled exact-receipt follow-up read
+
+`decide_follow_up_current(receipt, prior_follow_ups, LOCAL, MAILBOXES,
+gmail_service, now=...)` is a separate, read-only library call. The caller
+supplies an exact initial Gmail message/thread ID, sender, recipient and sent
+time. The adapter checks an ops Gmail metadata readback for that exact message:
+SENT, thread, From partners@, To the recipient, Reply-To partners@, Message-ID
+and internalDate all must bind to the supplied receipt. Caller `verified` and
+`checks` flags alone are not proof. This establishes an exact sent-message
+readback, **not** recipient delivery, approved GLP-328 campaign scope or
+permission to send anything.
+
+After the local suppression preflight, both registered mailboxes are scanned
+with paginated `messages.list/get` from before the send, including spam/trash.
+Inbound same-organization messages and exact-thread/Message-ID references stop
+conservatively; delivery notices stop when bound and otherwise refuse. Unknown
+inbound to partners@ also refuses rather than completing a thread-only scan.
+The local sources are re-read after Gmail reads; drift refuses. Complete fresh
+post-send inputs are passed to existing `decide_follow_up`, preserving the
+seven-day/one-follow-up limits. A positive result is only a disabled decision
+(`sendable=false`, `send_permission=false`); metadata cannot prove outside
+mailbox delivery or all external alias/network routing. An unavailable mailbox,
+ambiguous identity, unbound notice, API/pagination failure, incomplete local
+source or detectable ambiguous routing must remain a refusal, never a zero-event claim.
+No global network-alias or off-platform bounce coverage is asserted by this read.
+No live pilot has been read or verified by the offline fixtures.
 
 ## Contacts and limits
 
