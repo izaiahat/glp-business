@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -99,11 +100,13 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
         raise ValueError("adoption requires a unique curated path selected and absent from sync state")
     prior_hashes = {p: reviewed_prior_hashes(checkout, p) for p in adopted}
     stale = sorted(set(previous) - set(target_hashes)) if not selected else []
-    changed, conflicts, retirement_moves, expected = [], [], {}, {}
+    changed, conflicts, retirement_moves, expected, expected_modes = [], [], {}, {}, {}
     for p in sorted(set(target_hashes) | set(stale)):
         local = safe(root, p)
         current = sha(local)
         expected[p] = current
+        if selected and current is not None:
+            expected_modes[p] = stat.S_IMODE(local.stat().st_mode)
         target = target_hashes.get(p)
         parts = Path(p).parts
         # Only a full import may retire (move) a live original; a scoped import
@@ -155,11 +158,15 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
                     with os.fdopen(fd, "wb") as f:
                         f.write(src.read_bytes())
                         f.flush(); os.fsync(f.fileno())
-                    os.chmod(tmp, src.stat().st_mode & 0o777)
+                    # Scoped replacements retain the destination's preflight mode;
+                    # a newly created destination still takes the checkout mode.
+                    os.chmod(tmp, expected_modes[p] if p in expected_modes else src.stat().st_mode & 0o777)
                     # Serialized writers are still required: this detects intervening
                     # ordinary edits, not an atomic compare-and-swap against outsiders.
                     if sha(dst) != expected[p]:
                         raise ValueError("destination changed during sync: " + p)
+                    if p in expected_modes and stat.S_IMODE(dst.stat().st_mode) != expected_modes[p]:
+                        raise ValueError("destination mode changed during sync: " + p)
                     os.replace(tmp, dst)
                 finally:
                     if os.path.exists(tmp): os.unlink(tmp)
