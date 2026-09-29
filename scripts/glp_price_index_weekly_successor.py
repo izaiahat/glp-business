@@ -44,6 +44,8 @@ from glp_current_content_base_schema import (  # noqa: E402
     COUNT_KEYS as MOVING_BASE_COUNT_KEYS,
     POINTER_ALLOWED_KEYS as MOVING_BASE_ALLOWED_KEYS,
     POINTER_REQUIRED_KEYS as MOVING_BASE_REQUIRED_KEYS,
+    PREPARED_POINTER_KEYS,
+    is_prepared_pointer,
     validate_pointer_shape,
 )
 
@@ -975,6 +977,12 @@ def _load_base_document(data: bytes, label: str) -> dict[str, Any]:
 
 
 def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str, Any]:
+    if is_prepared_pointer(pointer):
+        # The registered GLP-43 publication family has a transitive preparation,
+        # package, Worker and terminal-chain proof. Never treat its two extra
+        # pointer fields as sufficient evidence or reinterpret it as legacy.
+        from glp_price_index_weekly import _validate_base_evidence as validate_registered_evidence
+        return validate_registered_evidence(pointer, release)
     manifest_bound = _checked_base_evidence(
         pointer, "manifest", "01-deployment-manifest.json"
     )
@@ -1070,10 +1078,13 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
 
 
 def validate_base(pointer: dict[str, Any], token: str) -> dict[str, Any]:
+    prepared = is_prepared_pointer(pointer)
+    if prepared:
+        validate_pointer_shape(pointer, require_release_dirs=True)
     _require_outer_keys_v1(
         pointer,
         _POINTER_REQUIRED_KEYS_V1,
-        _POINTER_ALLOWED_KEYS_V1,
+        _POINTER_ALLOWED_KEYS_V1 | (PREPARED_POINTER_KEYS if prepared else frozenset()),
         "current_content_base_fields_invalid",
     )
     if pointer.get("status") != "PASS":
@@ -1134,6 +1145,7 @@ def validate_base(pointer: dict[str, Any], token: str) -> dict[str, Any]:
         "row_count": evidence["row_count"],
         "manifest": evidence["manifest"],
         "final_receipt": evidence["final_receipt"],
+        "prepared_binding": evidence.get("prepared_binding"),
     }
 
 
