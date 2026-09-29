@@ -1064,7 +1064,7 @@
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": ["ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"],
       "kind": "repository_control",
-      "sha256": "5805130e754c72bf4e6b024a796ade2c6d757b862cf933f487bd05cbcd192f77"
+      "sha256": "a2119a04329360a2a2bda2f4fa29c0dcc5ed94a112b05116cee6dc0c10628cc2"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2150,7 +2150,7 @@
     "tests/test_glp44_safe_bridge_activation.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "repository_control",
-      "sha256": "eca8ec56c51f2a3217787040b4f4dc0e87408e83bfa5a65ab2718ef8e2c33b02"
+      "sha256": "6a88c8713895f01ded1316ed7ec4800ab789eb3fcbb50703e7163e3c365757aa"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
@@ -2613,5 +2613,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 395
+  "tracked_count": 398
 }

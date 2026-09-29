@@ -215,6 +215,9 @@ def test_linux_drain_rejects_inherited_sockets_threads_and_children(activation, 
     monkeypatch.setattr(host, 'unit', lambda: properties)
     assert host.identity() == (100, 1000)
     assert host.quiet((100, 1000))
+    (proc / '100/fd/4').symlink_to('socket:[124]')
+    assert not host.quiet((100, 1000)), 'accepted/reset socket can retain buffered POST after leaving tcp table'
+    (proc / '100/fd/4').unlink()
     (proc / 'net/tcp').write_text((proc / 'net/tcp').read_text() + ' 1: 0100007F:2257 0100007F:9999 01 0:0 0:0 0 1000 0 124\n')
     assert not host.quiet((100, 1000)), 'pre-gate socket may still POST'
     (proc / 'net/tcp').write_text('header\n 0: 0100007F:2257 00000000:0000 0A 0:0 0:0 0 1000 0 123\n')

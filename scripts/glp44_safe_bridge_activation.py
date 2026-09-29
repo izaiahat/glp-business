@@ -170,9 +170,17 @@ class LinuxHost:
 
     def quiet(self, identity):
         require(self.identity() == identity, 'resident_changed')
-        if any(row[3] not in {'0A', '06'} for row in self.tcp_rows()):
+        rows = self.tcp_rows()
+        if any(row[3] not in {'0A', '06'} for row in rows):
             return False
         pid = identity[0]
+        sockets = {target for p in (PROC / str(pid) / 'fd').iterdir()
+                   if (target := os.readlink(p)).startswith('socket:[')}
+        listener = {'socket:[' + row[9] + ']' for row in rows if row[3] == '0A'}
+        # A reset accepted socket may leave /proc/net/tcp while retaining a
+        # buffered POST and a live descriptor before its handler thread starts.
+        if sockets != listener or len(listener) != 1:
+            return False
         if {p.name for p in (PROC / str(pid) / 'task').iterdir()} != {str(pid)}:
             return False
         # Service subtree only, NOT whole-host idle. Includes detached children
