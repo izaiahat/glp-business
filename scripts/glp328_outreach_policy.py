@@ -94,6 +94,11 @@ def _raise(reason: str) -> str:
 
 
 def _same_org(domain: str, host: str) -> bool:
+    # Reviewed first-party identity: weightwatchers.com/us/affiliate names
+    # affiliates@ww.com; ww.com/us/ redirects to weightwatchers.com/us/.
+    # Use the same exact pair for contacts, holds, snapshots and org dedupe.
+    if {domain, host} == {'ww.com', 'weightwatchers.com'}:
+        return True
     return bool(domain and host) and (domain == host or domain.endswith('.' + host)
                                       or host.endswith('.' + domain))
 

@@ -98,6 +98,64 @@ def test_dedupes_by_canonical_host_and_keeps_one_contact_per_org():
     assert org['contact']['email'] == 'amy@alpha.example' and org['contacts_not_selected'] == 1
 
 
+def test_reviewed_ww_weightwatchers_identity_without_losing_org_safety():
+    # First-party /us/affiliate designates affiliates@ww.com; ww.com/us/ redirects
+    # to weightwatchers.com/us/. Fixture inputs do not prove sendability or delivery.
+    official = contact('affiliates@ww.com', 'weightwatchers.com',
+                       source='https://www.weightwatchers.com/us/affiliate')
+    brand = row(2020, 'WeightWatchers', 'https://www.weightwatchers.com/us/')
+    alias = row(2021, 'WW US', 'https://www.ww.com/us/', status='pending_review')
+
+    result = plan([brand], [official])
+    assert result['mode'] == 'disabled' and result['send_enabled'] is False
+    assert len(result['candidates']) == 1
+    assert result['candidates'][0]['contact']['email'] == 'affiliates@ww.com'
+    assert result['candidates'][0]['send_permission'] is False
+
+    # The exact reviewed alias is an organization identity, not an email whitelist:
+    # org dedupe, holds, suppressions and active conversations must cross it.
+    result = plan([brand, alias], [official],
+                  locations={'weightwatchers.com': us('weightwatchers.com'),
+                             'ww.com': us('ww.com')})
+    assert len(result['candidates']) == 1
+    assert result['candidates'][0]['rows'] == [2020, 2021]
+    assert result['candidates'][0]['contacts_not_selected'] == 0
+    assert result['candidates'][0]['send_permission'] is False
+    held = plan([brand, row(2021, 'WW hold', 'https://ww.com/us/', status='hold_legal')],
+                [official])
+    assert held['candidates'] == []
+    assert reasons(held)['weightwatchers.com'] == 'status_hold_preserved'
+    for suppression in ({'email': 'optout@ww.com'}, {'domain': 'ww.com'}):
+        suppressed = plan([brand], [official], suppression=snapshot([suppression]))
+        assert suppressed['candidates'] == []
+        assert reasons(suppressed)['weightwatchers.com'] == 'organization_opted_out'
+    active = plan([brand], [official],
+                  conversation=snapshot([{'email': 'other@ww.com', 'state': 'active'}]))
+    assert active['candidates'] == []
+    assert reasons(active)['weightwatchers.com'] == 'organization_active_conversation'
+
+    for bad, expected in (
+        (contact('affiliates@other.com', 'weightwatchers.com',
+                 source='https://www.weightwatchers.com/us/affiliate'),
+         'contact_domain_not_official_host'),
+        (contact('affiliates@ww.com', 'weightwatchers.com',
+                 source='https://unrelated.example/affiliate'),
+         'contact_evidence_not_official_source'),
+        (contact('contact@ww.com', 'weightwatchers.com',
+                 source='https://www.weightwatchers.com/us/affiliate'),
+         'contact_unreachable_mailbox'),
+        (contact('affiliates@ww.com', 'weightwatchers.com', contact_type='personal',
+                 source='https://www.weightwatchers.com/us/affiliate'),
+         'contact_not_business'),
+    ):
+        rejected = plan([brand], [bad])
+        assert rejected['candidates'] == []
+        assert reasons(rejected)['weightwatchers.com'] == expected
+    no_us = plan([brand], [official], locations={})
+    assert no_us['candidates'] == []
+    assert reasons(no_us)['weightwatchers.com'] == 'us_location_evidence_missing'
+
+
 def test_fella_holds_nonproviders_nonglp_and_non_population_statuses_excluded():
     parent = REQUIRED_MARKETPLACE_PARENT_ROWS['Impact.com']
     rows = [row(2020, 'Fella Health', 'https://fella.example'),
