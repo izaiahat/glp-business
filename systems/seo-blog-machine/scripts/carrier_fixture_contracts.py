@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def once(source, old, new, label):
@@ -135,6 +136,98 @@ TAXONOMY_ISO_DATE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 TAXONOMY_REVERIFIED_CONST = 'CARRIER_TAXONOMY_REVERIFIED'
 
 
+def _taxonomy_capture_proven(source, business):
+    """Authenticate the producer's capture bytes and its per-source assertions."""
+    relative = source.get('capture_path')
+    digest = source.get('capture_sha256')
+    url = source.get('source_url')
+    if (not isinstance(relative, str) or not relative.startswith('reports/')
+            or not isinstance(digest, str) or re.fullmatch(r'[0-9a-f]{64}', digest) is None
+            or not isinstance(url, str) or urlparse(url).scheme != 'https'
+            or not urlparse(url).hostname):
+        return False
+    root = business.resolve()
+    capture_path = business / relative
+    if (capture_path.is_symlink() or not capture_path.is_file()
+            or root not in capture_path.resolve().parents):
+        return False
+    try:
+        raw = capture_path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != digest:
+            return False
+        receipt = json.loads(raw)
+        start = dt.datetime.fromisoformat(receipt['started_at'].replace('Z', '+00:00'))
+        received = dt.datetime.fromisoformat(receipt['received_at'].replace('Z', '+00:00'))
+        if (start.tzinfo is None or received.tzinfo is None or received < start
+                or receipt['request']['url'] != url
+                or receipt['request'].get('maxAge') != 0
+                or receipt['request'].get('formats') != ['markdown', 'links']
+                or source.get('captured_at') != receipt['received_at']
+                or source.get('verified_as_of') != received.date().isoformat()):
+            return False
+        response = receipt['response']
+        data = response['data']
+        meta = data['metadata']
+        markdown = data['markdown']
+        if (response.get('success') is not True or meta.get('statusCode') != 200
+                or not isinstance(markdown, str) or not markdown
+                or str(meta.get('cacheState', '')).lower() in ('hit', 'cached')):
+            return False
+        for key in ('sourceURL', 'url'):
+            if meta.get(key) and urlparse(meta[key]).hostname != urlparse(url).hostname:
+                return False
+        if meta.get('cachedAt') and dt.datetime.fromisoformat(
+                meta['cachedAt'].replace('Z', '+00:00')) < start:
+            return False
+        assertions = source.get('assertions')
+        if not isinstance(assertions, dict):
+            return False
+        plain = re.sub(r'\s+', ' ', markdown.replace('*', '').replace('#', '')).strip().casefold()
+        for field in TAXONOMY_TAG_FIELDS:
+            rows = assertions.get(field)
+            if not isinstance(rows, dict):
+                return False
+            for proof in rows.values():
+                if not isinstance(proof, dict) or not isinstance(proof.get('quote'), str):
+                    return False
+                quote = re.sub(r'\s+', ' ', proof['quote'].replace('*', '').replace('#', '')).strip().casefold()
+                if not quote or quote not in plain:
+                    return False
+                pos = plain.find(quote)
+                context = plain[max(0, pos - 80):pos + len(quote) + 100]
+                if proof.get('context') != context:
+                    return False
+                if re.search(r"\b(unavailable|discontinued|not (?:available|offered|prescribed|provided)|(?:do(?:es)? not|don['’]t|doesn['’]t|never|no longer)\s+(?:offer|prescrib|provid|supply|sell|carry|avail)\w*)\b", context):
+                    return False
+        return True
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        return False
+
+
+def _taxonomy_manifest_sources_proven(manifest, business, frozen_row, stamp):
+    sources = manifest.get('sources')
+    if sources is None:
+        sources = [manifest]  # producer's single-source format
+    if not isinstance(sources, list) or not sources:
+        return False
+    merged = {field: {} for field in TAXONOMY_TAG_FIELDS}
+    for source in sources:
+        if (not isinstance(source, dict) or not isinstance(source.get('verified_as_of'), str)
+                or source['verified_as_of'] < stamp
+                or (frozen_row.get('source_urls') and source.get('source_url') not in frozen_row['source_urls'])
+                or not _taxonomy_capture_proven(source, business)):
+            return False
+        for field in TAXONOMY_TAG_FIELDS:
+            for tag, proof in source['assertions'][field].items():
+                if tag in merged[field]:
+                    return False
+                merged[field][tag] = proof
+    if merged != manifest.get('assertions'):
+        return False
+    return all(set(merged[field]) == set(frozen_row.get(field) or [])
+               for field in TAXONOMY_TAG_FIELDS)
+
+
 def taxonomy_reverification_binding(base, business=BUSINESS):
     """Freshness clock for a FROZEN taxonomy row, from the authenticated evidence beside it.
 
@@ -158,6 +251,9 @@ def taxonomy_reverification_binding(base, business=BUSINESS):
     * the manifest's own ``program_id`` and ``verified_as_of`` agree with the binding;
     * the manifest's ``tags_unchanged`` equals THIS release's frozen row field for field,
       so a re-verification of different claims can never lend its clock;
+    * every producer source has a hash-verified successful fresh response, matching
+      source/time and captured quote assertions, and the live evidence binding pins
+      the matching capture and authority hashes;
     * and the stamp is strictly newer than the frozen value.
 
     Anything else is ignored, so an unrefreshed row still fails the gate loudly.
@@ -209,6 +305,15 @@ def taxonomy_reverification_binding(base, business=BUSINESS):
                     continue
                 if any(sorted(tags.get(field) or []) != sorted(frozen_row.get(field) or [])
                        for field in TAXONOMY_TAG_FIELDS):
+                    continue
+                if (binding.get('authority_sha256') != authority.get('sha256')
+                        or not _taxonomy_manifest_sources_proven(manifest, business, frozen_row, stamp)):
+                    continue
+                sources = manifest.get('sources', [manifest])
+                if not any(source.get('source_url') == binding.get('source_url')
+                           and source.get('verified_as_of') == stamp
+                           and source.get('capture_sha256') == binding.get('evidence_sha256')
+                           for source in sources):
                     continue
                 if stamp <= stamps.get(pid, ''):
                     continue
