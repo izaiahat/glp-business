@@ -14,6 +14,7 @@ import os
 import fcntl
 import stat
 import struct
+import subprocess
 import sys
 import tempfile
 from contextlib import ExitStack, contextmanager
@@ -31,8 +32,7 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-@contextmanager
-def _sqlite_snapshot(path):
+def _capture_sqlite_snapshot(path, private):
     """Linux/local Unix-VFS SQLite only; never give SQLite a source pathname.
 
     OFD read locks conflict with SQLite's POSIX write locks even in this process:
@@ -41,14 +41,15 @@ def _sqlite_snapshot(path):
     recovery and SHM reinitialization.
     Missing SHM in WAL mode is unsupported, not permission to ignore the WAL.
     Ordinary SQLite locking is required (no nolock/immutable/noncooperating writers).
+    Run ONLY in a freshly exec'd process: closing any source descriptor in a
+    process with an existing SQLite connection drops that connection's POSIX locks.
     """
     if sys.platform != 'linux' or struct.calcsize('P') != 8:
         raise OSError('sqlite_snapshot_locking_unsupported')
     # Linux UAPI F_OFD_SETLK=37; some Python builds omit its symbolic export.
     # Unsupported kernels/filesystems return an error; there is no lock fallback.
     ofd_setlk = getattr(fcntl, 'F_OFD_SETLK', 37)
-    with tempfile.TemporaryDirectory(prefix='glp328-sqlite-') as private:
-        with ExitStack() as handles:
+    with ExitStack() as handles:
             def open_read(p):
                 fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NOATIME | os.O_NONBLOCK)
                 handles.callback(os.close, fd)
@@ -98,7 +99,44 @@ def _sqlite_snapshot(path):
                 hashes[source.name] = digest.hexdigest()
             if shm is not None and os.fstat(shm) != Path(str(path) + '-shm').stat(follow_symlinks=False):
                 raise OSError('sqlite_snapshot_shm_replaced')
+    return hashes
+
+
+@contextmanager
+def _sqlite_snapshot(path):
+    # No raw original DB/SHM descriptor is ever opened or closed by the caller.
+    # close_fds and exec exclude inherited SQLite connections from the worker;
+    # fork alone would not isolate its inherited connection/lock state.
+    with tempfile.TemporaryDirectory(prefix='glp328-sqlite-') as private:
+        try:
+            completed = subprocess.run(
+                [sys.executable, '-B', str(Path(__file__).resolve()), '--capture-sqlite',
+                 str(path), private], capture_output=True, text=True, close_fds=True,
+                timeout=120, check=False)
+        except subprocess.TimeoutExpired as exc:
+            raise OSError('sqlite_snapshot_capture_timeout') from exc
+        if completed.returncode:
+            raise OSError('sqlite_snapshot_capture_failed')
+        try:
+            result = json.loads(completed.stdout)
+            if result['status'] != 'ok':
+                raise OSError('sqlite_snapshot_capture_' + result['error'])
+            hashes = result['hashes']
+        except (ValueError, KeyError, TypeError) as exc:
+            raise OSError('sqlite_snapshot_capture_invalid') from exc
         yield Path(private) / path.name, hashes
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 4 or sys.argv[1] != '--capture-sqlite':
+        sys.exit(2)
+    try:
+        answer = {'status': 'ok', 'hashes': _capture_sqlite_snapshot(
+            Path(sys.argv[2]), Path(sys.argv[3]))}
+    except OSError as exc:
+        # Never return source paths, raw records or native exception text.
+        answer = {'status': 'error', 'error': type(exc).__name__}
+    print(json.dumps(answer))
 
 
 def read_local_sources(root: Path, now: datetime) -> dict:

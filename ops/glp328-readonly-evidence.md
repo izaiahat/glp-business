@@ -24,14 +24,19 @@ to test this call. Record actual import paths/hashes. No mirror `main`, cursor,
 queue method, legacy suppression helper or schema initializer may be invoked.
 
 `read_local_sources` never passes an original database pathname to SQLite.
-It copies DB/WAL bytes to a private temporary directory while holding Linux
-64-bit OFD read locks across SQLite's DB pending/reserved/shared lock region
-and all SHM WAL locks plus the dead-man switch. Source descriptors are
-`O_RDONLY|O_NOFOLLOW|O_NOATIME`; only private copies can receive native SQLite
-sidecar writes. Ordinary local Unix-VFS SQLite locking is required: no
-noncooperating raw-file, `nolock`, or `immutable` writers. Unsupported locks,
-contention, nonregular/symlinked files, pending rollback-journal recovery and
-WAL without an existing full SHM refuse, with no original sidecar creation.
+A fresh exec capture worker (not a fork-only child) opens original DB/SHM/WAL
+and copies DB/WAL bytes into a caller-owned private temporary directory; its
+source descriptors are closed only in that isolated process. This preserves any
+ordinary SQLite POSIX locks held by the caller on the same source in both
+refusal and successful-cleanup paths. The worker inherits no caller descriptors
+(`close_fds=True`) and holds Linux 64-bit OFD read locks across SQLite's DB
+pending/reserved/shared lock region and all SHM WAL locks plus the dead-man
+switch. Source descriptors are `O_RDONLY|O_NOFOLLOW|O_NOATIME`; only private
+copies can receive native SQLite sidecar writes. Ordinary local Unix-VFS
+SQLite locking is required: no noncooperating raw-file, `nolock`, or
+`immutable` writers. Unsupported locks, contention, nonregular/symlinked
+files, pending rollback-journal recovery and WAL without an existing full
+SHM refuse, with no original sidecar creation.
 An existing SHM alone is not the fence: the held kernel locks exclude writers,
 checkpoints, recovery and mode changes during the copy. Stat/hash checks are
 supplemental diagnostics, not pre-effect protection. A coherent supported WAL
@@ -88,10 +93,14 @@ Prices/templates remain UNAPPROVED. No Gmail drafts or contact sends.
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider tests/test_glp328_readonly_evidence.py
 ```
 
-Six tests cover local projection/no writes, missing/malformed/unresolved
+Ten cases cover local projection/no writes, missing/malformed/unresolved
 refusal through the real planner, mailbox pagination/readback completeness,
-source drift, WAL sidecar isolation/lock contention, and explicitly domain-scoped
-retired references with malformed/target-dependent refusal controls.
+source drift, WAL sidecar isolation/lock contention, explicitly domain-scoped
+retired references with malformed/target-dependent refusal controls, and a
+four-case DELETE/WAL ordinary SQLite transaction-lock retention regression:
+independent-process BUSY probes before and after same-process capture refusal
+or successful cleanup, with release control after rollback. The probes do not
+open/close original DB/SHM from the holding process.
 All test records/mail clients are explicit fixtures; they
 prove no live routing or sent campaign. Actual host read receipts belong in the
 private report directory, not this curated source repository.

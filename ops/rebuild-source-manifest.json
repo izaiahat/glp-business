@@ -206,7 +206,7 @@
     "ops/glp328-readonly-evidence.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "e793b48116814fd548db62a76f020f3ba86cafe6330312d9fe529792682ea3ab"
+      "sha256": "13061bf3dd7556bc8c2daab402fdd99399bcb2848ff4840fe335db73ab9fca70"
     },
     "ops/glp320-source-only.md": {
       "callers": [],
@@ -1076,7 +1076,7 @@
     "scripts/glp328_readonly_evidence.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "68c5aaf569a703955ca363b503df091a34e28cbc4e5edf19d4f9aa6a1990dee9"
+      "sha256": "b52cc54a182ba69fd3ffe0fa7f80a4f0df54fa7426b75f2d8c29984ba0deaf53"
     },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],

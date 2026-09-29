@@ -3,9 +3,12 @@ import importlib
 import importlib.util
 import json
 import sqlite3
+import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
@@ -26,6 +29,70 @@ def fixture(root):
         con.execute('create table suppressions (suppression_id text,target_id text,email text,domain text,scope text,active integer)')
         con.execute('insert into suppressions values (?,?,?,?,?,?)',
                     ('fixture-s', 'fixture-t', '', '', 'organization', 1))
+
+
+@pytest.mark.parametrize('journal_mode', ['DELETE', 'WAL'])
+@pytest.mark.parametrize('transaction', ['writer_refusal', 'reader_cleanup'])
+def test_same_process_sqlite_locks_survive_snapshot(tmp_path, journal_mode, transaction):
+    """A separate ordinary SQLite connection must observe the original lock.
+
+    No inventory/open/close of the original DB or SHM occurs between probes:
+    such a close would itself drop the same-process POSIX lock under test.
+    """
+    fixture(tmp_path)
+    adapter = importlib.import_module('glp328_readonly_evidence')
+    from affiliate_sheet_schema_guard import EXPECTED_HEADERS
+    path = tmp_path / 'outreach.sqlite'
+    holder = sqlite3.connect(path)
+    try:
+        assert holder.execute(f'PRAGMA journal_mode={journal_mode}').fetchone()[0].upper() == journal_mode
+        if journal_mode == 'WAL':
+            holder.execute("insert into suppressions values ('wal','','','wal.example','domain',1)")
+            holder.commit()
+        if transaction == 'writer_refusal':
+            holder.execute('BEGIN IMMEDIATE')
+        else:
+            holder.execute('BEGIN')
+            holder.execute('SELECT count(*) FROM suppressions').fetchone()
+        assert holder.in_transaction
+
+        action = ('checkpoint' if journal_mode == 'WAL' and transaction == 'reader_cleanup'
+                  else 'BEGIN EXCLUSIVE' if transaction == 'reader_cleanup' else 'BEGIN IMMEDIATE')
+
+        def probe():
+            script = ("import sqlite3,sys; c=sqlite3.connect(sys.argv[1],timeout=0); "
+                      "c.execute('PRAGMA busy_timeout=0'); "
+                      "\ntry:\n"
+                      " if sys.argv[2]=='checkpoint':\n"
+                      "  print(c.execute('PRAGMA wal_checkpoint(TRUNCATE)').fetchone())\n"
+                      " else:\n"
+                      "  c.execute(sys.argv[2]); print('acquired'); c.rollback()\n"
+                      "except sqlite3.OperationalError as e:\n"
+                      " print('busy' if e.sqlite_errorcode==sqlite3.SQLITE_BUSY else 'unexpected')\n"
+                      "finally: c.close()")
+            completed = subprocess.run([sys.executable, '-B', '-c', script, str(path), action],
+                                       capture_output=True, text=True, check=True, timeout=10)
+            return completed.stdout.strip()
+
+        expected = '(1, 1, 1)' if journal_mode == 'WAL' and transaction == 'reader_cleanup' else 'busy'
+        assert probe() == expected
+        if transaction == 'writer_refusal':
+            calls = []
+            result = adapter.plan_current([list(EXPECTED_HEADERS)], tmp_path, BOXES,
+                                          lambda box: calls.append(box), now=NOW)
+            assert result['planner_refusal'] == 'suppression_snapshot_incomplete'
+            assert result['local']['faults'] and not calls
+        else:
+            local = adapter.read_local_sources(tmp_path, NOW)
+            assert local['suppression']['complete'], local['faults']
+            if journal_mode == 'WAL':
+                assert 'wal.example' in {entry['domain'] for entry in local['suppression']['entries']}
+        assert holder.in_transaction
+        assert probe() == expected
+        holder.rollback()
+        assert probe() == ('(0, 0, 0)' if action == 'checkpoint' else 'acquired')
+    finally:
+        holder.close()
 
 
 def test_real_file_projection_preserves_union_without_writes_or_contacts(tmp_path):
@@ -115,7 +182,10 @@ def test_wal_evidence_never_mutates_source_sidecars(tmp_path, monkeypatch):
             return real_read(fd, size)
         with monkeypatch.context() as m:
             m.setattr(adapter.os, 'read', try_writer)
-            assert adapter.read_local_sources(origin, NOW)['suppression']['complete']
+            # Exercise the capture worker's copy fence directly; monkeypatches
+            # in this test process do not propagate through its fresh exec.
+            with tempfile.TemporaryDirectory() as private:
+                assert adapter._capture_sqlite_snapshot(origin / 'outreach.sqlite', Path(private))
         assert attempts == ['locked']
         assert inventory(origin) == before
     finally:
