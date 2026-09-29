@@ -1081,7 +1081,7 @@
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "b7db0578ddc30ea0d95459b8ea219dee6d0889caee02198ba39219a9d2eff9b3"
+      "sha256": "1f3bb51c465a98fd5bc3da566f44e20731587123d2200792bc31e9b09fde3d21"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
@@ -2174,7 +2174,7 @@
         "glp328_outreach_policy"
       ],
       "kind": "test",
-      "sha256": "c6723fc831c1b02127372aa15c61c825e377fb2853ba987ad79668522ce9a329"
+      "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
     },
     "tests/test_glp329_add_approved_row_full_grid_dry_run.py": {
       "callers": [
