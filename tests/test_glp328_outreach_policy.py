@@ -17,7 +17,7 @@ NOW = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
 CHECKED = (NOW - timedelta(hours=1)).isoformat()
 
 
-def row(number, program, url, status='approved_active_tracking', vertical='glp1-weightloss', **extra):
+def row(number, program, url, status='approved_active_tracking_ready', vertical='glp1-weightloss', **extra):
     fields = {'Program / Network': program, 'Official URL': url, 'Status': status,
               'Category': 'Affiliate program', 'Network / Route': 'Impact.com',
               'Fit Reason': 'fixture', 'Vertical': vertical, **extra}
@@ -60,6 +60,31 @@ def test_plan_is_disabled_and_approved_pending_are_populations_not_permission():
     assert got['alpha.example']['population'] == 'approved'
     assert got['beta.example']['population'] == 'pending'
     assert all(c['send_permission'] is False for c in result['candidates'])
+
+@pytest.mark.parametrize('status,population', [
+    ('live_wired_verified', 'approved'),
+    ('approved_active_not_wired', 'approved'),
+    ('approved_active_wired_live', 'approved'),
+    ('approved_active_tracking_ready', 'approved'),
+    ('applied_pending_brand_approval', 'pending'),
+    ('ready_to_apply', 'pending'),
+    ('not_applied', 'pending'),
+])
+def test_actual_sheet_status_populations_are_not_lost(status, population):
+    got = plan([row(2010, 'Alpha GLP', 'https://alpha.example', status=status)],
+               [contact('bd@alpha.example', 'alpha.example')])
+    assert got['candidates'][0]['population'] == population
+
+def test_mailbox_safety_and_location_provenance_are_not_assumed():
+    for address in ('privacy@alpha.example', 'patients@alpha.example', 'security@alpha.example'):
+        got = plan([row(2010, 'Alpha GLP', 'https://alpha.example')],
+                   [contact(address, 'alpha.example')])
+        assert not got['candidates']
+    got = plan([row(2010, 'Alpha GLP', 'https://alpha.example')],
+               [contact('bd@alpha.example', 'alpha.example')],
+               locations={'alpha.example': {'country': 'US', 'source_url': 'https://other.example/about',
+                                            'observed_utc': CHECKED}})
+    assert not got['candidates']
 
 
 def test_dedupes_by_canonical_host_and_keeps_one_contact_per_org():
@@ -202,7 +227,11 @@ SENT = NOW - timedelta(days=8)
 
 
 def receipt(**extra):
-    return {'verified': True, 'verification_source': 'fixture-provider-receipt', 'message_id': 'fixture-1',
+    # Structural unit-test input only; never a claimed pilot receipt.
+    return {'verified': True, 'verification_source': 'gmail_exact_sent_readback',
+            'sender': 'partners@glpclinicscout.com', 'message_id': 'fixture-1',
+            'provider_message_id': 'fixture-1', 'provider_thread_id': 'fixture-thread',
+            'checks': {'all_passed': True},
             'kind': 'initial', 'recipient': 'bd@nu.example', 'sent_utc': SENT.isoformat(), **extra}
 
 
@@ -223,6 +252,9 @@ def test_follow_up_allowed_once_after_seven_days_but_still_unsendable():
     ({'verification_source': ''}, 'send_receipt_not_verified'),
     ({'pilot': True}, 'send_receipt_not_real'),
     ({'simulated': True}, 'send_receipt_not_real'),
+    ({'verification_source': 'fixture-provider-receipt'}, 'send_receipt_readback_missing'),
+    ({'sender': 'other@example.com'}, 'send_receipt_readback_missing'),
+    ({'checks': {'all_passed': False}}, 'send_receipt_readback_missing'),
     ({'kind': 'follow_up'}, 'send_receipt_not_initial'),
 ])
 def test_follow_up_requires_prior_verified_real_send(send, reason):

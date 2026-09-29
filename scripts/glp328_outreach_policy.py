@@ -31,16 +31,26 @@ FOLLOW_UP_MIN_DELAY = timedelta(days=7)
 MAX_FOLLOW_UPS = 1
 TEMPLATE_STATUS = 'UNAPPROVED'
 TEMPLATE_FIELDS = frozenset({'organization', 'contact_name', 'official_host'})
-NEGATIVE_STATUS_TOKENS = frozenset({
-    'rejected', 'declined', 'denied', 'cancelled', 'canceled', 'terminated',
-    'inactive', 'paused', 'closed', 'not', 'removed', 'suspended', 'expired',
+APPROVED_STATUSES = frozenset({
+    'live_wired_verified', 'approved_active_wired_live',
+    'approved_active_not_wired', 'approved_active_tracking_ready',
+    'approved_active_tracking',
+})
+PENDING_STATUSES = frozenset({
+    'applied_pending_brand_approval', 'ready_to_apply', 'not_applied',
+    'application_pending', 'application_submitted_affiliate_team_review',
+    'pending_review',
 })
 FREEMAIL_DOMAINS = frozenset({
     'gmail.com', 'googlemail.com', 'yahoo.com', 'outlook.com', 'hotmail.com',
     'live.com', 'aol.com', 'icloud.com', 'me.com', 'proton.me', 'protonmail.com',
     'gmx.com', 'mail.com', 'yandex.com', 'zoho.com',
 })
-UNREACHABLE_LOCAL_PARTS = frozenset({'noreply', 'no-reply', 'donotreply', 'do-not-reply', 'mailer-daemon', 'postmaster'})
+UNREACHABLE_LOCAL_PARTS = frozenset({
+    'noreply', 'no-reply', 'donotreply', 'do-not-reply', 'mailer-daemon',
+    'postmaster', 'privacy', 'patients', 'patient', 'security', 'support',
+    'billing', 'care', 'medical', 'clinical', 'help', 'legal',
+})
 STOP_EVENT_KINDS = frozenset({'reply', 'opt_out', 'unsubscribe', 'bounce', 'complaint'})
 _EMAIL = re.compile(r'^[a-z0-9._%+-]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$')
 _FIELD = re.compile(r'\{([^{}]*)\}')
@@ -138,14 +148,13 @@ def _entry_hits(entries: Iterable[dict[str, Any]], host: str) -> list[dict[str, 
 
 
 def _status_population(status: str) -> str:
-    tokens = set(re.split(r'[^a-z]+', status.casefold())) - {''}
+    normalized = status.strip().casefold().replace(' ', '_').replace('-', '_')
+    tokens = set(re.split(r'[^a-z]+', normalized)) - {''}
     if 'hold' in tokens:
         return 'hold'
-    if not tokens or tokens & NEGATIVE_STATUS_TOKENS:
-        return ''
-    if 'approved' in tokens:
+    if normalized in APPROVED_STATUSES:
         return 'approved'
-    if 'pending' in tokens:
+    if normalized in PENDING_STATUSES:
         return 'pending'
     return ''
 
@@ -199,12 +208,13 @@ def _contact_problem(contact: dict[str, Any], host: str) -> str:
     return ''
 
 
-def _location_problem(evidence: Any) -> str:
+def _location_problem(evidence: Any, host: str) -> str:
     if not isinstance(evidence, dict):
         return 'us_location_evidence_missing'
     if str(evidence.get('country') or '').strip().upper() != 'US':
         return 'us_location_not_evidenced'
-    if urlsplit(str(evidence.get('source_url') or '')).scheme != 'https':
+    source = str(evidence.get('source_url') or '')
+    if urlsplit(source).scheme != 'https' or not _same_org(canonical_host(source), host):
         return 'us_location_evidence_source_missing'
     if not str(evidence.get('observed_utc') or '').strip():
         return 'us_location_evidence_unobserved'
@@ -254,7 +264,7 @@ def plan_outreach(sheet: dict[str, Any], contacts: list[dict[str, Any]],
     for host in sorted(orgs):
         org = orgs[host]
         record = {'host': host, 'rows': sorted(org['rows']), 'programs': org['programs']}
-        reason = blocked.get(host) or _location_problem(location_evidence.get(host))
+        reason = blocked.get(host) or _location_problem(location_evidence.get(host), host)
         if not reason and _entry_hits(suppressions, host):
             reason = 'organization_opted_out'
         if not reason and any(str(e.get('state') or 'active') != 'closed'
@@ -326,6 +336,14 @@ def decide_follow_up(send_receipt: dict[str, Any], prior_follow_ups: list[dict[s
         return decision(False, 'send_receipt_not_verified')
     if any(send_receipt.get(flag) for flag in ('pilot', 'simulated', 'fixture', 'dry_run')):
         return decision(False, 'send_receipt_not_real')
+    # A caller's verified=True is not itself evidence of a send. Only a
+    # reconciled Gmail sent-message readback can unlock even a disabled plan.
+    if send_receipt.get('verification_source') != 'gmail_exact_sent_readback' \
+            or send_receipt.get('sender') != 'partners@glpclinicscout.com' \
+            or send_receipt.get('provider_message_id') != send_receipt.get('message_id') \
+            or not send_receipt.get('provider_thread_id') \
+            or (send_receipt.get('checks') or {}).get('all_passed') is not True:
+        return decision(False, 'send_receipt_readback_missing')
     if send_receipt.get('kind') != 'initial':
         return decision(False, 'send_receipt_not_initial')
     email, domain = _email(send_receipt.get('recipient'))
