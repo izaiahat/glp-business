@@ -194,6 +194,9 @@
 !/tests/test_affiliate_cron_domain_repair.py
 !/tests/test_affiliate_provider_metadata.py
 !/tests/test_glp328_outreach_policy.py
+!/tests/test_glp328_readonly_evidence.py
+!/scripts/glp328_readonly_evidence.py
+!/ops/glp328-readonly-evidence.md
 !/tests/test_affiliate_sheet_add_approved_row.py
 !/tests/test_affiliate_sheet_existing_row_preservation.py
 !/tests/test_affiliate_sheet_network_paused_disposition.py
