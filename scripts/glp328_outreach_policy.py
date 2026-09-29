@@ -51,6 +51,13 @@ UNREACHABLE_LOCAL_PARTS = frozenset({
     'postmaster', 'privacy', 'patients', 'patient', 'security', 'support',
     'billing', 'care', 'medical', 'clinical', 'help', 'legal',
 })
+# Preserve outreach_suppression.email_has_forbidden_prefix without importing
+# its state-writing module or helpers.
+FORBIDDEN_PREFIXES = frozenset({
+    'info', 'hello', 'office', 'contact', 'admin', 'security', 'privacy',
+    'abuse', 'legal', 'hr', 'careers', 'career', 'jobs', 'job', 'patient',
+    'patients', 'results', 'records', 'medicalrecords', 'medical-records',
+})
 STOP_EVENT_KINDS = frozenset({'reply', 'opt_out', 'unsubscribe', 'bounce', 'complaint'})
 _EMAIL = re.compile(r'^[a-z0-9._%+-]+@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$')
 _FIELD = re.compile(r'\{([^{}]*)\}')
@@ -89,6 +96,24 @@ def _raise(reason: str) -> str:
 def _same_org(domain: str, host: str) -> bool:
     return bool(domain and host) and (domain == host or domain.endswith('.' + host)
                                       or host.endswith('.' + domain))
+
+
+def _organization_groups(hosts: Iterable[str]) -> list[list[str]]:
+    """Connected parent/subdomain components under the snapshot's _same_org rule."""
+    remaining = set(hosts)
+    groups = []
+    while remaining:
+        group = {min(remaining)}
+        remaining -= group
+        while True:
+            related = {host for host in remaining
+                       if any(_same_org(host, member) for member in group)}
+            if not related:
+                break
+            group.update(related)
+            remaining.difference_update(related)
+        groups.append(sorted(group))
+    return groups
 
 
 def _email(value: Any) -> tuple[str, str]:
@@ -195,7 +220,10 @@ def _contact_problem(contact: dict[str, Any], host: str) -> str:
         return 'contact_not_business'
     if domain in FREEMAIL_DOMAINS or not _same_org(domain, host):
         return 'contact_domain_not_official_host'
-    if email.split('@', 1)[0] in UNREACHABLE_LOCAL_PARTS:
+    local = email.split('@', 1)[0]
+    if local in UNREACHABLE_LOCAL_PARTS or local in FORBIDDEN_PREFIXES \
+            or any(local.startswith(prefix + sep)
+                   for prefix in FORBIDDEN_PREFIXES for sep in ('.', '-', '_')):
         return 'contact_unreachable_mailbox'
     evidence = contact.get('evidence')
     if not isinstance(evidence, dict):
@@ -236,55 +264,72 @@ def plan_outreach(sheet: dict[str, Any], contacts: list[dict[str, Any]],
         raise OutreachPolicyError('sheet_rows_invalid')
 
     excluded: list[dict[str, Any]] = []
-    orgs: dict[str, dict[str, Any]] = {}
+    orgs: dict[str, list[dict[str, Any]]] = {}
     blocked: dict[str, str] = {}
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get('row'), int) \
                 or not isinstance(row.get('values'), list):
             raise OutreachPolicyError('sheet_row_shape_invalid')
         verdict = classify_row(row['row'], row['values'])
-        if verdict.pop('blocks_org', False) and verdict['host']:
+        if verdict.pop('blocks_org', False):
+            if not verdict['host']:
+                raise OutreachPolicyError('blocked_organization_identity_missing')
             blocked.setdefault(verdict['host'], verdict['reason'])
         if not verdict['eligible']:
             excluded.append(verdict)
             continue
-        org = orgs.setdefault(verdict['host'], {'host': verdict['host'], 'rows': [],
-                                                'programs': [], 'populations': set()})
-        org['rows'].append(verdict['row'])
-        org['programs'].append(verdict['program'])
-        org['populations'].add(verdict['population'])
+        orgs.setdefault(verdict['host'], []).append(verdict)
 
-    by_host: dict[str, list[dict[str, Any]]] = {}
+    evidenced_contacts: list[tuple[str, dict[str, Any]]] = []
     for contact in contacts:
         if not isinstance(contact, dict):
             raise OutreachPolicyError('contact_shape_invalid')
-        by_host.setdefault(canonical_host(contact.get('organization_host')), []).append(contact)
+        contact_host = canonical_host(contact.get('organization_host'))
+        if not contact_host:
+            raise OutreachPolicyError('contact_organization_identity_missing')
+        evidenced_contacts.append((contact_host, contact))
 
     candidates = []
-    for host in sorted(orgs):
-        org = orgs[host]
-        record = {'host': host, 'rows': sorted(org['rows']), 'programs': org['programs']}
-        reason = blocked.get(host) or _location_problem(location_evidence.get(host), host)
-        if not reason and _entry_hits(suppressions, host):
+    for hosts in _organization_groups(orgs):
+        host = min(hosts, key=lambda value: (value.count('.'), value))
+        program_rows = sorted((verdict for member in hosts for verdict in orgs[member]),
+                              key=lambda verdict: verdict['row'])
+        record = {'host': host, 'rows': [v['row'] for v in program_rows],
+                  'programs': [v['program'] for v in program_rows],
+                  'program_rows': [{key: v[key] for key in ('row', 'program', 'host', 'population')}
+                                   for v in program_rows]}
+        reason = next((why for domain, why in blocked.items()
+                       if any(_same_org(domain, member) for member in hosts)), '')
+        if not reason:
+            for member in hosts:
+                reason = _location_problem(location_evidence.get(member), member)
+                if reason:
+                    break
+        if not reason and any(_entry_hits(suppressions, member) for member in hosts):
             reason = 'organization_opted_out'
         if not reason and any(str(e.get('state') or 'active') != 'closed'
-                              for e in _entry_hits(conversations, host)):
+                              for member in hosts for e in _entry_hits(conversations, member)):
             reason = 'organization_active_conversation'
-        rejected, usable = [], []
+        rejected, usable = [], {}
         if not reason:
-            for contact in by_host.get(host, []):
-                problem = _contact_problem(contact, host)
-                (rejected if problem else usable).append((problem, contact))
-            usable.sort(key=lambda item: _email(item[1].get('email'))[0])
+            for contact_host, contact in evidenced_contacts:
+                if not any(_same_org(contact_host, member) for member in hosts):
+                    continue
+                problem = _contact_problem(contact, contact_host)
+                if problem:
+                    rejected.append(problem)
+                else:
+                    usable.setdefault(_email(contact['email'])[0], contact)
             if not usable:
-                reason = rejected[0][0] if rejected else 'no_evidenced_business_contact'
+                reason = rejected[0] if rejected else 'no_evidenced_business_contact'
         if reason:
             excluded.append({**record, 'eligible': False, 'reason': reason})
             continue
-        chosen = usable[0][1]
+        chosen = usable[min(usable)]
         candidates.append({
             **record, 'eligible': True,
-            'population': 'approved' if 'approved' in org['populations'] else 'pending',
+            'population': 'approved' if any(v['population'] == 'approved' for v in program_rows)
+                          else 'pending',
             'contact': {'email': _email(chosen['email'])[0],
                         'name': str(chosen.get('name') or '').strip(),
                         'evidence': chosen['evidence']},

@@ -129,6 +129,47 @@ def test_hold_or_fella_row_blocks_whole_organization_on_same_host():
     assert result['candidates'] == []
     assert reasons(result)['gamma.example'] == 'status_hold_preserved'
 
+@pytest.mark.parametrize('blocked_program,blocked_status,expected_reason', [
+    ('Held GLP', 'hold_legal', 'status_hold_preserved'),
+    ('Fella Health', 'approved_active_tracking_ready', 'permanent_fella_exclusion'),
+])
+def test_f1_parent_hold_or_fella_blocks_all_sibling_subdomains(
+        blocked_program, blocked_status, expected_reason):
+    result = plan([
+        row(2032, blocked_program, 'https://alpha.example', status=blocked_status),
+        row(2033, 'Alpha US GLP', 'https://us.alpha.example'),
+        row(2034, 'Alpha EU GLP', 'https://eu.alpha.example'),
+    ], [contact('bd@us.alpha.example', 'us.alpha.example'),
+        contact('bd@eu.alpha.example', 'eu.alpha.example')])
+    assert not result['candidates']
+    assert reasons(result)[2032] == expected_reason
+    assert all(reasons(result)[h] == expected_reason
+               for h in ('us.alpha.example', 'eu.alpha.example'))
+
+def test_f2_parent_subdomain_one_recipient_preserves_program_provenance():
+    result = plan([
+        row(2035, 'Alpha GLP', 'https://alpha.example'),
+        row(2036, 'Alpha US GLP', 'https://us.alpha.example', status='pending_review'),
+    ], [contact('bd@alpha.example', 'alpha.example'),
+        contact('bd@alpha.example', 'us.alpha.example')])
+    assert len(result['candidates']) == 1
+    candidate = result['candidates'][0]
+    assert candidate['contact']['email'] == 'bd@alpha.example'
+    assert candidate['rows'] == [2035, 2036]
+    assert candidate['program_rows'] == [
+        {'row': 2035, 'program': 'Alpha GLP', 'host': 'alpha.example', 'population': 'approved'},
+        {'row': 2036, 'program': 'Alpha US GLP', 'host': 'us.alpha.example', 'population': 'pending'},
+    ]
+    assert candidate['contacts_not_selected'] == 0
+    assert candidate['send_permission'] is False
+
+@pytest.mark.parametrize('mailbox', ['records', 'patient.records'])
+def test_f3_existing_patient_records_prefixes_stay_excluded(mailbox):
+    result = plan([row(2037, 'Alpha GLP', 'https://alpha.example')],
+                  [contact(f'{mailbox}@alpha.example', 'alpha.example')])
+    assert not result['candidates']
+    assert reasons(result)['alpha.example'] == 'contact_unreachable_mailbox'
+
 
 def test_us_location_evidence_required():
     rows = [row(2040, 'Delta', 'https://delta.example'), row(2041, 'Eps', 'https://eps.example')]
