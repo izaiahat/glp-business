@@ -11,6 +11,7 @@
 !/scripts/agent_exec.py
 !/tests/
 /tests/*
+!/tests/test_agent_exec_routing.py
 !/.github/workflows/
 /.github/workflows/*
 !/tests/test_glp85_cj_reporting_identity.py
@@ -100,6 +101,7 @@
 !/ops/linear/CONVENTIONS.md
 !/ops/linear/DISCORD-RELAY.md
 !/ops/linear/DISPATCH-TEMPLATE.md
+!/ops/linear/MODEL-ROUTING.md
 !/ops/linear/EXECUTION-STANDARD.md
 !/ops/linear/HERMES-INSTRUCTIONS.md
 !/ops/linear/MCP-AND-NOTIFICATIONS.md

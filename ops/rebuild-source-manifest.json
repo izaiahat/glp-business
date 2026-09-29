@@ -4,7 +4,17 @@
     "scripts/agent_exec.py": {
       "callers": ["on-demand:orchestrator"],
       "kind": "script",
-      "sha256": "d6b32f9ff31f14f03e5da4f7735675e7b98052b047cdcf238feb6c11e1623957"
+      "sha256": "4711627e9d657826e1efe0226d727a7fb3ba3eeff1f53aff972d9518b244400f"
+    },
+    "ops/linear/MODEL-ROUTING.md": {
+      "callers": ["on-demand:orchestrator"],
+      "kind": "instruction_or_policy",
+      "sha256": "0c752510e36a1b49cdf97fb67d3f4d5b7efdaa86f95a094fc3ee07adc61a1aff"
+    },
+    "tests/test_agent_exec_routing.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "f8ee692247e6e1e2cc7c027f6ed64ad6b053ce4a397b8a0860b9325c67f01f31"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -19,7 +29,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c489f6f51e467e4901c1ee2475bd3cbf81808ba26001d4156caeaa771a4f3c60"
+      "sha256": "c2eedd80508b70686a39f7e2533ca69b0971aa05dcbd9a4ce656c600db5d6e39"
     },
     ".hermes.md": {
       "callers": [],
@@ -586,7 +596,7 @@
     "ops/linear/DISPATCH-TEMPLATE.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "115b26f14ff76289b7992bb19b97ebb0d526ebf6d7e981eba47be7ed901d037d"
+      "sha256": "f1b95c2e802f03583d712beb2366ca5df98e835f97221dac4209c106c171a0a3"
     },
     "ops/linear/EXECUTION-STANDARD.md": {
       "callers": [],
@@ -611,12 +621,12 @@
     "ops/linear/ORCHESTRATOR-MANUAL.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "7c0c550e7196a919cc07644da35b10ce24c9cb47f8ce1e0ebb59dd7f782156fb"
+      "sha256": "4ab50d14f0ad6531cb370ab30347620d546634f26ee0e4b7dc43fae31246dbe9"
     },
     "ops/linear/PLANNER-BRIEF.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "3bf2342ecd61bd87bb9e3f9e1002453b62fd5a492771c04ae34696375488def9"
+      "sha256": "12a5bfa71637046f4f0b501af75cd2065625a7f430853c80d54d6b92699a946f"
     },
     "ops/linear/REGISTER-WRITER.md": {
       "callers": [],
@@ -656,7 +666,7 @@
     "ops/linear/WORKER-STANDARD.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "475a004aeaf672eb0b24d24a882f7418e93fbb4a2e3de46dbbd6ff915a608f42"
+      "sha256": "9d267d63fea6f9f0f3a9e3dbfa6a6bd12f6afa86341775fdad381a32c22ad9b3"
     },
     "ops/maxbounty-fresh-probe.md": {
       "callers": [
@@ -1558,7 +1568,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b08171c184421dcbdfa0ff0a065a49d1788c730b46030a8babf70d7e36524cd9"
+      "sha256": "0efe65e4ec59d9e3d41e79724908cdef837aa6eb29d077a980e4b15bafa25f9b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2721,5 +2731,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 419
+  "tracked_count": 421
 }
