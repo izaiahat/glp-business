@@ -10,6 +10,7 @@ suites=(tests/test_glp_seo_skill_loader.py tests/test_linear_ordinary_completion
 suites+=(tests/test_glp42_package_only.py tests/test_glp43_current_release.py)
 suites+=(tests/test_therapeutic_taxonomy_refresh.py)
 suites+=(tests/test_glp44_weekly_gsc_aggregate.py tests/test_glp44_gsc_only_consumer.py)
+suites+=(tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py)
 suites+=(tests/test_glp44_weekly_pin_adoption.py)
 suites+=(tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_adoption.py)
 suites+=(tests/test_glp44_reader_exclusion.py)
