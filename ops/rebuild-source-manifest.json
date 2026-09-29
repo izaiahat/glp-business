@@ -2167,7 +2167,7 @@
     "tests/test_glp328_readonly_evidence.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "064d47f87904992a79f3c8aea44e45df1483112385cd44206f60f9695b80dfec"
+      "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
     },
     "tests/test_glp328_outreach_policy.py": {
       "callers": [
