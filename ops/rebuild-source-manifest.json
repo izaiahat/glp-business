@@ -1160,7 +1160,7 @@
         "scripts/glp_deploy_completeness_sensor.py"
       ],
       "kind": "script",
-      "sha256": "ec0778f71739fb8f3c6b3f2b45f59f48ba94d6efffef7c6d05d1b2d273ceb611"
+      "sha256": "53e7fb6e33c032984037cb905758ad9b8639cd655ced9e1b2d37d542adcc95c7"
     },
     "scripts/glp_earnings_notice.py": {
       "callers": [],
@@ -2131,7 +2131,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "04539f021982a764706334c9b7147969a9ae47397dbec8a87da7edb0e1ea0038"
+      "sha256": "62f9c1642f34434113e4f950c386b91840897ceb9d0b116eb2c3eb24bd8a13c6"
     },
     "tests/test_glp76_host_transport.py": {
       "callers": [

@@ -196,6 +196,24 @@ def _utc_time(value: Any) -> dt.datetime | None:
     return parsed.astimezone(dt.timezone.utc) if parsed.tzinfo else None
 
 
+def _remint_target_args(command: str, deployment_id: str, release_root: str) -> bool:
+    """Parse the native space-joined argv; ambiguous whitespace cannot prove a target."""
+    parts = command.split()
+    if (release_root.split() != [release_root] or deployment_id.split() != [deployment_id]
+            or len(parts) < 8 or parts[:4] != [
+                "sudo", "-n", "python3",
+                str(BUSINESS / "systems/seo-blog-machine/scripts/remint_content_base.py")]
+            or len(parts[4:]) % 2):
+        return False
+    options: dict[str, str] = {}
+    allowed = {"--release", "--deployment-id", "--supersedes-deployment-id", "--supersedes-release"}
+    for flag, value in zip(parts[4::2], parts[5::2]):
+        if flag not in allowed or flag in options or value.startswith("--"):
+            return False
+        options[flag] = value
+    return options.get("--release") == release_root and options.get("--deployment-id") == deployment_id
+
+
 def _bound_event_time(receipt: dict[str, Any], deployment_id: str,
                       release_root: str) -> dt.datetime | None:
     """Find the successful target event in the two registered receipt schemas.
@@ -240,26 +258,37 @@ def _bound_event_time(receipt: dict[str, Any], deployment_id: str,
                 or pointer.get("release_root") != release_root
                 or effects.get("cloudflare_deployments") != 1
                 or effects.get("current_content_base_remints") != 1
-                or deploy.get("status") != "success"):
+                or deploy.get("status") != "success"
+                or deploy.get("deployment_id") != deployment_id):
             return None
         minted = _utc_time(pointer.get("reminted_at_utc"))
         commands = receipt.get("commands")
         if not minted or not isinstance(commands, list):
             return None
-        remint_commands = [command for command in commands
-                           if isinstance(command, dict)
-                           and isinstance(command.get("command"), str)
+        deploy_commands = [(index, command) for index, command in enumerate(commands)
+                           if isinstance(command, dict) and isinstance(command.get("command"), str)
+                           and command["command"].split()[2:4] == ["pages", "deploy"]]
+        remint_commands = [(index, command) for index, command in enumerate(commands)
+                           if isinstance(command, dict) and isinstance(command.get("command"), str)
                            and "remint_content_base.py" in command["command"]]
-        if len(remint_commands) != 1:
+        if len(deploy_commands) != 1 or len(remint_commands) != 1:
             return None
-        command = remint_commands[0]
+        deploy_index, pages = deploy_commands[0]
+        remint_index, command = remint_commands[0]
+        pages_parts = pages["command"].split()
+        deployed_at = _utc_time(pages.get("started_at_utc"))
         started = _utc_time(command.get("started_at_utc"))
         # The producer rounds reminted_at_utc to whole seconds. Reject a stale
         # replay, while allowing the command start to carry subsecond precision.
-        if (command.get("exit_code") != 0 or not started
+        # Its Pages command is recorded before the remint, not after capture.
+        if (pages.get("exit_code") != 0 or not deployed_at
+                or pages_parts[0] != "npx" or not pages_parts[1].startswith("wrangler@")
+                or pages_parts[4:5] != [str(Path(release_root) / "public")]
+                or deploy_index >= remint_index
+                or command.get("exit_code") != 0 or not started
+                or deployed_at > started
                 or minted < started.replace(microsecond=0)
-                or f"--deployment-id {deployment_id}" not in command["command"]
-                or f"--release {release_root}" not in command["command"]):
+                or not _remint_target_args(command["command"], deployment_id, release_root)):
             return None
         return minted
     return None

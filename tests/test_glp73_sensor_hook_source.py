@@ -1,5 +1,6 @@
 """Source-contract regressions only: synthetic receipts, no native sensor or network."""
 import ast
+import copy
 import datetime as dt
 import hashlib
 import importlib.util
@@ -190,25 +191,71 @@ def test_r2_capture_follows_bound_event_for_each_caller_schema(tmp_path):
     # Weekly completion follows the sensor, so it must not be its lower bound.
     weekly = {**receipt, "schema": "glp-price-index-release-chain-v1", "status": "REMINTED_SENSOR_PENDING",
               "completed_at_utc": (now + dt.timedelta(minutes=1)).isoformat(),
-              "deployment": {"id": target, "status": "success"},
+              "deployment": {"id": target, "deployment_id": target, "status": "success"},
               "external_effects": {"cloudflare_deployments": 1, "current_content_base_remints": 1},
               "remint": {"status": "PASS", "readback": {
                   "schema": "glp-opus-current-content-base-v1", "status": "PASS",
                   "deployment_id": target, "release_root": receipt["release_root"],
                   "reminted_at_utc": (now - dt.timedelta(seconds=30)).replace(microsecond=0).isoformat()}},
-              "commands": [{"command": f"sudo -n python3 /repo/remint_content_base.py --release {receipt['release_root']} --deployment-id {target}",
-                            "started_at_utc": (now - dt.timedelta(seconds=40)).isoformat(), "exit_code": 0}]}
+              "commands": [
+                  {"command": f"npx wrangler@4.102.0 pages deploy {receipt['release_root']}/public --project-name glp-clinic-scout --branch main",
+                   "started_at_utc": (now - dt.timedelta(seconds=50)).isoformat(), "exit_code": 0},
+                  {"command": f"sudo -n python3 /home/ubuntu/business/systems/seo-blog-machine/scripts/remint_content_base.py --release {receipt['release_root']} --deployment-id {target}",
+                   "started_at_utc": (now - dt.timedelta(seconds=40)).isoformat(), "exit_code": 0}]}
     assert hook.receipt_is_sensor_verified(weekly)[0] is True
     for changed in (
         {"remint": {**weekly["remint"], "readback": {**weekly["remint"]["readback"], "deployment_id": "other"}}},
         {"remint": {**weekly["remint"], "readback": {**weekly["remint"]["readback"], "reminted_at_utc": "bad"}}},
-        {"commands": [{**weekly["commands"][0], "exit_code": 1}]},
-        {"commands": [{**weekly["commands"][0], "started_at_utc": (now + dt.timedelta(seconds=1)).isoformat()}]},
+        {"commands": [weekly["commands"][0], {**weekly["commands"][1], "exit_code": 1}]},
+        {"commands": [weekly["commands"][0], {**weekly["commands"][1], "started_at_utc": (now + dt.timedelta(seconds=1)).isoformat()}]},
     ):
         assert hook.receipt_is_sensor_verified({**weekly, **changed})[0] is False
     early = {**weekly, "sensor_result": _complete_receipt(
         tmp_path, hook.LIVE_CHECKS, now - dt.timedelta(minutes=1))["sensor_result"]}
     assert hook.receipt_is_sensor_verified(early)[0] is False
+
+
+def _native_weekly_target_receipt(tmp_path):
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    receipt = _complete_receipt(tmp_path, hook.LIVE_CHECKS, now)
+    target, release = receipt["deployment_id"], receipt["release_root"]
+    receipt.update(schema="glp-price-index-release-chain-v1", status="PASS",
+                   release={"path": release}, deployment={"id": target, "deployment_id": target, "status": "success"},
+                   external_effects={"cloudflare_deployments": 1, "current_content_base_remints": 1},
+                   remint={"status": "PASS", "readback": {"schema": "glp-opus-current-content-base-v1",
+                       "status": "PASS", "deployment_id": target, "release_root": release,
+                       "reminted_at_utc": (now - dt.timedelta(minutes=9)).isoformat()}},
+                   commands=[
+                       {"command": f"npx wrangler@4.102.0 pages deploy {release}/public --project-name glp-clinic-scout --branch main",
+                        "started_at_utc": (now - dt.timedelta(minutes=12)).isoformat(), "exit_code": 0},
+                       {"command": f"sudo -n python3 /home/ubuntu/business/systems/seo-blog-machine/scripts/remint_content_base.py --release {release} --deployment-id {target} --supersedes-deployment-id bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb --supersedes-release {tmp_path}/predecessor",
+                        "started_at_utc": (now - dt.timedelta(minutes=10)).isoformat(), "exit_code": 0}])
+    return receipt
+
+
+def test_r2_event_consistency_rejects_native_alias_and_deploy_time(tmp_path):
+    good = _native_weekly_target_receipt(tmp_path)
+    assert hook.receipt_is_sensor_verified(good)[0] is True
+    alias = copy.deepcopy(good)
+    alias["deployment"]["deployment_id"] = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    assert hook.receipt_is_sensor_verified(alias)[0] is False
+    late_deploy = copy.deepcopy(good)
+    captured = dt.datetime.fromisoformat(good["sensor_result"]["captured_at_utc"])
+    late_deploy["commands"][0]["started_at_utc"] = (captured + dt.timedelta(minutes=3)).isoformat()
+    assert hook.receipt_is_sensor_verified(late_deploy)[0] is False
+
+
+def test_r2_remint_command_target_requires_unique_exact_arguments(tmp_path):
+    good = _native_weekly_target_receipt(tmp_path)
+    assert hook.receipt_is_sensor_verified(good)[0] is True
+    release = good["release_root"]
+    prefix = copy.deepcopy(good)
+    prefix["commands"][1]["command"] = prefix["commands"][1]["command"].replace(
+        f"--release {release} ", f"--release {release}-other ")
+    assert hook.receipt_is_sensor_verified(prefix)[0] is False
+    duplicate = copy.deepcopy(good)
+    duplicate["commands"][1]["command"] += f" --release {release}-other"
+    assert hook.receipt_is_sensor_verified(duplicate)[0] is False
 
 
 def test_r2_native_producer_names_are_ordered_mandatory_pass(tmp_path):
