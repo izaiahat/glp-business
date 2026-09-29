@@ -290,3 +290,10 @@
 !/scripts/post_discord_message.py
 !/ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py
 !/ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json
+
+!/scripts/root_custody/
+/scripts/root_custody/*
+!/scripts/root_custody/phased.py
+!/scripts/root_custody/single_unit.py
+!/tests/test_glp320_readonly_grouping.py
+!/ops/glp320-source-only.md

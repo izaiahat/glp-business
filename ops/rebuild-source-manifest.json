@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed925d87ffa13b85b9dfe655a0476fe0beac80e9d44d74858b6bab53100e03db"
+      "sha256": "b798497d2015128e7f1e4960bbedd7961858ca754e237c852aaa3b24ae436ab7"
     },
     ".hermes.md": {
       "callers": [],
@@ -195,6 +195,11 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
+    },
+    "ops/glp320-source-only.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "47babdc3e1fd7b13ed1b394a64e87302f154b23d82f01d1d71a54fc76a4b5a81"
     },
     "ops/glp76-host-transport.md": {
       "callers": [],
@@ -1414,10 +1419,20 @@
       "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
+    "scripts/root_custody/phased.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "db78090fa967eec73cdfb1d0ecf0f78b604602a828c93c0aa9071bf08086e5f7"
+    },
+    "scripts/root_custody/single_unit.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "66def05203638c05c091f36b4b097ca8a06077abf762b76fb87f74a0feb5b9b2"
+    },
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7f921d5fa55ebb2fd7ae25f874857107b3171ad010c357c54351a7206f416634"
+      "sha256": "102d69c23b79d1f8241a4cbd83f67941a5c4190516f0c3a00f536d1205581f4a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2009,6 +2024,11 @@
       "kind": "test",
       "sha256": "41678b63f7d50fec37e3c7a8adb6a326b8d01ac945dee9194ad5945370b7729e"
     },
+    "tests/test_glp320_readonly_grouping.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "3a20cdfcc0277df12406793680e8d3477746f93cf772390c6f34318547a050a1"
+    },
     "tests/test_glp324_unassigned_commission_preflight.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -2498,5 +2518,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 380
+  "tracked_count": 384
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Report-owned stage-2 successor. Default is an offline plan, NOT authority.
+"""Maintained stage-2 successor. Default is an offline plan, NOT authority.
 One explicit foreground `advance` executes one durable verification/mutation unit.
+The phase-limited caller may explicitly request <=8 same-phase read-only units;
+that finite exception keeps ONE aggregate deadline and fresh per-unit admission.
 No live wrapper is imported. No client is constructed until authorized execution.
 """
 import time
@@ -32,8 +34,10 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 D = Path(__file__).resolve().parent
-SOURCE = D.parent / 'root-custody-stage2-retry-20260926'
-CAPTURE = D.parent / 'root-custody-stage12-20260926'
+# Historical policy inputs remain immutable, private and outside curated Git.
+INPUTS = Path('/home/ubuntu/business/reports/ops')
+SOURCE = INPUTS / 'root-custody-stage2-retry-20260926'
+CAPTURE = INPUTS / 'root-custody-stage12-20260926'
 EXPECTED = '625c2e3d3e5e7a018c0ead1db53ec99d096af16ee3fc547ea1162a317b98ae4b'
 PINS = {SOURCE / 'retry.py': '86a470220166b7fd3d94ce7ed535710411165b4d97bda2793dfe7a6b8a32363e',
         CAPTURE / 'capture_preimage.py': '600089b5dc8554716f7d9a0fc2401ef2ad61a4344d52536b5ec2cd335e7710a0',
@@ -741,7 +745,62 @@ class Driver:
                       exact_changes={'added_inline': [POL], 'deleted_inline': ['ops-readonly-verify'],
                                      'detached_managed': [ADMIN, CW], 'retained_managed': [CORE], 'trust_and_instance_profile_unchanged': True})
 
-    def advance(self, command='advance', cleanup_authorized=False):
+    @staticmethod
+    def readonly_unit(name):
+        # Positive list of existing read/predicate units, not a default-safe
+        # blacklist. Unknown/new units and all authorization/effect/wait slots stop.
+        label, _, kind = name.partition(':')
+        snapshots = {'preflight-snapshot', 'rehearsal-preimage', 'rehearsal-staged',
+                     'apply-preimage', 'apply-staged', 'immediate-state',
+                     'phase180-state', 'phase360-state', 'phase480-state', 'phase600-state',
+                     'final-guard-state', 'fresh_recovery_before_guard_removal-snapshot',
+                     'guard-absent-state', 'final_guard_absent-snapshot', 'POSTIMAGE'}
+        checks = {'before', 'fresh_before_apply', 'immediate', 'phase180', 'phase360',
+                  'phase480', 'phase600', 'fresh_recovery_before_guard_removal', 'final_guard_absent'}
+        simulations = {'CANDIDATE-PREFLIGHT', 'PRINCIPAL-PREFINAL-GUARD-EXPIRED-CONTEXT',
+                       'FINAL-PERMISSIONS-GUARD-EXPIRED-CONTEXT', 'FINAL-PRINCIPAL-SIMULATION'}
+        return ((label in snapshots and kind in {'role', 'attached', 'inline_names',
+                    'managed_metadata', 'managed_version', 'inline', 'instance_profiles', 'local', 'caller'})
+                or (label in checks and kind in {'local_health', 'ssm_associations', 'ssm_sessions',
+                    'ssm_parameters', 'ssm_commands', 'invocation', 'ssm_document', 'ec2_instances',
+                    'ec2_status', 'ec2_serial', 'ec2_tags', 'ec2_volumes', 's3_bucket_list',
+                    'secrets_manager_list', 'cloudwatch_metric_list', 'connection', 'ssm', 'metric'})
+                or (label in simulations and kind == 'vector')
+                or name in {'cron_before:local', 'cron_after:local', 'apply:retain_core',
+                            'preflight:context', 'preflight:principal_canary', 'rehearse:guard_simulation'})
+
+    def verify_commit(self):
+        # Read durable bytes, not just the live object. A receipt/final-save
+        # interruption cannot be turned into an implicit successful next unit.
+        durable = json.loads((self.d / 'RUN.json').read_text())
+        require(durable == json.loads(json.dumps(self.r, default=str)), 'Commit readback drift')
+        require(durable['inflight'] is None and not durable.get('first_error'), 'Uncommitted unit')
+        rows = [json.loads(x) for x in (self.d / 'PHASES.jsonl').read_text().splitlines()]
+        require(len(rows) >= 2 and rows[-1]['event'] == 'bounded_call_complete'
+                and rows[-2]['event'] == 'unit_committed', 'Missing durable footer')
+        require(rows[-1]['phase'] == rows[-2]['phase'] == self.phase, 'Footer phase drift')
+        require((rows[-2]['next_stage'], rows[-2]['next_unit']) ==
+                (durable['stage'], durable['unit']), 'Commit cursor drift')
+
+    def advance(self, command='advance', cleanup_authorized=False, *, readonly_units=1,
+                admission=None, verified=None):
+        require(type(readonly_units) is int and 1 <= readonly_units <= 8, 'Read-only bound 1..8')
+        require(readonly_units == 1 or (command == 'advance' and admission is not None
+                and verified is not None), 'Grouping requires bound caller admission/verification')
+        stage = self.r['stage']
+        for index in range(readonly_units):
+            code = self._advance_unit(command, cleanup_authorized, admission=admission,
+                                      verified=verified, readonly_only=readonly_units > 1)
+            if code == 3:  # Deliberate boundary, no unit started and no effect.
+                return 0 if index else 2
+            if code or self.r['stage'] != stage:
+                return code
+        return 0
+
+    def _advance_unit(self, command='advance', cleanup_authorized=False, *,
+                      admission=None, verified=None, readonly_only=False):
+        # Every internal unit uses the ORIGINAL deadline and failure path.
+        # No fresh Driver, recovery reserve, work clock or automatic failed retry.
         # Construction and CLI admission share this invocation's original deadline.
         try:
             if self.initialization_error is not None:
@@ -772,6 +831,20 @@ class Driver:
                     self.elapsed()
                 if self.r['mutation_started'] and not self.r['guard_removed'] and command != 'rollback':
                     require((timestamp(self.r['guard_expiry_utc']) - self.clock.now()).total_seconds() > RECOVERY_SECONDS + WORK_SECONDS + FOOTER_SECONDS, 'Guard recovery margin exhausted')
+                if readonly_only:
+                    import copy
+                    current = self.r
+                    try:
+                        self.r = copy.deepcopy(current)
+                        name = self.plan()[self.r['unit']][0]
+                    finally:
+                        self.r = current
+                    if not self.readonly_unit(name):
+                        return 3
+                if admission is not None:
+                    self.credential_checked = False
+                    admission(self)  # All exceptions use the native recovery path.
+                    self.guard_margin(self.r['stage'] == 'apply' and not self.r['mutation_started'])
                 self.r['call_number'] += 1
                 if command == 'rollback':
                     self.phase = 'rollback'
@@ -788,6 +861,9 @@ class Driver:
                     self.receipt('unit_started', phase=name, unit=self.r['unit'], call_number=self.r['call_number'])
                     if name != 'rehearse:rollback':
                         unit()
+                        if admission is not None:
+                            self.receipt('unit_body_complete', phase=name, unit=self.r['unit'],
+                                         call_number=self.r['call_number'])
                     else:
                         unit = None
             if command == 'rollback' or self.phase == 'rehearse:rollback':
@@ -819,6 +895,11 @@ class Driver:
                 self.receipt('unit_committed', phase=self.phase, next_stage=self.r['stage'], next_unit=self.r['unit'])
             # Success footer is work too: a failure leaves the full recovery reserve.
             self.footer(self.work_end, clear_intent=True)
+            if readonly_only or verified is not None:
+                with self.clock.limit(self.work_end - self.clock.mono()):
+                    self.verify_commit()
+                    if verified is not None:
+                        verified(self)
             return 0
         except BaseException as exc:
             self.r.update(status='FAILED_STOPPED', task_complete=False)
@@ -907,7 +988,8 @@ def main(argv=None):
                 print(json.dumps({'default': 'OFFLINE_PLAN_ONLY_NO_CLIENTS', 'candidate_sha256': EXPECTED,
                     'commands': ['plan', 'status', 'advance', 'rollback'],
                     'stages': ['preflight', 'rehearse', 'apply', 'phase180', 'phase360', 'phase480', 'phase600', 'finalize', 'cleanup'],
-                    'one_advance': 'One bounded unit with <=1 ordinary SDK method, or <=65-second pure wait; never loop automatically',
+                    'one_advance': 'Default one bounded unit with <=1 ordinary SDK method, or <=65-second pure wait',
+                    'opt_in_caller': 'single_unit.py --readonly-units 2..8: consecutive read-only same-phase units only; fresh full caller admission and verified durable footer per unit under ONE aggregate budget; never autopilot phases',
                     'budgets_seconds': {'work': WORK_SECONDS, 'sdk_unit': SDK_SECONDS,
                         'diagnostics': DIAGNOSTIC_SECONDS, 'recovery': RECOVERY_SECONDS,
                         'footer': FOOTER_SECONDS, 'total': CALL_SECONDS},
