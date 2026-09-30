@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a353fe61852c661f7f664ba94ae7f9b06f3833ae8e1ffbc6f22dc106de7f98b0"
+      "sha256": "a3580f8dfbb0dc5c2471c17a507941f74978cb08ba45aa49ed184617bfbb3788"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -167,7 +167,7 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
+      "sha256": "0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -2312,7 +2312,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "c2befbbef9c2813e3766949fb6fbbbbcfc918412681bfdf3e04dd4edf91e76d9"
+      "sha256": "c161c74622d08191b8cae5fb328873f49600b9f752c2f7856603b6d1a29f1855"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
