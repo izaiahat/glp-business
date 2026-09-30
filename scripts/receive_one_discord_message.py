@@ -12,11 +12,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from contextlib import closing
 from dataclasses import dataclass
+import hashlib
 import json
 import logging
+import os
+from pathlib import Path
 import re
+import sqlite3
+import stat
 import sys
+import time
 
 from post_discord_message import load_token
 
@@ -34,6 +41,10 @@ class Scope:
     origin_kind: str
     origin_id: str
     max_wait_seconds: float
+    mcp_state_dir: str | None = None
+    mcp_issuer: str | None = None
+    mcp_audience: str | None = None
+    mcp_subject: str | None = None
 
     def __post_init__(self):
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", self.correlation):
@@ -47,10 +58,52 @@ class Scope:
             raise ValueError("invalid snowflake")
         if not 1 <= self.max_wait_seconds <= 600:
             raise ValueError("wait must be 1..600 seconds")
+        if any((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject)):
+            if (not all((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject))
+                    or self.origin_kind != 'author' or self.origin_id != '1486880423568211968'
+                    or self.reply_kind != 'rook.reply' or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', self.correlation)):
+                raise ValueError('complete fixed MCP binding configuration required')
+
+
+def verified_reply_binding(data, scope, self_id):
+    """Read-only adapter-owned custody, never trust a JSON marker or ID alone.
+
+    Same Unix owner is the trust boundary: arbitrary writers with that account
+    can forge state. Caller pins issuer/audience/operator subject independently.
+    No credential, subscription-secret, Hermes state.db or Discord history read.
+    """
+    if not scope.mcp_state_dir or self_id != '1486880423568211968':
+        return False
+    try:
+        directory = Path(scope.mcp_state_dir)
+        path = directory / 'rook.sqlite3'
+        for target, mode in ((directory, stat.S_ISDIR), (path, stat.S_ISREG)):
+            info = target.lstat()
+            if info.st_uid != os.getuid() or info.st_mode & 0o077 or not mode(info.st_mode):
+                return False
+        with closing(sqlite3.connect(path.absolute().as_uri() + '?mode=ro', uri=True, timeout=0.1)) as db:
+            row = db.execute('SELECT value FROM requests WHERE id=?', (scope.correlation,)).fetchone()
+        if not row:
+            return False
+        binding = json.loads(row[0])
+        policy = json.dumps({'issuer': scope.mcp_issuer, 'audience': scope.mcp_audience, 'subject': scope.mcp_subject},
+                            ensure_ascii=True, separators=(',', ':'), sort_keys=True)
+        return (binding.get('state') == 'confirmed' and binding.get('policy') == hashlib.sha256(policy.encode()).hexdigest()
+                and binding.get('auth_method') == 'RS256-authenticated-tools/call'
+                and binding.get('subject') == scope.mcp_subject and binding.get('auth_subject') == scope.mcp_subject
+                and binding.get('reply_id') == data['id'] and binding.get('reply_author') == self_id
+                and binding.get('guild_id') == GUILD and binding.get('channel_id') == CHANNEL
+                and binding.get('reply_kind') == scope.reply_kind and binding.get('id') == scope.correlation
+                and binding.get('auth_expires', 0) > binding.get('confirmed_at', float('inf'))
+                and binding.get('confirmed_at', 0) > 0
+                and 0 <= time.time() - binding['confirmed_at'] < scope.max_wait_seconds + 5
+                and binding.get('reply_sha256') == hashlib.sha256(data['content'].encode()).hexdigest())
+    except Exception:
+        return False
 
 
 def match_event(event, scope: Scope, self_id: str | None):
-    """Only fresh MESSAGE_CREATE; edits, bot self-echo and other origins refuse."""
+    """Only fresh MESSAGE_CREATE; self-echo needs authenticated private binding."""
     if not self_id or not isinstance(event, dict) or event.get("t") != "MESSAGE_CREATE":
         return None
     data = event.get("d")
@@ -58,8 +111,7 @@ def match_event(event, scope: Scope, self_id: str | None):
         return None
     author = data.get("author")
     if (not isinstance(author, dict) or not isinstance(author.get("id"), str)
-            or not re.fullmatch(r"[1-9][0-9]{0,19}", author["id"])
-            or author["id"] == self_id):
+            or not re.fullmatch(r"[1-9][0-9]{0,19}", author["id"])):
         return None
     if (data.get("guild_id") != GUILD or data.get("channel_id") != CHANNEL
             or data.get("type") != 0):
@@ -85,6 +137,11 @@ def match_event(event, scope: Scope, self_id: str | None):
             or body.get("correlation") != scope.correlation
             or not isinstance(body.get("text"), str)):
         return None
+    same_bot = author['id'] == self_id
+    if scope.mcp_state_dir and not same_bot:
+        return None
+    if same_bot and not verified_reply_binding(data, scope, self_id):
+        return None
     return {
         "status": "received", "event": "MESSAGE_CREATE",
         "guild_id": GUILD, "channel_id": CHANNEL, "message_id": message_id,
@@ -93,6 +150,7 @@ def match_event(event, scope: Scope, self_id: str | None):
         "trust": "UNTRUSTED_EXTERNAL_DATA_NOT_OPERATOR_INSTRUCTION_OR_APPROVAL",
         "text": body["text"][:TEXT_LIMIT],
         "text_truncated": len(body["text"]) > TEXT_LIMIT,
+        **({'authenticated_reply_binding': True} if same_bot else {}),
     }
 
 
@@ -123,12 +181,38 @@ def create_client(on_event, on_error):
 async def receive_one(scope: Scope, *, client_factory=create_client, token_loader=load_token):
     """One result, bounded wait including login, and bounded cleanup on every exit."""
     accepted = asyncio.get_running_loop().create_future()
+    binding_waiter = None
+
+    async def wait_binding(event, self_id):
+        # Gateway may dispatch before POST readback commits custody. Retain only
+        # the first correlated candidate for at most 2s, within the outer wait.
+        for _ in range(40):
+            if accepted.done():
+                return
+            result = match_event(event, scope, self_id)
+            if result is not None:
+                accepted.set_result(result)
+                return
+            await asyncio.sleep(0.05)
 
     def on_event(event, self_id):
+        nonlocal binding_waiter
         if not accepted.done():
             result = match_event(event, scope, self_id)
             if result is not None:
                 accepted.set_result(result)
+            elif scope.mcp_state_dir and (binding_waiter is None or binding_waiter.done()):
+                try:
+                    data = event['d']
+                    body = json.loads(data['content'])
+                    if (event.get('t') == 'MESSAGE_CREATE' and self_id == scope.origin_id
+                            and data['author']['id'] == self_id and data.get('webhook_id') is None
+                            and data.get('guild_id') == GUILD and data.get('channel_id') == CHANNEL
+                            and body.get('kind') == scope.reply_kind and body.get('correlation') == scope.correlation
+                            and len(data['content']) <= 8000):
+                        binding_waiter = asyncio.create_task(wait_binding(event, self_id))
+                except (KeyError, TypeError, ValueError, AttributeError, RecursionError):
+                    pass
 
     def on_error():
         if not accepted.done():
@@ -152,6 +236,9 @@ async def receive_one(scope: Scope, *, client_factory=create_client, token_loade
         return {"status": "error", "reason": "receive_failed_details_suppressed"}, 2
     finally:
         accepted.cancel()
+        if binding_waiter is not None:
+            binding_waiter.cancel()
+            await asyncio.gather(binding_waiter, return_exceptions=True)
         if runner is not None:
             runner.cancel()
             try:
@@ -177,11 +264,16 @@ def main(argv=None):
     origin.add_argument("--allowed-author")
     origin.add_argument("--allowed-webhook")
     parser.add_argument("--max-wait-seconds", required=True, type=float)
+    parser.add_argument('--mcp-state-dir')
+    parser.add_argument('--mcp-issuer')
+    parser.add_argument('--mcp-audience')
+    parser.add_argument('--mcp-subject')
     args = parser.parse_args(argv)
     try:
         scope = Scope(args.correlation, args.reply_kind, args.after_message,
                       "author" if args.allowed_author else "webhook",
-                      args.allowed_author or args.allowed_webhook, args.max_wait_seconds)
+                      args.allowed_author or args.allowed_webhook, args.max_wait_seconds,
+                      args.mcp_state_dir, args.mcp_issuer, args.mcp_audience, args.mcp_subject)
     except ValueError as exc:
         parser.error(str(exc))
     try:

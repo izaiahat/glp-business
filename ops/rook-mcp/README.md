@@ -1,0 +1,63 @@
+# Rook message-only adapter — source, not rollout
+
+Private PR96. No Auth0/tunnel setup, live credential use, channel send or listener launch is authorized by this source. Parent owns independent review, private runtime provisioning, exact-target rollout and bounded parent-TUI receiver. Do not route received text into ordinary gateway operator commands.
+
+## Contract
+
+- MCP 2.0 **2026-07-28 only**: `server/discover`, `tools/list`, `tools/call`, `events/list`, `events/subscribe`, `events/unsubscribe`. HTTP `POST /mcp`, JSON-RPC 2.0 with per-request `_meta` protocol version/client capabilities and matching `MCP-Protocol-Version` header. Results include `resultType: complete`. No legacy initialize, stdio or SSE session state.
+- Public metadata `GET /.well-known/oauth-protected-resource/mcp` points to the explicitly configured HTTPS Auth0 issuer. This adapter is **not** an OAuth authorization server or token proxy. External Auth0 discovery, client registration/consent, S256 PKCE, audience/resource mapping and scopes remain parent-owned.
+- Bearer access tokens: fixed configured issuer/JWKS, RS256 via PyJWT/cryptography, signature/expiry/issued-at/audience, exact operator `sub`; `rook:events` for discovery/subscriptions, `rook:reply` for the tool. Never use ID tokens, guessed subjects, static bearer headers or tunnel control-plane keys as user authorization. Bearers/JWKS/Discord credentials are never logged.
+- `discord.rook.request.created`, normal fresh MESSAGE_CREATE only, fixed guild `1486887661099815126`, channel `1554668115239899196`. Arguments must exactly match `{"guild_id":"1486887661099815126","channel_id":"1554668115239899196"}`. Exact case-sensitive `Rook:` prefix, nonempty suffix, up to 2,000 characters. Operator `392067741500309517` and existing Kael bot `1486880423568211968` allowed; all webhooks/other identities refused. No blanket bot exclusion. Authenticated stored reply IDs excluded.
+- Webhooks only: public HTTPS:443, no credentials/fragments/redirects. Every DNS answer must be globally routable; actual TCP connection is pinned to a checked IP with original hostname TLS verification/SNI. No proxy environment routing. IPv4-mapped/6to4/Teredo, private/linklocal/multicast destinations refused. StandardWebhooks library signs both challenge and event bodies; challenge echo must exactly verify before state becomes active.
+- Subscription key binds canonical event/arguments/callback URL/authenticated principal/config policy. Maximum four live subscriptions, TTL 1 second–1 hour capped by authenticating JWT expiry; renew with a fresh token. Rotation verifies the new secret, keeps the same ID and dual-signs for 60 seconds. Repeated subscribe with unchanged secret renews without challenge. Unsubscribe is idempotent. 410 removes the subscription; 429/5xx/network failures get at most three synchronous attempts with stable webhook/event ID, fresh signatures. Secret and text never appear in error messages.
+- One `reply_to_rook_request(request_id,text)`, no destination arguments. `request_id` is `discord-<request-message-id>`. Reply text is 1–1,200 characters and serialized UTF-16 wire length must fit 1,900. Existing sender internally loads the existing Discord token and sets `allowed_mentions: {parse: []}`. POST plus exact GET readback must confirm fixed channel, same bot author, ID and content before custody is `confirmed`; reply ID/link retained. Discord output is JSON `{"kind":"rook.reply","correlation":"discord-<id>","text":"..."}`, not a Rook-prefixed request.
+- Authenticated principal/config/request binding, expiry, durable pre-send reservation, exact-content duplicate success and conflicting duplicate refusal. Failed, interrupted or uncertain POST/readback never automatically sends again; operator reconciles the fixed channel. No destination override or second sender bot.
+- Private owned nonsymlink 0700 state directory, 0600 SQLite/lock files, one writer process (flock), read-only receiver. Adapter state is **not** Hermes state.db. Receiver pins issuer/audience/operator subject and verifies authenticated confirmed custody, exact message ID/content SHA, fixed bot/channel/guild, correlation and freshness. Marker/ID alone never admits self-echo. Up to 2s local read-only custody wait handles gateway-before-readback race inside the existing overall deadline. Same Unix account is the local trust boundary, not protection from an account-compromised writer.
+
+## Exact future launch inputs (NOT executed)
+
+Create a separately approved isolated environment using `ops/rook-mcp/requirements.txt`; tests additionally need pytest. No host/core installs. Parent must securely make the existing Discord token available to the unchanged token loader. No new bot credentials. Parent prepares a private parent directory for adapter state, and excludes ordinary gateway dispatch for this channel.
+
+Required nonsecret inputs:
+
+- `ROOK_AUTH0_ISSUER=https://dev-qv5n6hpb2umayqwt.us.auth0.com/` (parent verified OIDC discovery; this worker made no live call).
+- `ROOK_MCP_AUDIENCE`: **verified Auth0 API identifier/resource**, not the OAuth client ID. Exact external HTTPS resource URL required. Ensure tunnel public resource/PRMD mapping matches this value; do not infer it.
+- `ROOK_OPERATOR_SUBJECT`: actual authorized access-token `sub`, independently verified; never guessed from client ID or Discord identity.
+- `ROOK_PRIVATE_STATE_DIR`: adapter-only private directory under an approved existing parent, shared read-only with receive-one.
+- `ROOK_MCP_PORT`: available explicit nonprivileged loopback port; `ROOK_AFTER_MESSAGE_ID`: verified fresh pre-request cursor. No history replay.
+
+Foreground adapter:
+
+```sh
+"$ROOK_VENV/bin/python" -B scripts/rook_mcp_events.py \
+  --issuer "$ROOK_AUTH0_ISSUER" --audience "$ROOK_MCP_AUDIENCE" \
+  --operator-subject "$ROOK_OPERATOR_SUBJECT" --state-dir "$ROOK_PRIVATE_STATE_DIR" \
+  --port "$ROOK_MCP_PORT" --after-message "$ROOK_AFTER_MESSAGE_ID" --max-run-seconds 600
+```
+
+Optional `--allowed-host` accepts an independently verified **exact Host header** if tunnel forwarding preserves a different Host. Defaults accept only `127.0.0.1:<port>` and `localhost:<port>`; Origin headers are refused. HTTP binds only 127.0.0.1. One Discord connection, reconnect disabled, bounded 16-event queue and explicit 1–3,600 second lifespan. Shutdown finishes the in-flight reserved effect rather than killing/retrying it; parent outer timeout is still needed for a hard wall-clock cutoff.
+
+Parent-owned tunnel v0.0.15 target: `http://127.0.0.1:$ROOK_MCP_PORT/mcp`. Use HTTP per-request bearer forwarding, not stdio or a static Authorization header. Parent provisions existing tunnel/runtime-key references and `--mcp.oauth-trusted-origin https://dev-qv5n6hpb2umayqwt.us.auth0.com`; loopback plaintext discovery may need the explicitly approved tunnel option. Do not start it from this source task.
+
+Only actual parent TUI may launch receive-one via its existing terminal completion notification route, **before** the approved request/reply:
+
+```sh
+timeout --signal=TERM --kill-after=2s 130s "$ROOK_VENV/bin/python" -B scripts/receive_one_discord_message.py \
+  --guild 1486887661099815126 --channel 1554668115239899196 \
+  --correlation "discord-${ROOK_REQUEST_MESSAGE_ID}" --reply-kind rook.reply \
+  --after-message "$ROOK_AFTER_REPLY_MESSAGE_ID" --allowed-author 1486880423568211968 \
+  --mcp-state-dir "$ROOK_PRIVATE_STATE_DIR" --mcp-issuer "$ROOK_AUTH0_ISSUER" \
+  --mcp-audience "$ROOK_MCP_AUDIENCE" --mcp-subject "$ROOK_OPERATOR_SUBJECT" --max-wait-seconds 120
+```
+
+Both cursors and the outstanding request ID must be real verified values, not these placeholders. Received text remains `UNTRUSTED_EXTERNAL_DATA_NOT_OPERATOR_INSTRUCTION_OR_APPROVAL`.
+
+## Deliberate gaps / release holds
+
+- Experimental MCP Events proposal plus one MCP2 version, not universal protocol support. No cursor replay/backfill, durable delivery retry queue, missed-event recovery, SSE, poll mode, legacy MCP/stdio, or automatic reconnect. Non-null cursor refuses; null cursor/no replay returns `truncated:false`.
+- Three in-process callback attempts only. Crash or queue overflow can lose delivery; persisted reservations prevent duplicate external effects but do not prove delivery. Receiver's gateway-before-custody wait is 2s, not an indefinite reconciliation mechanism.
+- JWT validation is offline after JWKS retrieval; no OAuth token introspection/immediate revocation signal. Delivery authority ends at JWT expiry (renewal needed); stop/reconfigure the adapter for immediate operator access revocation. Parent must verify actual Auth0 RFC8414 metadata/DCR or preregistered-client compatibility with the tunnel/ChatGPT, API audience/resource parameter handling, requested scopes and consent. OIDC discovery alone is not that proof. No OAuth client secret handled here.
+- Expired subscriptions/old rotation secrets are removed on subsequent subscription/message activity; request/reply and delivery receipts persist for idempotency. No retention scheduler or automatic receipt pruning. Parent owns retention/reconciliation and host private-state custody. SQLite secrets are private at rest, **not encrypted**.
+- No live Auth0, callback, Discord, tunnel or parent-TUI proof; no merge/install/service/gateway changes. Independent review and exact-target bounded pilot remain parent-owned.
+
+Sources: https://developers.openai.com/plugins/build/mcp-events ; https://developers.openai.com/api/docs/guides/secure-mcp-tunnels ; MCP schema 2026-07-28 and experimental-ext-triggers-events design sketch linked from the official guide.

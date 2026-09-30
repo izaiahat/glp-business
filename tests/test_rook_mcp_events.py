@@ -1,0 +1,407 @@
+"""Four scoped offline groups; synthetic keys only, all external I/O denied."""
+import base64
+import asyncio
+from copy import deepcopy
+import importlib
+import io
+import json
+from pathlib import Path
+import socket
+import sys
+import time
+from unittest.mock import patch
+
+import jwt
+import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+
+
+@pytest.fixture(autouse=True)
+def no_external_io(monkeypatch):
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network denied'))
+    monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('listener bind denied'))
+    import post_discord_message
+    monkeypatch.setattr(post_discord_message, 'load_token', lambda: pytest.fail('credential read denied'))
+
+
+def module():
+    assert importlib.util.find_spec('rook_mcp_events') is not None, 'MCP server source missing'
+    return importlib.import_module('rook_mcp_events')
+
+
+def config(m):
+    return m.Config('https://offline.auth0.example/', 'https://rook.example/mcp', 'auth0|operator')
+
+
+def rpc(m, method, params=None):
+    return {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': {
+        **(params or {}), '_meta': {'io.modelcontextprotocol/protocolVersion': m.VERSION,
+                                  'io.modelcontextprotocol/clientCapabilities': {}}}}
+
+
+class TestAuthDiscovery:
+    def test_real_jwt_verification_and_discovery(self, tmp_path):
+        m = module()
+        cfg = config(m)
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        jwk = jwt.PyJWK.from_json(jwt.algorithms.RSAAlgorithm.to_jwk(key.public_key()), algorithm='RS256')
+        class Keys:
+            def get_signing_key_from_jwt(self, token):
+                return jwk
+        auth = m.Authenticator(cfg, Keys())
+        claims = {'iss': cfg.issuer, 'aud': cfg.audience, 'sub': cfg.subject, 'exp': int(time.time()) + 600,
+                  'iat': int(time.time()), 'scope': 'rook:events rook:reply'}
+        token = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'fixture'})
+        principal = auth.authenticate('Bearer ' + token, {'rook:events'})
+        assert principal.subject == cfg.subject
+        for delta in ({'iss': 'https://evil.example/'}, {'aud': 'other'}, {'sub': 'auth0|other'},
+                      {'exp': 1}, {'scope': ''}, {'iat': int(time.time()) + 600}):
+            with pytest.raises(m.AuthDenied):
+                auth.authenticate('Bearer ' + jwt.encode({**claims, **delta}, key, algorithm='RS256'), {'rook:events'})
+        for bad in ('', 'Basic x', 'Bearer invalid', 'Bearer ' + token[:-5] + 'xxxxx',
+                    'Bearer ' + jwt.encode(claims, 'synthetic-not-a-real-secret-' * 3, algorithm='HS256')):
+            with pytest.raises(m.AuthDenied):
+                auth.authenticate(bad, {'rook:events'})
+        app = m.Application(cfg, tmp_path / 'private', auth=auth)
+        status, headers, body = app.handle('POST', '/mcp', {'MCP-Protocol-Version': m.VERSION}, rpc(m, 'server/discover'))
+        assert status == 401 and 'resource_metadata' in headers['WWW-Authenticate']
+        headers = {'Authorization': 'Bearer ' + token, 'MCP-Protocol-Version': m.VERSION}
+        status, _, body = app.handle('POST', '/mcp', headers, rpc(m, 'server/discover'))
+        assert status == 200
+        assert body['result']['resultType'] == 'complete'
+        assert body['result']['supportedVersions'] == [m.VERSION]
+        assert body['result']['capabilities'] == {'tools': {}, 'events': {}}
+        assert app.handle('POST', '/mcp', headers, rpc(m, 'tools/list'))[2]['result']['tools'][0]['name'] == 'reply_to_rook_request'
+        assert app.handle('POST', '/mcp', headers, rpc(m, 'events/list'))[2]['result']['events'][0]['name'] == m.EVENT
+        wrong = rpc(m, 'server/discover'); wrong['params']['_meta']['io.modelcontextprotocol/protocolVersion'] = '2025-03-26'
+        assert app.handle('POST', '/mcp', headers, wrong)[0] == 400
+        assert app.handle('POST', '/mcp', {**headers, 'MCP-Protocol-Version': '2025-03-26'}, wrong)[2]['error']['code'] == -32022
+        assert app.handle('POST', '/mcp', headers, rpc(m, 'initialize'))[2]['error']['code'] == -32601
+        metadata = app.handle('GET', '/.well-known/oauth-protected-resource/mcp', {}, None)[2]
+        assert metadata['resource'] == cfg.audience
+        assert metadata['authorization_servers'] == [cfg.issuer]
+        assert app.handle('POST', '/mcp', {**headers, 'Origin': 'https://evil.example'}, rpc(m, 'server/discover'))[0] == 403
+        app.close()
+
+    def test_actual_http_parser_and_adapter_cleanup_without_socket(self, tmp_path):
+        m = module(); cfg = config(m)
+        app = m.Application(cfg, tmp_path / 'private')
+        handler = m.make_handler(app, {'127.0.0.1:8765'})
+        class MemorySocket:
+            def __init__(self, request): self.input = io.BytesIO(request); self.output = bytearray()
+            def makefile(self, *a): return self.input
+            def settimeout(self, timeout): assert timeout == 10
+            def sendall(self, data): self.output.extend(data)
+        def request(raw):
+            s = MemorySocket(raw)
+            handler(s, ('127.0.0.1', 1), object())
+            return bytes(s.output)
+        response = request(b'GET /.well-known/oauth-protected-resource/mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n')
+        assert response.startswith(b'HTTP/1.1 200') and cfg.issuer.encode() in response
+        response = request(b'POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}')
+        assert response.startswith(b'HTTP/1.1 401') and b'WWW-Authenticate:' in response
+        for headers in (b'Host: evil.example', b'Host: 127.0.0.1:8765\r\nAuthorization: x\r\nAuthorization: y'):
+            assert request(b'GET /mcp HTTP/1.1\r\n' + headers + b'\r\n\r\n').startswith(b'HTTP/1.1 403')
+        assert request(b'POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nTransfer-Encoding: chunked\r\n\r\n').startswith(b'HTTP/1.1 400')
+        events = []
+        class FakeHTTP:
+            def serve_forever(self, **kwargs): events.append('serve')
+            def shutdown(self): events.append('shutdown')
+            def server_close(self): events.append('server_close')
+        class FakeClient:
+            async def start(self, token, reconnect):
+                assert token == 'synthetic' and reconnect is False
+                raise RuntimeError('synthetic startup failure')
+            async def close(self): events.append('client_close')
+        with pytest.raises(RuntimeError):
+            asyncio.run(m.run_adapter(app, FakeHTTP(), '100', 1, client_factory=lambda *a: FakeClient(), token_loader=lambda: 'synthetic'))
+        assert events == ['serve', 'client_close', 'shutdown', 'server_close']
+        app.close()
+
+
+class TestSubscriptionsDelivery:
+    def test_signed_verified_persistent_restricted_delivery(self, tmp_path):
+        m = module(); cfg = config(m)
+        principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook:events', 'rook:reply'}))
+        secret = 'whsec_' + base64.b64encode(b'offline-synthetic-key-material-1234').decode()
+        calls = []
+        from standardwebhooks.webhooks import Webhook
+        def callback(url, body, headers):
+            decoded = Webhook(secret).verify(body, headers)
+            calls.append((url, decoded, headers))
+            return 200, json.dumps({'challenge': decoded['challenge']}).encode() if decoded.get('type') == 'verification' else b'{}'
+        app = m.Application(cfg, tmp_path / 'private', callback=callback)
+        params = {'name': m.EVENT, 'arguments': m.ARGUMENTS, 'delivery': {
+            'mode': 'webhook', 'url': 'https://callback.example/events', 'secret': secret}, 'cursor': None, 'ttlMs': 300000}
+        result = app.dispatch(principal, 'events/subscribe', params)
+        assert result['cursor'] is None and result['truncated'] is False
+        assert app.dispatch(principal, 'events/subscribe', deepcopy(params))['id'] == result['id']
+        assert len(calls) == 1
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                'author': {'id': m.BOT, 'bot': True}, 'type': 0, 'content': 'Rook: explain this'}}
+        assert app.ingest(event, '100') == 1  # Same Kael bot is intentionally allowed.
+        assert app.ingest(event, '100') == 0
+        assert calls[-1][1]['eventId'] == 'discord-101'
+        assert calls[-1][1]['data']['request_id'] == 'discord-101'
+        assert calls[-1][2]['X-MCP-Subscription-Id'] == result['id']
+        for delta in ({'guild_id': '1'}, {'channel_id': '2'}, {'author': {'id': '777', 'bot': True}},
+                      {'webhook_id': '888'}, {'content': 'not prefixed'}, {'type': 19}, {'id': '99'}):
+            bad = deepcopy(event); bad['d'].update(delta)
+            assert app.ingest(bad, '100') == 0
+        for delta in ({'arguments': {**m.ARGUMENTS, 'channel_id': '2'}}, {'cursor': 'replay'},
+                      {'delivery': {**params['delivery'], 'secret': 'whsec_bad'}},
+                      {'delivery': {**params['delivery'], 'mode': 'poll'}}, {'ttlMs': -1}):
+            with pytest.raises(m.RpcError):
+                app.dispatch(principal, 'events/subscribe', {**params, **delta})
+        with pytest.raises(m.RpcError):
+            app.dispatch(m.Principal('other', principal.expires, principal.scopes), 'events/subscribe', params)
+        app.close()
+        app = m.Application(cfg, tmp_path / 'private', callback=callback)
+        assert app.ingest({**event, 'd': {**event['d'], 'id': '102'}}, '100') == 1
+        stop = {k: v for k, v in params.items() if k not in ('cursor', 'ttlMs')}
+        stop['delivery'] = {k: v for k, v in stop['delivery'].items() if k != 'secret'}
+        assert app.dispatch(principal, 'events/unsubscribe', stop) == {}
+        assert app.dispatch(principal, 'events/unsubscribe', stop) == {}
+        assert app.ingest({**event, 'd': {**event['d'], 'id': '103'}}, '100') == 0
+        app.close()
+        assert (tmp_path / 'private').stat().st_mode & 0o777 == 0o700
+        assert (tmp_path / 'private' / 'rook.sqlite3').stat().st_mode & 0o777 == 0o600
+        bad = m.Application(cfg, tmp_path / 'bad', callback=lambda *a: (200, b'{"challenge":"wrong"}'))
+        with pytest.raises(m.RpcError) as failure:
+            bad.dispatch(principal, 'events/subscribe', params)
+        assert failure.value.code == -32015
+        assert bad.ingest(event, '100') == 0
+        bad.close()
+
+    def test_rotation_retry_gone_and_token_expiry(self, tmp_path):
+        m = module(); cfg = config(m)
+        principal = m.Principal(cfg.subject, int(time.time()) + 300, frozenset({'rook:events'}))
+        secret1 = 'whsec_' + base64.b64encode(b'synthetic-old-secret-32-characters').decode()
+        secret2 = 'whsec_' + base64.b64encode(b'synthetic-new-secret-32-characters').decode()
+        active_secret = [secret1]; signatures = []; outcomes = []
+        from standardwebhooks.webhooks import Webhook
+        def callback(url, body, headers):
+            value = Webhook(active_secret[0]).verify(body, headers)
+            if value.get('type') == 'verification':
+                return 200, json.dumps({'challenge': value['challenge']}).encode()
+            signatures.append(headers['webhook-signature'])
+            if outcomes:
+                outcome = outcomes.pop(0)
+                if isinstance(outcome, Exception): raise outcome
+                return outcome, b'{}'
+            return 200, b'{}'
+        app = m.Application(cfg, tmp_path / 'private', callback=callback)
+        params = {'name': m.EVENT, 'arguments': m.ARGUMENTS, 'delivery': {
+            'mode': 'webhook', 'url': 'https://callback.example/events', 'secret': secret1}}
+        first = app.dispatch(principal, 'events/subscribe', params)
+        active_secret[0] = secret2
+        params['delivery']['secret'] = secret2
+        assert app.dispatch(principal, 'events/subscribe', params)['id'] == first['id']
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': 'Rook: request'}}
+        outcomes.extend([OSError('no details in output'), 503, 200])
+        with patch.object(m.time, 'sleep', return_value=None):
+            assert app.ingest(event, '100') == 1
+        assert len(signatures) == 3 and all(len(s.split()) == 2 for s in signatures)
+        outcomes.append(410)
+        assert app.ingest({**event, 'd': {**event['d'], 'id': '102'}}, '100') == 0
+        assert app.store.all('subscriptions') == []
+        app.dispatch(principal, 'events/subscribe', params)
+        sub = app.store.all('subscriptions')[0]; sub['expires'] = time.time() - 1
+        app.store.put('subscriptions', sub['id'], sub)
+        assert app.ingest({**event, 'd': {**event['d'], 'id': '103'}}, '100') == 0
+        assert app.store.all('subscriptions') == []
+        app.close()
+
+    def test_https_public_address_pinning_no_redirects(self):
+        m = module()
+        for url in ('http://callback.example/a', 'https://user:pass@callback.example/a',
+                    'https://callback.example:444/a', 'https://127.0.0.1/a', 'https://callback.example/a#x'):
+            with pytest.raises(m.RpcError):
+                m.callback_target(url)
+        answers = lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))]
+        with patch('socket.getaddrinfo', answers):
+            host, address, path = m.callback_target('https://callback.example/events?q=1')
+        assert (host, address, path) == ('callback.example', '93.184.216.34', '/events?q=1')
+        with patch('socket.getaddrinfo', return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('169.254.169.254', 443))]):
+            with pytest.raises(m.RpcError):
+                m.callback_target('https://callback.example/events')
+        sock = object(); captured = []
+        class TLS:
+            verify_mode = 2
+            check_hostname = True
+            def wrap_socket(self, s, *, server_hostname):
+                assert s is sock
+                captured.append(server_hostname)
+                return sock
+        with patch('socket.create_connection', side_effect=lambda addr, timeout: captured.append(addr) or sock):
+            conn = m.PinnedHTTPSConnection('callback.example', '93.184.216.34', context=TLS())
+            conn.connect()
+        assert captured == [('93.184.216.34', 443), 'callback.example']
+        class Redirect:
+            def __init__(self, *a, **k): pass
+            def request(self, *a, **k): pass
+            def getresponse(self):
+                return type('Response', (), {'status': 302, 'read': lambda *a: b''})()
+            def close(self): pass
+        with patch.object(m, 'PinnedHTTPSConnection', Redirect), patch('socket.getaddrinfo', answers):
+            with pytest.raises(m.RpcError):
+                m.webhook_post('https://callback.example/a', b'{}', {})
+
+
+def ready_request(m, tmp_path, *, sender, reader):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    cfg = config(m)
+    principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook:events', 'rook:reply'}))
+    def callback(url, body, headers):
+        value = json.loads(body)
+        return 200, json.dumps({'challenge': value['challenge']}).encode() if value.get('type') == 'verification' else b'{}'
+    app = m.Application(cfg, tmp_path / 'private', callback=callback, sender=sender, reader=reader)
+    app.dispatch(principal, 'events/subscribe', {'name': m.EVENT, 'arguments': m.ARGUMENTS, 'delivery': {
+        'mode': 'webhook', 'url': 'https://callback.example/events',
+        'secret': 'whsec_' + base64.b64encode(b'synthetic-offline-secret-32-bytes!!').decode()}})
+    event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+             'author': {'id': m.OPERATOR}, 'type': 0, 'content': 'Rook: a bounded request'}}
+    assert app.ingest(event, '100') == 1
+    return app, cfg, principal
+
+
+class TestReplyBinding:
+    def test_existing_sender_mention_suppression_and_bad_readback(self, tmp_path):
+        m = module(); sender_module = importlib.import_module('post_discord_message'); captured = []
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *a): pass
+            def read(self): return b'{"id":"202"}'
+        def urlopen(request, timeout):
+            assert timeout == 20
+            captured.append(json.loads(request.data))
+            return Response()
+        with patch.object(sender_module, 'load_token', return_value='synthetic-no-real-token'), patch.object(sender_module.urllib.request, 'urlopen', urlopen):
+            assert sender_module.send(m.CHANNEL, '@everyone')['id'] == '202'
+        assert captured == [{'content': '@everyone', 'allowed_mentions': {'parse': []}}]
+        attempts = []
+        def sender(channel, wire):
+            attempts.append(wire)
+            return {'id': '202', 'channel_id': channel, 'content': wire, 'author': {'id': m.BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=lambda *a: {'id': '202', 'channel_id': 'wrong'})
+        params = {'name': 'reply_to_rook_request', 'arguments': {'request_id': 'discord-101', 'text': 'answer'}}
+        assert app.dispatch(principal, 'tools/call', params)['isError'] is True
+        assert app.dispatch(principal, 'tools/call', params)['isError'] is True
+        assert len(attempts) == 1 and app.store.get('requests', 'discord-101')['state'] == 'uncertain'
+        with pytest.raises(BlockingIOError):
+            m.Store(tmp_path / 'private')
+        app.close()
+
+    def test_fixed_destination_duplicate_conflict_and_uncertain_safety(self, tmp_path):
+        m = module(); sent = []
+        def sender(channel, content):
+            assert channel == m.CHANNEL
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+        def reader(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
+        params = {'name': 'reply_to_rook_request', 'arguments': {'request_id': 'discord-101', 'text': 'bounded @everyone reply'}}
+        for delta in ({'channel_id': '3'}, {'request_id': 'discord-555'}, {'text': ''}, {'text': 'x' * 1201}):
+            with pytest.raises(m.RpcError):
+                app.dispatch(principal, 'tools/call', {**params, 'arguments': {**params['arguments'], **delta}})
+        with pytest.raises(m.RpcError):
+            app.dispatch(m.Principal('other', principal.expires, principal.scopes), 'tools/call', params)
+        first = app.dispatch(principal, 'tools/call', params)
+        assert first['isError'] is False
+        assert first['structuredContent']['message_id'] == '202'
+        assert first['structuredContent']['url'].endswith('/202')
+        assert json.loads(sent[0]) == {'kind': 'rook.reply', 'correlation': 'discord-101', 'text': 'bounded @everyone reply'}
+        assert app.dispatch(principal, 'tools/call', params) == first
+        with pytest.raises(m.RpcError):
+            app.dispatch(principal, 'tools/call', {**params, 'arguments': {**params['arguments'], 'text': 'different'}})
+        assert len(sent) == 1
+        # Stored reply IDs never become requests, even if Discord content changes.
+        assert app.ingest({'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                         'author': {'id': m.BOT}, 'type': 0, 'content': 'Rook: forged request'}}, '100') == 0
+        app.close()
+        app = m.Application(cfg, tmp_path / 'private', sender=sender, reader=reader)
+        assert app.dispatch(principal, 'tools/call', params) == first
+        assert len(sent) == 1
+        app.close()
+        def uncertain(*a):
+            sent.append('uncertain-attempt'); raise OSError('synthetic secret must not escape')
+        app, cfg, principal = ready_request(m, tmp_path / 'uncertain', sender=uncertain, reader=reader)
+        result = app.dispatch(principal, 'tools/call', params)
+        assert result['isError'] is True and 'synthetic secret' not in str(result)
+        app.close()
+        app = m.Application(cfg, tmp_path / 'uncertain' / 'private', sender=uncertain, reader=reader)
+        assert app.dispatch(principal, 'tools/call', params)['isError'] is True
+        assert sent.count('uncertain-attempt') == 1
+        app.close()
+
+
+class TestReceiveBoundReply:
+    def test_same_bot_requires_exact_authenticated_private_binding(self, tmp_path):
+        m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
+        def sender(channel, content):
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+        def reader(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
+        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2,
+                        str(tmp_path / 'private'), cfg.issuer, cfg.audience, cfg.subject)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.BOT, 'bot': True}, 'type': 0,
+                 'content': json.dumps({'kind': 'rook.reply', 'correlation': 'discord-101', 'text': 'answer'})}}
+        assert r.match_event(event, scope, m.BOT) is None
+        app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
+                     'arguments': {'request_id': 'discord-101', 'text': 'answer'}})
+        event['d']['content'] = sent[-1]
+        accepted = r.match_event(event, scope, m.BOT)
+        assert accepted['text'] == 'answer'
+        assert accepted['authenticated_reply_binding'] is True
+        for delta in ({'id': '203'}, {'content': event['d']['content'].replace('answer', 'forged')}, {'webhook_id': '888'},
+                      {'author': {'id': m.OPERATOR}}, {'guild_id': '4'}):
+            bad = deepcopy(event); bad['d'].update(delta)
+            assert r.match_event(bad, scope, m.BOT) is None
+        legacy = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2)
+        assert r.match_event(event, legacy, m.BOT) is None
+        from dataclasses import replace
+        assert r.match_event(event, replace(scope, mcp_subject='other'), m.BOT) is None
+        row = app.store.get('requests', 'discord-101'); row['state'] = 'uncertain'
+        app.store.put('requests', 'discord-101', row)
+        assert r.match_event(event, scope, m.BOT) is None
+        row['state'] = 'confirmed'; row['auth_method'] = 'marker-only'
+        app.store.put('requests', 'discord-101', row)
+        assert r.match_event(event, scope, m.BOT) is None
+        app.close()
+
+    def test_gateway_before_custody_commit_is_bounded_and_accepts_once(self, tmp_path):
+        m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
+        wire = json.dumps({'kind': m.REPLY_KIND, 'correlation': 'discord-101', 'text': 'answer'}, separators=(',', ':'))
+        def sender(channel, content):
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+        def reader(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
+        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2,
+                        str(tmp_path / 'private'), cfg.issuer, cfg.audience, cfg.subject)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.BOT}, 'type': 0, 'content': wire}}
+        closed = []
+        def client_factory(on_event, on_error):
+            class Client:
+                async def start(self, token, reconnect):
+                    on_event(event, m.BOT)
+                    await asyncio.sleep(0.07)
+                    app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
+                                  'arguments': {'request_id': 'discord-101', 'text': 'answer'}})
+                    await asyncio.Future()
+                async def close(self): closed.append(True)
+            return Client()
+        result, code = asyncio.run(r.receive_one(scope, client_factory=client_factory, token_loader=lambda: 'synthetic'))
+        assert code == 0 and result['authenticated_reply_binding'] is True and closed == [True]
+        assert len(sent) == 1
+        app.close()
+

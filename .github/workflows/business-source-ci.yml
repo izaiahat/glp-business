@@ -31,6 +31,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
+          .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}

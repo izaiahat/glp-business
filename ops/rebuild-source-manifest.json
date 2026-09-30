@@ -1,10 +1,30 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/rook-mcp/README.md": {
+      "callers": ["manual:parent-owned launch requirements; rollout held"],
+      "kind": "instruction_or_policy",
+      "sha256": "7656829641d2cf6a73e16dec4de33130db45a6533a8eca32b3dbf7f358a3de40"
+    },
+    "ops/rook-mcp/requirements.txt": {
+      "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
+      "kind": "repository_control",
+      "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
+    },
+    "scripts/rook_mcp_events.py": {
+      "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
+      "kind": "script",
+      "sha256": "423d5730037ccab63f8d517b1b822c82b5992dae34bd4555cb7331429a2191f7"
+    },
+    "tests/test_rook_mcp_events.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "0bb7f68e2807a5522160279b7289e001b3a416790c170e1f55afbb46552cc57f"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a353fe61852c661f7f664ba94ae7f9b06f3833ae8e1ffbc6f22dc106de7f98b0"
+      "sha256": "8c1430ca247b904dc717f7cf8ba98b8ba9848b8cf8caa16ba0c296ce1136476f"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1515,7 +1535,7 @@
     },
     "scripts/post_discord_message.py": {
       "callers": [
-        "scripts/fable_bridge.py"
+        "scripts/fable_bridge.py", "scripts/rook_mcp_events.py", "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
       "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
@@ -1526,9 +1546,9 @@
       "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
     "scripts/receive_one_discord_message.py": {
-      "callers": ["manual:parent-owned-terminal-notify-only; live launch held"],
+      "callers": ["manual:parent-owned-terminal-notify-only; live launch held", "scripts/rook_mcp_events.py"],
       "kind": "script",
-      "sha256": "cea97f4436180ba62d661af8e3300ed07f2911b7f122a63eefd10979d9581110"
+      "sha256": "9bf591920c061a205c155eee531deaf32cc031448bf258013d797ef283071760"
     },
     "scripts/reports_archiver.py": {
       "callers": [
@@ -1558,7 +1578,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1e113a9e3e3fe676dd2a0ebb10c29fcad6732712f20f0fe7271d7432becc2f19"
+      "sha256": "0aa14075643d135cb9c5ed47b11d35aae9c4977b78e72d2c00921b20f5de2299"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2726,5 +2746,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 420
+  "tracked_count": 424
 }
