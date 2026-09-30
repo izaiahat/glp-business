@@ -10,6 +10,12 @@
 /scripts/*
 !/tests/
 /tests/*
+!/tests/test_glp76_carrier_calendar.py
+!/tests/fixtures/
+/tests/fixtures/*
+!/tests/fixtures/glp76-carrier-material/
+/tests/fixtures/glp76-carrier-material/*
+!/tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs
 !/.github/workflows/
 /.github/workflows/*
 !/tests/test_glp85_cj_reporting_identity.py
