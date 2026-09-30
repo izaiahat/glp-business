@@ -124,6 +124,158 @@ class TestAuthDiscovery:
         app.close()
 
 
+class TestMetadataBootstrap:
+    def test_first_login_metadata_only_without_subject_or_external_prmd(self, tmp_path, monkeypatch, capsys):
+        """One real CLI/HTTP/lifespan path, with sockets and effect constructors denied."""
+        from dataclasses import replace
+        import threading
+        m = module()
+        local = 'http://127.0.0.1:8765/.well-known/oauth-protected-resource/mcp'
+        cfg = m.Config('https://tenant.example/', 'https://rook.example/mcp', None, local,
+                       metadata_only=True, local_tunnel_metadata=True)
+        assert cfg.subject is None
+        # Both reproduced startup preconditions are waived only explicitly, not globally.
+        with pytest.raises(ValueError):
+            replace(cfg, metadata_only=False)
+        with pytest.raises(ValueError):
+            replace(cfg, local_tunnel_metadata=False)
+        assert replace(cfg, metadata_only=False, subject='auth0|fixture').subject == 'auth0|fixture'
+        for bad in ('http://localhost:8765/.well-known/oauth-protected-resource/mcp',
+                    'http://127.0.0.2:8765/.well-known/oauth-protected-resource/mcp',
+                    'http://127.0.0.1:80/.well-known/oauth-protected-resource/mcp',
+                    local + '?x=1', local + '#fragment', local.replace('/mcp', '/other'),
+                    local.replace('127.0.0.1', 'user@127.0.0.1'),
+                    local.replace('127.0.0.1', '127.0.0.1.example')):
+            with pytest.raises(ValueError):
+                replace(cfg, protected_metadata_url=bad)
+        with pytest.raises(ValueError):
+            replace(cfg, issuer='http://tenant.example/')
+        with pytest.raises(ValueError):
+            replace(cfg, audience='http://rook.example/mcp')
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        claims = {'iss': cfg.issuer, 'aud': cfg.audience, 'sub': 'auth0|fixture',
+                  'exp': int(time.time()) + 600, 'iat': int(time.time()),
+                  'scope': 'rook.requests.read rook.replies.write',
+                  'permissions': ['rook.requests.read', 'rook.replies.write']}
+        token = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'fixture'})
+        assert jwt.decode(token, key.public_key(), algorithms=['RS256'],
+                          audience=cfg.audience, issuer=cfg.issuer) == claims
+        def denied(*args, **kwargs):
+            pytest.fail('metadata bootstrap attempted effect constructor/credential/key/state I/O')
+        for name in ('Authenticator', 'Store', 'create_client', 'load_token',
+                     'send', 'readback', 'webhook_post'):
+            monkeypatch.setattr(m, name, denied)
+        monkeypatch.setattr(m.jwt, 'PyJWKClient', denied)
+        monkeypatch.setattr(m.sqlite3, 'connect', denied)
+        monkeypatch.setattr(socket, 'getaddrinfo', denied)
+
+        events = []
+        servers = []
+        class MemorySocket:
+            def __init__(self, raw): self.input = io.BytesIO(raw); self.output = bytearray()
+            def makefile(self, *args): return self.input
+            def settimeout(self, timeout): assert timeout == 10
+            def sendall(self, data): self.output.extend(data)
+        class FakeHTTP:
+            def __init__(self, address, handler):
+                assert address == ('127.0.0.1', 8765)
+                self.handler = handler
+                self.stopped = threading.Event()
+                self.failure = None
+                servers.append(self)
+            def request(self, method, path, headers=b'', body=b''):
+                raw = (method.encode() + b' ' + path.encode() + b' HTTP/1.1\r\n'
+                       + b'Host: 127.0.0.1:8765\r\n' + headers + b'\r\n' + body)
+                s = MemorySocket(raw)
+                self.handler(s, ('127.0.0.1', 1), self)
+                response = bytes(s.output)
+                assert b'Cache-Control: no-store' in response and b'Connection: close' in response
+                return response
+            def serve_forever(self, **kwargs):
+                events.append('serve')
+                try:
+                    response = self.request('GET', '/.well-known/oauth-protected-resource/mcp')
+                    assert response.startswith(b'HTTP/1.1 200')
+                    assert json.loads(response.split(b'\r\n\r\n', 1)[1]) == {
+                        'resource': cfg.audience, 'authorization_servers': [cfg.issuer],
+                        'scopes_supported': ['rook.requests.read', 'rook.replies.write'],
+                        'bearer_methods_supported': ['header']}
+                    for verb in ('GET', 'POST'):
+                        # Actual tunnel v0.0.15 probes /mcp with an empty POST then GET.
+                        response = self.request(verb, '/mcp')
+                        assert response.startswith(b'HTTP/1.1 401')
+                        assert ('resource_metadata="' + local + '"').encode() in response
+                    for method in ('server/discover', 'tools/list', 'events/list', 'tools/call',
+                                   'events/subscribe', 'events/unsubscribe', 'initialize', 'unknown'):
+                        for bearer in ('', 'Bearer invalid', 'Bearer ' + token):
+                            data = json.dumps(rpc(m, method)).encode()
+                            headers = (f'Authorization: {bearer}\r\nMCP-Protocol-Version: {m.VERSION}\r\n'
+                                       f'Content-Type: application/json\r\nContent-Length: {len(data)}\r\n').encode()
+                            response = self.request('POST', '/mcp', headers, data)
+                            assert response.startswith(b'HTTP/1.1 401')
+                            assert ('resource_metadata="' + local + '"').encode() in response
+                            assert b'"result"' not in response
+                    assert self.request('GET', '/.well-known/oauth-protected-resource/mcp',
+                                        b'Origin: https://evil.example\r\n').startswith(b'HTTP/1.1 403')
+                    assert self.request('GET', '/mcp', b'Host: evil.example\r\n').startswith(b'HTTP/1.1 403')
+                    assert self.request('POST', '/mcp', b'Transfer-Encoding: chunked\r\n').startswith(b'HTTP/1.1 400')
+                    for bad_headers, bad_body in ((b'Content-Length: 32769\r\nContent-Type: application/json\r\n', b''),
+                                                  (b'Content-Length: 2\r\nContent-Type: text/plain\r\n', b'{}'),
+                                                  (b'Content-Length: 1\r\nContent-Type: application/json\r\n', b'{')):
+                        assert self.request('POST', '/mcp', bad_headers, bad_body).startswith(b'HTTP/1.1 400')
+                except BaseException as exc:
+                    self.failure = exc
+                self.stopped.wait(5)
+            def shutdown(self): events.append('shutdown'); self.stopped.set()
+            def server_close(self): events.append('server_close')
+        monkeypatch.setattr(m, 'HTTPServer', FakeHTTP)
+        real_run = m.run_adapter
+        async def bounded_run(app, server, cursor, seconds):
+            assert seconds == 1 and cursor is None and app.config.metadata_only
+            assert app.auth is None and app.store is None
+            assert app.callback is None and app.sender is None and app.reader is None
+            principal = m.Principal('auth0|fixture', claims['exp'], frozenset(claims['scope'].split()))
+            with pytest.raises(m.RpcError):
+                app.dispatch(principal, 'tools/call', {})
+            with pytest.raises(m.RpcError):
+                app.subscription(principal, {}, True)
+            with pytest.raises(m.RpcError):
+                app.reply(principal, {'request_id': 'discord-101', 'text': 'no send'})
+            assert app.expire_subscriptions() is None
+            assert app.ingest({'t': 'MESSAGE_CREATE', 'd': {}}, None) == 0
+            started = time.monotonic()
+            result = await real_run(app, server, cursor, seconds, client_factory=denied, token_loader=denied)
+            assert 0.9 <= time.monotonic() - started < 3
+            if server.failure:
+                raise server.failure
+            assert server.stopped.is_set()
+            return result
+        monkeypatch.setattr(m, 'run_adapter', bounded_run)
+        monkeypatch.setattr(m.os, 'umask', lambda *args: None)  # No host process policy changes in this test.
+        args = ['--issuer', cfg.issuer, '--audience', cfg.audience,
+                '--local-tunnel-metadata', '--port', '8765', '--max-run-seconds', '1']
+        assert m.main([*args, '--metadata-only']) == 0
+        assert events == ['serve', 'shutdown', 'server_close'] and len(servers) == 1
+        assert list(tmp_path.iterdir()) == []
+        # Full mode still rejects absent identity/cursor/state BEFORE HTTP/state construction.
+        for extra in ([], ['--state-dir', str(tmp_path / 'private'), '--after-message', '100'],
+                      ['--operator-subject', 'auth0|fixture', '--state-dir', str(tmp_path / 'private')],
+                      ['--operator-subject', 'auth0|fixture', '--after-message', '100']):
+            with pytest.raises(SystemExit) as failure:
+                m.main([*args, *extra])
+            assert failure.value.code == 2
+        for extra in (['--operator-subject', 'auth0|fixture'], ['--operator-subject', ''],
+                      ['--state-dir', str(tmp_path / 'private')], ['--after-message', '100'],
+                      ['--port', '80'], ['--max-run-seconds', '0'], ['--max-run-seconds', '3601'],
+                      ['--protected-resource-metadata-url', local.replace(':8765/', ':8766/')]):
+            with pytest.raises(SystemExit) as failure:
+                m.main([*args, '--metadata-only', *extra])
+            assert failure.value.code == 2
+        assert len(servers) == 1 and list(tmp_path.iterdir()) == []
+        assert token not in capsys.readouterr().out
+
+
 class TestSubscriptionsDelivery:
     @pytest.fixture
     def signed_subscription(self, tmp_path):

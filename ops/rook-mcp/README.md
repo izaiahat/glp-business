@@ -14,7 +14,48 @@ Private PR96. No Auth0/tunnel setup, live credential use, channel send or listen
 - Authenticated principal/config/request binding, expiry, durable pre-send reservation, exact-content duplicate success and conflicting duplicate refusal. Failed, interrupted or uncertain POST/readback never automatically sends again; operator reconciles the fixed channel. No destination override or second sender bot.
 - Private owned nonsymlink 0700 state directory, 0600 SQLite/lock files, one writer process (flock), read-only receiver. Adapter state is **not** Hermes state.db. Receiver pins issuer/audience/operator subject and verifies authenticated confirmed custody, exact message ID/content SHA, fixed bot/channel/guild, correlation and freshness. Marker/ID alone never admits self-echo. Up to 2s local read-only custody wait handles gateway-before-readback race inside the existing overall deadline. Same Unix account is the local trust boundary, not protection from an account-compromised writer.
 
-## Exact future launch inputs (NOT executed)
+## First-login bootstrap (metadata only; NOT executed)
+
+Before genuine Google OAuth provisions the operator's Auth0 application-user `sub`,
+the parent may launch this bounded **metadata-only** path in the same adapter:
+
+```sh
+timeout --signal=TERM --kill-after=5s 315s \
+  "${ROOK_VENV:?isolated adapter venv}/bin/python" -B scripts/rook_mcp_events.py \
+  --metadata-only --local-tunnel-metadata \
+  --issuer "${ROOK_AUTH0_ISSUER:?verified issuer with trailing slash}" \
+  --audience "${ROOK_MCP_AUDIENCE:?exact registered API audience}" \
+  --port "${ROOK_MCP_PORT:?parent-approved nonprivileged port}" --max-run-seconds 300
+```
+
+No subject, cursor or state directory is required or accepted. No authenticator,
+JWKS, Discord credential loader/client, DB, subscription worker, ingest or send is
+enabled. Public GET `/.well-known/oauth-protected-resource/mcp` serves the actual
+issuer/resource metadata. Empty POST/GET `/mcp` discovery probes and every
+well-formed MCP operation return `401` with `WWW-Authenticate`, even with a valid
+bearer; malformed requests retain the bounded HTTP refusals. OAuth does **not**
+unlock this process: the connector may remain unauthorized until the parent stops
+it and restarts full mode using the **real** newly provisioned subject, fresh cursor
+and private state directory. Do not fabricate a subject to finish connection.
+
+`--local-tunnel-metadata` derives exactly
+`http://127.0.0.1:$ROOK_MCP_PORT/.well-known/oauth-protected-resource/mcp` as the
+challenge URL, restricted to this loopback host, selected nonprivileged port and
+path. It is the tunnel's **local discovery input**, not a guessed public OpenAI
+well-known URL. Issuer/resource remain HTTPS. Without this explicit option,
+`--protected-resource-metadata-url` must remain an explicit HTTPS URL.
+
+Official tunnel-client **v0.0.15** documents local discovery and tunnel-service
+rewriting of `WWW-Authenticate resource_metadata` and PRMD `resource` for the same
+`tunnel_id`: [architecture](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/architecture.md#oauth-protected-mcp)
+and [configuration](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/configuration.md#http-transport-specific-settings).
+Use the same local `/mcp` endpoint and exact trusted Auth0 origin below, plus
+`--harpoon.allow-plaintext-http` for this trusted local HTTP target
+([connectors](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/connectors.md#oauth-protected-connector-behavior)).
+No tunnel or login is launched here; offline source tests do not prove public
+rewriting or successful OAuth.
+
+## Exact full-mode launch inputs (NOT executed)
 
 Create a separately approved isolated environment using `ops/rook-mcp/requirements.txt`; tests additionally need pytest. No host/core installs. Parent must securely make the existing Discord token available to the unchanged token loader. No new bot credentials. Parent prepares a private parent directory for adapter state, and excludes ordinary gateway dispatch for this channel.
 
@@ -22,7 +63,7 @@ Required nonsecret inputs:
 
 - `ROOK_AUTH0_ISSUER=https://dev-qv5n6hpb2umayqwt.us.auth0.com/` (parent verified OIDC discovery; this worker made no live call).
 - `ROOK_MCP_AUDIENCE=https://api.openai.com/v1/mcp/tunnel_6abc70ee3f548191bfaabda8ee682eee`: parent verified the dedicated RS256 Auth0 API identifier. It is not an OAuth client ID. JWT `scope` and RBAC `permissions` must both include the required `rook.requests.read` / `rook.replies.write` permission for that method.
-- `ROOK_PROTECTED_RESOURCE_METADATA_URL`: **exact verified external HTTPS PRMD URL**, exposed/mapped by the tunnel. The server advertises this explicit value in `WWW-Authenticate`; it does not infer or invent an OpenAI well-known endpoint from the audience. Local PRMD remains `GET /.well-known/oauth-protected-resource/mcp`. Verify public mapping with the parent-owned tunnel before connection.
+- Use `--local-tunnel-metadata` for the documented tunnel rewriting path. Alternatively, without that option, `ROOK_PROTECTED_RESOURCE_METADATA_URL` must be an **exact verified external HTTPS PRMD URL**, exposed/mapped by the tunnel. Never infer an OpenAI well-known endpoint from the audience. Local PRMD remains `GET /.well-known/oauth-protected-resource/mcp`; verify public rewriting with the parent-owned tunnel.
 - `ROOK_OPERATOR_SUBJECT`: actual authorized access-token `sub`, independently verified; never guessed from client ID or Discord identity.
 - `ROOK_PRIVATE_STATE_DIR`: adapter-only private directory under an approved existing parent, shared read-only with receive-one.
 - `ROOK_MCP_PORT`: available explicit nonprivileged loopback port; `ROOK_AFTER_MESSAGE_ID`: verified fresh pre-request cursor. No history replay.
@@ -32,14 +73,14 @@ Foreground adapter:
 ```sh
 "$ROOK_VENV/bin/python" -B scripts/rook_mcp_events.py \
   --issuer "$ROOK_AUTH0_ISSUER" --audience "$ROOK_MCP_AUDIENCE" \
-  --protected-resource-metadata-url "$ROOK_PROTECTED_RESOURCE_METADATA_URL" \
+  --local-tunnel-metadata \
   --operator-subject "$ROOK_OPERATOR_SUBJECT" --state-dir "$ROOK_PRIVATE_STATE_DIR" \
   --port "$ROOK_MCP_PORT" --after-message "$ROOK_AFTER_MESSAGE_ID" --max-run-seconds 600
 ```
 
 Optional `--allowed-host` accepts an independently verified **exact Host header** if tunnel forwarding preserves a different Host. Defaults accept only `127.0.0.1:<port>` and `localhost:<port>`; Origin headers are refused. HTTP binds only 127.0.0.1. One Discord connection, reconnect disabled, bounded 16-event queue and explicit 1–3,600 second lifespan. Shutdown finishes the in-flight reserved effect rather than killing/retrying it; parent outer timeout is still needed for a hard wall-clock cutoff.
 
-Parent-owned tunnel v0.0.15 target: `http://127.0.0.1:$ROOK_MCP_PORT/mcp`. Use HTTP per-request bearer forwarding, not stdio or a static Authorization header. Parent provisions existing tunnel/runtime-key references and `--mcp.oauth-trusted-origin https://dev-qv5n6hpb2umayqwt.us.auth0.com`; loopback plaintext discovery may need the explicitly approved tunnel option. Do not start it from this source task.
+Parent-owned tunnel v0.0.15 target: `http://127.0.0.1:$ROOK_MCP_PORT/mcp`. Use HTTP per-request bearer forwarding, not stdio or a static Authorization header. Parent provisions existing tunnel/runtime-key references, `--mcp.oauth-trusted-origin https://dev-qv5n6hpb2umayqwt.us.auth0.com` and `--harpoon.allow-plaintext-http`. Do not start it from this source task.
 
 Only actual parent TUI may launch receive-one via its existing terminal completion notification route, **before** the approved request/reply:
 

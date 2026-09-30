@@ -83,16 +83,28 @@ class RpcError(Exception):
 class Config:
     issuer: str
     audience: str
-    subject: str
+    subject: str | None
     protected_metadata_url: str
+    metadata_only: bool = False
+    local_tunnel_metadata: bool = False
 
     def __post_init__(self):
-        for value in (self.issuer, self.audience, self.protected_metadata_url):
+        for value in (self.issuer, self.audience):
             p = urlsplit(value)
             if (p.scheme != 'https' or not p.hostname or p.username or p.password or p.query or p.fragment
                     or len(value) > 2048 or any(ord(c) < 33 for c in value)):
                 raise ValueError('explicit HTTPS issuer and resource required')
-        if not self.issuer.endswith('/') or not self.subject:
+        value = self.protected_metadata_url
+        p = urlsplit(value)
+        if self.local_tunnel_metadata:
+            # Only the actual loopback PRMD route is a tunnel rewrite input.
+            if (p.port is None or not 1024 <= p.port <= 65535 or
+                    value != f'http://127.0.0.1:{p.port}/.well-known/oauth-protected-resource/mcp'):
+                raise ValueError('explicit nonprivileged loopback tunnel metadata URL required')
+        elif (p.scheme != 'https' or not p.hostname or p.username or p.password or p.query or p.fragment
+              or len(value) > 2048 or any(ord(c) < 33 for c in value)):
+            raise ValueError('explicit HTTPS protected-resource metadata URL required')
+        if not self.issuer.endswith('/') or (not self.metadata_only and not self.subject):
             raise ValueError('Auth0 issuer trailing slash and exact operator subject required')
 
 
@@ -270,8 +282,11 @@ class Store:
 
 
 class Application:
-    def __init__(self, config, state_dir, *, auth=None, callback=webhook_post, sender=send, reader=readback):
+    def __init__(self, config, state_dir=None, *, auth=None, callback=webhook_post, sender=send, reader=readback):
         self.config = config
+        if config.metadata_only:
+            self.auth = self.store = self.callback = self.sender = self.reader = None
+            return
         self.auth = auth if auth is not None else Authenticator(config)
         self.store = Store(state_dir)
         self.callback = callback
@@ -280,7 +295,8 @@ class Application:
         self.policy = hashlib.sha256(canonical(policy_fields).encode()).hexdigest()
 
     def close(self):
-        self.store.close()
+        if self.store is not None:
+            self.store.close()
 
     def handle(self, method, path, headers, body):
         h = {k.lower(): v for k, v in headers.items()}
@@ -289,15 +305,17 @@ class Application:
         if method == 'GET' and path == '/.well-known/oauth-protected-resource/mcp':
             return 200, {}, {'resource': self.config.audience, 'authorization_servers': [self.config.issuer],
                              'scopes_supported': ['rook.requests.read', 'rook.replies.write'], 'bearer_methods_supported': ['header']}
-        if method != 'POST' or path != '/mcp':
-            return 405, {}, {'error': 'method_or_path_refused'}
         request_id = body.get('id') if isinstance(body, dict) else None
         required = {'rook.replies.write'} if isinstance(body, dict) and body.get('method') == 'tools/call' else {'rook.requests.read'}
+        if self.config.metadata_only and path == '/mcp':
+            return self.challenge(required)
+        if method != 'POST' or path != '/mcp':
+            return 405, {}, {'error': 'method_or_path_refused'}
         try:
+            assert self.auth is not None  # Metadata-only returned its challenge above.
             principal = self.auth.authenticate(h.get('authorization'), required)
         except AuthDenied:
-            return 401, {'WWW-Authenticate': 'Bearer resource_metadata="' + self.config.protected_metadata_url +
-                         '", scope="' + ' '.join(sorted(required)) + '"'}, {'error': 'unauthorized'}
+            return self.challenge(required)
         status = 200
         try:
             if (not isinstance(body, dict) or body.get('jsonrpc') != '2.0' or isinstance(request_id, bool)
@@ -325,8 +343,12 @@ class Application:
         except Exception:
             return 200, {}, {'jsonrpc': '2.0', 'id': request_id, 'error': {'code': -32603, 'message': 'InternalErrorDetailsSuppressed'}}
 
+    def challenge(self, required):
+        return 401, {'WWW-Authenticate': 'Bearer resource_metadata="' + self.config.protected_metadata_url +
+                     '", scope="' + ' '.join(sorted(required)) + '"'}, {'error': 'unauthorized'}
+
     def dispatch(self, principal, method, params):
-        if (principal.subject != self.config.subject or principal.expires <= time.time()
+        if (self.config.metadata_only or principal.subject != self.config.subject or principal.expires <= time.time()
                 or not ({'rook.replies.write'} if method == 'tools/call' else {'rook.requests.read'}) <= principal.scopes):
             raise RpcError(-32001, 'Unauthorized')
         if method == 'server/discover':
@@ -346,6 +368,8 @@ class Application:
         raise RpcError(-32601, 'MethodNotFound')
 
     def subscription(self, principal, params, subscribe):
+        if self.config.metadata_only or self.store is None:
+            raise RpcError(-32001, 'Unauthorized')
         allowed = {'name', 'arguments', 'delivery', 'ttlMs', 'cursor'} if subscribe else {'name', 'arguments', 'delivery'}
         delivery = params.get('delivery')
         if (set(params) - allowed or params.get('name') != EVENT or params.get('arguments') != ARGUMENTS
@@ -400,6 +424,8 @@ class Application:
                     'cursor': None, 'truncated': False}
 
     def expire_subscriptions(self):
+        if self.store is None:
+            return
         for sub in self.store.all('subscriptions'):
             if sub['expires'] <= time.time() or sub['policy'] != self.policy or sub['subject'] != self.config.subject:
                 self.store.delete('subscriptions', sub['id'])
@@ -409,6 +435,8 @@ class Application:
                 self.store.put('subscriptions', sub['id'], sub)
 
     def reply(self, principal, arguments):
+        if self.config.metadata_only or self.store is None or self.sender is None or self.reader is None:
+            raise RpcError(-32001, 'Unauthorized')
         if (not isinstance(arguments, dict) or set(arguments) != {'request_id', 'text'}
                 or not isinstance(arguments['request_id'], str) or not isinstance(arguments['text'], str)
                 or not arguments['text'].strip() or len(arguments['text']) > 1200):
@@ -465,6 +493,8 @@ class Application:
         return {'isError': True, 'content': [{'type': 'text', 'text': 'Send outcome uncertain; no retry. Operator must reconcile the fixed channel.'}]}
 
     def ingest(self, event, after_message):
+        if self.config.metadata_only or self.store is None:
+            return 0
         if not isinstance(event, dict) or event.get('t') != 'MESSAGE_CREATE' or not isinstance(event.get('d'), dict):
             return 0
         data = event['d']
@@ -562,11 +592,13 @@ def make_handler(application, allowed_hosts):
                     return
                 body = None
                 if self.command == 'POST':
-                    length = int(self.headers.get('Content-Length', '-1'))
-                    if not 0 < length <= 32768 or self.headers.get_content_type() != 'application/json':
-                        self.respond(400, {}, {'error': 'bounded_json_body_required'})
-                        return
-                    body = json.loads(self.rfile.read(length))
+                    probe = application.config.metadata_only and self.path == '/mcp'
+                    length = int(self.headers.get('Content-Length', '0' if probe else '-1'))
+                    if not (probe and length == 0):
+                        if not 0 < length <= 32768 or self.headers.get_content_type() != 'application/json':
+                            self.respond(400, {}, {'error': 'bounded_json_body_required'})
+                            return
+                        body = json.loads(self.rfile.read(length))
                 self.respond(*application.handle(self.command, self.path, dict(self.headers.items()), body))
             except Exception:
                 self.respond(400, {}, {'error': 'invalid_request_details_suppressed'})
@@ -610,17 +642,19 @@ async def run_adapter(application, http_server, after_message, max_run_seconds, 
                 return
             await asyncio.to_thread(application.ingest, event, after_message)
 
-    client = client_factory(on_event, on_error)
+    client = None if application.config.metadata_only else client_factory(on_event, on_error)
     thread = threading.Thread(target=http_server.serve_forever, kwargs={'poll_interval': 0.1}, daemon=True)
     thread.start()
-    worker = asyncio.create_task(consume())
+    worker = None if application.config.metadata_only else asyncio.create_task(consume())
     runner = None
     try:
-        runner = asyncio.create_task(client.start(token_loader(), reconnect=False))
+        if client is not None:
+            runner = asyncio.create_task(client.start(token_loader(), reconnect=False))
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, on_error)
-        done, _ = await asyncio.wait((runner, failed, worker), timeout=max_run_seconds, return_when=asyncio.FIRST_COMPLETED)
+        tasks = tuple(task for task in (runner, failed, worker) if task is not None)
+        done, _ = await asyncio.wait(tasks, timeout=max_run_seconds, return_when=asyncio.FIRST_COMPLETED)
         if runner in done:
             runner.result()
         if worker in done:
@@ -635,15 +669,17 @@ async def run_adapter(application, http_server, after_message, max_run_seconds, 
                 await asyncio.wait_for(asyncio.gather(runner, return_exceptions=True), timeout=2)
             except (Exception, asyncio.CancelledError):
                 pass
-        try:
-            await asyncio.wait_for(client.close(), timeout=2)
-        except (Exception, asyncio.CancelledError):
-            pass
+        if client is not None:
+            try:
+                await asyncio.wait_for(client.close(), timeout=2)
+            except (Exception, asyncio.CancelledError):
+                pass
         # Finish the one in-flight effect before closing the DB; discard queued work.
         while not queue.empty():
             queue.get_nowait()
-        await queue.put(None)
-        await asyncio.gather(worker, return_exceptions=True)
+        if worker is not None:
+            await queue.put(None)
+            await asyncio.gather(worker, return_exceptions=True)
         await asyncio.to_thread(http_server.shutdown)
         thread.join()
         http_server.server_close()
@@ -653,26 +689,42 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--issuer', required=True)
     parser.add_argument('--audience', required=True)
-    parser.add_argument('--protected-resource-metadata-url', required=True)
-    parser.add_argument('--operator-subject', required=True)
-    parser.add_argument('--state-dir', required=True)
+    parser.add_argument('--protected-resource-metadata-url')
+    parser.add_argument('--local-tunnel-metadata', action='store_true', help='use exact loopback PRMD as tunnel rewrite input')
+    parser.add_argument('--metadata-only', action='store_true', help='public PRMD only; all MCP denied, no credentials or state')
+    parser.add_argument('--operator-subject')
+    parser.add_argument('--state-dir')
     parser.add_argument('--port', type=int, required=True)
-    parser.add_argument('--after-message', required=True)
+    parser.add_argument('--after-message')
     parser.add_argument('--max-run-seconds', type=int, required=True)
     parser.add_argument('--allowed-host', action='append', default=[])
     args = parser.parse_args(argv)
     logging.disable(logging.CRITICAL)
-    if (not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= 3600
-            or not re.fullmatch(r'[1-9][0-9]{0,19}', args.after_message)):
-        parser.error('nonprivileged port, fresh Discord cursor and 1..3600s lifespan required')
+    if not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= 3600:
+        parser.error('nonprivileged port and 1..3600s lifespan required')
+    if args.metadata_only:
+        if any(value is not None for value in (args.operator_subject, args.state_dir, args.after_message)):
+            parser.error('metadata-only mode takes no subject, state directory or Discord cursor')
+    elif (not args.operator_subject or not args.state_dir or not args.after_message
+          or not re.fullmatch(r'[1-9][0-9]{0,19}', args.after_message)):
+        parser.error('full mode requires exact operator subject, private state directory and fresh Discord cursor')
+    if args.local_tunnel_metadata:
+        local = f'http://127.0.0.1:{args.port}/.well-known/oauth-protected-resource/mcp'
+        if args.protected_resource_metadata_url not in (None, local):
+            parser.error('local tunnel metadata must match the exact listener port and PRMD route')
+        args.protected_resource_metadata_url = local
+    elif not args.protected_resource_metadata_url:
+        parser.error('explicit HTTPS metadata URL or --local-tunnel-metadata required')
     application = None
     try:
         os.umask(0o077)
         application = Application(Config(args.issuer, args.audience, args.operator_subject,
-                                         args.protected_resource_metadata_url), args.state_dir)
+                                         args.protected_resource_metadata_url, args.metadata_only,
+                                         args.local_tunnel_metadata), args.state_dir)
         hosts = {'127.0.0.1:' + str(args.port), 'localhost:' + str(args.port), *args.allowed_host}
         server = HTTPServer(('127.0.0.1', args.port), make_handler(application, hosts))
-        print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION}), flush=True)
+        print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION,
+                         'mode': 'metadata-only' if args.metadata_only else 'full'}), flush=True)
         return asyncio.run(run_adapter(application, server, args.after_message, args.max_run_seconds))
     except Exception:
         print(canonical({'status': 'error', 'reason': 'adapter_failed_details_suppressed'}), flush=True)
