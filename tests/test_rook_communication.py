@@ -82,7 +82,7 @@ class TestRookCommunication:
         monkeypatch.setattr(m, 'ROOK_TOKEN_PATH', token_file, raising=False)
         monkeypatch.setattr(m, 'load_token', lambda: 'synthetic-kael-token')
         monkeypatch.setattr(m, 'callback_target', lambda url: ('discord.com', '93.184.216.34', '/'))
-        headers_seen = []
+        headers_seen = []; payloads_seen = []
         thread = {**self.thread, 'name': 'discussion', 'owner_id': '1554962007059472445'}
         class Connection:
             def __init__(_, host, address):
@@ -90,6 +90,7 @@ class TestRookCommunication:
             def request(_, method, path, body=None, headers=None):
                 headers_seen.append((method, path, headers['Authorization']))
                 payload = json.loads(body) if body else {}
+                if method == 'POST': payloads_seen.append(deepcopy(payload))
                 if method == 'POST' and path.endswith('/threads'):
                     self.messages['101']['thread'] = deepcopy(thread); _.value = thread
                 elif method == 'POST':
@@ -116,7 +117,11 @@ class TestRookCommunication:
         self.app.store.put('requests', 'discord-301', {'id': 'discord-301', 'subject': self.cfg.subject,
             'policy': self.app.policy, 'state': 'ready', 'expires': now + 600})
         self.app.store.put('deliveries', 'delivery-301', {'id': 'delivery-301', 'request_id': 'discord-301'})
-        self.call('reply_to_rook_request', {'request_id': 'discord-301', 'text': 'answer'}, 'rook.replies.write')
+        text = '# Answer\n**Readable**\n- @everyone <@' + m.BOT + '>\n```\ncode\n```'
+        result = self.call('reply_to_rook_request', {'request_id': 'discord-301', 'text': text}, 'rook.replies.write')
+        assert result[2]['result']['isError'] is False
+        assert payloads_seen[-1] == {'content': text + '\n-# rook.reply · discord-301',
+                                    'allowed_mentions': {'parse': []}}
         writes = [(method, path) for method, path, _ in headers_seen if method != 'GET']
         assert writes == [('POST', f'/api/v10/channels/{m.CHANNEL}/messages'),
             ('POST', f'/api/v10/channels/{m.CHANNEL}/messages/101/threads'),

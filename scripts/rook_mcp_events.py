@@ -66,8 +66,9 @@ EVENT_DEFINITION = {
 }
 TOOL_DEFINITION = {
     'name': 'reply_to_rook_request',
-    'description': 'Reply once to a delivered request in the fixed Rook Discord channel; no destination override. Uncertain sends cannot be retried.',
-    'inputSchema': object_schema({'request_id': {'type': 'string'}, 'text': {'type': 'string', 'minLength': 1, 'maxLength': 1200}}),
+    'description': 'Reply once to a delivered request in the fixed Rook Discord channel; no destination override. Text is Discord markdown (headings, bold, bullets, code blocks), up to 1850 characters; text plus correlation footer must fit 2000 UTF-16 units. Uncertain sends cannot be retried.',
+    'inputSchema': object_schema({'request_id': {'type': 'string', 'pattern': '^discord-[1-9][0-9]{0,19}$'},
+                                  'text': {'type': 'string', 'minLength': 1, 'maxLength': 1850}}),
     'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': True, 'openWorldHint': True},
 }
 
@@ -997,12 +998,12 @@ class Application:
             raise RpcError(-32001, 'Unauthorized')
         if (not isinstance(arguments, dict) or set(arguments) != {'request_id', 'text'}
                 or not isinstance(arguments['request_id'], str) or not isinstance(arguments['text'], str)
-                or not arguments['text'].strip() or len(arguments['text']) > 1200):
+                or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', arguments['request_id'])
+                or not arguments['text'].strip() or len(arguments['text']) > 1850):
             raise RpcError(-32602, 'InvalidParams')
         request_id, text = arguments['request_id'], arguments['text']
-        wire = json.dumps({'kind': REPLY_KIND, 'correlation': request_id, 'text': text},
-                          ensure_ascii=False, separators=(',', ':'))
-        if len(wire.encode('utf-16-le')) // 2 > 1900:
+        wire = f'{text}\n-# {REPLY_KIND} · {request_id}'
+        if len(wire.encode('utf-16-le')) // 2 > 2000:
             raise RpcError(-32602, 'ReplyTooLarge')
         digest = hashlib.sha256(wire.encode()).hexdigest()
         with self.store.lock:
@@ -1010,7 +1011,12 @@ class Application:
             if not row or row['subject'] != principal.subject or row['policy'] != self.policy:
                 raise RpcError(-32602, 'UnknownOrUnownedRequest')
             if row['state'] != 'ready':
-                if row.get('reply_sha256') != digest:
+                # Old-format custody is immutable: return its cached outcome,
+                # never rewrite its digest or resend merely to change rendering.
+                legacy_wire = json.dumps({'kind': REPLY_KIND, 'correlation': request_id, 'text': text},
+                                         ensure_ascii=False, separators=(',', ':'))
+                legacy_digest = hashlib.sha256(legacy_wire.encode()).hexdigest()
+                if row.get('reply_sha256') not in {digest, legacy_digest}:
                     raise RpcError(-32602, 'ReplyConflict')
                 return row.get('result', self.uncertain_result())
             if row['expires'] <= time.time() or not any(

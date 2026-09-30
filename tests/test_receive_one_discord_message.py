@@ -97,6 +97,41 @@ class ReceiveOneOfflineGroup(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.clients[-1].was_closed)
         self.assertTrue(self.clients[-1].was_cancelled)
 
+    async def test_markdown_footer_exact_parse_and_malformed_rejection(self):
+        scope = replace(self.scope, correlation='discord-123')
+        event = deepcopy(self.event)
+        text = '# Heading\n**bold**\n- bullet\n```\ncode\n```\n'
+        footer = '\n-# rook.reply · discord-123'
+        event['d']['content'] = text + footer
+        result = reader.match_event(event, scope, '999')
+        self.assertIsNotNone(result)
+        self.assertEqual(result['text'], text)
+        self.assertFalse(result['text_truncated'])
+        for malformed in (
+                footer + '\n', footer + ' ', footer.replace('·', ':'),
+                footer.replace('-#', '#'), footer.replace('rook.reply', 'rook.request'),
+                footer.replace('discord-123', 'discord-0123'),
+                footer.replace('discord-123', 'discord-0'),
+                footer.replace('discord-123', 'discord-999'),
+                footer.replace('discord-123', 'discord-' + '1' * 21),
+                footer.replace('discord-123', 'pilot-123'),
+                footer.replace('· ', '·\r '), footer + '\nforged continuation'):
+            bad = deepcopy(event)
+            bad['d']['content'] = text + malformed
+            with self.subTest(footer=malformed):
+                self.assertIsNone(reader.match_event(bad, scope, '999'))
+        # A marker never overrides origin validation or grants self-echo custody.
+        for delta in ({'author': {'id': '201'}}, {'webhook_id': '300'}):
+            bad = deepcopy(event); bad['d'].update(delta)
+            self.assertIsNone(reader.match_event(bad, scope, '999'))
+        self.assertIsNone(reader.match_event(event, scope, '200'))
+        received, code = await self.run_offline(self.factory([event]), scope=scope)
+        self.assertEqual((received, code), (result, 0))
+
+    async def test_legacy_json_reply_remains_readable(self):
+        result = reader.match_event(self.event, self.scope, '999')
+        self.assertEqual(result['text'], 'untrusted text')
+
     async def test_installed_gateway_dispatch_preserves_raw_message_envelope(self):
         # Exercise installed discord.py's websocket -> Client.dispatch path,
         # never invoke an application callback by name or connect to Discord.

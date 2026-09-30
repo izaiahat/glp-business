@@ -659,6 +659,76 @@ def ready_request(m, tmp_path, *, sender, reader):
 
 
 class TestReplyBinding:
+    @pytest.mark.parametrize('text', ['# Heading\n**Bold**\n- item\n```python\nprint(1)\n```\n', 'x' * 1850])
+    def test_markdown_verbatim_footer_and_digest(self, tmp_path, text):
+        import hashlib
+        m = module(); sent = []
+        def sender(channel, content):
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
+        def reader(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
+        try:
+            args = {'request_id': 'discord-101', 'text': text}
+            first = app.reply(principal, args)
+            assert first['isError'] is False
+            assert sent == [text + '\n-# rook.reply · discord-101']
+            assert len(sent[0].encode('utf-16-le')) // 2 <= 2000
+            row = app.store.get('requests', 'discord-101')
+            assert row['reply_sha256'] == hashlib.sha256(sent[0].encode()).hexdigest()
+            assert row['reply_kind'] == 'rook.reply' and row['reply_id'] == '202'
+            assert app.reply(principal, args) == first and len(sent) == 1
+            schema = m.TOOL_DEFINITION['inputSchema']['properties']['text']
+            assert schema['maxLength'] == 1850
+            assert 'Discord markdown' in m.TOOL_DEFINITION['description']
+        finally:
+            app.close()
+
+    @pytest.mark.parametrize('units_over', [0, 1])
+    def test_final_utf16_limit(self, tmp_path, units_over):
+        m = module(); sent = []
+        def sender(channel, content):
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
+        def reader(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
+        footer = '\n-# rook.reply · discord-101'
+        budget = 2000 - len(footer)
+        text = '😀' * (budget // 2) + 'x' * (budget % 2 + units_over)
+        try:
+            if units_over:
+                with pytest.raises(m.RpcError, match='ReplyTooLarge'):
+                    app.reply(principal, {'request_id': 'discord-101', 'text': text})
+                assert not sent and app.store.get('requests', 'discord-101')['state'] == 'ready'
+            else:
+                assert not app.reply(principal, {'request_id': 'discord-101', 'text': text})['isError']
+                assert len(sent[0].encode('utf-16-le')) // 2 == 2000
+        finally:
+            app.close()
+
+    @pytest.mark.parametrize('state', ['confirmed', 'sending', 'uncertain'])
+    def test_legacy_reply_retry_returns_stored_result_without_resend(self, tmp_path, state):
+        import hashlib
+        m = module()
+        def forbidden(*a): pytest.fail('legacy reply must never resend')
+        app, cfg, principal = ready_request(m, tmp_path, sender=forbidden, reader=forbidden)
+        args = {'request_id': 'discord-101', 'text': 'legacy\n**answer**'}
+        legacy = json.dumps({'kind': m.REPLY_KIND, 'correlation': args['request_id'], 'text': args['text']},
+                            ensure_ascii=False, separators=(',', ':'))
+        row = app.store.get('requests', args['request_id'])
+        result = {'isError': state != 'confirmed', 'content': [{'type': 'text', 'text': 'stored outcome'}]}
+        row.update(state=state, reply_sha256=hashlib.sha256(legacy.encode()).hexdigest(), result=result)
+        app.store.put('requests', args['request_id'], row)
+        try:
+            assert app.reply(principal, args) == result
+            assert app.store.get('requests', args['request_id']) == row
+            with pytest.raises(m.RpcError, match='ReplyConflict'):
+                app.reply(principal, {**args, 'text': 'different'})
+        finally:
+            app.close()
+
     def test_existing_sender_mention_suppression_and_bad_readback(self, tmp_path):
         m = module(); sender_module = importlib.import_module('post_discord_message'); captured = []
         class Response:
@@ -695,7 +765,9 @@ class TestReplyBinding:
             return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
         app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
         params = {'name': 'reply_to_rook_request', 'arguments': {'request_id': 'discord-101', 'text': 'bounded @everyone reply'}}
-        for delta in ({'channel_id': '3'}, {'request_id': 'discord-555'}, {'text': ''}, {'text': 'x' * 1201}):
+        for delta in ({'channel_id': '3'}, {'request_id': 'discord-555'}, {'request_id': 'discord-101\nforged'},
+                      {'request_id': 'discord-01'}, {'request_id': 'discord-' + '1' * 21},
+                      {'text': ''}, {'text': 'x' * 1851}):
             with pytest.raises(m.RpcError):
                 app.dispatch(principal, 'tools/call', {**params, 'arguments': {**params['arguments'], **delta}})
         with pytest.raises(m.RpcError):
@@ -704,7 +776,7 @@ class TestReplyBinding:
         assert first['isError'] is False
         assert first['structuredContent']['message_id'] == '202'
         assert first['structuredContent']['url'].endswith('/202')
-        assert json.loads(sent[0]) == {'kind': 'rook.reply', 'correlation': 'discord-101', 'text': 'bounded @everyone reply'}
+        assert sent[0] == 'bounded @everyone reply\n-# rook.reply · discord-101'
         assert app.dispatch(principal, 'tools/call', params) == first
         with pytest.raises(m.RpcError):
             app.dispatch(principal, 'tools/call', {**params, 'arguments': {**params['arguments'], 'text': 'different'}})
@@ -807,7 +879,8 @@ class TestReceiveBoundReply:
         finally:
             app.close()
 
-    def test_same_bot_requires_exact_authenticated_private_binding(self, tmp_path):
+    @pytest.mark.parametrize('legacy_json', [False, True])
+    def test_same_bot_requires_exact_authenticated_private_binding(self, tmp_path, legacy_json):
         m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
         def sender(channel, content):
             sent.append(content)
@@ -824,6 +897,14 @@ class TestReceiveBoundReply:
         app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
                      'arguments': {'request_id': 'discord-101', 'text': 'answer'}})
         event['d']['content'] = sent[-1]
+        if legacy_json:
+            import hashlib
+            # Simulate already-confirmed legacy custody, not a marker-only reply.
+            event['d']['content'] = json.dumps({'kind': 'rook.reply', 'correlation': 'discord-101', 'text': 'answer'},
+                                             ensure_ascii=False, separators=(',', ':'))
+            row = app.store.get('requests', 'discord-101')
+            row['reply_sha256'] = hashlib.sha256(event['d']['content'].encode()).hexdigest()
+            app.store.put('requests', 'discord-101', row)
         accepted = r.match_event(event, scope, m.ROOK_BOT)
         assert accepted['text'] == 'answer'
         assert accepted['authenticated_reply_binding'] is True
@@ -846,7 +927,7 @@ class TestReceiveBoundReply:
     @pytest.mark.parametrize('observer_id', ['1486880423568211968', '1554962007059472445'])
     def test_gateway_before_custody_commit_is_bounded_and_accepts_once(self, tmp_path, observer_id):
         m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
-        wire = json.dumps({'kind': m.REPLY_KIND, 'correlation': 'discord-101', 'text': 'answer'}, separators=(',', ':'))
+        wire = 'answer\n-# rook.reply · discord-101'
         def sender(channel, content):
             sent.append(content)
             return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
