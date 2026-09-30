@@ -354,11 +354,12 @@ class TestSubscriptionsDelivery:
     @pytest.mark.parametrize('token', ['<@1554962007059472445>', '<@!1554962007059472445>'])
     @pytest.mark.parametrize('sender_id', ['392067741500309517', '1486880423568211968'])
     @pytest.mark.parametrize('with_mentions', [True, False])
-    def test_rook_user_mention_creates_stripped_request(self, signed_subscription, token, sender_id, with_mentions):
+    @pytest.mark.parametrize('message_type', [0, 19])
+    def test_rook_user_mention_creates_stripped_request(self, signed_subscription, token, sender_id, with_mentions, message_type):
         m, app, principal, params, deliveries = signed_subscription
         app.dispatch(principal, 'events/subscribe', params)
         event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
-                 'author': {'id': sender_id}, 'type': 0,
+                 'author': {'id': sender_id}, 'type': message_type,
                  'content': f' \t explain this {token} \n<@!{m.ROOK_BOT}>\t'}}
         if with_mentions:
             event['d']['mentions'] = [{'id': m.ROOK_BOT}]
@@ -367,6 +368,7 @@ class TestSubscriptionsDelivery:
         assert deliveries[-1][0]['data']['sender_id'] == sender_id
         assert app.store.get('requests', 'discord-101')['state'] == 'ready'
         assert app.ingest(event, '100') == 0
+        assert len(app.store.all('requests')) == 1
         assert len(deliveries) == 2
 
     @pytest.mark.parametrize('delta', [
@@ -384,8 +386,10 @@ class TestSubscriptionsDelivery:
         {'content': ' \t<@1554962007059472445>\n<@!1554962007059472445> \t'},
         {'content': ' \t<@1554962007059472445>\n<@!1554962007059472445> \t',
          'mentions': [{'id': '1554962007059472445'}]},
-        {'guild_id': '1'}, {'channel_id': '2'}, {'type': 19}, {'webhook_id': '888'},
-        {'author': {'id': '777', 'bot': True}}, {'id': '100'},
+        {'guild_id': '1'}, {'channel_id': '2'}, {'type': 7}, {'type': 20}, {'webhook_id': '888'},
+        {'author': {'id': '777', 'bot': True}}, {'author': {'id': '777'}}, {'id': '100'},
+        {'content': 'explain this', 'mentions': []},
+        {'content': 'explain this'},
         {'content': '<@1554962007059472445>' + 'x' * 2000},
         {'mentions': []},
         {'mentions': [{'id': '777'}]},
@@ -393,11 +397,12 @@ class TestSubscriptionsDelivery:
         {'mentions': {'id': '1554962007059472445'}},
         {'mentions': [None, '1554962007059472445', {'id': 1554962007059472445}]},
     ])
-    def test_rook_mention_rejects_echo_nonuser_and_empty_requests(self, signed_subscription, delta):
+    @pytest.mark.parametrize('message_type', [0, 19])
+    def test_rook_mention_rejects_echo_nonuser_and_empty_requests(self, signed_subscription, delta, message_type):
         m, app, principal, params, deliveries = signed_subscription
         app.dispatch(principal, 'events/subscribe', params)
         event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
-                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': f'<@{m.ROOK_BOT}> explain this'}}
+                 'author': {'id': m.OPERATOR}, 'type': message_type, 'content': f'<@{m.ROOK_BOT}> explain this'}}
         event['d'].update(delta)
         assert app.ingest(event, '100') == 0
         assert app.store.all('requests') == []
@@ -528,7 +533,7 @@ class TestSubscriptionsDelivery:
         assert calls[-1][1]['data']['request_id'] == 'discord-101'
         assert calls[-1][2]['X-MCP-Subscription-Id'] == result['id']
         for delta in ({'guild_id': '1'}, {'channel_id': '2'}, {'author': {'id': '777', 'bot': True}},
-                      {'webhook_id': '888'}, {'content': 'not prefixed'}, {'type': 19}, {'id': '99'}):
+                      {'webhook_id': '888'}, {'content': 'not prefixed'}, {'type': 20}, {'id': '99'}):
             bad = deepcopy(event); bad['d'].update(delta)
             assert app.ingest(bad, '100') == 0
         for delta in ({'arguments': {**m.ARGUMENTS, 'channel_id': '2'}}, {'cursor': 'replay'},
