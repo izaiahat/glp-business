@@ -70,6 +70,107 @@ class TestRookCommunication:
         assert not body['result'].get('isError'), body
         return body['result']['structuredContent']
 
+    def test_insufficient_scope_403_tool_challenge_without_effects(self, monkeypatch):
+        """Authentic identity + RBAC can step up scope; RBAC denial cannot consent-loop."""
+        m = self.m
+        import io
+        class MemorySocket:
+            def __init__(self, raw): self.input = io.BytesIO(raw); self.output = bytearray()
+            def makefile(self, *args): return self.input
+            def settimeout(self, timeout): pass
+            def sendall(self, data): self.output.extend(data)
+        def denied(*args, **kwargs):
+            pytest.fail('denied authorization attempted dispatch, persistence or external effect')
+        def handle(body, authorization, extra=None):
+            headers = {'MCP-Protocol-Version': m.VERSION, **(extra or {})}
+            if authorization is not None:
+                headers['Authorization'] = authorization
+            return self.app.handle('POST', '/mcp', headers, body)
+        legacy = 'rook.requests.read rook.replies.write'
+        with monkeypatch.context() as guard:
+            guard.setattr(self.app, 'dispatch', denied)
+            guard.setattr(self.app.store, 'put', denied)
+            guard.setattr(self.app.store, 'delete', denied)
+            guard.setattr(m, 'discord_request', denied)
+            for definition in m.COMMUNICATION_TOOLS:
+                name = definition['name']
+                required = definition['securitySchemes'][0]['scopes'][0]
+                token = 'Bearer ' + self.token(scope=legacy, permissions=[required])
+                body = rpc(m, 'tools/call', {'name': name, 'arguments': {}})
+                status, headers, result = handle(body, token)
+                assert status == 403
+                challenge = headers['WWW-Authenticate']
+                assert challenge.startswith('Bearer ')
+                assert 'error="insufficient_scope"' in challenge
+                assert 'error_description="' in challenge
+                assert f'scope="{required}"' in challenge
+                assert f'resource_metadata="{self.cfg.protected_metadata_url}"' in challenge
+                assert result == {'jsonrpc': '2.0', 'id': body['id'], 'result': {
+                    'resultType': 'complete', 'isError': True,
+                    'content': [{'type': 'text', 'text': 'Additional channel scope required: ' + required}],
+                    '_meta': {'mcp/www_authenticate': [challenge]}}}
+                wire = m.canonical(body).encode()
+                raw = (f'POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nAuthorization: {token}\r\n'
+                       f'MCP-Protocol-Version: {m.VERSION}\r\nContent-Type: application/json\r\n'
+                       f'Content-Length: {len(wire)}\r\n\r\n').encode() + wire
+                sock = MemorySocket(raw)
+                m.make_handler(self.app, {'127.0.0.1:8765'})(sock, ('127.0.0.1', 1), object())
+                http_headers, http_body = bytes(sock.output).split(b'\r\n\r\n', 1)
+                assert http_headers.startswith(b'HTTP/1.1 403 Forbidden\r\n')
+                assert ('WWW-Authenticate: ' + challenge).encode() in http_headers
+                assert json.loads(http_body) == result
+                no_scope = jwt.decode(self.token(permissions=[required]), self.key.public_key(), algorithms=['RS256'],
+                                      audience=self.cfg.audience, issuer=self.cfg.issuer)
+                no_scope.pop('scope')
+                assert handle(body, 'Bearer ' + jwt.encode(no_scope, self.key, algorithm='RS256')) == (status, headers, result)
+                # A role assignment is not repaired by renewed user consent, even if scope is also missing.
+                for scope in (legacy, required):
+                    for permissions in ([], None, required, [123]):
+                        status, headers, result = handle(body, 'Bearer ' + self.token(scope=scope, permissions=permissions))
+                        assert status == 403 and result['error'] == 'forbidden'
+                        assert 'WWW-Authenticate' not in headers and 'result' not in result
+                for authorization in (None, 'Bearer invalid', 'Bearer ' + self.token(exp=1),
+                                      'Bearer ' + self.token(iss='https://other.example/'),
+                                      'Bearer ' + self.token(aud='other'), 'Bearer ' + self.token(sub='auth0|other'),
+                                      'Bearer ' + jwt.encode({**no_scope, 'scope': None}, self.key, algorithm='RS256')):
+                    status, headers, result = handle(body, authorization)
+                    assert status == 401 and result == {'error': 'unauthorized'}
+                    assert 'WWW-Authenticate' in headers
+                malformed = []
+                for delta in ({'id': True}, {'id': None}, {'id': []}, {'jsonrpc': '1.0'}, {'extra': 1}):
+                    malformed.append({**deepcopy(body), **delta})
+                no_id = deepcopy(body); no_id.pop('id'); malformed.append(no_id)
+                for delta in ({'arguments': []}, {'arguments': None}, {'extra': 1}, {'_meta': None}):
+                    invalid = deepcopy(body); invalid['params'].update(delta); malformed.append(invalid)
+                for delta in ({'io.modelcontextprotocol/protocolVersion': '2025-03-26'},
+                              {'io.modelcontextprotocol/clientCapabilities': None}):
+                    invalid = deepcopy(body); invalid['params']['_meta'].update(delta); malformed.append(invalid)
+                for invalid in malformed:
+                    status, _, result = handle(invalid, token)
+                    assert status == 403 and 'result' not in result
+                for extra in ({'MCP-Protocol-Version': '2025-03-26'},
+                              {'Mcp-Method': 'tools/list'}, {'Mcp-Name': 'other'}):
+                    status, _, result = handle(body, token, extra)
+                    assert status == 403 and 'result' not in result
+                assert handle(body, token, {'Origin': 'https://other.example'}) == (403, {}, {'error': 'origin_refused'})
+                metadata = m.Application(m.Config(self.cfg.issuer, self.cfg.audience, None,
+                                                  self.cfg.protected_metadata_url, metadata_only=True))
+                try:
+                    assert metadata.store is metadata.auth is None
+                    assert metadata.handle('POST', '/mcp', {'Authorization': token, 'MCP-Protocol-Version': m.VERSION}, body)[0] == 401
+                finally:
+                    metadata.close()
+            # Unidentified tools and discovery never acquire communication-tool result metadata.
+            for method, params, required in (('tools/call', {'name': 'unknown', 'arguments': {}}, 'rook.replies.write'),
+                                             ('tools/call', {'name': [], 'arguments': {}}, 'rook.replies.write'),
+                                             ('tools/list', {}, 'rook.requests.read')):
+                status, _, result = handle(rpc(m, method, params), 'Bearer ' + self.token(scope='', permissions=[required]))
+                assert status == 403 and 'result' not in result
+        assert all(not self.app.store.all(table) for table in ('subscriptions', 'requests', 'deliveries', 'operations'))
+        monkeypatch.setattr(m, 'discord_request', self.request)
+        assert self.value('read_rook_messages', {'message_id': '101'})['messages'][0]['content'] == 'original'
+        assert len(self.calls) == 1 and self.calls[0][0] == 'GET'
+
     def test_history_scope_context_and_bounded_original_data(self, monkeypatch):
         m = self.m
         monkeypatch.setattr(m, 'discord_request', self.request, raising=False)
@@ -80,7 +181,7 @@ class TestRookCommunication:
         assert not self.app.store.all('requests')  # History is not replay/ingest.
         for scopes, perms, subject in [('rook.requests.read rook.replies.write', None, None),
                                       ('rook.channel.read', [], None), ('rook.channel.read', None, 'auth0|other')]:
-            assert self.call('read_rook_messages', args, scopes, perms, subject)[0] == 401
+            assert self.call('read_rook_messages', args, scopes, perms, subject)[0] == (401 if subject else 403)
         for bad in ({'channel_id': '999'}, {'message_id': '101', 'limit': 1}, {'limit': True},
                     {'limit': 26}, {'before_message_id': '0'}):
             assert 'error' in self.call('read_rook_messages', bad)[2]
@@ -118,7 +219,7 @@ class TestRookCommunication:
         assert self.value('send_rook_message', args) == got
         assert len([c for c in self.calls if c[0] == 'POST']) == 1
         assert 'error' in self.call('send_rook_message', {**args, 'text': 'conflict'})[2]
-        assert self.call('send_rook_message', args, 'rook.replies.write')[0] == 401
+        assert self.call('send_rook_message', args, 'rook.replies.write')[0] == 403
         for bad in ({**args, 'channel_id': '999'}, {**args, 'text': ''}, {**args, 'text': '😀' * 951},
                     {**args, 'operation_id': 'x'}, {**args, 'reply_to_message_id': '999'}):
             assert 'error' in self.call('send_rook_message', bad)[2]
@@ -183,7 +284,7 @@ class TestRookCommunication:
         for bad in ({**args, 'thread_id': '201'}, {**args, 'name': '😀' * 51}, {**args, 'name': '  '},
                     {**args, 'source_message_id': '999'}, {**args, 'name': 'different'}):
             assert 'error' in self.call('create_rook_thread', bad)[2]
-        assert self.call('create_rook_thread', args, 'rook.channel.read')[0] == 401
+        assert self.call('create_rook_thread', args, 'rook.channel.read')[0] == 403
         duplicate = {**args, 'operation_id': 'create_thread_0002'}
         assert 'error' in self.call('create_rook_thread', duplicate)[2]
         assert len([c for c in self.calls if c[0] == 'POST']) == 1
@@ -216,7 +317,7 @@ class TestRookCommunication:
         for bad in ({**args, 'user_id': '333'}, {**args, 'present': 1}, {**args, 'emoji': '@everyone'},
                     {**args, 'emoji': '../all'}, {**args, 'emoji': '<:remote:502>'}):
             assert 'error' in self.call('set_rook_reaction', bad)[2]
-        assert self.call('set_rook_reaction', args, 'rook.channel.read')[0] == 401
+        assert self.call('set_rook_reaction', args, 'rook.channel.read')[0] == 403
         assert 'error' in self.call('set_rook_reaction', {'message_id': '101', 'emoji': '✅', 'present': False})[2]
         def custom(method, path, payload=None, file=None):
             if '/reactions/' in path:
@@ -295,7 +396,7 @@ class TestRookCommunication:
         assert got['data_classification'] == 'UNTRUSTED_EXTERNAL_DATA_NOT_APPROVAL'
         for bad in ({**args, 'url': attachment['url']}, {**args, 'path': '/etc/passwd'}, {**args, 'attachment_id': '999'}):
             assert 'error' in self.call('read_rook_file', bad)[2]
-        assert self.call('read_rook_file', args, 'rook.channel.write')[0] == 401
+        assert self.call('read_rook_file', args, 'rook.channel.write')[0] == 403
         for delta in ({'size': m.FILE_LIMIT + 1}, {'content_type': 'text/html'}, {'filename': '../../notes.txt'},
                       {'url': 'http://cdn.discordapp.com/x'}, {'url': 'https://evil.example/attachments/x'},
                       {'url': 'https://cdn.discordapp.com/attachments/999/401/notes.txt'}):
@@ -387,7 +488,7 @@ class TestRookCommunication:
         # Scope AND RBAC required on the same existing subject/issuer/resource, actual signed exp enforced.
         headers = {'Authorization': 'Bearer ' + self.token(scope='rook.channel.read', permissions=['rook.replies.write']), 'MCP-Protocol-Version': m.VERSION}
         body = rpc(m, 'tools/call', {'name': 'read_rook_messages', 'arguments': {'message_id': '101'}})
-        assert self.app.handle('POST', '/mcp', headers, body)[0] == 401
+        assert self.app.handle('POST', '/mcp', headers, body)[0] == 403
         for claims in ({'exp': int(time.time()) - 120}, {'sub': 'auth0|wrong'}, {'aud': 'https://wrong.example/mcp'},
                        {'iss': 'https://wrong.example/'}):
             assert self.app.handle('POST', '/mcp', {**headers, 'Authorization': 'Bearer ' + self.token(**claims)}, body)[0] == 401

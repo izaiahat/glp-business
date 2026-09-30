@@ -115,6 +115,8 @@ def required_scopes(method, params):
     if method != 'tools/call':
         return {'rook.requests.read'}
     name = params.get('name') if isinstance(params, dict) else None
+    if not isinstance(name, str):
+        return {'rook.replies.write'}
     if name in {'read_rook_messages', 'read_rook_file'}:
         return {CHANNEL_READ}
     if name in {'send_rook_message', 'create_rook_thread', 'set_rook_reaction'}:
@@ -382,6 +384,14 @@ class AuthDenied(Exception):
     pass
 
 
+class AuthForbidden(AuthDenied):
+    pass
+
+
+class InsufficientScope(AuthForbidden):
+    pass
+
+
 class RpcError(Exception):
     def __init__(self, code, message, data=None):
         self.code, self.message, self.data = code, message, data
@@ -440,14 +450,18 @@ class Authenticator:
             key = self.keys.get_signing_key_from_jwt(token).key
             claims = jwt.decode(token, key, algorithms=['RS256'], audience=self.config.audience,
                                 issuer=self.config.issuer, options={'require': ['exp', 'iat', 'iss', 'sub', 'aud']})
-            if claims['sub'] != self.config.subject or not isinstance(claims.get('scope'), str):
+            if claims['sub'] != self.config.subject or not isinstance(claims.get('scope', ''), str):
                 raise AuthDenied()
-            scopes = frozenset(claims['scope'].split())
+            scopes = frozenset(claims.get('scope', '').split())
             permissions = claims.get('permissions')
             if (not isinstance(permissions, list) or not all(isinstance(p, str) for p in permissions)
-                    or not set(required) <= scopes or not set(required) <= set(permissions)):
-                raise AuthDenied()
+                    or not set(required) <= set(permissions)):
+                raise AuthForbidden()  # Consent cannot repair a missing RBAC assignment.
+            if not set(required) <= scopes:
+                raise InsufficientScope()
             return Principal(claims['sub'], int(claims['exp']), scopes)
+        except AuthDenied:
+            raise
         except Exception:
             raise AuthDenied() from None
 
@@ -619,12 +633,24 @@ class Application:
             return self.challenge(required)
         if method != 'POST' or path != '/mcp':
             return 405, {}, {'error': 'method_or_path_refused'}
+        scope_denied = False
+        challenge = ''
+        principal = None
+        response_headers = {}
         try:
             assert self.auth is not None  # Metadata-only returned its challenge above.
             principal = self.auth.authenticate(h.get('authorization'), required)
+        except InsufficientScope:
+            scope_denied = True
+            challenge = ('Bearer error="insufficient_scope", error_description="Additional scope required", scope=' +
+                         json.dumps(' '.join(sorted(required))) + ', resource_metadata=' +
+                         json.dumps(self.config.protected_metadata_url))
+            response_headers = {'WWW-Authenticate': challenge}
+        except AuthForbidden:
+            return 403, {}, {'error': 'forbidden', 'error_description': 'Required RBAC permission missing; renewed consent cannot grant it.'}
         except AuthDenied:
             return self.challenge(required)
-        status = 200
+        status = 403 if scope_denied else 200
         try:
             if (not isinstance(body, dict) or body.get('jsonrpc') != '2.0' or isinstance(request_id, bool)
                     or not isinstance(request_id, (str, int)) or not isinstance(body.get('method'), str)):
@@ -635,21 +661,34 @@ class Application:
             meta = params['_meta']
             version = meta.get('io.modelcontextprotocol/protocolVersion')
             if version != h.get('mcp-protocol-version'):
-                status = 400
+                status = 403 if scope_denied else 400
                 raise RpcError(-32600, 'ProtocolHeaderMismatch')
             if version != VERSION:
                 raise RpcError(-32022, 'UnsupportedProtocolVersion', {'supportedVersions': [VERSION]})
             if not isinstance(meta.get('io.modelcontextprotocol/clientCapabilities'), dict):
                 raise RpcError(-32602, 'InvalidParams')
+            if scope_denied:
+                # Only a valid identified communication-tool request receives tool-result metadata.
+                if (body['method'] != 'tools/call' or set(body) != {'jsonrpc', 'id', 'method', 'params'}
+                        or set(params) != {'name', 'arguments', '_meta'} or not isinstance(params.get('arguments'), dict)
+                        or params.get('name') not in [tool['name'] for tool in COMMUNICATION_TOOLS]
+                        or h.get('mcp-method', 'tools/call') != 'tools/call'
+                        or h.get('mcp-name', params['name']) != params['name']):
+                    return 403, response_headers, {'error': 'insufficient_scope'}
+                return 403, response_headers, {'jsonrpc': '2.0', 'id': request_id, 'result': {
+                    'resultType': 'complete', 'isError': True,
+                    'content': [{'type': 'text', 'text': 'Additional channel scope required: ' + ' '.join(sorted(required))}],
+                    '_meta': {'mcp/www_authenticate': [challenge]}}}
+            assert principal is not None
             result = self.dispatch(principal, body['method'], {k: v for k, v in params.items() if k != '_meta'})
             return 200, {}, {'jsonrpc': '2.0', 'id': request_id, 'result': {'resultType': 'complete', **result}}
         except RpcError as exc:
             error = {'code': exc.code, 'message': exc.message}
             if exc.data is not None:
                 error['data'] = exc.data
-            return status, {}, {'jsonrpc': '2.0', 'id': request_id, 'error': error}
+            return status, response_headers, {'jsonrpc': '2.0', 'id': request_id, 'error': error}
         except Exception:
-            return 200, {}, {'jsonrpc': '2.0', 'id': request_id, 'error': {'code': -32603, 'message': 'InternalErrorDetailsSuppressed'}}
+            return 403 if scope_denied else 200, response_headers, {'jsonrpc': '2.0', 'id': request_id, 'error': {'code': -32603, 'message': 'InternalErrorDetailsSuppressed'}}
 
     def challenge(self, required):
         return 401, {'WWW-Authenticate': 'Bearer resource_metadata="' + self.config.protected_metadata_url +
