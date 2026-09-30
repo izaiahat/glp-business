@@ -24,7 +24,7 @@
     "tests/test_rook_communication.py": {
       "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
       "kind": "test",
-      "sha256": "484fca9814325469c219d307a480c96b750b78e3341ecf50e24cb619ddec2192"
+      "sha256": "03fa612f878c57c206d8a33767ec1d3e525fe9d9cb76aef99153fe066e77be30"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],

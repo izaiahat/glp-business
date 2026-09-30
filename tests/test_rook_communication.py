@@ -442,7 +442,7 @@ class TestRookCommunication:
         invalid = ('backend=', 'backend=b3', 'backend=B2', 'backend=s3', 'backend=b2&backend=b2',
                    'backend=b2&backend=b3', 'backend=b2&ex=1&ex=1', 'backend=b2&is=1&is=2',
                    'backend=b2&hm=a&hm=b', 'backend=b2&unknown=a', 'backend=b2&ex=',
-                   'backend=b2&ex=nothex', 'backend=b2&ex', 'backend=b2&&ex=1', 'backend=b2&',
+                   'backend=b2&ex=nothex', 'backend=b2&ex', 'backend=b2&&ex=1', 'backend=b2&&',
                    'backend=b2;ex=1', 'backend=%62%32', 'back%65nd=b2', 'backend=b2&hm=%zz',
                    'backend=b2&hm=' + 'a' * 257)
         for query in invalid:
