@@ -10,6 +10,7 @@
 /scripts/*
 !/tests/
 /tests/*
+!/tests/test_rook_communication.py
 !/.github/workflows/
 /.github/workflows/*
 !/tests/test_glp85_cj_reporting_identity.py

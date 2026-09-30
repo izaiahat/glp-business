@@ -1,0 +1,5 @@
+# Isolated environment only; no host/core install. CI uses these same pins.
+PyJWT[crypto]==2.13.0
+cryptography==46.0.3
+standardwebhooks==1.0.0
+discord.py==2.7.1

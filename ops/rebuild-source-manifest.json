@@ -1,10 +1,35 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "ops/rook-mcp/README.md": {
+      "callers": ["manual:parent-owned launch requirements; rollout held"],
+      "kind": "instruction_or_policy",
+      "sha256": "5b0f7a7774900a8d77edcd52570559ae527cdb55aae7b00e34b2df6f1244dd91"
+    },
+    "ops/rook-mcp/requirements.txt": {
+      "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
+      "kind": "repository_control",
+      "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
+    },
+    "scripts/rook_mcp_events.py": {
+      "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
+      "kind": "script",
+      "sha256": "4472c4632c3968745bea3318832513c073479d5dd1c83876321501c0038f77f7"
+    },
+    "tests/test_rook_mcp_events.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "8d762b6511b13c4a4f821059d02bfd9ae1e3806e422e4ac3bfb0a9f8573b4616"
+    },
+    "tests/test_rook_communication.py": {
+      "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "6ad5859b29083d8dc26b0c0ae5706550255773aeb3483cf9f679eae5e2cca0c7"
+    },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a353fe61852c661f7f664ba94ae7f9b06f3833ae8e1ffbc6f22dc106de7f98b0"
+      "sha256": "85e6333fc313b31724784774dd3eab90ea9978dbfa819752fdee5bca15a7916d"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -14,7 +39,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99fad62e5534e0e6aa98d6b27a95e1f8369d782d008e7e7ef56197ba23a1065a"
+      "sha256": "7664270ae6fe1c0413c1da2b3f91d21049624cc2e26b076d8dcecbea7c8a2f30"
     },
     ".hermes.md": {
       "callers": [],
@@ -1515,7 +1540,7 @@
     },
     "scripts/post_discord_message.py": {
       "callers": [
-        "scripts/fable_bridge.py"
+        "scripts/fable_bridge.py", "scripts/rook_mcp_events.py", "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
       "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
@@ -1524,6 +1549,11 @@
       "callers": [],
       "kind": "script",
       "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
+    },
+    "scripts/receive_one_discord_message.py": {
+      "callers": ["manual:parent-owned-terminal-notify-only; live launch held", "scripts/rook_mcp_events.py"],
+      "kind": "script",
+      "sha256": "021f29bc483ad6ee80552b247fc35ff283a9d8d92b0512f06b8d36adc4b82557"
     },
     "scripts/reports_archiver.py": {
       "callers": [
@@ -1553,7 +1583,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b08171c184421dcbdfa0ff0a065a49d1788c730b46030a8babf70d7e36524cd9"
+      "sha256": "2e5bf0767884ffb9f3b85f9c55573eaca6895966c49e505e83aebff43a0b0347"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2650,6 +2680,11 @@
       "kind": "test",
       "sha256": "8d44d10c87ebdf797cd277083db29359066232207f26f3c4a02e063f0dc4d212"
     },
+    "tests/test_receive_one_discord_message.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "72992f19ed8c817c101dcbb2604ac14f5f2fcf9af3799261a2fad73b5b60bd60"
+    },
     "tests/test_seat_autodispatch.py": {
       "callers": [
         "scripts/seat_autodispatch.py"
@@ -2716,5 +2751,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 418
+  "tracked_count": 425
 }
