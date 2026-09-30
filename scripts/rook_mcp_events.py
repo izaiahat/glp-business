@@ -1071,11 +1071,11 @@ class Application:
         else:
             mention_pattern = rf'<@!?{ROOK_BOT}>'
             mentions = data.get('mentions')
-            # Discord's user-mention metadata is authoritative when present;
-            # only older envelopes lacking it may fall back to content tokens.
-            mentioned = (isinstance(mentions, list) and any(
-                isinstance(user, dict) and user.get('id') == ROOK_BOT for user in mentions)
-                if 'mentions' in data else re.search(mention_pattern, content) is not None)
+            # A literal body token is mandatory: reply pings can add Rook to
+            # mentions metadata without an explicit mention in the content.
+            mentioned = (re.search(mention_pattern, content) is not None and
+                ('mentions' not in data or (isinstance(mentions, list) and any(
+                    isinstance(user, dict) and user.get('id') == ROOK_BOT for user in mentions))))
             if not mentioned:
                 return 0
             text = re.sub(mention_pattern, '', content).strip()

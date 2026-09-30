@@ -409,14 +409,18 @@ class TestSubscriptionsDelivery:
         assert app.store.all('deliveries') == []
         assert len(deliveries) == 1
 
-    def test_rook_mentions_array_is_authoritative(self, signed_subscription):
+    @pytest.mark.parametrize('message_type', [0, 19])
+    @pytest.mark.parametrize('sender_id', ['392067741500309517', '1486880423568211968'])
+    def test_rook_mention_metadata_without_body_token_is_rejected(self, signed_subscription, message_type, sender_id):
         m, app, principal, params, deliveries = signed_subscription
         app.dispatch(principal, 'events/subscribe', params)
         event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
-                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': '  explain this  ',
+                 'author': {'id': sender_id}, 'type': message_type, 'content': '  explain this  ',
                  'mentions': [{'id': '777'}, {'id': m.ROOK_BOT}]}}
-        assert app.ingest(event, '100') == 1
-        assert deliveries[-1][0]['data']['text'] == 'explain this'
+        assert app.ingest(event, '100') == 0
+        assert app.store.all('requests') == []
+        assert app.store.all('deliveries') == []
+        assert len(deliveries) == 1
 
     def test_rook_legacy_prefix_keeps_existing_text_extraction(self, signed_subscription):
         m, app, principal, params, deliveries = signed_subscription
