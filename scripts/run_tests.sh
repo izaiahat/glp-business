@@ -33,6 +33,7 @@ suites+=(tests/test_glp96_research_only_contract.py)
 suites+=(tests/test_glp329_add_approved_row_full_grid_dry_run.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 suites+=(tests/test_glp320_readonly_grouping.py)
+suites+=(tests/test_receive_one_discord_message.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \
       -f /home/ubuntu/business/reports/glp-clinic-scout/growth/build-3/reddit-firecrawl-search-captures-20260811-r5.json ]]; then
