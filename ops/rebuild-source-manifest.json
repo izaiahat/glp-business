@@ -14,7 +14,7 @@
     "scripts/rook_mcp_events.py": {
       "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
       "kind": "script",
-      "sha256": "96b9359d5d935bd8b5ac0b285377fed32aa8e0725d1e833994ed01f565024fd8"
+      "sha256": "9a66954e163a86b9728e889e2e81fc7e1bd7402ead8aad14c63126d1734ce074"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": ["scripts/run_tests.sh"],
@@ -24,7 +24,7 @@
     "tests/test_rook_communication.py": {
       "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
       "kind": "test",
-      "sha256": "c097fae848c038419dd3981443e39c8f67c9504d377b0abbf6a6e3441f20aa59"
+      "sha256": "8bb275730610309e084ce72c3057362b96d206d67a32f7f0634cc8e34399b594"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],

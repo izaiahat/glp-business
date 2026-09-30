@@ -426,6 +426,65 @@ class TestRookCommunication:
                                     ('application/pdf', 'notes.pdf', b'%PDF-1.4\n%%EOF')]:
             m.validate_file(filename, mime, data)
 
+    def test_discord_attachment_backend_b2_query_is_narrowly_supported(self, monkeypatch):
+        """b2 observed in exact authenticated metadata; signing fields/bytes are synthetic."""
+        m = self.m
+        raw = b'x' * 54
+        base = f'https://cdn.discordapp.com/attachments/{m.CHANNEL}/401/notes.txt'
+        signed = 'ex=12345678&is=23456789&hm=' + 'a' * 64
+        attachment = {'id': '401', 'filename': 'notes.txt', 'content_type': 'text/plain; charset=utf-8',
+                      'size': len(raw), 'url': base + '?' + signed + '&backend=b2'}
+        # The original defect must fail here, before any transport is reached.
+        assert m.attachment_target(attachment, m.CHANNEL) == attachment['url']
+        for query in ('', signed, 'backend=b2&' + signed, signed + '&backend=b2'):
+            url = base + ('?' + query if query else '')
+            assert m.attachment_target({**attachment, 'url': url}, m.CHANNEL) == url
+        invalid = ('backend=', 'backend=b3', 'backend=B2', 'backend=s3', 'backend=b2&backend=b2',
+                   'backend=b2&backend=b3', 'backend=b2&ex=1&ex=1', 'backend=b2&is=1&is=2',
+                   'backend=b2&hm=a&hm=b', 'backend=b2&unknown=a', 'backend=b2&ex=',
+                   'backend=b2&ex=nothex', 'backend=b2&ex', 'backend=b2&&ex=1', 'backend=b2&',
+                   'backend=b2;ex=1', 'backend=%62%32', 'back%65nd=b2', 'backend=b2&hm=%zz',
+                   'backend=b2&hm=' + 'a' * 257)
+        for query in invalid:
+            with pytest.raises(m.RpcError, match='UnverifiedAttachmentURL'):
+                m.attachment_target({**attachment, 'url': base + '?' + query}, m.CHANNEL)
+        for url in (attachment['url'].replace('https:', 'http:'),
+                    attachment['url'].replace('cdn.discordapp.com', 'evil.example'),
+                    attachment['url'].replace('cdn.discordapp.com', 'user@cdn.discordapp.com'),
+                    attachment['url'].replace('/401/', '/402/'), attachment['url'] + '#fragment',
+                    attachment['url'].replace('/notes.txt', '/other.txt')):
+            with pytest.raises(m.RpcError, match='UnverifiedAttachmentURL'):
+                m.attachment_target({**attachment, 'url': url}, m.CHANNEL)
+        self.messages['101']['attachments'] = [attachment]
+        connections = []
+        class Response:
+            status = 200
+            def getheader(self, name, fallback=None):
+                return {'Content-Type': 'text/plain', 'Content-Length': '54'}.get(name, fallback)
+            def read(self, limit):
+                assert limit == m.FILE_LIMIT + 1
+                return raw
+        class Connection:
+            def __init__(self, host, address):
+                connections.append((host, address))
+            def request(self, method, path, headers):
+                assert method == 'GET' and path == attachment['url'].split('cdn.discordapp.com')[1]
+                assert 'Authorization' not in headers
+            def getresponse(self): return Response()
+            def close(self): pass
+        monkeypatch.setattr(socket, 'getaddrinfo', lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('8.8.8.8', 443))])
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        monkeypatch.setattr(m, 'discord_request', self.request)
+        args = {'message_id': '101', 'attachment_id': '401'}
+        assert self.call('read_rook_file', args, 'rook.channel.write')[0] == 403
+        assert not connections and not self.calls
+        got = self.value('read_rook_file', args)
+        assert base64.b64decode(got['content_base64']) == raw
+        assert got['sha256'] == hashlib.sha256(raw).hexdigest() and got['byte_length'] == 54
+        assert connections == [('cdn.discordapp.com', '8.8.8.8')]
+        assert all(call[0] == 'GET' for call in self.calls)
+
     def test_discord_utf8_mime_parameters_preserve_verified_file_custody(self, monkeypatch):
         """Live MIME spelling; synthetic bytes/transport, actual validation and send/read paths."""
         m = self.m

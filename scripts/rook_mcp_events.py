@@ -258,7 +258,11 @@ def attachment_target(metadata, channel):
     if (parsed.scheme != 'https' or parsed.hostname not in {'cdn.discordapp.com', 'media.discordapp.net'}
             or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.fragment
             or parsed.path != f'/attachments/{channel}/{identity}/{metadata["filename"]}'
-            or set(query) - {'ex', 'is', 'hm'} or any(len(v) != 1 or not re.fullmatch(r'[a-fA-F0-9]{1,256}', v[0]) for v in query.values())):
+            # Optional backend=b2 is observed in authenticated Discord attachment metadata.
+            # Validate raw fields too: parse_qs otherwise hides malformed/encoded spellings.
+            or (parsed.query and any(not re.fullmatch(r'(?:ex|is|hm)=[a-fA-F0-9]{1,256}|backend=b2', field)
+                                     for field in parsed.query.split('&')))
+            or set(query) - {'ex', 'is', 'hm', 'backend'} or any(len(v) != 1 for v in query.values())):
         raise RpcError(-32602, 'UnverifiedAttachmentURL')
     return value
 
