@@ -426,6 +426,115 @@ class TestRookCommunication:
                                     ('application/pdf', 'notes.pdf', b'%PDF-1.4\n%%EOF')]:
             m.validate_file(filename, mime, data)
 
+    def test_discord_utf8_mime_parameters_preserve_verified_file_custody(self, monkeypatch):
+        """Live MIME spelling; synthetic bytes/transport, actual validation and send/read paths."""
+        m = self.m
+        raw = b'x' * 54  # Not the live attachment's bytes or hash.
+        attachment = {'id': '401', 'filename': 'notes.txt', 'content_type': 'text/plain; charset=utf-8',
+                      'size': len(raw), 'url': f'https://cdn.discordapp.com/attachments/{m.CHANNEL}/401/notes.txt'}
+        self.messages['101']['attachments'] = [attachment]
+        connections = []
+        class Response:
+            status = 200
+            mime: object = 'text/plain; charset=utf-8'
+            data = raw
+            length = str(len(raw))
+            def getheader(self, name, fallback=None):
+                return {'Content-Type': self.mime, 'Content-Length': self.length}.get(name, fallback)
+            def read(self, maximum): return self.data[:maximum]
+        response = Response()
+        class Connection:
+            def __init__(self, host, address):
+                assert host == 'cdn.discordapp.com' and address == '8.8.8.8'
+            def request(self, method, path, body=None, headers=None):
+                assert method == 'GET' and path.startswith(f'/attachments/{m.CHANNEL}/')
+                assert headers is not None and 'Authorization' not in headers
+                connections.append(path)
+            def getresponse(self): return response
+            def close(self): pass
+        monkeypatch.setattr(socket, 'getaddrinfo', lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('8.8.8.8', 443))])
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        monkeypatch.setattr(m, 'discord_request', self.request)
+        args = {'message_id': '101', 'attachment_id': '401'}
+        def read_exact():
+            got = self.value('read_rook_file', args)
+            assert got['byte_length'] == len(raw) and base64.b64decode(got['content_base64']) == raw
+            assert got['sha256'] == hashlib.sha256(raw).hexdigest()
+            assert got['data_classification'] == 'UNTRUSTED_EXTERNAL_DATA_NOT_APPROVAL'
+        # Metadata/CDN may independently omit the charset or vary token case/quoting/OWS.
+        read_exact()
+        for metadata_mime in ('text/plain', 'text/plain; charset=utf-8', ' TEXT/PLAIN ; CHARSET="UTF-8" '):
+            for cdn_mime in ('text/plain', 'text/plain; charset=utf-8', 'Text/Plain; charset="UTF-8"'):
+                attachment['content_type'], response.mime = metadata_mime, cdn_mime
+                read_exact()
+        valid_mime = 'text/plain; charset=utf-8'
+        attachment['content_type'] = response.mime = valid_mime
+        invalid_mimes = (None, 123, '', 'text/html; charset=utf-8', 'text/plain; charset=iso-8859-1',
+                         'text/plain; charset=us-ascii', 'text/plain; charset=utf8',
+                         'text/plain; charset=utf-8; CHARSET=utf-8',
+                         'text/plain; charset=utf-8; charset=iso-8859-1',
+                         'text/plain; foo=bar', 'text/plain; charset=utf-8; foo=bar',
+                         'text/plain;', 'text/plain; charset', 'text/plain; charset=',
+                         'text/plain; charset="utf-8', 'text/plain; charset="utf-8"junk',
+                         'text/plain; charset=utf-8\r\nX-Test: x', 'text/plain, text/html')
+        for bad in invalid_mimes:
+            attachment['content_type'] = bad
+            before = len(connections)
+            assert 'error' in self.call('read_rook_file', args)[2], bad
+            assert len(connections) == before  # Refuse unverified metadata before CDN.
+            attachment['content_type'], response.mime = valid_mime, bad
+            assert 'error' in self.call('read_rook_file', args)[2], bad
+            response.mime = valid_mime
+        for delta in ({'filename': 'notes.json'}, {'size': m.FILE_LIMIT + 1},
+                      {'url': 'https://cdn.discordapp.com/attachments/999/401/notes.txt'}):
+            original = deepcopy(attachment); attachment.update(delta)
+            assert 'error' in self.call('read_rook_file', args)[2]
+            attachment.clear(); attachment.update(original)
+        for data in (b'\xff' * 54, b'\x00' * 54, b'<script>' + b'x' * 46, raw + b'x'):
+            response.data = data
+            assert 'error' in self.call('read_rook_file', args)[2]
+        response.data = raw
+        for filename, mime, data in (('notes.json', 'application/json; charset=utf-8', b'{"ok":true}'),
+                                     ('notes.txt', valid_mime, 'snow: 雪\n'.encode())):
+            assert m.validate_file(filename, mime, data)['data'] == data
+        for filename, mime, data in (('notes.json', 'application/json; charset=utf-8', b'not-json'),
+                                     ('notes.txt', valid_mime, b'\xff'),
+                                     ('notes.png', 'image/png; charset=utf-8', b'\x89PNG\r\n\x1a\n'),
+                                     ('notes.pdf', 'application/pdf; charset=utf-8', b'%PDF-1.4\n%%EOF')):
+            with pytest.raises(m.RpcError): m.validate_file(filename, mime, data)
+        def request(method, path, payload=None, file=None):
+            if method == 'POST':
+                self.calls.append((method, path, payload, file))
+                assert file is not None and payload is not None
+                assert file['data'] == raw and file['content_type'] == 'text/plain'
+                self.messages['102'] = self.message('102', content=payload['content'])
+                self.messages['102']['attachments'] = [deepcopy(attachment)]
+                return deepcopy(self.messages['102'])
+            return self.request(method, path, payload, file)
+        monkeypatch.setattr(m, 'discord_request', request)
+        send = {'operation_id': 'send_mime_fixture_001', 'text': '', 'file': {
+            'filename': 'notes.txt', 'content_type': 'text/plain', 'content_base64': base64.b64encode(raw).decode()}}
+        result = self.value('send_rook_message', send)
+        assert result['attachment_sha256'] == hashlib.sha256(raw).hexdigest()
+        assert self.value('send_rook_message', send) == result
+        assert len([c for c in self.calls if c[0] == 'POST']) == 1
+        assert self.app.store.all('operations')[0]['state'] == 'confirmed'
+        # Failed CDN MIME or exact-byte readback remains uncertain and cannot resend, even after restart.
+        for i, (mime, data) in enumerate((('text/plain; charset=iso-8859-1', raw), (valid_mime, b'y' * 54))):
+            response.mime, response.data = mime, data
+            bad = {**send, 'operation_id': f'send_mime_uncertain_{i:03}', 'text': str(i)}
+            uncertain = self.call('send_rook_message', bad)[2]['result']
+            assert uncertain['isError']
+            count = len([c for c in self.calls if c[0] == 'POST'])
+            self.app.close()
+            self.app = m.Application(self.cfg, self.app.store.directory, auth=m.Authenticator(self.cfg, self.app.auth.keys))
+            assert self.call('send_rook_message', bad)[2]['result'] == uncertain
+            assert self.call('send_rook_message', {**bad, 'operation_id': f'changed_mime_uncertain_{i:03}'})[2]['result'] == uncertain
+            assert len([c for c in self.calls if c[0] == 'POST']) == count
+            assert self.app.store.all('operations')[-1]['state'] == 'uncertain'
+        assert self.call('read_rook_file', args, 'rook.channel.write')[0] == 403
+        assert self.call('send_rook_message', send, 'rook.channel.read')[0] == 403
+
     def test_http_file_exception_transport_pin_and_jwt_authority(self, monkeypatch):
         import io
         from email.parser import BytesParser

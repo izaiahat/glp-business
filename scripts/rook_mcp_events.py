@@ -168,16 +168,35 @@ def file_send_request(body):
             and isinstance(arguments, dict) and 'file' in arguments) if isinstance(body, dict) and isinstance(params, dict) else False
 
 
+def file_media_type(value):
+    """Allowlisted media type plus at most one UTF-8 charset on UTF-8 text only.
+
+    Full-match the supported parameter grammar; never discard unknown, duplicate
+    or malformed parameters. Missing charset and explicit UTF-8 are equivalent
+    because validate_file always enforces UTF-8 for text/plain and JSON.
+    """
+    match = re.fullmatch(r'[ \t]*([a-z]+/[a-z]+)(?:[ \t]*;[ \t]*charset[ \t]*=[ \t]*(utf-8|"utf-8"))?[ \t]*',
+                         value, re.I | re.ASCII) if isinstance(value, str) else None
+    if match is None:
+        raise RpcError(-32602, 'FileNameOrTypeRefused')
+    mime = match[1].lower()
+    if mime not in MIME_EXTENSIONS or (match[2] and mime not in {'text/plain', 'application/json'}):
+        raise RpcError(-32602, 'FileNameOrTypeRefused')
+    return mime
+
+
 def validate_filename(filename, mime):
+    mime = file_media_type(mime)
     if (not isinstance(filename, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,99}', filename)
-            or '..' in filename or mime not in MIME_EXTENSIONS
+            or '..' in filename
             or Path(filename).suffix.lower() not in MIME_EXTENSIONS[mime]
             or re.search(r'(?:credential|secret|private.?key|patient|medical|\.env)', filename, re.I)):
         raise RpcError(-32602, 'FileNameOrTypeRefused')
+    return mime
 
 
 def validate_file(filename, mime, data):
-    validate_filename(filename, mime)
+    mime = validate_filename(filename, mime)
     if not isinstance(data, bytes) or not 1 <= len(data) <= FILE_LIMIT:
         raise RpcError(-32602, 'FileSizeRefused')
     # Conservative markers, not a malware/PHI detector. Only non-sensitive files may be supplied.
@@ -252,7 +271,11 @@ def download_attachment(metadata, channel):
         conn.request('GET', path, headers={'User-Agent': 'HermesDiscordPoster/1.0'})
         response = conn.getresponse()
         declared = response.getheader('Content-Length')
-        if (response.status != 200 or response.getheader('Content-Type', '').split(';')[0].strip() != metadata['content_type']
+        try:
+            response_mime = file_media_type(response.getheader('Content-Type', ''))
+        except RpcError as exc:
+            raise RpcError(-32030, 'AttachmentResponseRefused') from exc
+        if (response.status != 200 or response_mime != file_media_type(metadata['content_type'])
                 or (declared is not None and (not declared.isdigit() or int(declared) != metadata['size']))):
             raise RpcError(-32030, 'AttachmentResponseRefused')
         data = response.read(FILE_LIMIT + 1)
@@ -800,7 +823,7 @@ class Application:
                 if len(attachments) != 1:
                     raise ValueError('attachment readback mismatch')
                 metadata, downloaded = verified_file(fetched, snowflake(attachments[0].get('id')), channel)
-                if (metadata['filename'] != file['filename'] or metadata['content_type'] != file['content_type']
+                if (metadata['filename'] != file['filename'] or file_media_type(metadata['content_type']) != file['content_type']
                         or downloaded != file['data']):
                     raise ValueError('attachment bytes mismatch')
                 result.update(attachment_id=metadata['id'], attachment_sha256=file_custody['sha256'])
