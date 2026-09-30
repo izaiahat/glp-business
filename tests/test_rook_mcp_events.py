@@ -404,4 +404,3 @@ class TestReceiveBoundReply:
         assert code == 0 and result['authenticated_reply_binding'] is True and closed == [True]
         assert len(sent) == 1
         app.close()
-

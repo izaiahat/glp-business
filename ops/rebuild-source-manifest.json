@@ -19,7 +19,7 @@
     "tests/test_rook_mcp_events.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "0bb7f68e2807a5522160279b7289e001b3a416790c170e1f55afbb46552cc57f"
+      "sha256": "21e88c0527969cbd20c9f5ae85506ed525a0bf72460e6a71b195186e85e09179"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
