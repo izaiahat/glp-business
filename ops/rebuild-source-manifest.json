@@ -14,7 +14,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99fad62e5534e0e6aa98d6b27a95e1f8369d782d008e7e7ef56197ba23a1065a"
+      "sha256": "3d1c30da9e71130e1e15e1ca926f6920646ac3894415843dadc6e16a2bb475f0"
     },
     ".hermes.md": {
       "callers": [],
@@ -203,15 +203,15 @@
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
     },
-    "ops/glp328-readonly-evidence.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "28925ac7454d6d353a4eeb498aecd9dd93ff49e51dfa604a2e7f84ff30025426"
-    },
     "ops/glp320-source-only.md": {
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "47babdc3e1fd7b13ed1b394a64e87302f154b23d82f01d1d71a54fc76a4b5a81"
+    },
+    "ops/glp328-readonly-evidence.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "28925ac7454d6d353a4eeb498aecd9dd93ff49e51dfa604a2e7f84ff30025426"
     },
     "ops/glp76-host-transport.md": {
       "callers": [],
@@ -294,6 +294,21 @@
       ],
       "kind": "script",
       "sha256": "1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447"
+    },
+    "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
+    },
+    "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
+    },
+    "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
     },
     "ops/hermes-cron-scripts/glp_affiliate_approval_reconciler.sh": {
       "callers": [
@@ -411,15 +426,6 @@
       ],
       "kind": "script",
       "sha256": "353e382af382dd7535aab4cba9a65fd875d0ca3c367473b12ca13e4719649491"
-    },
-    "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
-      "callers": [], "kind": "instruction_or_policy", "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
-    },
-    "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py": {
-      "callers": [], "kind": "instruction_or_policy", "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
-    },
-    "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh": {
-      "callers": [], "kind": "instruction_or_policy", "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
     },
     "ops/hermes-cron-scripts/glp_seo_daily_article_watchdog.py": {
       "callers": [
@@ -1073,15 +1079,15 @@
       "kind": "script",
       "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
-    "scripts/glp328_readonly_evidence.py": {
-      "callers": [],
-      "kind": "script",
-      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
-    },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
       "kind": "script",
       "sha256": "1f3bb51c465a98fd5bc3da566f44e20731587123d2200792bc31e9b09fde3d21"
+    },
+    "scripts/glp328_readonly_evidence.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
@@ -1091,7 +1097,9 @@
       "sha256": "c530e001e25fe2c57a4f67467eb9c7552b12c2d567cd43dcd8891511309d857c"
     },
     "scripts/glp44_safe_bridge_activation.py": {
-      "callers": ["ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"],
+      "callers": [
+        "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
+      ],
       "kind": "repository_control",
       "sha256": "a2119a04329360a2a2bda2f4fa29c0dcc5ed94a112b05116cee6dc0c10628cc2"
     },
@@ -1101,7 +1109,9 @@
       "sha256": "b2547ba292d4f4a1422d1d80a1244ce9b5c7e7c94ab764a9488525b01038d436"
     },
     "scripts/glp73_paired_adoption.py": {
-      "callers": [], "kind": "repository_control", "sha256": "6fe54f72fd177b2dd238422a4d2083a3fe74603690e8a68094f9822e1a32a00d"
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "6fe54f72fd177b2dd238422a4d2083a3fe74603690e8a68094f9822e1a32a00d"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1743,6 +1753,13 @@
       "kind": "script",
       "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144"
     },
+    "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "script",
+      "sha256": "c44400a98ee8165d5915be91ab5f189f3d3f80a86231e081cfde50686dd848e3"
+    },
     "systems/seo-blog-machine/scripts/machine_config.py": {
       "callers": [
         "GLP-7 registered article buffer"
@@ -1770,6 +1787,13 @@
       ],
       "kind": "script",
       "sha256": "eea97573c0c269aa6092b57300bb86fe196d00c28b5181e5f080f476d53f93cc"
+    },
+    "systems/seo-blog-machine/scripts/r2_update_carrier.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "script",
+      "sha256": "5b831b9f3318b97b892d96700a62a9684c2844555ff1b7af04bfa6460bf37d71"
     },
     "systems/seo-blog-machine/scripts/review_transports.py": {
       "callers": [
@@ -1812,6 +1836,13 @@
       ],
       "kind": "test",
       "sha256": "3c7c92c16175ab7a1b298d74bab4db1e6585611d983aac523a9620fe49e63fe4"
+    },
+    "systems/seo-blog-machine/tests/test_learning_loop_actions.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "test",
+      "sha256": "618501442825dcb3831da65e9f68b3f0e11a7933575656ddc168eb7de3e5f9bb"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -2164,13 +2195,10 @@
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
-    "tests/test_glp328_readonly_evidence.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
-    },
     "tests/test_glp328_disabled_reply_connection.py": {
-      "callers": ["scripts/run_tests.sh"],
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
       "kind": "test",
       "sha256": "a1729b88fb42735a4e579a8b9cd9d606c4f20e1c285b2013652c75c1a3edc5ce"
     },
@@ -2180,6 +2208,13 @@
       ],
       "kind": "test",
       "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
+    },
+    "tests/test_glp328_readonly_evidence.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
     },
     "tests/test_glp329_add_approved_row_full_grid_dry_run.py": {
       "callers": [
@@ -2234,7 +2269,9 @@
       "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "kind": "repository_control",
       "sha256": "6a88c8713895f01ded1316ed7ec4800ab789eb3fcbb50703e7163e3c365757aa"
     },
@@ -2272,7 +2309,11 @@
       "sha256": "ef751716194b7b47443082892162958e6ee0336d14f3a7329f35c4b93b3d5bd1"
     },
     "tests/test_glp73_paired_adoption.py": {
-      "callers": ["scripts/run_tests.sh"], "kind": "test", "sha256": "1c79297a4493f550548b5157971d26f8f61d1f79dd31f3451f02025929af7ccc"
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "1c79297a4493f550548b5157971d26f8f61d1f79dd31f3451f02025929af7ccc"
     },
     "tests/test_glp73_retention_prepared_consumer.py": {
       "callers": [
@@ -2716,5 +2757,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 418
+  "tracked_count": 421
 }
