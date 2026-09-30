@@ -697,11 +697,13 @@ def main(argv=None):
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--after-message')
     parser.add_argument('--max-run-seconds', type=int, required=True)
+    parser.add_argument('--overnight-pilot', action='store_true', help='allow up to 57600s (16h) in full mode only; no auth or subscription extension')
     parser.add_argument('--allowed-host', action='append', default=[])
     args = parser.parse_args(argv)
     logging.disable(logging.CRITICAL)
-    if not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= 3600:
-        parser.error('nonprivileged port and 1..3600s lifespan required')
+    max_lifespan = 57600 if args.overnight_pilot and not args.metadata_only else 3600
+    if not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= max_lifespan:
+        parser.error(f'nonprivileged port and 1..{max_lifespan}s lifespan required')
     if args.metadata_only:
         if any(value is not None for value in (args.operator_subject, args.state_dir, args.after_message)):
             parser.error('metadata-only mode takes no subject, state directory or Discord cursor')

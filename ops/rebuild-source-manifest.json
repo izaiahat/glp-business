@@ -4,7 +4,7 @@
     "ops/rook-mcp/README.md": {
       "callers": ["manual:parent-owned launch requirements; rollout held"],
       "kind": "instruction_or_policy",
-      "sha256": "67a6229043df61c31035c6efbd1bb46b8e5a215d44bb0be6899e7f85d1210a8b"
+      "sha256": "4cb52261935a8a51f3344dfe65bf18acaa3d1caf92b627dba8ed25072798048a"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
@@ -14,12 +14,12 @@
     "scripts/rook_mcp_events.py": {
       "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
       "kind": "script",
-      "sha256": "d3ce485fe0f80b9ec8c0b1c375245fed070a9996d7eaf28bca088765b40608d1"
+      "sha256": "2c253d510fa1f17c890490ded9c2c6dab56de86ac3b4998572fe6f7db4b904a3"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "3f371537c1134deb6cc3f86a4aac735e8e3adbce6bca6d4c4a5560e9a92243fb"
+      "sha256": "60a3425021d41ce0b2945321ae752e1d17f8b86cac8a31804035b5ad03f11bcc"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],

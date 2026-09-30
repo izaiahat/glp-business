@@ -276,6 +276,59 @@ class TestMetadataBootstrap:
         assert token not in capsys.readouterr().out
 
 
+def test_cli_overnight_pilot_duration_bounds(tmp_path, monkeypatch, capsys):
+    """Exercise real CLI validation; replace only effectful startup/lifespan."""
+    m = module()
+    accepted = []
+    constructions = []
+    closed = []
+    def denied(*args, **kwargs):
+        pytest.fail('duration CLI attempted external/credential/state I/O')
+    for name in ('Authenticator', 'Store', 'create_client', 'load_token',
+                 'send', 'readback', 'webhook_post'):
+        monkeypatch.setattr(m, name, denied)
+    monkeypatch.setattr(socket, 'getaddrinfo', denied)
+    class FakeApplication:
+        def __init__(self, cfg, state_dir):
+            self.config = cfg
+            constructions.append((cfg, state_dir))
+        def close(self):
+            closed.append(self)
+    monkeypatch.setattr(m, 'Application', FakeApplication)
+    monkeypatch.setattr(m, 'HTTPServer', lambda *args: object())
+    monkeypatch.setattr(m.os, 'umask', lambda *args: None)
+    async def capture_run(app, server, cursor, seconds):
+        accepted.append((app.config.metadata_only, cursor, seconds))
+        return 0
+    monkeypatch.setattr(m, 'run_adapter', capture_run)
+    base = ['--issuer', 'https://tenant.example/', '--audience', 'https://rook.example/mcp',
+            '--local-tunnel-metadata', '--port', '8765']
+    full = ['--operator-subject', 'auth0|fixture', '--state-dir', str(tmp_path / 'private'),
+            '--after-message', '100']
+    for mode, flags, seconds in (
+            (full, [], 1), (full, [], 3600),
+            (full, ['--overnight-pilot'], 1), (full, ['--overnight-pilot'], 3600),
+            (full, ['--overnight-pilot'], 3601), (full, ['--overnight-pilot'], 57600),
+            (['--metadata-only'], [], 3600),
+            (['--metadata-only'], ['--overnight-pilot'], 3600)):
+        assert m.main([*base, *mode, *flags, '--max-run-seconds', str(seconds)]) == 0
+        assert accepted[-1] == ('--metadata-only' in mode, None if '--metadata-only' in mode else '100', seconds)
+    count = len(constructions)
+    assert len(accepted) == len(closed) == count == 8
+    for mode, flags, seconds in (
+            (full, [], 0), (full, [], 3601), (full, [], 57600),
+            (full, ['--overnight-pilot'], 0), (full, ['--overnight-pilot'], 57601),
+            (['--metadata-only'], [], 3601),
+            (['--metadata-only'], ['--overnight-pilot'], 3601),
+            (['--metadata-only'], ['--overnight-pilot'], 57600)):
+        with pytest.raises(SystemExit) as failure:
+            m.main([*base, *mode, *flags, '--max-run-seconds', str(seconds)])
+        assert failure.value.code == 2
+        assert len(constructions) == len(accepted) == len(closed) == count
+    assert list(tmp_path.iterdir()) == []
+    capsys.readouterr()
+
+
 class TestSubscriptionsDelivery:
     @pytest.fixture
     def signed_subscription(self, tmp_path):

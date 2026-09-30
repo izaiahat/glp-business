@@ -78,7 +78,19 @@ Foreground adapter:
   --port "$ROOK_MCP_PORT" --after-message "$ROOK_AFTER_MESSAGE_ID" --max-run-seconds 600
 ```
 
-Optional `--allowed-host` accepts an independently verified **exact Host header** if tunnel forwarding preserves a different Host. Defaults accept only `127.0.0.1:<port>` and `localhost:<port>`; Origin headers are refused. HTTP binds only 127.0.0.1. One Discord connection, reconnect disabled, bounded 16-event queue and explicit 1–3,600 second lifespan. Shutdown finishes the in-flight reserved effect rather than killing/retrying it; parent outer timeout is still needed for a hard wall-clock cutoff.
+Optional `--allowed-host` accepts an independently verified **exact Host header** if tunnel forwarding preserves a different Host. Defaults accept only `127.0.0.1:<port>` and `localhost:<port>`; Origin headers are refused. HTTP binds only 127.0.0.1. One Discord connection, reconnect disabled, bounded 16-event queue and explicit 1–3,600 second lifespan by default. Shutdown finishes the in-flight reserved effect rather than killing/retrying it; parent outer timeout is still needed for a hard wall-clock cutoff.
+
+For the explicitly authorized overnight message-only pilot, full mode may add
+`--overnight-pilot` and replace the duration above with `--max-run-seconds 57600`
+(16 hours maximum; choose a shorter bounded duration when sufficient). The flag
+only extends the process lifespan: metadata-only remains capped at 3,600 seconds,
+with or without it. Subscription TTL remains at most one hour and capped by the
+authenticating JWT's expiry; renew with a fresh authorized token as before. It
+does not extend token validity, scopes, identities, channel access, reply/send
+approval or receive-one deadlines, and adds no scheduler, service or reconnect.
+Uncertain external effects remain non-replayable. This is a launch-input example,
+not a live launch or broader authority; runtime and the outer cutoff remain
+parent-owned.
 
 Parent-owned tunnel v0.0.15 target: `http://127.0.0.1:$ROOK_MCP_PORT/mcp`. Use HTTP per-request bearer forwarding, not stdio or a static Authorization header. Parent provisions existing tunnel/runtime-key references, `--mcp.oauth-trusted-origin https://dev-qv5n6hpb2umayqwt.us.auth0.com` and `--harpoon.allow-plaintext-http`. Do not start it from this source task.
 
