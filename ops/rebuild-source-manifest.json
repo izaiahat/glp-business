@@ -4,7 +4,7 @@
     "ops/rook-mcp/README.md": {
       "callers": ["manual:parent-owned launch requirements; rollout held"],
       "kind": "instruction_or_policy",
-      "sha256": "4cb52261935a8a51f3344dfe65bf18acaa3d1caf92b627dba8ed25072798048a"
+      "sha256": "9968256964799e541d81efd9e350422fdc56e88875b022f0e3920eb0601c3553"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
@@ -14,17 +14,22 @@
     "scripts/rook_mcp_events.py": {
       "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
       "kind": "script",
-      "sha256": "2c253d510fa1f17c890490ded9c2c6dab56de86ac3b4998572fe6f7db4b904a3"
+      "sha256": "b5ca97bbd75d60862a17b9ee99ca7b2a1d32f87fda7a59cc4770aab9864a0eff"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "60a3425021d41ce0b2945321ae752e1d17f8b86cac8a31804035b5ad03f11bcc"
+      "sha256": "53dc7b6814bdfd10aaed89cecf446dc376e2105b97a34cc3d86f52ceab9c1d36"
+    },
+    "tests/test_rook_communication.py": {
+      "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "23dc95bd1d539e2a453a2c2a5885e442f55354df18b4085f1877085d8c1e0cce"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8c1430ca247b904dc717f7cf8ba98b8ba9848b8cf8caa16ba0c296ce1136476f"
+      "sha256": "85e6333fc313b31724784774dd3eab90ea9978dbfa819752fdee5bca15a7916d"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -34,7 +39,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99fad62e5534e0e6aa98d6b27a95e1f8369d782d008e7e7ef56197ba23a1065a"
+      "sha256": "7664270ae6fe1c0413c1da2b3f91d21049624cc2e26b076d8dcecbea7c8a2f30"
     },
     ".hermes.md": {
       "callers": [],
@@ -1578,7 +1583,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0aa14075643d135cb9c5ed47b11d35aae9c4977b78e72d2c00921b20f5de2299"
+      "sha256": "2e5bf0767884ffb9f3b85f9c55573eaca6895966c49e505e83aebff43a0b0347"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2746,5 +2751,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 424
+  "tracked_count": 425
 }

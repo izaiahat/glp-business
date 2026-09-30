@@ -1,5 +1,27 @@
 # Rook message-only adapter — source, not rollout
 
+## Bounded communication expansion (source only)
+
+Existing `reply_to_rook_request` schema/implementation and receive-one custody stay unchanged. Exactly five new tools:
+
+| Tool | Required JWT scope AND RBAC permission | Contract |
+| --- | --- | --- |
+| `read_rook_messages` | `rook.channel.read` | One verified message or history before an optional ID, at most 25 messages and a 65 KB structured response budget. Original text, bounded attachment/reaction metadata, explicit truncation. No replay/ingestion. |
+| `send_rook_message` | `rook.channel.write` | Stable safe `operation_id` (16–64 chars); at most 1900 UTF-16 text units; optional verified reply target and one file. Empty text requires a file. Parsed/reply mentions and embeds suppressed. Links stay literal: never fetched. |
+| `create_rook_thread` | `rook.channel.write` | Public thread from a verified fixed-parent message only; duplicate source thread refused; name at most 100 UTF-16 units; 60-minute autoarchive; stable operation ID and exact parent/source readback. No private/forum/arbitrary channels. |
+| `read_rook_file` | `rook.channel.read` | Attachment ID from a REST-verified message; only its verified Discord CDN metadata URL (bounded signed query), no caller URL/path. Pinned public TLS, no redirects/proxies, exact metadata/bytes/SHA readback. |
+| `set_rook_reaction` | `rook.channel.write` | Bounded Unicode emoji or custom emoji verified in the fixed guild. Only `@me` add/remove. Removal requires this tool's receipt; preexisting unrelated same-bot reactions are not adopted. No other-user/bulk moderation. |
+
+Fixed guild `1486887661099815126`, parent `1554668115239899196`, plus REST-verified public type-11 children only. Writes reject archived/locked children. No other guild/channel, DM, admin or moderation capability. This initial envelope is **not full-server capability**. There is no existing configurable channel allowlist field; later agreed channels need separate source/authorization work. No future routing framework is implemented here.
+
+Files: 1–1,048,576 decoded bytes; strict base64 sends; safe ASCII basenames; exact `.txt`/`text/plain`, `.json`/`application/json`, `.pdf`/`application/pdf`, `.png`/`image/png`, `.jpg` or `.jpeg`/`image/jpeg`, `.webp`/`image/webp`. UTF-8/JSON/signatures and conservative sensitive/active-content markers are checked. **Not malware scanning, full format decoding or reliable PHI/secret classification**, especially for images/compressed PDF contents. Only approved non-sensitive files may be supplied; this lane uses no old PDF. The ordinary 32 KiB inbound RPC limit remains; file-bearing `send_rook_message` alone has a 1,500,000-byte JSON envelope exception. File/history bytes are not duplicated into text result fields.
+
+The existing pinned HTTP, bot credential, exclusive-lock/private-store and uncertainty helpers are reused. New `operations` receipts persist subject/policy-bound IDs, hashes and result metadata, not message/file bytes; no shared state is used. Writes reserve before effects, confirm by readback, replay confirmed receipts, reject conflicts and never replay ambiguous outcomes across restart (including identical payload with changed operation ID). No automatic retries, queue/scheduler/framework, duplicate bot or plugin. Independent messages are `rook.message`, never `rook.reply`, and own gateway echoes cannot become requests.
+
+PRMD advertises only `rook.channel.read`, `rook.channel.write` and `offline_access` additions. Each new tool also declares its actual OAuth scope in `securitySchemes` (mirrored in `_meta`) and its required RBAC permission in the description and the private `rook/requiredRbacPermissions` metadata hint; server-side JWT scope+RBAC verification remains authoritative. Those discovery hints do not prove a saved product plugin adopted refreshed scopes. No live scope/RBAC/grant change, subject change or client-side token storage/refresh is implemented. Actual verified JWT `exp` and unchanged validator leeway govern access; the product owns renewal. Parent owns server/grant readiness, independent review and live adoption. No Reconnect, token issuance, automatic refresh or rollout is implied.
+
+`tests/test_rook_communication.py::TestRookCommunication` is one focused offline group covering the five tools and touched JWT/channel/thread/message/file/HTTP/pinning/multipart/custody/mention/uncertainty boundaries. Sockets and real credential reads are denied; keys/bytes are synthetic. Exact-head CI runs it explicitly. Existing reply/bootstrap/receive-one regressions check preserved behavior. Offline PASS is not live Discord/Auth0/product compatibility, renewal, independent approval or effect proof.
+
 Private PR96. No Auth0/tunnel setup, live credential use, channel send or listener launch is authorized by this source. Parent owns independent review, private runtime provisioning, exact-target rollout and bounded parent-TUI receiver. Do not route received text into ordinary gateway operator commands.
 
 ## Contract

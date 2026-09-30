@@ -199,7 +199,7 @@ class TestMetadataBootstrap:
                     assert response.startswith(b'HTTP/1.1 200')
                     assert json.loads(response.split(b'\r\n\r\n', 1)[1]) == {
                         'resource': cfg.audience, 'authorization_servers': [cfg.issuer],
-                        'scopes_supported': ['rook.requests.read', 'rook.replies.write'],
+                        'scopes_supported': ['rook.requests.read', 'rook.replies.write', 'rook.channel.read', 'rook.channel.write', 'offline_access'],
                         'bearer_methods_supported': ['header']}
                     for verb in ('GET', 'POST'):
                         # Actual tunnel v0.0.15 probes /mcp with an empty POST then GET.
