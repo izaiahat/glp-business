@@ -362,13 +362,15 @@ class Application:
                 self.store.delete('subscriptions', identity)
                 return {}
             ttl = params.get('ttlMs', 3600000)
-            if (params.get('cursor') is not None or isinstance(ttl, bool) or not isinstance(ttl, int) or not 1000 <= ttl <= 3600000):
+            if (params.get('cursor') is not None or
+                    (ttl is not None and (isinstance(ttl, bool) or not isinstance(ttl, int) or ttl <= 0))):
                 raise RpcError(-32602, 'ReplayUnsupportedOrInvalidTTL')
+            ttl = 3600000 if ttl is None else min(3600000, max(1000, ttl))
             secret = delivery.get('secret')
             try:
                 if not isinstance(secret, str) or not secret.startswith('whsec_') or len(secret) > 256:
                     raise ValueError()
-                if not 32 <= len(base64.b64decode(secret[6:], validate=True)) <= 128:
+                if not 24 <= len(base64.b64decode(secret[6:], validate=True)) <= 64:
                     raise ValueError()
                 Webhook(secret)
             except Exception:
@@ -394,7 +396,7 @@ class Application:
             elif old.get('rotate_until', 0) > time.time():
                 sub.update(old_secret=old['old_secret'], rotate_until=old['rotate_until'])
             self.store.put('subscriptions', identity, sub)
-            return {'id': identity, 'expiresAt': datetime.fromtimestamp(expires, timezone.utc).isoformat().replace('+00:00', 'Z'),
+            return {'id': identity, 'refreshBefore': datetime.fromtimestamp(expires, timezone.utc).isoformat().replace('+00:00', 'Z'),
                     'cursor': None, 'truncated': False}
 
     def expire_subscriptions(self):
@@ -493,7 +495,7 @@ class Application:
             # Durable reservation BEFORE delivery prevents echo/restart duplicates.
             self.store.put('requests', request_id, request)
             value = {'subscriptionId': subscriptions[0]['id'], 'eventId': request_id, 'name': EVENT,
-                     'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'), 'data': payload}
+                     'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'), 'data': payload, 'cursor': None}
             delivered = 0
             for sub in subscriptions:
                 value['subscriptionId'] = sub['id']

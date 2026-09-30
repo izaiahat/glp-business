@@ -125,6 +125,103 @@ class TestAuthDiscovery:
 
 
 class TestSubscriptionsDelivery:
+    @pytest.fixture
+    def signed_subscription(self, tmp_path):
+        m = module(); cfg = config(m)
+        principal = m.Principal(cfg.subject, int(time.time()) + 7200, frozenset({'rook.requests.read'}))
+        params = {'name': m.EVENT, 'arguments': dict(m.ARGUMENTS), 'cursor': None, 'delivery': {
+            'mode': 'webhook', 'url': 'https://callback.example/events',
+            'secret': 'whsec_' + base64.b64encode(b'k' * 32).decode()}}
+        deliveries = []
+        from standardwebhooks.webhooks import Webhook
+        def callback(url, body, headers):
+            decoded = Webhook(params['delivery']['secret']).verify(body, headers)
+            deliveries.append((decoded, headers, body))
+            return 200, json.dumps({'challenge': decoded['challenge']}).encode() if decoded.get('type') == 'verification' else b'{}'
+        app = m.Application(cfg, tmp_path / 'private', callback=callback)
+        try:
+            yield m, app, principal, params, deliveries
+        finally:
+            app.close()
+
+    def test_r96_1_subscription_returns_refresh_before(self, signed_subscription):
+        from dataclasses import replace
+        from datetime import datetime
+        m, app, principal, params, _ = signed_subscription
+        principal = replace(principal, expires=int(time.time()) + 60)
+        result = app.dispatch(principal, 'events/subscribe', params)
+        assert set(result) == {'id', 'refreshBefore', 'cursor', 'truncated'}
+        assert datetime.fromisoformat(result['refreshBefore'].replace('Z', '+00:00')).timestamp() == principal.expires
+        assert result['cursor'] is None and result['truncated'] is False
+        assert app.dispatch(principal, 'events/subscribe', params) == result
+
+    def test_r96_2_standard_webhooks_key_boundaries(self, signed_subscription):
+        m, app, principal, params, deliveries = signed_subscription
+        for size in (23, 24, 31, 32, 64, 65, 128):
+            params['delivery']['secret'] = 'whsec_' + base64.b64encode(b'k' * size).decode()
+            before = len(deliveries)
+            if 24 <= size <= 64:
+                result = app.dispatch(principal, 'events/subscribe', params)
+                assert deliveries[-1][0]['type'] == 'verification'
+                assert deliveries[-1][1]['X-MCP-Subscription-Id'] == result['id']
+                assert len(deliveries) == before + 1
+            else:
+                with pytest.raises(m.RpcError) as failure:
+                    app.dispatch(principal, 'events/subscribe', params)
+                assert failure.value.code == -32602 and failure.value.message == 'InvalidSecret'
+                assert len(deliveries) == before
+
+    def test_r96_3_ttl_suggestions_receive_bounded_grants(self, signed_subscription):
+        from dataclasses import replace
+        from datetime import datetime
+        m, app, principal, params, deliveries = signed_subscription
+        now = int(time.time())
+        with patch.object(m.time, 'time', return_value=now):
+            for suggestion, seconds in ((None, 3600), (1, 1), (999, 1), (1000, 1),
+                                        (1001, 1.001), (300000, 300), (3600000, 3600),
+                                        (3600001, 3600), (10 ** 400, 3600)):
+                params['ttlMs'] = suggestion
+                result = app.dispatch(principal, 'events/subscribe', params)
+                granted = datetime.fromisoformat(result['refreshBefore'].replace('Z', '+00:00')).timestamp()
+                assert granted == pytest.approx(now + seconds, rel=0, abs=0.000001)
+                capped = app.dispatch(replace(principal, expires=now + 1), 'events/subscribe', params)
+                assert datetime.fromisoformat(capped['refreshBefore'].replace('Z', '+00:00')).timestamp() == now + 1
+                assert result['cursor'] is None and result['truncated'] is False
+            params.pop('ttlMs')
+            default = app.dispatch(principal, 'events/subscribe', params)
+            assert datetime.fromisoformat(default['refreshBefore'].replace('Z', '+00:00')).timestamp() == now + 3600
+            before = len(deliveries)
+            for invalid in (True, False, 0, -1, 1.5, '1000', [], {}, float('nan'), float('inf')):
+                with pytest.raises(m.RpcError) as failure:
+                    app.dispatch(principal, 'events/subscribe', {**params, 'ttlMs': invalid})
+                assert failure.value.code == -32602
+            with pytest.raises(m.RpcError):
+                app.dispatch(principal, 'events/subscribe', {**params, 'ttlMs': None, 'cursor': 'replay'})
+            assert len(deliveries) == before
+            assert app.store.get('subscriptions', default['id'])['expires'] == now + 3600
+            with patch.object(m.time, 'time', return_value=now + 3600):
+                app.expire_subscriptions()
+            assert app.store.all('subscriptions') == []
+
+    def test_r96_4_signed_nonreplay_event_contains_null_cursor(self, signed_subscription):
+        m, app, principal, params, deliveries = signed_subscription
+        result = app.dispatch(principal, 'events/subscribe', params)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': 'Rook: no replay'}}
+        assert app.ingest(event, '100') == 1
+        decoded, headers, body = deliveries[-1]
+        assert 'cursor' in decoded and decoded['cursor'] is None
+        assert decoded['eventId'] == headers['webhook-id'] == 'discord-101'
+        assert decoded['name'] == m.EVENT and decoded['data']['text'] == 'no replay'
+        assert headers['X-MCP-Subscription-Id'] == result['id']
+        from standardwebhooks.webhooks import Webhook
+        from standardwebhooks.exceptions import WebhookVerificationError
+        tampered = json.loads(body); tampered.pop('cursor')
+        with pytest.raises(WebhookVerificationError):
+            Webhook(params['delivery']['secret']).verify(m.canonical(tampered).encode(), headers)
+        assert app.ingest(event, '100') == 0
+        assert len(deliveries) == 2  # One verified challenge and one application event.
+
     def test_signed_verified_persistent_restricted_delivery(self, tmp_path):
         m = module(); cfg = config(m)
         principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook.requests.read', 'rook.replies.write'}))
