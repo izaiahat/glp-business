@@ -140,6 +140,8 @@ def load_rook_token():
 
 
 def send(channel, content):
+    if 'TRUE-BRIDGE FABLE REVIEW REQUEST' in content.upper():
+        raise RuntimeError('registered_bridge_sender_required')
     return discord_request('POST', f'/channels/{channel}/messages',
                            {'content': content, 'allowed_mentions': {'parse': []}})
 

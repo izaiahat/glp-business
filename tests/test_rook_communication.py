@@ -127,6 +127,10 @@ class TestRookCommunication:
         # Reaction `me` is relative to the authenticated REST reader: GET must also use Rook.
         assert m.discord_request('GET', f'/guilds/{m.GUILD}/emojis/501')['id'] == '501'
         assert headers_seen[-1][2] == 'Bot synthetic-rook-token'
+        before = len(headers_seen)
+        with pytest.raises(RuntimeError, match='registered_bridge_sender_required'):
+            m.send(m.CHANNEL, 'TRUE-BRIDGE FABLE REVIEW REQUEST')
+        assert len(headers_seen) == before
         assert m.load_rook_token() == 'synthetic-rook-token'
         for mode in (0o640, 0o604):
             token_file.chmod(mode)
