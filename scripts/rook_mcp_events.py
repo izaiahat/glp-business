@@ -260,8 +260,9 @@ def attachment_target(metadata, channel):
             or parsed.path != f'/attachments/{channel}/{identity}/{metadata["filename"]}'
             # Optional backend=b2 is observed in authenticated Discord attachment metadata.
             # Validate raw fields too: parse_qs otherwise hides malformed/encoded spellings.
+            # One observed terminal '&' is empty; interior/repeated empty fields remain invalid.
             or (parsed.query and any(not re.fullmatch(r'(?:ex|is|hm)=[a-fA-F0-9]{1,256}|backend=b2', field)
-                                     for field in parsed.query.split('&')))
+                                     for field in parsed.query.removesuffix('&').split('&')))
             or set(query) - {'ex', 'is', 'hm', 'backend'} or any(len(v) != 1 for v in query.values())):
         raise RpcError(-32602, 'UnverifiedAttachmentURL')
     return value

@@ -485,6 +485,25 @@ class TestRookCommunication:
         assert connections == [('cdn.discordapp.com', '8.8.8.8')]
         assert all(call[0] == 'GET' for call in self.calls)
 
+    def test_discord_attachment_single_terminal_query_delimiter(self):
+        """Exact live metadata shape; signing values redacted with synthetic hex."""
+        m = self.m
+        base = (f'https://cdn.discordapp.com/attachments/{m.CHANNEL}/'
+                '1554939203538653364/rook-communication-test.txt')
+        query = 'backend=b2&ex=' + 'a' * 8 + '&is=' + 'b' * 8 + '&hm=' + 'c' * 64
+        attachment = {'id': '1554939203538653364', 'filename': 'rook-communication-test.txt',
+                      'content_type': 'text/plain; charset=utf-8', 'size': 54,
+                      'url': base + '?' + query + '&'}
+        assert len(attachment['url']) == 210
+        assert m.attachment_target(attachment, m.CHANNEL) == attachment['url']
+        assert m.attachment_target({**attachment, 'url': base + '?' + query}, m.CHANNEL) == base + '?' + query
+        for invalid in ('&', query + '&&', '&' + query + '&', query.replace('&ex=', '&&ex=') + '&',
+                        query + '&backend=b2&', query + '&ex=aa&', query + '&unknown=aa&',
+                        query + '&hm=&', query + '&bare&', query.replace('backend=b2', 'backend=b3') + '&',
+                        query.replace('backend=b2', '%62ackend=b2') + '&'):
+            with pytest.raises(m.RpcError, match='UnverifiedAttachmentURL'):
+                m.attachment_target({**attachment, 'url': base + '?' + invalid}, m.CHANNEL)
+
     def test_discord_utf8_mime_parameters_preserve_verified_file_custody(self, monkeypatch):
         """Live MIME spelling; synthetic bytes/transport, actual validation and send/read paths."""
         m = self.m
