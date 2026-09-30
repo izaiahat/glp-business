@@ -34,17 +34,17 @@
     "ops/issue97-monitor-source.json": {
       "callers": ["scripts/issue97_monitor.py"],
       "kind": "repository_control",
-      "sha256": "8947d99dba322a6a5386d99ad68033cee2d4ef9bbc86f87ad88fd4234e63d546"
+      "sha256": "74dc5ac92ed26ce0a3995ac77eadf694bb1953ec077a1591853963b72dc25c6f"
     },
     "scripts/issue97_monitor.py": {
       "callers": ["ops/issue97-monitor-source.json"],
       "kind": "script",
-      "sha256": "38c721e43b025ea4879fc1b6e9f31141efc874567b76251abac0afbe996cb6a9"
+      "sha256": "8e55eccf2db3889e9a246699f403da86d8e5ac2d4099df65ea93887ed971b7ae"
     },
     "tests/test_issue97_monitor.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "regression_test",
-      "sha256": "9718ff505efc73cbd6b41cba59253eb0e8b338db5ba86dbadf452173067203e5"
+      "sha256": "3a5b366fcb3e2b4e0054cb7b25f362b33f347b5118e5f213d555586cf04e548f"
     },
     "README.md": {
       "callers": [],

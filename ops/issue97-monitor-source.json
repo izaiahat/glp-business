@@ -24,8 +24,8 @@
     "Atomic fsynced file and directory commit holds cursor watermark and pending batches before waking receiver; old cursor is never written.",
     "Receiver arms directory inotify before draining. Only inbox rename events cause another state read; no timer-based file/GitHub polling.",
     "Durable removal precedes bounded escaped JSON output. Uncertain delivery is never automatically replayed; one latest claim marker only.",
-    "Own Fable-Operator | prefix advances cursor without echo. Existing IDs/edits at or below cursor are ignored.",
-    "Maximum 32 queued batches of 8 comments, 1000 body characters each; 64KiB output and 2MiB state. Queue/read overflow refuses cursor advance; parent must inspect.",
+    "Own Fable-Operator | prefix advances cursor without echo. Existing IDs/edits at or below cursor are ignored; claim reconciles pending IDs against a fresh read-only legacy cursor, discarding stale batches and trimming mixed batches under state.lock.",
+    "Maximum 32 queued batches of at most 8 comments, 1000 body characters each; split by actual escaped JSON bytes before cursor/pending commit so every batch fits 64KiB output. 2MiB state; queue/read overflow refuses cursor advance; parent must inspect.",
     "One fixed safe failure envelope per failed-read streak; state/config failures report a safe actionable status without raw stderr.",
     "CLI signal watchdog bounds lock waits and wall-clock expiry, with proposed outer timeout as a fallback."
   ],

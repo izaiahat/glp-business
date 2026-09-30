@@ -40,6 +40,68 @@ class Issue97MonitorTests(unittest.TestCase):
             self.assertEqual(json.loads((inbox / 'inbox.json').read_text())['last_id'], '104')
             self.assertEqual(cursor.read_text(), '{"last_id":"104"}')
 
+    def test_non_bmp_comments_split_by_escaped_bytes_and_drain(self):
+        # R1: reuse the independent eight 1000-emoji comment reproducer.
+        m = self.load()
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            cursor = root / 'cursor.json'
+            cursor.write_text('{"last_id":"100"}')
+            inbox = root / 'inbox'
+            comments = [dict(id=i, body='\U0001f600' * 1000) for i in range(101, 109)]
+            m.tick(inbox, cursor, read=lambda: comments, now=lambda: 1)
+            state = json.loads((inbox / 'inbox.json').read_text())
+            self.assertEqual(state['last_id'], '108')
+            for batch in state['pending']:
+                self.assertLessEqual(len(json.dumps(batch, ensure_ascii=True,
+                    separators=(',', ':')).encode()), m.MAX_OUTPUT)
+                self.assertLessEqual(len(batch['comments']), m.BATCH_SIZE)
+            received = []
+            for _ in range(len(state['pending'])):
+                result = m.receive(inbox, cursor, max_wait=0, now=lambda: 1)
+                self.assertEqual(result['status'], 'NEW_EXTERNAL_COMMENTS')
+                self.assertLessEqual(len(m.encode(result).encode()), m.MAX_OUTPUT)
+                received.extend(result['comments'])
+            self.assertEqual([c['id'] for c in received], [str(i) for i in range(101, 109)])
+            self.assertTrue(all(c['body'] == '\U0001f600' * 1000 and not c['body_truncated']
+                                for c in received))
+            state = json.loads((inbox / 'inbox.json').read_text())
+            self.assertEqual(state['pending'], [])
+            self.assertEqual(state['last_claim'], '108')
+            self.assertEqual(m.receive(inbox, cursor, max_wait=0, now=lambda: 1)['status'], 'DEADLINE')
+            self.assertEqual(cursor.read_text(), '{"last_id":"100"}')
+
+    def test_claim_reconciles_fresh_legacy_cursor_stale_and_mixed(self):
+        # R2: reuse the independent pending-ID101 / fresh-cursor101 reproducer.
+        m = self.load()
+        for mixed in (False, True):
+            with self.subTest(mixed=mixed), tempfile.TemporaryDirectory() as directory:
+                root = pathlib.Path(directory)
+                cursor = root / 'cursor.json'
+                cursor.write_text('{"last_id":"100"}')
+                inbox = root / 'inbox'
+                m.tick(inbox, cursor, read=lambda: [dict(id=101, body='queued')], now=lambda: 1)
+                if mixed:
+                    # Leave a fully stale first batch and a mixed second batch.
+                    m.tick(inbox, cursor, read=lambda: [dict(id=i, body='queued')
+                        for i in range(102, 105)], now=lambda: 1)
+                legacy_bytes = b'{"last_id":"102"}' if mixed else b'{"last_id":"101"}'
+                cursor.write_bytes(legacy_bytes)
+                result = m.receive(inbox, cursor, max_wait=0, now=lambda: 1)
+                self.assertEqual(cursor.read_bytes(), legacy_bytes)
+                if mixed:
+                    self.assertEqual(result['status'], 'NEW_EXTERNAL_COMMENTS')
+                    self.assertEqual([c['id'] for c in result['comments']], ['103', '104'])
+                    self.assertEqual(result['batch_id'], '104')
+                else:
+                    self.assertEqual(result['status'], 'DEADLINE')
+                state = json.loads((inbox / 'inbox.json').read_text())
+                self.assertEqual(state['pending'], [])
+                self.assertEqual(state['last_id'], '104' if mixed else '101')
+                self.assertEqual(state['last_claim'], '104' if mixed else None)
+                self.assertEqual(m.receive(inbox, cursor, max_wait=0, now=lambda: 1)['status'], 'DEADLINE')
+                self.assertEqual(cursor.read_bytes(), legacy_bytes)
+
     def test_failure_once_and_bounded_queue_without_cursor_loss(self):
         m = self.load()
         with tempfile.TemporaryDirectory() as directory:
