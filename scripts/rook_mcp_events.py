@@ -27,18 +27,20 @@ import signal
 import socket
 import sqlite3
 import ssl
+import stat
 import threading
 import time
 from urllib.parse import urlsplit, quote, parse_qs
 
 import jwt
 from standardwebhooks.webhooks import Webhook
-from post_discord_message import send, readback
 from receive_one_discord_message import create_client, load_token
 
 GUILD = '1486887661099815126'
 CHANNEL = '1554668115239899196'
 BOT = '1486880423568211968'
+ROOK_BOT = '1554962007059472445'
+ROOK_TOKEN_PATH = Path('/home/ubuntu/.hermes/secrets/dot-bots/rook.token')
 OPERATOR = '392067741500309517'
 VERSION = '2026-07-28'
 EVENT = 'discord.rook.request.created'
@@ -124,8 +126,30 @@ def required_scopes(method, params):
     return {'rook.replies.write'}
 
 
+def load_rook_token():
+    check_private(ROOK_TOKEN_PATH.parent, directory=True)
+    check_private(ROOK_TOKEN_PATH)
+    with os.fdopen(os.open(ROOK_TOKEN_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
+        info = os.fstat(source.fileno())
+        if info.st_uid != os.getuid() or info.st_mode & 0o077 or not stat.S_ISREG(info.st_mode):
+            raise ValueError('private owned regular token file required')
+        token = source.read().strip()
+    if not token or any(c.isspace() for c in token):
+        raise ValueError('invalid Rook token file')
+    return token
+
+
+def send(channel, content):
+    return discord_request('POST', f'/channels/{channel}/messages',
+                           {'content': content, 'allowed_mentions': {'parse': []}})
+
+
+def readback(channel, identity):
+    return discord_request('GET', f'/channels/{channel}/messages/{identity}')
+
+
 def discord_request(method, path, payload=None, file=None):
-    """Existing bot/token + pinned HTTP helper. No arbitrary host, retries or proxies."""
+    """Rook REST identity (including reaction `me` reads); pinned, no retries/proxies."""
     id_pattern = r'[1-9][0-9]{0,19}'
     reads = (rf'/channels/{id_pattern}(?:/messages(?:/{id_pattern})?)?(?:\?limit=[0-9]+(?:&before={id_pattern})?)?',
              rf'/guilds/{GUILD}/emojis/{id_pattern}')
@@ -138,7 +162,7 @@ def discord_request(method, path, payload=None, file=None):
     host, address, _ = callback_target('https://discord.com/')
     conn = PinnedHTTPSConnection(host, address)
     try:
-        headers = {'Authorization': 'Bot ' + load_token(), 'User-Agent': 'HermesDiscordPoster/1.0'}
+        headers = {'Authorization': 'Bot ' + load_rook_token(), 'User-Agent': 'HermesDiscordPoster/1.0'}
         body = None if payload is None else canonical(payload).encode()
         headers['Content-Type'] = 'application/json'
         if file is not None:
@@ -774,7 +798,7 @@ class Application:
             if principal.expires <= time.time():
                 raise RpcError(-32001, 'Unauthorized')
             row = {'id': key, 'kind': kind, 'subject': principal.subject, 'policy': self.policy,
-                   'digest': digest, 'state': 'sending', **(receipt or {})}
+                   'digest': digest, 'state': 'sending', 'reply_author': ROOK_BOT, **(receipt or {})}
             self.store.put('operations', key, row)
             try:
                 value = action(row)
@@ -815,7 +839,7 @@ class Application:
             fetched = permitted_message(channel, identity)
             for value in (posted, fetched):
                 if (value.get('id') != identity or value.get('channel_id') != channel or value.get('content') != arguments['text']
-                        or value.get('author', {}).get('id') != BOT or value.get('webhook_id') is not None):
+                        or value.get('author', {}).get('id') != ROOK_BOT or value.get('webhook_id') is not None):
                     raise ValueError('readback mismatch')
                 if 'reply_to_message_id' in arguments:
                     reference = value.get('message_reference', {})
@@ -858,7 +882,7 @@ class Application:
             fetched_id = permitted_channel({'thread_id': identity}, write=True)
             for value in (posted, permitted_message(CHANNEL, arguments['source_message_id']).get('thread', {})):
                 if (value.get('id') != fetched_id or value.get('parent_id') != CHANNEL or value.get('guild_id') != GUILD
-                        or value.get('type') != 11 or value.get('name') != arguments['name']):
+                        or value.get('type') != 11 or value.get('name') != arguments['name'] or value.get('owner_id') != ROOK_BOT):
                     raise ValueError('thread readback mismatch')
             return {'thread_id': identity, 'parent_channel_id': CHANNEL,
                     'url': f'https://discord.com/channels/{GUILD}/{identity}'}
@@ -1004,10 +1028,10 @@ class Application:
                 fetched = self.reader(CHANNEL, reply_id)
                 for value in (posted, fetched):
                     if (value.get('id') != reply_id or value.get('channel_id') != CHANNEL
-                            or value.get('content') != wire or value.get('author', {}).get('id') != BOT
+                            or value.get('content') != wire or value.get('author', {}).get('id') != ROOK_BOT
                             or value.get('webhook_id') is not None):
                         raise ValueError()
-                row.update(state='confirmed', confirmed_at=time.time(), reply_author=BOT,
+                row.update(state='confirmed', confirmed_at=time.time(), reply_author=ROOK_BOT,
                            guild_id=GUILD, channel_id=CHANNEL, reply_kind=REPLY_KIND)
                 result = {'isError': False, 'structuredContent': {'request_id': request_id, 'message_id': reply_id,
                           'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{reply_id}'},
@@ -1035,7 +1059,7 @@ class Application:
         content = data.get('content')
         if (data.get('guild_id') != GUILD or data.get('channel_id') != CHANNEL or data.get('type', 0) != 0
                 or data.get('webhook_id') is not None or not isinstance(author, dict)
-                or author.get('id') not in {OPERATOR, BOT} or not isinstance(message, str)
+                or author.get('id') == ROOK_BOT or author.get('id') not in {OPERATOR, BOT} or not isinstance(message, str)
                 or not message.isdecimal() or not 0 < len(message) <= 20 or int(message) <= int(after_message)
                 or not isinstance(content, str) or not content.startswith('Rook:') or not content[5:].strip()
                 or len(content) > 2000):

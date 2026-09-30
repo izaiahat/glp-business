@@ -19,11 +19,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 
 @pytest.fixture(autouse=True)
-def no_external_io(monkeypatch):
+def no_external_io(monkeypatch, tmp_path):
     monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network denied'))
     monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('listener bind denied'))
     import post_discord_message
     monkeypatch.setattr(post_discord_message, 'load_token', lambda: pytest.fail('credential read denied'))
+    monkeypatch.setattr(module(), 'ROOK_TOKEN_PATH', tmp_path / 'no-live-token')
 
 
 def module():
@@ -590,7 +591,7 @@ class TestReplyBinding:
         attempts = []
         def sender(channel, wire):
             attempts.append(wire)
-            return {'id': '202', 'channel_id': channel, 'content': wire, 'author': {'id': m.BOT}}
+            return {'id': '202', 'channel_id': channel, 'content': wire, 'author': {'id': m.ROOK_BOT}}
         app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=lambda *a: {'id': '202', 'channel_id': 'wrong'})
         params = {'name': 'reply_to_rook_request', 'arguments': {'request_id': 'discord-101', 'text': 'answer'}}
         assert app.dispatch(principal, 'tools/call', params)['isError'] is True
@@ -605,9 +606,9 @@ class TestReplyBinding:
         def sender(channel, content):
             assert channel == m.CHANNEL
             sent.append(content)
-            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
         def reader(channel, identity):
-            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
         app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
         params = {'name': 'reply_to_rook_request', 'arguments': {'request_id': 'discord-101', 'text': 'bounded @everyone reply'}}
         for delta in ({'channel_id': '3'}, {'request_id': 'discord-555'}, {'text': ''}, {'text': 'x' * 1201}):
@@ -649,36 +650,36 @@ class TestReceiveBoundReply:
         m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
         def sender(channel, content):
             sent.append(content)
-            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
         def reader(channel, identity):
-            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
         app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
-        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2,
+        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.ROOK_BOT, 2,
                         str(tmp_path / 'private'), cfg.issuer, cfg.audience, cfg.subject)
         event = {'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
-                 'author': {'id': m.BOT, 'bot': True}, 'type': 0,
+                 'author': {'id': m.ROOK_BOT, 'bot': True}, 'type': 0,
                  'content': json.dumps({'kind': 'rook.reply', 'correlation': 'discord-101', 'text': 'answer'})}}
-        assert r.match_event(event, scope, m.BOT) is None
+        assert r.match_event(event, scope, m.ROOK_BOT) is None
         app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
                      'arguments': {'request_id': 'discord-101', 'text': 'answer'}})
         event['d']['content'] = sent[-1]
-        accepted = r.match_event(event, scope, m.BOT)
+        accepted = r.match_event(event, scope, m.ROOK_BOT)
         assert accepted['text'] == 'answer'
         assert accepted['authenticated_reply_binding'] is True
         for delta in ({'id': '203'}, {'content': event['d']['content'].replace('answer', 'forged')}, {'webhook_id': '888'},
                       {'author': {'id': m.OPERATOR}}, {'guild_id': '4'}):
             bad = deepcopy(event); bad['d'].update(delta)
-            assert r.match_event(bad, scope, m.BOT) is None
-        legacy = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2)
-        assert r.match_event(event, legacy, m.BOT) is None
+            assert r.match_event(bad, scope, m.ROOK_BOT) is None
+        legacy = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.ROOK_BOT, 2)
+        assert r.match_event(event, legacy, m.ROOK_BOT) is None
         from dataclasses import replace
-        assert r.match_event(event, replace(scope, mcp_subject='other'), m.BOT) is None
+        assert r.match_event(event, replace(scope, mcp_subject='other'), m.ROOK_BOT) is None
         row = app.store.get('requests', 'discord-101'); row['state'] = 'uncertain'
         app.store.put('requests', 'discord-101', row)
-        assert r.match_event(event, scope, m.BOT) is None
+        assert r.match_event(event, scope, m.ROOK_BOT) is None
         row['state'] = 'confirmed'; row['auth_method'] = 'marker-only'
         app.store.put('requests', 'discord-101', row)
-        assert r.match_event(event, scope, m.BOT) is None
+        assert r.match_event(event, scope, m.ROOK_BOT) is None
         app.close()
 
     def test_gateway_before_custody_commit_is_bounded_and_accepts_once(self, tmp_path):
@@ -686,19 +687,19 @@ class TestReceiveBoundReply:
         wire = json.dumps({'kind': m.REPLY_KIND, 'correlation': 'discord-101', 'text': 'answer'}, separators=(',', ':'))
         def sender(channel, content):
             sent.append(content)
-            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.BOT}}
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
         def reader(channel, identity):
-            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.BOT}}
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
         app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=reader)
-        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.BOT, 2,
+        scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.ROOK_BOT, 2,
                         str(tmp_path / 'private'), cfg.issuer, cfg.audience, cfg.subject)
         event = {'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
-                 'author': {'id': m.BOT}, 'type': 0, 'content': wire}}
+                 'author': {'id': m.ROOK_BOT}, 'type': 0, 'content': wire}}
         closed = []
         def client_factory(on_event, on_error):
             class Client:
                 async def start(self, token, reconnect):
-                    on_event(event, m.BOT)
+                    on_event(event, m.ROOK_BOT)
                     await asyncio.sleep(0.07)
                     app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
                                   'arguments': {'request_id': 'discord-101', 'text': 'answer'}})

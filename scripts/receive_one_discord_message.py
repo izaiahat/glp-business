@@ -29,6 +29,7 @@ from post_discord_message import load_token
 
 GUILD = "1486887661099815126"
 CHANNEL = "1554668115239899196"
+ROOK_BOT = "1554962007059472445"
 TEXT_LIMIT = 2000
 CLEANUP_SECONDS = 2
 
@@ -60,7 +61,7 @@ class Scope:
             raise ValueError("wait must be 1..600 seconds")
         if any((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject)):
             if (not all((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject))
-                    or self.origin_kind != 'author' or self.origin_id != '1486880423568211968'
+                    or self.origin_kind != 'author' or self.origin_id != ROOK_BOT
                     or self.reply_kind != 'rook.reply' or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', self.correlation)):
                 raise ValueError('complete fixed MCP binding configuration required')
 
@@ -72,7 +73,7 @@ def verified_reply_binding(data, scope, self_id):
     can forge state. Caller pins issuer/audience/operator subject independently.
     No credential, subscription-secret, Hermes state.db or Discord history read.
     """
-    if not scope.mcp_state_dir or self_id != '1486880423568211968':
+    if not scope.mcp_state_dir or self_id != ROOK_BOT:
         return False
     try:
         directory = Path(scope.mcp_state_dir)

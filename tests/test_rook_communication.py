@@ -16,6 +16,7 @@ class TestRookCommunication:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path, monkeypatch):
         self.m = m = module()
+        monkeypatch.setattr(m, 'ROOK_TOKEN_PATH', tmp_path / 'no-live-token')
         monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('socket denied'))
         monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('bind denied'))
         monkeypatch.setattr(m, 'load_token', lambda: pytest.fail('credential denied'))
@@ -29,13 +30,14 @@ class TestRookCommunication:
         self.app = m.Application(self.cfg, tmp_path / 'private', auth=m.Authenticator(self.cfg, Keys()))
         self.messages = {'101': self.message('101')}
         self.thread = {'id': '201', 'guild_id': m.GUILD, 'parent_id': m.CHANNEL, 'type': 11,
+                       'owner_id': m.ROOK_BOT,
                        'thread_metadata': {'archived': False, 'locked': False}}
         self.calls = []
         yield
         self.app.close()
 
     def message(self, identity, channel=None, content='original'):
-        return {'id': identity, 'channel_id': channel or self.m.CHANNEL, 'author': {'id': self.m.BOT},
+        return {'id': identity, 'channel_id': channel or self.m.CHANNEL, 'author': {'id': self.m.ROOK_BOT},
                 'content': content, 'timestamp': '2026-09-30T00:00:00Z', 'attachments': [], 'reactions': []}
 
     def request(self, method, path, payload=None, file=None):
@@ -69,6 +71,184 @@ class TestRookCommunication:
         assert status == 200 and 'error' not in body, body
         assert not body['result'].get('isError'), body
         return body['result']['structuredContent']
+
+    def test_dedicated_rook_token_for_all_discord_writes(self, tmp_path, monkeypatch):
+        """Exercise real REST/default reply paths with synthetic files, never sockets."""
+        import os
+        m = self.m
+        token_dir = tmp_path / 'secrets'; token_dir.mkdir(mode=0o700)
+        token_file = token_dir / 'rook.token'
+        token_file.write_text('synthetic-rook-token\n'); token_file.chmod(0o600)
+        monkeypatch.setattr(m, 'ROOK_TOKEN_PATH', token_file, raising=False)
+        monkeypatch.setattr(m, 'load_token', lambda: 'synthetic-kael-token')
+        monkeypatch.setattr(m, 'callback_target', lambda url: ('discord.com', '93.184.216.34', '/'))
+        headers_seen = []
+        thread = {**self.thread, 'name': 'discussion', 'owner_id': '1554962007059472445'}
+        class Connection:
+            def __init__(_, host, address):
+                assert (host, address) == ('discord.com', '93.184.216.34')
+            def request(_, method, path, body=None, headers=None):
+                headers_seen.append((method, path, headers['Authorization']))
+                payload = json.loads(body) if body else {}
+                if method == 'POST' and path.endswith('/threads'):
+                    self.messages['101']['thread'] = deepcopy(thread); _.value = thread
+                elif method == 'POST':
+                    self.messages['102'] = self.message('102', content=payload['content'])
+                    self.messages['102']['author']['id'] = '1554962007059472445'
+                    _.value = self.messages['102']
+                elif method in {'PUT', 'DELETE'}:
+                    self.messages['101']['reactions'] = ([{'emoji': {'id': None, 'name': '👍'}, 'me': True}]
+                        if method == 'PUT' else [])
+                    _.value = {}
+                elif path == '/api/v10/channels/201': _.value = thread
+                elif '/emojis/' in path: _.value = {'id': '501', 'name': 'local', 'available': True}
+                else: _.value = self.messages[path.split('/')[6]]
+            def getresponse(_):
+                data = json.dumps(_.value).encode()
+                return type('Response', (), {'status': 200, 'read': lambda *a: data})()
+            def close(_): pass
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        self.call('send_rook_message', {'operation_id': 'rook_identity_send_01', 'text': 'hello'})
+        self.call('create_rook_thread', {'operation_id': 'rook_identity_thread01', 'source_message_id': '101', 'name': 'discussion'})
+        self.call('set_rook_reaction', {'message_id': '101', 'emoji': '👍', 'present': True})
+        self.call('set_rook_reaction', {'message_id': '101', 'emoji': '👍', 'present': False})
+        now = time.time()
+        self.app.store.put('requests', 'discord-301', {'id': 'discord-301', 'subject': self.cfg.subject,
+            'policy': self.app.policy, 'state': 'ready', 'expires': now + 600})
+        self.app.store.put('deliveries', 'delivery-301', {'id': 'delivery-301', 'request_id': 'discord-301'})
+        self.call('reply_to_rook_request', {'request_id': 'discord-301', 'text': 'answer'}, 'rook.replies.write')
+        writes = [(method, path) for method, path, _ in headers_seen if method != 'GET']
+        assert writes == [('POST', f'/api/v10/channels/{m.CHANNEL}/messages'),
+            ('POST', f'/api/v10/channels/{m.CHANNEL}/messages/101/threads'),
+            ('PUT', f'/api/v10/channels/{m.CHANNEL}/messages/101/reactions/%F0%9F%91%8D/@me'),
+            ('DELETE', f'/api/v10/channels/{m.CHANNEL}/messages/101/reactions/%F0%9F%91%8D/@me'),
+            ('POST', f'/api/v10/channels/{m.CHANNEL}/messages')]
+        assert all(auth == 'Bot synthetic-rook-token' for _, _, auth in headers_seen)
+        # Reaction `me` is relative to the authenticated REST reader: GET must also use Rook.
+        assert m.discord_request('GET', f'/guilds/{m.GUILD}/emojis/501')['id'] == '501'
+        assert headers_seen[-1][2] == 'Bot synthetic-rook-token'
+        assert m.load_rook_token() == 'synthetic-rook-token'
+        for mode in (0o640, 0o604):
+            token_file.chmod(mode)
+            with pytest.raises(ValueError): m.load_rook_token()
+        token_file.chmod(0o600)
+        with monkeypatch.context() as guard:
+            guard.setattr(m.os, 'getuid', lambda: os.stat(token_file).st_uid + 1)
+            with pytest.raises(ValueError): m.load_rook_token()
+        token_file.unlink(); token_file.symlink_to(token_dir / 'missing')
+        with pytest.raises(ValueError): m.load_rook_token()
+        token_file.unlink(); token_file.mkdir(mode=0o700)
+        with pytest.raises(ValueError): m.load_rook_token()
+        token_file.rmdir(); token_file.write_text(''); token_file.chmod(0o600)
+        with pytest.raises(ValueError): m.load_rook_token()
+        token_file.write_text('synthetic-rook-token'); token_dir.chmod(0o750)
+        with pytest.raises(ValueError): m.load_rook_token()
+
+    def test_rook_author_readback_and_durable_receipts(self, monkeypatch):
+        m = self.m; rook = '1554962007059472445'; effects = []
+        self.thread.update(name='discussion', owner_id=rook)
+        author = [rook]
+        def peer(method, path, payload=None, file=None):
+            if method == 'POST' and path.endswith('/threads'):
+                effects.append(method); self.messages['101']['thread'] = deepcopy(self.thread)
+                return deepcopy(self.thread)
+            if method == 'POST':
+                effects.append(method)
+                self.messages['102'] = self.message('102', content=payload['content'])
+                self.messages['102']['author']['id'] = author[0]
+                return deepcopy(self.messages['102'])
+            if method in {'PUT', 'DELETE'}:
+                effects.append(method)
+                self.messages['101']['reactions'] = [{'emoji': {'id': None, 'name': '👍'}, 'me': True}]
+                return {}
+            return self.request(method, path, payload, file)
+        monkeypatch.setattr(m, 'discord_request', peer)
+        assert self.value('send_rook_message', {'operation_id': 'rook_receipt_send_01', 'text': 'hello'})['message_id'] == '102'
+        self.value('create_rook_thread', {'operation_id': 'rook_receipt_thread1', 'source_message_id': '101', 'name': 'discussion'})
+        self.value('set_rook_reaction', {'message_id': '101', 'emoji': '👍', 'present': True})
+        receipts = self.app.store.all('operations')
+        assert len(receipts) == 3 and all(row['state'] == 'confirmed' and row['reply_author'] == rook for row in receipts)
+        def reply(identity):
+            self.app.store.put('requests', identity, {'id': identity, 'subject': self.cfg.subject,
+                'policy': self.app.policy, 'state': 'ready', 'expires': time.time() + 600})
+            self.app.store.put('deliveries', identity, {'id': identity, 'request_id': identity})
+            return {'request_id': identity, 'text': 'answer'}
+        args = reply('discord-301')
+        assert not self.call('reply_to_rook_request', args, 'rook.replies.write')[2]['result']['isError']
+        assert self.app.store.get('requests', 'discord-301')['reply_author'] == rook
+        # Old Kael author cannot confirm either a general message or a bound reply.
+        author[0] = m.BOT
+        for name, bad, scope in (
+            ('send_rook_message', {'operation_id': 'kael_receipt_send_01', 'text': 'wrong author'}, 'rook.channel.write'),
+            ('reply_to_rook_request', reply('discord-302'), 'rook.replies.write')):
+            before = len(effects)
+            result = self.call(name, bad, scope)[2]['result']
+            assert result['isError'] and self.call(name, bad, scope)[2]['result'] == result
+            assert len(effects) == before + 1
+        # Thread ownership is also checked, not merely its destination and name.
+        self.messages['101'].pop('thread'); self.thread['owner_id'] = m.BOT
+        bad_thread = {'operation_id': 'kael_receipt_thread1', 'source_message_id': '101', 'name': 'discussion'}
+        before = len(effects)
+        result = self.call('create_rook_thread', bad_thread)[2]['result']
+        assert result['isError'] and self.call('create_rook_thread', bad_thread)[2]['result'] == result
+        assert len(effects) == before + 1
+
+    def test_rook_ingress_loop_guard_preserves_operator_and_kael(self, monkeypatch):
+        m = self.m; delivered = []
+        self.app.callback = lambda url, body, headers: (delivered.append(json.loads(body)) or (200, b'{}'))
+        self.app.store.put('subscriptions', 'sub-test', {'id': 'sub-test', 'subject': self.cfg.subject,
+            'policy': self.app.policy, 'expires': time.time() + 600, 'url': 'https://callback.example/events',
+            'secret': 'whsec_' + base64.b64encode(b'synthetic-offline-secret-32-bytes!!').decode()})
+        def event(identity, author, content='Rook: request'):
+            return {'t': 'MESSAGE_CREATE', 'd': {'id': identity, 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                'author': {'id': author}, 'type': 0, 'content': content}}
+        assert self.app.ingest(event('301', m.OPERATOR), '100') == 1
+        assert self.app.ingest(event('302', m.BOT), '100') == 1
+        assert self.app.ingest(event('303', m.OPERATOR, 'not prefixed'), '100') == 0
+        before = deepcopy(self.app.store.all('requests'))
+        with monkeypatch.context() as guard:
+            guard.setattr(self.app.store, 'put', lambda *a: pytest.fail('Rook ingress must not reserve or deliver'))
+            assert self.app.ingest(event('304', '1554962007059472445'), '100') == 0
+            # Explicit exclusion must win even if the requester allowlist is accidentally aliased.
+            guard.setattr(m, 'BOT', '1554962007059472445')
+            assert self.app.ingest(event('305', '1554962007059472445'), '100') == 0
+        assert len(delivered) == 2 and self.app.store.all('requests') == before
+
+    def test_receive_one_authenticates_dedicated_rook_reply_binding(self, monkeypatch):
+        import receive_one_discord_message as r
+        m = self.m; rook = '1554962007059472445'; now = time.time()
+        scope = r.Scope('discord-301', 'rook.reply', '100', 'author', rook, 2,
+            str(self.app.store.directory), self.cfg.issuer, self.cfg.audience, self.cfg.subject)
+        content = json.dumps({'kind': 'rook.reply', 'correlation': 'discord-301', 'text': 'answer'})
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '302', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+            'author': {'id': rook, 'bot': True}, 'type': 0, 'content': content}}
+        binding = {'id': 'discord-301', 'state': 'confirmed', 'policy': self.app.policy,
+            'auth_method': 'RS256-authenticated-tools/call', 'subject': self.cfg.subject,
+            'auth_subject': self.cfg.subject, 'reply_id': '302', 'reply_author': rook,
+            'guild_id': m.GUILD, 'channel_id': m.CHANNEL, 'reply_kind': 'rook.reply',
+            'auth_expires': now + 600, 'confirmed_at': now, 'reply_sha256': hashlib.sha256(content.encode()).hexdigest()}
+        assert r.match_event(event, scope, rook) is None
+        self.app.store.put('requests', 'discord-301', binding)
+        assert r.ROOK_BOT == m.ROOK_BOT == rook
+        assert r.verified_reply_binding(event['d'], scope, rook)
+        assert r.match_event(event, scope, rook)['authenticated_reply_binding'] is True
+        for field, value in (('state', 'uncertain'), ('policy', 'wrong'), ('auth_method', 'unverified'),
+                ('subject', 'other'), ('auth_subject', 'other'), ('reply_id', '303'), ('reply_author', m.BOT),
+                ('guild_id', '1'), ('channel_id', '2'), ('reply_kind', 'wrong'), ('id', 'discord-303'),
+                ('auth_expires', now - 1), ('confirmed_at', now - 20), ('reply_sha256', 'wrong')):
+            self.app.store.put('requests', 'discord-301', {**binding, field: value})
+            assert r.match_event(event, scope, rook) is None, field
+        self.app.store.put('requests', 'discord-301', binding)
+        assert not r.verified_reply_binding(event['d'], scope, m.BOT)
+        for delta in ({'id': '303'}, {'content': content.replace('answer', 'forged')}, {'webhook_id': '777'},
+                {'guild_id': '1'}, {'channel_id': '2'}, {'author': {'id': m.BOT}}):
+            assert r.match_event({**event, 'd': {**event['d'], **delta}}, scope, rook) is None
+        self.app.store.path.chmod(0o644)
+        assert not r.verified_reply_binding(event['d'], scope, rook)
+        self.app.store.path.chmod(0o600)
+        with monkeypatch.context() as guard:
+            guard.setattr(r.os, 'getuid', lambda: self.app.store.path.stat().st_uid + 1)
+            assert not r.verified_reply_binding(event['d'], scope, rook)
 
     def test_insufficient_scope_403_tool_challenge_without_effects(self, monkeypatch):
         """Authentic identity + RBAC can step up scope; RBAC denial cannot consent-loop."""
@@ -234,7 +414,7 @@ class TestRookCommunication:
             'secret': 'whsec_' + base64.b64encode(b'x' * 32).decode()})
         event = {'t': 'MESSAGE_CREATE', 'd': {**self.messages['102'], 'guild_id': m.GUILD, 'content': 'Rook: echo'}}
         assert self.app.ingest(event, '100') == 0
-        assert self.app.ingest({'t': event['t'], 'd': {**event['d'], 'id': '103'}}, '100') == 1
+        assert self.app.ingest({'t': event['t'], 'd': {**event['d'], 'id': '103', 'author': {'id': m.BOT}}}, '100') == 1
         count = []
         def uncertain(method, path, payload=None, file=None):
             if method == 'POST':
@@ -646,7 +826,7 @@ class TestRookCommunication:
             def close(self): calls.append(('close',))
         monkeypatch.setattr(socket, 'getaddrinfo', lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('8.8.8.8', 443))])
         monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
-        monkeypatch.setattr(m, 'load_token', lambda: 'synthetic-test-only')
+        monkeypatch.setattr(m, 'load_rook_token', lambda: 'synthetic-test-only')
         meta = {'id': '401', 'filename': 'notes.txt', 'content_type': 'text/plain', 'size': 5,
                 'url': f'https://cdn.discordapp.com/attachments/{m.CHANNEL}/401/notes.txt'}
         assert m.download_attachment(meta, m.CHANNEL) == b'notes'
