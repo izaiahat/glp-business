@@ -232,6 +232,9 @@ def loop_consolidation_tasks(loops: dict[str, Any], *, as_of: dt.date) -> list[d
 
 
 def week_start(day: dt.date) -> str:
+    # Sunday's learning prepares the following Monday's carrier workweek.
+    if day.weekday() == 6:
+        return (day + dt.timedelta(days=1)).isoformat()
     return (day - dt.timedelta(days=day.weekday())).isoformat()
 
 
