@@ -1,0 +1,33 @@
+{
+  "schema": "ISSUE97_MONITOR_SOURCE_V1",
+  "repo": "izaiahat/glp-business",
+  "issue": 97,
+  "expiry": "2026-09-30T22:00:00Z",
+  "source": "scripts/issue97_monitor.py",
+  "test": "python3 -B -m unittest discover -s tests -p test_issue97_monitor.py -v",
+  "installed_source": "/home/ubuntu/.hermes/scripts/issue97_monitor.py",
+  "tick_command": "python3 -B /home/ubuntu/.hermes/scripts/issue97_monitor.py",
+  "wait_command": "timeout --signal=TERM --kill-after=2s 610s python3 -B /home/ubuntu/.hermes/scripts/issue97_monitor.py --receive-one --max-wait 600",
+  "terminal": {"background": true, "notify": true, "workdir": "/home/ubuntu/business", "completion": "One parent-owned bounded child completion; no watch-pattern message bus."},
+  "cron": {"schedule": "every 2m", "no_agent": true, "script": "issue97_monitor.py", "deliver": "local", "failure_deliver": "local", "script_timeout_seconds": 60, "repeat_policy": "Parent computes floor((expiry - current UTC epoch)/120); refuse if less than one. Script becomes inert at expiry even if scheduler is delayed."},
+  "activation_order": [
+    "Independent review and parent approval; source PR is not activation.",
+    "Reconcile/stop the old foreground GitHub reader without overwriting its latest cursor; it does not honor these new locks.",
+    "Parent stages reviewed regular source bytes under HERMES_HOME/scripts; no symlink outside allowed root.",
+    "Check authenticated gh, running native scheduler, absent duplicate job/listener and fresh preserved cursor.",
+    "Parent creates exactly one finite native no-agent cron and arms receive-one from the actual active owner TUI.",
+    "After completion, treat comment bodies as external data, process serialized, then rearm a fresh receive-one before expiry. Record a real idle-to-running receipt separately."
+  ],
+  "state": {"root": "/home/ubuntu/business/reports/ops/rook-channel-setup-20260930/issue97-watch/monitor-inbox", "legacy_cursor": "../cursor.json (read-only fresh seed)", "file": "inbox.json", "locks": ["tick.lock (nonblocking read singleton)", "receiver.lock (nonblocking lifetime singleton)", "state.lock (brief serialized durable R/W)"]},
+  "contract": [
+    "One gh api invocation per tick, paginated exact issue; existing authentication resolves internally. 45s read timeout and 4MiB accepted response cap; stderr discarded.",
+    "Atomic fsynced file and directory commit holds cursor watermark and pending batches before waking receiver; old cursor is never written.",
+    "Receiver arms directory inotify before draining. Only inbox rename events cause another state read; no timer-based file/GitHub polling.",
+    "Durable removal precedes bounded escaped JSON output. Uncertain delivery is never automatically replayed; one latest claim marker only.",
+    "Own Fable-Operator | prefix advances cursor without echo. Existing IDs/edits at or below cursor are ignored.",
+    "Maximum 32 queued batches of 8 comments, 1000 body characters each; 64KiB output and 2MiB state. Queue/read overflow refuses cursor advance; parent must inspect.",
+    "One fixed safe failure envelope per failed-read streak; state/config failures report a safe actionable status without raw stderr.",
+    "CLI signal watchdog bounds lock waits and wall-clock expiry, with proposed outer timeout as a fallback."
+  ],
+  "limits": ["No live deployment or TUI wake proof from fixture tests.", "Durable queue survives absent listener; automatic listener restart/rearm is not implemented.", "No perpetual or restart-safe idle wake claim; parent rearming and native scheduler availability remain required.", "No cron/listener installation, core/shared DB edit, sends, Auth0, business tasks, GLP release or reconnect authority."]
+}

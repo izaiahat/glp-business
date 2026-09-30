@@ -19,6 +19,8 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m unittest discover -s tests -p test_glp42_package_only.py -v
+      - name: Issue97 monitor delivery group (offline, real inotify, no credentials)
+        run: python3 -B -m unittest discover -s tests -p test_issue97_monitor.py -v
   python-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15

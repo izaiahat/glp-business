@@ -4,7 +4,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a353fe61852c661f7f664ba94ae7f9b06f3833ae8e1ffbc6f22dc106de7f98b0"
+      "sha256": "0cac6005274b1a08af3c9d545cb426e1c9c5c40cd2eca00301deffbb58a02fc0"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -30,6 +30,21 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "f1301b984e0db1cdbfda07b88c3d02c340e87de1ea51dc1889a9245b645bafd9"
+    },
+    "ops/issue97-monitor-source.json": {
+      "callers": ["scripts/issue97_monitor.py"],
+      "kind": "repository_control",
+      "sha256": "8947d99dba322a6a5386d99ad68033cee2d4ef9bbc86f87ad88fd4234e63d546"
+    },
+    "scripts/issue97_monitor.py": {
+      "callers": ["ops/issue97-monitor-source.json"],
+      "kind": "script",
+      "sha256": "38c721e43b025ea4879fc1b6e9f31141efc874567b76251abac0afbe996cb6a9"
+    },
+    "tests/test_issue97_monitor.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "regression_test",
+      "sha256": "9718ff505efc73cbd6b41cba59253eb0e8b338db5ba86dbadf452173067203e5"
     },
     "README.md": {
       "callers": [],
@@ -2716,5 +2731,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 418
+  "tracked_count": 421
 }
