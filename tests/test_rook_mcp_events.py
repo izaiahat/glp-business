@@ -350,6 +350,80 @@ class TestSubscriptionsDelivery:
         finally:
             app.close()
 
+    @pytest.mark.parametrize('token', ['<@1554962007059472445>', '<@!1554962007059472445>'])
+    @pytest.mark.parametrize('sender_id', ['392067741500309517', '1486880423568211968'])
+    @pytest.mark.parametrize('with_mentions', [True, False])
+    def test_rook_user_mention_creates_stripped_request(self, signed_subscription, token, sender_id, with_mentions):
+        m, app, principal, params, deliveries = signed_subscription
+        app.dispatch(principal, 'events/subscribe', params)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': sender_id}, 'type': 0,
+                 'content': f' \t explain this {token} \n<@!{m.ROOK_BOT}>\t'}}
+        if with_mentions:
+            event['d']['mentions'] = [{'id': m.ROOK_BOT}]
+        assert app.ingest(event, '100') == 1
+        assert deliveries[-1][0]['data']['text'] == 'explain this'
+        assert deliveries[-1][0]['data']['sender_id'] == sender_id
+        assert app.store.get('requests', 'discord-101')['state'] == 'ready'
+        assert app.ingest(event, '100') == 0
+        assert len(deliveries) == 2
+
+    @pytest.mark.parametrize('delta', [
+        {'author': {'id': '1554962007059472445', 'bot': True}},
+        {'content': 'Rook: self echo', 'author': {'id': '1554962007059472445', 'bot': True}},
+        {'content': '@everyone explain this', 'mentions': [], 'mention_everyone': True},
+        {'content': '@everyone explain this', 'mention_everyone': True},
+        {'content': '@here explain this', 'mentions': [], 'mention_everyone': True},
+        {'content': '@here explain this', 'mention_everyone': True},
+        {'content': '<@&1554962007059472445> explain this', 'mentions': [],
+         'mention_roles': ['1554962007059472445']},
+        {'content': '<@&1554962007059472445> explain this', 'mention_roles': ['1554962007059472445']},
+        {'content': '<@777> explain this', 'mentions': [{'id': '777'}]},
+        {'content': '<@777> explain this'},
+        {'content': ' \t<@1554962007059472445>\n<@!1554962007059472445> \t'},
+        {'content': ' \t<@1554962007059472445>\n<@!1554962007059472445> \t',
+         'mentions': [{'id': '1554962007059472445'}]},
+        {'guild_id': '1'}, {'channel_id': '2'}, {'type': 19}, {'webhook_id': '888'},
+        {'author': {'id': '777', 'bot': True}}, {'id': '100'},
+        {'content': '<@1554962007059472445>' + 'x' * 2000},
+        {'mentions': []},
+        {'mentions': [{'id': '777'}]},
+        {'mentions': None},
+        {'mentions': {'id': '1554962007059472445'}},
+        {'mentions': [None, '1554962007059472445', {'id': 1554962007059472445}]},
+    ])
+    def test_rook_mention_rejects_echo_nonuser_and_empty_requests(self, signed_subscription, delta):
+        m, app, principal, params, deliveries = signed_subscription
+        app.dispatch(principal, 'events/subscribe', params)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': f'<@{m.ROOK_BOT}> explain this'}}
+        event['d'].update(delta)
+        assert app.ingest(event, '100') == 0
+        assert app.store.all('requests') == []
+        assert app.store.all('deliveries') == []
+        assert len(deliveries) == 1
+
+    def test_rook_mentions_array_is_authoritative(self, signed_subscription):
+        m, app, principal, params, deliveries = signed_subscription
+        app.dispatch(principal, 'events/subscribe', params)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': '  explain this  ',
+                 'mentions': [{'id': '777'}, {'id': m.ROOK_BOT}]}}
+        assert app.ingest(event, '100') == 1
+        assert deliveries[-1][0]['data']['text'] == 'explain this'
+
+    def test_rook_legacy_prefix_keeps_existing_text_extraction(self, signed_subscription):
+        m, app, principal, params, deliveries = signed_subscription
+        app.dispatch(principal, 'events/subscribe', params)
+        event = {'t': 'MESSAGE_CREATE', 'd': {'id': '101', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                 'author': {'id': m.OPERATOR}, 'type': 0, 'content': 'Rook: \t explain this \n', 'mentions': []}}
+        assert app.ingest(event, '100') == 1
+        assert deliveries[-1][0]['data']['text'] == 'explain this'
+        event['d'].update(id='102', content='Rook: \t\n')
+        assert app.ingest(event, '100') == 0
+        assert app.store.get('requests', 'discord-102') is None
+        assert len(deliveries) == 2
+
     def test_r96_1_subscription_returns_refresh_before(self, signed_subscription):
         from dataclasses import replace
         from datetime import datetime
