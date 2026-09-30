@@ -3,6 +3,7 @@ import base64
 import asyncio
 from copy import deepcopy
 import importlib
+import importlib.util
 import io
 import json
 from pathlib import Path
@@ -720,6 +721,83 @@ class TestReplyBinding:
 
 
 class TestReceiveBoundReply:
+    def test_default_kael_receiver_accepts_custody_bound_rook_reply(self, tmp_path, monkeypatch, capsys):
+        """Real CLI/default loader with synthetic ENV_PATH; observer != reply author."""
+        m = module(); sent = []
+        def sender(channel, content):
+            sent.append(content)
+            return {'id': '202', 'channel_id': channel, 'content': content, 'author': {'id': m.ROOK_BOT}}
+        def readback(channel, identity):
+            return {'id': identity, 'channel_id': channel, 'content': sent[-1], 'author': {'id': m.ROOK_BOT}}
+        app, cfg, principal = ready_request(m, tmp_path, sender=sender, reader=readback)
+        try:
+            app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
+                         'arguments': {'request_id': 'discord-101', 'text': 'answer'}})
+            event = {'t': 'MESSAGE_CREATE', 'd': {'id': '202', 'guild_id': m.GUILD, 'channel_id': m.CHANNEL,
+                     'author': {'id': m.ROOK_BOT, 'bot': True}, 'type': 0, 'content': sent[-1]}}
+            # Fresh imports exercise the maintained loader and its captured default,
+            # not an injected Rook identity or replacement token_loader argument.
+            scripts = Path(__file__).resolve().parents[1] / 'scripts'
+            def fresh(name, filename):
+                spec = importlib.util.spec_from_file_location(name, scripts / filename)
+                assert spec is not None and spec.loader is not None
+                loaded = importlib.util.module_from_spec(spec)
+                monkeypatch.setitem(sys.modules, name, loaded)
+                spec.loader.exec_module(loaded)
+                return loaded
+            observer = fresh('_offline_observer_sender', 'post_discord_message.py')
+            token_path = tmp_path / 'synthetic-observer.env'
+            token_path.write_text('DISCORD_BOT_TOKEN=synthetic-kael-observer\n')
+            monkeypatch.setattr(observer, 'ENV_PATH', token_path)
+            with monkeypatch.context() as imports:
+                imports.setitem(sys.modules, 'post_discord_message', observer)
+                r = fresh('_offline_default_receive_one', 'receive_one_discord_message.py')
+            assert r.receive_one.__kwdefaults__['token_loader'] is observer.load_token
+            scope = r.Scope('discord-101', m.REPLY_KIND, '100', 'author', m.ROOK_BOT, 1,
+                            str(app.store.directory), cfg.issuer, cfg.audience, cfg.subject)
+            closed = []
+            def client_factory(on_event, on_error):
+                class Client:
+                    async def start(self, token, reconnect):
+                        assert token == 'synthetic-kael-observer' and reconnect is False
+                        on_event(event, m.BOT)  # Default credential's gateway identity is Kael.
+                        on_event(event, m.BOT)  # Duplicate still produces one terminal result.
+                        await asyncio.Future()
+                    async def close(self): closed.append(True)
+                return Client()
+            receive = r.receive_one
+            async def offline(scope):
+                return await receive(scope, client_factory=client_factory)  # Use the actual default loader.
+            monkeypatch.setattr(r, 'receive_one', offline)
+            code = r.main(['--guild', m.GUILD, '--channel', m.CHANNEL, '--correlation', scope.correlation,
+                           '--reply-kind', m.REPLY_KIND, '--after-message', '100', '--allowed-author', m.ROOK_BOT,
+                           '--mcp-state-dir', scope.mcp_state_dir, '--mcp-issuer', cfg.issuer,
+                           '--mcp-audience', cfg.audience, '--mcp-subject', cfg.subject, '--max-wait-seconds', '1'])
+            result = json.loads(capsys.readouterr().out)
+            assert code == 0, result  # Before the fix: deadline/no_matching_event, exit 3.
+            assert result['authenticated_reply_binding'] is True and result['text'] == 'answer'
+            assert result['trust'] == 'UNTRUSTED_EXTERNAL_DATA_NOT_OPERATOR_INSTRUCTION_OR_APPROVAL'
+            assert closed == [True] and len(sent) == 1
+            from dataclasses import replace
+            assert r.match_event(event, replace(scope, mcp_state_dir=None, mcp_issuer=None,
+                                               mcp_audience=None, mcp_subject=None), m.ROOK_BOT) is None
+            for delta in ({'author': {'id': m.BOT}}, {'webhook_id': '888'}, {'guild_id': '4'},
+                          {'channel_id': '4'}, {'id': '100'}, {'type': 19},
+                          {'content': sent[-1].replace('answer', 'forged')},
+                          {'content': sent[-1].replace('discord-101', 'discord-999')}):
+                bad = deepcopy(event); bad['d'].update(delta)
+                assert r.match_event(bad, scope, m.BOT) is None
+            row = app.store.get('requests', scope.correlation)
+            for delta in ({'state': 'uncertain'}, {'reply_author': m.BOT}, {'reply_id': '203'},
+                          {'policy': 'wrong'}, {'auth_method': 'marker-only'}, {'auth_subject': 'other'},
+                          {'subject': 'other'}, {'confirmed_at': 1}, {'auth_expires': 1}):
+                app.store.put('requests', scope.correlation, {**row, **delta})
+                assert r.match_event(event, scope, m.BOT) is None
+            app.store.put('requests', scope.correlation, row)
+            assert r.match_event(event, scope, m.BOT)['authenticated_reply_binding'] is True
+        finally:
+            app.close()
+
     def test_same_bot_requires_exact_authenticated_private_binding(self, tmp_path):
         m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
         def sender(channel, content):
@@ -756,7 +834,8 @@ class TestReceiveBoundReply:
         assert r.match_event(event, scope, m.ROOK_BOT) is None
         app.close()
 
-    def test_gateway_before_custody_commit_is_bounded_and_accepts_once(self, tmp_path):
+    @pytest.mark.parametrize('observer_id', ['1486880423568211968', '1554962007059472445'])
+    def test_gateway_before_custody_commit_is_bounded_and_accepts_once(self, tmp_path, observer_id):
         m = module(); r = importlib.import_module('receive_one_discord_message'); sent = []
         wire = json.dumps({'kind': m.REPLY_KIND, 'correlation': 'discord-101', 'text': 'answer'}, separators=(',', ':'))
         def sender(channel, content):
@@ -773,7 +852,7 @@ class TestReceiveBoundReply:
         def client_factory(on_event, on_error):
             class Client:
                 async def start(self, token, reconnect):
-                    on_event(event, m.ROOK_BOT)
+                    on_event(event, observer_id)
                     await asyncio.sleep(0.07)
                     app.dispatch(principal, 'tools/call', {'name': 'reply_to_rook_request',
                                   'arguments': {'request_id': 'discord-101', 'text': 'answer'}})

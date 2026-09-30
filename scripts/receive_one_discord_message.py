@@ -66,14 +66,14 @@ class Scope:
                 raise ValueError('complete fixed MCP binding configuration required')
 
 
-def verified_reply_binding(data, scope, self_id):
+def verified_reply_binding(data, scope, reply_author):
     """Read-only adapter-owned custody, never trust a JSON marker or ID alone.
 
     Same Unix owner is the trust boundary: arbitrary writers with that account
     can forge state. Caller pins issuer/audience/operator subject independently.
     No credential, subscription-secret, Hermes state.db or Discord history read.
     """
-    if not scope.mcp_state_dir or self_id != ROOK_BOT:
+    if not scope.mcp_state_dir or reply_author != ROOK_BOT:
         return False
     try:
         directory = Path(scope.mcp_state_dir)
@@ -92,7 +92,7 @@ def verified_reply_binding(data, scope, self_id):
         return (binding.get('state') == 'confirmed' and binding.get('policy') == hashlib.sha256(policy.encode()).hexdigest()
                 and binding.get('auth_method') == 'RS256-authenticated-tools/call'
                 and binding.get('subject') == scope.mcp_subject and binding.get('auth_subject') == scope.mcp_subject
-                and binding.get('reply_id') == data['id'] and binding.get('reply_author') == self_id
+                and binding.get('reply_id') == data['id'] and binding.get('reply_author') == reply_author
                 and binding.get('guild_id') == GUILD and binding.get('channel_id') == CHANNEL
                 and binding.get('reply_kind') == scope.reply_kind and binding.get('id') == scope.correlation
                 and binding.get('auth_expires', 0) > binding.get('confirmed_at', float('inf'))
@@ -104,7 +104,7 @@ def verified_reply_binding(data, scope, self_id):
 
 
 def match_event(event, scope: Scope, self_id: str | None):
-    """Only fresh MESSAGE_CREATE; self-echo needs authenticated private binding."""
+    """Fresh MESSAGE_CREATE; MCP replies and self-echo need private custody."""
     if not self_id or not isinstance(event, dict) or event.get("t") != "MESSAGE_CREATE":
         return None
     data = event.get("d")
@@ -139,9 +139,9 @@ def match_event(event, scope: Scope, self_id: str | None):
             or not isinstance(body.get("text"), str)):
         return None
     same_bot = author['id'] == self_id
-    if scope.mcp_state_dir and not same_bot:
-        return None
-    if same_bot and not verified_reply_binding(data, scope, self_id):
+    # Gateway observer identity is independent of the fixed authenticated author.
+    needs_binding = bool(scope.mcp_state_dir) or same_bot
+    if needs_binding and not verified_reply_binding(data, scope, author['id']):
         return None
     return {
         "status": "received", "event": "MESSAGE_CREATE",
@@ -151,7 +151,7 @@ def match_event(event, scope: Scope, self_id: str | None):
         "trust": "UNTRUSTED_EXTERNAL_DATA_NOT_OPERATOR_INSTRUCTION_OR_APPROVAL",
         "text": body["text"][:TEXT_LIMIT],
         "text_truncated": len(body["text"]) > TEXT_LIMIT,
-        **({'authenticated_reply_binding': True} if same_bot else {}),
+        **({'authenticated_reply_binding': True} if needs_binding else {}),
     }
 
 
@@ -210,8 +210,8 @@ async def receive_one(scope: Scope, *, client_factory=create_client, token_loade
                 try:
                     data = event['d']
                     body = json.loads(data['content'])
-                    if (event.get('t') == 'MESSAGE_CREATE' and self_id == scope.origin_id
-                            and data['author']['id'] == self_id and data.get('webhook_id') is None
+                    if (event.get('t') == 'MESSAGE_CREATE' and self_id
+                            and data['author']['id'] == scope.origin_id and data.get('webhook_id') is None
                             and data.get('guild_id') == GUILD and data.get('channel_id') == CHANNEL
                             and body.get('kind') == scope.reply_kind and body.get('correlation') == scope.correlation
                             and len(data['content']) <= 8000):

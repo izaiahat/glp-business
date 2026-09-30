@@ -4,7 +4,7 @@
     "ops/rook-mcp/README.md": {
       "callers": ["manual:parent-owned launch requirements; rollout held"],
       "kind": "instruction_or_policy",
-      "sha256": "59cc58d2ffb84dc01c00b70d95d16cf0a1d841b6403f0db749188977a961d638"
+      "sha256": "51e3676d17e5dfb50f401c5dbeff22c3b5222e56576d0b2a37a5deed03d5b22e"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
@@ -19,7 +19,7 @@
     "tests/test_rook_mcp_events.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "fa21b112b7eb80c9d02b783d85ef1cfaf1066eab798b61d38c560713085b67da"
+      "sha256": "73fd6cb506dd331bbb65987f67566e420c19a145262c43d191498713d463b357"
     },
     "tests/test_rook_communication.py": {
       "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
@@ -1553,7 +1553,7 @@
     "scripts/receive_one_discord_message.py": {
       "callers": ["manual:parent-owned-terminal-notify-only; live launch held", "scripts/rook_mcp_events.py"],
       "kind": "script",
-      "sha256": "c8c69c681bd43b310952f69b9d6e977f5eeb9274803339249439ba7e4fd0878f"
+      "sha256": "85fa673d14aceff7b05f084bb610aa64264388a4c90c240f85abcd8710f8d9e8"
     },
     "scripts/reports_archiver.py": {
       "callers": [
