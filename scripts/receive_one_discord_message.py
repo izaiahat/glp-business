@@ -168,8 +168,12 @@ def create_client(on_event, on_error):
     intents.message_content = True
 
     class Client(discord.Client):
-        async def on_socket_response(self, event):
-            on_event(event, str(self.user.id) if self.user else None)
+        async def on_socket_raw_receive(self, payload):
+            # discord.py 2.x exposes raw JSON here, not on_socket_response.
+            # Keep the gateway envelope intact; Message objects lose custody fields.
+            event = json.loads(payload)
+            if isinstance(event, dict) and event.get("op") == 0 and event.get("t") == "MESSAGE_CREATE":
+                on_event(event, str(self.user.id) if self.user else None)
 
         async def on_error(self, event_method, *args, **kwargs):
             on_error()

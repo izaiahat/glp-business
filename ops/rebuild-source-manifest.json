@@ -1548,7 +1548,7 @@
     "scripts/receive_one_discord_message.py": {
       "callers": ["manual:parent-owned-terminal-notify-only; live launch held", "scripts/rook_mcp_events.py"],
       "kind": "script",
-      "sha256": "9bf591920c061a205c155eee531deaf32cc031448bf258013d797ef283071760"
+      "sha256": "bef85787d3fbcd71b07c52755404eceba3654f9af1a9cd485f87a1e1253a98fa"
     },
     "scripts/reports_archiver.py": {
       "callers": [
@@ -2678,7 +2678,7 @@
     "tests/test_receive_one_discord_message.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "33a05b175834c8b452a6af7ac795e82f5507dcebdc58e17cd2319890121833ee"
+      "sha256": "829b3e49c7fa4cfa132f06469ad6d670b355c5bd6d540875d9dc87c12000fdff"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [

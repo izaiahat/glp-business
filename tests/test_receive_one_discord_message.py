@@ -97,6 +97,51 @@ class ReceiveOneOfflineGroup(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.clients[-1].was_closed)
         self.assertTrue(self.clients[-1].was_cancelled)
 
+    async def test_installed_gateway_dispatch_preserves_raw_message_envelope(self):
+        # Exercise installed discord.py's websocket -> Client.dispatch path,
+        # never invoke an application callback by name or connect to Discord.
+        import discord
+        from discord.gateway import DiscordWebSocket
+        from unittest.mock import AsyncMock
+
+        forwarded, errors = [], []
+        with patch.object(reader, "load_token", side_effect=AssertionError("credential read")), \
+             patch("socket.socket.connect", side_effect=AssertionError("network forbidden")), \
+             patch("socket.socket.bind", side_effect=AssertionError("listener forbidden")):
+            client = reader.create_client(lambda event, self_id: forwarded.append((event, self_id)),
+                                          lambda: errors.append("handler error"))
+            try:
+                await client._async_setup_hook()
+                client._connection.user = discord.ClientUser(state=client._connection, data={
+                    "id": "999", "username": "offline", "discriminator": "0", "avatar": None})
+                # from_client wires the real debug ingress and state parsers;
+                # stub only network/bootstrap operations, not received_message.
+                with patch.object(client.http, "ws_connect", new=AsyncMock(return_value=object())), \
+                     patch.object(DiscordWebSocket, "poll_event", new=AsyncMock()), \
+                     patch.object(DiscordWebSocket, "identify", new=AsyncMock()):
+                    ws = await DiscordWebSocket.from_client(client)
+                event = deepcopy(self.event)
+                event.update(op=0, s=7, custody_probe={"preserve": True})
+                event["d"].update(timestamp="2026-09-30T00:00:00+00:00", edited_timestamp=None,
+                                  tts=False, mention_everyone=False, mentions=[], mention_roles=[],
+                                  attachments=[], embeds=[], pinned=False, flags=0,
+                                  message_reference={"message_id": "100", "channel_id": reader.CHANNEL,
+                                                     "guild_id": reader.GUILD},
+                                  webhook_id="300", raw_custody_field={"unchanged": True})
+                event["d"]["author"].update(username="offline", discriminator="0", avatar=None)
+                irrelevant = deepcopy(event)
+                irrelevant["t"] = "MESSAGE_UPDATE"
+                for ignored in (irrelevant, {"op": 11, "t": None, "s": None, "d": None}):
+                    await ws.received_message(json.dumps(ignored))
+                    await asyncio.sleep(0)
+                    self.assertEqual(forwarded, [])
+                await ws.received_message(json.dumps(event))
+                await asyncio.sleep(0)
+                self.assertEqual(forwarded, [(event, "999")])
+                self.assertEqual(errors, [])
+            finally:
+                await client.close()
+
     async def test_webhook_identity_not_display_name_or_bot_flag(self):
         scope = replace(self.scope, origin_kind="webhook", origin_id="300")
         event = deepcopy(self.event)
