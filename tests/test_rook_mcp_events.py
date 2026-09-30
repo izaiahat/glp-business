@@ -32,7 +32,8 @@ def module():
 
 
 def config(m):
-    return m.Config('https://offline.auth0.example/', 'https://rook.example/mcp', 'auth0|operator')
+    return m.Config('https://tenant.example/', 'https://rook.example/mcp', 'auth0|operator',
+                    'https://rook.example/.well-known/oauth-protected-resource/mcp')
 
 
 def rpc(m, method, params=None):
@@ -52,18 +53,20 @@ class TestAuthDiscovery:
                 return jwk
         auth = m.Authenticator(cfg, Keys())
         claims = {'iss': cfg.issuer, 'aud': cfg.audience, 'sub': cfg.subject, 'exp': int(time.time()) + 600,
-                  'iat': int(time.time()), 'scope': 'rook:events rook:reply'}
+                  'iat': int(time.time()), 'scope': 'rook.requests.read rook.replies.write',
+                  'permissions': ['rook.requests.read', 'rook.replies.write']}
         token = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'fixture'})
-        principal = auth.authenticate('Bearer ' + token, {'rook:events'})
+        principal = auth.authenticate('Bearer ' + token, {'rook.requests.read'})
         assert principal.subject == cfg.subject
         for delta in ({'iss': 'https://evil.example/'}, {'aud': 'other'}, {'sub': 'auth0|other'},
-                      {'exp': 1}, {'scope': ''}, {'iat': int(time.time()) + 600}):
+                      {'exp': 1}, {'scope': ''}, {'iat': int(time.time()) + 600},
+                      {'permissions': None}, {'permissions': []}, {'permissions': 'rook.requests.read'}):
             with pytest.raises(m.AuthDenied):
-                auth.authenticate('Bearer ' + jwt.encode({**claims, **delta}, key, algorithm='RS256'), {'rook:events'})
+                auth.authenticate('Bearer ' + jwt.encode({**claims, **delta}, key, algorithm='RS256'), {'rook.requests.read'})
         for bad in ('', 'Basic x', 'Bearer invalid', 'Bearer ' + token[:-5] + 'xxxxx',
                     'Bearer ' + jwt.encode(claims, 'synthetic-not-a-real-secret-' * 3, algorithm='HS256')):
             with pytest.raises(m.AuthDenied):
-                auth.authenticate(bad, {'rook:events'})
+                auth.authenticate(bad, {'rook.requests.read'})
         app = m.Application(cfg, tmp_path / 'private', auth=auth)
         status, headers, body = app.handle('POST', '/mcp', {'MCP-Protocol-Version': m.VERSION}, rpc(m, 'server/discover'))
         assert status == 401 and 'resource_metadata' in headers['WWW-Authenticate']
@@ -124,7 +127,7 @@ class TestAuthDiscovery:
 class TestSubscriptionsDelivery:
     def test_signed_verified_persistent_restricted_delivery(self, tmp_path):
         m = module(); cfg = config(m)
-        principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook:events', 'rook:reply'}))
+        principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook.requests.read', 'rook.replies.write'}))
         secret = 'whsec_' + base64.b64encode(b'offline-synthetic-key-material-1234').decode()
         calls = []
         from standardwebhooks.webhooks import Webhook
@@ -177,7 +180,7 @@ class TestSubscriptionsDelivery:
 
     def test_rotation_retry_gone_and_token_expiry(self, tmp_path):
         m = module(); cfg = config(m)
-        principal = m.Principal(cfg.subject, int(time.time()) + 300, frozenset({'rook:events'}))
+        principal = m.Principal(cfg.subject, int(time.time()) + 300, frozenset({'rook.requests.read'}))
         secret1 = 'whsec_' + base64.b64encode(b'synthetic-old-secret-32-characters').decode()
         secret2 = 'whsec_' + base64.b64encode(b'synthetic-new-secret-32-characters').decode()
         active_secret = [secret1]; signatures = []; outcomes = []
@@ -254,7 +257,7 @@ class TestSubscriptionsDelivery:
 def ready_request(m, tmp_path, *, sender, reader):
     tmp_path.mkdir(parents=True, exist_ok=True)
     cfg = config(m)
-    principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook:events', 'rook:reply'}))
+    principal = m.Principal(cfg.subject, int(time.time()) + 600, frozenset({'rook.requests.read', 'rook.replies.write'}))
     def callback(url, body, headers):
         value = json.loads(body)
         return 200, json.dumps({'challenge': value['challenge']}).encode() if value.get('type') == 'verification' else b'{}'

@@ -6,7 +6,7 @@ Private PR96. No Auth0/tunnel setup, live credential use, channel send or listen
 
 - MCP 2.0 **2026-07-28 only**: `server/discover`, `tools/list`, `tools/call`, `events/list`, `events/subscribe`, `events/unsubscribe`. HTTP `POST /mcp`, JSON-RPC 2.0 with per-request `_meta` protocol version/client capabilities and matching `MCP-Protocol-Version` header. Results include `resultType: complete`. No legacy initialize, stdio or SSE session state.
 - Public metadata `GET /.well-known/oauth-protected-resource/mcp` points to the explicitly configured HTTPS Auth0 issuer. This adapter is **not** an OAuth authorization server or token proxy. External Auth0 discovery, client registration/consent, S256 PKCE, audience/resource mapping and scopes remain parent-owned.
-- Bearer access tokens: fixed configured issuer/JWKS, RS256 via PyJWT/cryptography, signature/expiry/issued-at/audience, exact operator `sub`; `rook:events` for discovery/subscriptions, `rook:reply` for the tool. Never use ID tokens, guessed subjects, static bearer headers or tunnel control-plane keys as user authorization. Bearers/JWKS/Discord credentials are never logged.
+- Bearer access tokens: fixed configured issuer/JWKS, RS256 via PyJWT/cryptography, signature/expiry/issued-at/audience, exact operator `sub`; `rook.requests.read` for discovery/subscriptions, `rook.replies.write` for the tool. Never use ID tokens, guessed subjects, static bearer headers or tunnel control-plane keys as user authorization. Bearers/JWKS/Discord credentials are never logged.
 - `discord.rook.request.created`, normal fresh MESSAGE_CREATE only, fixed guild `1486887661099815126`, channel `1554668115239899196`. Arguments must exactly match `{"guild_id":"1486887661099815126","channel_id":"1554668115239899196"}`. Exact case-sensitive `Rook:` prefix, nonempty suffix, up to 2,000 characters. Operator `392067741500309517` and existing Kael bot `1486880423568211968` allowed; all webhooks/other identities refused. No blanket bot exclusion. Authenticated stored reply IDs excluded.
 - Webhooks only: public HTTPS:443, no credentials/fragments/redirects. Every DNS answer must be globally routable; actual TCP connection is pinned to a checked IP with original hostname TLS verification/SNI. No proxy environment routing. IPv4-mapped/6to4/Teredo, private/linklocal/multicast destinations refused. StandardWebhooks library signs both challenge and event bodies; challenge echo must exactly verify before state becomes active.
 - Subscription key binds canonical event/arguments/callback URL/authenticated principal/config policy. Maximum four live subscriptions, TTL 1 second–1 hour capped by authenticating JWT expiry; renew with a fresh token. Rotation verifies the new secret, keeps the same ID and dual-signs for 60 seconds. Repeated subscribe with unchanged secret renews without challenge. Unsubscribe is idempotent. 410 removes the subscription; 429/5xx/network failures get at most three synchronous attempts with stable webhook/event ID, fresh signatures. Secret and text never appear in error messages.
@@ -21,7 +21,8 @@ Create a separately approved isolated environment using `ops/rook-mcp/requiremen
 Required nonsecret inputs:
 
 - `ROOK_AUTH0_ISSUER=https://dev-qv5n6hpb2umayqwt.us.auth0.com/` (parent verified OIDC discovery; this worker made no live call).
-- `ROOK_MCP_AUDIENCE`: **verified Auth0 API identifier/resource**, not the OAuth client ID. Exact external HTTPS resource URL required. Ensure tunnel public resource/PRMD mapping matches this value; do not infer it.
+- `ROOK_MCP_AUDIENCE=https://api.openai.com/v1/mcp/tunnel_6abc70ee3f548191bfaabda8ee682eee`: parent verified the dedicated RS256 Auth0 API identifier. It is not an OAuth client ID. JWT `scope` and RBAC `permissions` must both include the required `rook.requests.read` / `rook.replies.write` permission for that method.
+- `ROOK_PROTECTED_RESOURCE_METADATA_URL`: **exact verified external HTTPS PRMD URL**, exposed/mapped by the tunnel. The server advertises this explicit value in `WWW-Authenticate`; it does not infer or invent an OpenAI well-known endpoint from the audience. Local PRMD remains `GET /.well-known/oauth-protected-resource/mcp`. Verify public mapping with the parent-owned tunnel before connection.
 - `ROOK_OPERATOR_SUBJECT`: actual authorized access-token `sub`, independently verified; never guessed from client ID or Discord identity.
 - `ROOK_PRIVATE_STATE_DIR`: adapter-only private directory under an approved existing parent, shared read-only with receive-one.
 - `ROOK_MCP_PORT`: available explicit nonprivileged loopback port; `ROOK_AFTER_MESSAGE_ID`: verified fresh pre-request cursor. No history replay.
@@ -31,6 +32,7 @@ Foreground adapter:
 ```sh
 "$ROOK_VENV/bin/python" -B scripts/rook_mcp_events.py \
   --issuer "$ROOK_AUTH0_ISSUER" --audience "$ROOK_MCP_AUDIENCE" \
+  --protected-resource-metadata-url "$ROOK_PROTECTED_RESOURCE_METADATA_URL" \
   --operator-subject "$ROOK_OPERATOR_SUBJECT" --state-dir "$ROOK_PRIVATE_STATE_DIR" \
   --port "$ROOK_MCP_PORT" --after-message "$ROOK_AFTER_MESSAGE_ID" --max-run-seconds 600
 ```

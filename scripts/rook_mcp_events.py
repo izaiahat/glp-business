@@ -84,9 +84,10 @@ class Config:
     issuer: str
     audience: str
     subject: str
+    protected_metadata_url: str
 
     def __post_init__(self):
-        for value in (self.issuer, self.audience):
+        for value in (self.issuer, self.audience, self.protected_metadata_url):
             p = urlsplit(value)
             if (p.scheme != 'https' or not p.hostname or p.username or p.password or p.query or p.fragment
                     or len(value) > 2048 or any(ord(c) < 33 for c in value)):
@@ -122,7 +123,9 @@ class Authenticator:
             if claims['sub'] != self.config.subject or not isinstance(claims.get('scope'), str):
                 raise AuthDenied()
             scopes = frozenset(claims['scope'].split())
-            if not set(required) <= scopes:
+            permissions = claims.get('permissions')
+            if (not isinstance(permissions, list) or not all(isinstance(p, str) for p in permissions)
+                    or not set(required) <= scopes or not set(required) <= set(permissions)):
                 raise AuthDenied()
             return Principal(claims['sub'], int(claims['exp']), scopes)
         except Exception:
@@ -273,7 +276,8 @@ class Application:
         self.store = Store(state_dir)
         self.callback = callback
         self.sender, self.reader = sender, reader
-        self.policy = hashlib.sha256(canonical(config.__dict__).encode()).hexdigest()
+        policy_fields = {'issuer': config.issuer, 'audience': config.audience, 'subject': config.subject}
+        self.policy = hashlib.sha256(canonical(policy_fields).encode()).hexdigest()
 
     def close(self):
         self.store.close()
@@ -284,17 +288,16 @@ class Application:
             return 403, {}, {'error': 'origin_refused'}
         if method == 'GET' and path == '/.well-known/oauth-protected-resource/mcp':
             return 200, {}, {'resource': self.config.audience, 'authorization_servers': [self.config.issuer],
-                             'scopes_supported': ['rook:events', 'rook:reply'], 'bearer_methods_supported': ['header']}
+                             'scopes_supported': ['rook.requests.read', 'rook.replies.write'], 'bearer_methods_supported': ['header']}
         if method != 'POST' or path != '/mcp':
             return 405, {}, {'error': 'method_or_path_refused'}
         request_id = body.get('id') if isinstance(body, dict) else None
-        required = {'rook:reply'} if isinstance(body, dict) and body.get('method') == 'tools/call' else {'rook:events'}
+        required = {'rook.replies.write'} if isinstance(body, dict) and body.get('method') == 'tools/call' else {'rook.requests.read'}
         try:
             principal = self.auth.authenticate(h.get('authorization'), required)
         except AuthDenied:
-            resource = urlsplit(self.config.audience)
-            return 401, {'WWW-Authenticate': 'Bearer resource_metadata="' + resource.scheme + '://' + resource.netloc +
-                         '/.well-known/oauth-protected-resource/mcp", scope="' + ' '.join(sorted(required)) + '"'}, {'error': 'unauthorized'}
+            return 401, {'WWW-Authenticate': 'Bearer resource_metadata="' + self.config.protected_metadata_url +
+                         '", scope="' + ' '.join(sorted(required)) + '"'}, {'error': 'unauthorized'}
         status = 200
         try:
             if (not isinstance(body, dict) or body.get('jsonrpc') != '2.0' or isinstance(request_id, bool)
@@ -324,7 +327,7 @@ class Application:
 
     def dispatch(self, principal, method, params):
         if (principal.subject != self.config.subject or principal.expires <= time.time()
-                or not ({'rook:reply'} if method == 'tools/call' else {'rook:events'}) <= principal.scopes):
+                or not ({'rook.replies.write'} if method == 'tools/call' else {'rook.requests.read'}) <= principal.scopes):
             raise RpcError(-32001, 'Unauthorized')
         if method == 'server/discover':
             if params:
@@ -648,6 +651,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--issuer', required=True)
     parser.add_argument('--audience', required=True)
+    parser.add_argument('--protected-resource-metadata-url', required=True)
     parser.add_argument('--operator-subject', required=True)
     parser.add_argument('--state-dir', required=True)
     parser.add_argument('--port', type=int, required=True)
@@ -662,7 +666,8 @@ def main(argv=None):
     application = None
     try:
         os.umask(0o077)
-        application = Application(Config(args.issuer, args.audience, args.operator_subject), args.state_dir)
+        application = Application(Config(args.issuer, args.audience, args.operator_subject,
+                                         args.protected_resource_metadata_url), args.state_dir)
         hosts = {'127.0.0.1:' + str(args.port), 'localhost:' + str(args.port), *args.allowed_host}
         server = HTTPServer(('127.0.0.1', args.port), make_handler(application, hosts))
         print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION}), flush=True)
