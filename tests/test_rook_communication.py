@@ -238,6 +238,35 @@ class TestRookCommunication:
         assert self.call('set_rook_reaction', bad)[2]['result']['isError']
         assert effects == [1]
 
+    def test_removed_receipt_cannot_adopt_unrelated_same_bot_reaction(self, monkeypatch):
+        # Reuse the independent ROOK-COMM-REVIEW-01 sequence with this group's fixtures.
+        args = {'message_id': '101', 'emoji': '✅', 'present': True}
+        def reaction_peer(method, path, payload=None, file=None):
+            if method in {'PUT', 'DELETE'}:
+                self.calls.append((method, path, None, file))
+                assert path.endswith('/%E2%9C%85/@me')
+                self.messages['101']['reactions'] = ([{'emoji': {'id': None, 'name': '✅'}, 'me': True, 'count': 1}]
+                                                       if method == 'PUT' else [])
+                return {}
+            return self.request(method, path, payload, file)
+        monkeypatch.setattr(self.m, 'discord_request', reaction_peer)
+        assert self.value('set_rook_reaction', args)['present'] is True
+        assert self.value('set_rook_reaction', {**args, 'present': False})['present'] is False
+        removed_receipts = deepcopy(self.app.store.all('operations'))
+        assert len(removed_receipts) == 1
+        assert removed_receipts[0]['state'] == 'confirmed' and removed_receipts[0]['present'] is False
+        # A distinct sender using the shared bot re-adds after our confirmed removal.
+        unrelated = [{'emoji': {'id': None, 'name': '✅'}, 'me': True, 'count': 1}]
+        self.messages['101']['reactions'] = deepcopy(unrelated)
+        before = [c for c in self.calls if c[0] in {'PUT', 'DELETE'}]
+        assert [c[0] for c in before] == ['PUT', 'DELETE']
+        for present in (True, False):
+            status, _, reply = self.call('set_rook_reaction', {**args, 'present': present})
+            assert status == 200 and reply['result']['isError'] is True, reply
+            assert [c for c in self.calls if c[0] in {'PUT', 'DELETE'}] == before
+            assert self.messages['101']['reactions'] == unrelated
+            assert self.app.store.all('operations') == removed_receipts
+
     def test_bounded_files_metadata_bytes_multipart_and_no_unsafe_sources(self, monkeypatch):
         m = self.m
         raw = b'bounded original notes\n'

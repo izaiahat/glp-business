@@ -812,9 +812,14 @@ class Application:
         digest = hashlib.sha256(canonical([identity, arguments['present']]).encode()).hexdigest()
         def matches(value):
             return value.get('emoji', {}).get('id') == emoji_id and (emoji_id is not None or value.get('emoji', {}).get('name') == emoji_name)
+        tool_owned = bool(old and old['kind'] == 'rook.reaction' and old['state'] == 'confirmed' and old.get('present') is True)
+        preexisting = any(matches(r) and r.get('me') for r in message.get('reactions', []))
+        # A confirmed removal ends custody; refuse before even a cached removal result.
+        if old and old['state'] == 'confirmed' and not tool_owned and preexisting:
+            return {'isError': True, 'content': [{'type': 'text', 'text': 'ReactionNotToolOwned; existing same-bot reaction left untouched.'}]}
         def action(row):
             # Never claim an existing unrelated same-bot reaction as tool custody.
-            if not old and any(matches(r) and r.get('me') for r in message.get('reactions', [])):
+            if not tool_owned and preexisting:
                 raise ValueError('preexisting reaction has no tool custody')
             discord_request('PUT' if arguments['present'] else 'DELETE',
                             f'/channels/{channel}/messages/{arguments["message_id"]}/reactions/{quote(route, safe="")}/@me')
