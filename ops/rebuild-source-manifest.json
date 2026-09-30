@@ -4,7 +4,7 @@
     "ops/rook-mcp/README.md": {
       "callers": ["manual:parent-owned launch requirements; rollout held"],
       "kind": "instruction_or_policy",
-      "sha256": "682f5d7158442be6e7482d523d5a4e137bc0831378341c82aefbdd71c1023fb3"
+      "sha256": "67a6229043df61c31035c6efbd1bb46b8e5a215d44bb0be6899e7f85d1210a8b"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],

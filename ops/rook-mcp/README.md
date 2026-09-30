@@ -48,7 +48,7 @@ well-known URL. Issuer/resource remain HTTPS. Without this explicit option,
 Official tunnel-client **v0.0.15** documents local discovery and tunnel-service
 rewriting of `WWW-Authenticate resource_metadata` and PRMD `resource` for the same
 `tunnel_id`: [architecture](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/architecture.md#oauth-protected-mcp)
-and [configuration](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/configuration.md#http-transport-specific-settings).
+and [configuration](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/configuration.md#mcp-server).
 Use the same local `/mcp` endpoint and exact trusted Auth0 origin below, plus
 `--harpoon.allow-plaintext-http` for this trusted local HTTP target
 ([connectors](https://github.com/openai/tunnel-client/blob/v0.0.15/docs/connectors.md#oauth-protected-connector-behavior)).
