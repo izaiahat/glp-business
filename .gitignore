@@ -320,3 +320,10 @@
 !/scripts/root_custody/single_unit.py
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
+
+# Phase 0 canonical affiliate decision notices (source and offline tests only)
+!/inbox_control_plane/
+/inbox_control_plane/*
+!/inbox_control_plane/affiliate_decision_queue.py
+!/tests/test_cleanup_inbox_reader.py
+!/tests/test_cleanup_affiliate_decisions.py
