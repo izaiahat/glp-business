@@ -253,6 +253,7 @@
 !/tests/test_fable_bridge_native_review.py
 !/tests/test_fable_bridge_quota_resume.py
 !/tests/test_fable_bridge_reviewer_routing.py
+!/tests/test_glp73_scoped_reviewer_routing.py
 !/tests/test_fleet_sentinel.py
 !/tests/test_glp_ads_three_platform_monitor.py
 !/tests/test_glp_affiliate_daily_decisions_report.py
