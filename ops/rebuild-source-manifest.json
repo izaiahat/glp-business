@@ -465,7 +465,7 @@
         "hermes:f0c6a95a371c"
       ],
       "kind": "script",
-      "sha256": "6eb8e6fba1bd6fc15236f97768432f8c700e799a20146cb218ff285046e6cd63"
+      "sha256": "45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh": {
       "callers": [
