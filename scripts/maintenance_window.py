@@ -491,13 +491,16 @@ class LinuxBackend:
         require(proc.returncode == 0, 'host_control_failed:' + Path(argv[0]).name)
         return proc.stdout.decode()  # Preserve crontab CRLF and final newline exactly.
 
-    def inventory(self):
-        from maintenance_inventory import discover, InventoryError
+    def _require_scheduler_namespace(self):
         if self.root == Path('/home/ubuntu/business'):
             require(Path('/proc/1/comm').read_text().strip() != 'codex', 'host_pid_namespace_unavailable')
         # Controls must operate in the workspace owner's scheduler namespace.
         # Run the whole controller as that user; sudo is used ONLY for nft.
         require(os.geteuid() == self.root.stat().st_uid, 'run_window_as_workspace_owner')
+
+    def inventory(self):
+        from maintenance_inventory import discover, InventoryError
+        self._require_scheduler_namespace()
         def probe(argv):
             if argv[0] in {'systemctl', 'crontab'}:
                 argv = ['/usr/bin/' + argv[0]] + argv[1:]
@@ -561,8 +564,17 @@ class LinuxBackend:
         return 'GLP44/73 maintenance; restore from ' + str(self.journal)
 
     def timer_unchanged(self, entry, prior, refresh=False):
-        report = self.inventory() if refresh or self._report is None else self._report
-        current = next((e for e in report['entries'] if entry_key(e) == entry_key(entry)), None)
+        if refresh:
+            from maintenance_inventory import timer_metadata
+            self._require_scheduler_namespace()
+            # Fresh targeted configuration checks must not rescan every other
+            # scheduler/source or replace the complete cohort's cached report.
+            def probe(argv):
+                return self.command(['/usr/bin/' + argv[0], *argv[1:]])
+            current, _ = timer_metadata(entry['id'], self.root, probe=probe)
+        else:
+            report = self.inventory() if self._report is None else self._report
+            current = next((e for e in report['entries'] if entry_key(e) == entry_key(entry)), None)
         require(current is not None and current['command'] == entry['command'], 'timer_command_changed')
         for field in ('timer_enabled', 'service', 'service_enabled',
                       'timer_configuration_sha256', 'service_configuration_sha256'):

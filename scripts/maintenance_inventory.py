@@ -351,6 +351,26 @@ def _exec_start(value):
     return matches[0]
 
 
+def timer_metadata(name, root, *, probe=_run):
+    """Read one timer/service pair using the census's exact metadata contract.
+
+    Return the parsed metadata and service properties for lifecycle tracing.
+    This is not scheduler coverage: only discover() establishes the full cohort.
+    """
+    timer = _unit(name, probe)
+    services = timer.get('Triggers', '').split()
+    if len(services) != 1 or not services[0].endswith('.service'):
+        raise InventoryError(['unresolved_timer_service:' + name])
+    service = _unit(services[0], probe)
+    prior = {'timer_active': timer['ActiveState'], 'timer_enabled': timer['UnitFileState'],
+             'service': services[0], 'service_active': service['ActiveState'],
+             'service_enabled': service.get('UnitFileState', ''),
+             'timer_configuration_sha256': configuration_sha256(timer, 'timer'),
+             'service_configuration_sha256': configuration_sha256(service, 'service')}
+    return {'command': _exec_start(service.get('ExecStart', '')), 'prior': prior,
+            'cwd': str(Path(service.get('WorkingDirectory') or root))}, service
+
+
 def discover(root: Path, hermes: Path, *, probe=None) -> dict:
     """Enumerate ALL four scheduler surfaces; refuse partial or opaque coverage.
 
@@ -468,18 +488,9 @@ def discover(root: Path, hermes: Path, *, probe=None) -> dict:
             for line in probe(argv).splitlines():
                 units.update(word for word in line.split() if word.endswith('.timer'))
         for name in sorted(units):
-            timer = _unit(name, probe)
-            services = timer.get('Triggers', '').split()
-            if len(services) != 1 or not services[0].endswith('.service'):
-                raise InventoryError(['unresolved_timer_service:' + name])
-            service = _unit(services[0], probe)
-            prior = {'timer_active': timer['ActiveState'], 'timer_enabled': timer['UnitFileState'],
-                     'service': services[0], 'service_active': service['ActiveState'],
-                     'service_enabled': service.get('UnitFileState', ''),
-                     'timer_configuration_sha256': configuration_sha256(timer, 'timer'),
-                     'service_configuration_sha256': configuration_sha256(service, 'service')}
-            record('systemd', name, _exec_start(service.get('ExecStart', '')), prior,
-                   Path(service.get('WorkingDirectory') or root))
+            metadata, service = timer_metadata(name, root, probe=probe)
+            prior = metadata['prior']
+            record('systemd', name, metadata['command'], prior, Path(metadata['cwd']))
             timer_entry = report['entries'][-1]
             hooks = [field for field in SERVICE_EXEC_FIELDS if field != 'ExecStart' and service.get(field)]
             if hooks or service.get('EnvironmentFiles'):
