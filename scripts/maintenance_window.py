@@ -1239,8 +1239,21 @@ def main(argv=None):
                     if result['state'] == 'closed':
                         break
                     if not result['keeper_alive']:
-                        result = window.exit(review)
-                        break
+                        # Status is not an atomic owner/phase snapshot: the
+                        # keeper may close and release its fences while that
+                        # read is in flight, but still own the operation lock.
+                        # Re-admit and read fresh before recovery, just as for
+                        # the initial exit route. Never replay a completed exit.
+                        with operation_lock(args.journal, timeout=OPERATION_ADMISSION_SECONDS):
+                            data = read_journal(args.journal)
+                            if data['state'] == 'closed':
+                                result = window.status()
+                                break
+                            if not locks_verified(data):
+                                if review is not None:
+                                    window.reconcile_outcome(data, review)
+                                result = window._exit(data)
+                                break
                     require(time.monotonic() < deadline, 'keeper_exit_timeout_reconcile_journal')
                     time.sleep(0.25)
         print(json.dumps(result, indent=2, sort_keys=True))

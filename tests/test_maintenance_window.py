@@ -1017,6 +1017,107 @@ def test_cli_exit_serializes_stale_keeper_routing_during_crash_resume(tmp_path):
             subprocess.run([*argv, "exit", *options], capture_output=True, timeout=8)
 
 
+def test_cli_exit_admits_recovery_after_keeper_closes_during_status(tmp_path, monkeypatch):
+    """Freeze the post-handoff race without changing the original crash oracle."""
+    original_write = Path.write_text
+    barriers = '''
+import os, time
+base = Path(__file__).parent
+is_exit = sys.argv[1] == 'exit'
+is_keeper = '--keeper' in sys.argv
+def mark(name): (base / name).touch()
+def wait(name):
+ deadline = time.monotonic() + 5
+ while not (base / name).exists():
+  assert time.monotonic() < deadline, name
+  time.sleep(0.001)
+original_read = mw.read_journal
+def read(path):
+ data = original_read(path)
+ if is_exit and data.get('exit_requested') and data['state'] != 'closed' and not (base / 'status-snapshot').exists():
+  # This is the real first status snapshot AFTER the admitted keeper handoff.
+  assert mw.locks_verified(data)
+  (base / 'snapshot.json').write_text(json.dumps(data))
+  mark('status-snapshot')
+  wait('keeper-released')
+ return data
+mw.read_journal = read
+original_exit = mw.MaintenanceWindow._exit
+def keeper_exit(self, data):
+ if is_keeper and data.get('exit_requested'):
+  wait('status-snapshot')
+ return original_exit(self, data)
+mw.MaintenanceWindow._exit = keeper_exit
+original_release = mw.MaintenanceWindow.release_locks
+def release(self):
+ closing = is_keeper and self.handles and original_read(self.journal)['state'] == 'closed'
+ original_release(self)
+ if closing:
+  # Closed is durable and fences are free, but the keeper still owns operation.
+  for fd in Path('/proc/self/fd').iterdir():
+   try:
+    if os.readlink(fd) != str(base / 'window.json.operation.lock'):
+     continue
+    info = (Path('/proc/self/fdinfo') / fd.name).read_text()
+    assert 'FLOCK' in info and 'WRITE' in info
+    proof = {'pid': os.getpid(), 'device': fd.stat().st_dev, 'inode': fd.stat().st_ino, 'fdinfo': info}
+    (base / 'operation-owner.json').write_text(json.dumps(proof))
+   except FileNotFoundError:
+    continue
+  mark('keeper-released')
+  wait('recovery-contended')
+mw.MaintenanceWindow.release_locks = release
+original_flock = mw.fcntl.flock
+def flock(fd, operation):
+ try:
+  return original_flock(fd, operation)
+ except BlockingIOError:
+  path = os.readlink('/proc/self/fd/' + str(fd))
+  if is_exit and path == str(base / 'window.json.operation.lock'):
+   assert (base / 'keeper-released').exists()
+   assert original_read(base / 'window.json')['state'] == 'closed'
+   (base / 'contended-lock.json').write_text(json.dumps({
+    'path': path, 'device': os.fstat(fd).st_dev, 'inode': os.fstat(fd).st_ino}))
+   mark('recovery-contended')
+  raise
+mw.fcntl.flock = flock
+original_pause, original_restore = Backend.pause, Backend.restore
+def pause(self, entry, prior):
+ with (base / 'effects').open('a') as out: out.write('pause\\n')
+ return original_pause(self, entry, prior)
+def restore(self, entry, prior):
+ assert mw.locks_verified(original_read(base / 'window.json'))
+ with (base / 'effects').open('a') as out: out.write('restore\\n')
+ return original_restore(self, entry, prior)
+Backend.pause, Backend.restore = pause, restore
+'''
+
+    def write(path, body, *args, **kwargs):
+        if path == tmp_path / 'sandbox_keeper.py':
+            marker = 'raise SystemExit(mw.main())\n'
+            assert body.count(marker) == 1
+            body = body.replace(marker, barriers + marker)
+        return original_write(path, body, *args, **kwargs)
+
+    monkeypatch.setattr(Path, 'write_text', write)
+    # Same real crash/resume, keeper identities, locks, commands and assertions.
+    test_detached_cli_keeper_owns_locks_and_recovers_after_real_process_crash(tmp_path, 'crash-resume')
+    assert (tmp_path / 'effects').read_text().splitlines() == ['pause', 'restore']
+    snapshot = json.loads((tmp_path / 'snapshot.json').read_text())
+    closed = json.loads((tmp_path / 'window.json').read_text())
+    assert snapshot['state'] == 'active' and snapshot['exit_requested']
+    assert closed['state'] == 'closed' and closed['keeper'] == snapshot['keeper']
+    contention = json.loads((tmp_path / 'contended-lock.json').read_text())
+    lock = tmp_path / 'window.json.operation.lock'
+    assert contention == {'path': str(lock), 'device': lock.stat().st_dev, 'inode': lock.stat().st_ino}
+    owner = json.loads((tmp_path / 'operation-owner.json').read_text())
+    assert owner['pid'] == closed['keeper']['pid']
+    assert (owner['device'], owner['inode']) == (contention['device'], contention['inode'])
+    for row in closed['locks']:
+        with Path(row['path']).open('a+') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
 def test_source_updates_accept_only_reviewed_before_after_and_detect_drift(module, tmp_path, monkeypatch):
     import hashlib
     import maintenance_inventory
