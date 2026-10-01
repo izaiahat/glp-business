@@ -166,6 +166,10 @@ def plan(checkout, root, hermes, review=None, *, window=None, generation='pr71')
         proposal.update({
             'generation': generation, 'producer_head': producer_head,
             'producer_sha256': digest(committed),
+            'producer_source_manifest_sha256': digest((checkout / syncer.MANIFEST).read_bytes()),
+            'target': {'root': str(root), 'hermes': str(hermes),
+                       'registry': str(registry.resolve()),
+                       'journal': str(Path(window.journal).resolve()) if window is not None else None},
             'source_before_modes': {p: value[1] for p, value in before.items()},
             'source_candidate_modes': {p: read_regular(checkout / p)[1] for p in paths},
             'state_before_mode': state[1], 'wrapper_before_mode': wrapper_before[1],
