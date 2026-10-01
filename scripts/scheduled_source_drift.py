@@ -75,6 +75,14 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
         unknown('inventory', 'inventory_or_source_manifest_invalid')
         inventory, source_files, imported = {}, {}, {}
 
+    def inventory_source_path(job, spec):
+        raw = spec.get('path') if isinstance(spec, dict) else None
+        if (not isinstance(raw, str) or not raw.strip() or '\x00' in raw
+                or not Path(raw).is_absolute()):
+            unknown(job, 'installed_source_path_unresolved')
+            return None
+        return Path(raw)
+
     def source_check(job, path, spec=None):
         spec = spec or {}
         rel = spec.get('source')
@@ -133,19 +141,27 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
             if not isinstance(jobs, list):
                 raise ValueError('registry_schema')
             for job in jobs:
-                if not job.get('script'):
-                    continue  # agent-only jobs have no installed script
+                spec = inventory.get(job.get('id'))
+                if not job.get('script') and not (spec and spec.get('surface') == 'native'):
+                    continue  # only genuinely agent-only jobs have no installed script
                 jid = job['id']
                 if jid in native_ids:
                     unknown(jid, 'ambiguous_profile_identity', registry)
                     continue
                 native_ids.add(jid)
-                raw = Path(job['script'])
-                path = raw if raw.is_absolute() else registry.parent.parent/'scripts'/raw
-                spec = inventory.get(jid)
-                if spec and str(path)!=spec['path']:
-                    unknown(jid, 'installed_binding_changed', path)
+                script = job.get('script')
+                if not isinstance(script, str) or not script.strip() or '\x00' in script:
+                    unknown(jid, 'installed_source_path_unresolved')
                     continue
+                raw = Path(script)
+                path = raw if raw.is_absolute() else registry.parent.parent/'scripts'/raw
+                if spec:
+                    reviewed_path = inventory_source_path(jid, spec)
+                    if reviewed_path is None:
+                        continue
+                    if path != reviewed_path:
+                        unknown(jid, 'installed_binding_changed', path)
+                        continue
                 source_check(jid, path, spec)
                 if job.get('script_sha256'):
                     check(jid, 'scheduler_drift', path, job['script_sha256'], str(registry))
@@ -162,9 +178,19 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
         unknown(jid, 'new_or_changed_host_cron_binding')
     for jid in set(crontab_ids) & known_cron:
         spec=inventory[jid]
-        for source in spec['sources']:
-            source_check(jid, Path(source['path']), source)
-        for pin in inventory_payloads(jid, spec, spec['path']):
+        paths = []
+        sources = spec.get('sources')
+        if not isinstance(sources, list) or not sources:
+            unknown(jid, 'installed_source_path_unresolved')
+            sources = []
+        for source in sources:
+            path = inventory_source_path(jid, source)
+            if path is None:
+                continue
+            paths.append(path)
+            source_check(jid, path, source)
+        # Host-cron rows bind all launchers in sources[].path, not native path.
+        for pin in inventory_payloads(jid, spec, paths[0] if paths else ''):
             payload_check(jid, pin)
     return {'schema':'scheduled-source-drift-result-v1', 'status':'UNKNOWN' if counts['unknown'] else ('DRIFT' if findings else 'CLEAN'),
             'counts':dict(counts), 'checked':len(checks), 'native_script_jobs':len(native_ids),
