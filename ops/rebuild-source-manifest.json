@@ -1,47 +1,55 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_cleanup_affiliate_copins.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
+    },
+    "inbox_control_plane/affiliate_decision_queue.py": {
+      "callers": ["inbox_control_plane/control_plane.py"],
+      "kind": "script",
+      "sha256": "3d7a146b7789e9204adb6a137dee5ab8785f53786f060cec8a23e59a22c22b8a"
+    },
+    "tests/test_cleanup_inbox_reader.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "35a8a09264299949886e77625f28741021c0d766c561d4d9a98f629b75cc4ec9"
+    },
+    "tests/test_cleanup_affiliate_decisions.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "56e87bd8668ca085eb421bfe55133718ee05f77411a71fc393db52ee271cb409"
+    },
     "ops/rook-mcp/README.md": {
-      "callers": [
-        "manual:parent-owned launch requirements; rollout held"
-      ],
+      "callers": ["manual:parent-owned launch requirements; rollout held"],
       "kind": "instruction_or_policy",
       "sha256": "1864938473e0e93a3b341c687e650a9d61e15762b1985e0ace8ff9e2d4e741dd"
     },
     "ops/rook-mcp/requirements.txt": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml",
-        "manual:isolated Rook adapter environment only"
-      ],
+      "callers": [".github/workflows/business-source-ci.yml", "manual:isolated Rook adapter environment only"],
       "kind": "repository_control",
       "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
     },
     "scripts/rook_mcp_events.py": {
-      "callers": [
-        "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
-      ],
+      "callers": ["manual:parent-owned bounded HTTP tunnel adapter; rollout held"],
       "kind": "script",
       "sha256": "aa1c8a3c249340630897804ca07e32af7b91d6af01c35d252b482257a07469bc"
     },
     "tests/test_rook_mcp_events.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
+      "callers": ["scripts/run_tests.sh"],
       "kind": "test",
       "sha256": "14542256c2cf4c4331452243bb6f5394ca3a70185d1a823a2087761d6d4d741e"
     },
     "tests/test_rook_communication.py": {
-      "callers": [
-        "scripts/run_tests.sh",
-        ".github/workflows/business-source-ci.yml"
-      ],
+      "callers": ["scripts/run_tests.sh", ".github/workflows/business-source-ci.yml"],
       "kind": "test",
       "sha256": "97f5bd6f5d1075e05eb6e105186b601ecc9698b2150001bcd3a0560716f67c8e"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed40d8c2589c356ba5abb17360f9c954520fae762e58c51d875c6dc677012567"
+      "sha256": "f74b8c37c418902f53883cae675e9f7aabf00914e211230ee1a72509d10df36d"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -51,7 +59,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7664270ae6fe1c0413c1da2b3f91d21049624cc2e26b076d8dcecbea7c8a2f30"
+      "sha256": "c2f2178bb87138675953a2a86ed2696f7693d727c435dcb1785078df44eeec5f"
     },
     ".hermes.md": {
       "callers": [],
@@ -96,7 +104,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "19c1e920c445d86de891d6c5b68650f5276aa3dbb2cdfac856a3f0fcdba47162"
+      "sha256": "37cd9fb6862bfcf305da72f16bcecccbef2a85214f46b2c6c6832de44a67f390"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -450,19 +458,13 @@
       "sha256": "f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
+      "callers": [], "kind": "instruction_or_policy", "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
+      "callers": [], "kind": "instruction_or_policy", "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
     },
     "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
+      "callers": [], "kind": "instruction_or_policy", "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
     },
     "ops/hermes-cron-scripts/glp_seo_daily_article_watchdog.py": {
       "callers": [
@@ -511,7 +513,7 @@
         "hermes:3c79a0b5f7b2"
       ],
       "kind": "script",
-      "sha256": "cf8ebde12014e28cf1cf176d2b272ad72d6d76b4dac3d2173c4995157d120594"
+      "sha256": "7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc"
     },
     "ops/hermes-cron-scripts/investment_ops_daily_snapshot.sh": {
       "callers": [
@@ -1134,9 +1136,7 @@
       "sha256": "c530e001e25fe2c57a4f67467eb9c7552b12c2d567cd43dcd8891511309d857c"
     },
     "scripts/glp44_safe_bridge_activation.py": {
-      "callers": [
-        "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
-      ],
+      "callers": ["ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"],
       "kind": "repository_control",
       "sha256": "a2119a04329360a2a2bda2f4fa29c0dcc5ed94a112b05116cee6dc0c10628cc2"
     },
@@ -1146,9 +1146,7 @@
       "sha256": "b2547ba292d4f4a1422d1d80a1244ce9b5c7e7c94ab764a9488525b01038d436"
     },
     "scripts/glp73_paired_adoption.py": {
-      "callers": [],
-      "kind": "repository_control",
-      "sha256": "6fe54f72fd177b2dd238422a4d2083a3fe74603690e8a68094f9822e1a32a00d"
+      "callers": [], "kind": "repository_control", "sha256": "6fe54f72fd177b2dd238422a4d2083a3fe74603690e8a68094f9822e1a32a00d"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -1388,7 +1386,7 @@
         "sheet_update_queue single-writer carrier"
       ],
       "kind": "script",
-      "sha256": "c5ce505c501724d17381b50dd85e2389ec36b4310e17067f80a714522ac7f9a1"
+      "sha256": "e168b04f59ce4dc79795093717c856138b7b018886b66fa11883a3b0baa72d61"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
@@ -1562,9 +1560,7 @@
     },
     "scripts/post_discord_message.py": {
       "callers": [
-        "scripts/fable_bridge.py",
-        "scripts/rook_mcp_events.py",
-        "scripts/receive_one_discord_message.py"
+        "scripts/fable_bridge.py", "scripts/rook_mcp_events.py", "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
       "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
@@ -1575,10 +1571,7 @@
       "sha256": "3e33dfe2ea0aba8085f780cbdcbc35c46e843b165bef24919dd35d328ce7b755"
     },
     "scripts/receive_one_discord_message.py": {
-      "callers": [
-        "manual:parent-owned-terminal-notify-only; live launch held",
-        "scripts/rook_mcp_events.py"
-      ],
+      "callers": ["manual:parent-owned-terminal-notify-only; live launch held", "scripts/rook_mcp_events.py"],
       "kind": "script",
       "sha256": "021f29bc483ad6ee80552b247fc35ff283a9d8d92b0512f06b8d36adc4b82557"
     },
@@ -2222,16 +2215,12 @@
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
     "tests/test_glp328_readonly_evidence.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
+      "callers": ["scripts/run_tests.sh"],
       "kind": "test",
       "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
     },
     "tests/test_glp328_disabled_reply_connection.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
+      "callers": ["scripts/run_tests.sh"],
       "kind": "test",
       "sha256": "a1729b88fb42735a4e579a8b9cd9d606c4f20e1c285b2013652c75c1a3edc5ce"
     },
@@ -2295,9 +2284,7 @@
       "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
+      "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "repository_control",
       "sha256": "6a88c8713895f01ded1316ed7ec4800ab789eb3fcbb50703e7163e3c365757aa"
     },
@@ -2335,11 +2322,7 @@
       "sha256": "ef751716194b7b47443082892162958e6ee0336d14f3a7329f35c4b93b3d5bd1"
     },
     "tests/test_glp73_paired_adoption.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "1c79297a4493f550548b5157971d26f8f61d1f79dd31f3451f02025929af7ccc"
+      "callers": ["scripts/run_tests.sh"], "kind": "test", "sha256": "1c79297a4493f550548b5157971d26f8f61d1f79dd31f3451f02025929af7ccc"
     },
     "tests/test_glp73_retention_prepared_consumer.py": {
       "callers": [
@@ -2718,9 +2701,7 @@
       "sha256": "8d44d10c87ebdf797cd277083db29359066232207f26f3c4a02e063f0dc4d212"
     },
     "tests/test_receive_one_discord_message.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
+      "callers": ["scripts/run_tests.sh"],
       "kind": "test",
       "sha256": "72992f19ed8c817c101dcbb2604ac14f5f2fcf9af3799261a2fad73b5b60bd60"
     },
@@ -2780,13 +2761,6 @@
       ],
       "kind": "script",
       "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
-    },
-    "tests/test_cleanup_affiliate_copins.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
-      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
     }
   },
   "omitted_runtime_inputs": [
@@ -2797,5 +2771,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 426
+  "tracked_count": 429
 }
