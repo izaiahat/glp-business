@@ -24,4 +24,25 @@ jobs:
           PYTHONPATH: scripts:tests:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp333_reporting_generation.py tests/test_glp44_scoped_adoption.py tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py
+          # Diagnostic-only disposable copy: no maintained source/oracle edits.
+          export DIAG_ROOT="$RUNNER_TEMP/maintenance-exit-diagnostic"
+          git clone --shared "$PWD" "$DIAG_ROOT"
+          .venv/bin/python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path(os.environ['DIAG_ROOT'])
+          source = root / 'scripts/maintenance_window.py'
+          text = source.read_text()
+          needle = "    except Exception as exc:\n        failure = {'status': 'REFUSED'"
+          insertion = "    except Exception as exc:\n        import traceback\n        traceback.print_exc()\n        print('DIAG_ORIGIN', __file__, main.__code__.co_filename, file=sys.stderr)\n        tb = exc.__traceback__\n        while tb:\n            frame = tb.tb_frame\n            print('DIAG_FRAME', frame.f_code.co_name, tb.tb_lineno, {k: repr(v) for k,v in frame.f_locals.items() if k in ('result', 'keeper_exit_requested', 'timeout', 'handle', 'remaining', 'path')}, file=sys.stderr)\n            tb = tb.tb_next\n        failure = {'status': 'REFUSED'"
+          assert text.count(needle) == 1
+          source.write_text(text.replace(needle, insertion))
+          manifest = root / 'ops/rebuild-source-manifest.json'
+          data = json.loads(manifest.read_text())
+          data['files']['scripts/maintenance_window.py']['sha256'] = hashlib.sha256(source.read_bytes()).hexdigest()
+          manifest.write_text(json.dumps(data, indent=2) + '\n')
+          print('DIAG_SOURCE', source, hashlib.sha256(text.encode()).hexdigest())
+          PY
+          PYTHON="$PWD/.venv/bin/python"
+          cd "$DIAG_ROOT"
+          "$PYTHON" -m pytest -q -p no:cacheprovider tests/test_glp333_reporting_generation.py tests/test_glp44_scoped_adoption.py tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py
