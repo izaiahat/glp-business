@@ -331,3 +331,79 @@ def test_proof_faults_refuse_row_locally_in_both_paths(withdrawal, promoted, fau
     assert rejected['status'] in ('refused', 'escalated') and rejected['reason']
     assert rejected['cells_written'] == 0
     assert tail['status'] == 'applied' and len(f.lane.service.writes) == 1
+
+
+@pytest.mark.parametrize('network,apply_url,allowed', [
+    ('Awin', 'https://ui.awin.com/merchant-profile/3277', True),
+    ('Awin', 'https://ui.awin.com/awin/affiliate/2979387/merchant-profile/3277/overview', True),
+    ('Awin', 'https://ui.awin.com/affiliate/2979387/merchant-profile/3277/overview', True),
+    ('CJ', 'https://members.cj.com/member/publisher/?advertiserId=3277', True),
+    ('CJ Affiliate', 'https://members.cj.com/member/publisher/advertiser/3277', True),
+    ('Katalys', 'https://app.katalys.com/pub/org/explore/3277', True),
+    ('Katalys', 'https://app.katalys.com/explore/3277', True),
+    ('Katalys', 'https://app.katalys.com/programs/3277', True),
+    ('MaxBounty', 'https://affiliates.maxbounty.com/campaigns/3277', True),
+    ('XenTraffic', 'https://xentraffic.everflowclient.io/offers/3277', True),
+    ('Awin', 'https://members.cj.com/member/publisher/?advertiserId=3277', False),
+    ('Awin', 'https://app.katalys.com/pub/org/explore/3277', False),
+    ('Awin', 'https://affiliates.maxbounty.com/campaigns/3277', False),
+    ('Awin', 'https://xentraffic.everflowclient.io/offers/3277', False),
+    ('CJ', 'https://ui.awin.com/merchant-profile/3277', False),
+    ('Katalys', 'https://ui.awin.com/merchant-profile/3277', False),
+    ('MaxBounty', 'https://ui.awin.com/merchant-profile/3277', False),
+    ('XenTraffic', 'https://another.everflowclient.io/offers/3277', False),
+    ('Everflow', 'https://xentraffic.everflowclient.io/offers/3277', False),
+    ('Unknown', 'https://ui.awin.com/merchant-profile/3277', False),
+    ('Awin', 'https://example.test/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com.example.test/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com@members.cj.com/merchant-profile/3277', False),
+    ('Awin', 'https://user@ui.awin.com/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com:444/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com:invalid/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com/offers/3277', False),
+    ('Awin', 'https://ui.awin.com/login?advertiserId=3277', False),
+    ('Awin', 'https://ui.awin.com/?mid=3277', False),
+    ('Awin', 'https://ui.awin.com/login#/merchant-profile/3277', False),
+    ('Awin', 'https://ui.awin.com/merchant-profile/3277?offer_id=3277', False),
+    ('Awin', 'https://ui.awin.com/merchant-profile/3277?advertiserId=3278', False),
+    ('CJ', 'https://members.cj.com/merchant-profile/3277', False),
+    ('CJ', 'https://members.cj.com/member/publisher/?offer_id=3277', False),
+    ('CJ', 'https://members.cj.com/member/publisher/advertiser/3277?advertiserId=3278', False),
+    ('Katalys', 'https://app.katalys.com/merchant-profile/3277', False),
+    ('MaxBounty', 'https://affiliates.maxbounty.com/offers/3277', False),
+])
+def test_application_url_authority_binds_network_at_writer_and_drain(withdrawal, network, apply_url, allowed):
+    f = withdrawal
+    capture = json.loads(f.capture.read_text())
+    capture['network'] = f.notice['network'] = network
+    f.capture.write_text(json.dumps(capture))
+    f.verification['sha256'] = digest(f.capture)
+    row = f.lane.service.rows[758]
+    row[4], row[5] = network, apply_url
+    row[23] += '\nHistorical matching program 3277 is not URL authority.'
+    q = promote(f)
+    q['sheet_row'] = 759
+    before = copy.deepcopy(f.lane.service.rows)
+    entry = f.lane.drain.build_entry(q['kind'], q, q['evidence'], 759, row)
+    direct_error = None
+    try:
+        f.lane.writer.require_sheet_sync_preconditions('network_cancelled', f.lane.service.rows, [entry])
+    except (ValueError, RuntimeError) as exc:
+        direct_error = str(exc)
+    result = f.lane.run(q)['results'][0]
+    if not allowed:
+        assert direct_error and 'withdrawal_sheet_program_id' in direct_error
+        assert result['status'] in ('refused', 'escalated') and result['cells_written'] == 0
+        assert f.lane.service.rows == before and not f.lane.service.writes
+    else:
+        assert direct_error is None
+        assert result['status'] == 'applied' and result['cells_written'] == 6
+        assert len(f.lane.service.writes) == 1
+        receipt = json.loads((f.root / result['receipt']).read_text())
+        assert receipt['collateral_changes'] == [] and receipt['idempotent_rerun'] is True
+        assert f.lane.service.rows[758][14] == before[758][14]
+        assert f.lane.service.rows[758][23].startswith(before[758][23])
+        after = copy.deepcopy(f.lane.service.rows)
+        replay = f.lane.run(q)['results'][0]
+        assert replay['status'] == 'noop' and replay['cells_written'] == 0
+        assert len(f.lane.service.writes) == 1 and f.lane.service.rows == after

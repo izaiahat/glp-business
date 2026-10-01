@@ -110,6 +110,59 @@ def promote_verified_notice(notice: dict, verification: dict, *, root: Path = BU
     return result
 
 
+# Closed application namespaces already used by maintained Sheet producers and
+# identity tests. Do not infer a rail from a brand, registrable-domain suffix or
+# a generic Everflow tenant: the same offer number can exist on another tenant.
+APPLICATION_NAMESPACES = {
+    'awin': ('ui.awin.com',
+             r'/(?:awin/affiliate/[0-9]+/|affiliate/[0-9]+/)?merchant-profile/([0-9]+)(?:/overview)?/?',
+             frozenset({'mid', 'awinmid', 'merchantid', 'advertiserid'})),
+    'cj': ('members.cj.com', r'/member/publisher/(?:advertiser/([0-9]+)/?)?',
+           frozenset({'advertiserid'})),
+    'cj affiliate': ('members.cj.com', r'/member/publisher/(?:advertiser/([0-9]+)/?)?',
+                     frozenset({'advertiserid'})),
+    'katalys': ('app.katalys.com', r'/(?:pub/[A-Za-z0-9_-]+/)?(?:explore|programs|offers)/([0-9]+)/?',
+                frozenset({'offerid', 'offer_id'})),
+    'maxbounty': ('affiliates.maxbounty.com', r'/campaigns/([0-9]+)/?',
+                  frozenset({'campaignid', 'campaign_id'})),
+    'xentraffic': ('xentraffic.everflowclient.io', r'/offers/([0-9]+)/?',
+                   frozenset({'offerid', 'offer_id'})),
+}
+PROGRAM_QUERY_KEYS = frozenset({'program_id', 'network_program_id', 'merchantid',
+                               'mid', 'awinmid', 'advertiserid', 'campaignid',
+                               'campaign_id', 'offerid', 'offer_id'})
+
+
+def _authoritative_program_ids(application_url: str, network: str) -> set[str]:
+    """No IO: bind URL authority and ID namespace before considering numbers."""
+    if not application_url:
+        raise ValueError('withdrawal_sheet_program_id_binding_missing')
+    rule = APPLICATION_NAMESPACES.get(network.casefold())
+    try:
+        url = urlsplit(application_url)
+        if (not rule or url.scheme not in {'http', 'https'}
+                or url.hostname != rule[0] or url.username is not None
+                or url.password is not None or url.fragment
+                or url.port not in (None, 443 if url.scheme == 'https' else 80)):
+            raise ValueError('withdrawal_sheet_program_id_url_authority_invalid')
+    except ValueError as exc:
+        raise ValueError('withdrawal_sheet_program_id_url_authority_invalid') from exc
+    match = re.fullmatch(rule[1], unquote(url.path))
+    if not match:
+        raise ValueError('withdrawal_sheet_program_id_url_namespace_invalid')
+    program_ids = {match[1]} if match[1] else set()
+    allowed_keys = rule[2] | {'program_id', 'network_program_id'}
+    for key, value in parse_qsl(url.query, keep_blank_values=True):
+        key = key.casefold()
+        if key in PROGRAM_QUERY_KEYS:
+            if key not in allowed_keys:
+                raise ValueError('withdrawal_sheet_program_id_url_namespace_invalid')
+            program_ids.add(value)
+    if not program_ids:
+        raise ValueError('withdrawal_sheet_program_id_binding_missing')
+    return program_ids
+
+
 def verify_writer_entry(entry: dict, row: list | None = None, *, root: Path = BUSINESS) -> dict:
     evidence = entry.get('evidence', {})
     capture = verify({'network': evidence.get('network'), 'program_id': evidence.get('network_program_id'),
@@ -130,19 +183,7 @@ def verify_writer_entry(entry: dict, row: list | None = None, *, root: Path = BU
         # The Sheet has no separate network-program-ID column. Only declared
         # program components in its Apply URL establish that axis. Historical
         # Notes and issued trackers may refer to siblings; neither is authority.
-        url = urlsplit(str(row[5]))
-        if url.scheme not in {'http', 'https'} or not url.hostname:
-            raise ValueError('withdrawal_sheet_program_id_binding_missing')
-        program_ids = set(re.findall(
-            r'/(?:merchant-profile|programs|explore|offers|campaigns)/([^/]+)(?=/|$)',
-            unquote(url.path)))
-        for key, value in parse_qsl(url.query, keep_blank_values=True):
-            if key.casefold() in {'program_id', 'network_program_id', 'merchantid',
-                                 'mid', 'advertiserid', 'campaignid', 'campaign_id',
-                                 'offerid', 'offer_id'}:
-                program_ids.add(value)
-        if not program_ids:
-            raise ValueError('withdrawal_sheet_program_id_binding_missing')
+        program_ids = _authoritative_program_ids(str(row[5]), capture['network'])
         if program_ids != {str(capture['program_id'])}:
             raise ValueError('withdrawal_sheet_program_id_identity_conflict')
         if str(row[10]).casefold().startswith(('hold', 'excluded')):
