@@ -251,6 +251,12 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
                 {str(path.resolve()): digest(original[path][0]) for path in stage},
                 {str(path.resolve()): digest(body) for path, body in stage.items()},
             )
+            if successor:
+                job_after = copy.deepcopy(proposal['job_window_before'])
+                job_after['script_sha256'] = proposal['wrapper_sha256']
+                # Journal the hash intent before the maintained switch captures
+                # its receipt; the commit callback only saves/readbacks registry.
+                window.accept_job_update(JOB, proposal['job_window_before'], job_after)
             source_written = False
             commit_entered = False
             def commit():
@@ -264,7 +270,8 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
                     raise RuntimeError('reporting_generation_cas_moved_before_native_save')
                 next_jobs = copy.deepcopy(jobs)
                 next(j for j in next_jobs if j['id'] == JOB)['script_sha256'] = proposal['wrapper_sha256']
-                window.accept_job_update(JOB, current, next(j for j in next_jobs if j['id'] == JOB))
+                if not successor:
+                    window.accept_job_update(JOB, current, next(j for j in next_jobs if j['id'] == JOB))
                 scheduler._record_load_stamp(None)
                 scheduler._save_jobs_unlocked(next_jobs)
                 actual, actual_jobs = job_record(registry)

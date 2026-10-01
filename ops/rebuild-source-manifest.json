@@ -1397,7 +1397,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ae6845a83d413a45a85ed8d7855d4ac52fc9877f0e2e56bd53806fbdf7202213"
+      "sha256": "ed980beaaea985179e6ddd59e79e962a5c8b0eb098b629a60215140037633578"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
