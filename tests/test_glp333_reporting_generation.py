@@ -76,7 +76,7 @@ class PortableScheduler:
         put(self.registry, (json.dumps(doc) + '\n').encode())
 
 
-def generation_fixture(tmp_path, monkeypatch):
+def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
     root, hermes = tmp_path / 'business', tmp_path / 'hermes'
     root.mkdir()
     hermes.mkdir()
@@ -96,9 +96,35 @@ def generation_fixture(tmp_path, monkeypatch):
         body = blob(pair.APPROVED, rel)
         assert sha(body) == expected
         put(root / rel, body, 0o640)
+    if pr71_predecessor:
+        # Real retained pre-PR71 objects, matching the V6 refusal byte census.
+        # Some predecessor curation postdates APPROVED: retain current HEAD's
+        # history when checking previously untracked live baselines.
+        prior = {
+            'ops/glp/analytics-brain-control.json': ('46c7409f6e903326384aba65981d8b0d8bafe626', '04ac75355dcf99714bc75f929f18e3b3b2dc6c5712e6aba812d335b584c5add9'),
+            'ops/glp/reporting-v2/source-manifest.json': ('b9f8f83a70ad96df375b7ccf0044126862be6898', '5c022f814c9d3160cd61185b24b952974347689b7dd2349e846bb34e75795da5'),
+            pair.SNAPSHOT: ('e1b90bcbad7b95874486cbdf6ee4aa67df642bf6', 'd42bca52c76fb0ac77abb7bc90884ebb8dab857174bb3c7d034b53e379546ee2'),
+            'systems/analytics-brain/analytics_brain.py': ('46c7409f6e903326384aba65981d8b0d8bafe626', '6aa593832fbcc0b91f534a8cb6fe8ad4ec92b4832425c643d65f299d2991a2a0'),
+            'systems/analytics-brain/collector.py': ('46c7409f6e903326384aba65981d8b0d8bafe626', 'e709dd0c41da27e6418ea182ad7d4177b273b61532b7810e2c2f8a2e9c550311'),
+        }
+        pins = json.loads(blob(pair.APPROVED, 'ops/glp/reporting-v2/source-manifest.json'))['files']
+        for absolute, expected in pins.items():
+            rel = str(Path(absolute).relative_to(syncer.DEFAULT_ROOT))
+            # PR71 intentionally pins host-only leaves first curated later.
+            ref = pair.APPROVED if rel in set(pair.PATHS) | set(pair.PR119_BEFORE) else pair.PR119_SOURCE
+            body = blob(ref, rel)
+            assert sha(body) == expected
+            put(root / rel, body)
+        for rel, (ref, expected) in prior.items():
+            body = blob(ref, rel)
+            assert sha(body) == expected
+            put(root / rel, body, 0o640)
     put(root / syncer.MANIFEST, (ROOT / syncer.MANIFEST).read_bytes())
     put(root / 'scripts/unselected.py', b'not selected\n')
     hashes = {str(p.relative_to(root)): sha(p.read_bytes()) for p in root.rglob('*') if p.is_file()}
+    if pr71_predecessor:
+        for rel in pair.PATHS:
+            hashes.pop(rel)  # exercise committed-predecessor adoption, not a force baseline
     put(root / syncer.STATE, (json.dumps({'hashes': hashes, 'receipt': 'fixture post GLP73 then GLP44'}) + '\n').encode())
     wrapper = hermes / 'scripts' / pair.WRAPPER
     put(wrapper, (root / pair.SNAPSHOT).read_bytes(), 0o750)
@@ -205,6 +231,63 @@ def apply(f, review):
 def payloads(f):
     return {p: (p.read_bytes(), p.stat().st_mode & 0o777) for base in (f.root, f.hermes)
             for p in base.rglob('*') if p.is_file() and not p.name.endswith('.lock')}
+
+
+def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
+    f = generation_fixture(tmp_path, monkeypatch, pr71_predecessor=True)
+    checkout_before = {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS}
+    assert sha(checkout_before['ops/glp/reporting-v2/source-manifest.json']) == pair.PR119_HASHES['ops/glp/reporting-v2/source-manifest.json']
+    assert sha(checkout_before[pair.SNAPSHOT]) == pair.PR119_HASHES[pair.SNAPSHOT]
+    approved = {rel: blob(pair.APPROVED, rel) for rel in pair.PATHS}
+    try:
+        before = payloads(f)
+        with window_module.require_active_window(f.journal, f.root, f.hermes) as active:
+            # Before the fix this is the real V6 approved_source_moved refusal.
+            proposal = pair.plan(ROOT, f.root, f.hermes, window=active)[0]
+            with pytest.raises(RuntimeError, match='glp44_prerequisite_not_adopted'):
+                pair.plan(ROOT, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)
+        assert payloads(f) == before and not f.saves
+        assert proposal['source_sha256'] == {rel: sha(body) for rel, body in approved.items()}
+        assert proposal['wrapper_sha256'] == pair.PR119_BEFORE[pair.SNAPSHOT]
+        review = {**copy.deepcopy(proposal), 'schema': 'glp44-scoped-adoption-review-v1',
+                  'approved_source': pair.APPROVED, 'decision': 'ACCEPT_EXACT_BYTES',
+                  'reviewer': 'fixture independent reviewer; not runtime authority'}
+        with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
+            pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler)
+        wrong = copy.deepcopy(review)
+        wrong['source_sha256'][pair.SNAPSHOT] = pair.PR119_HASHES[pair.SNAPSHOT]
+        with pytest.raises(RuntimeError, match='reviewed_preimage_or_candidate_moved'):
+            pair.adopt(ROOT, f.root, f.hermes, wrong, scheduler=f.scheduler, window=f.journal)
+        assert payloads(f) == before and not f.saves
+        old_state = json.loads((f.root / syncer.STATE).read_text())
+        old_jobs = json.loads(f.registry.read_text())['jobs']
+        result = pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler, window=f.journal)
+        assert result['applied'] and result['source'] == pair.APPROVED and len(f.saves) == 1
+        for rel, body in approved.items():
+            assert (f.root / rel).read_bytes() == body
+            assert (f.root / rel).stat().st_mode & 0o777 == before[f.root / rel][1]
+        assert (f.hermes / 'scripts' / pair.WRAPPER).read_bytes() == approved[pair.SNAPSHOT]
+        expected_state = copy.deepcopy(old_state)
+        expected_state['hashes'].update(proposal['source_sha256'])
+        assert json.loads((f.root / syncer.STATE).read_text()) == expected_state
+        expected_jobs = copy.deepcopy(old_jobs)
+        expected_jobs[0]['script_sha256'] = proposal['wrapper_sha256']
+        assert json.loads(f.registry.read_text())['jobs'] == expected_jobs
+        for path, value in before.items():
+            if path not in {f.root / rel for rel in pair.PATHS} | {f.root / syncer.STATE, f.registry, f.hermes / 'scripts' / pair.WRAPPER, f.journal}:
+                assert (path.read_bytes(), path.stat().st_mode & 0o777) == value
+        custody = Path(result['custody'])
+        for rel in pair.PATHS:
+            assert (custody / (sha(before[f.root / rel][0]) + '.bytes')).read_bytes() == before[f.root / rel][0]
+        landed = payloads(f)
+        with pytest.raises(RuntimeError):
+            pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler, window=f.journal)
+        assert payloads(f) == landed and len(f.saves) == 1
+        assert {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS} == checkout_before
+        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == pair.PR119_PREREQUISITES
+        assert all(sha((f.root / rel).read_bytes()) == expected for rel, expected in pair.PR119_BEFORE.items())
+    finally:
+        f.window.release_locks()
 
 
 def test_literal_inventory_adds_only_three_paths_and_old_guard_counterexample(tmp_path, monkeypatch):
