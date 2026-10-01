@@ -5,6 +5,8 @@ Checks every curated file against the prior imported byte hash before replacing 
 Never touches non-curated files, runtime state, reports, or the site tree.
 """
 import argparse
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -65,7 +67,36 @@ def reviewed_prior_hashes(checkout, rel):
     } - {head_hash}
 
 
+@contextmanager
+def source_lock(root):
+    """Serialize maintained imports/cutover before their first source read.
+
+    The stable workspace directory inode is the lock: dry-run creates nothing.
+    This does not retrofit an already-loaded old importer; drain those under the
+    existing single-writer lane before adopting this version. Do not rename the
+    workspace or bypass sync() with _sync_locked(). Not a hostile-writer fence.
+    """
+    root = Path(root).resolve(strict=True)
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise ValueError('source_import_busy') from exc
+        held, current = os.fstat(fd), root.stat()
+        if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
+            raise ValueError('source_import_root_moved')
+        yield
+    finally:
+        os.close(fd)
+
+
 def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
+    with source_lock(root):
+        return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only)
+
+
+def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
     root = root.resolve(strict=True)
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":

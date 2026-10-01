@@ -39,7 +39,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a261c0974db9a3bc28826bccae1079de83fd02a2fb51b2b375cd4141a71ef8c6"
+      "sha256": "983470071c5f6a3111401f1a14bf5344829d60dfeaf86e8842923b7a2b21512c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1740,7 +1740,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f8bebd79c505670853ac574ec028f8aacd8263e02fb3282702a8c2bbc26aee34"
+      "sha256": "6d80abe601e0ec85c95b153cbb9ac72845e864b4809d455c1977ea989d45e2d3"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -3039,7 +3039,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "script",
-      "sha256": "8e572e2fc52644903653f4ef25ff5ab544becbc54a6e3f14bd5edd956dd52cd6"
+      "sha256": "9bae557f9b6b12cba70b8666749aa150fe3f3971343e1cb0e8c0cbe5a61a70e9"
     },
     "tests/test_glp73_sync_rebaseline.py": {
       "callers": [
@@ -3088,7 +3088,12 @@
         "ops/registered-producers.json"
       ],
       "kind": "script",
-      "sha256": "01ff4668916212ed7b970b6df542d4d86abc28fd00322246e707f5fee562eb3c"
+      "sha256": "4ff480d782c2fccb1fd15704f6009a2edb3cf9f63996fd5573049db80c11a993"
+    },
+    "tests/test_f09_cutover.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "cdaff3b4d3c92c6b4f4654bbf0f93bce9377618b5386a4dfc79d192353bfad37"
     },
     "tests/test_f09_native_maintenance_boundary.py": {
       "callers": [
@@ -3102,7 +3107,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "408e778b46e010636ed9c934392869a375268de31e9ae7255a93a8b33922f7a8"
+      "sha256": "b0daf11556f2b7697cb4155f196da53911851f88799da8ff76e9628851cc127b"
     },
     "tests/fixtures/scheduled_source_drift_crontab_row.json": {
       "callers": [
@@ -3116,7 +3121,7 @@
         "ops/scheduled-source-drift.md"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "23d0dee928e07aa05ef0ec76a12eb0aaa689839e9869eef92b10603829bcdb60"
+      "sha256": "fb754c388a7a5b8e6cd31e09cf5f17b2c0ce89c026b08287b647741768bc7831"
     },
     "ops/n8n_dt.py": {
       "callers": [
@@ -3156,5 +3161,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 476
+  "tracked_count": 478
 }
