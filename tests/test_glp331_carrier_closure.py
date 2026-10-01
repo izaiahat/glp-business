@@ -291,7 +291,7 @@ def test_target_specific_native_hash_only_release(tmp_path, monkeypatch, outcome
         assert path.stat().st_nlink == 1
     assert dependency.read_bytes() == observed[dependency][0]
     assert not list(business.rglob('.glp331-new-*'))
-    assert len(pins.covered(target.read_text())) == 5
+    assert len(pins.covered(target.read_text())) == 9
     subprocess.run(['bash',str(target),str(marker)],check=True)
     assert marker.read_text() == 'successor'
     with pytest.raises(RuntimeError, match='no_replay'):

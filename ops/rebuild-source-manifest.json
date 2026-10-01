@@ -53,7 +53,7 @@
     "tests/test_glp331_carrier_closure.py": {
       "kind": "test",
       "callers": ["GLP331 disposable native fixture; no live effects"],
-      "sha256": "d79d838b27181191721937404f568e33f19ab2fa033f1ca0722df975f71e48d8"
+      "sha256": "e3cbfd36b92d7f76d5fe94f1731cdc02f913fb7eb9498c023643988e686c00e5"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
