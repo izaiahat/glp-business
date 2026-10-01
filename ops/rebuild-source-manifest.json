@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 548,
+  "tracked_count": 552,
   "files": {
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
@@ -3667,6 +3667,34 @@
       ],
       "kind": "test",
       "sha256": "d7b2345287e836d03ab223db88fb9feb9bb434a220afd3e5643399f1a15ae620"
+    },
+    "ops/glp/evidence-refresh-k3/daily_evidence_refresh.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "11e154dfb82af38a5f1db7121b6723959a49c7ca086bc07918e4380c6a9c32a8"
+    },
+    "ops/glp/evidence-refresh-k3/review_evidence.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "b09e35b546459235da30cb9a7a2922e34e4ef0d39d1c1927d48fa6eac79238a6"
+    },
+    "ops/glp/evidence-refresh-k3/SOURCE-PINS.json": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "69cab555577da889fd008998cdfd274d6762bbbe33840816a5223a3f4645730c"
+    },
+    "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "6913b4eeae3a3d4c74bbd2e2c55c13536a3da44670a495b10e316fb2a7edfac0"
     }
   }
 }
