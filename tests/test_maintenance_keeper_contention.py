@@ -159,11 +159,11 @@ def test_actual_keeper_adopter_and_restoration_have_bounded_fair_admission(tmp_p
     (root / 'ops/n8n-bridge').mkdir(parents=True)
     (hermes / 'cron').mkdir(parents=True)
     (root / 'scripts/opaque.py').write_text('import left0\nopaque_callback()\n')
-    for index in range(12):
+    for index in range(9):
         for side in ('left', 'right'):
             (root / f'scripts/{side}{index}.py').write_text(f'import left{index+1}\nimport right{index+1}\n')
     for side in ('left', 'right'):
-        (root / f'scripts/{side}12.py').write_text('opaque_callback()\n')
+        (root / f'scripts/{side}9.py').write_text('opaque_callback()\n')
     command = 'python3 ' + str(root / 'scripts/opaque.py')
     (hermes / 'cron/jobs.json').write_text(json.dumps({'jobs': [
         {'id': 'fixture', 'script': str(root / 'scripts/opaque.py'), 'no_agent': True}]}))

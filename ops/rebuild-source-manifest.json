@@ -8,8 +8,13 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 523,
+  "tracked_count": 524,
   "files": {
+    "tests/test_maintenance_keeper_contention.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "16450db3c01b9988e5ea00f8a15ea37a6afbac79133fe15e481f3587ca634766"
+    },
     "scripts/fleet_pin_release.py": {
       "kind": "script",
       "callers": ["GLP331 scoped carrier closure; independent exact review required"],
@@ -320,7 +325,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9293b646cb712373626f81b7aeb6b1adbb7ddada66c3839dd3c9a71c7d7b18c0"
+      "sha256": "24a0d9c127e5b50eca22f2edac87d3233d741e3fd1e883deb6408649c26fd7a3"
     },
     ".hermes.md": {
       "callers": [],
@@ -1986,7 +1991,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4ae15e0aa64c03ac9062928a6ae1fdd8230158b65762af6ab8b3b291232d4eee"
+      "sha256": "2b2815deafe8a58ec7e8be2aebff0190abd11688711be72ef90b07a6437073ba"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3233,7 +3238,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "6dd3cc8217d911282799fa5569c8691b5f9b9d25b23a7658a145fab54f1f189f"
+      "sha256": "20c7fd308c6d4f36fdab3e5223dd17cb15965a20a54cefaa5dd31c29039f3876"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3241,7 +3246,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "c48e107016999e8edbea02f66d4113f9206e6f510d6bdf8366a5e91b0deffecd"
+      "sha256": "d05827ef779765d7e740763c359a1fb408e664befecf6b9ec1444f888599d8bb"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
