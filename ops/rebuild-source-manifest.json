@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 515,
+  "tracked_count": 524,
   "files": {
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": ["GLP-80 qualified source and paired renderer fixtures"],
@@ -62,12 +62,26 @@
       "kind": "test",
       "sha256": "d856c8098f923d7ef8c0a21d291a8ee073727de982b8025c8374020f0eb001b9"
     },
+    ".github/workflows/glp331-program-withdrawal.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GLP-331 exact-head offline acceptance"
+      ],
+      "sha256": "a32cb4f403f0b9df46ccbbed45d91391f0971948068b24e39016a78097de0328"
+    },
     ".github/workflows/glp333-network-access.yml": {
       "callers": [
         "GLP-333 read-only network access contract"
       ],
       "kind": "repository_control",
       "sha256": "acd1d005e59c832a20b16612a0f01e2ee79b6447cce3d5c8648a1d6949eaaebf"
+    },
+    "ops/glp331-program-withdrawal.md": {
+      "kind": "documentation",
+      "callers": [
+        "GLP-331 source trace and authority contract"
+      ],
+      "sha256": "d12278a2e28439de6eb273c88b9a1002110c25e42245498f64db180bef56d365"
     },
     "ops/glp333-network-access-contract.md": {
       "callers": [
@@ -181,6 +195,20 @@
       "kind": "test",
       "sha256": "9e56abde7c8b033a99895fbed5cc4605dc5bd06cb5eeb050843a29565107c8b2"
     },
+    "tests/test_glp331_program_withdrawal.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp331-program-withdrawal.yml"
+      ],
+      "sha256": "6ad9784b41aa5dc8328f2619c15489d86189bb72e80ea299e8825eb337110eee"
+    },
+    "tests/test_glp331_withdrawal_candidate.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp331-program-withdrawal.yml"
+      ],
+      "sha256": "dc344b3b63de5282e4bd257655e37fa8d12cf19bdf75be5299d751dc0056ef64"
+    },
     "tests/test_glp341_weekly_ads_compatibility.py": {
       "callers": [
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
@@ -208,6 +236,20 @@
       ],
       "kind": "source_pins",
       "sha256": "705e4128cccf2730d8a0d3c75412278975641350b7c3c6c17b0541b5dc0b0cad"
+    },
+    "tests/fixtures/glp331_native_surface_build.mjs": {
+      "kind": "retained_offline_fixture_not_runtime_authority",
+      "callers": [
+        "tests/test_glp331_program_withdrawal.py"
+      ],
+      "sha256": "8c05385acaa2bf19e922502f08d943b3fb8d556558665e2f720aef93e2877420"
+    },
+    "tests/fixtures/glp331_provider_identity.mjs": {
+      "kind": "retained_offline_fixture_not_runtime_authority",
+      "callers": [
+        "tests/fixtures/glp331_native_surface_build.mjs"
+      ],
+      "sha256": "8b8690c7ad834745620fa561c4b5074005a5ec58ebafcf3b2d0cc304171946fd"
     },
     "tests/fixtures/glp341-a3-result.json": {
       "callers": [
@@ -636,7 +678,7 @@
         "hermes:f0c6a95a371c"
       ],
       "kind": "script",
-      "sha256": "6eb8e6fba1bd6fc15236f97768432f8c700e799a20146cb218ff285046e6cd63"
+      "sha256": "45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh": {
       "callers": [
@@ -1134,7 +1176,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "2f1570bee7fe372fdc54af6dce7257d074d0d565e03cdccbf29cf088bdf7450f"
+      "sha256": "26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -1200,6 +1242,16 @@
       "kind": "script",
       "sha256": "cacf0b7d2e8163dc487652728aebed12ba544fa566aaa180bd40f5a8c9104cff"
     },
+    "scripts/affiliate_program_withdrawal.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sheet_sync_drain.py",
+        "scripts/affiliate_sheet_batch_writer.py",
+        "scripts/affiliate_terms_fanout.py",
+        "scripts/affiliate_approval_auto_reconciler.py"
+      ],
+      "sha256": "6e637a5395ec7beec2f5da33be6df31a879c8d41cc238bcdb2af92b9929536f1"
+    },
     "scripts/affiliate_provider_metadata.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
@@ -1219,7 +1271,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "e5a05f3d14b5e525cab9dcb76ff733ca0c9e19f1518a327567433d1a2d75c656"
+      "sha256": "0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
@@ -1254,7 +1306,14 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "script",
-      "sha256": "ebaa4ab5224326d75a861d27214be3be041d31060866795832f324fe985a4a65"
+      "sha256": "b3386cb05940f0ced847642ab806b096a13ff2fbc1fd7bf9ea5fe59c3966f83f"
+    },
+    "scripts/affiliate_withdrawal_candidate.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_terms_fanout.py --build-candidate"
+      ],
+      "sha256": "fa39dce69e424a23b5514b1781c7644d39338764d65204580ba2bb4e667029d7"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
@@ -1319,6 +1378,13 @@
       ],
       "kind": "script",
       "sha256": "d99f6a4d07086f599b9d49d124e241d50d147fa1cfbecffb9f622d40ba8ef102"
+    },
+    "scripts/capture_glp331_surface_fixture.py": {
+      "kind": "script",
+      "callers": [
+        "GLP-331 read-only native source fixture capture"
+      ],
+      "sha256": "328794679d75024c0db5d8847f1fe41e1d8132061a12ddbccfe203842ecf427b"
     },
     "scripts/codex_capacity_alert.py": {
       "callers": [
@@ -1708,7 +1774,7 @@
         "sheet_update_queue single-writer carrier"
       ],
       "kind": "script",
-      "sha256": "118b32dec2f20bcf2f085c049524244a629a7c5b92ff3f6144ce74d29b7442fe"
+      "sha256": "aa12fc53f878bb8c0505fca4681cd116eae1a81bacf99969b1b8ffab48a76abd"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
@@ -2311,7 +2377,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "2b2806045a5b842b14244b6d5a26bcf480cf8511bd705d902db3c2cc5b9452ab"
+      "sha256": "416279253568368bfe3ab2e297141a688f026b96d422e34243b74710a411ccee"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
@@ -2402,7 +2468,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c5b8d264eb895aee6767c1b00862d402fe329a48e2fd142772c50ab658c5d0d7"
+      "sha256": "af52eb49d2fea8fb6dba8302d48658f2298ab1a7f6bbb019578d8319f7470b9a"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [
