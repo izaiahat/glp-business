@@ -8,45 +8,68 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 533,
+  "tracked_count": 542,
   "files": {
     "ops/glp337-shared-bridge-custody.md": {
-      "callers": [], "kind": "source_control", "sha256": "773f4be11a6c11a1dbcf1837129472bbc2fbd18031e585563f228b6a7aa34170"
+      "callers": [],
+      "kind": "source_control",
+      "sha256": "773f4be11a6c11a1dbcf1837129472bbc2fbd18031e585563f228b6a7aa34170"
     },
     "scripts/shared_bridge_predecessor_migration.py": {
-      "callers": ["GLP337 receiving-host installation owner"], "kind": "repository_control", "sha256": "8771c44e9836c3e72c383a429b53d75cd70df478de8654e81d220b93f13502b5"
+      "callers": [
+        "GLP337 receiving-host installation owner"
+      ],
+      "kind": "repository_control",
+      "sha256": "8771c44e9836c3e72c383a429b53d75cd70df478de8654e81d220b93f13502b5"
     },
     "tests/test_glp337_shared_bridge_migration.py": {
-      "callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "aca2532ef1b0f9473224209cd75c6b544481b3624bf7b44098598f48ecd9a726"
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "aca2532ef1b0f9473224209cd75c6b544481b3624bf7b44098598f48ecd9a726"
     },
     "scripts/glp331_carrier_adoption.py": {
       "kind": "script",
-      "callers": ["Fixed glp331-carrier-20261001 inside independently authorized verified maintenance window"],
+      "callers": [
+        "Fixed glp331-carrier-20261001 inside independently authorized verified maintenance window"
+      ],
       "sha256": "efc3da4d406e329e3d3e1709d3fed38d04f14c2dcc953510ffe2555932daa42e"
     },
     "tests/test_glp331_carrier_generation.py": {
       "kind": "test",
-      "callers": ["scripts/run_tests.sh", ".github/workflows/glp331-carrier-closure.yml"],
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp331-carrier-closure.yml"
+      ],
       "sha256": "2bbd42b9e063d3f376e4eae986bf126729d6217bf1541e2a28a0080eb57334a9"
     },
     "ops/glp331-carrier-generation.md": {
       "kind": "documentation",
-      "callers": ["GLP331 exact independent paused-window review contract; not runtime authority"],
+      "callers": [
+        "GLP331 exact independent paused-window review contract; not runtime authority"
+      ],
       "sha256": "ad80aaaf361a0461e28aa226e5985d5483ac74cc6bbd9592c1663a00b2ead015"
     },
     "tests/test_glp331_dependency_generation.py": {
-      "callers": ["scripts/run_tests.sh"],
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
       "kind": "test",
       "sha256": "d557d2d0718d161ea5a3df2c9f7cf899305cecc9a252be478e9421030ac66f8c"
     },
     "tests/test_maintenance_keeper_contention.py": {
-      "callers": ["scripts/run_tests.sh"],
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
       "kind": "test",
       "sha256": "16450db3c01b9988e5ea00f8a15ea37a6afbac79133fe15e481f3587ca634766"
     },
     "scripts/glp_go_runtime_manifest_refresh.mjs": {
       "kind": "script",
-      "callers": ["Backlog worker detached current-base candidate; GLP331 required unchanged dependency"],
+      "callers": [
+        "Backlog worker detached current-base candidate; GLP331 required unchanged dependency"
+      ],
       "sha256": "a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e",
       "predecessor_sha256": "35f99538dd648fe21b781766a0a81952ad222265e0aec552b42dda5563eaccbe",
       "runtime_contract": {
@@ -66,37 +89,51 @@
     },
     "tests/test_glp331_dependency_closure.py": {
       "kind": "test",
-      "callers": ["GLP331 F1 signature and F2 pre-import custody refusal; exact-head CI"],
+      "callers": [
+        "GLP331 F1 signature and F2 pre-import custody refusal; exact-head CI"
+      ],
       "sha256": "a202ae6d3d8c9adb2eaebf14ff29b8bed7a2611fe1f84363bd6d0d11dc0ee263"
     },
     "scripts/fleet_pin_release.py": {
       "kind": "script",
-      "callers": ["GLP331 scoped carrier closure; independent exact review required"],
+      "callers": [
+        "GLP331 scoped carrier closure; independent exact review required"
+      ],
       "sha256": "d27a06f5e663909cca73463c9bb66988b20995844d02e08e66307244ec841ad8"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
-      "callers": ["GLP331 all enforcement occurrences"],
+      "callers": [
+        "GLP331 all enforcement occurrences"
+      ],
       "sha256": "6cea7d1781edbe31ad19ba40ac44070cef1041732563a6ec0d57ea4e3a029f6f"
     },
     "tests/test_fleet_pin_release.py": {
       "kind": "test",
-      "callers": ["Existing full-fleet pin release regressions"],
+      "callers": [
+        "Existing full-fleet pin release regressions"
+      ],
       "sha256": "7eb69692a89e4ad2ff74516c567b513d932b871307695f3209662f5b40f70f07"
     },
     "tests/test_glp331_carrier_closure.py": {
       "kind": "test",
-      "callers": ["GLP331 disposable native fixture; no live effects"],
+      "callers": [
+        "GLP331 disposable native fixture; no live effects"
+      ],
       "sha256": "e3cbfd36b92d7f76d5fe94f1731cdc02f913fb7eb9498c023643988e686c00e5"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
-      "callers": ["GLP331 exact proposal and independent review contract"],
+      "callers": [
+        "GLP331 exact proposal and independent review contract"
+      ],
       "sha256": "9dc515ac2e97a581afb435ea1c9df15718b5d16d4905523b84366cd230159190"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
-      "callers": ["GLP331 exact-head native acceptance fixtures"],
+      "callers": [
+        "GLP331 exact-head native acceptance fixtures"
+      ],
       "sha256": "28f8dabd038b15c12569334f555a03d4b8ecece7673d1c63f0606d63dc1ef062"
     },
     "tests/test_network_access_review_regressions.py": {
@@ -230,7 +267,7 @@
         "GLP-80 exact-head offline acceptance"
       ],
       "kind": "repository_control",
-      "sha256": "4bd2bfc3b59e55df8107a329467d2f0de8ab62689750dc6b0409dd063ca18e00"
+      "sha256": "f57d4eb0a5701a3ee216ebdfcac8f34099d43b62ad9651c11e1cc01b3554a812"
     },
     "tests/test_glp80_taxonomy_correction.py": {
       "callers": [
@@ -2109,12 +2146,12 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "740fe294e9fd1a326b9af604154baa2dc4deaddf856125fe898b693fe86bc317"
+      "sha256": "798e7064e7f39a8281af285c74e6383227832bd5c74238121c60f3420c7e1fd3"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
       "kind": "policy",
-      "sha256": "8c3fd13070e704bbf8fe5f543736cd86b005a17443fe3fd75e074e7e498458d2"
+      "sha256": "7a0f50d4858597c950d64b976158a8fb722b794631c4d7f1e1989a1c4a3a85f8"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -3264,7 +3301,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "803ff0254fcc450d53a743561f669c1bc598911ad41a2422216d7c8231cc822d"
+      "sha256": "5d1979876d0e72666bdd8e3a88f6fad6ea197a7ce91104b9628bd11f7abad4a8"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -3524,6 +3561,69 @@
       ],
       "kind": "test",
       "sha256": "8b284f3b12ef53994e5c7b1349066a04e10c1d1cb4a638168943ea000e6f046b"
+    },
+    "tests/test_glp80_eden_qualified_projection.py": {
+      "callers": [
+        "GLP-80 qualified source and paired renderer fixtures"
+      ],
+      "kind": "test",
+      "sha256": "dbb6ee47aef79102c2a0979f57f71587cd042e433908afd51f826c545ef2be60"
+    },
+    "ops/glp80-eden-policy-successor.md": {
+      "callers": [
+        "GLP-80 Eden source-only successor"
+      ],
+      "kind": "documentation",
+      "sha256": "e0ec04fed04d94308544314c64af7d25b6f060cd967ab9904d7eb12e0dc67529"
+    },
+    "tests/test_glp80_eden_policy.py": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test",
+      "sha256": "9a46c160d03f3c4f352159f0b3b3eaa31dc71322c17205bb9b72c48968bbf7f8"
+    },
+    "tests/fixtures/glp80-eden/capture-manifest.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "db2760b9dfad5e8f70ce22db3a06b7b9b6f94fb1c6fd18328cb27804207aef29"
+    },
+    "tests/fixtures/glp80-eden/native-input.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "7671e957b1661198026f0821d27b23902cf9429b9ba9bde8aeaaf5532c111c9c"
+    },
+    "tests/fixtures/glp80-eden/source-0.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "9be5f5513193d2d3dbea35cbaa75afd385f4e083361cf4034b4c56125bd31014"
+    },
+    "tests/fixtures/glp80-eden/source-1.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "e220c71723c8b1878da1c8ced8e5801bc17f891bea47a483717563b271ac9ca8"
+    },
+    "tests/fixtures/glp80-eden/source-2.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "ebdeaf86b6b59c8884f5818d60e1efa522aa4c7b298f8cdd8a5ca5aed4662e70"
+    },
+    "tests/fixtures/glp80-eden/source-3.json": {
+      "callers": [
+        "GLP-80 Eden authentic assertion replay"
+      ],
+      "kind": "test_fixture",
+      "sha256": "f90af2d6ed6b770c3a8ef2c4af3b34e9ad311d20e7309c787410674d9228c2ca"
     }
   }
 }

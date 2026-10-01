@@ -1,0 +1,981 @@
+{
+  "programs": [
+    {
+      "program_id": "eden-xentraffic-offer-3051",
+      "display_name": "Eden",
+      "commercial_state": "live",
+      "profiles": {
+        "glp-clinic-scout": {
+          "surfaces": {
+            "calculator": true,
+            "compare": true,
+            "go": true,
+            "quiz": true,
+            "review": true,
+            "sitemap": true
+          },
+          "vertical_fit": true,
+          "wired": true
+        }
+      }
+    }
+  ],
+  "therapeutic_taxonomy": {
+    "authorities": {
+      "b2_stage5_altrx_glp1_us_cps": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/altrx-glp1-us-cps.json",
+        "sha256": "eb6e165e5701494217061a4b4832b82c38189cf3fb52e87db0d97d3c267ad51a"
+      },
+      "b2_stage5_bodybuilding_com_glp_1_longevity_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/bodybuilding-com-glp-1-longevity-review.json",
+        "sha256": "86ede082be8f13b9b9eb9d3c939b0d2e5a3e44f6210982984829f5cfb00d6afb"
+      },
+      "b2_stage5_breeze_meds_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/breeze-meds-review.json",
+        "sha256": "057fa7316f9ce5f4fce2d806f9b6b07e200697ff07f5aeee3b4eb7c35b3b3be5"
+      },
+      "b2_stage5_care_bare_rx_glp1_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/care-bare-rx-glp1-review.json",
+        "sha256": "278b94be8688718d8df352932b0a6ca2f7faefb4743ec63adee0645523bf5bf7"
+      },
+      "b2_stage5_coreage_rx_glp_1_1632": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/coreage-rx-glp-1-1632.json",
+        "sha256": "d74cb89bf3d4c474a0492c134b940764feb434f324388ca53a96c6e7bafdd17e"
+      },
+      "b2_stage5_curex_glp_1": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/curex-glp-1.json",
+        "sha256": "817fd8543e28d20f68f5fd90b259267f21044fb8b5e894dc62b9979cc0960137"
+      },
+      "b2_stage5_dudemeds_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/dudemeds-review.json",
+        "sha256": "780cf8bf6191491f1cad970af197f5a0434833c9d7b56ae587d9f9c2b54c9b45"
+      },
+      "b2_stage5_eden_xentraffic_offer_3051": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/eden-xentraffic-offer-3051.json",
+        "sha256": "049cc529f5684355427d643285a3750e40948ab38ce8e7e1f2805a630bb45181"
+      },
+      "b2_stage5_enhanced_tirzepatide_funnel_b": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/enhanced-tirzepatide-funnel-b.json",
+        "sha256": "51e2fdc05fdd7c314831c02ea6b23ae313a95f9b514169aed0cf97559f9c3f99"
+      },
+      "b2_stage5_futurhealth_wegovy_pillform": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/futurhealth-wegovy-pillform.json",
+        "sha256": "a8b508261b05f664809e2f29ee1ff61c3de042c10909d07ea5ebfe26ec657210"
+      },
+      "b2_stage5_g_plan": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/g-plan.json",
+        "sha256": "18f4163d73b3a26adb39da8bec218e6f9339f1aa8412368d0a1c3675a4306a08"
+      },
+      "b2_stage5_humecare_data_driven_glp_1_weight_loss_system": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/humecare-data-driven-glp-1-weight-loss-system.json",
+        "sha256": "cef21289379d4c18792ccd55bd400ee0c2452cacaab487ffd6367534e392ea06"
+      },
+      "b2_stage5_joinskinny_semaglutide_glp_1_us": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/joinskinny-semaglutide-glp-1-us.json",
+        "sha256": "473c79732d72caf297201be211193ee0a7d3f6308996ffe9e30c55cdf8250058"
+      },
+      "b2_stage5_jrnys_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/jrnys-review.json",
+        "sha256": "655cd6646bba60d611be0d85b5382ce7d2a1824aa0752a1f8df56b1b429e626c"
+      },
+      "b2_stage5_levelsrx_extra_cpa_home_page": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/levelsrx-extra-cpa-home-page.json",
+        "sha256": "b7b64468b642ac84641a16ab82ba6eae6caeed7cddc2cd0b6433b2c23c66c904"
+      },
+      "b2_stage5_live_vital_launch": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/live-vital-launch.json",
+        "sha256": "8eedf13e91f681a2c42b132b88b2c1fe720274c8d446f134cd1607e44a3041cd"
+      },
+      "b2_stage5_longevity_meds_glp_1_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/longevity-meds-glp-1-review.json",
+        "sha256": "a30c3b823f8ecb158ec33aa55b30c48bac352b995c34938f38d07834df03c977"
+      },
+      "b2_stage5_lttl_glp_landing_page_2": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/lttl-glp-landing-page-2.json",
+        "sha256": "7b6c3ba6433ba009be5013b04c93568e02a09eb6df1b10457f50f4aabd8546ec"
+      },
+      "b2_stage5_medvi_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/medvi-review.json",
+        "sha256": "98c1befb3324874c9baf3b154c4b3b90e426ff1becb77753bcfcac25ef53b621"
+      },
+      "b2_stage5_novi_weight_loss_glp_1": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/novi-weight-loss-glp-1.json",
+        "sha256": "1a1641f72b07cc4d86a39bd9aa4b53af41f83d7e1e1ca3fa7ef1a32bf5a14932"
+      },
+      "b2_stage5_nu_image_medical_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/nu-image-medical-review.json",
+        "sha256": "b3da304ec284331b57755c70bb88ee902a7c516e1aaf31dd58b8d11deca62617"
+      },
+      "b2_stage5_pallas_health_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/pallas-health-review.json",
+        "sha256": "e7a393db013c557e5954c787c04a70dfacf23bf9fbf5d2c8af0de0f188ec7b1b"
+      },
+      "b2_stage5_refills": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/refills.json",
+        "sha256": "28d7bcd40ab880ded0cf743fbf8df39b53cb8b61cf36fb6347b21d02f13623db"
+      },
+      "b2_stage5_ro_wegovy_glp1_quiz_us_cpl": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/ro-wegovy-glp1-quiz-us-cpl.json",
+        "sha256": "5f38ea97860645ad77fbe9cf5526ece7d4ff26d82fe519d2e89ce0111cf86b4b"
+      },
+      "b2_stage5_rxspan_md_telehealth_program_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/rxspan-md-telehealth-program-review.json",
+        "sha256": "94df04386be0d410a590054731ac68f4950a1f59da099f5cf784226769b0d7aa"
+      },
+      "b2_stage5_skinnyrx_1_glp_weight_loss_provider_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/skinnyrx-1-glp-weight-loss-provider-review.json",
+        "sha256": "a05b4570afeddebd300c603c752ad98bb5e5150d655cdbf1a3e063d7beecbd04"
+      },
+      "b2_stage5_snagrx": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/snagrx.json",
+        "sha256": "41730bbc04fdf8eedbe9287123c3e834617f8c06f2582f74215c634e7877ffbb"
+      },
+      "b2_stage5_sunlight_glp1": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/sunlight-glp1.json",
+        "sha256": "982d52f4e331ec17360a90abc8ea9fdf0f57916fedc6abf885583566892a5dc8"
+      },
+      "b2_stage5_synergy_rx_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/synergy-rx-review.json",
+        "sha256": "2648df1e402dff5dc547ae165ca68cb66532fb554d5f36a44b90b48ca49216ce"
+      },
+      "b2_stage5_tmates_xentraffic_offer_3154": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/tmates-xentraffic-offer-3154.json",
+        "sha256": "ee99126dcfb365e2ca87cb5107c9c5356e1d0ec646b481e2d2dfd2b6b5bba90c"
+      },
+      "b2_stage5_trimrx_xentraffic_offer_3014": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/trimrx-xentraffic-offer-3014.json",
+        "sha256": "8985d31a26afbc3295e62cdd9d39c55400e5ff4868d762213f81a16106c2a499"
+      },
+      "b2_stage5_wellmedr_review": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/wellmedr-review.json",
+        "sha256": "cb589dd0be9366ca076947b8a9ffc9fa5e78c51485f0f345bbb4814b6f7d7b0b"
+      },
+      "b2_stage5_yucca_health_xentraffic_offer_3117": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-authorities/yucca-health-xentraffic-offer-3117.json",
+        "sha256": "4bb8176d8186b6b1912a780279a1b530b1d3a0bf969b05e7db79ac737ad19828"
+      },
+      "base_map": {
+        "path": "reports/glp-clinic-scout/growth/build-6/build-6-classification-and-seams-20260808.json",
+        "sha256": "92c771f5bb9ac0b4b97c7e01919b944cf0580144f1d4a57401cf4784f0a33edc"
+      },
+      "brand_form_addendum": {
+        "path": "reports/glp-clinic-scout/growth/build-6/build-6-brand-form-firecrawl-addendum-20260808.json",
+        "sha256": "25b285411412c85b2552e35de31f4cbc0d3ac9895a30bf5dc7cf287458db4b48"
+      },
+      "compare_facet_integrity_audit": {
+        "path": "reports/glp-clinic-scout/growth/compare-facet-integrity-research-20260810.md",
+        "sha256": "0937eea586b941b4352d82bf6a68d2537fb83e4f44ab0edb67b48f624cb491d0"
+      },
+      "corrected_refresh": {
+        "path": "reports/glp-clinic-scout/growth/build-6/build-6-firecrawl-classification-refresh-20260808.json",
+        "sha256": "7ec5ffa7e0043804198d9cbb8c3d7ceed912476e8e14421bdf98e826f780d7f7"
+      },
+      "evidence_refresh_biltrx": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/biltrx/ADJUDICATED-EVIDENCE.json",
+        "sha256": "c0beaf20a54a6a18f9baf9338d370dc576549ca56b5150f9af32501b411b3485"
+      },
+      "evidence_refresh_coivas": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/coivas/ADJUDICATED-EVIDENCE.json",
+        "sha256": "bc48ef72973daa4e5fb7eb040133502a1e11f66bd1eb4b1eb5f1d28e1f21a78d"
+      },
+      "evidence_refresh_direct_meds": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/direct-meds/ADJUDICATED-EVIDENCE.json",
+        "sha256": "11865e1927083ed7f8e0843cad52307d7948a29b4240edc93c5224369879ae6c"
+      },
+      "evidence_refresh_drhouse": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/drhouse/ADJUDICATED-EVIDENCE.json",
+        "sha256": "d0d46eb7bb071af39dc2c29fd634530aabdcf4be1abd286ca866151d18f2c6a3"
+      },
+      "evidence_refresh_enhance_md": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/enhance-md/ADJUDICATED-EVIDENCE.json",
+        "sha256": "3c0215ed95ed9e16a55449cb8e35e8355b54f42d509cd09c7cbf33d6ae3d5cc0"
+      },
+      "evidence_refresh_found_health": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/found-health/ADJUDICATED-EVIDENCE.json",
+        "sha256": "ea1e3a254c7004fefa383b051a69686a6914b66d5b3339970db0f35ab37e738c"
+      },
+      "evidence_refresh_gala_health": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/gala-health/ADJUDICATED-EVIDENCE.json",
+        "sha256": "7a0339d4542276d8e7f907520637caf9c62aeebad293ce03ed5328aa3a48435c"
+      },
+      "evidence_refresh_gobymeds": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/gobymeds/ADJUDICATED-EVIDENCE.json",
+        "sha256": "8e3b09519994a240b8238e06d0aabe0b000b8425647dd3cfc51716bcc7a1e0e1"
+      },
+      "evidence_refresh_healthrx": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/healthrx/ADJUDICATED-EVIDENCE.json",
+        "sha256": "0c13a35713a3693503ca7d8ad597bd5883d567a922f52d284c2daaa3152a9398"
+      },
+      "evidence_refresh_mademed": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/mademed/ADJUDICATED-EVIDENCE.json",
+        "sha256": "512e1ac7a2969ea91273a0805aef4e38dea58126288626ffefb9acfd2a0f3283"
+      },
+      "evidence_refresh_mangorx": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/mangorx/ADJUDICATED-EVIDENCE.json",
+        "sha256": "6281bf603370ba25fd41da83101ba19f62d57a49be8e29772c0f7470a7746d06"
+      },
+      "evidence_refresh_measured": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/measured/ADJUDICATED-EVIDENCE.json",
+        "sha256": "3793c0698804828656ddbc9de157c39f2110bc20aafe91d8f96d3fa4d7b49eb5"
+      },
+      "evidence_refresh_mydrhank": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/mydrhank/ADJUDICATED-EVIDENCE.json",
+        "sha256": "b3770bad064eee24e585b8156320cebef6c6932377e72439db07dfc51a4fab1a"
+      },
+      "evidence_refresh_oak_weight_loss_program": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/oak-weight-loss-program/ADJUDICATED-EVIDENCE.json",
+        "sha256": "c7434035fcacab507aa89cc739ad8b0bf4fa0ac866e8f5f4b49214cd7a39ee52"
+      },
+      "evidence_refresh_orderlymeds": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/orderlymeds/ADJUDICATED-EVIDENCE.json",
+        "sha256": "2b5e4489d9df7abc4e58f9d7e821208c549dba337d27f55419d3993c47068272"
+      },
+      "evidence_refresh_serena_health": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/serena-health/ADJUDICATED-EVIDENCE.json",
+        "sha256": "2d1f1110c3a3399e2bc317a75734a2bf00e8e7379154a86a56ac0d1dc0927dbe"
+      },
+      "evidence_refresh_shedrx": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/shedrx/ADJUDICATED-EVIDENCE.json",
+        "sha256": "100f33bc5ad070356f9221bb8ed51e05e0597860436792cee8ff7bff90e51ca7"
+      },
+      "evidence_refresh_sprout_health": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/sprout-health/ADJUDICATED-EVIDENCE.json",
+        "sha256": "868c4d4056edbc7068f6d886da0d181317b2b17639c2b29763a2945d5caaa7a5"
+      },
+      "evidence_refresh_strut_health": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/strut-health/ADJUDICATED-EVIDENCE.json",
+        "sha256": "0e013104eba174b2b1a031ce7fda2e3ad15b753846ea22efdfab02a45417300c"
+      },
+      "evidence_refresh_telos_rx": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/telos-rx/ADJUDICATED-EVIDENCE.json",
+        "sha256": "ec6214de85d65a8dc42ef1946d0bcd47240ab705977c6d3ea0b901776a3026a7"
+      },
+      "evidence_refresh_trimi_glp_1": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/trimi-glp-1/ADJUDICATED-EVIDENCE.json",
+        "sha256": "57d93dc77047e902607c1c9a1b1dfa6a923471ee975e41be8e14c252de78c273"
+      },
+      "evidence_refresh_trt_nation": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/trt-nation/ADJUDICATED-EVIDENCE.json",
+        "sha256": "19f98135792b161b96d5a9c8249aaabd4091b4f09c229cba838fb459d9627e6d"
+      },
+      "evidence_refresh_try_ageless": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/try-ageless/ADJUDICATED-EVIDENCE.json",
+        "sha256": "c56103a1820cb53c24df8a43e97502355d8c647e992d365a4abe937fe728469f"
+      },
+      "evidence_refresh_wellorithm": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/wellorithm/ADJUDICATED-EVIDENCE.json",
+        "sha256": "72d0ab1d2818d2aa265ca463ea8250b27b9928681981f3aae713c5e580da16b2"
+      },
+      "evidence_refresh_yourera_program": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-T/003/packets-integrated/yourera-program/ADJUDICATED-EVIDENCE.json",
+        "sha256": "9ec04e1d0769e783380954cbd16de46c19f85908420a525c5dd760b0dd527976"
+      },
+      "implementation_contract": {
+        "path": "reports/glp-clinic-scout/growth/build-6/build-6-6b-implementation-contract-20260808.json",
+        "sha256": "2c3461ada23b475c0a4b2b355a114ec7f0a2036389f2625e175b3176aa957283"
+      },
+      "sequence_reseal": {
+        "path": "reports/glp-clinic-scout/growth/build-6/build-6-sequence-reseal-20260808.json",
+        "sha256": "07c6beeb4da355e39695383a600eb1b0d5b5bd0ba70516ab8ac0ae922a1a64a3"
+      },
+      "ws_r_001_live_vital_launch": {
+        "path": "reports/ops/orchestration-restore-20260907/WS-R/live-vital-launch/PACKET.json",
+        "sha256": "9a1cd81680474fabc803eed65789797307db256aa5e01cd552ea461484798fce"
+      },
+      "wire_in_coivas": {
+        "path": "reports/glp-clinic-scout/affiliate-machine/wire-backlog-worker/program-research/coivas.json",
+        "sha256": "12c749c6c501ee107537c56cc242cab4af79d791f3b4799cad105209c15c6b93"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260916T025811707596Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T025811707596Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "223e273f37e984e04206f8ad7327a7d4617b948fa323f62b1766523430638255"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260916T025811707596Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T025811707596Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "909a3aa9d252efa99178c6b16cb3cbe86e4c292ab0ba10ba2734afdb6efe4814"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260916T025811707596Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T025811707596Z/pallas-health-review-verification.json",
+        "sha256": "51f75bb6705f34602a593720a8619caedae2b34bcab7f379c25d7b4be9f3ec69"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260916T025811707596Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T025811707596Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "d5521f975f06f3befebfc3138bec471b14fce05a6481a954c79c6560a8ad6c51"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260916T025811707596Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T025811707596Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "ad8a7f3b713092cf17c37bc603e208b446530a923fe904aec3f2c1f06f3e003e"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260916T030113394598Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030113394598Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "45b1fadea0ec820f3b180064fd59490e13f71ce1c8794b66375fb1268fd938ba"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260916T030113394598Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030113394598Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "0fe90011d2ee3fd7ed471e21ddbec9f2d7a89173466af3272a2b7c77a55dfcfd"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260916T030113394598Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030113394598Z/pallas-health-review-verification.json",
+        "sha256": "e9f1cb4d42e9420e137a7300ba2ccaec32b1508e16cd6c622a31820eb1d7db3d"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260916T030113394598Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030113394598Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "8634127d35130f9f7425e0e96c11fb3c3809da580c75eaefe4586e70e0607a35"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260916T030113394598Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030113394598Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "45f6d1367bb7fdcaed06a46416d63153f2da586eac38508d2068a6e4af6db72c"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260916T030517573536Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030517573536Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "f325904ab3f355aa5290698e1bc80fe261978984a8ccfa4cc89da5db9e0b009b"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260916T030517573536Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030517573536Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "1ff327415d774ad1a64ecc79e4f3c25e71f7f6d910e9d0600c4ade7ee1a3a45a"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260916T030517573536Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030517573536Z/pallas-health-review-verification.json",
+        "sha256": "75916b1605c90fdf8863964ef4177b569cc5e3dae79bf0c9f461bf62898fd4a8"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260916T030517573536Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030517573536Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "364cbdaf1d5832cc84c7338e0965a4224fd4cb12f6196463579e88941ca461a2"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260916T030517573536Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260916T030517573536Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "e47b1dc5b68cddf3aaaafe86cb9213af8fd915e7fab153b5ec0c46fa85264bdf"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260918T020359424014Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260918T020359424014Z/dudemeds-review-verification.json",
+        "sha256": "f8c4c738173145716b45671c62cddce779fa63fc5cdd27601abd3f2315d4f5a9"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260918T020359424014Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260918T020359424014Z/wellmedr-review-verification.json",
+        "sha256": "419c386ed2f8bf3771d20bae8fef69815cc8437ce67ab34bf46e9da1868a5d68"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260918T020359424014Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260918T020359424014Z/nu-image-medical-review-verification.json",
+        "sha256": "1ba755f8d909b0d3a16f28d01c4bb8739a44343848a003faac1dbf6f819e48b5"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "5cd3355505c4dbc6e0b9ba13ea8d89599c08ed87f8e70875eca117ed72d1055e"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "93298255127a8e76192b1927ad19417da5acef1387a5d21d53c117a32f8690b8"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/pallas-health-review-verification.json",
+        "sha256": "51ed727bbc6311584306906fa89fca5e52b89b6eba37241bad10671f9d07a7bc"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "dc0ad8db7584e1e097abc5cb3dbe640af4d8f6f4064b28168fc8843ca8e01aa8"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "ec87d3fa07da2ec54b031cfe41d080d7c5d307911bdd655a9e6bc26741183e08"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/dudemeds-review-verification.json",
+        "sha256": "d6e40f0f8f51d8d9f51be7f69283a5504257095bb46e5912b0ba50515b876a23"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/wellmedr-review-verification.json",
+        "sha256": "791215919642ae67b18b54bac6ad673d17ec7dfe3baa9e61ae5d2c546e699175"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260919T120034566022Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260919T120034566022Z/nu-image-medical-review-verification.json",
+        "sha256": "dee05ca1082b215fdd4eb0a6bfc57472659384bd1edcee942c5b9b0342a6960c"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "99fab69504341340d70d63965988b7944c1b33874fba3641d179b82d0caeba52"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "914b07efaa7026fbcda0fb695c5bdfd2c77f0a1390d4f6cd73c29c66c0db8584"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/pallas-health-review-verification.json",
+        "sha256": "744dad69a28470ab02e1374b0ff34d571a0457d06bedd3221c2576ddcef5cfdc"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "4740958a4c64ada1925f25d3c06d02a2d702df69a8c5d6ac389cde610ccfe28c"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "a969a148e4b43a3f95b9487e58cda3abdfa98c5443fcf921b106000e37714f57"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/dudemeds-review-verification.json",
+        "sha256": "ff2e40ea3ad0a965c575801334ed3d9c8633be2dcac4bcd95e681ada2fb17daa"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/wellmedr-review-verification.json",
+        "sha256": "a2494c7d9759fc4cb96bb38f493f9200fbe38ad78d03475efe3aabcb840e7e37"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260920T120014054457Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260920T120014054457Z/nu-image-medical-review-verification.json",
+        "sha256": "60fe510476df74d8660822f62bc6a12812b74508e957e6721cad0792688174cf"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "89fd7dd445dfc8a3bf7175e7394968f950c48a21cf2da938b50b15e9244411d4"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "c96212b9d37fe59aaa8841d705c7a66c051b5d6e3f7e6477cf9714e975f7a88c"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/pallas-health-review-verification.json",
+        "sha256": "d6a82ee8d3504f9acc4ed7992b13b1d00e5c36899db9a0f5f51ca77cb36b1bc2"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "3c623e8313ac6796072cc91f5c4f83d8dd0c30d96ffac1705e134b8d0c6e4156"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "dcc8d55d1faf11b2359c97093cce9b5a3fde728581235bc9d303905851e8305a"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/dudemeds-review-verification.json",
+        "sha256": "4613f04b1f102c1b6d000e030fe9375eb79b32a13999af536bfd33db605a8e05"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/wellmedr-review-verification.json",
+        "sha256": "8907a517e187812df10d4d949e5769ae9609f5986bca9cb2d9d13c9cca5bfb66"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260921T120050584647Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260921T120050584647Z/nu-image-medical-review-verification.json",
+        "sha256": "79a29151ac357360785c367963915ff68419a4e74e4a951238d4c418d7042d21"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "34981e0c6e96d7869dbb45672b6f6d26c04472ec0ca7e41a3c0a1886524a35fb"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "bbc6d5fbfa8fb60b1b623db01b8d004e11715636001a41503c5d42367398e794"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/pallas-health-review-verification.json",
+        "sha256": "9c6b3f238320bcb3ff2dbf91ed7e69dd4e029e1526b58fcbc86c8266eca3fdc8"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "43b78f9747496523c2ab0ef0ceec645d5b23f8daa5a63e141e2adcd2d15a3a66"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "68dd07e5d22da347f5253a069a7636edeb0849ad32c5cdbbcf58f8c49dcfd0e6"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/dudemeds-review-verification.json",
+        "sha256": "5a6d570f1410eb73d28628c156ddcbbcd132188923a427734d3a29d523906bf4"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/wellmedr-review-verification.json",
+        "sha256": "c55413aac794fb3c6f687a941489c2937c375794565e432ba9f2ec01ff3a5fe9"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260922T120052614956Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260922T120052614956Z/nu-image-medical-review-verification.json",
+        "sha256": "47bb034d4ce41ee24a166683b7fd8a9a507becad453b61be24e17a79d3609327"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "29d12d3a4936a0e85171ae89f86afbc3b596a15d1b5bd8ee29fff99e2127c927"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "f2bffc83fa2da6f6fa2854eb524cfa4da58ad07517f654ea53ce07f22f61c93b"
+      },
+      "taxonomy_refresh_pallas_health_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/pallas-health-review-verification.json",
+        "sha256": "b16417f3c179cd12a2264031975e0432da616055ca708c4d3853e4574777b304"
+      },
+      "taxonomy_refresh_rxspan_md_telehealth_program_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/rxspan-md-telehealth-program-review-verification.json",
+        "sha256": "48ebdb1dc21885c700b5cacfd44b6074500a5277c00055d00c6fdf6fba0212b1"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "46a57cc99cdc3c76bb4f2308b59675e5c80f5eda34f35a78c7f5a62453eab6eb"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/dudemeds-review-verification.json",
+        "sha256": "626b406c5dacebd539bea3fe2fd2ce5eaf3e2a953630e08c271602a2005e60ae"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/wellmedr-review-verification.json",
+        "sha256": "14fd1c37f99992d300cfd208d4a1d61dc3d3397868b0de706d2e9aa18c8081ce"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260923T120043267629Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260923T120043267629Z/nu-image-medical-review-verification.json",
+        "sha256": "4c800d5d882a08cde2bb704384d22f0d0c0b9c9a021a8aceed3e9286631a1ad7"
+      },
+      "taxonomy_refresh_synergy_rx_review_run-20260924T030807583246Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260924T030807583246Z/synergy-rx-review-verification.json",
+        "sha256": "e2ffca15c1741194e5a24a8bf5b68a80b919d5cbd3fb5d03316d23a8fb9071b9"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "91eeba5aa4a3af1b108e7ff60dd426ca1979890bdbb349cddade10822a9b7923"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "5e72618b8d756cd43c85e2573a9528743328f2e881f5c9e108e6043fa445d81a"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "be40b35f10e79e74f267f3e8f7388cf4d4a9f1f7b4dbc8e0951f2051a37535c8"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/dudemeds-review-verification.json",
+        "sha256": "ade070d165773ac6df262a6fcabd42108c42e90808a00dc5eae409347df7651a"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/wellmedr-review-verification.json",
+        "sha256": "c0e1f991ced96bc144bf5d7749004e0deb40cfb19fffa65e2c3a9d6bf9af68a7"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/nu-image-medical-review-verification.json",
+        "sha256": "8121e708dbaa4eeaf49f0ecdcac2bef69f7049291e758140b9853bf2bfd9ca95"
+      },
+      "taxonomy_refresh_synergy_rx_review_run-20260926T120113137350Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260926T120113137350Z/synergy-rx-review-verification.json",
+        "sha256": "53075b410f42b98b70edc3922df47234529d53389fed287d28cccd296ec9ea48"
+      },
+      "taxonomy_refresh_breeze_meds_review_run-20260927T005531350729Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260927T005531350729Z/breeze-meds-review-verification.json",
+        "sha256": "f5fc1071458aa7dc5876c0df4c03f2a29bd592a45cfc73aa232b7e4c9305a6a5"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "0c4bbc3d63f7f87d5f11ac8b5f6d3d7c95e869755f083d02240252495ec185fd"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "1bfc2b266115289db07e880e0c83d73c7e6ffbfd87837e2f8f25bc12f2b2d92a"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "1c0a4fa6d980388b215cdf68ef37b467479b12810f5388c48091e2d28d20ffe3"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/dudemeds-review-verification.json",
+        "sha256": "ca7fca113d1451595c172eab1550c5d8fc9b3c8cc858383bbcb90b260de625da"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/wellmedr-review-verification.json",
+        "sha256": "d1b8ff3cd8c72cf2cc17ad73240746aa2b8d935c238c05fce77e0190602ab8e8"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/nu-image-medical-review-verification.json",
+        "sha256": "220320d08588c0f529928d53be6e4a98c087419bb4f800f00646d94c8f025bbb"
+      },
+      "taxonomy_refresh_synergy_rx_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/synergy-rx-review-verification.json",
+        "sha256": "24debe1a8cb405110729a8b4e90f62cedced680adf3ff053674bff759f9578ad"
+      },
+      "taxonomy_refresh_altrx_glp1_us_cps_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/altrx-glp1-us-cps-verification.json",
+        "sha256": "e640920938edab61f52c96ffde6e452e298450574c96bfba34b69fadc18d2799"
+      },
+      "taxonomy_refresh_biltrx_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/biltrx-verification.json",
+        "sha256": "170bad83d9f52023a11453f1b185062272f9e68dd727903f208eb2d1b3250774"
+      },
+      "taxonomy_refresh_breeze_meds_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/breeze-meds-review-verification.json",
+        "sha256": "b01ef83f983851f54e0454a2e589550867fee01b038f0c437a6536480d14654c"
+      },
+      "taxonomy_refresh_direct_meds_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/direct-meds-verification.json",
+        "sha256": "c5819c70f523d08bfad31d6fe39b8c914fc5351a2e36172621cc8716fbdbcfb8"
+      },
+      "taxonomy_refresh_drhouse_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/drhouse-verification.json",
+        "sha256": "0c6453941a641706df6ad4c4aa8921539b0a3751a3da99186a03427f44234779"
+      },
+      "taxonomy_refresh_enhance_md_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/enhance-md-verification.json",
+        "sha256": "7903072eb1f17ba577924e97b640349dbd1968327b70bea0c9ed5ef28c74578a"
+      },
+      "taxonomy_refresh_enhanced_tirzepatide_funnel_b_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/enhanced-tirzepatide-funnel-b-verification.json",
+        "sha256": "c38c4e4128726b76d5a7e7b3c2b67098681a32e6d4369f2a9f1cbbd1c350b437"
+      },
+      "taxonomy_refresh_found_health_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/found-health-verification.json",
+        "sha256": "6aa723036b6edba0e977f2e474b4d112c5f5e061e9968bee70c3c7cbd06f1b9e"
+      },
+      "taxonomy_refresh_futurhealth_wegovy_pillform_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/futurhealth-wegovy-pillform-verification.json",
+        "sha256": "9bd424cc317eb764f3b7c3985966281c413c207d6caa5b975002fa0bcef5c8c5"
+      },
+      "taxonomy_refresh_g_plan_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/g-plan-verification.json",
+        "sha256": "f3a35303b01fd8245defd75d5991decec64536c04e0694a69b28962489bf6666"
+      },
+      "taxonomy_refresh_gala_health_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/gala-health-verification.json",
+        "sha256": "983abd5d18b455e99c7e322a00c31f94b8c0464364b8e64b174e1f62a0ae5d89"
+      },
+      "taxonomy_refresh_gobymeds_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/gobymeds-verification.json",
+        "sha256": "6df4a9ad7da3e07a30a8ae54c24e3d3f07d0c14baf9821e61346456fbd06d4c2"
+      },
+      "taxonomy_refresh_humecare_data_driven_glp_1_weight_loss_system_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/humecare-data-driven-glp-1-weight-loss-system-verification.json",
+        "sha256": "0b60da97031ff968eb7a09ea65960be795da4658178a297ef18770daa888242c"
+      },
+      "taxonomy_refresh_joinskinny_semaglutide_glp_1_us_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/joinskinny-semaglutide-glp-1-us-verification.json",
+        "sha256": "9a86965ad7b280507f1e6620e1de52cc26d7326d3139279b403e3556ad6673ed"
+      },
+      "taxonomy_refresh_live_vital_launch_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/live-vital-launch-verification.json",
+        "sha256": "58455d03833b7ee8676cbdcb2c916ca731d9f3a88a632b24d31293781cccdddb"
+      },
+      "taxonomy_refresh_longevity_meds_glp_1_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/longevity-meds-glp-1-review-verification.json",
+        "sha256": "ea0cc144a7d31af89f1d540c903aa080a42074fff791e88a4ab021d33a27aa42"
+      },
+      "taxonomy_refresh_lttl_glp_landing_page_2_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/lttl-glp-landing-page-2-verification.json",
+        "sha256": "9337a063942dbb324c39a85ec8fa2f1c00c50e2b8edd36bd9bc2c43cb356ea70"
+      },
+      "taxonomy_refresh_mangorx_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/mangorx-verification.json",
+        "sha256": "0dc570b2a1665f65a0f5a65e3f5e9ff619e952ba8ad8ebba82f26c8d0d9e5e63"
+      },
+      "taxonomy_refresh_measured_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/measured-verification.json",
+        "sha256": "072122b8578bb2affdbf4de87aca65a8f3b3864dc427c536a84e57cb8e536e12"
+      },
+      "taxonomy_refresh_medvi_review_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/medvi-review-verification.json",
+        "sha256": "f0a06eaaa3851539e3cc3ddcf1cf5751c6f3eb8e9b35e25e27d8ec45fa1962db"
+      },
+      "taxonomy_refresh_mydrhank_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/mydrhank-verification.json",
+        "sha256": "dc525ff7de43f3978646d479b8182db76b080e77fd723429d3de7d962bec11ca"
+      },
+      "taxonomy_refresh_oak_weight_loss_program_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/oak-weight-loss-program-verification.json",
+        "sha256": "d4805130e954bec84d1b93a3121f213aa7426e1975cbdc6c264f1001edbaef2e"
+      },
+      "taxonomy_refresh_orderlymeds_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/orderlymeds-verification.json",
+        "sha256": "700087b25a99297b8249e67160324f3102e065726fdb0bb6a0ddb13cc5475f4e"
+      },
+      "taxonomy_refresh_ro_wegovy_glp1_quiz_us_cpl_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/ro-wegovy-glp1-quiz-us-cpl-verification.json",
+        "sha256": "537bcba81979593221abf5bdecbceaa6f33835ef2221cd59e379fe56d140aac7"
+      },
+      "taxonomy_refresh_serena_health_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/serena-health-verification.json",
+        "sha256": "bbe9806c7f98354ffc1cfe43afbd561fc5e5ba6567b3771a3f296fa96cc4d86b"
+      },
+      "taxonomy_refresh_snagrx_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/snagrx-verification.json",
+        "sha256": "f9f96c420af7b012643437a3203054425b4d8b85204e479baf27976ec2e93761"
+      },
+      "taxonomy_refresh_sprout_health_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/sprout-health-verification.json",
+        "sha256": "c2916bcf67973023c45d866a7886cb37f984031a65167ad9a81715600346dd89"
+      },
+      "taxonomy_refresh_strut_health_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/strut-health-verification.json",
+        "sha256": "056f61a6dd795697fdb6772d9054de91651c7afd0cb65b7a00e906e771554427"
+      },
+      "taxonomy_refresh_sunlight_glp1_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/sunlight-glp1-verification.json",
+        "sha256": "964642c751eb273bde8d710d10df3c16c11f528940a95d92ecfb050f33bf01bf"
+      },
+      "taxonomy_refresh_trimrx_xentraffic_offer_3014_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/trimrx-xentraffic-offer-3014-verification.json",
+        "sha256": "d26b87f2bb143e174393a383826444f5e60be911af570d4abb130d109eb92773"
+      },
+      "taxonomy_refresh_trt_nation_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/trt-nation-verification.json",
+        "sha256": "beb6a177ecc2f86631ebfac984e28aad189c073945208da0d21450869abd2aaf"
+      },
+      "taxonomy_refresh_try_ageless_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/try-ageless-verification.json",
+        "sha256": "b23d645eecc210677e3cea9ecd1a805ba3f66d16d63635ac71aee4f5991b839f"
+      },
+      "taxonomy_refresh_yourera_program_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/yourera-program-verification.json",
+        "sha256": "c1989c080d80fe55ae394635bc34d88375b374099182102381c328560b6a6eb4"
+      },
+      "taxonomy_refresh_yucca_health_xentraffic_offer_3117_run-20260928T120027740348Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260928T120027740348Z/yucca-health-xentraffic-offer-3117-verification.json",
+        "sha256": "6552bf73a5ce0f8709321b28bcc7a40a06b09d4202993553eadf84f807d63183"
+      },
+      "taxonomy_refresh_bodybuilding_com_glp_1_longevity_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/bodybuilding-com-glp-1-longevity-review-verification.json",
+        "sha256": "efdf6e968f66f12cd8dbc62644f5fb17409a8cebd380165d77436e2576ebaa5e"
+      },
+      "taxonomy_refresh_coreage_rx_glp_1_1632_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/coreage-rx-glp-1-1632-verification.json",
+        "sha256": "3f5ea8810338e1dbd900c186c779d73ecaefa14276b8391edc99a60c817767e7"
+      },
+      "taxonomy_refresh_skinnyrx_1_glp_weight_loss_provider_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/skinnyrx-1-glp-weight-loss-provider-review-verification.json",
+        "sha256": "67d56843ad1b6e68ef2827f3d509762d3d9e4e77b95dd266e32503e8c290a7ed"
+      },
+      "taxonomy_refresh_dudemeds_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/dudemeds-review-verification.json",
+        "sha256": "432ab51242098ec63d1e4efe2556d5fae923ca50d2ec13107a79a4c562512834"
+      },
+      "taxonomy_refresh_wellmedr_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/wellmedr-review-verification.json",
+        "sha256": "b58174de25ad720cb7d4fc30f1ca797f6d5e770a34e170d61486446732402146"
+      },
+      "taxonomy_refresh_nu_image_medical_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/nu-image-medical-review-verification.json",
+        "sha256": "76a64bc0e35908623a26bd938a7e1a59f8d1445cd8e534925d45a2b2fb83d385"
+      },
+      "taxonomy_refresh_synergy_rx_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/synergy-rx-review-verification.json",
+        "sha256": "ea128047370f434e6c263e39739eed992ed62c402f4a4a6164f1bf284471ee20"
+      },
+      "taxonomy_refresh_altrx_glp1_us_cps_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/altrx-glp1-us-cps-verification.json",
+        "sha256": "575fdfcebad089e4088db269c282b4ecc84a2d6e1db694cbb58a6c3db8a62515"
+      },
+      "taxonomy_refresh_biltrx_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/biltrx-verification.json",
+        "sha256": "6a0ea6642df79ececd34b3c5f626cb4a19343877385c9abce5dcebb873397d25"
+      },
+      "taxonomy_refresh_breeze_meds_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/breeze-meds-review-verification.json",
+        "sha256": "8612dc0ba08042ff8fe89a38fe0f72540a536d01be8a61a431716103d572b09f"
+      },
+      "taxonomy_refresh_direct_meds_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/direct-meds-verification.json",
+        "sha256": "4fa14553f3b54644c2c50a64caa45d1486c277a1f1aad8cd94796da67e9f98a6"
+      },
+      "taxonomy_refresh_drhouse_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/drhouse-verification.json",
+        "sha256": "55df4dba0f38c692afeaef329a3816c479251cbce2e7004292c3aa325541f69f"
+      },
+      "taxonomy_refresh_enhance_md_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/enhance-md-verification.json",
+        "sha256": "a5ddbddf83647726438356a8f0bbf2d4fe9df9d49d230fc6dd3dae7add6b6f2a"
+      },
+      "taxonomy_refresh_enhanced_tirzepatide_funnel_b_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/enhanced-tirzepatide-funnel-b-verification.json",
+        "sha256": "9e2b5d5ceb9915248fe3dc0753ce23a54f527bb61399a9bd1523e753f1b44eaf"
+      },
+      "taxonomy_refresh_found_health_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/found-health-verification.json",
+        "sha256": "817b90aefefe8906088327b863732b3b9879cb24a753e8bfdcce0b7e3ba76da8"
+      },
+      "taxonomy_refresh_futurhealth_wegovy_pillform_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/futurhealth-wegovy-pillform-verification.json",
+        "sha256": "daaaa6ecede365ef95304a5b031b7eeb8cd06c7547fd128a446dcb5406d446be"
+      },
+      "taxonomy_refresh_g_plan_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/g-plan-verification.json",
+        "sha256": "c25a78cc254dd93697501f3c734dd513e219422e12f3e623f881364ea19fe8a4"
+      },
+      "taxonomy_refresh_gala_health_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/gala-health-verification.json",
+        "sha256": "950ffe0f528e239542a78a93595b6e6a549a2c997b9b309847a51c6c96419757"
+      },
+      "taxonomy_refresh_gobymeds_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/gobymeds-verification.json",
+        "sha256": "64753e7cf6031ae54e500a36dfd80a191dc435b2f71ba5e8847733a3fa69bdde"
+      },
+      "taxonomy_refresh_humecare_data_driven_glp_1_weight_loss_system_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/humecare-data-driven-glp-1-weight-loss-system-verification.json",
+        "sha256": "8f63924c56339665defed9056ab5f32e28d32c6f8c2edc9ed603babb16976f97"
+      },
+      "taxonomy_refresh_joinskinny_semaglutide_glp_1_us_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/joinskinny-semaglutide-glp-1-us-verification.json",
+        "sha256": "076b2466281435214e9bbeaef61d541515d4ce375b79bc0f7eb37c861c9b5f8b"
+      },
+      "taxonomy_refresh_live_vital_launch_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/live-vital-launch-verification.json",
+        "sha256": "296486b6983592abfcc90352f7b10b494522dc04e2bc5cc8f89fbaf39143772b"
+      },
+      "taxonomy_refresh_longevity_meds_glp_1_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/longevity-meds-glp-1-review-verification.json",
+        "sha256": "3b50b982290470526265e4dd3fa50d3321a9ccbe93a62acffb563484f60163ca"
+      },
+      "taxonomy_refresh_lttl_glp_landing_page_2_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/lttl-glp-landing-page-2-verification.json",
+        "sha256": "2fc5fb00653e402beaf2dd8f5fc4c30d37ce839b355ccc94e94fcaf8c4a1c244"
+      },
+      "taxonomy_refresh_mangorx_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/mangorx-verification.json",
+        "sha256": "1b16bcf284e6be489eece17f1b4389b0ca0c33be2307ead09e2a13846b0f84e8"
+      },
+      "taxonomy_refresh_measured_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/measured-verification.json",
+        "sha256": "3d80bba462b22ce4fbae45041dfdd26d9b103c24859f0bb8e8ed9dcac9dee6a9"
+      },
+      "taxonomy_refresh_medvi_review_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/medvi-review-verification.json",
+        "sha256": "f9bd54289d180ceb6e37a4bde93d5e8047fd95fc58703702c5a8b8e5b1c75e15"
+      },
+      "taxonomy_refresh_mydrhank_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/mydrhank-verification.json",
+        "sha256": "3a85eebb6e64fd56e989bf1514ee32d8ca1b3893f575cf3009ae549efad11cb3"
+      },
+      "taxonomy_refresh_oak_weight_loss_program_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/oak-weight-loss-program-verification.json",
+        "sha256": "dbda0f0ec6c18cfe58e038357cc59e75f2847c06df0b5ba4763942599f3763a4"
+      },
+      "taxonomy_refresh_orderlymeds_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/orderlymeds-verification.json",
+        "sha256": "e398b0acd72cfdf63fb155dec695bfc5b436fe93806a7048dd636cc71e62b243"
+      },
+      "taxonomy_refresh_ro_wegovy_glp1_quiz_us_cpl_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/ro-wegovy-glp1-quiz-us-cpl-verification.json",
+        "sha256": "46824b7cc80a9ee98f625b8c36733363d386bf9b7816a6af267d133b8c521c1b"
+      },
+      "taxonomy_refresh_serena_health_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/serena-health-verification.json",
+        "sha256": "da18b1566e68b17c84473bd72a172c46ed8c01aa0a34a978f6d72d2cb54b2892"
+      },
+      "taxonomy_refresh_snagrx_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/snagrx-verification.json",
+        "sha256": "58a369d19e9efc25a41e6b66fba5919debe88c067bea4937e87ca97648d78ce7"
+      },
+      "taxonomy_refresh_sprout_health_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/sprout-health-verification.json",
+        "sha256": "1ae98eefc009394fa37c2505c02bcd8169c029c54509503ac991c46cf4958a82"
+      },
+      "taxonomy_refresh_strut_health_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/strut-health-verification.json",
+        "sha256": "94aa276535023215481525e5518a6bfacbc58c394bc6db3f774778e4e4e21492"
+      },
+      "taxonomy_refresh_sunlight_glp1_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/sunlight-glp1-verification.json",
+        "sha256": "aefac5a3be5aef57453661912683240bbd798982a7bd0a5d5366c41d54bd7e47"
+      },
+      "taxonomy_refresh_trimrx_xentraffic_offer_3014_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/trimrx-xentraffic-offer-3014-verification.json",
+        "sha256": "1924e9eb64ae21a17762aee8eeb025a92ac0db36dc4ffaaa2a7c8dd4aba6dfc3"
+      },
+      "taxonomy_refresh_trt_nation_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/trt-nation-verification.json",
+        "sha256": "0900bac88810fff914287765919b5175e0d79132281f3c76a182813b4e17b350"
+      },
+      "taxonomy_refresh_try_ageless_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/try-ageless-verification.json",
+        "sha256": "ee5d28e29f4ce7fb286634a4224d534ec7c3bdc437e0f0af11a25a91bed03be3"
+      },
+      "taxonomy_refresh_yourera_program_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/yourera-program-verification.json",
+        "sha256": "e68372fcb209c5d35ba7e364c794f324396876a056a9e64f6a15e88d52cccf6f"
+      },
+      "taxonomy_refresh_yucca_health_xentraffic_offer_3117_run-20260929T120024381077Z": {
+        "path": "reports/ops/glp38-20260915/taxonomy-refresh/run-20260929T120024381077Z/yucca-health-xentraffic-offer-3117-verification.json",
+        "sha256": "095e45c2321fca4d797f1e3ed29c0200e6d87879ab1da9d612ce711509fb4810"
+      }
+    },
+    "derivation": "Set-union projection from the sealed base map, corrected Firecrawl refresh, and brand/form addendum. Tags are accepted only when an authority row explicitly records them; missing tags remain unknown and are never inferred from prose.",
+    "expected_counts": {
+      "provider_rows": 58,
+      "semaglutide": 53,
+      "tirzepatide": 49,
+      "retatrutide": 0,
+      "wegovy": 17,
+      "zepbound": 15,
+      "mounjaro": 8,
+      "oral": 22,
+      "injectable": 31,
+      "compounded": 43,
+      "brand_name": 10,
+      "treatment_type_unknown": 15
+    },
+    "freshness_max_days": 31,
+    "price_index_registry_frozen_source_sha256": "7940a48ddb453a1ebe274a48ed1c1fb7b5afdedfbbb4bed364153da6b5293499",
+    "price_index_registry_programs_semantic_basis_sha256": "f9a8ce57165d5a014fe623c820a4ab90313d4c5679c4d079e6703a7e2df8f234",
+    "price_index_registry_programs_semantic_basis_sha256_repin": {
+      "authority": "reports/glp-clinic-scout/rebuild/SPEC-EDITORIAL-MONETIZATION-20260819.md \u00a74.1 under operator gate receipt 386dc029a3cd681c352bee33037ee150ed7da795191cd8df1a0010aeeb4e74b6",
+      "previous_sha256": "b58e538cdf2420baa59aafa870d1ce16047739bea95121224ccf018fe396ab1c",
+      "reason": "ED B-13 (task #61): surfaces.guides = true added to the six \u00a72 CAN-column programs (found-health, gala-health, healthrx, trimi-glp-1, try-ageless, yourera-program). The drift detector fired exactly as designed; the ONLY delta in the semantic basis is those six boolean keys. shedrx, serena-health and measured are untouched.",
+      "repinned_on": "2026-08-20",
+      "repinned_sha256": "da179168e604eb2de5ae714fc37616e807152846aaf790119281e4d1be39d267"
+    },
+    "price_index_registry_semantic_basis_sha256": "133258391a039c9d12b924fc37753e11f3803a200a3d6f75f1b32887e4857d85",
+    "programs": {
+      "eden-xentraffic-offer-3051": {
+        "brand_name_tags": [
+          "mounjaro",
+          "wegovy",
+          "zepbound"
+        ],
+        "classification_state": "B2_STAGE5_EXACT_EVIDENCE",
+        "commercial_link_state": {
+          "compare": "live",
+          "quiz": "live"
+        },
+        "delivery_form_tags": [
+          "injectable"
+        ],
+        "evidence_bindings": [
+          {
+            "authority": "b2_stage5_eden_xentraffic_offer_3051",
+            "authority_sha256": "049cc529f5684355427d643285a3750e40948ab38ce8e7e1f2805a630bb45181",
+            "evidence_sha256": "58ecdf273b1ead4649671d231254729626fc20886f5a94d0b381a8014cabb15a",
+            "source_url": "https://www.eden.health/policies/terms-of-service",
+            "verified_as_of": "2026-08-31"
+          },
+          {
+            "authority": "b2_stage5_eden_xentraffic_offer_3051",
+            "authority_sha256": "049cc529f5684355427d643285a3750e40948ab38ce8e7e1f2805a630bb45181",
+            "evidence_sha256": "1c346558b25431f13f1903c1202948e6332e651c5bcd7729eff943e654ab682e",
+            "source_url": "https://www.eden.health/weight-loss",
+            "verified_as_of": "2026-08-31"
+          },
+          {
+            "authority": "b2_stage5_eden_xentraffic_offer_3051",
+            "authority_sha256": "049cc529f5684355427d643285a3750e40948ab38ce8e7e1f2805a630bb45181",
+            "evidence_sha256": "c898fd98135baf1525c065ad5541c397a82f9e14912f52cb0408a7a1d70dd339",
+            "source_url": "https://www.eden.health/treatment/glp-1-treatments",
+            "verified_as_of": "2026-08-31"
+          }
+        ],
+        "molecule_tags": [
+          "semaglutide",
+          "tirzepatide"
+        ],
+        "normalized_sha256": "2bbb5f61de2c364e3ccfa94f3cef31fae895671c903b1ab3d86c5a929dac6db8",
+        "program_id": "eden-xentraffic-offer-3051",
+        "provider": "Eden",
+        "registry_program_id": "eden-xentraffic-offer-3051",
+        "render_label": null,
+        "source_urls": [
+          "https://www.eden.health/policies/terms-of-service",
+          "https://www.eden.health/treatment/glp-1-treatments",
+          "https://www.eden.health/weight-loss"
+        ],
+        "treatment_type_state": "verified",
+        "treatment_type_tags": [
+          "compounded"
+        ],
+        "verified_as_of": "2026-08-31"
+      }
+    },
+    "projection_key": "program_id",
+    "provider_wire_in_contract": "A new registry program must provide a research_therapeutic_taxonomy object with verified normalized arrays, source_url, verified_as_of, and an evidence sha256 or capture id. glp_surface_unification.py validates and appends that row before compare or quiz projection.",
+    "required_surface_paths": [
+      "/best/online-glp-1-providers/",
+      "/cost/online-glp-1-programs/",
+      "/best/expanded-curated-glp-1-programs/"
+    ],
+    "schema": "glp-therapeutic-taxonomy-v1",
+    "sealed_as_of": "2026-09-29"
+  }
+}
