@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 561,
+  "tracked_count": 562,
   "files": {
     "tests/test_maintenance_pause_cursor_race.py": {
       "kind": "test",
