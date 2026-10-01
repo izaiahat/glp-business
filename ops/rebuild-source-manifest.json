@@ -8,8 +8,48 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 506,
+  "tracked_count": 514,
   "files": {
+    "ops/glp80-eden-policy-successor.md": {
+      "callers": ["GLP-80 Eden source-only successor"],
+      "kind": "documentation",
+      "sha256": "1c8697bb5e539aca741e52ee3eaff8a08ec549f6a34f3408fa8294675cf08ce5"
+    },
+    "tests/test_glp80_eden_policy.py": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test",
+      "sha256": "825a6ecdcf17a9c7ec26e6bdb1ab883b9b19cca6157b08959ec11715f8a5bb61"
+    },
+    "tests/fixtures/glp80-eden/capture-manifest.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "db2760b9dfad5e8f70ce22db3a06b7b9b6f94fb1c6fd18328cb27804207aef29"
+    },
+    "tests/fixtures/glp80-eden/native-input.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "7671e957b1661198026f0821d27b23902cf9429b9ba9bde8aeaaf5532c111c9c"
+    },
+    "tests/fixtures/glp80-eden/source-0.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "9be5f5513193d2d3dbea35cbaa75afd385f4e083361cf4034b4c56125bd31014"
+    },
+    "tests/fixtures/glp80-eden/source-1.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "e220c71723c8b1878da1c8ced8e5801bc17f891bea47a483717563b271ac9ca8"
+    },
+    "tests/fixtures/glp80-eden/source-2.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "ebdeaf86b6b59c8884f5818d60e1efa522aa4c7b298f8cdd8a5ca5aed4662e70"
+    },
+    "tests/fixtures/glp80-eden/source-3.json": {
+      "callers": ["GLP-80 Eden authentic assertion replay"],
+      "kind": "test_fixture",
+      "sha256": "f90af2d6ed6b770c3a8ef2c4af3b34e9ad311d20e7309c787410674d9228c2ca"
+    },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
         "GLP-333 read-only network access contract"
@@ -127,7 +167,7 @@
         "GLP-80 exact-head offline acceptance"
       ],
       "kind": "repository_control",
-      "sha256": "4bd2bfc3b59e55df8107a329467d2f0de8ab62689750dc6b0409dd063ca18e00"
+      "sha256": "6874c62f14a17ad945d70519d4841f6687b2396330951b9a4e107fb961d3895b"
     },
     "tests/test_glp80_taxonomy_correction.py": {
       "callers": [
@@ -1959,7 +1999,7 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
       "kind": "policy",
-      "sha256": "8c3fd13070e704bbf8fe5f543736cd86b005a17443fe3fd75e074e7e498458d2"
+      "sha256": "9ee0e1fad953c03a293f109ac064276f23f7580d8cfe109edb197d2611495359"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -3109,7 +3149,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "803ff0254fcc450d53a743561f669c1bc598911ad41a2422216d7c8231cc822d"
+      "sha256": "7b18ed9220b0b62186552392edd578f7c5c7a4df66146758561c456a8eceea5e"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [

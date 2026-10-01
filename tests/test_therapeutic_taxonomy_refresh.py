@@ -378,13 +378,9 @@ R2_SEMANTIC_CASES = [
     # it tests that rule while every independent brand/molecule card remains.
     ('found-health', 'delivery_form_tags', 'injectable', 'Wegovy® pens, and Wegovy® pills',
      'Medication reference: Wegovy® pens, and Wegovy® pills.'),
-    *[('eden-xentraffic-offer-3051', 'brand_name_tags', tag,
-       f'[{name}® ᴿˣ](https://www.eden.health/treatment/{tag})',
-       f'Medication reference: [{name}® ᴿˣ](https://www.eden.health/treatment/{tag})')
-      for tag, name in [('mounjaro', 'Mounjaro'), ('wegovy', 'Wegovy'), ('zepbound', 'Zepbound')]],
-    ('eden-xentraffic-offer-3051', 'delivery_form_tags', 'injectable',
-     'The compounded medications come in various forms, from injectables to liquids.',
-     'The compounded medications come in various forms, from injectables to liquids.'),
+    # Eden's obsolete two-page counterexamples are superseded by the full,
+    # hash-bound four-page semantic controls in test_glp80_eden_policy.py.
+    # The maintained policy remains REVIEW_REQUIRED pending public qualification.
 ]
 
 
