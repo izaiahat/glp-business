@@ -59,6 +59,7 @@
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
+!/tests/test_glp333_impact_subwindows.py
 !/.gitignore
 !/.hermes.md
 !/AGENTS.md
