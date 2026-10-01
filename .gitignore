@@ -365,6 +365,14 @@
 !/tests/test_cleanup_inbox_reader.py
 !/tests/test_cleanup_affiliate_decisions.py
 
+# GLP330 exact retained discovery predecessor; non-executable byte fixture
+!/scripts/discovery_predecessor_migration.py
+!/ops/glp330-discovery-predecessor-migration.md
+!/tests/test_discovery_predecessor_migration.py
+!/tests/fixtures/discovery_predecessor/
+/tests/fixtures/discovery_predecessor/*
+!/tests/fixtures/discovery_predecessor/088e2557.bytes
+
 # PR109 bounded admission and cohort regression coverage
 !/scripts/maintenance_admission.py
 !/scripts/maintenance_cohort.py
