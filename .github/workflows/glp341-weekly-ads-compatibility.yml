@@ -1,0 +1,28 @@
+name: glp341-weekly-ads-compatibility
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ops/hermes-cron-scripts/glp_weekly_ads_analytics.py'
+      - 'reports/ops/orchestration-restore-20260907/PLAN/A4/**'
+      - 'tests/test_glp341_weekly_ads_compatibility.py'
+      - 'tests/fixtures/glp341-a3-result.json'
+      - '.github/workflows/glp341-weekly-ads-compatibility.yml'
+permissions:
+  contents: read
+jobs:
+  offline-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head report compatibility (stdlib; no credentials or providers)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m unittest discover -s tests -p test_glp341_weekly_ads_compatibility.py -v

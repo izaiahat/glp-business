@@ -1,0 +1,127 @@
+{
+  "job_id": "A3",
+  "status": "BLOCKED",
+  "closed_at_utc": "2026-09-08T21:42:11.823803+00:00",
+  "disposition": "Destination-independent preparation and permitted Meta/Microsoft PAUSED builds delivered; Google new-object creation blocked, exact destination and live measurement pending D2. No further Google retry authorized.",
+  "deliverables": [
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/CAMPAIGN-LEDGER.md",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/COMPLIANCE-DECISIONS.md",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/MEASUREMENT.md",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/SPEND-DECISION-CARD.md",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/COPY.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/CREATIVES/UPLOAD-MANIFEST.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/CREATIVES/FABLE-DESIGN-PASS.md",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/CREATIVES/FABLE-DESIGN-PASS-02.md"
+  ],
+  "receipts": [
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/FINAL-VERIFICATION.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/META-EXACT-READBACK.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/MICROSOFT-AFTER.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/MICROSOFT-comparison-AFTER.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/MICROSOFT-terms-AFTER.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/GOOGLE-CREATE-INTENT-02.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/GOOGLE-VALIDATE-ONLY-POLICY.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/GOOGLE-FINAL-RECONCILE.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/GOOGLE-FINAL-CAMPAIGN.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/CREATIVES/a3-02-details-square/STORAGE-READBACK.json",
+    "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/SEARCH-BUILD-VALIDATION.json"
+  ],
+  "unverified": [
+    "Google successor creation: batch rejected; two exact payloads staged, no new Google IDs. Existing campaign PAUSED.",
+    "Exact /lp/quiz/ 200/content and live Consent Mode v2 acceptance pending D2 release.",
+    "Live conversion firing, approved non-TEST attribution, permitted native approved-sale binding and mature retained margin.",
+    "Google/Microsoft classification/editorial approval and Meta policy acceptance; Meta set 2 effective PENDING_REVIEW at readback.",
+    "Profitability target approved-sale CPA remains UNKNOWN; spend card is a USD100 learning-loss proposal, not approved spend or proven cap enforcement."
+  ],
+  "skills_loaded": [
+    "healthcare-google-ads",
+    "healthcare-meta-ads",
+    "healthcare-microsoft-ads",
+    "search-ad-copy",
+    "ai-ad-creative",
+    "health-marketing-compliance",
+    "privacy-conversion-measurement",
+    "quiz-funnel-cro",
+    "enzyme",
+    "higgsfield-generate",
+    "fable-orchestration-handoffs",
+    "agent-evaluation-review",
+    "google-ads-paused-upload-recovery"
+  ],
+  "skills_should_have_loaded": [],
+  "child_research_skills": [
+    "firecrawl-research",
+    "affiliate-network-economics"
+  ],
+  "new_ads": [
+    {
+      "id": "120248653802480046",
+      "status": "PAUSED",
+      "effective_status": "PAUSED",
+      "tracking_specs_returned": true,
+      "creative_id": "1570767217311090",
+      "policy_acceptance": "UNVERIFIED"
+    },
+    {
+      "id": "120248653836520046",
+      "status": "PAUSED",
+      "effective_status": "PENDING_REVIEW",
+      "tracking_specs_returned": true,
+      "creative_id": "1055084410645900",
+      "policy_acceptance": "UNVERIFIED"
+    },
+    {
+      "id": "73598936144246",
+      "status": "Paused",
+      "editorial_status": "Inactive"
+    },
+    {
+      "id": "73461495287148",
+      "status": "Paused",
+      "editorial_status": "Inactive"
+    }
+  ],
+  "new_ad_count": 4,
+  "google_created": 0,
+  "reviewed_platform_asset_count": 2,
+  "all_campaigns_configured_paused": true,
+  "budget_increases": false,
+  "live_launch_acceptance": false,
+  "spend_authorized": false,
+  "destination_status": "PENDING_D2_RELEASE",
+  "review_nonces": [
+    "A3-DESIGN-20260908-01",
+    "A3-DESIGN-20260908-02"
+  ],
+  "set2_stored_media_sha256": "04f8a91f8c9f22f40afba8413f9687ae160b50cc65981f658fa9a10b1147e3d4",
+  "artifact_sha256": {
+    "CAMPAIGN-LEDGER.md": "230d8f6219c8ebfc5d9fef11e4e6eb94fd165c7391a9aafb1a9ef8cecedda9f0",
+    "COMPLIANCE-DECISIONS.md": "e38fdcd4e47ef85796816a326b38731b408f0323c936159284eeee50b607f67f",
+    "MEASUREMENT.md": "6713675418c023660864ee2ccde31f6c6dc5b45267a89e40196d8c6881cc8a51",
+    "SPEND-DECISION-CARD.md": "1e21c2dcf3e815e680ae4b6cf7eac7770d7dc4919e1adec357d76af5a7a409e8",
+    "COPY.json": "9d4c1a549474b81f3910765cd1328c2100eec5af4d95bdf02e2582564dad8e37",
+    "CREATIVES/UPLOAD-MANIFEST.json": "f893b11c30d3d6b661b14b8c8df0e59b67ba8dbf5b7ae68538bc0d6c9b6b3bac",
+    "CREATIVES/FABLE-DESIGN-PASS.md": "0f4c118f80e7ed6f66013877ac032a2b917d95d26adc95011cf27d6ed481034c",
+    "CREATIVES/FABLE-DESIGN-PASS-02.md": "0ef03bf328b60c6b8eb2bdf19c80cea35d018f3105e3a41be85e3c35d617a5be",
+    "FINAL-VERIFICATION.json": "9abe371899adf8215ef35c325bc7e47cfe2c028a7dbb6dfe5759d6aca7ff1bb6",
+    "META-EXACT-READBACK.json": "455c009085b3aafcfcf85d3665ae7f1f359e92370682161e9cbc07c7ce0060bd",
+    "MICROSOFT-AFTER.json": "f548f4ba0da4288dbb13bec86bb7540424ac0f56f6a74ade683679c30d4015b5",
+    "MICROSOFT-comparison-AFTER.json": "937b7c9aca4b558fdc9ac375b720fe8c1ffec7dc1dbd36bf47f26afe8d644a63",
+    "MICROSOFT-terms-AFTER.json": "ce17b83a8e6ed977095bee487aa39b6f3e81acf4ea689a29bebd3c01f5dd289b",
+    "GOOGLE-CREATE-INTENT-02.json": "9c971d67bf937280675f4f8cea88394f15ec0bfe4ca97df36a466ad94e225539",
+    "GOOGLE-VALIDATE-ONLY-POLICY.json": "32a23a2cfa4a27866396343913566d55ba03450032a4cf16a75bdd26745d52bd",
+    "GOOGLE-FINAL-RECONCILE.json": "c9740390b2f7e2fb237a9b9bdf1dd6d88f0eb39e259d17759f1813a112b574cf",
+    "GOOGLE-FINAL-CAMPAIGN.json": "fa91c836129cbd5cf299715dd7af357d46e11196d37627e02b1f606474896867",
+    "CREATIVES/a3-02-details-square/STORAGE-READBACK.json": "dbc71943a45998c7008cf6980ed4269c7049844e1c35d97ed2a1f0b78170272b",
+    "SEARCH-BUILD-VALIDATION.json": "4ed92ef269b49e2f9313ac9be244500c72a3c69f07c427b071258053eef666ce"
+  },
+  "no_effects": [
+    "No activation",
+    "No budget increase",
+    "No alternate destination",
+    "No certification application or appeal submission",
+    "No credential changes",
+    "No deployment, scheduler adoption, STATE or Sheet writes",
+    "No Discord/partner sends"
+  ]
+}
