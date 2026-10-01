@@ -58,7 +58,40 @@ def fixture(tmp_path, monkeypatch):
            'enabled': True, 'state': 'scheduled', 'schedule': '0 4 * * 1',
            'next_run_at': '2026-10-05T04:00:00Z', 'fire_claim': None, 'run_claim': None}
     registry = hermes / 'cron/jobs.json'
+    original_job = copy.deepcopy(job)
+    job.update(enabled=False, state='paused')
     registry.write_text(json.dumps({'jobs': [job, {'id': 'other', 'schedule': 'daily'}]}))
+    class Window:
+        file_updates = []
+        job_updates = []
+        def original_job(self, jid):
+            assert jid == pair.JOB
+            return copy.deepcopy(original_job)
+        def current_job(self, jid):
+            return next(j for j in json.loads(registry.read_text())['jobs'] if j['id'] == jid)
+        def accept_file_updates(self, before, after):
+            assert before.keys() == after.keys()
+            assert all(sha(Path(path).read_bytes()) == digest for path, digest in before.items())
+            self.file_updates.append((before, after))
+        def switch_files(self, stage, before):
+            from maintenance_cohort import switch_files
+            journal = root / 'window.json'
+            if not journal.exists():
+                journal.write_text(json.dumps({'schema': 'glp44-glp73-maintenance-window-v1'}))
+            receipt = switch_files(journal, stage, before, lambda: [])
+            assert receipt['state'] in {'published', 'rolled_back'}
+            return receipt
+        def accept_job_update(self, jid, before, after):
+            assert self.current_job(jid) == before
+            assert {k: v for k, v in before.items() if k != 'script_sha256'} == {
+                k: v for k, v in after.items() if k != 'script_sha256'}
+            self.job_updates.append((jid, before, after))
+    window = Window()
+    def require_active(journal, business, home):
+        assert journal == root / 'window.json' and business == root and home == hermes
+        return nullcontext(window)
+    import maintenance_window
+    monkeypatch.setattr(maintenance_window, 'require_active_window', require_active)
     for rel in pair.PATHS:
         if rel == 'ops/glp/reporting-v2/source-manifest.json':
             report.write_text(json.dumps({'files': {
@@ -79,6 +112,7 @@ def fixture(tmp_path, monkeypatch):
             return nullcontext(True)
         def __init__(self):
             self.saves = 0
+            self.window = window
         def _current_cron_store(self):
             return SimpleNamespace(jobs_file=registry)
         def _jobs_lock_file(self):
@@ -109,16 +143,15 @@ def test_scoped_import_excludes_unapproved_cochanges_and_retains_baselines(tmp_p
 
 def test_paired_hash_only_adoption_and_preimage_refusal(tmp_path, monkeypatch):
     repo, root, hermes, registry, scheduler = fixture(tmp_path, monkeypatch)
-    proposal = pair.plan(repo, root, hermes)[0]
+    proposal = pair.plan(repo, root, hermes, window=scheduler.window)[0]
     receipt = {**copy.deepcopy(proposal), 'schema': 'glp44-scoped-adoption-review-v1',
                'approved_source': pair.APPROVED, 'decision': 'ACCEPT_EXACT_BYTES',
-               'reviewer': 'independent fixture',
-               'writer_and_reader_exclusion': 'isolated fixture, no concurrent callers'}
+               'reviewer': 'independent fixture'}
     before_jobs = json.loads(registry.read_text())['jobs']
     state = (root / syncer.STATE).read_bytes()
     (root / 'systems/analytics-brain/collector.py').write_bytes(b'intervening\n')
     with pytest.raises(RuntimeError, match='scoped_source_preflight_refused|reviewed_preimage'):
-        pair.adopt(repo, root, hermes, receipt, scheduler=scheduler)
+        pair.adopt(repo, root, hermes, receipt, scheduler=scheduler, window=root / 'window.json')
     assert scheduler.saves == 0
     assert (root / syncer.STATE).read_bytes() == state
     assert json.loads(registry.read_text())['jobs'] == before_jobs
@@ -126,10 +159,18 @@ def test_paired_hash_only_adoption_and_preimage_refusal(tmp_path, monkeypatch):
     changed = copy.deepcopy(receipt)
     changed['job_before']['next_run_at'] = 'moved'
     with pytest.raises(RuntimeError, match='reviewed_preimage'):
-        pair.adopt(repo, root, hermes, changed, scheduler=scheduler)
+        pair.adopt(repo, root, hermes, changed, scheduler=scheduler, window=root / 'window.json')
     assert scheduler.saves == 0
-    result = pair.adopt(repo, root, hermes, receipt, scheduler=scheduler)
+    original_sync = pair.syncer.sync
+    def preview_only(root, checkout, apply, *args):
+        assert apply is False, 'adoption must publish through the cohort switch'
+        return original_sync(root, checkout, apply, *args)
+    monkeypatch.setattr(pair.syncer, 'sync', preview_only)
+    result = pair.adopt(repo, root, hermes, receipt, scheduler=scheduler, window=root / 'window.json')
     assert result['applied'] and scheduler.saves == 1
+    assert len(scheduler.window.file_updates) == len(scheduler.window.job_updates) == 1
+    for path, expected in scheduler.window.file_updates[0][1].items():
+        assert sha(Path(path).read_bytes()) == expected
     jobs = json.loads(registry.read_text())['jobs']
     assert jobs[1] == before_jobs[1]
     assert {k: v for k, v in jobs[0].items() if k != 'script_sha256'} == {
@@ -166,3 +207,33 @@ def test_scoped_import_copies_retired_archive_without_moving_unselected_original
     # Full-mode positive control: the retirement move still removes the original.
     assert syncer.sync(root, repo, True) == 0
     assert not (root / live).exists() and (root / archive).read_bytes() == body
+
+
+@pytest.mark.parametrize('failure', ['source', 'native_save'])
+def test_scoped_adoption_rolls_back_files_when_native_save_did_not_land(tmp_path, monkeypatch, failure):
+    repo, root, hermes, registry, scheduler = fixture(tmp_path, monkeypatch)
+    proposal = pair.plan(repo, root, hermes, window=scheduler.window)[0]
+    receipt = {**proposal, 'schema': 'glp44-scoped-adoption-review-v1',
+               'approved_source': pair.APPROVED, 'decision': 'ACCEPT_EXACT_BYTES',
+               'reviewer': 'independent fixture'}
+    paths = [root / p for p in pair.PATHS] + [root / syncer.STATE, hermes / 'scripts' / pair.WRAPPER, registry]
+    before = {p: (p.read_bytes(), p.stat().st_mode & 0o777) for p in paths}
+    if failure == 'source':
+        original_switch = scheduler.window.switch_files
+        calls = []
+        def fail_after_switch(stage, before):
+            result = original_switch(stage, before)
+            calls.append(result)
+            if len(calls) == 1:
+                raise RuntimeError('fixture source write landed then raised')
+            return result
+        monkeypatch.setattr(scheduler.window, 'switch_files', fail_after_switch)
+    else:
+        def fail_save(jobs):
+            raise RuntimeError('fixture native save refused')
+        monkeypatch.setattr(scheduler, '_save_jobs_unlocked', fail_save)
+    with pytest.raises(RuntimeError, match='fixture'):
+        pair.adopt(repo, root, hermes, receipt, scheduler=scheduler, window=root / 'window.json')
+    assert {p: (p.read_bytes(), p.stat().st_mode & 0o777) for p in paths} == before
+    assert len(scheduler.window.file_updates) == 1
+    assert len(scheduler.window.job_updates) == (0 if failure == 'source' else 1)

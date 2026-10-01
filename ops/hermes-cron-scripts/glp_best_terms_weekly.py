@@ -8,7 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-MACHINE = Path("/home/ubuntu/business/scripts/affiliate_best_terms_machine.py")
+BUSINESS = Path(__file__).resolve().parents[2]
+MACHINE = BUSINESS / "scripts/affiliate_best_terms_machine.py"
 
 
 def main() -> int:
@@ -18,7 +19,7 @@ def main() -> int:
             capture_output=True,
             text=True,
             timeout=3300,
-            cwd="/home/ubuntu/business",
+            cwd=BUSINESS,
         )
     except subprocess.TimeoutExpired:
         print(

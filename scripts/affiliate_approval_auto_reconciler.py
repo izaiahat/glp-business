@@ -2012,9 +2012,13 @@ def write_coreage_decision_card(event,candidate,row_number,row,queue_receipt):
  return approval_atomic_json(directory/'COREAGE-RX-PAYOUT-DECISION.json',payload)
 
 def reconcile_campaign_cancellation(event,candidate,svc,gmail,state,dry_run):
- """Authenticated cancellation notices retract readiness through the sole writer."""
+ """A notice is not withdrawal authority; require bound provider verification."""
  auth=verify_affiliate_authentication(event,'MaxBounty')
  if auth['status']!='PASS':raise RuntimeError(auth['reason'])
+ if not event.get('provider_verification'):
+  receipt={'status':'BLOCKED','event_id':str(event['event_id']),'signal':'campaign_cancellation','disposition':'requires_provider_verification','action_completed':False,'sheet_write_count':0,'sheet_readback_verified':False,'provider_readback_verified':False,'outbound_send':False,'dry_run':dry_run}
+  path=save_receipt(event['event_id'],receipt)
+  return {'event_id':event['event_id'],'receipt':str(path),'disposition':'requires_provider_verification','changes':[]}
  values=execute_google_request(svc.spreadsheets().values().get(spreadsheetId=SHEET_ID,range=f"'{TAB}'!{EXPECTED_RANGE}",valueRenderOption='UNFORMATTED_VALUE'),'sheet_cancellation_read').get('values',[])
  if not values or pad(values[0])!=HEADERS:raise RuntimeError('canonical_sheet_header_mismatch')
  matches=[(number,pad(raw)) for number,raw in enumerate(values[1:],2) if str(pad(raw)[4])=='MaxBounty' and norm(pad(raw)[2])==norm(candidate['program_name'])]
@@ -2029,7 +2033,10 @@ def reconcile_campaign_cancellation(event,candidate,svc,gmail,state,dry_run):
   if not match:raise RuntimeError('campaign_cancellation_campaign_id_missing')
   program=match.group(1);capture.update(program_id=program,sheet_row=row_number)
   if not dry_run:approval_atomic_json(capture_path,capture)
-  evidence={'event_id':str(event['event_id']),'path':str(capture_path.relative_to(BUSINESS)),'event_at_utc':str(event['received_at']),'effective_at_network_time':candidate['effective_at_network_time']}
+  raw_path=Path(str(event['raw_path']))
+  evidence={'event_id':str(event['event_id']),'decision_class':'cancelled','path':str(raw_path.relative_to(BUSINESS)),'raw_sha256':sha_bytes(raw_path.read_bytes()),'received_at_utc':str(event['received_at']),'event_at_utc':str(event['received_at']),'provider_verification':event['provider_verification'],'effective_at_network_time':candidate['effective_at_network_time']}
+  import affiliate_program_withdrawal as withdrawal
+  withdrawal.verify({'network':'MaxBounty','program_id':program,'program_name':str(row[2]),'evidence':evidence},root=BUSINESS)
   queue_row={'update_id':f"network-cancelled-{program}-{event['event_id']}",'kind':'network_cancelled','network':'MaxBounty','program_id':program,'program_name':str(row[2]),'sheet_row':str(row_number),'evidence':json.dumps(evidence,sort_keys=True),'status':'queued','queued_by':'affiliate_approval_auto_reconciler','queued_at_utc':now(),'resolved_at_utc':'','note':f"Campaign cancellation notice {event['event_id']}; network expiry {candidate['effective_at_network_time']}; park from deployment, no reply."}
   queue_receipt=drain_single_writer_queue_row(queue_row,dry_run)
  disposition='cancelled_by_network' if row is not None else 'informational-closed'

@@ -77,7 +77,7 @@ def run_locked() -> int:
         return 1
     best_terms = run_best_terms_approval_trigger()
     if best_terms.get("rc") != 0 or best_terms.get("status") not in {
-        "PASS", "PASS_NO_NEW_APPROVALS", "PARTIAL",
+        "PASS", "PASS_NO_NEW_APPROVALS", "PASS_DUPLICATE_WINDOW", "PARTIAL",
     }:
         if not best_terms_failure_already_represented(best_terms):
             print(
@@ -86,7 +86,10 @@ def run_locked() -> int:
                 "→ Inspect the private best-terms receipt before relying on a new approval.\n"
                 "-# source: affiliate best-terms approval trigger · restricted"
             )
-        return 2
+            return 2
+        # A separately represented continuation hold is not a failed inbox read.
+        # Preserve its failure receipt/cursor and still validate the poll below;
+        # never replay or remove the best-terms collector lock here.
     if proc.returncode == 0 and payload.get("status") == "pass":
         return 0
     blocked = [row.get("mailbox_id") for row in payload.get("mailboxes", []) if row.get("status") != "pass"]
@@ -97,6 +100,7 @@ def run_locked() -> int:
         and int(payload.get("provider_mutation_count") or 0) == 0
         and int(payload.get("outbound_send_count") or 0) == 0
         and int((payload.get("dispatch") or {}).get("failed") or 0) == 0
+        and (payload.get("affiliate_sheet_queue") or {}).get("status", "pass") == "pass"
         and payload.get("secret_printed") is False
         and bool(payload.get("run_id"))
     )

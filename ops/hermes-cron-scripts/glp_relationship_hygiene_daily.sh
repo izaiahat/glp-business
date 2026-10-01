@@ -13,7 +13,7 @@ exec 9>/home/ubuntu/.hermes/state/glp-relationship-hygiene.lock
 chmod 600 /home/ubuntu/.hermes/state/glp-relationship-hygiene.lock
 flock -n 9 || exit 0
 expected_payload_sha256='a7059b8470240a0fb36cc97a539aff3653599861be70ac776361ad7f4314e189'
-expected_filter_sha256='95507fb3505cbae8e37775bcf04c628effabde640a617e9807b5ee794e6593dd'
+expected_filter_sha256='5ea9f39132b6475809d1616a09d4cb859af22ad38d0b5332047fcf4a2b155b6e'
 actual_payload="$(sha256sum scripts/glp_relationship_hygiene.py | cut -d' ' -f1)"
 actual_filter="$(sha256sum scripts/affiliate_niche_geo_filter.py | cut -d' ' -f1)"
 if [[ "$actual_payload" != "$expected_payload_sha256" || "$actual_filter" != "$expected_filter_sha256" ]]; then

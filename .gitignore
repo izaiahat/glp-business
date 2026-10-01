@@ -1,15 +1,32 @@
 # Generated from ops/rebuild-source-manifest.json: deny by default
+# GLP331 maintained producer closure (source only)
 /*
 !/.github/
 /.github/*
 !/ops/
 /ops/*
+!/ops/n8n_execution_budget.py
+!/ops/n8n_dt.py
 !/reports/
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+# GLP337 fixed shared-bridge custody (source only)
+!/scripts/shared_bridge_predecessor_migration.py
+!/tests/test_glp337_shared_bridge_migration.py
+!/ops/glp337-shared-bridge-custody.md
+!/scripts/glp331_carrier_adoption.py
+!/ops/glp331-carrier-generation.md
+!/tests/test_glp331_carrier_generation.py
+!/tests/test_glp331_dependency_generation.py
+!/tests/test_glp331_dependency_closure.py
+!/tests/test_maintenance_window_lock_contention.py
+!/tests/test_maintenance_keeper_contention.py
+!/tests/test_n8n_execution_budget.py
+!/tests/test_rook_communication.py
 !/.github/workflows/
 /.github/workflows/*
 !/tests/test_glp85_cj_reporting_identity.py
@@ -37,6 +54,8 @@
 !/scripts/hermes_state_archive/tests/
 /scripts/hermes_state_archive/tests/*
 !/.github/workflows/business-source-ci.yml
+!/.github/workflows/glp333-reporting-generation.yml
+!/tests/test_glp333_reporting_generation.py
 !/.gitignore
 !/.hermes.md
 !/AGENTS.md
@@ -333,3 +352,74 @@
 !/systems/seo-blog-machine/scripts/r2_update_carrier.py
 !/systems/seo-blog-machine/tests/test_learning_loop_actions.py
 !/systems/seo-blog-machine/tests/test_workweek_boundary.py
+!/.codex-task/
+/.codex-task/*
+!/.codex-task/RESULT.md
+!/scripts/maintenance_inventory.py
+!/scripts/maintenance_window.py
+!/scripts/glp73_sync_rebaseline.py
+!/tests/test_maintenance_inventory.py
+!/tests/test_maintenance_window.py
+!/tests/test_maintenance_adoptions.py
+
+# GLP affiliate discovery/application/terms source and offline fixtures
+!/config/
+/config/*
+!/config/affiliate-sites/
+/config/affiliate-sites/*
+!/config/affiliate-sites/best-terms-selection.json
+!/ops/affiliate_apply_gate.py
+!/scripts/affiliate_auto_apply.py
+!/scripts/glp_application_machine.py
+!/scripts/glp_application_dedupe.py
+!/scripts/glp_application_submit_child.py
+!/scripts/affiliate_monday_marketplace_receipt.py
+!/scripts/affiliate_monday_discovery_card.py
+!/scripts/affiliate_terms_fanout.py
+!/tests/test_affiliate_discovery_resume.py
+!/tests/test_affiliate_discovery_admission.py
+!/tests/test_affiliate_best_terms_recovery.py
+!/tests/test_affiliate_terms_fanout.py
+!/tests/fixtures/
+/tests/fixtures/*
+!/tests/fixtures/best_terms/
+/tests/fixtures/best_terms/*
+!/tests/fixtures/best_terms/held_xentraffic_failure.json
+!/tests/fixtures/affiliate_terms_registry_validator.mjs
+
+# Phase 0 canonical affiliate decision notices (source and offline tests only)
+!/inbox_control_plane/
+/inbox_control_plane/*
+!/inbox_control_plane/affiliate_decision_queue.py
+!/tests/test_cleanup_inbox_reader.py
+!/tests/test_cleanup_affiliate_decisions.py
+
+# GLP330 exact retained discovery predecessor; non-executable byte fixture
+!/scripts/discovery_predecessor_migration.py
+!/ops/glp330-discovery-predecessor-migration.md
+!/tests/test_discovery_predecessor_migration.py
+!/tests/fixtures/discovery_predecessor/
+/tests/fixtures/discovery_predecessor/*
+!/tests/fixtures/discovery_predecessor/088e2557.bytes
+
+# PR109 bounded admission and cohort regression coverage
+!/scripts/maintenance_admission.py
+!/scripts/maintenance_cohort.py
+!/tests/test_maintenance_restoration_review.py
+!/tests/test_maintenance_admission_review.py
+!/tests/test_maintenance_native_admission.py
+!/tests/test_maintenance_cohort_recovery.py
+!/tests/test_adoption_cache_restore.py
+!/tests/test_glp73_sync_rebaseline.py
+
+# GLP-80 registered therapeutic producer correction (offline, exact head)
+!/tests/test_glp80_taxonomy_correction.py
+!/.github/workflows/glp80-taxonomy-unblock.yml
+
+# GLP331 existing producer closure
+!/scripts/fleet_pin_release.py
+!/scripts/wrapper_pin_sync.py
+!/tests/test_fleet_pin_release.py
+!/tests/test_glp331_carrier_closure.py
+!/ops/glp331-carrier-closure.md
+!/.github/workflows/glp331-carrier-closure.yml

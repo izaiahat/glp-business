@@ -6,7 +6,7 @@ from pathlib import Path
 import hashlib
 import subprocess
 import sys
-PINS = {'/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py': 'd6cd1bd502ce602c6ff7655200a0191a37a95fd06d6b3688ff87134386ee408e', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py': 'd51b9ea03eddfd72641a4cd79e04d6b76e114e80c645ba6f866a7ca29705d1d1', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json': '62bfd7a9fffdae836ace33f6148e3225aa5ebe1be6853e4c0e59d717a402c5dc', '/home/ubuntu/business/scripts/result_contract.py': 'fca32b1a7b8b7cacb4d1dcf2be5f11b5c450d3d9db450cf730d9bc01c65519f1', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/briefs/plan/A3-CAMPAIGNS-THREE-PLATFORMS.md': 'f5d5343f649080b5f949f44d44c726e7102eb81ccb2e65972dcc7fab98e506eb'}
+PINS = {'/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py': 'd6cd1bd502ce602c6ff7655200a0191a37a95fd06d6b3688ff87134386ee408e', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py': '05bda1aa7f23fc2dca94d35bbcf65276b8bd1e743a9c0e4eb21445867f306653', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json': '705e4128cccf2730d8a0d3c75412278975641350b7c3c6c17b0541b5dc0b0cad', '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A3/RESULT.json': '257339ab71e99ebbf845b56b6e1414d2baef8ec9ee7eb014eaf555f5cff8ce94'}
 def main():
     for path, expected in PINS.items():
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != expected:
