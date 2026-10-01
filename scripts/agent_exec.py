@@ -45,13 +45,19 @@ def codex_route(argv: list[str], task: dict) -> tuple[list[str], dict | None]:
             key, separator, raw = value.partition("=")
             if not separator:
                 raise ValueError("Codex config overrides require key=value")
+            key = key.strip()
             try:
-                config[key.strip()] = tomllib.loads("value=" + raw)["value"]
+                value = tomllib.loads("value=" + raw)["value"]
             except tomllib.TOMLDecodeError:
                 # Codex accepts unquoted strings when TOML value parsing fails.
-                config[key.strip()] = raw
+                value = raw
         else:
-            config["model"] = value
+            key = "model"
+        # Codex ranks -m over -c model=; differing values would make the receipt
+        # name a model other than the one the retained options select.
+        if key == "model" and config.get("model", value) != value:
+            raise ValueError("conflicting explicit model values")
+        config[key] = value
         i += 1
     for key, value in (("model", config.get("model")),
                        ("reasoning_effort", config.get("model_reasoning_effort")),

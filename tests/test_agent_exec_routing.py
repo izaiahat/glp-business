@@ -93,3 +93,39 @@ def test_codex_native_bare_config_values(tmp_path, monkeypatch):
         command = ["codex", "exec", "-c", f"model_reasoning_effort={value}", "offline"]
         assert module.codex_route(command, {}) == (command, None)
         assert seen[-1]["reasoning_effort"] == "high"
+
+
+def test_conflicting_explicit_codex_models_refused_before_receipt(tmp_path, monkeypatch):
+    admission = types.ModuleType("tools.delegation_admission")
+    setattr(admission, "admission_problem", lambda: None)
+    setattr(admission, "try_reserve_host_children", lambda n: ([object()], 0, 8))
+    policy = types.ModuleType("tools.delegate_tool_config")
+    setattr(policy, "resolve_worker_route", lambda route, **kwargs: dict(
+        provider="openai-codex", model=route.get("model", "gpt-6.1-sol"),
+        reasoning_effort=route.get("reasoning_effort", "high"), speed=route.get("speed", "standard")))
+    monkeypatch.setitem(sys.modules, "tools.delegation_admission", admission)
+    monkeypatch.setitem(sys.modules, "tools.delegate_tool_config", policy)
+    spec = importlib.util.spec_from_file_location("agent_exec_model_conflict", Path(__file__).parents[1] / "scripts/agent_exec.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    (tmp_path / "models_cache.json").write_text(json.dumps({"models": [
+        {"slug": name, "supported_reasoning_levels": [{"reasoning_effort": "high"}], "service_tiers": []}
+        for name in ("gpt-6.1-sol", "gpt-6-astra-900k")]}))
+    # Codex gives -m/--model precedence over -c model=, so a last-value-wins
+    # receipt would name Sol while the retained -m selects Astra.
+    for options in ((["-m", "gpt-6-astra-900k", "-c", 'model="gpt-6.1-sol"']),
+                    (["-c", "model=gpt-6.1-sol", "--model=gpt-6-astra-900k"]),
+                    (["--config=model=gpt-6-astra-900k", "--config", 'model="gpt-6.1-sol"']),
+                    (["--model", "gpt-6.1-sol", "-m", "gpt-6-astra-900k"])):
+        with pytest.raises(ValueError, match="conflicting explicit model"):
+            module.codex_route(["codex", "exec", *options, "offline"], {})
+    for options in ((["-m", "gpt-6-astra-900k", "-c", 'model="gpt-6-astra-900k"']),
+                    (["--model=gpt-6-astra-900k", "--config=model=gpt-6-astra-900k"])):
+        command, receipt = module.codex_route(["codex", "exec", *options, "offline"], {})
+        assert receipt["resolved"]["model"] == receipt["client_options"]["model"] == "gpt-6-astra-900k"
+        assert command[-1] == "offline"
+    # Prompt text after -- is never parsed as routing options.
+    command, receipt = module.codex_route(["codex", "exec", "-m", "gpt-6-astra-900k", "--", "-c", "model=gpt-6.1-sol"], {})
+    assert receipt["resolved"]["model"] == "gpt-6-astra-900k" and command[-3:] == ["--", "-c", "model=gpt-6.1-sol"]
