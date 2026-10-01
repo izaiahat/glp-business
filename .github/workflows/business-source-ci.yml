@@ -34,6 +34,24 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: Affiliate co-pin exact-head regressions (no effectful wrappers)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_cleanup_affiliate_copins.py
+      - name: MaxBounty live artifact exact-head capture regressions (offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py
+      - name: Daily source drift exact-head fixtures (no job execution)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_scheduled_source_drift.py
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

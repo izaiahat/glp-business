@@ -19,7 +19,11 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Any
+
+sys.path.insert(0, '/home/ubuntu/business/scripts')
+import scheduled_source_drift
 
 sys.path.insert(0, '/home/ubuntu/business/ops')
 from discord_fmt import (
@@ -895,12 +899,28 @@ def primary_issue_per_job(issues: list[Issue]) -> list[Issue]:
 
 
 
+def collect_daily_source_drift(state, now):
+    """First existing health tick after 08:00 PT; no new schedule or agent."""
+    if not scheduled_source_drift.daily_due(state, now):
+        return None
+    try:
+        result = scheduled_source_drift.live_audit()
+    except Exception:
+        result = {'status': 'UNKNOWN', 'counts': {'script_drift': 0,
+                  'scheduler_drift': 0, 'payload_drift': 0, 'unknown': 1},
+                  'findings': [{'kind': 'unknown', 'reason': 'drift_check_failed'}]}
+    state['last_source_drift_day'] = now.astimezone(ZoneInfo('America/Los_Angeles')).date().isoformat()
+    state['last_source_drift'] = result
+    return result
+
+
 def run(dry_run: bool, force_report: bool, verbose: bool) -> int:
     now = utc_now()
     policy = load_yaml(POLICY_PATH, {})
     side_policy = load_yaml(SIDE_EFFECT_PATH, {})
     regmap = build_registry_map()
     state = load_json(STATE_PATH, {"version": 1, "incidents": {}})
+    source_drift = collect_daily_source_drift(state, now)
     jobs = job_list()
     defaults = policy.get("defaults", {}) if isinstance(policy, dict) else {}
     max_files = int(defaults.get("max_output_files_per_job", 3))
@@ -988,9 +1008,13 @@ def run(dry_run: bool, force_report: bool, verbose: bool) -> int:
     if not dry_run:
         save_json(STATE_PATH, state)
         append_ledger({"ts": iso(now), "event": "scheduled_job_health_check", "job_count": len(jobs), "issue_count": len(issues), "alert_count": len(alertable), "red_alert_count": len(red_alert_receipts), "dry_run": dry_run})
-    if dry_run or force_report or alertable:
+    if dry_run or force_report or alertable or source_drift is not None:
         report_path = write_full_report(alertable if alertable else issues, dry_run=dry_run)
         msg = render_report(alertable if alertable else issues, dry_run=dry_run, report_path=report_path)
+        if source_drift is not None:
+            # Drift is daily report-only evidence, never a rerun or immediate RED alert.
+            save_json(report_path.parent / 'source-drift.json', source_drift)
+            msg += '\n\n' + scheduled_source_drift.render_summary(source_drift)
         print(msg)
     elif verbose:
         print(json.dumps({"status": "healthy_or_deduped", "job_count": len(jobs), "issue_count": len(issues), "alert_count": len(alertable)}, indent=2))

@@ -33,6 +33,7 @@ def machine(monkeypatch, tmp_path):
     module.offline_test_original_sheet_offers = module.sheet_offers
     module.offline_test_original_inventory_programs = module.inventory_programs
     monkeypatch.setattr(module, 'sheet_offers', lambda _: [])
+    module.offline_test_original_application_ledger_offers = module.application_ledger_offers
     monkeypatch.setattr(module, 'application_ledger_offers', lambda: [])
     monkeypatch.setattr(module, 'inventory_programs', lambda _: [])
     module.offline_test_original_performance_loader = module.load_performance_rows
@@ -162,3 +163,65 @@ def test_review_r1_real_machine_excludes_held_rail_by_exact_id(
     selected = machine.selection_with_offers([live, {**live, **adverse}, sibling], [])
     winners = [p['selected_winner'] for p in selected['providers'] if p['selected_winner']]
     assert len(winners) == 1 and winners[0]['program_id'] == '123'
+
+
+@pytest.mark.parametrize('field,value', [
+    pytest.param('offer_status', 'suppressed', id='offer_status_suppressed'),
+    pytest.param('network_status', 'held', id='network_status_held'),
+    pytest.param('held', True, id='held_true'),
+    pytest.param('suppressed', True, id='suppressed_true'),
+])
+def test_review_rr1_ledger_adverse_evidence_blocks_stale_sheet_alias(
+        machine, monkeypatch, tmp_path, field, value):
+    """Keep the actual ledger -> Sheet merge -> run_machine selection path."""
+    import socket
+
+    def denied(*args, **kwargs):
+        pytest.fail('live transport or effect attempted')
+
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    monkeypatch.setattr(socket, 'create_connection', denied)
+    monkeypatch.setattr(machine, 'run_supply_census', denied)
+    monkeypatch.setattr(machine, 'run_xentraffic_census', denied)
+    monkeypatch.setattr(machine, 'send_discord', denied)
+    monkeypatch.setattr(machine, 'BUSINESS', tmp_path)
+    monkeypatch.setattr(machine, 'PAYOUT_MATRIX', tmp_path / 'prior-payout.json')
+    ledger = tmp_path / 'reports/glp-clinic-scout/affiliate-machine/applications-ledger.json'
+    ledger.parent.mkdir(parents=True)
+    raw = {'network': 'Impact Radius', 'program_id': '00073',
+           'name': 'Other Ledger Label', 'current_relationship': 'approved',
+           'status': 'submitted', field: value}
+    ledger.write_text(json.dumps({'applications': [raw]}))
+    census = tmp_path / 'census'
+    census.mkdir()
+    (census / '_sweep-summary.json').write_text(json.dumps({'networks': {}}))
+    row = [''] * 27
+    row[2], row[4], row[10] = 'Safe Sheet Alias', 'IMPACT.COM', 'approved_active'
+    row[16], row[19], row[20] = '$37 per qualified lead', True, True
+    row[23] = 'provider_program_id=00073'
+    monkeypatch.setattr(machine, 'read_live_sheet', lambda: [machine.sheet_writer.HEADERS, row])
+    monkeypatch.setattr(machine, 'sheet_offers', machine.offline_test_original_sheet_offers)
+    monkeypatch.setattr(machine, 'application_ledger_offers', machine.offline_test_original_application_ledger_offers)
+    monkeypatch.setattr(machine, 'inventory_programs', machine.offline_test_original_inventory_programs)
+
+    result = machine.run_machine(first_run=False, approval_events=False, stage=False, census_dir=census)
+    matrix = json.loads(machine.LATEST_MATRIX.read_text())
+    assert not any(p.get('selected_winner') for p in matrix['providers'])
+    assert {(r['provider_name'], r['network'], r['program_id'], r['reason'])
+            for r in matrix['excluded_offers']} == {
+                (label, 'impact', '00073', 'source_hold_or_suppression')
+                for label in ('Other Ledger Label', 'Safe Sheet Alias')}
+    assert result['sheet_queue']['queued'] == 0
+    assert all(v == 0 for v in result['effects'].values())
+
+    normalized = machine.application_ledger_offers()[0]
+    assert normalized[field] == value
+    assert normalized['source_exclusion_reason'] == 'source_hold_or_suppression'
+    assert normalized['headline_payout'] is None  # Unknown is not zero.
+    live = machine.sheet_offers([machine.sheet_writer.HEADERS, row])[0]
+    sibling = {**live, 'program_id': '73'}  # Opaque leading zeros remain distinct.
+    for records in ([live, normalized], [normalized, live]):
+        for offers in (records, machine.merge_offers(records)):
+            selected = machine.selection_with_offers([*offers, sibling], [])
+            winners = [p['selected_winner'] for p in selected['providers'] if p['selected_winner']]
+            assert [w['program_id'] for w in winners] == ['73']

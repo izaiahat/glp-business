@@ -687,6 +687,13 @@ def application_ledger_offers() -> list[dict[str, Any]]:
             "payout_parse_basis": "application_ledger_has_no_payout",
             "currency": "USD",
             "relationship": relationship,
+            # Ledger holds are independent of commercial/source precedence.
+            # Preserve them before a stale Sheet alias of this exact rail merges.
+            "offer_status": raw.get("offer_status"),
+            "network_status": raw.get("network_status"),
+            "held": raw.get("held"),
+            "suppressed": raw.get("suppressed"),
+            "source_exclusion_reason": offer_exclusion_reason(raw),
             "wire_in_ready": False,
             "wired_live": False,
             "tracking_link_present": False,
