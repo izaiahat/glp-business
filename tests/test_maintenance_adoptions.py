@@ -104,6 +104,10 @@ def test_glp44_preview_retains_original_schedule_and_exact_paused_job(tmp_path, 
     registry = hermes / 'cron/jobs.json'
     registry.parent.mkdir()
     registry.write_text(json.dumps({'jobs': [paused]}))
+    # This schedule-only unit fixture already stubs Git/importer admission;
+    # immutable-tree staging is exercised by the real-repository regression.
+    from contextlib import nullcontext
+    monkeypatch.setattr(glp44, 'candidate_checkout', lambda *a: nullcontext(checkout))
     monkeypatch.setattr(glp44.subprocess, 'run', lambda *a, **k: None)
     monkeypatch.setattr(glp44.subprocess, 'check_output', lambda command: (checkout / command[-1].split(':', 1)[1]).read_bytes())
     monkeypatch.setattr(glp44.syncer, 'sync', lambda *a: 0)

@@ -6,6 +6,7 @@ active maintenance window. A preview is read-only, not an apply authorization.
 """
 import argparse
 import copy
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
@@ -13,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 import sync_from_repo as syncer
 from maxbounty_pin_release import read_regular, preserve_custody
@@ -86,7 +88,37 @@ def job_record(registry):
     return hits[0], document['jobs']
 
 
+@contextmanager
+def candidate_checkout(checkout, generation):
+    """Materialize PR71's immutable tree without moving the caller's checkout.
+
+    Keep the frozen caller HEAD for reviewed_prior_hashes: retained predecessor
+    curation can postdate PR71. The index/files/global manifest are all APPROVED,
+    so the unchanged scoped importer still validates a complete committed tree.
+    PR119 retains its reviewed-current-head producer and source checks.
+    """
+    approved, _ = generation_contract(generation)
+    checkout = checkout.resolve(strict=True)
+    if generation != 'pr71':
+        yield checkout
+        return
+    head = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip()
+    subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', approved, head], check=True)
+    with tempfile.TemporaryDirectory(prefix='glp44-pr71-candidate-') as temp:
+        candidate = Path(temp) / 'repo'
+        subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(checkout), str(candidate)], check=True)
+        subprocess.run(['git', '-C', str(candidate), 'update-ref', 'HEAD', head], check=True)
+        subprocess.run(['git', '-C', str(candidate), 'read-tree', approved], check=True)
+        subprocess.run(['git', '-C', str(candidate), 'checkout-index', '--all'], check=True)
+        yield candidate
+
+
 def plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'):
+    with candidate_checkout(checkout, generation) as candidate:
+        return _plan(candidate, root, hermes, review, window=window, generation=generation)
+
+
+def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'):
     approved, paths = generation_contract(generation)
     successor = generation == PR119_GENERATION
     checkout = checkout.resolve(strict=True)
@@ -209,9 +241,15 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation=
 
 
 def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71'):
+    with candidate_checkout(checkout, generation) as candidate:
+        return _adopt_candidate_in_window(candidate, root, hermes, review, scheduler=scheduler,
+                                          window=window, generation=generation)
+
+
+def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71'):
     approved, paths = generation_contract(generation)
     successor = generation == PR119_GENERATION
-    proposal, adopted, before, state, wrapper_before, registry = plan(checkout, root, hermes, review, window=window, generation=generation)
+    proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
     wrapper = hermes / 'scripts' / WRAPPER
@@ -225,7 +263,7 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             # Revalidate every source, baseline, wrapper and full job under the lock.
-            fresh, _, _, _, _, _ = plan(checkout, root, hermes, review, window=window, generation=generation)
+            fresh, _, _, _, _, _ = _plan(checkout, root, hermes, review, window=window, generation=generation)
             if fresh != proposal:
                 raise RuntimeError('preimage_moved_under_lock')
             registry_before = registry.read_bytes()
@@ -246,7 +284,7 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
             if any(observed(path) != value for path, value in original.items()) or registry.read_bytes() != registry_before:
                 raise RuntimeError('preimage_moved_after_custody')
             if successor:
-                plan(checkout, root, hermes, review, window=window, generation=generation)
+                _plan(checkout, root, hermes, review, window=window, generation=generation)
             window.accept_file_updates(
                 {str(path.resolve()): digest(original[path][0]) for path in stage},
                 {str(path.resolve()): digest(body) for path, body in stage.items()},
