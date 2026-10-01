@@ -12,6 +12,7 @@
 /scripts/*
 !/tests/
 /tests/*
+!/tests/test_maintenance_window_lock_contention.py
 !/tests/test_n8n_execution_budget.py
 !/tests/test_rook_communication.py
 !/.github/workflows/
