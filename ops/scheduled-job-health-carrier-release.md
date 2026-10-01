@@ -2,6 +2,73 @@
 
 This is source/CI delivery, not independent acceptance, merge permission or a live adoption receipt. The producer is `scripts/scheduled_job_health_carrier_release.py`, registered for `/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py` and **only** `b86ec8937c20.script_sha256` in the existing scheduler registry. No new job, schedule, profile, agent, sends, reruns, repins of other jobs, gateway or Rook restart.
 
+## Maintenance seam: blocked, not a supported release mode
+
+The operational PR112 producer refusal is reproduced by
+`test_paused_record_deadlock_refuses_even_matching_independent_receipt` for both
+preview and apply. An ordinary paused record, even with an unchanged schedule and
+matching independent receipt, refuses before custody, output writes or the saver.
+This regression preserves exclusion requirements; it does **not** implement the
+requested maintenance release. Do not execute the installation steps below until
+a supported admission contract exists. Source/CI review is not that contract.
+
+Accepted PR109 dependency inspected: `c400ca1363c0074af53618ba9722b23c85e728f5`.
+Its separate integration owner retains ownership of all maintenance helpers.
+No changes to that branch/helpers, no merge, and no live maintenance are authorized
+by this F09 source-only work. Keep the main merge hold during PR109 integration.
+
+The existing primitives are not an F09 target-specific capability:
+
+- `maintenance_inventory.affected_paths()` reads only the GLP44/73 declarations;
+  F09's carrier and five inputs are not declared as an exact F09 scope.
+  `ActiveWindow.accept_file_updates()` enforces that same allowlist.
+- `maintenance_window.control_tools()` recognizes only its existing GLP44/73
+  controllers, not the F09 producer or scoped importer. `require_active_window()`
+  has no reviewed target/source-scope argument.
+- `maintenance_cohort.switch_files()` seals only during replacement, then restores
+  source modes before returning. It is not a continuous fence during refreshed
+  preview, independent acceptance, apply, native save and final readback.
+  `process_readers()` and `native_runs()` provide drain evidence, not first-read or
+  source-writer admission. The existing F09 direct entry/import and importer do
+  not participate in the GLP44 reader lock.
+- `ActiveWindow.original_job()` reconstructs controls from the journal onto the
+  *current* record; it does not authenticate an immutable original full-record
+  preimage. Restoration preserves control-field presence, but permits other
+  runtime fields to evolve. That is insufficient for F09's exact original-record
+  contract even if normal schedule restoration is supported for PR109's scope.
+
+### Minimal missing owner API (requirements, not executable commands)
+
+The maintenance owner must extend the existing implementation, not add a daemon:
+
+1. A reviewed **target-scoped lease** accepted by the existing active-window API,
+   binding F09 job `b86ec8937c20`, the external carrier, the exact five `SOURCES`,
+   source/producer heads, immutable controller/importer identities and the
+   admitted-caller closure. The lease must close admission before first reads and
+   drain admitted/queued executions; an idle snapshot or assertion cannot mint it.
+2. An existing-cohort **hold/read/switch/release** lifecycle that excludes direct
+   CLI/imported `run()` readers and overlapping scoped-import writers continuously
+   through preview, reviewer handoff, apply, native saver and exact readback. It
+   must provide authenticated source reads to the controller while held and must
+   not reopen sources when `switch_files()` returns. The real launcher/importer
+   boundaries need owner-installed enforcement before their first hash/import;
+   producer-only checks cannot fence nonparticipating entrypoints or old residents.
+3. An immutable **full original job capsule**, exact held-record CAS, and native
+   hash-only save/restoration operation: restore the entire original record,
+   including optional-field absence, scheduling cursor and runtime fields, with
+   only the independently accepted `script_sha256` changed. Keep claims/drain,
+   receipt/CAS/custody, native-saver uncertainty and no-replay reconciliation intact;
+   do not use generic pause/resume or normalization to recreate the schedule.
+
+Only after those APIs are reviewed/integrated may this producer explicitly depend
+on them. A receipt must bind the lease and original capsule; the original record
+may satisfy the enabled/scheduled identity gate only under that authenticated
+lease. A plain `enabled=False` exception, reconstructed expected job, forged
+ACTIVE journal, same-UID cooperation assertion or producer-local flock is not a
+substitute. The F09 owner stops before editing these shared APIs and returns this
+exact dependency to the parent/maintenance owner. No deployable proposal or live
+acceptance is emitted by this change.
+
 ## Transport source provenance (GLP-337/338)
 
 `ops/n8n_dt.py` is admitted alone, byte-for-byte from the existing host predecessor `/home/ubuntu/business/ops/n8n_dt.py`; SHA256 `3c029b4441de0928dca4294077c9a351b4c3b17d50969cc3b4ee84ffbce5569c`, observed permission mode `0644`. It was previously absent from curated main `692175a493c3465cf9e7798c3960924d71d7eed4`. No transport rewrite, credentials, environment files, state or broad ops-tree admission accompanies this source preservation. The budget's `health_check(get=None)` imports `_native_http` from this module before its cache/state path; it therefore requires the authentic transport even on a cached tick. That module imports only Python standard-library modules; no additional project module is required for this new branch. Existing manager transports remain unchanged and separately held.

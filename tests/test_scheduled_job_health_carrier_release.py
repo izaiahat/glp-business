@@ -145,6 +145,40 @@ def test_combined_dependency_preview_refuses_unbound_bytes(tmp_path, monkeypatch
                for payload in row['payloads'])
 
 
+@pytest.mark.parametrize('apply', [False, True])
+def test_paused_record_deadlock_refuses_even_matching_independent_receipt(tmp_path, monkeypatch, apply):
+    """Ordinary pause is not authenticated maintenance; never relax this gate.
+
+    Reproduce the PR112 operational refusal through the maintained release path.
+    A future supported window must authenticate the original full record, not
+    merely accept enabled=False, or trust a matching receipt/idle observation.
+    """
+    f = fixture(tmp_path)
+    p, repo, business, hermes, scheduler, receipt, review = f
+    accept(f)
+    registry = hermes/'cron/jobs.json'
+    doc = json.loads(registry.read_bytes())
+    job = doc['jobs'][0]
+    job.update(enabled=False, state='paused', paused_at='2026-10-01T05:00:00Z',
+               paused_reason='fixture maintenance; not an admission fence')
+    # Schedule is unchanged and even the independent receipt matches the pause.
+    review['expected_job'] = copy.deepcopy(job)
+    registry.write_text(json.dumps(doc))
+    receipt.write_text(json.dumps(review))
+    targets = (hermes/'scripts'/p.CARRIER, registry)
+    before = {path:(path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_mode)
+              for path in targets}
+    monkeypatch.setattr(p, 'preserve_custody', lambda *a:pytest.fail('paused refusal made custody'))
+    monkeypatch.setattr(p, 'atomic_write', lambda *a:pytest.fail('paused refusal wrote output'))
+    monkeypatch.setattr(scheduler, '_save_jobs_unlocked', lambda *a:pytest.fail('paused refusal saved'))
+    with pytest.raises(RuntimeError, match='^registration_identity_schedule_or_claim$'):
+        p.release(receipt, repo, business=business, hermes=hermes,
+                  apply=apply, scheduler=scheduler)
+    assert before == {path:(path.read_bytes(), path.stat().st_mtime_ns, path.stat().st_mode)
+                      for path in targets}
+    assert not (business/'reports').exists()
+
+
 def test_preview_and_apply_only_carrier_and_target_hash_with_custody(tmp_path):
     f=fixture(tmp_path)
     p, repo, business, hermes, scheduler, receipt, review=f

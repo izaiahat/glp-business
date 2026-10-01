@@ -2989,7 +2989,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "7e331ae6de1ecf344ab99d2f4e73a00943dc52928ca0fadab63433b696701776"
+      "sha256": "408e778b46e010636ed9c934392869a375268de31e9ae7255a93a8b33922f7a8"
     },
     "tests/fixtures/scheduled_source_drift_crontab_row.json": {
       "callers": [
@@ -3003,7 +3003,7 @@
         "ops/scheduled-source-drift.md"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a96527c0932a6db98846aca424b8253a5cba3bdfad3fd396ba3ca18353c257cd"
+      "sha256": "104ec5491eb7471c3c8b367b629b8c98da86097e8ef329f04d0f6f1fa1416ee7"
     },
     "ops/n8n_dt.py": {
       "callers": [
