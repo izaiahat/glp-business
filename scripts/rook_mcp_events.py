@@ -130,7 +130,9 @@ DISCORD_API_TOOL['description'] = (
     'and exact /users/@me or /applications/@me (GET/PATCH). No other guild, DM, other-user, '
     'gateway, webhook-by-token, OAuth2 or interaction routes. Cannot delete/leave the guild; '
     'kick, ban, timeout, change roles/nickname of Izaiah or Kael; delete #rook or ops-alerts '
-    'or change their permission overwrites; edit/delete Kael messages (including bulk deletion). '
+    'or change their permission overwrites (including their current parent categories); '
+    'integration mutations and guild prune writes are refused; '
+    'edit/delete Kael messages (including bulk deletion). '
     'Message POSTs default to user-only mentions and no reply ping unless json.allowed_mentions is explicit. '
     'Supply a stable 16-64 character operation_id: writes are reserved durably, replay saved '
     'status/IDs/digest without resending, and never retry uncertain outcomes, even with a changed ID. '
@@ -336,6 +338,13 @@ def discord_api_route(method, path, payload):
                           and payload and all(isinstance(item, dict) for item in payload)):
         raise RpcError(-32602, 'InvalidChannelPositions')
     if parts[:2] == ['guilds', GUILD]:
+        # Integration deletion kicks its bot; sync/expiry can also remove roles/members.
+        # No integration mutation can establish protected-member safety here.
+        if parts[2:3] == ['integrations'] and method != 'GET':
+            raise RpcError(-32602, 'IntegrationMutationDenied')
+        # Pruning has no per-member exclusion or documented protected-bot guarantee.
+        if parts[2:3] == ['prune'] and method != 'GET':
+            raise RpcError(-32602, 'GuildPruneDenied')
         if method == 'PATCH' and len(parts) == 2 and 'owner_id' in payload:
             raise RpcError(-32602, 'GuildOwnershipTransferDenied')
         if parts[2:] == ['mfa'] and method != 'GET':
@@ -436,10 +445,30 @@ def verify_discord_api_references(payload, checked):
             verify_discord_api_references(value, checked)
 
 
+def verify_discord_api_protected_parents(channel):
+    """Category overwrites propagate to synced children; inspect both current parents."""
+    parents = set()
+    for identity in sorted(PROTECTED_CHANNELS):
+        try:
+            value = discord_request('GET', '/channels/' + identity)
+            if (not isinstance(value, dict) or value.get('id') != identity
+                    or value.get('guild_id') != GUILD or 'parent_id' not in value):
+                raise ValueError('unverified protected channel')
+            if value['parent_id'] is not None:
+                parents.add(snowflake(value['parent_id']))
+        except Exception:
+            raise RpcError(-32602, 'ProtectedChannelParentUnverifiable') from None
+    if channel in parents:
+        raise RpcError(-32602, 'ProtectedChannelParentActionDenied')
+
+
 def verify_discord_api_context(method, parts, payload):
     checked = set()
     if parts[0] == 'channels':
         verify_discord_api_channel(parts[1], checked, set())
+        if ((parts[2:3] == ['permissions'] and method != 'GET')
+                or (len(parts) == 2 and method == 'PATCH' and 'permission_overwrites' in payload)):
+            verify_discord_api_protected_parents(parts[1])
     verify_discord_api_references(payload, checked)
     if isinstance(payload, list):
         for item in payload:

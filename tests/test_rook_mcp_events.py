@@ -61,8 +61,8 @@ class TestDiscordAPI:
             '202': {'id': '202', 'guild_id': '999', 'type': 0},
             '203': {'id': '203', 'type': 1},
             '204': {'id': '204', 'guild_id': m.GUILD, 'type': 11, 'parent_id': '201'},
-            m.CHANNEL: {'id': m.CHANNEL, 'guild_id': m.GUILD, 'type': 0},
-            '1487300132054765629': {'id': '1487300132054765629', 'guild_id': m.GUILD, 'type': 0},
+            m.CHANNEL: {'id': m.CHANNEL, 'guild_id': m.GUILD, 'type': 0, 'parent_id': None},
+            '1487300132054765629': {'id': '1487300132054765629', 'guild_id': m.GUILD, 'type': 0, 'parent_id': None},
         }
         self.transport = m.discord_request
         monkeypatch.setattr(m, 'discord_request', self.peer)
@@ -94,6 +94,129 @@ class TestDiscordAPI:
 
     def effects(self):
         return [call for call in self.calls if call[3].get('guild_scoped') and call[0] != 'GET']
+
+    def review3_http(self, monkeypatch, invalid_channel=None, invalid_value=None, fail=False):
+        """Keep discord_request and its route validators real; fake only HTTP/credentials."""
+        m = self.m
+        sent = []
+        class Connection:
+            def __init__(self, host, address):
+                assert (host, address) == ('discord.com', '8.8.8.8')
+            def request(_, method, path, body=None, headers=None):
+                assert headers['Authorization'] == 'Bot synthetic-test-only'
+                sent.append((method, path, body))
+                route = path.removeprefix('/api/v10')
+                if method == 'GET' and route.startswith('/channels/'):
+                    identity = route.split('/')[2]
+                    if identity == invalid_channel:
+                        if fail:
+                            raise OSError('synthetic lookup failure')
+                        _.value = invalid_value
+                    else:
+                        _.value = deepcopy(self.channels[identity])
+                else:
+                    _.value = deepcopy(self.response)
+            def getresponse(_):
+                data = json.dumps(_.value).encode()
+                return type('Response', (), {'status': 200, 'read': lambda _, maximum: data[:maximum]})()
+            def close(_): pass
+        monkeypatch.setattr(m, 'callback_target', lambda *a: ('discord.com', '8.8.8.8', '/'))
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        monkeypatch.setattr(m, 'load_rook_token', lambda: 'synthetic-test-only')
+        monkeypatch.setattr(m, 'discord_request', self.transport)
+        return sent
+
+    @pytest.mark.parametrize('method,suffix,body', [
+        ('DELETE', '/integrations/501', {}),
+        ('DELETE', '/%69ntegrations/%35%30%31', {}),
+        ('PATCH', '/integrations/501', {'expire_behavior': 1}),
+        ('POST', '/integrations/501/sync', {}),
+        ('POST', '/prune', {'days': 1, 'include_roles': ['701']}),
+        ('POST', '/%70rune', {}),
+    ])
+    def test_review3_indirect_member_removal_real_transport(self, monkeypatch, method, suffix, body):
+        sent = self.review3_http(monkeypatch)
+        result = self.call(self.args(method, f'/guilds/{self.m.GUILD}' + suffix, json=body))
+        assert result['isError'], result
+        assert ('IntegrationMutationDenied' if 'prune' not in suffix and '%70rune' not in suffix
+                else 'GuildPruneDenied') in result['content'][0]['text']
+        assert not sent and not self.app.store.all('operations')
+
+    @pytest.mark.parametrize('suffix', ['/integrations', '/prune?days=7&include_roles=701'])
+    def test_review3_indirect_member_previews_remain_allowed(self, monkeypatch, suffix):
+        sent = self.review3_http(monkeypatch)
+        assert not self.call(self.args('GET', f'/guilds/{self.m.GUILD}' + suffix))['isError']
+        assert len(sent) == 1 and sent[0][0] == 'GET'
+
+    @pytest.mark.parametrize('path', [
+        '/applications/501/role-connections/metadata',
+        '/users/@me/applications/501/role-connection',
+        '/applications/501/guilds/1486887661099815126/commands/601/permissions',
+        '/applications/@me/guilds/1486887661099815126/commands/601/permissions',
+    ])
+    def test_review3_role_connection_and_command_permissions_scope(self, monkeypatch, path):
+        sent = self.review3_http(monkeypatch)
+        result = self.call(self.args('PUT', path, json={'permissions': []}))
+        assert result['isError'] and 'DiscordScopeDenied' in result['content'][0]['text']
+        assert not sent and not self.app.store.all('operations')
+
+    @pytest.mark.parametrize('protected', ['1554668115239899196', '1487300132054765629'])
+    @pytest.mark.parametrize('method,suffix,body', [
+        ('PUT', '/permissions/555', {'allow': '8', 'deny': '0', 'type': 0}),
+        ('DELETE', '/permissions/555', {}),
+        ('PATCH', '', {'permission_overwrites': []}),
+    ])
+    def test_review3_parent_category_overwrites_real_transport(self, monkeypatch, protected, method, suffix, body):
+        self.channels['201']['type'] = 4
+        for identity in self.m.PROTECTED_CHANNELS:
+            self.channels[identity]['parent_id'] = '201' if identity == protected else None
+        sent = self.review3_http(monkeypatch)
+        # Encoded target must compare against canonical parent IDs.
+        result = self.call(self.args(method, '/channels/%32%30%31' + suffix, json=body))
+        assert result['isError'] and 'ProtectedChannelParentActionDenied' in result['content'][0]['text']
+        assert not [s for s in sent if s[0] != 'GET']
+        assert ('GET', '/api/v10/channels/' + protected, None) in sent
+
+    @pytest.mark.parametrize('protected', ['1554668115239899196', '1487300132054765629'])
+    @pytest.mark.parametrize('invalid', ['failure', 'null', 'missing', 'id', 'guild', 'parent', 'leading_zero'])
+    def test_review3_parent_lookup_fails_closed_real_transport(self, monkeypatch, protected, invalid):
+        for identity in self.m.PROTECTED_CHANNELS:
+            self.channels[identity]['parent_id'] = None
+        value = deepcopy(self.channels[protected])
+        if invalid == 'null': value = None
+        elif invalid == 'missing': value.pop('parent_id')
+        elif invalid == 'id': value['id'] = '999'
+        elif invalid == 'guild': value['guild_id'] = '999'
+        elif invalid == 'parent': value['parent_id'] = 201
+        elif invalid == 'leading_zero': value['parent_id'] = '0201'
+        sent = self.review3_http(monkeypatch, protected, value, fail=invalid == 'failure')
+        result = self.call(self.args('PUT', '/channels/201/permissions/555', json={'deny': '1024', 'type': 0}))
+        assert result['isError'] and 'ProtectedChannelParentUnverifiable' in result['content'][0]['text']
+        assert not [s for s in sent if s[0] != 'GET']
+
+    @pytest.mark.parametrize('parent', [None, '205'])
+    @pytest.mark.parametrize('method,suffix,body', [
+        ('PUT', '/permissions/555', {'allow': '8', 'type': 0}),
+        ('DELETE', '/permissions/555', {}),
+        ('PATCH', '', {'permission_overwrites': []}),
+    ])
+    def test_review3_unrelated_category_overwrites_real_transport(self, monkeypatch, parent, method, suffix, body):
+        self.channels['201']['type'] = 4
+        for identity in self.m.PROTECTED_CHANNELS:
+            self.channels[identity]['parent_id'] = parent
+        sent = self.review3_http(monkeypatch)
+        assert not self.call(self.args(method, '/channels/201' + suffix, json=body))['isError']
+        assert {s[1] for s in sent if s[0] == 'GET'} == {
+            '/api/v10/channels/' + identity for identity in self.m.PROTECTED_CHANNELS | {'201'}}
+        assert len([s for s in sent if s[0] != 'GET']) == 1
+
+    def test_review3_parent_category_cosmetic_patch_real_transport(self, monkeypatch):
+        self.channels['201']['type'] = 4
+        for identity in self.m.PROTECTED_CHANNELS:
+            self.channels[identity]['parent_id'] = '201'
+        sent = self.review3_http(monkeypatch)
+        assert not self.call(self.args('PATCH', '/channels/201', json={'name': 'renamed'}))['isError']
+        assert [s[0] for s in sent] == ['GET', 'PATCH']
 
     @pytest.mark.parametrize('path', [
         '/channels/201/messages/101/crosspost',
