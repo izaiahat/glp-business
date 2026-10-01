@@ -37,15 +37,15 @@ fi
 # The rail scanner is a queue-only preflight and must still report when the
 # protected live glp-design/deploy surface is changing under its own pin gate.
 wire_scanner='/home/ubuntu/business/scripts/glp_wire_in_ready_queue.py'
-wire_scanner_expected_sha256='365f18241f4d1ada26a2f691179b0a553dd9131ad1cdfba7315d4de1aabc9bce'
+wire_scanner_expected_sha256='f1c097bbdfcb2a64e9445d89f0896a020b7c3f2eea9dde0f983a5e39140190c1'
 wire_rails='/home/ubuntu/business/scripts/glp_affiliate_link_rails.py'
 wire_rails_expected_sha256='7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd58b30c6c70d6'
 wire_scope='/home/ubuntu/business/scripts/affiliate_provider_row_scope.py'
 wire_scope_expected_sha256='4c2eb769723efbde2c7cb6fcb5f5bd7da2b236333dc1376098cd08056db4af90'
 wire_writer='/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py'
-wire_writer_expected_sha256='f2fb762ae12930de69bd5be1d6c85806f8d192f32e48d00cfe1526d07903eb8c'
+wire_writer_expected_sha256='e5a05f3d14b5e525cab9dcb76ff733ca0c9e19f1518a327567433d1a2d75c656'
 wire_metadata="/home/ubuntu/business/scripts/affiliate_provider_metadata.py"
-wire_metadata_expected_sha256="b41ccfc51bc6d9def1466e6d37d9a326010b3ab16dc35c2a7ab6275bad0c20c4"
+wire_metadata_expected_sha256="04eb33474fc6a0d9791659f0bee8834ea430cbd1d5f37332bbbe06a5ab4be348"
 for wire_path in "$wire_scanner" "$wire_rails" "$wire_scope" "$wire_writer" "$wire_metadata"; do
   wire_actual_sha256="$(sha256sum "$wire_path" | cut -d' ' -f1)"
   if [[ "$wire_path" == "$wire_scanner" ]]; then
@@ -98,7 +98,7 @@ if [[ $dry_run -eq 1 && $wire_rc -ne 0 ]]; then exit "$wire_rc"; fi
 declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/katalys_approved_link_resolver.py']='46c0c8c259c25ab94ea9c1337b550b15569e7a01523f6da5d8a7260741fbd085'
   ['/home/ubuntu/business/scripts/katalys_generate_tracking_links.py']='7bad1d2ea2084004f98aefd85b5785f15771cebe61237d76c7884d1a293a2cd6'
-  ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='f2fb762ae12930de69bd5be1d6c85806f8d192f32e48d00cfe1526d07903eb8c'
+  ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='e5a05f3d14b5e525cab9dcb76ff733ca0c9e19f1518a327567433d1a2d75c656'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_daily.py']='948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a'
   ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='85837d85f38275366058f4ab2be2e85dac2481770edb9687297393deb5be80f3'
