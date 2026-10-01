@@ -46,6 +46,31 @@ def activation():
     return load(ROOT / 'scripts/glp44_safe_bridge_activation.py', 'activation_fixture')
 
 
+def test_nft_gate_uses_supported_rule_verb_and_strict_mixed_readback(activation, monkeypatch):
+    """nft 1.0.9 supports exclusive CREATE objects, but only ADD rules."""
+    commands = activation.gate_commands()
+    assert [list(row) for row in commands] == [['create'], ['create'], ['add']]
+    assert [list(next(iter(row.values()))) for row in commands] == [['table'], ['chain'], ['rule']]
+    observed = [next(iter(row.values())) for row in commands]
+    # Handles and the standalone metadata object are the only exclusions.
+    for index, row in enumerate(observed):
+        next(iter(row.values()))['handle'] = index + 1
+    host = activation.LinuxHost()
+    monkeypatch.setattr(host, 'command', lambda *a, **kw: json.dumps({
+        'nftables': [{'metainfo': {'version': 'fixture'}}, *observed]}))
+    host.verify_ingress()
+    drifted = json.loads(json.dumps(observed))
+    drifted[-1]['rule']['expr'][-1] = {'accept': None}
+    extra_field = json.loads(json.dumps(observed))
+    extra_field[1]['chain']['flags'] = ['offload']
+    for invalid in ([*observed, observed[-1]], observed[:-1],
+                    list(reversed(observed)), drifted, extra_field):
+        monkeypatch.setattr(host, 'command', lambda *a, rows=invalid, **kw:
+                            json.dumps({'nftables': rows}))
+        with pytest.raises(activation.Refused, match='ingress_rule_drift'):
+            host.verify_ingress()
+
+
 def test_linux_gate_has_exact_loopback_scope_and_get_only_bypass(activation, monkeypatch):
     assert hasattr(activation, 'LinuxHost'), 'missing concrete Linux bootstrap backend'
     host = activation.LinuxHost()
@@ -60,7 +85,7 @@ def test_linux_gate_has_exact_loopback_scope_and_get_only_bypass(activation, mon
     monkeypatch.setattr(host, 'command', command)
     host.close_ingress()
     host.verify_ingress()
-    rules = [row['create']['rule'] for row in activation.gate_commands() if 'rule' in row['create']]
+    rules = [row['add']['rule'] for row in activation.gate_commands() if 'add' in row]
     assert len(rules) == 1
     expr = rules[0]['expr']
     assert {'match': {'op': '==', 'left': {'payload': {'protocol': 'ip', 'field': 'daddr'}}, 'right': '127.0.0.1'}} in expr

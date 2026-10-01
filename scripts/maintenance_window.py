@@ -23,6 +23,9 @@ import tempfile
 import time
 
 SCHEMA = 'glp44-glp73-maintenance-window-v1'
+# Preserve the retained exit wrapper's pre-effect ceiling, but admit atomically
+# behind at most the current owner, not repeated keeper inventories.
+OPERATION_ADMISSION_SECONDS = 300.0
 CONTROL_FIELDS = ('enabled', 'state', 'paused_at', 'paused_reason', 'pending_slot', 'next_run_at')
 RUNTIME_FIELDS = {'fire_claim', 'run_claim', 'running', 'last_run_at', 'last_status',
                   'last_dispatch', 'last_error', 'last_delivery_error', 'last_delivery_unverified',
@@ -161,18 +164,45 @@ def locks_verified(data):
 
 
 @contextmanager
-def operation_lock(journal):
+def operation_lock(journal, *, timeout=0):
+    """Bounded pre-effect admission; a queued foreground owner beats the keeper.
+
+    All owners take the admission gate before the existing operation lock. A
+    waiter retains the gate until acquisition, so the nonblocking keeper cannot
+    barge into another full verification. Neither lock is a source/fire fence:
+    those remain continuously held by the keeper. Never retry the yielded body.
+    """
     path = Path(str(journal) + '.operation.lock')
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + timeout
+    gate = fd = None
+
+    def acquire(handle):
+        require(stat.S_ISREG(os.fstat(handle).st_mode), 'operation_lock_not_regular')
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return
+            except BlockingIOError as exc:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise WindowError('window_operation_busy') from exc
+                time.sleep(min(0.05, remaining))
+                require(time.monotonic() < deadline, 'window_operation_busy')
+
     try:
-        require(stat.S_ISREG(os.fstat(fd).st_mode), 'operation_lock_not_regular')
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
-    except BlockingIOError as exc:
-        raise WindowError('window_operation_busy') from exc
+        gate = os.open(str(path) + '.admission', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        acquire(gate)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        acquire(fd)
+        os.close(gate)
+        gate = None
+        yield  # Outside acquisition handling: ambiguous effects propagate once.
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
+        if gate is not None:
+            os.close(gate)
 
 
 def entry_key(entry):
@@ -312,7 +342,7 @@ class MaintenanceWindow:
                 sides = (['after'] if outcome == 'applied' else ['before'] if outcome == 'rolled_back'
                          or for_exit else ['before', 'after'])
                 cohorts = [transaction[side] for side in sides]
-                if not any(all(hashlib.sha256(Path(path).read_bytes()).hexdigest() == digest
+                if not any(all(source_digest(path) == digest
                                for path, digest in cohort.items()) for cohort in cohorts):
                     return False
                 if for_exit and outcome == 'pending':
@@ -346,7 +376,7 @@ class MaintenanceWindow:
 
     def outcome_proposal(self, data):
         transaction = data['source_transaction']
-        sources = {path: hashlib.sha256(Path(path).read_bytes()).hexdigest()
+        sources = {path: source_digest(path)
                    for path in transaction['before']}
         jobs = {jid: json_sha(self.backend.job(jid)) for jid in transaction['job_ids']}
         sides = [side for side in ('before', 'after') if sources == transaction[side]
@@ -849,6 +879,16 @@ def default_locks(root, hermes):
             hermes / 'runstate/reports-archiver.lock']
 
 
+def source_digest(path):
+    """Presence-aware source CAS; only ENOENT is absence, never a symlink."""
+    path = Path(path)
+    require(not path.is_symlink(), 'source_symlink_refused')
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return None
+
+
 class ActiveWindow:
     def __init__(self, journal, backend):
         self.journal, self.backend = Path(journal), backend
@@ -883,20 +923,26 @@ class ActiveWindow:
             data['source_transaction'].setdefault('job_ids', []).append(jid)
         atomic_json(self.journal, data)
 
-    def accept_file_updates(self, before, after):
+    def accept_file_updates(self, before, after, *, absent=()):
         from maintenance_inventory import affected_paths
+        absent = set(absent)
+        if absent:
+            from glp331_carrier_adoption import ABSENT_PATHS
+            permitted = {str((self.backend.root / rel).resolve()) for rel in ABSENT_PATHS}
+            require(absent <= permitted and absent == {p for p, v in before.items() if v is None},
+                    'window_unreviewed_absence')
         allowed = {str(p) for p in affected_paths(self.backend.root, self.backend.hermes)}
         require(set(before) == set(after) and set(before) <= allowed, 'window_file_update_outside_adoption_scope')
         data = read_journal(self.journal)
         for path, old in before.items():
-            actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+            actual = source_digest(path) if path in absent else hashlib.sha256(Path(path).read_bytes()).hexdigest()
             require(actual == old, 'window_file_update_preimage_moved')
             data.setdefault('source_updates', {})[path] = {'before': old, 'after': after[path]}
         data['source_transaction'] = {'before': before, 'after': after, 'outcome': 'pending',
                                       'adopter': identity(), 'job_ids': []}
         atomic_json(self.journal, data)
 
-    def switch_files(self, stage, before):
+    def switch_files(self, stage, before, *, commit=None):
         from maintenance_cohort import switch_files
         data = read_journal(self.journal)
         transaction = data.get('source_transaction')
@@ -911,11 +957,90 @@ class ActiveWindow:
             require(all(self.backend.paused(row['entry'], row['prior']) for row in current['entries']),
                     'cohort_pause_ownership_changed')
             return self.backend.inflight([row['entry'] for row in current['entries']])
-        receipt = switch_files(self.journal, stage, before, drain)
+        receipt = switch_files(self.journal, stage, before, drain, commit=commit)
         data = read_journal(self.journal)
         data['source_transaction']['switch_verified'] = True
         atomic_json(self.journal, data)
         return receipt
+
+    def switch_glp331_files(self, stage, before, modes, *, commit):
+        """Fixed public absence CAS via sealed aliases in the existing cohort.
+
+        Existing switch_files/callback semantics are untouched. The transaction
+        names only eight public outputs; alias inode custody stays in source_switch.
+        """
+        import tempfile
+        import maintenance_cohort as cohort
+        from glp331_carrier_adoption import PATHS, WRAPPER, ABSENT_PATHS
+        expected = {self.backend.root / rel for rel in PATHS} | {self.backend.hermes / 'scripts' / WRAPPER}
+        require(set(stage) == set(before) == expected, 'glp331_cohort_scope_mismatch')
+        transaction = read_journal(self.journal).get('source_transaction')
+        old = {str(p): None if v is None else hashlib.sha256(v[0]).hexdigest() for p, v in before.items()}
+        new = {str(p): hashlib.sha256(body).hexdigest() for p, body in stage.items()}
+        require(transaction and transaction['adopter'] == identity()
+                and transaction['before'] == old and transaction['after'] == new, 'cohort_unreviewed_bytes')
+        missing = {p for p, value in before.items() if value is None}
+        require(missing <= {self.backend.root / rel for rel in ABSENT_PATHS}, 'window_unreviewed_absence')
+        if not missing:
+            return self.switch_files(stage, before, commit=commit)
+        aliases, cohort_before, cohort_stage = {}, {}, {}
+        for path in stage:
+            if path not in missing:
+                cohort_before[path], cohort_stage[path] = before[path], stage[path]
+        def drain():
+            current = read_journal(self.journal)
+            require(locks_verified(current), 'keeper_lost_during_cohort_switch')
+            require(all(self.backend.paused(row['entry'], row['prior']) for row in current['entries']),
+                    'cohort_pause_ownership_changed')
+            return self.backend.inflight([row['entry'] for row in current['entries']])
+        try:
+            for path in sorted(missing):
+                require(source_digest(path) is None, 'absent_source_moved')
+                fd, name = tempfile.mkstemp(prefix='.glp331-new-', dir=path.parent)
+                alias = Path(name); aliases[path] = alias
+                with os.fdopen(fd, 'wb') as out:
+                    out.write(stage[path]); out.flush(); os.fsync(out.fileno())
+                    os.fchmod(out.fileno(), modes[str(path)])
+                cohort_before[alias] = (stage[path], modes[str(path)])
+                cohort_stage[alias] = stage[path]
+                cohort.sync_dir(path.parent)
+            data = read_journal(self.journal)
+            data['new_source_aliases'] = {str(k): str(v) for k, v in aliases.items()}
+            atomic_json(self.journal, data)
+            def linked_commit():
+                for path, alias in aliases.items():
+                    require(alias.stat().st_mode & 0o777 == 0, 'new_source_not_sealed')
+                    os.link(alias, path, follow_symlinks=False)  # absent-path CAS
+                    cohort.sync_dir(path.parent)
+                    require(cohort.metadata(path.stat()) == cohort.metadata(alias.stat())
+                            and path.stat().st_mode & 0o777 == 0, 'new_source_link_readback')
+                commit()
+            receipt = cohort.switch_files(self.journal, cohort_stage, cohort_before, drain, commit=linked_commit)
+            for alias in aliases.values():
+                os.unlink(alias); cohort.sync_dir(alias.parent)
+            for path, body in stage.items():
+                require(source_digest(path) == hashlib.sha256(body).hexdigest()
+                        and path.stat().st_mode & 0o777 == modes[str(path)]
+                        and path.stat().st_nlink == 1, 'glp331_postcommit_readback')
+            data = read_journal(self.journal)
+            data['source_transaction']['switch_verified'] = True
+            atomic_json(self.journal, data)
+            return receipt
+        except BaseException:
+            data = read_journal(self.journal)
+            switch = data.get('source_switch', {})
+            if switch.get('commit_started'):
+                for path in set(stage) | set(aliases.values()):
+                    if path.exists():
+                        os.chmod(path, 0)
+                switch['state'] = 'commit_uncertain'
+                data['source_switch'] = switch
+                atomic_json(self.journal, data)
+            elif switch.get('state') not in {'recovery_required', 'recovering'}:
+                for alias in aliases.values():
+                    if alias.exists():
+                        os.unlink(alias); cohort.sync_dir(alias.parent)
+            raise
 
     def finish(self, success):
         data = read_journal(self.journal)
@@ -923,7 +1048,14 @@ class ActiveWindow:
         if not transaction or transaction['adopter'] != identity() or transaction['outcome'] != 'pending':
             return
         side = 'after' if success else 'before'
-        matched = all(hashlib.sha256(Path(path).read_bytes()).hexdigest() == digest
+        switch = data.get('source_switch', {})
+        if switch.get('commit_started') and switch.get('state') == 'commit_uncertain':
+            # The maintained switch left sealed inodes: never reopen/hash them
+            # or certify rollback after an external commit may have landed.
+            transaction['outcome'] = 'uncertain'
+            atomic_json(self.journal, data)
+            require(False, 'adoption_outcome_uncertain_reconcile_before_exit')
+        matched = all(source_digest(path) == digest
                       for path, digest in transaction[side].items())
         matched = matched and all(json_sha(self.backend.job(jid)) == data['job_updates'][jid][side + '_sha256']
                                   for jid in transaction['job_ids'])
@@ -944,7 +1076,7 @@ class ActiveWindow:
 def require_active_window(journal, root, hermes):
     require(journal is not None, 'active_maintenance_window_required')
     journal = Path(journal)
-    with operation_lock(journal):
+    with operation_lock(journal, timeout=OPERATION_ADMISSION_SECONDS):
         data = read_journal(journal)
         require(data['root'] == str(Path(root).resolve()) and data['hermes'] == str(Path(hermes).resolve()),
                 'window_target_mismatch')
@@ -1082,7 +1214,7 @@ def main(argv=None):
             review = json.loads(args.outcome_review.read_text()) if args.outcome_review else None
             data = read_journal(args.journal) if args.journal.exists() else None
             if data and locks_verified(data) and data['keeper'] != identity():
-                with operation_lock(args.journal):
+                with operation_lock(args.journal, timeout=OPERATION_ADMISSION_SECONDS):
                     data = read_journal(args.journal)
                     if review is not None:
                         # Review refers to the pre-request journal. Verify it

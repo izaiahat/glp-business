@@ -1,4 +1,5 @@
 # Generated from ops/rebuild-source-manifest.json: deny by default
+# GLP331 maintained producer closure (source only)
 /*
 !/.github/
 /.github/*
@@ -10,9 +11,16 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/scripts/glp331_carrier_adoption.py
+!/ops/glp331-carrier-generation.md
+!/tests/test_glp331_carrier_generation.py
+!/tests/test_glp331_dependency_generation.py
+!/tests/test_glp331_dependency_closure.py
 !/tests/test_maintenance_window_lock_contention.py
+!/tests/test_maintenance_keeper_contention.py
 !/tests/test_n8n_execution_budget.py
 !/tests/test_rook_communication.py
 !/.github/workflows/
@@ -42,6 +50,8 @@
 !/scripts/hermes_state_archive/tests/
 /scripts/hermes_state_archive/tests/*
 !/.github/workflows/business-source-ci.yml
+!/.github/workflows/glp333-reporting-generation.yml
+!/tests/test_glp333_reporting_generation.py
 !/.gitignore
 !/.hermes.md
 !/AGENTS.md
@@ -387,3 +397,11 @@
 # GLP-80 registered therapeutic producer correction (offline, exact head)
 !/tests/test_glp80_taxonomy_correction.py
 !/.github/workflows/glp80-taxonomy-unblock.yml
+
+# GLP331 existing producer closure
+!/scripts/fleet_pin_release.py
+!/scripts/wrapper_pin_sync.py
+!/tests/test_fleet_pin_release.py
+!/tests/test_glp331_carrier_closure.py
+!/ops/glp331-carrier-closure.md
+!/.github/workflows/glp331-carrier-closure.yml
