@@ -73,6 +73,12 @@ It requires `--finch-channel`, `--dots-shared-channel`, `--finch-bot`,
 Both channels must be distinct canonical numeric IDs; labels/names grant no access.
 The bot is distinct, uses its own token for gateway observation and REST, and is not an admitted sender.
 Rook and Research defaults, policy hashes and immutable historical receipts are unchanged.
+This two-tool MCP **transport** inventory does not constrain Finch as a full execution
+peer using native browser/web/delegation/files or existing GitHub/Linear connections.
+Rook reports those native read connections are already available; their grants/write
+capability are unverified here. Do not duplicate account setup or infer read-only
+worker policy from this PR. GitHub/Linear tools, admin capabilities and any later
+Linear cutover/update ownership are outside this transport change.
 
 Full mode requires `--finch-after-message` and `--dots-shared-after-message`, one fresh
 cursor for each exact binding (not `--after-message`). State pins both labeled bindings,

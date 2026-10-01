@@ -1125,7 +1125,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "730599c8e5efa4d7212450e01268ad97d3f63e7aa8a2ff4446ec586abe85d4d7"
+      "sha256": "057c0bce564c2415950ab1c57bdb3e27b926a44a68ff947a9f1b1a1b3bca51d6"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
