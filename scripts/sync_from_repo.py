@@ -91,12 +91,21 @@ def source_lock(root):
         os.close(fd)
 
 
-def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
+def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
+         discovery_review=None, discovery_authority=None):
     with source_lock(root):
+        if discovery_review is not None or discovery_authority is not None:
+            try:
+                from .discovery_predecessor_migration import migrate
+            except ImportError:  # direct CLI
+                from discovery_predecessor_migration import migrate
+            return migrate(_sync_locked, root, checkout, apply, adopt_reviewed_baseline, only,
+                           discovery_review, discovery_authority)
         return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only)
 
 
-def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
+def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
+                 _discovery_preimage=None):
     root = root.resolve(strict=True)
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":
@@ -120,6 +129,8 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
     if not selected:
         target_hashes[MANIFEST] = sha(checkout / MANIFEST)
     state_path = root / STATE
+    state_preimage = sha(state_path) if _discovery_preimage is not None else None
+    state_mode = stat.S_IMODE(state_path.stat().st_mode) if _discovery_preimage is not None else None
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     previous = state.get("hashes", {})
     if not isinstance(previous, dict):
@@ -130,6 +141,12 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
     ):
         raise ValueError("adoption requires a unique curated path selected and absent from sync state")
     prior_hashes = {p: reviewed_prior_hashes(checkout, p) for p in adopted}
+    if _discovery_preimage is not None:
+        # Private handoff only from the exact reviewed migration above; this is
+        # not a user-supplied baseline/hash/force option.
+        rel = 'scripts/affiliate_supply_discovery.py'
+        adopted.add(rel)
+        prior_hashes[rel] = {_discovery_preimage}
     stale = sorted(set(previous) - set(target_hashes)) if not selected else []
     changed, conflicts, retirement_moves, expected, expected_modes = [], [], {}, {}, {}
     for p in sorted(set(target_hashes) | set(stale)):
@@ -194,6 +211,8 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
                     os.chmod(tmp, expected_modes[p] if p in expected_modes else src.stat().st_mode & 0o777)
                     # Serialized writers are still required: this detects intervening
                     # ordinary edits, not an atomic compare-and-swap against outsiders.
+                    if _discovery_preimage is not None and sha(Path(tmp)) != target_hashes[p]:
+                        raise ValueError("migration source changed during sync: " + p)
                     if sha(dst) != expected[p]:
                         raise ValueError("destination changed during sync: " + p)
                     if p in expected_modes and stat.S_IMODE(dst.stat().st_mode) != expected_modes[p]:
@@ -209,6 +228,11 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=()):
             with os.fdopen(fd, "w") as f:
                 json.dump({"schema": 1, "hashes": {**previous, **target_hashes} if selected else target_hashes}, f, indent=2, sort_keys=True)
                 f.write("\n"); f.flush(); os.fsync(f.fileno())
+            if _discovery_preimage is not None:
+                assert state_mode is not None
+                if sha(state_path) != state_preimage or stat.S_IMODE(state_path.stat().st_mode) != state_mode:
+                    raise ValueError("migration sync state changed; reconcile partial import from custody")
+                os.chmod(tmp, state_mode)
             os.replace(tmp, state_path)
         finally:
             if os.path.exists(tmp): os.unlink(tmp)
@@ -229,11 +253,19 @@ def main():
                         help="adopt a preexisting file only if bytes match a prior committed revision")
     parser.add_argument("--only", action="append", default=[], metavar="PATH",
                         help="import only named curated paths; retain other baselines and installed global manifest")
+    parser.add_argument("--discovery-predecessor-review", type=Path,
+                        help="independent exact-head review of retained discovery088e2557 migration")
+    parser.add_argument("--discovery-adoption-authority", type=Path,
+                        help="separate exact migration authority; consuming locks and owner exclusion required")
     args = parser.parse_args()
     if args.apply == args.dry_run:
         parser.error("choose exactly one of --dry-run or --apply")
     if args.checkout:
-        return sync(args.root, args.checkout.resolve(strict=True), args.apply, args.adopt_reviewed_baseline, args.only)
+        return sync(args.root, args.checkout.resolve(strict=True), args.apply, args.adopt_reviewed_baseline, args.only,
+                    discovery_review=args.discovery_predecessor_review,
+                    discovery_authority=args.discovery_adoption_authority)
+    if args.discovery_predecessor_review or args.discovery_adoption_authority:
+        parser.error("discovery migration requires an exact local --checkout")
     with tempfile.TemporaryDirectory(prefix="glp-business-sync-") as temp:
         subprocess.run(["git", "clone", "--quiet", "--branch", "main", REMOTE, temp + "/repo"], check=True)
         return sync(args.root, Path(temp) / "repo", args.apply, args.adopt_reviewed_baseline, args.only)
@@ -242,6 +274,6 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+    except (ValueError, OSError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"SYNC_REFUSED: {exc}", file=sys.stderr)
         sys.exit(2)

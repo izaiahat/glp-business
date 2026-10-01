@@ -28,14 +28,21 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
+          # The exact discovery successor is bound to the retained PR111 merge.
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
+          persist-credentials: false
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: GLP330 retained discovery migration (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_discovery_predecessor_migration.py tests/test_sync_from_repo.py
       - name: Affiliate co-pin exact-head regressions (no effectful wrappers)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
