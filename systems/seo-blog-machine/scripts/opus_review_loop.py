@@ -500,24 +500,27 @@ def run_repair(job: dict[str, Any], payload: dict[str, Any], round_number: int, 
     env = os.environ.copy()
     env.update({"SEO_REPAIR_PLAN": str(plan_path), "SEO_PACKET_DIR": str(packet), "SEO_JOB_ID": job["job_id"]})
     backups = {rel: (packet / rel).read_bytes() for rel in subject_paths(job)}
-    proc = subprocess.run(argv, cwd=packet, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=int(spec.get("timeout", 1200)))
-    atomic_json(history / f"round-{round_number:02d}-repair-execution.json", {"argv": argv, "exit_code": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr})
-    after = subject_snapshot(packet, subject_paths(job))
-    changed = sorted(path for path in after if after[path] != before[path])
-    allowed = set(plan["allowed_subject_files"]) | set(plan["derived_files"])
-    failure = None
-    if proc.returncode != 0:
-        failure = "repair_command_failed"
-    elif not changed:
-        failure = "repair_no_changes"
-    elif not set(changed) <= allowed or not (set(changed) & set(plan["allowed_subject_files"])):
-        failure = "repair_scope_violation"
-    if failure:
+    try:
+        proc = subprocess.run(argv, cwd=packet, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=int(spec.get("timeout", 1200)))
+        atomic_json(history / f"round-{round_number:02d}-repair-execution.json", {"argv": argv, "exit_code": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr})
+        after = subject_snapshot(packet, subject_paths(job))
+        changed = sorted(path for path in after if after[path] != before[path])
+        allowed = set(plan["allowed_subject_files"]) | set(plan["derived_files"])
+        failure = None
+        if proc.returncode != 0:
+            failure = "repair_command_failed"
+        elif not changed:
+            failure = "repair_no_changes"
+        elif not set(changed) <= allowed or not (set(changed) & set(plan["allowed_subject_files"])):
+            failure = "repair_scope_violation"
+        if failure:
+            raise RuntimeError(failure)
+    except Exception:
         for rel, content in backups.items():
             target = packet / rel
             target.write_bytes(content)
             os.chmod(target, 0o600)
-        raise RuntimeError(failure)
+        raise
 
 
 def run_publish(job: dict[str, Any], pass_receipt: Path, history: Path) -> None:
