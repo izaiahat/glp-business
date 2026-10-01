@@ -113,6 +113,20 @@
       "kind": "test",
       "sha256": "a3e0627f86f2a6554a4c0070158ce554df79d8c32639222eb39f839eef20ee25"
     },
+    ".github/workflows/glp80-taxonomy-unblock.yml": {
+      "callers": [
+        "GLP-80 exact-head offline acceptance"
+      ],
+      "kind": "repository_control",
+      "sha256": "4bd2bfc3b59e55df8107a329467d2f0de8ab62689750dc6b0409dd063ca18e00"
+    },
+    "tests/test_glp80_taxonomy_correction.py": {
+      "callers": [
+        ".github/workflows/glp80-taxonomy-unblock.yml"
+      ],
+      "kind": "test",
+      "sha256": "9e56abde7c8b033a99895fbed5cc4605dc5bd06cb5eeb050843a29565107c8b2"
+    },
     "tests/test_glp341_weekly_ads_compatibility.py": {
       "callers": [
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
@@ -225,7 +239,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89fcccee0c56be77c645655b108ef0fb4d108bcd076783f8d6f36589558b24d0"
+      "sha256": "b589a216b99329f282c41d804e7577b719aaf2f5225aa60fff6cf39ca5496af3"
     },
     ".hermes.md": {
       "callers": [],
@@ -1931,12 +1945,12 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "f5b8b7039439d7f43f8a5416f01818a9a89f5ec806dcc9e1787b90713d520e61"
+      "sha256": "740fe294e9fd1a326b9af604154baa2dc4deaddf856125fe898b693fe86bc317"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
       "kind": "policy",
-      "sha256": "c9b7e7b2881f43f076c2f4815eb4b47a09d7f89c4fef18ad75d7f316f84adba4"
+      "sha256": "8c3fd13070e704bbf8fe5f543736cd86b005a17443fe3fd75e074e7e498458d2"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -3086,7 +3100,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "28cc7db0c8b3de90758c1dc62492a2d1fe6cd03239d9850b2f545acef33bd04e"
+      "sha256": "803ff0254fcc450d53a743561f669c1bc598911ad41a2422216d7c8231cc822d"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -3337,5 +3351,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 503
+  "tracked_count": 505
 }
