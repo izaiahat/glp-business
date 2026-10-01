@@ -235,6 +235,176 @@ def test_linux_drain_rejects_inherited_sockets_threads_and_children(activation, 
         host.identity()
 
 
+@pytest.fixture
+def journal_stdio_host(activation, tmp_path, monkeypatch):
+    """Retained B1 shape; proc/ss are offline fixtures, not kernel acceptance."""
+    proc = tmp_path / 'proc'
+    (proc / 'net').mkdir(parents=True)
+    (proc / '100/task/100').mkdir(parents=True)
+    descriptors = proc / '100/fd'
+    descriptors.mkdir()
+    for fd, inode in [('1', '1021573081'), ('2', '1021573081'), ('3', '1021576100')]:
+        (descriptors / fd).symlink_to('socket:[' + inode + ']')
+    (proc / '100/stat').write_text('100 (python3) ' + ' '.join(['S'] + ['0'] * 18 + ['1000']))
+    (proc / '100/cmdline').write_bytes(b'/usr/bin/python3\0' + str(activation.BRIDGE).encode() + b'\0')
+    (proc / '100/cgroup').write_text('0::/user.slice/n8n-bridge.service\n')
+    (proc / 'net/tcp').write_text(
+        'header\n 0: 0100007F:2257 00000000:0000 0A 0:0 0:0 0 1000 0 1021576100\n')
+    cgroup = tmp_path / 'cgroup'
+    group = cgroup / 'user.slice/n8n-bridge.service'
+    group.mkdir(parents=True)
+    (group / 'cgroup.procs').write_text('100\n')
+    states = tmp_path / '.job-state'
+    states.mkdir()
+    monkeypatch.setattr(activation, 'PROC', proc)
+    monkeypatch.setattr(activation, 'CGROUP_ROOT', cgroup)
+    monkeypatch.setattr(activation, 'STATES', states)
+    host = activation.LinuxHost()
+    monkeypatch.setattr(host, 'unit', lambda: {
+        'MainPID': '100', 'ControlGroup': '/user.slice/n8n-bridge.service',
+        'ActiveState': 'active', 'SubState': 'running',
+        'ExecStart': '{ argv[]=/usr/bin/python3 ' + str(activation.BRIDGE) + ' ; }'})
+    snapshot = {'ss': (
+        'u_str ESTAB 0 0 * 1021573081 * 1021576528\n'
+        'u_str ESTAB 0 0 /run/systemd/journal/stdout 1021576528 * 1021573081\n')}
+    calls = []
+    def command(argv, payload=None):
+        assert argv == ['/usr/bin/ss', '--unix', '--all', '--numeric', '--no-header']
+        assert payload is None
+        calls.append(argv)
+        return snapshot['ss']
+    monkeypatch.setattr(host, 'command', command)
+    return host, proc, group, states, snapshot, calls
+
+
+def test_idle_bridge_with_inherited_journal_stdio_is_quiet(journal_stdio_host):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.identity() == (100, 1000)
+    assert host.jobs() == {}
+    assert host.quiet((100, 1000)), 'B1: inherited journal stdio is not live bridge ingress'
+    assert calls, 'journal peer must be positively identified, never exempted by fd number'
+
+
+@pytest.mark.parametrize('busy', [
+    'accepted_tcp', 'reset_tcp_descriptor', 'additional_listener', 'other_unix',
+    'nonjournal_fd1', 'nonjournal_shared_stdio', 'journal_alias_fd4', 'extra_thread',
+    'extra_cgroup_member', 'nested_cgroup_member',
+])
+def test_journal_stdio_does_not_hide_busy_bridge(journal_stdio_host, busy):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000)), 'negative controls must start from the quiet journal shape'
+    fd = proc / '100/fd'
+    if busy == 'accepted_tcp':
+        (proc / 'net/tcp').write_text((proc / 'net/tcp').read_text()
+            + ' 1: 0100007F:2257 0100007F:9999 01 0:0 0:0 0 1000 0 124\n')
+        (fd / '4').symlink_to('socket:[124]')
+    elif busy == 'reset_tcp_descriptor':
+        (fd / '4').symlink_to('socket:[124]')  # no longer in tcp table
+    elif busy == 'additional_listener':
+        (fd / '4').symlink_to('socket:[125]')
+        (proc / 'net/tcp').write_text((proc / 'net/tcp').read_text()
+            + ' 1: 0100007F:9999 00000000:0000 0A 0:0 0:0 0 1000 0 125\n')
+    elif busy == 'other_unix':
+        (fd / '4').symlink_to('socket:[126]')
+        snapshot['ss'] += 'u_str ESTAB 0 0 * 126 /run/other.sock 127\n'
+    elif busy == 'nonjournal_fd1':
+        (fd / '1').unlink()
+        (fd / '1').symlink_to('socket:[126]')
+        snapshot['ss'] += 'u_str ESTAB 0 0 * 126 /run/other.sock 127\n'
+    elif busy == 'nonjournal_shared_stdio':
+        snapshot['ss'] = snapshot['ss'].replace('/run/systemd/journal/stdout', '/run/other.sock')
+    elif busy == 'journal_alias_fd4':
+        (fd / '4').symlink_to('socket:[1021573081]')
+    elif busy == 'extra_thread':
+        (proc / '100/task/101').mkdir()
+    elif busy == 'extra_cgroup_member':
+        (group / 'cgroup.procs').write_text('100\n200\n')
+    elif busy == 'nested_cgroup_member':
+        (group / 'child').mkdir()
+        (group / 'child/cgroup.procs').write_text('200\n')
+    assert not host.quiet((100, 1000))
+
+
+@pytest.mark.parametrize('evidence', [
+    '', 'garbled',
+    'u_str ESTAB 0 0 * 1021573081 * 1021576528\n',  # missing peer
+    'u_str ESTAB 0 0 /run/systemd/journal/stdout 1021576528 * 1021573081\n',  # missing local
+    'u_str ESTAB 0 0 * 1021573081 * 999\n'
+    'u_str ESTAB 0 0 /run/systemd/journal/stdout 1021576528 * 1021573081\n',
+    'u_str ESTAB 0 0 * 1021573081 * 1021576528\n'
+    'u_str ESTAB 0 0 /run/systemd/journal/stdout 1021576528 * 999\n',
+])
+def test_unknown_or_nonreciprocal_journal_evidence_is_busy(journal_stdio_host, evidence):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000))
+    snapshot['ss'] = evidence
+    assert not host.quiet((100, 1000))
+
+
+@pytest.mark.parametrize('change', ['local_datagram', 'peer_datagram', 'local_listen',
+                                    'peer_listen', 'duplicate_local', 'duplicate_peer',
+                                    'path_suffix', 'named_local'])
+def test_only_unique_connected_journal_stream_is_exempt(journal_stdio_host, change):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000))
+    local, peer = snapshot['ss'].splitlines(keepends=True)
+    if change == 'local_datagram': local = local.replace('u_str', 'u_dgr')
+    elif change == 'peer_datagram': peer = peer.replace('u_str', 'u_dgr')
+    elif change == 'local_listen': local = local.replace('ESTAB', 'LISTEN')
+    elif change == 'peer_listen': peer = peer.replace('ESTAB', 'LISTEN')
+    elif change == 'duplicate_local': local += local
+    elif change == 'duplicate_peer': peer += peer
+    elif change == 'path_suffix': peer = peer.replace('/stdout', '/stdout.other')
+    elif change == 'named_local': local = local.replace('0 0 *', '0 0 /run/other.sock')
+    snapshot['ss'] = local + peer
+    assert not host.quiet((100, 1000))
+
+
+def test_unreadable_journal_peer_evidence_refuses(activation, journal_stdio_host, monkeypatch):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000))
+    def failed_command(*args, **kwargs):
+        raise activation.Refused('host_command_failed_gate_not_released')
+    monkeypatch.setattr(host, 'command', failed_command)
+    with pytest.raises(activation.Refused, match='host_command_failed'):
+        host.quiet((100, 1000))
+
+
+@pytest.mark.parametrize('status', ['queued', 'accepted', 'running'])
+def test_journal_quiet_does_not_admit_nonterminal_jobs(
+        activation, journal_stdio_host, monkeypatch, tmp_path, status):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000))
+    job_id = 'c' * 16
+    path = states / (job_id + '.json')
+    path.write_text(json.dumps({'job_id': job_id, 'status': status,
+                               '_bridge_pid': 100, '_bridge_start_ticks': 1000}))
+    before = path.read_bytes()
+    monkeypatch.setattr(host, 'verify_ingress', lambda: None)
+    monkeypatch.setattr(host, 'health', lambda: {'status': 'ok', 'jobs_running': 0, 'jobs_queued': 0})
+    assert not activation.drained(host, (100, 1000), {})
+    # Also exercise the actual credential-free maintenance caller, whose job
+    # guard is separate from quiet(); only unrelated host task census is faked.
+    monkeypatch.syspath_prepend(str(ROOT / 'scripts'))
+    window = load(ROOT / 'scripts/maintenance_window.py', 'journal_window_fixture')
+    import maintenance_admission
+    import maintenance_inventory
+    monkeypatch.setattr(maintenance_admission, 'process_readers', lambda *a: [])
+    monkeypatch.setattr(maintenance_inventory, 'affected_paths', lambda *a: set())
+    journal = tmp_path / 'window.json'
+    entry = {'kind': 'n8n', 'id': 'n8n-bridge.service'}
+    journal.write_text(json.dumps({'schema': window.SCHEMA, 'entries': [
+        {'entry': entry, 'prior': {'identity': [100, 1000]}}]}))
+    backend = window.LinuxBackend(tmp_path, tmp_path / 'hermes', journal)
+    monkeypatch.setattr(backend, 'bridge', lambda: host)
+    assert backend.inflight([entry]) == [
+        {'kind': 'n8n', 'reason': 'socket_thread_cgroup_or_job_not_drained'}]
+    assert path.read_bytes() == before, 'drain checks must not terminalize or replay jobs'
+    path.unlink()
+    assert activation.drained(host, (100, 1000), {})
+    assert backend.inflight([entry]) == []
+
+
 def test_source_hash_and_source_lock_are_real(activation, tmp_path, monkeypatch):
     assert hasattr(activation.LinuxHost, 'source'), 'missing approved-byte binding'
     monkeypatch.setattr(activation, 'BRIDGE', ROOT / 'ops/n8n-bridge/bridge.py')

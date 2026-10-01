@@ -174,9 +174,29 @@ class LinuxHost:
         if any(row[3] not in {'0A', '06'} for row in rows):
             return False
         pid = identity[0]
-        sockets = {target for p in (PROC / str(pid) / 'fd').iterdir()
-                   if (target := os.readlink(p)).startswith('socket:[')}
+        descriptors = {p.name: os.readlink(p) for p in (PROC / str(pid) / 'fd').iterdir()}
+        sockets = {target for target in descriptors.values() if target.startswith('socket:[')}
         listener = {'socket:[' + row[9] + ']' for row in rows if row[3] == '0A'}
+        # systemd supplies one connected journal stream shared by stdout/stderr.
+        # FD numbers or /proc/net/unix membership alone do not identify its peer.
+        # Exempt only this exact pair (no additional alias), after reciprocal ss
+        # evidence identifies a connected AF_UNIX stream to journald's stdout.
+        stdio = descriptors.get('1', '')
+        if (re.fullmatch(r'socket:\[[0-9]+\]', stdio)
+                and descriptors.get('2') == stdio
+                and {fd for fd, target in descriptors.items() if target == stdio} == {'1', '2'}):
+            unix = [line.split() for line in self.command(
+                ['/usr/bin/ss', '--unix', '--all', '--numeric', '--no-header']).splitlines()]
+            inode = stdio[8:-1]
+            local = [row for row in unix if len(row) >= 8 and row[5] == inode]
+            if (len(local) == 1 and local[0][:2] == ['u_str', 'ESTAB']
+                    and local[0][4] == '*' and local[0][6] == '*'
+                    and local[0][7].isdigit()):
+                peer = [row for row in unix if len(row) >= 8 and row[5] == local[0][7]]
+                if (len(peer) == 1 and peer[0][:2] == ['u_str', 'ESTAB']
+                        and peer[0][4] == '/run/systemd/journal/stdout'
+                        and peer[0][6:8] == ['*', inode]):
+                    sockets.remove(stdio)
         # A reset accepted socket may leave /proc/net/tcp while retaining a
         # buffered POST and a live descriptor before its handler thread starts.
         if sockets != listener or len(listener) != 1:
