@@ -42,8 +42,9 @@ from typing import Any, Iterable
 from xml.etree import ElementTree
 
 BUSINESS = Path("/home/ubuntu/business")
-if str(BUSINESS) not in sys.path:
-    sys.path.insert(0, str(BUSINESS))
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
 
 from ops.sender_envelope import SendBlocked, assert_can_send
 from inbox_control_plane.approved_gmail_sender import (
@@ -2508,6 +2509,17 @@ class Ledger:
                 )
                 if supply_artifact is not None:
                     affiliate_supply_intake.write_artifact(supply_artifact)
+            from inbox_control_plane import affiliate_decision_queue
+
+            affiliate_decision_queue.stage(
+                self, event_id=event_id, mailbox=attribution, parsed=parsed,
+                classification=classification, raw_path=str(raw_path),
+                raw_sha256=raw_hash, provider_message_id=provider_message_id,
+                now=now, newest_body=newest_unquoted_human_reply(parsed["body_text"]),
+                bootstrap=bootstrap,
+                historical=self.is_historical_before_poll(mailbox["mailbox_id"], parsed["received_at"]),
+                attribution_status=attribution_status,
+            )
             self.conn.execute(
                 "INSERT INTO mailbox_actions(action_id,event_id,action,status,provider_receipt_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
                 ("act_" + sha256_text(event_id + "preserve")[:24], event_id, "preserve_no_provider_mutation", "verified", json.dumps({"phase1": True, "provider_mutation": False}), now, now),
@@ -6277,12 +6289,15 @@ def run_poll(
     projection_result = project_kael_daily_audits(ledger)
     affiliate_exception_repair = ledger.repair_affiliate_exception_outbox()
     dispatch_result = dispatch_outbox(ledger, live=dispatch and not bootstrap, run_started=started)
-    status = "pass" if all(row["status"] == "pass" for row in results) and projection_result["status"] == "pass" and dispatch_result.get("failed", 0) == 0 and decision_sync_result.get("failed", 0) == 0 else "blocked"
+    from inbox_control_plane import affiliate_decision_queue
+    affiliate_queue_result = affiliate_decision_queue.dispatch(ledger, live=dispatch and not bootstrap)
+    status = "pass" if all(row["status"] == "pass" for row in results) and projection_result["status"] == "pass" and dispatch_result.get("failed", 0) == 0 and decision_sync_result.get("failed", 0) == 0 and affiliate_queue_result["status"] == "pass" else "blocked"
     receipt = {
         "status": status, "run_id": run_id, "started_at": started, "finished_at": utc_now(),
         "bootstrap": bootstrap, "mailboxes": results, "counts": counts, "daily_audit_projection": projection_result,
         "dispatch": dispatch_result, "decision_sync": decision_sync_result,
         "affiliate_exception_outbox_repair": affiliate_exception_repair,
+        "affiliate_sheet_queue": affiliate_queue_result,
         "outbound_send_count": 0, "provider_draft_count": 0, "provider_mutation_count": 0,
         "raw_bodies_in_receipt": False, "secret_printed": False,
     }

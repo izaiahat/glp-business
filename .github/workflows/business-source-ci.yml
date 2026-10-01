@@ -1,5 +1,7 @@
 name: business-source-ci
 on:
+  push:
+    branches: [feat/affiliate-loop-gaps-c09-c13]
   pull_request:
     branches: [main, fix/glp318-fresh-capacity-probe]
 permissions:
@@ -11,11 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Verify exact head and package-only regressions (stdlib, no credentials)
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m unittest discover -s tests -p test_glp42_package_only.py -v
@@ -25,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Install isolated test runner
         run: |
@@ -34,13 +36,25 @@ jobs:
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
       - name: Affiliate co-pin exact-head regressions (no effectful wrappers)
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_cleanup_affiliate_copins.py
+      - name: MaxBounty live artifact exact-head capture regressions (offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py
+      - name: Daily source drift exact-head fixtures (no job execution)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_scheduled_source_drift.py
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
@@ -50,10 +64,16 @@ jobs:
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_rook_communication.py
+      - name: Canonical inbox and affiliate decision routing (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)
@@ -68,7 +88,7 @@ jobs:
         run: .venv/bin/python -m pytest -q tests/test_glp73_image_native_only.py
       - name: GLP-73 retention prepared authority consumer (effect-denied fixtures)
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp73_retention_prepared_consumer.py

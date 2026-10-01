@@ -2538,6 +2538,24 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         base = result_base(queue_row, index)
         update_id = base["update_id"]
         kind = base["kind"]
+        if kind == "affiliate_decision_notice":
+            # Canonical mail is a wake signal, not program/terms authority.
+            # Keep a typed, visible queue receipt for provider reconciliation;
+            # never turn free text or an unbound identity into Sheet cells.
+            try:
+                evidence = parse_evidence(queue_row)
+            except ValueError as exc:
+                base["status"] = RESULT_REFUSED
+                base["reason"] = str(exc)
+                results.append(base)
+                continue
+            decision = str(evidence.get("decision_class") or "")
+            base["status"] = RESULT_ESCALATED
+            base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"
+            base["decision_class"] = decision
+            base["intended_writer_kind"] = str(evidence.get("intended_writer_kind") or "")
+            results.append(base)
+            continue
         mode = writer.SHEET_SYNC_KIND_MODE.get(kind)
         if not mode:
             base["reason"] = f"unknown_kind:{kind or '(blank)'}"
@@ -2685,6 +2703,26 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
             base["status"] = RESULT_APPLIED
         if apply and base["status"] in (RESULT_APPLIED, RESULT_NOOP):
             values = read_sheet(svc, sleep=sleep)  # later rows must see earlier writes
+            # Receipt capture remains available while the candidate/site fan-out
+            # is OFF. A terminal Sheet update can therefore be replayed without
+            # another Sheet write. Fan-out failure never changes Sheet truth.
+            import affiliate_terms_fanout as terms_fanout
+            if kind in terms_fanout.KINDS:
+                try:
+                    event_path = run_dir / f"{index + 1:02d}-{slug}-fanout.json"
+                    base["terms_fanout_event"] = terms_fanout.capture_readback(
+                        queue_row, base, plan_path, receipt_path, values, event_path)
+                    if os.environ.get("GLP_AFFILIATE_TERMS_FANOUT_ENABLE") == "1":
+                        base["terms_fanout"] = terms_fanout.consume(
+                            event_path,
+                            Path(os.environ["GLP_AFFILIATE_TERMS_REGISTRY"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_IDENTITY_MAP"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_STATE_DIR"]),
+                            enabled=True, apply=True)
+                    else:
+                        base["terms_fanout"] = {"status": "DISABLED"}
+                except (ValueError, OSError, KeyError, TypeError, IndexError) as exc:
+                    base["terms_fanout"] = {"status": "REFUSED", "reason": str(exc)}
         results.append(base)
 
     counts = {status: sum(1 for r in results if r["status"] == status)

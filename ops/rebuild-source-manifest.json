@@ -1,72 +1,55 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "ops/n8n_execution_budget.py": {
-      "callers": ["hermes:b86ec8937c20", "ops/hermes-cron-scripts/scheduled_job_health_manager.py"],
-      "kind": "script",
-      "sha256": "988b05a8b9c9b8c0906d6c678b1d5ce10d87b9640fc2ead568bda7aaa102ee23"
-    },
-    "tests/test_n8n_execution_budget_review.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "74a813bbcf66d4e0e1a1b906c1d62e932ab49b9a61c11f988c8e62a3e2156924"
-    },
-    "tests/test_n8n_execution_budget.py": {
-      "callers": ["scripts/run_tests.sh"],
-      "kind": "test",
-      "sha256": "9d6b65fb11d08192ad080da7f7f97b468ed1fca30b54fd4c61a90ca9dba85149"
-    },
-    "ops/rook-mcp/README.md": {
+    ".codex-task/RESULT.md": {
       "callers": [
-        "manual:parent-owned launch requirements; rollout held"
+        "GLP affiliate front-half repair"
       ],
-      "kind": "instruction_or_policy",
-      "sha256": "1864938473e0e93a3b341c687e650a9d61e15762b1985e0ace8ff9e2d4e741dd"
+      "kind": "documentation",
+      "sha256": "3cd45f083b9fec60b990ab869da52dd35246fa50e6ffa64ce323abed8bc81040"
     },
-    "ops/rook-mcp/requirements.txt": {
+    "inbox_control_plane/affiliate_decision_queue.py": {
       "callers": [
-        ".github/workflows/business-source-ci.yml",
-        "manual:isolated Rook adapter environment only"
-      ],
-      "kind": "repository_control",
-      "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
-    },
-    "scripts/rook_mcp_events.py": {
-      "callers": [
-        "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
+        "inbox_control_plane/control_plane.py"
       ],
       "kind": "script",
-      "sha256": "aa1c8a3c249340630897804ca07e32af7b91d6af01c35d252b482257a07469bc"
+      "sha256": "ff214e3072b6b8730cf54278ff3fd43f9c00f8d8278e2d649c93139041bb1064"
     },
-    "tests/test_rook_mcp_events.py": {
+    "tests/test_cleanup_affiliate_copins.py": {
       "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "14542256c2cf4c4331452243bb6f5394ca3a70185d1a823a2087761d6d4d741e"
-    },
-    "tests/test_rook_communication.py": {
-      "callers": [
-        "scripts/run_tests.sh",
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "97f5bd6f5d1075e05eb6e105186b601ecc9698b2150001bcd3a0560716f67c8e"
+      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
+    },
+    "tests/test_cleanup_affiliate_decisions.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "f21b3c8cc00c1efd0c79b629bc9c8aa17015cedc37b54c130477dd764a67a9ab"
+    },
+    "tests/test_cleanup_inbox_reader.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "35a8a09264299949886e77625f28741021c0d766c561d4d9a98f629b75cc4ec9"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed40d8c2589c356ba5abb17360f9c954520fae762e58c51d875c6dc677012567"
+      "sha256": "803aa35515c9c7f260504e9ef928482e052d7dbd025bd54f545818aa92803bc9"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "db93042ee7911c9385902691b96a9c4648d50ec367334ba4d34a15bb138f18b3"
+      "sha256": "b0d0a76846e8cafd390a6dd565f6928c9ee2b868bcadafa4c40c0e8f5d5fd2d2"
     },
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c028f6e8317d107ec1ab4417a60224ff6622c2abdc7a7d77ee753cf4e5573fb3"
+      "sha256": "30f1944f0a52216c691f43932f30a772448b23a878aa7c0e64bfa20c7b4bf3ba"
     },
     ".hermes.md": {
       "callers": [],
@@ -87,6 +70,13 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "f043c24fe9dd9a48dfa29076904b87121d7766d160d9c338757bf7ea14af2b9e"
+    },
+    "config/affiliate-sites/best-terms-selection.json": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "9b786932585d02e099f66a6e568332b64efbdc8d9844e0e24195b76ac7e7c851"
     },
     "inbox_control_plane/__init__.py": {
       "callers": [],
@@ -111,7 +101,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "19c1e920c445d86de891d6c5b68650f5276aa3dbb2cdfac856a3f0fcdba47162"
+      "sha256": "37cd9fb6862bfcf305da72f16bcecccbef2a85214f46b2c6c6832de44a67f390"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -142,6 +132,13 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "9908684502b12935a83d0746a063d46cfe218b1bf3badc33e1518fa0c707a7ff"
+    },
+    "ops/affiliate_apply_gate.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "8adb1b7c779fc355f0910eb8f1cca0015ad26088ec179566cf4573b0edeaeb6d"
     },
     "ops/autonomy-envelope.json": {
       "callers": [],
@@ -255,15 +252,15 @@
       "kind": "instruction_or_policy",
       "sha256": "a161cc000001cd40084f4258410185400b1740cad376fee0c2960980ee8795a2"
     },
-    "ops/glp328-readonly-evidence.md": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "28925ac7454d6d353a4eeb498aecd9dd93ff49e51dfa604a2e7f84ff30025426"
-    },
     "ops/glp320-source-only.md": {
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "47babdc3e1fd7b13ed1b394a64e87302f154b23d82f01d1d71a54fc76a4b5a81"
+    },
+    "ops/glp328-readonly-evidence.md": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "28925ac7454d6d353a4eeb498aecd9dd93ff49e51dfa604a2e7f84ff30025426"
     },
     "ops/glp76-host-transport.md": {
       "callers": [],
@@ -282,7 +279,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "2525bbb73f290ee8242c72d5800cd781f5dc50a4286fbb8f580d2e4b03616ab4"
+      "sha256": "ca71a553d87a7b195ee43d5ef602847b65212ea0d0276509c8ab809f4720438d"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -347,6 +344,21 @@
       "kind": "script",
       "sha256": "1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447"
     },
+    "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
+    },
+    "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
+    },
+    "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh": {
+      "callers": [],
+      "kind": "instruction_or_policy",
+      "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
+    },
     "ops/hermes-cron-scripts/glp_affiliate_approval_reconciler.sh": {
       "callers": [
         "hermes:b0c800751b88"
@@ -408,7 +420,7 @@
         "hermes:d5d5b954f303"
       ],
       "kind": "script",
-      "sha256": "59f3789b072511029f0c2b11358b05e1e393613c04a2fc077b75b04e34c230be"
+      "sha256": "35d2cef1454f5cb1beef912f6d2a2e9be6dac2f74afde5fbdccebb560d37349a"
     },
     "ops/hermes-cron-scripts/glp_cron_error_sensor.py": {
       "callers": [
@@ -464,21 +476,6 @@
       "kind": "script",
       "sha256": "f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7"
     },
-    "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633"
-    },
-    "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797"
-    },
-    "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh": {
-      "callers": [],
-      "kind": "instruction_or_policy",
-      "sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522"
-    },
     "ops/hermes-cron-scripts/glp_seo_daily_article_watchdog.py": {
       "callers": [
         "hermes:a782df6fad1d"
@@ -526,7 +523,7 @@
         "hermes:3c79a0b5f7b2"
       ],
       "kind": "script",
-      "sha256": "cf8ebde12014e28cf1cf176d2b272ad72d6d76b4dac3d2173c4995157d120594"
+      "sha256": "7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc"
     },
     "ops/hermes-cron-scripts/investment_ops_daily_snapshot.sh": {
       "callers": [
@@ -582,7 +579,7 @@
         "hermes:b86ec8937c20"
       ],
       "kind": "script",
-      "sha256": "eff4ceb8ca8302767dc6f56662fe043ae0cf344575cf7c013f619952a572aabf"
+      "sha256": "d058d7922e1d464a97fe4e88b45257cf815295a285ec8e097675bd2a35668a0e"
     },
     "ops/hermes-cron-scripts/session_bloat_watchdog.py": {
       "callers": [
@@ -741,12 +738,27 @@
     "ops/protected-oracles.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "9f7d68ee3d79f6cb1cabe739f68628c31b7b566a626d82adf04838b18e02775d"
+      "sha256": "fdd270ebc7d2ddb3ff2958815f65c7995e0f114a3d05908f7a31f224675312c6"
     },
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "07ea692567ec04c0166bf84db8f3f43742d21008bc66521942091e06ba9d456f"
+    },
+    "ops/rook-mcp/README.md": {
+      "callers": [
+        "manual:parent-owned launch requirements; rollout held"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "1864938473e0e93a3b341c687e650a9d61e15762b1985e0ace8ff9e2d4e741dd"
+    },
+    "ops/rook-mcp/requirements.txt": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml",
+        "manual:isolated Rook adapter environment only"
+      ],
+      "kind": "repository_control",
+      "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
     },
     "ops/sender_envelope.py": {
       "callers": [
@@ -880,13 +892,20 @@
       "kind": "script",
       "sha256": "2f1570bee7fe372fdc54af6dce7257d074d0d565e03cdccbf29cf088bdf7450f"
     },
+    "scripts/affiliate_auto_apply.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "e194f495f75c0df56d2f1ee6eea6b1faa22cc91ced7fcffcdcc6d57f31979308"
+    },
     "scripts/affiliate_best_terms_machine.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_best_terms_weekly.py",
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "9e4cc21ae8b0238f2e05ab8496eef4b1f8737b5ba162fda2b83d54c4feab5d34"
+      "sha256": "472badeb3241a0a19b42bcc45d2b363d1e412654cfcac3b6aef6bf15bbd978aa"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [
@@ -894,6 +913,20 @@
       ],
       "kind": "script",
       "sha256": "d535143c946c00f6ea4d70a9a6a55be4aa5212f80247fa088bc0f8df43f5c6b2"
+    },
+    "scripts/affiliate_monday_discovery_card.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "30d152f78c8729a67c148d2972ef1ba3ecebab732c01929c5313998708c394f8"
+    },
+    "scripts/affiliate_monday_marketplace_receipt.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "4045c1e53c470f7540405524941263b64c9fa59136af3b5d7702e46fb0d7e39b"
     },
     "scripts/affiliate_niche_geo_filter.py": {
       "callers": [
@@ -956,14 +989,14 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "aed573fee696365bfc00efa207f71ae40a1a3aa4883c39d4af7085fee9df64e0"
+      "sha256": "56c9a61e25e8b8ab52893e1a685cf02ae64c300aab282d21b5da0a113f1d283d"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
         "scripts/affiliate_supply_discovery.py"
       ],
       "kind": "script",
-      "sha256": "6d583ab1523ca852c1f9342c036fac0766fe1b89819671c40b2d6612ad6fddf1"
+      "sha256": "b84fd9b2dcd35fffd100229b26073fbac9a3a92eaac3cea244741e680046263c"
     },
     "scripts/affiliate_surface_coverage_audit.py": {
       "callers": [
@@ -971,6 +1004,13 @@
       ],
       "kind": "script",
       "sha256": "a1db344a9a46fcc60a4205786fbfb78ad509ea074a5446eded5b667e580f6d56"
+    },
+    "scripts/affiliate_terms_fanout.py": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "script",
+      "sha256": "d0a82e523b5d0fc64a015123d217e16fc50445ec8c72da72e6437432e610e8c4"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
@@ -1131,15 +1171,15 @@
       "kind": "script",
       "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
     },
-    "scripts/glp328_readonly_evidence.py": {
-      "callers": [],
-      "kind": "script",
-      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
-    },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
       "kind": "script",
       "sha256": "1f3bb51c465a98fd5bc3da566f44e20731587123d2200792bc31e9b09fde3d21"
+    },
+    "scripts/glp328_readonly_evidence.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
@@ -1229,6 +1269,27 @@
       ],
       "kind": "script",
       "sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+    },
+    "scripts/glp_application_dedupe.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "411d100b6f6b2f2434f91b089c30f84efdb70037254051fdb96a8f061f6e3b83"
+    },
+    "scripts/glp_application_machine.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "a1cc86e86561b83cf50f6ab4e6408135d78947f5d0cf750d804f95099c14305c"
+    },
+    "scripts/glp_application_submit_child.py": {
+      "callers": [
+        "GLP affiliate front-half runtime source import"
+      ],
+      "kind": "script",
+      "sha256": "0a0f5841bf549b8ce44796aa1f8e1d8f15c25d80c9e6d99ce146c617d02412bf"
     },
     "scripts/glp_awin_portal_login.py": {
       "callers": [
@@ -1403,7 +1464,7 @@
         "sheet_update_queue single-writer carrier"
       ],
       "kind": "script",
-      "sha256": "c5ce505c501724d17381b50dd85e2389ec36b4310e17067f80a714522ac7f9a1"
+      "sha256": "118b32dec2f20bcf2f085c049524244a629a7c5b92ff3f6144ce74d29b7442fe"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
@@ -1612,6 +1673,13 @@
       "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
+    "scripts/rook_mcp_events.py": {
+      "callers": [
+        "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
+      ],
+      "kind": "script",
+      "sha256": "aa1c8a3c249340630897804ca07e32af7b91d6af01c35d252b482257a07469bc"
+    },
     "scripts/root_custody/phased.py": {
       "callers": [],
       "kind": "script",
@@ -1625,7 +1693,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a58f97fb1f2379229a209eb2bfcdfb5bbb89ee5027e7ae1fef24d51762f2e00c"
+      "sha256": "79dd91bec52f4ab05b7d2cb8d39e90e8d82ba432390fa1c10d6a0d0afa82c19e"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -1924,6 +1992,20 @@
       "kind": "retired_test",
       "sha256": "d35b2dffb32f900f738028ed1f0fbc5689775ab9cf24f5e14600d7be345bf955"
     },
+    "tests/fixtures/affiliate_terms_registry_validator.mjs": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "60cb510dfcff1a226f6a8cf91a48f32950229c282fb7a531c8c7d4e61639174c"
+    },
+    "tests/fixtures/best_terms/held_xentraffic_failure.json": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "ced7e88b001ac068eaf658e3972433f84afd430fee57da362e5ca6aa9fd978ae"
+    },
     "tests/fixtures/glp186_binding_refusals.json": {
       "callers": [],
       "kind": "test",
@@ -1975,6 +2057,13 @@
       "kind": "test",
       "sha256": "61afcc1bba211461e2c2a91d83d55a3d598f4ddca559a72c4959e9858fb9dd31"
     },
+    "tests/test_affiliate_best_terms_recovery.py": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "a65c0f1e8e3dbf6755d5e36908116d957ad2ce89b87cf9fdea7835a13be7ffdc"
+    },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
         "affiliate_approval_auto_reconciler"
@@ -1988,6 +2077,20 @@
       ],
       "kind": "test",
       "sha256": "3f46cf1585616cd3e8bae55049db02bdcff604bffcf1a03f30ac94c9cfa52350"
+    },
+    "tests/test_affiliate_discovery_admission.py": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "5e97985ebb6f9e4ca7a1d736fae284ed8face3e254bb8b4e785952fe95a06561"
+    },
+    "tests/test_affiliate_discovery_resume.py": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "14a30096c3fef1a2c52572a9437b6d10ecd0821847975f8a5709cf55d18be669"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
@@ -2044,6 +2147,13 @@
       ],
       "kind": "test",
       "sha256": "3bb1eca401ca8e08b82e7686df48ba539bed6433fca7d096b10d6e210476053e"
+    },
+    "tests/test_affiliate_terms_fanout.py": {
+      "callers": [
+        "GLP affiliate front-half repair"
+      ],
+      "kind": "test",
+      "sha256": "c079111400deb56a43930ea34989d515503a757e2c36e84723c6fdd4c3fed55a"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [
@@ -2236,13 +2346,6 @@
       "kind": "test",
       "sha256": "21d1a51da17c0a4ac2abd3e1a1376128a8403f741186998a74425fa8a696f61c"
     },
-    "tests/test_glp328_readonly_evidence.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
-    },
     "tests/test_glp328_disabled_reply_connection.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -2256,6 +2359,13 @@
       ],
       "kind": "test",
       "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
+    },
+    "tests/test_glp328_readonly_evidence.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9adcabdcc6c0132c181c28cda7db01ca49921e120ab92e107ba3738764318a79"
     },
     "tests/test_glp329_add_approved_row_full_grid_dry_run.py": {
       "callers": [
@@ -2709,6 +2819,13 @@
       "kind": "test",
       "sha256": "0d46881b4f7497d3c20e7d853db3e71c0228f996365e30c3abe0b17347455fc8"
     },
+    "tests/test_receive_one_discord_message.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "72992f19ed8c817c101dcbb2604ac14f5f2fcf9af3799261a2fad73b5b60bd60"
+    },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
         "glp_affiliate_wire_backlog_worker"
@@ -2732,12 +2849,20 @@
       "kind": "test",
       "sha256": "8d44d10c87ebdf797cd277083db29359066232207f26f3c4a02e063f0dc4d212"
     },
-    "tests/test_receive_one_discord_message.py": {
+    "tests/test_rook_communication.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "97f5bd6f5d1075e05eb6e105186b601ecc9698b2150001bcd3a0560716f67c8e"
+    },
+    "tests/test_rook_mcp_events.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "72992f19ed8c817c101dcbb2604ac14f5f2fcf9af3799261a2fad73b5b60bd60"
+      "sha256": "14542256c2cf4c4331452243bb6f5394ca3a70185d1a823a2087761d6d4d741e"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -2796,12 +2921,83 @@
       "kind": "script",
       "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
     },
-    "tests/test_cleanup_affiliate_copins.py": {
+    "ops/unreviewed-local-edits/maxbounty-20261001/README.md": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "69cc2d5c99699414df08dc4edb575dd3871ec7dddbae0f3ee257fb1f013a2022"
+    },
+    "ops/unreviewed-local-edits/maxbounty-20261001/glp_maxbounty_capacity_monitor.pins.json": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "114db70487e59a819e7913f12698176775d6d97a6340c801794c0f01cec3a920"
+    },
+    "ops/unreviewed-local-edits/maxbounty-20261001/glp_maxbounty_capacity_resume.sh": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "ba9fc895f657f0a1290522b10f2c024427d08dddfd3ec0e8579010092ced2d86"
+    },
+    "tests/test_cleanup_maxbounty_capture.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
+      "sha256": "a861532bcf6c9df86885e967cd47f2625412e0fbf5bf15805b02cbce206a5116"
+    },
+    "ops/scheduled-source-drift-manifest.json": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "e0fdee985266ef82f47343bbf5a33f38090a95fb72ad471b947506a73256eaa7"
+    },
+    "ops/scheduled-source-drift.md": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "560bf0c45e41ad60062fe858c7c0f2f2ec3ff6bf4536f5a71213dc3302eecff4"
+    },
+    "scripts/scheduled_source_drift.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "source_control",
+      "sha256": "289c2a27df81371b6d247b24604a15726b6dba12f364277fd1571e511e140627"
+    },
+    "tests/test_scheduled_source_drift.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "6dafa26124a39af0eb1062c319822196718c3b03000cd30305c59f9ee2a52fe8"
+    },
+    "ops/n8n_execution_budget.py": {
+      "callers": [
+        "hermes:b86ec8937c20",
+        "ops/hermes-cron-scripts/scheduled_job_health_manager.py"
+      ],
+      "kind": "script",
+      "sha256": "988b05a8b9c9b8c0906d6c678b1d5ce10d87b9640fc2ead568bda7aaa102ee23"
+    },
+    "tests/test_n8n_execution_budget_review.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "74a813bbcf66d4e0e1a1b906c1d62e932ab49b9a61c11f988c8e62a3e2156924"
+    },
+    "tests/test_n8n_execution_budget.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9d6b65fb11d08192ad080da7f7f97b468ed1fca30b54fd4c61a90ca9dba85149"
     }
   },
   "omitted_runtime_inputs": [
@@ -2812,5 +3008,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 429
+  "tracked_count": 456
 }
