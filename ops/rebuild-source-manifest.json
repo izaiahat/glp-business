@@ -3278,7 +3278,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "3eeaa53ef6bc9d37b7e7257b03067a0c00311403d5c4a6cf4766f9dd673af3e9"
+      "sha256": "caeefdf6006151faa76de192dd2c584d93b476c3cdfbe1e21e176507622036aa"
     },
     "tests/test_maintenance_inventory.py": {
       "callers": [
