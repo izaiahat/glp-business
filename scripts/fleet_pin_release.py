@@ -529,10 +529,10 @@ GLP331_SNAPSHOT = 'ops/hermes-cron-scripts/' + GLP331_CARRIER
 GLP331_SOURCES = frozenset((
     'scripts/affiliate_program_withdrawal.py',
     'scripts/affiliate_sheet_batch_writer.py',
-    'scripts/affiliate_provider_metadata.py',
+    'scripts/affiliate_terms_fanout.py',
     'scripts/affiliate_approval_auto_reconciler.py',
-    'scripts/glp_wire_in_ready_queue.py',
-    'scripts/network_approval_email_ingest.py', GLP331_SNAPSHOT,
+    'scripts/affiliate_withdrawal_candidate.py',
+    'scripts/glp_sheet_sync_drain.py', GLP331_SNAPSHOT,
 ))
 GLP331_CONSUMERS = (GLP331_JOB, '3c79a0b5f7b2', 'b0c800751b88')
 GLP331_LOCKS = ('glp-affiliate-approval-reconciler.lock',

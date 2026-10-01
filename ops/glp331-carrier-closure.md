@@ -37,6 +37,15 @@ root/scheduler arguments are for disposable fixtures only.
 
 ## Fixed closure and fences
 
+The seven source outputs are exactly `affiliate_approval_auto_reconciler.py`,
+`affiliate_program_withdrawal.py`, `affiliate_sheet_batch_writer.py`,
+`affiliate_terms_fanout.py`, `affiliate_withdrawal_candidate.py`,
+`glp_sheet_sync_drain.py` and the reconciliation snapshot. Scanner and metadata
+are authenticated unchanged dependency inputs, not installed source outputs.
+Carrier target/predecessor hashes are respectively
+`45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9` and
+`119fdf2c23d748888cf29e6449e4e7a149826141213e944e38ea8a1e122b0e6d`.
+
 - Exact accepted source head is PR117 merge `727ad1f...`; no new withdrawal logic.
 - Fixed installed predecessor carrier `119fdf2c...`, mode `0700`; target bytes are
   read from the accepted Git snapshot, not generated from current installed drift.

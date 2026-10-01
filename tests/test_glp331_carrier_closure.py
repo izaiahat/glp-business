@@ -20,6 +20,23 @@ import maxbounty_pin_release as p
 NATIVE = Path(os.environ.get('GLP_NATIVE_CHECKOUT', '/home/ubuntu/.hermes/hermes-agent'))
 
 
+def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
+    expected = {
+        'scripts/affiliate_approval_auto_reconciler.py',
+        'scripts/affiliate_program_withdrawal.py',
+        'scripts/affiliate_sheet_batch_writer.py',
+        'scripts/affiliate_terms_fanout.py',
+        'scripts/affiliate_withdrawal_candidate.py',
+        'scripts/glp_sheet_sync_drain.py',
+        'ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh',
+    }
+    assert release.GLP331_SOURCES == expected
+    for name in expected:
+        assert (ROOT/name).read_bytes() == p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
+    assert p.sha_bytes((ROOT/release.GLP331_SNAPSHOT).read_bytes()) == (
+        '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9')
+
+
 def test_original_writer_two_copins_every_occurrence(tmp_path, monkeypatch, capsys):
     writer = tmp_path/'writer.py'
     writer.write_text('VALUE = 1\n')
@@ -63,14 +80,16 @@ def fixture(tmp_path, monkeypatch):
     (repo/'ops/registered-producers.json').write_text(json.dumps(registered))
     bodies = {name: ('# harmless successor '+name+'\n').encode() for name in release.GLP331_SOURCES}
     writer = business/'scripts/affiliate_sheet_batch_writer.py'
-    scanner = business/'scripts/affiliate_program_withdrawal.py'
+    scanner = business/'scripts/glp_wire_in_ready_queue.py'
     metadata = business/'scripts/affiliate_provider_metadata.py'
+    scanner.write_text('# unchanged scanner dependency\n')
+    metadata.write_text('# unchanged metadata dependency\n')
     dependency = business/'scripts/unchanged.py'
     dependency.write_text('# unchanged pinned dependency\n')
     successor = ("#!/bin/bash\n"
         f"wire_writer='{writer}'\nwire_writer_expected_sha256='{p.sha_bytes(bodies[str(writer.relative_to(business))])}'\n"
-        f"wire_scanner='{scanner}'\nwire_scanner_expected_sha256='{p.sha_bytes(bodies[str(scanner.relative_to(business))])}'\n"
-        f"wire_metadata='{metadata}'\nwire_metadata_expected_sha256='{p.sha_bytes(bodies[str(metadata.relative_to(business))])}'\n"
+        f"wire_scanner='{scanner}'\nwire_scanner_expected_sha256='{p.sha_bytes(scanner.read_bytes())}'\n"
+        f"wire_metadata='{metadata}'\nwire_metadata_expected_sha256='{p.sha_bytes(metadata.read_bytes())}'\n"
         f"declare -A b2_pins=(\n ['{writer}']='{p.sha_bytes(bodies[str(writer.relative_to(business))])}'\n"
         f" ['{dependency}']='{p.sha_bytes(dependency.read_bytes())}'\n)\n"
         "printf successor > \"$1\"\n").encode()
@@ -78,7 +97,7 @@ def fixture(tmp_path, monkeypatch):
     bodies[release.GLP331_SNAPSHOT] = successor
     for name, body in bodies.items():
         (repo/name).write_bytes(body)
-        if name not in {'scripts/affiliate_program_withdrawal.py', 'scripts/affiliate_provider_metadata.py'}:
+        if name not in {'scripts/affiliate_program_withdrawal.py', 'scripts/affiliate_withdrawal_candidate.py'}:
             (business/name).write_bytes(b'# harmless predecessor\n')
     target = home/'scripts'/release.GLP331_CARRIER
     target.write_bytes(old); target.chmod(0o700)

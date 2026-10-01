@@ -13,7 +13,7 @@
     "scripts/fleet_pin_release.py": {
       "kind": "script",
       "callers": ["GLP331 scoped carrier closure; independent exact review required"],
-      "sha256": "4b3ea904bef94e5063fbb345d5e2df86501d84c7bdf5215dda63b70d413685f5"
+      "sha256": "6fd83b134bd8e8a70f2f092d9a22f450f522da3b8cdf61c8a4a068f1f13a2d8d"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
@@ -28,12 +28,12 @@
     "tests/test_glp331_carrier_closure.py": {
       "kind": "test",
       "callers": ["GLP331 disposable native fixture; no live effects"],
-      "sha256": "4211dbadba928a3d9e64c79aa0ea9fbb0e1158c97b423be87731c6f4490bdf6c"
+      "sha256": "70414cb9f76086d61a537fe099458a11dbe4fd2de42290dcd4c76eeabd6c32cd"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
       "callers": ["GLP331 exact proposal and independent review contract"],
-      "sha256": "383c061a0f13f97775c8c19d09d8bbe18c1c1566cfedd5faedae1f6b90899c00"
+      "sha256": "349806861fe06d8dfda54659b1b99e91b099ddb8dfd721125a998ad2cdeea42c"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
