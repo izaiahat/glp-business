@@ -8,8 +8,17 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 530,
+  "tracked_count": 533,
   "files": {
+    "ops/glp337-shared-bridge-custody.md": {
+      "callers": [], "kind": "source_control", "sha256": "773f4be11a6c11a1dbcf1837129472bbc2fbd18031e585563f228b6a7aa34170"
+    },
+    "scripts/shared_bridge_predecessor_migration.py": {
+      "callers": ["GLP337 receiving-host installation owner"], "kind": "repository_control", "sha256": "8771c44e9836c3e72c383a429b53d75cd70df478de8654e81d220b93f13502b5"
+    },
+    "tests/test_glp337_shared_bridge_migration.py": {
+      "callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "e4b0edb9a97541bdd4119048c4add829f6d552e8975887788ca85a2fd4786962"
+    },
     "scripts/glp331_carrier_adoption.py": {
       "kind": "script",
       "callers": ["Fixed glp331-carrier-20261001 inside independently authorized verified maintenance window"],
@@ -360,7 +369,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d83ab0948b6f34926e8c613f1dd76e28bf1707dd9509ff934bb78e4f0265590b"
+      "sha256": "87c7d5c4693f70242c51f1db81251256db626b53c43df59b1c6777467344f71e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -370,7 +379,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "14c4f821655993eb66935b8974af55f76ef9e1af0a4314e5e263da87879a9609"
+      "sha256": "0630b155a2af1d66cbf9707c936bac15ba5c1c99901cc17544398dc861bac705"
     },
     ".hermes.md": {
       "callers": [],
@@ -1451,7 +1460,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+      "sha256": "f1055dea298e8354bd61d9ccad084a2b33ab9c028ed7070b54e23d64ad023032"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -2083,7 +2092,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4ed1c75f5c9e3bf018445974fe0e40431d4c412019c9fc8287275a204ffbdbc8"
+      "sha256": "a451f4431fa7053047c3b64858562c0d5febea9ce1bd1e47cbf89f1b1f135d24"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -2567,7 +2576,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "31440266dd06ec251627c2568ddbe341947be05f1e3783c714264112272d0f02"
+      "sha256": "09a133e325022503165fa5c6956c6ce6d23d0e13132b27474a8edf711e5e34e5"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
@@ -3354,7 +3363,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "2d0f5f4c22978000a10856bb2c0605362a2d8017a9610cf729f189fd05edb1eb"
+      "sha256": "d57263c6c3510ab3b58fa2960d1977c3e3bb3d9ccf36414ac2402c5d4dafe31d"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [

@@ -105,8 +105,13 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
 
 
 def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
-                 _discovery_preimage=None):
+                 _discovery_preimage=None, _shared_bridge_preimage=None):
     root = root.resolve(strict=True)
+    if _shared_bridge_preimage is not None:
+        from scripts.shared_bridge_predecessor_migration import SELECTED, PREDECESSOR
+        if _shared_bridge_preimage != PREDECESSOR or set(only) != set(SELECTED) or len(only) != 2:
+            raise ValueError('shared bridge migration requires the fixed paired selection')
+    migration = _discovery_preimage is not None or _shared_bridge_preimage is not None
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":
         raise ValueError("unknown source manifest schema")
@@ -129,8 +134,8 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
     if not selected:
         target_hashes[MANIFEST] = sha(checkout / MANIFEST)
     state_path = root / STATE
-    state_preimage = sha(state_path) if _discovery_preimage is not None else None
-    state_mode = stat.S_IMODE(state_path.stat().st_mode) if _discovery_preimage is not None else None
+    state_preimage = sha(state_path) if migration else None
+    state_mode = stat.S_IMODE(state_path.stat().st_mode) if migration else None
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     previous = state.get("hashes", {})
     if not isinstance(previous, dict):
@@ -147,6 +152,16 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
         rel = 'scripts/affiliate_supply_discovery.py'
         adopted.add(rel)
         prior_hashes[rel] = {_discovery_preimage}
+    if _shared_bridge_preimage is not None:
+        from scripts.shared_bridge_predecessor_migration import (LAUNCHER, CADENCE, BASELINE,
+            PREDECESSOR, SUCCESSOR, CADENCE_BEFORE, CADENCE_AFTER)
+        if (target_hashes != {LAUNCHER: SUCCESSOR, CADENCE: CADENCE_AFTER}
+                or previous.get(LAUNCHER) != BASELINE or sha(safe(root, LAUNCHER)) != PREDECESSOR
+                or previous.get(CADENCE) not in (None, CADENCE_BEFORE)
+                or sha(safe(root, CADENCE)) != CADENCE_BEFORE
+                or adopted != ({CADENCE} if CADENCE not in previous else set())
+                or _discovery_preimage is not None):
+            raise ValueError('shared bridge migration requires fixed paired bytes and baselines')
     stale = sorted(set(previous) - set(target_hashes)) if not selected else []
     changed, conflicts, retirement_moves, expected, expected_modes = [], [], {}, {}, {}
     for p in sorted(set(target_hashes) | set(stale)):
@@ -173,7 +188,14 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
             continue
         baseline = previous.get(p)
         if p in previous:
-            if current != baseline:
+            if (_shared_bridge_preimage is not None and p == 'scripts/cron_bridge_action.py'
+                    and current == _shared_bridge_preimage):
+                from scripts.shared_bridge_predecessor_migration import BASELINE, SUCCESSOR
+                if baseline != BASELINE or target != SUCCESSOR:
+                    conflicts.append(p)
+                else:
+                    changed.append(p)
+            elif current != baseline:
                 conflicts.append(p)
             else:
                 changed.append(p)
@@ -211,7 +233,7 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
                     os.chmod(tmp, expected_modes[p] if p in expected_modes else src.stat().st_mode & 0o777)
                     # Serialized writers are still required: this detects intervening
                     # ordinary edits, not an atomic compare-and-swap against outsiders.
-                    if _discovery_preimage is not None and sha(Path(tmp)) != target_hashes[p]:
+                    if migration and sha(Path(tmp)) != target_hashes[p]:
                         raise ValueError("migration source changed during sync: " + p)
                     if sha(dst) != expected[p]:
                         raise ValueError("destination changed during sync: " + p)
@@ -228,7 +250,7 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
             with os.fdopen(fd, "w") as f:
                 json.dump({"schema": 1, "hashes": {**previous, **target_hashes} if selected else target_hashes}, f, indent=2, sort_keys=True)
                 f.write("\n"); f.flush(); os.fsync(f.fileno())
-            if _discovery_preimage is not None:
+            if migration:
                 assert state_mode is not None
                 if sha(state_path) != state_preimage or stat.S_IMODE(state_path.stat().st_mode) != state_mode:
                     raise ValueError("migration sync state changed; reconcile partial import from custody")
