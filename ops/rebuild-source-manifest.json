@@ -8,8 +8,38 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 515,
+  "tracked_count": 521,
   "files": {
+    "scripts/fleet_pin_release.py": {
+      "kind": "script",
+      "callers": ["GLP331 scoped carrier closure; independent exact review required"],
+      "sha256": "6fd83b134bd8e8a70f2f092d9a22f450f522da3b8cdf61c8a4a068f1f13a2d8d"
+    },
+    "scripts/wrapper_pin_sync.py": {
+      "kind": "script",
+      "callers": ["GLP331 all enforcement occurrences"],
+      "sha256": "6cea7d1781edbe31ad19ba40ac44070cef1041732563a6ec0d57ea4e3a029f6f"
+    },
+    "tests/test_fleet_pin_release.py": {
+      "kind": "test",
+      "callers": ["Existing full-fleet pin release regressions"],
+      "sha256": "7eb69692a89e4ad2ff74516c567b513d932b871307695f3209662f5b40f70f07"
+    },
+    "tests/test_glp331_carrier_closure.py": {
+      "kind": "test",
+      "callers": ["GLP331 disposable native fixture; no live effects"],
+      "sha256": "b136d0fc81149a2a493454fb963b0ed9b5d1a1c06f573ab1a863dbf76a319670"
+    },
+    "ops/glp331-carrier-closure.md": {
+      "kind": "documentation",
+      "callers": ["GLP331 exact proposal and independent review contract"],
+      "sha256": "349806861fe06d8dfda54659b1b99e91b099ddb8dfd721125a998ad2cdeea42c"
+    },
+    ".github/workflows/glp331-carrier-closure.yml": {
+      "kind": "repository_control",
+      "callers": ["GLP331 exact-head native acceptance fixtures"],
+      "sha256": "4700d33b6af121073ab8b3af911e278da86ececc4bb7fb37862d1a89b943bab2"
+    },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
         "GLP-333 read-only network access contract"
@@ -290,7 +320,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0cab795027ba8c83dd9b2b34239ae382fe2404409374c7ce1e54d66e3244230e"
+      "sha256": "1d479195d992d38b591d4db90401047d554d3e062d8962a1993ff5e2e9511707"
     },
     ".hermes.md": {
       "callers": [],
@@ -984,7 +1014,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "95e6a625d60dccccfd69977b398dca34db4bf81eb013d58b17ac14525342de2d"
+      "sha256": "2389ae760986159c32e3305bfaa1dfa7151ade573cbaaa2e83728dd5ddf40dcd"
     },
     "ops/rook-mcp/README.md": {
       "callers": [
