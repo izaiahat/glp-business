@@ -181,6 +181,93 @@ def test_nested_pin_member_and_outer_hash_drift_remain_visible(tmp_path):
     assert result['counts']['payload_drift'] == 2
 
 
+def test_sanitized_real_host_cron_row_has_source_paths_not_native_path(tmp_path):
+    root, hermes, installed, *_ = fixture(tmp_path)
+    row = json.loads((ROOT/'tests/fixtures/scheduled_source_drift_crontab_row.json').read_text())
+    # Copied from the real host inventory; change values, never add native fields.
+    assert set(row) == {'id', 'surface', 'sources', 'payloads'}
+    row['sources'][0].update(path=str(installed), source='ops/hermes-cron-scripts/job.py',
+                             reviewed_sha256=sha(installed.read_bytes()))
+    (root/'ops/scheduled-source-drift-manifest.json').write_text(json.dumps(
+        {'schema':'scheduled-source-drift-v1', 'jobs':[row]}))
+    (hermes/'cron/jobs.json').write_text('{"jobs":[]}')
+    result = load().audit(root, hermes, crontab_ids=[row['id']])
+    assert result['status'] == 'CLEAN', result
+    assert result['checked'] == 1 and result['host_cron_jobs'] == 1
+
+
+@pytest.mark.parametrize('sources', [None, [], {}, [{'source':'job.py'}],
+                                      [{'path':None}], [{'path':''}], [{'path':17}],
+                                      [{'path':'relative.py'}], [{'path':'\u0000bad'}]])
+def test_unresolved_crontab_source_is_unknown_only_for_its_row(tmp_path, sources):
+    root, hermes, installed, *_ = fixture(tmp_path)
+    installed.write_bytes(b'other row drift\n')
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    inventory['jobs'].append({'id':'bad-cron', 'surface':'crontab',
+                              'sources':sources, 'payloads':[]})
+    inventory_path.write_text(json.dumps(inventory))
+    result = load().audit(root, hermes, crontab_ids=['bad-cron'])
+    assert result['status'] == 'UNKNOWN'
+    assert result['counts']['script_drift'] == 1
+    assert result['checked'] == 3  # unrelated native source/scheduler/payload survived
+    assert [f['job_id'] for f in result['findings'] if f['kind']=='unknown'] == ['bad-cron']
+
+
+def test_missing_native_binding_path_does_not_abort_sibling_rows(tmp_path):
+    root, hermes, installed, _, jobs = fixture(tmp_path)
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    del inventory['jobs'][0]['path']
+    jobs.append({'id':'second', 'script':'job.py', 'script_sha256':sha(installed.read_bytes())})
+    second = dict(inventory['jobs'][0], id='second', path=str(installed))
+    inventory['jobs'].append(second)
+    inventory_path.write_text(json.dumps(inventory))
+    (hermes/'cron/jobs.json').write_text(json.dumps({'jobs':jobs}))
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status']=='UNKNOWN'
+    assert result['native_script_jobs']==2 and result['checked']==3
+    assert [f['job_id'] for f in result['findings'] if f['kind']=='unknown'] == ['job']
+
+
+@pytest.mark.parametrize('bad_script', [42, ['job.py'], '\u0000bad'])
+def test_bad_native_script_binding_does_not_abort_sibling_rows(tmp_path, bad_script):
+    root, hermes, installed, _, jobs = fixture(tmp_path)
+    jobs.append({'id':'bad-native', 'script':bad_script})
+    (hermes/'cron/jobs.json').write_text(json.dumps({'jobs':jobs}))
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status']=='UNKNOWN' and result['checked']==3
+    assert [f['job_id'] for f in result['findings'] if f['kind']=='unknown']==['bad-native']
+
+
+def test_all_committed_host_cron_source_row_shapes_are_resolved(tmp_path):
+    import copy
+    root, hermes, *_ = fixture(tmp_path)
+    committed = json.loads((ROOT/'ops/scheduled-source-drift-manifest.json').read_text())
+    rows = copy.deepcopy([r for r in committed['jobs'] if r['surface']=='crontab'])
+    assert len(rows)==34 and all('path' not in row for row in rows)
+    expected_checks = 0
+    for number, row in enumerate(rows):
+        # Source-schema regression only: replace binding values with inert files;
+        # nested payload coverage has independent tests and is not asserted here.
+        row['payloads'] = []
+        for source_number, source in enumerate(row['sources']):
+            path = root/f'row-{number}-source-{source_number}.py'
+            path.write_bytes(b'fixture source; never execute\n')
+            source['path'] = str(path)
+            if 'reviewed_sha256' in source:
+                source['reviewed_sha256'] = sha(path.read_bytes())
+                expected_checks += 1
+    (root/'ops/scheduled-source-drift-manifest.json').write_text(json.dumps(
+        {'schema':'scheduled-source-drift-v1', 'jobs':rows}))
+    (hermes/'cron/jobs.json').write_text('{"jobs":[]}')
+    result = load().audit(root, hermes, crontab_ids=[row['id'] for row in rows])
+    assert result['host_cron_jobs']==34 and result['checked']==54
+    assert result['checked'] - result['counts']['unknown']==expected_checks==46
+    assert result['counts']['unknown']==8  # explicit bare interpreter bindings
+    assert all(f['reason']=='invalid_or_absent_pin' for f in result['findings'])
+
+
 def test_report_is_hash_only_and_not_job_payload_text(tmp_path):
     root, hermes, installed, *_ = fixture(tmp_path)
     installed.write_bytes(b'password="do-not-print-this-value"\n')

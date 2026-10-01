@@ -1,0 +1,12 @@
+{
+  "id": "crontab:sanitized-live-row",
+  "surface": "crontab",
+  "sources": [
+    {
+      "path": "/sanitized/business/scripts/job.py",
+      "source": "scripts/job.py",
+      "reviewed_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "payloads": []
+}
