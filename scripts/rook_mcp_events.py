@@ -2011,7 +2011,7 @@ class Application:
             text = re.sub(mention_pattern, '', content).strip()
         if not text:
             return 0
-        if dot and re.match(r'(?i)^(?:ack(?:nowledged)?|received|(?:research|finch)\s+(?:handoff|reply))\b' if self.config.finch
+        if dot and re.match(r'(?i)^(?:ack(?:nowledged)?|received|reply|handoff|(?:rook|research|finch)\s+(?:handoff|reply))\b' if self.config.finch
                            else r'(?i)^(?:ack(?:nowledged)?|received|research\s+(?:handoff|reply))\b', text):
             return 0  # Acknowledgments are never new dot assignments.
         request_id = 'discord-' + message

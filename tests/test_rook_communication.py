@@ -1411,7 +1411,8 @@ class TestFinchCommunication:
         bad = [{'author': {'id': self.dot.bot}}, {'author': {'id': '999'}}, {'webhook_id': '777'},
             {'content': 'Finch: assignment'}, {'content': 'ack', 'mentions': [{'id': '903'}]},
             {'content': '<@903>'}, {'content': '<@903> assignment', 'mentions': []}, {'guild_id': '999'},
-            *[{'content': '<@903> ' + t} for t in ('ack', 'acknowledged', 'received', 'Finch reply', 'Finch handoff', 'Research reply')],
+            *[{'content': '<@903> ' + t} for t in ('ack', 'acknowledged', 'received', 'reply', 'handoff', 'Finch reply', 'Finch handoff',
+                                               'Research reply', 'Research handoff', 'Rook reply', 'Rook handoff')],
             {'author': {'id': self.m.ROOK_BOT}, 'content': '<@903> assignment\n-# rook.reply · discord-299'}]
         for i, delta in enumerate(bad):
             event = self.event(str(310 + i)); event['d'].update(delta)

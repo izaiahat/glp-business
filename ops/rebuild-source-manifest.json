@@ -2075,7 +2075,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "9ec58594bc0f04dde2b23907400f1ebfbc539a56c8e9f412ead178d44faac111"
+      "sha256": "5d0ec58af40026133548c28c9930abecb51f7d72bb200f2f254de62449254152"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3266,7 +3266,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "43aad05f8c1832c9ebade9cc4ee281b5037a9efcb12aad24c0c56aee9c563bbe"
+      "sha256": "1d6c239ef1ef156bae845d9c1c876820630aa6b476316bdc3ba2de55bb78631d"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
