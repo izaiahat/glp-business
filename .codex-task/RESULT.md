@@ -1,4 +1,22 @@
-# GLP affiliate front-half repair — 2026-10-01
+# PR #107 review fixes — 2026-10-01
+
+This section supersedes the implementation claims below for the five reproduced findings. Work is isolated in `/home/ubuntu/business/.worktrees/pr107-fix2-20261001`, based on `2f0db3e529184c015bcded12b90b5c1bab95c53d`, for the existing branch/PR only.
+
+- R1: negative eligibility survives normalization and commercial merging by exact network/program ID (including opaque leading zeros), and selection rechecks it. Both raw census and normalized inventories are read. An alias cannot reopen a held rail.
+- R2: pending enrichment is never retired by a partial publication. Exact pending reads can resume even against a legacy known inventory; deferred candidates are withheld and completed enrichment refreshes stale carry-forward evidence.
+- R3: every queue read and insert has a fresh deadline check. Read-only calls are bounded; in-flight inserts are never interrupted. Expired readback remains dispatching/reconcile-required. Deferred tail candidates and immutable source bytes are journaled locally.
+- R4: per-platform failed/deferred queries are FAILED/UNKNOWN, never EVIDENCED_EMPTY.
+- R5: provider enumeration retains every declared seed instead of slicing at 1,000.
+
+RED: 14 parameterized regression cases failed against the supplied head. GREEN: those cases plus three continuation/intent edge checks pass. The original six focused suites total 145 tests now (128 existing + 17 new). Before manifest refresh, 144 passed and the manifest-bound test was deliberately deferred until commit. Exact-head test/CI receipts are in `reports/ops/glp330-332-pr107-fix2-20261001/RESULT.json` in the host workspace.
+
+The independent reviewer probe runner is retargeted without editing historical evidence. GREEN-only observers allow an empty provider list after full exclusion; unrelated synthetic brands receive distinct immutable IDs. Exclusion assertions are preserved. The same impossible ID collision in one existing test fixture is corrected; no safety oracle was weakened.
+
+Source/wrapper pins are refreshed only for this repair. `.gitignore` is untouched; the pre-existing `.gitignore` and `ops/rebuild-source-manifest.json` conflicts with PR #102 remain unresolved and out of scope. No installation, merge, live affiliate call, application, send, or deployment is authorized/performed. Apply/executor gates and inert-by-default fan-out remain intact. Cron `2dd6ae1a4db9` was read back as disabled/paused and left untouched. Natural scheduled/live proof and independent acceptance remain with their designated owners.
+
+---
+
+# Original GLP affiliate front-half repair — historical handoff
 
 Source work is complete; scheduled/live proof remains with the parent. No network affiliate APIs, applications, email, deployments, pushes or merges were performed. No credential files, tokens, cookies or .env files were read or copied.
 

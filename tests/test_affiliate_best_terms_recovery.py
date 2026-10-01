@@ -30,6 +30,8 @@ def machine(monkeypatch, tmp_path):
     monkeypatch.setattr(module, 'RUNS_ROOT', tmp_path / 'runs')
     monkeypatch.setattr(module, 'STATE_DIR', tmp_path / 'state')
     monkeypatch.setattr(module, 'read_live_sheet', lambda: [writer.HEADERS])
+    module.offline_test_original_sheet_offers = module.sheet_offers
+    module.offline_test_original_inventory_programs = module.inventory_programs
     monkeypatch.setattr(module, 'sheet_offers', lambda _: [])
     monkeypatch.setattr(module, 'application_ledger_offers', lambda: [])
     monkeypatch.setattr(module, 'inventory_programs', lambda _: [])
@@ -53,7 +55,7 @@ def test_held_xentraffic_lock_no_longer_aborts_eligible_terms(machine, monkeypat
 
 
 def test_held_and_excluded_offers_cannot_enter_selection(machine):
-    records = [{'provider_name': name, 'network': network, 'program_id': '1',
+    records = [{'provider_name': name, 'network': network, 'program_id': name,
                 'headline_payout': None, 'relationship': 'approved', 'wire_in_ready': True}
                for name, network in [('Allowed Clinic', 'impact'), ('Allowed Clinic', 'xentraffic'),
                                      ('Telos Health', 'impact'), ('HealthRX', 'direct'), ('Fella Health', 'cj')]]
@@ -122,3 +124,41 @@ def test_missing_collector_source_is_explicit_before_launch(machine, monkeypatch
 def test_missing_performance_is_not_fabricated_zero(machine, tmp_path):
     with pytest.raises(RuntimeError, match='affiliate_payout_performance_unreadable'):
         machine.offline_test_original_performance_loader(tmp_path / 'missing-performance.json')
+
+
+@pytest.mark.parametrize('filename', ['impact.json', 'impact-inventory.json'])
+@pytest.mark.parametrize('adverse', [
+    {'held': True}, {'suppressed': True}, {'status': 'suppressed'},
+    {'relationship': 'held'},
+])
+def test_review_r1_real_machine_excludes_held_rail_by_exact_id(
+        machine, monkeypatch, tmp_path, filename, adverse):
+    """Reviewer pipeline: approved Sheet plus adverse census with another label."""
+    census = tmp_path / 'census'
+    census.mkdir()
+    raw = {'program_id': '00123', 'id': '00123', 'name': 'Other Census Label',
+           'relationship': 'approved', 'headline_payout': 250,
+           'payout_model': 'CPL', 'paid_event': 'qualified_lead', **adverse}
+    (census / filename).write_text(json.dumps({'network': 'impact', 'programs': [raw]}))
+    (census / '_sweep-summary.json').write_text(json.dumps({'networks': {}}))
+    row = [''] * 27
+    row[2], row[4], row[10] = 'Pipeline Hold Clinic', 'Impact', 'approved_active'
+    row[16], row[19], row[23] = '$20 per qualified lead', True, 'provider_program_id=00123'
+    monkeypatch.setattr(machine, 'PAYOUT_MATRIX', tmp_path / 'prior-payout.json')
+    monkeypatch.setattr(machine, 'sheet_offers', machine.offline_test_original_sheet_offers)
+    monkeypatch.setattr(machine, 'inventory_programs', machine.offline_test_original_inventory_programs)
+    monkeypatch.setattr(machine, 'read_live_sheet', lambda: [machine.sheet_writer.HEADERS, row])
+    result = machine.run_machine(first_run=False, approval_events=False, stage=False, census_dir=census)
+    matrix = json.loads(machine.LATEST_MATRIX.read_text())
+    assert not any(p.get('selected_winner') for p in matrix['providers'])
+    assert any(r['program_id'] == '00123' for r in matrix['excluded_offers'])
+    assert result['sheet_queue']['queued'] == 0
+    assert all(v == 0 for v in result['effects'].values())
+    # Final selection is defensive even if a caller bypasses merge_offers.
+    live = {'provider_name': 'Allowed Clinic', 'network': 'impact', 'program_id': '00123',
+            'relationship': 'approved', 'wire_in_ready': True, 'headline_payout': 20,
+            'payout_model': 'CPL', 'currency': 'USD', 'paid_event': 'qualified_lead'}
+    sibling = {**live, 'program_id': '123'}  # Leading zeros are identity, not labels.
+    selected = machine.selection_with_offers([live, {**live, **adverse}, sibling], [])
+    winners = [p['selected_winner'] for p in selected['providers'] if p['selected_winner']]
+    assert len(winners) == 1 and winners[0]['program_id'] == '123'

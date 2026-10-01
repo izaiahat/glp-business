@@ -703,9 +703,13 @@ def inventory_programs(census_dir: Path | None) -> list[dict[str, Any]]:
     if not census_dir or not census_dir.is_dir():
         return []
     out = []
-    for path in sorted(census_dir.glob("*-inventory.json")):
+    # Collectors publish both <network>.json and normalized inventories.
+    # Require an actual program list so summary/receipt files are not offers.
+    for path in sorted(census_dir.glob("*.json")):
         document = read_json(path, {})
-        programs = document.get("programs") or []
+        if not isinstance(document, dict) or not isinstance(document.get("programs"), list):
+            continue
+        programs = document["programs"]
         for raw in programs:
             provider = clean_provider_name(raw.get("name") or raw.get("program_name"))
             if not provider:
@@ -733,6 +737,9 @@ def inventory_programs(census_dir: Path | None) -> list[dict[str, Any]]:
                 "paid_event_basis": payout.get("paid_event_basis") or "",
                 "currency": str(raw.get("currency") or "USD").upper(),
                 "relationship": str(raw.get("relationship") or "unknown"),
+                "held": raw.get("held"),
+                "suppressed": raw.get("suppressed"),
+                "source_exclusion_reason": offer_exclusion_reason(raw),
                 "wire_in_ready": False,
                 "wired_live": False,
                 "tracking_link_present": False,
@@ -765,6 +772,10 @@ def merge_offers(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     contradiction_fields = {
         "headline_payout", "payout_model", "paid_event", "currency", "attribution_days",
     }
+    # Negative eligibility evidence is independent of commercial precedence and
+    # provider labels. Freeze it before a positive source can overwrite fields.
+    records = list(records)
+    blocked = excluded_rail_evidence(records)
     merged: dict[tuple[str, str, str], dict[str, Any]] = {}
     for row in policy.resolve_provider_records(records):
         provider = clean_provider_name(row.get("provider_name"))
@@ -849,6 +860,8 @@ def merge_offers(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     out = sorted(merged.values(), key=lambda row: (
         slug(row["provider_name"]), row["network"], str(row.get("program_id") or "")))
     for row in out:
+        if evidence := blocked.get(offer_rail_identity(row)):
+            row.update(evidence)
         row.pop("_commercial_field_authority", None)
         if not row.get("terms_contradictions"):
             row.pop("terms_contradictions", None)
@@ -995,17 +1008,43 @@ def offer_exclusion_reason(offer: dict[str, Any]) -> str | None:
         return "permanent_provider_exclusion"
     if name.startswith(("telos", "healthrx")):
         return "operator_provider_hold"
-    if offer.get("held") is True or offer.get("suppressed") is True:
+    if offer.get("source_exclusion_reason"):
+        return str(offer["source_exclusion_reason"])
+    if any(offer.get(k) not in (None, False, "", "false", "FALSE", "0", 0)
+           for k in ("held", "suppressed")):
         return "source_hold_or_suppression"
-    if str(offer.get("relationship") or "").casefold() in {"hold", "held", "suppressed"}:
+    if any(re.search(r"(?:^|[^a-z])(hold|held|suppressed)(?:$|[^a-z])",
+                     str(offer.get(k) or "").casefold())
+           for k in ("relationship", "status", "offer_status", "network_status")):
         return "source_hold_or_suppression"
     return None
+
+
+def offer_rail_identity(offer: dict[str, Any]) -> tuple[str, str] | None:
+    network = policy.network_key(offer.get("network"))
+    program_id = str(offer.get("program_id") or "").strip()
+    return (network, program_id) if network and program_id else None
+
+
+def excluded_rail_evidence(offers: Iterable[dict[str, Any]]) -> dict:
+    blocked: dict = {}
+    for row in offers:
+        key, reason = offer_rail_identity(row), offer_exclusion_reason(row)
+        if key and reason:
+            evidence = blocked.setdefault(key, {"source_exclusion_reason": reason})
+            for flag in ("held", "suppressed"):
+                if row.get(flag) not in (None, False, "", "false", "FALSE", "0", 0):
+                    evidence[flag] = True
+    return blocked
 
 
 def selection_with_offers(
     offers: list[dict[str, Any]],
     performance_rows: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    # Recheck exact rail identity here even for callers that bypass the merge.
+    blocked = excluded_rail_evidence(offers)
+    offers = [{**row, **blocked.get(offer_rail_identity(row), {})} for row in offers]
     excluded = [{"provider_name": row.get("provider_name"), "network": row.get("network"),
                  "program_id": row.get("program_id"), "reason": reason}
                 for row in offers if (reason := offer_exclusion_reason(row))]

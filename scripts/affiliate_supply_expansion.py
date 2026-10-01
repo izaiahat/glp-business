@@ -300,7 +300,8 @@ def _provider_seeds(core, doc: Any) -> list[dict]:
             rows.append(doc)
     elif isinstance(doc, list):
         rows.extend(doc)
-    for row in rows[:1000]:
+    # Durable callback budgets bound execution without losing declared seeds.
+    for row in rows:
         if isinstance(row, str):
             name, domain = row.strip(), ""
         elif isinstance(row, dict):
@@ -430,6 +431,7 @@ def platform_sweeps(core, search, scrape, *, known, policy_snapshot,
         slug = definition["slug"]
         mode = definition["mode"]
         subroute_start = len(all_hits)
+        query_start = len(query_log)
         rows: list[dict] = []
         status = ""
         reason = ""
@@ -491,6 +493,15 @@ def platform_sweeps(core, search, scrape, *, known, policy_snapshot,
                     search, (f"{name} affiliate program",), limit=limit,
                     deadline=deadline, log=query_log,
                 ))
+        platform_queries = query_log[query_start:]
+        failures = [q for q in platform_queries if str(q.get("status")) != "ok"]
+        if failures:
+            pending = any("Deferred" in str(q.get("status")) or
+                          str(q.get("status", "")).startswith("skipped") for q in failures)
+            status = "UNKNOWN" if pending else "FAILED"
+            reason = "public_query_incomplete" if pending else "public_query_failed"
+        elif mode == "public_search" and not platform_queries and adapter is None:
+            status, reason = "UNKNOWN", "no_public_query_attempted"
         subroutes.append({
             "platform": slug,
             "mode": mode,

@@ -454,10 +454,13 @@ class DiscoveryCheckpoint:
     def save(self):
         private_json(self.path, self.doc)
 
+    def pending_read(self, kind, *args):
+        key = hashlib.sha256(json.dumps([kind, args], sort_keys=True).encode()).hexdigest()
+        return self.doc["operations"].get(key, {}).get("status") == "pending"
+
     def finish(self):
-        for key, row in self.doc["operations"].items():
-            if key not in self.visited and row["status"] == "pending":
-                row.update(status="retired", reason="no_longer_in_current_input_plan")
+        # An evolving partial inventory is not authority to abandon a declared
+        # read. Unvisited pending work keeps this cycle resumable, never retired.
         operations = list(self.doc["operations"].values())
         pending = [row for row in operations if row["status"] == "pending"]
         unavailable = [row for row in operations if row["status"] == "unavailable"]
@@ -1243,7 +1246,12 @@ def discover_direct_programs(search, scrape, *, known: KnownSupply, queries=None
             seen_names[norm_name] = domain
         dup = known.has(name=candidate["provider"], url=candidate["program_url"],
                         official_url=candidate["official_url"])
-        if dup:
+        checkpoint = getattr(scrape, "discovery_checkpoint", None)
+        resuming_enrichment = bool(checkpoint and checkpoint.pending_read(
+            "scrape", candidate["program_url"]))
+        # A prior partial publication can be in KnownSupply already. Only its
+        # exact unfinished read may bypass dedupe; fit/US/operator gates remain.
+        if dup and not resuming_enrichment:
             rejected.append({"url": candidate["program_url"], "provider": candidate["provider"],
                              "reason": dup, "query": candidate["discovered_by"]})
             return
@@ -1283,6 +1291,9 @@ def discover_direct_programs(search, scrape, *, known: KnownSupply, queries=None
             rejected.append({"url": candidate["program_url"], "provider": candidate["provider"],
                              "reason": f"operator_ruling:{policy.instruction_key}",
                              "query": candidate["discovered_by"]})
+        elif candidate.get("enrichment", {}).get("status") == "error:SourceDeferred":
+            rejected.append({"url": candidate["program_url"], "provider": candidate["provider"],
+                             "reason": "pending_enrichment", "query": candidate["discovered_by"]})
         elif candidate["glp_evidence"]["fit"]:
             accepted.append(candidate)
         else:
@@ -1572,10 +1583,11 @@ def build_apply_inventory(accepted: list, carried: list | None = None) -> dict:
     cannot be carried into the new admission contract.
     """
     programs = []
+    refreshed = {"domain:" + host_of(c.get("official_url") or "") for c in accepted}
     seen = set()
     for program in (carried or []):
         key = str(program.get("program_id") or "")
-        if (not key.startswith("domain:") or key in seen
+        if (not key.startswith("domain:") or key in seen or key in refreshed
                 or program.get("discovery_geo_contract") != "explicit_us_v1"):
             continue
         seen.add(key)

@@ -9,8 +9,8 @@ cd /home/ubuntu/business
 exec 9>/home/ubuntu/.hermes/state/affiliate-supply-discovery.lock
 flock -n 9 || exit 0
 
-expected_discovery_sha256='6113d6492dad5b94ff2134a5c3497c79ebade4a3009496719ab3947db17b0700'
-expected_expansion_sha256='0263a9c802a2c11ccbd7b198935393eb2f060b41a4f802203b8b4e8cff3478cb'
+expected_discovery_sha256='56c9a61e25e8b8ab52893e1a685cf02ae64c300aab282d21b5da0a113f1d283d'
+expected_expansion_sha256='b84fd9b2dcd35fffd100229b26073fbac9a3a92eaac3cea244741e680046263c'
 expected_coverage_sha256='4045c1e53c470f7540405524941263b64c9fa59136af3b5d7702e46fb0d7e39b'
 expected_card_sha256='30d152f78c8729a67c148d2972ef1ba3ecebab732c01929c5313998708c394f8'
 [[ "$(sha256sum scripts/affiliate_supply_discovery.py | cut -d' ' -f1)" == "$expected_discovery_sha256" ]]

@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import sys
 import tempfile
 import time
@@ -225,8 +226,42 @@ def queue_client_default():
     return n8n_dt
 
 
-def _queue_rows(client, field, value):
-    rows = client.rows(APPLICATION_QUEUE_TABLE, client.eq(field, value), limit=10000)
+class AdmissionDeferred(Exception):
+    """No next queue operation may start in this admission window."""
+
+
+class _QueueReadDeadline(BaseException):
+    # Read adapters may catch Exception and retry; reach our boundary instead.
+    pass
+
+
+def _require_budget(deadline):
+    if time.monotonic() >= deadline:
+        raise AdmissionDeferred('admission_budget_exhausted')
+
+
+def _queue_rows(client, field, value, *, deadline):
+    _require_budget(deadline)
+    where = client.eq(field, value)
+    _require_budget(deadline)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    if signal.getitimer(signal.ITIMER_REAL)[0]:
+        raise RuntimeError('admission_requires_exclusive_read_timer')
+    def expire(_signum, _frame):
+        raise _QueueReadDeadline()
+    signal.signal(signal.SIGALRM, expire)
+    try:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AdmissionDeferred('admission_budget_exhausted')
+        signal.setitimer(signal.ITIMER_REAL, remaining)
+        rows = client.rows(APPLICATION_QUEUE_TABLE, where, limit=10000)
+    except _QueueReadDeadline:
+        raise AdmissionDeferred('admission_budget_exhausted') from None
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+    _require_budget(deadline)
     if getattr(client, 'last_read_truncated', True):
         raise RuntimeError('application_queue_read_truncated')
     return rows
@@ -240,12 +275,12 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     journal_dir=JOURNAL_DIR, lock_path=LOCK_PATH, apply=False,
                     deadline_seconds=120):
     deadline = time.monotonic() + deadline_seconds
-    client = queue_client or (queue_client_default() if apply else None)
+    client = queue_client
     if dedupe_index is None:
         from scripts import glp_application_dedupe as dedupe
         dedupe_index = dedupe.build(require=dedupe.ALL_LEGS, check_live_manifest=False)
     journal_dir = Path(journal_dir)
-    outcomes, seen = [], set()
+    outcomes, seen, remainder = [], set(), []
     lock = contextlib.nullcontext()
     if apply:
         Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
@@ -261,6 +296,7 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                 outcomes.append(result)
                 if time.monotonic() >= deadline:
                     result.update(status='deferred', reason='admission_budget_exhausted')
+                    remainder.append({'candidate': c, 'source': source, 'outcome': result})
                     continue
                 try:
                     key = stable_key(*identity)
@@ -281,56 +317,89 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     continue
                 record_path = journal_dir / (key + '.json')
                 record = json.loads(record_path.read_text()) if record_path.exists() else None
-                if record is None:
-                    # The existing operator queue is also an idempotency leg.
-                    matches = [r for r in _queue_rows(client, 'program_id', c['program_id'])
-                               if str(r.get('network') or '').lower() == c['network']]
-                    if matches:
-                        result.update(status='already_queued', reason='existing_network_program')
+                insert_started = False
+                dispatch_prepared = False
+                try:
+                    _require_budget(deadline)  # classification/local intent may exhaust it
+                    if client is None:
+                        client = queue_client_default()
+                    if record is None:
+                        # The existing operator queue is also an idempotency leg.
+                        matches = [r for r in _queue_rows(client, 'program_id', c['program_id'], deadline=deadline)
+                                   if str(r.get('network') or '').lower() == c['network']]
+                        if matches:
+                            result.update(status='already_queued', reason='existing_network_program')
+                            continue
+                        payload = {'admission_schema': ADMISSION_SCHEMA, 'candidate': c,
+                                   'candidate_sha256': digest(c), 'source': source}
+                        queue_row = {
+                            'queue_id': key, 'network': c['network'], 'program_id': c['program_id'],
+                            'program_name': c['name'], 'payload': json.dumps(payload, sort_keys=True),
+                            'instructions': 'Use the configured truthful standard profile through the existing portal executor; preserve every submit-time gate. No email fallback.',
+                            'operator_authority': AUTHORITY, 'status': 'queued', 'queued_at_utc': utc(),
+                        }
+                        source_bytes = Path(source['path']).read_bytes()
+                        if hashlib.sha256(source_bytes).hexdigest() != source['sha256']:
+                            raise ValueError('inventory_changed_during_admission')
+                        source_copy = journal_dir / 'sources' / (source['sha256'] + '.json')
+                        if not source_copy.exists():
+                            write_bytes(source_copy, source_bytes)
+                        record = {'schema': ADMISSION_SCHEMA, 'state': 'prepared',
+                                  'source': source, 'queue_row': queue_row}
+                        write_json(record_path, record)
+                    source_copy = journal_dir / 'sources' / (record['source']['sha256'] + '.json')
+                    if hashlib.sha256(source_copy.read_bytes()).hexdigest() != record['source']['sha256']:
+                        raise ValueError('discovery_source_hash_mismatch')
+                    expected = record['queue_row']
+                    landed = _queue_rows(client, 'queue_id', key, deadline=deadline)
+                    if not landed:
+                        if record['state'] != 'prepared':
+                            result.update(status='reconcile_required', reason='queue_effect_uncertain_or_removed')
+                            continue
+                        _require_budget(deadline)
+                        record['state'] = 'dispatching'
+                        dispatch_prepared = True
+                        write_json(record_path, record)
+                        _require_budget(deadline)  # fsync can consume the remaining window
+                        insert_started = True
+                        try:
+                            # Never interrupt an in-flight effect. If it overruns,
+                            # leave dispatching for a future exact-target readback.
+                            client.insert(APPLICATION_QUEUE_TABLE, expected)
+                        except Exception:
+                            pass
+                        landed = _queue_rows(client, 'queue_id', key, deadline=deadline)
+                    if len(landed) != 1 or not _same_operation(landed[0], expected):
+                        result.update(status='reconcile_required', reason='queue_readback_missing_or_drift')
                         continue
-                    payload = {'admission_schema': ADMISSION_SCHEMA, 'candidate': c,
-                               'candidate_sha256': digest(c), 'source': source}
-                    queue_row = {
-                        'queue_id': key, 'network': c['network'], 'program_id': c['program_id'],
-                        'program_name': c['name'], 'payload': json.dumps(payload, sort_keys=True),
-                        'instructions': 'Use the configured truthful standard profile through the existing portal executor; preserve every submit-time gate. No email fallback.',
-                        'operator_authority': AUTHORITY, 'status': 'queued', 'queued_at_utc': utc(),
-                    }
-                    source_bytes = Path(source['path']).read_bytes()
-                    if hashlib.sha256(source_bytes).hexdigest() != source['sha256']:
+                    already = record['state'] == 'confirmed'
+                    record['state'] = 'confirmed'
+                    write_json(record_path, record)
+                    result.update(status='already_admitted' if already else 'admitted')
+                except AdmissionDeferred:
+                    if dispatch_prepared and not insert_started:
+                        # Only our newly journaled, never-started dispatch can
+                        # return to prepared. Prior uncertain effects stay held.
+                        record['state'] = 'prepared'
+                        write_json(record_path, record)
+                    uncertain = bool(record and record['state'] != 'prepared')
+                    result.update(status='reconcile_required' if uncertain else 'deferred',
+                                  reason='admission_budget_exhausted')
+                    remainder.append({'candidate': c, 'source': source, 'outcome': result})
+        if apply and remainder:
+            # Freeze the source denominator even when no per-row intent was
+            # created. No queue call is needed to preserve the deferred tail.
+            for item in remainder:
+                source = item['source']
+                frozen = journal_dir / 'sources' / (source['sha256'] + '.json')
+                if not frozen.exists():
+                    raw = Path(source['path']).read_bytes()
+                    if hashlib.sha256(raw).hexdigest() != source['sha256']:
                         raise ValueError('inventory_changed_during_admission')
-                    source_copy = journal_dir / 'sources' / (source['sha256'] + '.json')
-                    # Keep exact bytes: the source hash must not be reserialized.
-                    if not source_copy.exists():
-                        write_bytes(source_copy, source_bytes)
-                    record = {'schema': ADMISSION_SCHEMA, 'state': 'prepared',
-                              'source': source, 'queue_row': queue_row}
-                    write_json(record_path, record)
-                source_copy = journal_dir / 'sources' / (record['source']['sha256'] + '.json')
-                if hashlib.sha256(source_copy.read_bytes()).hexdigest() != record['source']['sha256']:
-                    raise ValueError('discovery_source_hash_mismatch')
-                expected = record['queue_row']
-                landed = _queue_rows(client, 'queue_id', key)
-                if not landed:
-                    if record['state'] != 'prepared':
-                        result.update(status='reconcile_required', reason='queue_effect_uncertain_or_removed')
-                        continue
-                    # Write before dispatch. A timeout/crash may have landed remotely;
-                    # replay reads the exact key but NEVER blindly resubmits.
-                    record['state'] = 'dispatching'
-                    write_json(record_path, record)
-                    try:
-                        client.insert(APPLICATION_QUEUE_TABLE, expected)
-                    except Exception:
-                        pass  # exact readback below is the only success authority
-                    landed = _queue_rows(client, 'queue_id', key)
-                if len(landed) != 1 or not _same_operation(landed[0], expected):
-                    result.update(status='reconcile_required', reason='queue_readback_missing_or_drift')
-                    continue
-                already = record['state'] == 'confirmed'
-                record['state'] = 'confirmed'
-                write_json(record_path, record)
-                result.update(status='already_admitted' if already else 'admitted')
+                    write_bytes(frozen, raw)
+            remainder_path = journal_dir / 'deferred' / (digest(remainder) + '.json')
+            write_json(remainder_path, {'schema': ADMISSION_SCHEMA, 'status': 'DEFERRED',
+                                       'remainder': remainder})
     return {'schema': ADMISSION_SCHEMA, 'mode': 'admit' if apply else 'dry_run',
             'outcomes': outcomes, 'candidate_count': len(outcomes),
             'effects': {'applications_submitted': 0, 'sheet_writes': 0},

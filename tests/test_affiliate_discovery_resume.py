@@ -111,6 +111,83 @@ def test_expansion_retains_more_than_old_query_cap(discovery):
     assert len(result['queries_run']) == 250
 
 
+@pytest.mark.parametrize('legacy_partial', [False, True])
+def test_review_r2_resume_with_own_inventory_completes_enrichment(discovery, tmp_path, monkeypatch, legacy_partial):
+    path = tmp_path / 'checkpoint.json'
+    root = tmp_path / 'machine'
+    monkeypatch.setattr(discovery, 'MACHINE_DIR', root)
+    url = 'https://resumeclinic.example/affiliate'
+    calls = []
+    def search(query, limit):
+        return [{'url': url, 'title': 'Resume Clinic',
+                 'description': 'US telehealth clinic prescribes semaglutide medication.'}]
+    def scrape(value):
+        calls.append(value)
+        return {'status': 'ok', 'markdown': 'Resume Clinic is a US telehealth clinic. '
+                'Our clinicians prescribe semaglutide medication for weight loss. '
+                'We serve patients in the United States. Our affiliate program is open for applications.'}
+    snapshot = discovery.operator_rulings.load_snapshot(tmp_path / 'rulings')
+    monkeypatch.setattr(discovery.operator_rulings, 'load_snapshot', lambda: snapshot)
+    monkeypatch.setattr(discovery, 'DIRECT_QUERIES', ('query',))
+    options = dict(search=search, scrape=scrape, seed_from_sheet=False,
+                   do_five_routes=False, do_marketplaces=False, checkpoint_path=path,
+                   source_timeout_s=1, time_budget_s=10)
+    first = discovery.run(known=discovery.KnownSupply(), max_source_calls=1,
+        out_dir=root / 'run-one', run_id='one', **options)
+    assert first['source_coverage']['status'] == 'PARTIAL_RESUMABLE'
+    own_inventory = json.loads(Path(first['apply_inventory']).read_text())
+    if legacy_partial:
+        # Emulate the old version's real builder publication, not a new approval.
+        hit = discovery.Hit(url, 'Resume Clinic', search('query', 10)[0]['description'], 'query')
+        own_inventory = discovery.build_apply_inventory([discovery.to_candidate(hit)])
+        discovery.private_json(Path(first['apply_inventory']), own_inventory)
+    # Include this exact run's real publication in the second dedupe universe.
+    known = discovery.load_known_supply(sheet_export={}, inventories=[own_inventory], ledger={})
+    second = discovery.run(known=known, max_source_calls=10,
+        out_dir=root / 'run-two', run_id='two', **options)
+    assert calls == [url]
+    assert second['source_coverage']['complete'] is True
+    inventory = json.loads(Path(second['apply_inventory']).read_text())
+    assert inventory['programs'][0]['us_service_evidence']
+    assert not any(r['status'] == 'retired' for r in json.loads(path.read_text())['operations'].values())
+
+
+def test_review_r4_failed_platform_query_never_emits_empty_subreceipt(discovery, tmp_path):
+    def failed(*args):
+        raise RuntimeError('synthetic source failure')
+    result = discovery.supply_expansion.platform_sweeps(
+        discovery, failed, lambda url: {}, known=discovery.KnownSupply(),
+        policy_snapshot=discovery.operator_rulings.load_snapshot(tmp_path / 'rulings'))
+    assert result['status'] == 'INCOMPLETE'
+    public = [r for r in result['platform_receipts'] if r['mode'] == 'public_search']
+    assert public and all(r['status'] in {'UNKNOWN', 'FAILED'} for r in public)
+    assert not result['evidenced_empty']
+
+
+def test_review_r5_provider_plan_preserves_all_1002_rows(discovery, tmp_path):
+    seeds = {'providers': [{'name': f'Provider {i}', 'official_url': f'https://seed{i}.example/'}
+                           for i in range(1002)]}
+    seen = []
+    result = discovery.supply_expansion.provider_first(
+        discovery, lambda q, limit: seen.append(q) or [], lambda url: {},
+        known=discovery.KnownSupply(), source_docs=[seeds], enumeration_queries=['enumerate'],
+        policy_snapshot=discovery.operator_rulings.load_snapshot(tmp_path / 'rulings'))
+    assert result['evidence'][-1]['provider_seeds'] == 1002
+    assert len(seen) == len(result['queries_run']) == 2005
+    assert '"Provider 1001" affiliate program' in seen
+
+
+def test_unvisited_pending_read_cannot_complete_partial_cycle(discovery, tmp_path):
+    path = tmp_path / 'checkpoint.json'
+    first = discovery.DiscoveryCheckpoint(path, run_id='one', budget_s=1, max_calls=0)
+    with pytest.raises(discovery.SourceDeferred):
+        first.wrap('scrape', lambda url: {} )('https://pending.example/affiliate')
+    assert first.finish()['pending']
+    resumed = discovery.DiscoveryCheckpoint(path, run_id='two', budget_s=1)
+    assert resumed.finish()['status'] == 'PARTIAL_RESUMABLE'
+    assert resumed.doc['operations'] == json.loads(json.dumps(first.doc['operations']))
+
+
 def test_scheduled_budget_leaves_time_for_queue_and_receipts():
     wrapper = (ROOT / 'ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh').read_text()
     assert 'AFFILIATE_MONDAY_TIME_BUDGET_SECONDS:-360' in wrapper

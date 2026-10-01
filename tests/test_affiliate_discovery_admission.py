@@ -186,6 +186,64 @@ def test_budget_deferred_tail_is_reported(setup):
     assert setup.queue.inserts == 0
 
 
+@pytest.mark.parametrize('slow_step', ['classification', 'queue_read', 'insert'])
+def test_review_r3_no_new_queue_operation_after_admission_deadline(setup, monkeypatch, slow_step):
+    import time
+    operations = []
+    deadline = time.monotonic() + .04
+    original_rows, original_insert = setup.queue.rows, setup.queue.insert
+    original_refusal = admission.candidate_gate
+    def rows(*args, **kwargs):
+        operations.append(('read', time.monotonic()))
+        if slow_step == 'queue_read':
+            time.sleep(.12)
+        return original_rows(*args, **kwargs)
+    def insert(*args, **kwargs):
+        operations.append(('insert', time.monotonic()))
+        if slow_step == 'insert':
+            time.sleep(.12)  # Never interrupt an in-flight effect.
+        return original_insert(*args, **kwargs)
+    def refusal(*args, **kwargs):
+        result = original_refusal(*args, **kwargs)
+        if slow_step == 'classification':
+            time.sleep(.12)
+        return result
+    monkeypatch.setattr(setup.queue, 'rows', rows)
+    monkeypatch.setattr(setup.queue, 'insert', insert)
+    monkeypatch.setattr(admission, 'candidate_gate', refusal)
+    setup.inventory([setup.candidate, {**setup.candidate, 'program_id': '456'}])
+    result = setup.run(apply=True, deadline_seconds=.04)
+    assert all(start < deadline for _, start in operations), operations
+    assert result['status'] == 'INCOMPLETE'
+    assert setup.queue.inserts == (1 if slow_step == 'insert' else 0)
+    assert list((setup.root / 'journal/deferred').glob('*.json'))
+    # An expired dispatch readback must stay uncertain until a later run observes it.
+    monkeypatch.setattr(setup.queue, 'rows', original_rows)
+    monkeypatch.setattr(setup.queue, 'insert', original_insert)
+    monkeypatch.setattr(admission, 'candidate_gate', original_refusal)
+    resumed = setup.run(apply=True)
+    assert resumed['status'] == 'COMPLETE'
+    assert setup.queue.inserts == 2
+
+
+def test_deadline_during_dispatch_intent_does_not_make_unstarted_effect_uncertain(setup, monkeypatch):
+    import time
+    original = admission.write_json
+    def slow_intent(path, record):
+        original(path, record)
+        if record.get('state') == 'dispatching':
+            time.sleep(.12)
+    monkeypatch.setattr(admission, 'write_json', slow_intent)
+    result = setup.run(apply=True, deadline_seconds=.05)
+    assert result['outcomes'][0]['status'] == 'deferred'
+    assert setup.queue.inserts == 0
+    key = admission.stable_key('impact', '123')
+    assert json.loads((setup.root / 'journal' / (key + '.json')).read_text())['state'] == 'prepared'
+    monkeypatch.setattr(admission, 'write_json', original)
+    assert setup.run(apply=True)['status'] == 'COMPLETE'
+    assert setup.queue.inserts == 1
+
+
 def test_executor_gate_still_requires_complete_terms(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'scripts'))
     from scripts import affiliate_application_executor_gate as gate

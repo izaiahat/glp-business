@@ -6,7 +6,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "documentation",
-      "sha256": "4749c99a38cb2b615a7da3a9911a6c8c784a7109c19773d26e3ff7af25f4f299"
+      "sha256": "7817c10ac333a571278ddaa430919d5fdcb1b4818f1bed3d4512c3a1f7eed091"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
@@ -251,7 +251,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "87275cd32cc47a82c4714cc5f6139fd4fa907b38a461ec07b722c0e2a66859bb"
+      "sha256": "ca71a553d87a7b195ee43d5ef602847b65212ea0d0276509c8ab809f4720438d"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -869,7 +869,7 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "62a8a4c219f1ffa8d85093bedd779f37ddf49c10da8863c256725dab3497a4e5"
+      "sha256": "e194f495f75c0df56d2f1ee6eea6b1faa22cc91ced7fcffcdcc6d57f31979308"
     },
     "scripts/affiliate_best_terms_machine.py": {
       "callers": [
@@ -877,7 +877,7 @@
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "475e9505f36af8da8e7009412a431b472384b4721378fcd0d08b910d135a9355"
+      "sha256": "d47f87ae485cb7de9d1cca2f2fcceda3e9cf0d92990a169e847ec3ba121aa3da"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [
@@ -961,14 +961,14 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "6113d6492dad5b94ff2134a5c3497c79ebade4a3009496719ab3947db17b0700"
+      "sha256": "56c9a61e25e8b8ab52893e1a685cf02ae64c300aab282d21b5da0a113f1d283d"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
         "scripts/affiliate_supply_discovery.py"
       ],
       "kind": "script",
-      "sha256": "0263a9c802a2c11ccbd7b198935393eb2f060b41a4f802203b8b4e8cff3478cb"
+      "sha256": "b84fd9b2dcd35fffd100229b26073fbac9a3a92eaac3cea244741e680046263c"
     },
     "scripts/affiliate_surface_coverage_audit.py": {
       "callers": [
@@ -2034,7 +2034,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "d224999f175bafc9e97e9bb4d077faad325b846aec7b31cf6fa6a4315153a514"
+      "sha256": "2acaea7a6108493380909af45bfc6fc3b7ca40b51f58dcf07f45b93cdc0d076c"
     },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
@@ -2055,14 +2055,14 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c56b17f4368dcc3b1a27ec1266cde608c68209c3540f74af7b7204d47b5cc543"
+      "sha256": "5e97985ebb6f9e4ca7a1d736fae284ed8face3e254bb8b4e785952fe95a06561"
     },
     "tests/test_affiliate_discovery_resume.py": {
       "callers": [
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "30602f2e1ca6d19a5fa6ce823c0e818bd98dbde525371873bbb8cd23cac07b31"
+      "sha256": "14a30096c3fef1a2c52572a9437b6d10ecd0821847975f8a5709cf55d18be669"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
