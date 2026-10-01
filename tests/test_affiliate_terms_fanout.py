@@ -74,6 +74,112 @@ def consume(f, **kwargs):
     return fanout.consume(f.event, f.registry, f.mapping, f.state, **kwargs)
 
 
+def test_pro_f7_directory_fsync_precedes_dispatch_and_failure_stops(fixture, monkeypatch):
+    import stat
+    f = fixture
+    original_registry = f.registry.read_bytes()
+    real_fsync, real_replace = fanout.os.fsync, fanout.os.replace
+    events, last_path, calls = [], [None], []
+    fail_intent = [False]
+    def replace(source, destination):
+        real_replace(source, destination)
+        last_path[0] = Path(destination)
+        events.append(('replace', Path(destination)))
+    def fsync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            path = last_path[0]
+            events.append(('directory', path))
+            if fail_intent[0] and path.parent == f.state and fanout.read(path).get('dispatch_intent'):
+                raise OSError('fixture directory persistence failure')
+        else:
+            events.append(('file', None))
+        real_fsync(fd)
+    monkeypatch.setattr(fanout.os, 'replace', replace)
+    monkeypatch.setattr(fanout.os, 'fsync', fsync)
+    def dispatcher(*args):
+        path = last_path[0]
+        assert events[-1] == ('directory', path)
+        assert fanout.read(path)['dispatch_intent'] is True
+        calls.append('dispatch')
+        return {'returncode': 0}
+    result = fanout.consume(f.event, f.registry, f.mapping, f.state, enabled=True, apply=True,
+        dispatch_site=True, release_handoff=f.plan, dispatcher=dispatcher)
+    assert result['site_dispatched'] and calls == ['dispatch']
+    for index, event in enumerate(events):
+        if event[0] == 'replace':
+            assert events[index - 1][0] == 'file'
+            assert events[index + 1] == ('directory', event[1])
+    # An intent rename that cannot be durably acknowledged never dispatches.
+    f.registry.write_bytes(original_registry)
+    for path in f.state.glob('*.json'):
+        path.unlink()
+    fail_intent[0] = True
+    with pytest.raises(OSError, match='directory persistence'):
+        fanout.consume(f.event, f.registry, f.mapping, f.state, enabled=True, apply=True,
+            dispatch_site=True, release_handoff=f.plan, dispatcher=dispatcher)
+    assert calls == ['dispatch']
+    with pytest.raises(ValueError, match='dispatch_uncertain'):
+        fanout.consume(f.event, f.registry, f.mapping, f.state, enabled=True, apply=True,
+            dispatch_site=True, release_handoff=f.plan, dispatcher=dispatcher)
+    assert calls == ['dispatch']
+
+
+def test_pro_f7_residual_new_state_ancestry_is_durable_before_dispatch(fixture, monkeypatch):
+    import stat
+    f = fixture
+    root = f.event.parent
+    source_parent = root / 'site-source'
+    source_parent.mkdir()
+    state_parent = root / 'journals'
+    state_parent.mkdir()
+    registry = source_parent / 'registry.json'
+    f.registry.rename(registry)
+    f.registry = registry
+    original_registry = registry.read_bytes()
+    real_fsync = fanout.os.fsync
+    calls, trace = [], []
+    fault = [None]
+
+    def fsync(fd):
+        path = Path(os.readlink(f'/proc/self/fd/{fd}'))
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            trace.append(path)
+            if path == fault[0]:
+                raise OSError('fixture_state_directory_parent_fsync_failed')
+        real_fsync(fd)
+
+    def dispatcher(request, handoff):
+        journal = next(f.state.glob('*.json'))
+        assert fanout.read(journal)['dispatch_intent'] is True
+        assert all(parent in trace for parent in (f.state, *f.state.parents))
+        calls.append(request['update_id'])
+        return {'returncode': 0}
+
+    monkeypatch.setattr(fanout.os, 'fsync', fsync)
+    # Original new-consumer counterexample, then more than one missing component.
+    for leaf in ('new-consumer', 'new-parent/new-consumer'):
+        f.state = state_parent / leaf
+        assert not f.state.exists()
+        fault[0] = state_parent
+        for _ in range(2):  # A failed barrier must not be bypassed on retry.
+            with pytest.raises(OSError, match='fixture_state_directory_parent_fsync_failed'):
+                consume(f, enabled=True, apply=True, dispatch_site=True,
+                        release_handoff=f.plan, dispatcher=dispatcher)
+            assert calls == []
+            assert registry.read_bytes() == original_registry
+            assert not fanout.read(next(f.state.glob('*.json'))).get('dispatch_intent')
+        fault[0] = None
+        trace.clear()
+        assert consume(f, enabled=True, apply=True, dispatch_site=True,
+                       release_handoff=f.plan, dispatcher=dispatcher)['status'] == 'DISPATCHED'
+        assert calls == ['terms-1']
+        assert consume(f, enabled=True, apply=True, dispatch_site=True,
+                       release_handoff=f.plan, dispatcher=dispatcher)['status'] == 'ALREADY_APPLIED'
+        assert calls == ['terms-1']
+        calls.clear()
+        registry.write_bytes(original_registry)
+
+
 def test_disabled_and_dry_run_have_no_writes_or_dispatch(fixture):
     f = fixture
     before = f.registry.read_bytes()

@@ -21,7 +21,7 @@ class Queue:
     def eq(self, field, value):
         return field, value
 
-    def rows(self, table, where, limit):
+    def rows(self, table, where, limit=10000):
         assert table == admission.APPLICATION_QUEUE_TABLE
         return [r for r in self.data if r.get(where[0]) == where[1]]
 
@@ -94,6 +94,27 @@ def test_admission_respects_exclusions_and_unknowns(setup, change, reason):
     assert setup.queue.inserts == 0
 
 
+def test_pro_f2_all_same_rail_evidence_vetoes_before_insert(setup):
+    for adverse in ({'held': True}, {'suppressed': True}, {'relationship': 'pending'},
+                    {'network_status': 'paused'}, {'region': ''}):
+        for reverse in (False, True):
+            rows = [setup.candidate, {**setup.candidate, **adverse}]
+            setup.inventory(list(reversed(rows)) if reverse else rows)
+            result = setup.run(apply=True)
+            assert setup.queue.inserts == 0, (adverse, reverse, result)
+            assert all(row['status'] == 'refused' for row in result['outcomes'])
+    # Different source files and relationship buckets still share one exact rail.
+    setup.inventory()
+    other = setup.root / 'other.json'
+    other.write_text(json.dumps({'network': 'impact', 'relationships': {
+        'clinic': {'pending': [{**setup.candidate, 'relationship': 'pending'}]}}}))
+    for paths in ([setup.path, other], [other, setup.path]):
+        result = admission.admit_discovery(paths, queue_client=setup.queue, dedupe_index=setup.dedupe,
+            journal_dir=setup.root / 'journal', lock_path=setup.root / 'lock', apply=True)
+        assert setup.queue.inserts == 0
+        assert all(row['status'] == 'refused' for row in result['outcomes'])
+
+
 def test_shared_suppression_index_is_terminal(setup):
     setup.dedupe.verdict = lambda *a, **k: SimpleNamespace(reason='relationship_suppressed')
     assert setup.run(apply=True)['outcomes'][0]['reason'].startswith('suppressed_or_engaged')
@@ -155,6 +176,61 @@ def test_actual_consumer_accepts_only_untampered_confirmed_admission(setup, monk
     with pytest.raises(ValueError, match='submission_packet_missing'):
         machine.queued_candidate({**row, 'queue_id': 'operator-123',
                                   'operator_authority': 'fixture_operator', 'payload': '{}'})
+
+
+def test_pro_f3_pending_admission_survives_consumer_reconciliation(setup, monkeypatch):
+    from scripts import glp_application_machine as machine
+    clock = [0.0]
+    monkeypatch.setattr(admission.time, 'monotonic', lambda: clock[0])
+    original_insert = setup.queue.insert
+    def overrun(*args):
+        original_insert(*args)
+        clock[0] = 2.0
+    monkeypatch.setattr(setup.queue, 'insert', overrun)
+    assert setup.run(apply=True, deadline_seconds=1)['outcomes'][0]['status'] == 'reconcile_required'
+    row = setup.queue.data[0]
+    original_validate = admission.validate_discovery_row
+    monkeypatch.setattr(admission, 'validate_discovery_row',
+        lambda row: original_validate(row, journal_dir=setup.root / 'journal'))
+    monkeypatch.setattr(machine, 'APPLICATIONS_DIR', setup.root / 'consumer')
+    monkeypatch.setattr(machine, 'APPLICATION_MACHINE_LOCK', setup.root / 'consumer.lock')
+    monkeypatch.setattr(machine, 'repo_relative', str)
+    monkeypatch.setattr(machine, '_begin_run_receipt', lambda *a, **k: None)
+    receipts, updates = [], []
+    monkeypatch.setattr(machine, '_finish_run_receipt', lambda path, receipt: receipts.append(receipt))
+    monkeypatch.setattr(machine, 'recover_maxbounty_sheet_outboxes', lambda _: [])
+    monkeypatch.setattr(machine, '_import_repo_modules', lambda: None)
+    monkeypatch.setattr(machine, 'read_sheet', lambda: [])
+    monkeypatch.setattr(machine, 'sheet_index', lambda _: {})
+    monkeypatch.setattr(machine, 'sheet_row_lookup', lambda _: {})
+    monkeypatch.setattr(machine, 'load_queued_index', lambda: {})
+    monkeypatch.setattr(machine.apply_gate, 'blocking_reason', lambda: '')
+    monkeypatch.setattr(machine.apply_gate, 'gate_state', lambda: {'scope': {
+        'networks_allowed': ['impact'], 'queue_ids_allowed': [row['queue_id']], 'max_applications': 1}})
+    monkeypatch.setattr(machine.apply_gate, 'application_attempts_consumed', lambda: 0)
+    def update(client, key, **fields):
+        updates.append(fields)
+        row.update(fields)
+    monkeypatch.setattr(machine, '_queue_update', update)
+    monkeypatch.setattr(machine, 'submit', lambda *a: pytest.fail('provider effect attempted'))
+    assert machine.main(['--run-id', 'pending'], queue_client=setup.queue) == 0
+    assert receipts[-1]['results'][0]['status'] == 'DEFERRED_ADMISSION'
+    assert row['status'] == 'queued' and updates == []
+    # Pending is deferable only AFTER exact identity, candidate and source custody pass.
+    with pytest.raises(ValueError, match='queue_drift'):
+        machine.queued_candidate({**row, 'program_name': 'Tampered'})
+    monkeypatch.setattr(setup.queue, 'insert', original_insert)
+    assert setup.run(apply=True)['outcomes'][0]['status'] == 'admitted'
+    assert setup.queue.inserts == 1
+    assert machine.read_application_queue(setup.queue) == [row]
+    monkeypatch.setattr(machine, 'gate_and_dedupe', lambda candidates, *a: {'accepted': candidates})
+    assert machine.main(['--mode', 'plan', '--run-id', 'confirmed'], queue_client=setup.queue) == 0
+    assert receipts[-1]['results'][0]['status'] == 'PLAN_ONLY'
+    for state in ('blocked', 'claimed', 'completed'):
+        row['status'] = state
+        result = setup.run(apply=True)['outcomes'][0]
+        assert result['status'] == 'reconcile_required' and result['queue_status'] == state
+        assert row['status'] == state and setup.queue.inserts == 1
 
 
 def test_corrupted_frozen_source_blocks_enqueue_recovery(setup):
