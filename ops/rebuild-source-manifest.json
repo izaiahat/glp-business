@@ -13,7 +13,7 @@
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": ["GLP-80 qualified source and paired renderer fixtures"],
       "kind": "test",
-      "sha256": "a716dcfc69e59900d9f87a471b7255d96415406f73e85d855387f88522825992"
+      "sha256": "dbb6ee47aef79102c2a0979f57f71587cd042e433908afd51f826c545ef2be60"
     },
     "ops/glp80-eden-policy-successor.md": {
       "callers": ["GLP-80 Eden source-only successor"],

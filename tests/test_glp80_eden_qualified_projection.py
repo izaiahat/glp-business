@@ -75,6 +75,7 @@ def test_paired_native_writer_validation_and_public_fixture_match(replay):
     assert actual['source_urls'] == sorted(URLS)
     assert actual['commercial_link_state'] == original['commercial_link_state']
     partner = json.loads((Path(root) / 'tests/fixtures/eden-qualified-closure.json').read_text())
+    assert partner['required_surface_paths'] == registry['therapeutic_taxonomy']['required_surface_paths']
     for key in ['source_urls', 'claim_qualification', *FIELDS]:
         assert actual[key] == partner['row'][key]
     assert [(s['source_url'],s['evidence_sha256']) for s in actual['evidence_bindings']] == [(s['source_url'],s['evidence_sha256']) for s in partner['row']['evidence_bindings']]
