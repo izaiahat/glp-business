@@ -2,6 +2,10 @@
 
 This is source/CI delivery, not independent acceptance, merge permission or a live adoption receipt. The producer is `scripts/scheduled_job_health_carrier_release.py`, registered for `/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py` and **only** `b86ec8937c20.script_sha256` in the existing scheduler registry. No new job, schedule, profile, agent, sends, reruns, repins of other jobs, gateway or Rook restart.
 
+## Transport source provenance (GLP-337/338)
+
+`ops/n8n_dt.py` is admitted alone, byte-for-byte from the existing host predecessor `/home/ubuntu/business/ops/n8n_dt.py`; SHA256 `3c029b4441de0928dca4294077c9a351b4c3b17d50969cc3b4ee84ffbce5569c`, observed permission mode `0644`. It was previously absent from curated main `692175a493c3465cf9e7798c3960924d71d7eed4`. No transport rewrite, credentials, environment files, state or broad ops-tree admission accompanies this source preservation. The budget's `health_check(get=None)` imports `_native_http` from this module before its cache/state path; it therefore requires the authentic transport even on a cached tick. That module imports only Python standard-library modules; no additional project module is required for this new branch. Existing manager transports remain unchanged and separately held.
+
 ## Contract and custody
 
 Preview reads only; apply requires an independent receipt naming the exact producer head, reviewed source ancestor, emitted hash, installed source hashes and complete target job record. The executing producer and shared primitives are checked against that head. The source set is exactly the carrier snapshot, drift checker and inventory. A dirty producer checkout, unknown predecessor bytes/mode, moved source or job record, native run/fire claim, active run, wrong binding, cadence, no-agent flag, or absent registration refuses before custody/output changes.

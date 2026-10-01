@@ -49,7 +49,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "30f1944f0a52216c691f43932f30a772448b23a878aa7c0e64bfa20c7b4bf3ba"
+      "sha256": "09bdf26a077906c83ba2b3bb6d83a2269f7ac794117cb6396b28d96def8734d4"
     },
     ".hermes.md": {
       "callers": [],
@@ -3003,7 +3003,14 @@
         "ops/scheduled-source-drift.md"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "cdb75b9c56b9318dcf5d94876897592c54c14ddd4ada029101f0249a56d2e0c0"
+      "sha256": "1174b26194ed4c6e27742e3341010b7cb738154d13b3787731ffe7869ab4b3b6"
+    },
+    "ops/n8n_dt.py": {
+      "callers": [
+        "ops/n8n_execution_budget.py::health_check(get=None)"
+      ],
+      "kind": "script",
+      "sha256": "3c029b4441de0928dca4294077c9a351b4c3b17d50969cc3b4ee84ffbce5569c"
     },
     "ops/n8n_execution_budget.py": {
       "callers": [
@@ -3036,5 +3043,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 460
+  "tracked_count": 461
 }
