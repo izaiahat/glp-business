@@ -56,6 +56,23 @@ _ISSUE_ID_RE = re.compile(r"bridge-issue-[0-9a-f]{32}")
 _DEFAULT_HERMES_ENV = Path("/home/ubuntu/.hermes/.env")
 _DISCORD_API_BASE = "https://discord.com/api/v10"
 
+# Retained operator designation, narrowed to the frozen PR8/current-release
+# subject assigned by GLP73. Not a generic design waiver or a moving PR head.
+GLP42_DESIGNATION = "glp42-pr8-astra-20260926"
+GLP42_REVIEW_AUTHORITY = Path("/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260926-release-review-astra.md")
+GLP42_AUTHORITY_SHA256 = "7d0d49def4254a19e088d4d6586c9963325311da17cfbd6054dd175876240fb0"
+GLP42_REVIEW_SUBJECT = {
+    "subject_id": "glp:GLP-42:pr8:38133df58fc5406adeb87ed88771cc6ceeb26342",
+    "site_head": "38133df58fc5406adeb87ed88771cc6ceeb26342",
+    "sealed_root": "/home/ubuntu/business/reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release",
+    "seal_closure_sha256": "87aec3395aa7e234fa441ac7c47e5972ae3216bf874f2375e62dc8688e179ec2",
+    "public_tree_sha256": "f186ce38f36fcc1eab8c9f2f000289a09cd76f8327b8fec255969802dcb7b82d",
+    "deployment_manifest_sha256": "61461fe6d224571f2bfb0d579c347b779d2026e1294b0ed40bd22b26e1bd8c8c",
+    "deployment_id": "8291d24b-a1c6-4340-bd42-2efa9f2ba2b7",
+    "rollback_target": "ca0251a2-dd4e-469c-be3b-79ee8805c5f3",
+    "reviewer_authority_sha256": GLP42_AUTHORITY_SHA256,
+}
+
 
 class BridgeAuthorityError(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -98,6 +115,34 @@ def _review_artifact(path_value: Path | str) -> tuple[Path, str]:
     return resolved, hashlib.sha256(resolved.read_bytes()).hexdigest()
 
 
+def _reviewer_designation(artifact: Path, subject_id: str, tuple_sha256: str) -> str | None:
+    """Authenticate an explicit new-packet opt-in, not a caller's routing marker.
+
+    Routing binds the exact subject, not evidence sufficiency: the independent
+    reviewer still owes the full gate/renders/consent/package/rollback inspection.
+    """
+    try:
+        packet = json.loads(artifact.read_text(encoding="utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None  # Ordinary historical artifacts need not be JSON.
+    if not isinstance(packet, dict) or "reviewer_designation" not in packet:
+        return None
+    subject = packet.get("tuple")
+    if (packet["reviewer_designation"] != GLP42_DESIGNATION
+            or packet.get("schema") != "glp.q44.independent-review.v1"
+            or packet.get("status") != "READY_FOR_INDEPENDENT_REVIEW_NOT_ACCEPTED"
+            or not isinstance(subject, dict)
+            or any(subject.get(key) != value for key, value in GLP42_REVIEW_SUBJECT.items())
+            or subject_id != GLP42_REVIEW_SUBJECT["subject_id"]
+            or packet.get("tuple_sha256") != tuple_sha256
+            or sha256_text(canonical_json(subject)) != tuple_sha256):
+        raise BridgeAuthorityError("bridge_reviewer_designation_scope_mismatch")
+    if (GLP42_REVIEW_AUTHORITY.is_symlink()
+            or hashlib.sha256(GLP42_REVIEW_AUTHORITY.read_bytes()).hexdigest() != GLP42_AUTHORITY_SHA256):
+        raise BridgeAuthorityError("bridge_reviewer_designation_authority_changed")
+    return GLP42_DESIGNATION
+
+
 def build_issue_record(
     *,
     subject_id: str,
@@ -137,6 +182,9 @@ def build_issue_record(
         f"include_exact_tuple_sha256: {tuple_sha256}",
         f"include_exact_challenge: {challenge}",
     ))
+    designation = _reviewer_designation(artifact_path, subject_id, tuple_sha256)
+    if designation is not None:
+        request_content += f"\nreviewer_designation: {designation}"
     record: dict[str, Any] = {
         "schema": BRIDGE_ISSUE_SCHEMA,
         "status": "ISSUED",
@@ -152,6 +200,8 @@ def build_issue_record(
         "request_content": request_content,
         "request_content_sha256": sha256_text(request_content),
     }
+    if designation is not None:
+        record["reviewer_designation"] = designation
     _timestamp(record["issued_at_utc"], "issue")
     record["record_sha256"] = _record_hash(record)
     return record
@@ -239,6 +289,13 @@ def load_issue_record(
         f"include_exact_tuple_sha256: {expected_tuple_sha256}",
         f"include_exact_challenge: {challenge}",
     ))
+    # Absence preserves issued v1/v2 bytes; never retrofit historical requests.
+    if "reviewer_designation" in record:
+        designation = _reviewer_designation(artifact_path, expected_subject_id, expected_tuple_sha256)
+        if (record.get("schema") != BRIDGE_ISSUE_SCHEMA_V2 or designation is None
+                or record["reviewer_designation"] != designation):
+            raise BridgeAuthorityError("bridge_reviewer_designation_scope_mismatch")
+        expected_lines.append(f"reviewer_designation: {designation}")
     expected_content = "\n".join(expected_lines)
     if not _CHALLENGE_RE.fullmatch(challenge) or request_content != expected_content:
         raise BridgeAuthorityError("bridge_issue_record_request_invalid")
@@ -253,6 +310,33 @@ def load_issue_record(
         if record.get("request_edited_timestamp") is not None:
             raise BridgeAuthorityError("bridge_issue_request_edited")
     return path, record
+
+
+def validate_scoped_review_request(*, request_message_id: str, request_text: str) -> dict[str, Any]:
+    """Read back the BOUND canonical request before using the narrow designation.
+
+    A pasted marker, a replay under another message ID, or caller-supplied
+    Discord objects cannot confer reviewer authority.
+    """
+    ids = re.findall(r"^issue_id: (bridge-issue-[0-9a-f]{32})$", request_text, re.M)
+    tuples = re.findall(r"^tuple_sha256: ([0-9a-f]{64})$", request_text, re.M)
+    if (not isinstance(request_message_id, str) or not _SNOWFLAKE_RE.fullmatch(request_message_id)
+            or len(ids) != 1 or len(tuples) != 1):
+        raise BridgeAuthorityError("bridge_scoped_request_identity_invalid")
+    _, issue = load_issue_record(BRIDGE_ISSUE_ROOT / f"{ids[0]}.json",
+        expected_subject_id=GLP42_REVIEW_SUBJECT["subject_id"], expected_tuple_sha256=tuples[0])
+    if (issue.get("reviewer_designation") != GLP42_DESIGNATION
+            or issue.get("request_message_id") != request_message_id
+            or issue["request_content"] != f"<@{_configured_fable_author_id()}> {request_text}"):
+        raise BridgeAuthorityError("bridge_scoped_request_binding_mismatch")
+    message = _fetch_discord_message(FIXED_BRIDGE_CHANNEL_ID, request_message_id)
+    _successor_message_eligible(message)
+    _reject_edited_message(message, "request")
+    content = _message_identity(message, channel_id=FIXED_BRIDGE_CHANNEL_ID,
+        message_id=request_message_id, author_id=KAEL_SHARED_BOT_AUTHOR_ID, role="request")
+    if content != issue["request_content"] or message.get("timestamp") != issue["request_timestamp"]:
+        raise BridgeAuthorityError("bridge_scoped_request_readback_mismatch")
+    return issue
 
 
 def successor_request_payload(issue: dict[str, Any]) -> dict[str, Any]:
