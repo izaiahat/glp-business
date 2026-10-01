@@ -83,6 +83,38 @@ def completion(tmp_path, monkeypatch):
     return target, path, data, writes, remote, review
 
 
+@pytest.mark.parametrize('control', ['same_ops', 'same_ops_independent',
+                                   'distinct_independent', 'unbound_independent'])
+def test_ops_author_equals_reviewer_must_refuse(completion, control):
+    """R1 reviewer counterexample plus unbound/distinct-ID fail-closed controls.
+
+    Identities and PR author metadata are synthetic, not authenticated custody.
+    Independent source acceptance must use the existing designated contract.
+    """
+    ops = '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'
+    target, path, data, writes, remote, review = completion
+    target.update(title='Repair ordinary source',
+                  description='## Acceptance\n\n* Source-only regression passes.')
+    if control != 'same_ops':
+        target['description'] += ('\n* Independent source acceptance by a reviewer '
+                                  'other than the author is required.')
+    data.update(scope='ordinary-code', description_sha256=digest(target['description']))
+    data['evidence'][0]['kind'] = 'check'
+    review.update(user={'id': ops},
+                  body='Coordinator acceptance verified: source at ' + data['pr']['merge_sha'])
+    data['review']['body_sha256'] = digest(review['body'])
+    if control != 'unbound_independent':
+        author = 'synthetic-other-author' if control == 'distinct_independent' else ops
+        remote['author'] = {'id': author, 'login': 'synthetic-ops-author'}
+        data['author_id'] = author
+        data['review']['reviewer_id'] = ops
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(SystemExit, match='author cannot accept|independent source acceptance'):
+        lo.pass_issue(target, path, {}, ordinary=True, check_only=True)
+    assert path.read_bytes() == before and writes == []
+
+
 def run_cli(monkeypatch, path, *extra):
     monkeypatch.setattr(sys, 'argv', ['linear_orchestrator.py', 'pass', 'GLP-60', str(path), '--ordinary', *extra])
     lo.main()
@@ -160,7 +192,7 @@ def test_evidence_and_scope_binding_fail_closed(completion, monkeypatch, defect)
     elif defect == 'wrong_ci_url':
         data['pr']['checks'][0]['url'] += '9'
     elif defect == 'worker_review':
-        review['user']['id'] = '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'
+        review['user']['id'] = 'worker-not-coordinator'
     elif defect == 'wrong_review_issue':
         review['issue']['id'] = 'different-issue'
     elif defect == 'changed_review':
@@ -177,6 +209,97 @@ def test_read_only_check_exercises_contract_without_effect(completion, monkeypat
     _, path, _, writes, _, _ = completion
     run_cli(monkeypatch, path, '--check-only')
     assert json.loads(capsys.readouterr().out)['validated'] is True
+    assert writes == []
+
+
+@pytest.mark.parametrize('control', [
+    'ops', 'personal', 'unauthorized_author', 'missing_author', 'protected_scope',
+    'protected_effect', 'wrong_issue', 'wrong_comment_id', 'wrong_comment_issue',
+    'archived_comment', 'changed_body', 'stale_description', 'unmerged',
+    'wrong_head', 'wrong_merge', 'failed_ci', 'wrong_ci_url', 'unbound_merge',
+    'missing_evidence', 'independent_gate',
+])
+def test_glp329_ordinary_coordinator_identity_keeps_bindings_and_protected_gates(
+        completion, monkeypatch, capsys, control):
+    """GLP-329 custody identifiers with synthetic body/evidence and offline transports.
+
+    This exercises check-only, never changes the genuine receipt/comment, and
+    does not claim live acceptance or independent approval of this source repair.
+    """
+    target, path, data, writes, remote, review = completion
+    target.update(id='381a8864-dd9e-4a11-86f3-2c85f9a892ff', identifier='GLP-329',
+                  title='Repair source-only preview',
+                  description='## Acceptance\n\n* Source-only preview preserves existing rows.')
+    data.update(issue=target['identifier'], scope='ordinary-code',
+                description_sha256=digest(target['description']))
+    data['pr'].update(url='https://github.com/izaiahat/glp-business/pull/75',
+                      head_sha='234bd75c69d25c1c2aec141d3cd828894e3396a0',
+                      merge_sha='fc25cb61bbd78a96e5cb8dc128a703da9bcf97b7')
+    remote.update(headRefOid=data['pr']['head_sha'],
+                  mergeCommit={'oid': data['pr']['merge_sha']})
+    data['review']['comment_id'] = 'ebd5b78b-7f97-4501-98fe-0342b4e5ef5d'
+    review.update(id=data['review']['comment_id'], issue={'id': target['id']},
+                  user={'id': '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'},
+                  body='Coordinator acceptance verified: source fixture at ' + data['pr']['merge_sha'])
+    data['evidence'][0]['kind'] = 'check'
+    data['review']['body_sha256'] = digest(review['body'])
+    assert lo.OPERATOR_USER_ID == '86ceaadc-3c24-4810-ac3a-985cfc561a05'
+
+    if control == 'personal':
+        review['user']['id'] = lo.OPERATOR_USER_ID
+    elif control == 'unauthorized_author':
+        review['user']['id'] = 'worker-not-coordinator'
+    elif control == 'missing_author':
+        review['user'] = None
+    elif control == 'protected_scope':
+        target['description'] += '\n* Deploy after independent Fable review.'
+        data['description_sha256'] = digest(target['description'])
+    elif control == 'protected_effect':
+        data['protected_effects'] = ['release']
+    elif control == 'wrong_issue':
+        data['issue'] = 'GLP-999'
+    elif control == 'wrong_comment_id':
+        review['id'] = 'another-comment'
+    elif control == 'wrong_comment_issue':
+        review['issue']['id'] = 'another-issue'
+    elif control == 'archived_comment':
+        review['archivedAt'] = '2026-09-30T00:00:00Z'
+    elif control == 'changed_body':
+        review['body'] += ' Changed.'
+    elif control == 'stale_description':
+        target['description'] += '\n* Additional acceptance.'
+    elif control == 'unmerged':
+        remote['state'] = 'OPEN'
+    elif control == 'wrong_head':
+        remote['headRefOid'] = 'a' * 40
+    elif control == 'wrong_merge':
+        remote['mergeCommit']['oid'] = 'b' * 40
+    elif control == 'failed_ci':
+        remote['statusCheckRollup'][0]['conclusion'] = 'FAILURE'
+    elif control == 'wrong_ci_url':
+        data['pr']['checks'][0]['url'] += '9'
+    elif control == 'unbound_merge':
+        review['body'] = 'Coordinator acceptance verified: source fixture'
+        data['review']['body_sha256'] = digest(review['body'])
+    elif control == 'missing_evidence':
+        data['evidence'] = []
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    if control in ('ops', 'personal'):
+        lo.pass_issue(target, path, {}, ordinary=True, check_only=True)
+        assert json.loads(capsys.readouterr().out)['validated'] is True
+    elif control == 'independent_gate':
+        brief = path.parent / 'existing-brief.md'
+        brief.write_text('existing protected scope')
+        def reject(*args, **kwargs):
+            raise SystemExit('independent protected acceptance still required')
+        monkeypatch.setattr(lo, '_lint_result', reject)
+        with pytest.raises(SystemExit, match='independent protected acceptance still required'):
+            lo.pass_issue(target, path, {}, brief=brief, check_only=True)
+    else:
+        with pytest.raises(SystemExit, match='ordinary completion refused:'):
+            lo.pass_issue(target, path, {}, ordinary=True, check_only=True)
+    assert path.read_bytes() == before
     assert writes == []
 
 
