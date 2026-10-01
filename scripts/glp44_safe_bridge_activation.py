@@ -52,7 +52,7 @@ def gate_commands():
         {'create': {'table': {'family': 'inet', 'name': TABLE}}},
         {'create': {'chain': {'family': 'inet', 'table': TABLE, 'name': 'output',
                              'type': 'filter', 'hook': 'output', 'prio': 0, 'policy': 'accept'}}},
-        {'create': {'rule': {'family': 'inet', 'table': TABLE, 'chain': 'output', 'expr': expr}}},
+        {'add': {'rule': {'family': 'inet', 'table': TABLE, 'chain': 'output', 'expr': expr}}},
     ]
 
 
@@ -80,7 +80,7 @@ class LinuxHost:
             require(len(row) == 1, 'ingress_rule_drift')
             kind, value = next(iter(row.items()))
             observed.append({kind: {k: v for k, v in value.items() if k != 'handle'}})
-        require(observed == [r['create'] for r in gate_commands()], 'ingress_rule_drift')
+        require(observed == [next(iter(r.values())) for r in gate_commands()], 'ingress_rule_drift')
 
     def open_ingress(self):
         self.verify_ingress()
