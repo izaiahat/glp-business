@@ -95,7 +95,13 @@ class Tracer:
             while args and args[0] in ('-u', '-B', '-I', '-s', '-E'):
                 args.pop(0)
             if len(args) >= 2 and args[0] == '-m':
-                return self.file(self.module(args[1], cwd), set())
+                source = self.module(args[1], cwd)
+                if source is None:
+                    raise InventoryError(['unresolved_standard_library_entrypoint:' + args[1]])
+                # -m package executes __main__ after its initializer; an import
+                # of that package alone does not execute the entrypoint.
+                name = args[1] + '.__main__' if source.name == '__init__.py' else args[1]
+                return self.module_trace(name, cwd, set())
             if not args or args[0].startswith('-'):
                 raise InventoryError(['dynamic_python_command'])
             return self.file(self.resolve(args[0], cwd), set())
@@ -118,18 +124,66 @@ class Tracer:
             raise InventoryError(['secret_file_reference_not_read'])
         return path
 
-    def module(self, name, cwd):
+    def module(self, name, cwd, *, relative=False):
         rel = Path(*name.split('.'))
-        candidates = [base / suffix for base in (cwd, self.root, self.root / 'scripts', self.hermes / 'scripts')
-                      for suffix in (rel.with_suffix('.py'), rel / '__init__.py')]
+        bases = (cwd,) if relative else (cwd, self.root, self.root / 'scripts', self.hermes / 'scripts')
+        suffixes = (rel.with_suffix('.py'), rel / '__init__.py') if name else (Path('__init__.py'),)
+        candidates = [base / suffix for base in bases for suffix in suffixes]
         existing = {p.resolve() for p in candidates if p.is_file()}
         if len(existing) == 1:
             return existing.pop()
         if len(existing) > 1:
             raise InventoryError(['ambiguous_local_import:' + name])
-        if name.split('.')[0] in sys.stdlib_module_names:
+        if not relative and name.split('.')[0] in sys.stdlib_module_names:
             return None
         raise InventoryError(['unresolved_import:' + name])
+
+    def module_files(self, name, cwd, *, relative=False):
+        """Every initializer executes before a dotted module's own file."""
+        parts = name.split('.')
+        for index in range(1, len(parts) + 1):
+            yield self.module('.'.join(parts[:index]), cwd, relative=relative)
+
+    def module_trace(self, name, cwd, visiting):
+        reached, trace, errors = False, [], []
+        try:
+            for source in self.module_files(name, cwd):
+                try:
+                    hit, children = self.file(source, visiting)
+                    reached |= hit
+                    trace.extend(children)
+                except InventoryError as exc:
+                    errors.extend(exc.errors)
+        except InventoryError as exc:
+            errors.extend(exc.errors)
+        if errors and not reached:
+            raise InventoryError(sorted(set(errors)))
+        return reached, sorted(set(trace))
+
+    def import_files(self, node, path):
+        """Yield every Python file executed by a supported static import.
+
+        Importing a dotted module executes its package initializers too. A
+        from-import can name a package child, not just an attribute in __init__.
+        Unknown children (including wildcard exports and namespace packages)
+        deliberately refuse unrelated classification instead of disappearing.
+        """
+        base = path.parent
+        relative = isinstance(node, ast.ImportFrom) and bool(node.level)
+        if relative:
+            for _ in range(node.level - 1):
+                base = base.parent
+        names = [item.name for item in node.names] if isinstance(node, ast.Import) else [node.module or '']
+        for name in names:
+            for source in self.module_files(name, base, relative=relative):
+                yield source
+            if isinstance(node, ast.ImportFrom) and source is not None and source.name == '__init__.py':
+                for item in node.names:
+                    if item.name == '*':
+                        raise InventoryError(['unresolved_package_wildcard:' + str(source)])
+                    # Restrict child lookup to this package: a same-named module
+                    # elsewhere cannot stand in for a missing relative child.
+                    yield self.module(item.name, source.parent, relative=True)
 
     def file(self, path, visiting):
         if path is None:
@@ -168,26 +222,23 @@ class Tracer:
                 raise InventoryError(['invalid_python:' + str(path)]) from None
             for node in ast.walk(tree):
                 if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    names = [n.name for n in node.names] if isinstance(node, ast.Import) else [node.module or '']
-                    base = path.parent
-                    if isinstance(node, ast.ImportFrom) and node.level:
-                        for _ in range(node.level - 1):
-                            base = base.parent
-                    for name in names:
-                        try:
-                            child = self.module(name, base)
-                            hit, children = self.file(child, visiting | {path})
-                            reached |= hit
-                            trace.extend(children)
-                        except InventoryError as exc:
-                            errors.extend(exc.errors)
+                    try:
+                        for child in self.import_files(node, path):
+                            try:
+                                hit, children = self.file(child, visiting | {path})
+                                reached |= hit
+                                trace.extend(children)
+                            except InventoryError as exc:
+                                errors.extend(exc.errors)
+                    except InventoryError as exc:
+                        errors.extend(exc.errors)
                 if isinstance(node, ast.Call):
                     fn = ast.unparse(node.func)
                     # Literal importlib and runpy calls can be traced without execution.
                     if fn.endswith(('import_module', '__import__')):
                         if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                             try:
-                                hit, children = self.file(self.module(node.args[0].value, path.parent), visiting | {path})
+                                hit, children = self.module_trace(node.args[0].value, path.parent, visiting | {path})
                                 reached |= hit
                                 trace.extend(children)
                             except InventoryError as exc:
@@ -209,6 +260,13 @@ class Tracer:
                                       'open', 'read_text', 'read_bytes', 'write_text', 'write_bytes',
                                       'unlink', 'rename', 'replace', 'copy', 'copy2', 'move')):
                         errors.append('unresolved_runtime_access:' + str(path))
+                    else:
+                        # A callable's spelling does not establish its capability:
+                        # builtins.open, io.open, imported functions, assignments,
+                        # descriptors and callbacks can all hide file access.
+                        # Without a proven closure, keep the scheduled task in
+                        # the affected set via discover's conservative fallback.
+                        errors.append('unresolved_callable:' + str(path))
         elif path.suffix == '.sh':
             for line in body.splitlines():
                 line = line.strip()

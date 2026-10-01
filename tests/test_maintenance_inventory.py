@@ -60,6 +60,107 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(timer['prior']['timer_enabled'], 'enabled')
         self.assertEqual(timer['prior']['service_active'], 'active')
 
+    def test_from_package_import_child_must_not_skip_affected_reader(self):
+        # Independent PR109 review oracle, retained against production discovery.
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('')
+        (package / 'child.py').write_text('import glp_price_index_weekly\n')
+        self.entry.write_text('from reader_package import child\n')
+        report = inv.discover(self.root, self.hermes, probe=self.probe)
+        row = next(row for row in report['entries'] if row['kind'] == 'hermes')
+        self.assertEqual(set(report['coverage']), {'hermes', 'crontab', 'systemd', 'n8n'})
+        self.assertTrue(row['affected'], f'complete census silently skips import child: {row}')
+        self.assertIn(str(self.target), row['trace'])
+        self.assertIn(str(package / 'child.py'), row['trace'])
+
+    def test_unknown_callable_capability_must_not_skip_affected_reader(self):
+        # Independent PR109 review oracle: aliases defeat suffix-based detection.
+        self.entry.write_text('from builtins import open as read_source\n'
+                              'path = "scripts/" + "glp_price_index_weekly.py"\n'
+                              'read_source(path).read()\n')
+        report = inv.discover(self.root, self.hermes, probe=self.probe)
+        row = next(row for row in report['entries'] if row['kind'] == 'hermes')
+        self.assertTrue(row['affected'], f'complete census silently skips aliased file reader: {row}')
+        self.assertEqual(row['classification'], 'conservative')
+        self.assertTrue(any('unresolved_callable' in error for error in row['opaque_reasons']))
+
+    def test_relative_child_and_dotted_package_initializers_are_traced(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('from . import child\n')
+        (package / 'child.py').write_text('import glp_price_index_weekly\n')
+        (package / 'empty.py').write_text('')
+        for source in ('import reader_package\n', 'import reader_package.empty\n'):
+            with self.subTest(source=source):
+                self.entry.write_text(source)
+                hit, trace = inv.Tracer(self.root, self.hermes).file(self.entry, set())
+                self.assertTrue(hit)
+                self.assertIn(str(self.target), trace)
+                self.assertIn(str(package / '__init__.py'), trace)
+
+    def test_literal_importlib_traces_dotted_package_initializers(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('import glp_price_index_weekly\n')
+        (package / 'child.py').write_text('')
+        for call in ('importlib.import_module("reader_package.child")',
+                     '__import__("reader_package.child")'):
+            with self.subTest(call=call):
+                self.entry.write_text('import importlib\n' + call + '\n')
+                hit, trace = inv.Tracer(self.root, self.hermes).file(self.entry, set())
+                self.assertTrue(hit)
+                self.assertIn(str(package / '__init__.py'), trace)
+                self.assertIn(str(self.target), trace)
+
+    def test_python_module_command_traces_dotted_package_initializers(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('import glp_price_index_weekly\n')
+        (package / 'child.py').write_text('')
+        hit, trace = inv.Tracer(self.root, self.hermes).command('python3 -m reader_package.child')
+        self.assertTrue(hit)
+        self.assertIn(str(package / '__init__.py'), trace)
+        self.assertIn(str(self.target), trace)
+
+    def test_python_package_module_command_traces_main(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('')
+        (package / '__main__.py').write_text('import glp_price_index_weekly\n')
+        hit, trace = inv.Tracer(self.root, self.hermes).command('python3 -m reader_package')
+        self.assertTrue(hit)
+        self.assertIn(str(package / '__main__.py'), trace)
+        self.assertIn(str(self.target), trace)
+
+    def test_unresolved_import_children_and_callable_aliases_are_conservative(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('')
+        for source in ('from reader_package import missing\n',
+                       'from reader_package import *\n',
+                       'import builtins as b\nreader = b.open\nreader(input())\n',
+                       'from io import open as reader\nreader(input())\n',
+                       'callbacks[0](input())\n'):
+            with self.subTest(source=source):
+                self.entry.write_text(source)
+                with self.assertRaises(inv.InventoryError):
+                    inv.Tracer(self.root, self.hermes).file(self.entry, set())
+                report = inv.discover(self.root, self.hermes, probe=self.probe)
+                row = next(row for row in report['entries'] if row['kind'] == 'hermes')
+                self.assertTrue(row['affected'])
+                self.assertEqual(row['classification'], 'conservative')
+
+    def test_resolved_empty_child_can_still_be_classified_unaffected(self):
+        package = self.root / 'scripts' / 'reader_package'
+        package.mkdir()
+        (package / '__init__.py').write_text('')
+        (package / 'child.py').write_text('import json\n')
+        self.entry.write_text('from reader_package import child\n')
+        hit, trace = inv.Tracer(self.root, self.hermes).file(self.entry, set())
+        self.assertFalse(hit)
+        self.assertIn(str(package / 'child.py'), trace)
+
     def test_opaque_import_is_never_classified_unaffected_even_when_paused(self):
         self.entry.write_text('import importlib\nimportlib.import_module(input())\n')
         self.jobs[0].update(enabled=False, state='paused')

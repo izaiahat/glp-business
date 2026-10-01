@@ -518,7 +518,7 @@ def hermes_backend(module, tmp_path):
             }
             self.original = copy.deepcopy(self.jobs)
             self.tool_calls = []
-            self.crash_after_resume = False
+            self.crash_after_restore_save = False
             self._jobs_file_lock = threading.RLock()
             self.fire_depth = 0
 
@@ -557,7 +557,14 @@ def hermes_backend(module, tmp_path):
 
         def _save_jobs_unlocked(self, jobs, *, removed_ids=None, replace=False):
             assert removed_ids is None and replace is False
+            restoring = self.jobs["enabled"]["enabled"] is False and next(
+                job for job in jobs if job["id"] == "enabled")["enabled"] is True
+            if restoring:
+                assert self.fire_depth, "restoration must hold the native fire fence"
             self.jobs = {job["id"]: copy.deepcopy(job) for job in jobs}
+            if restoring and self.crash_after_restore_save:
+                self.crash_after_restore_save = False
+                raise SimulatedPowerLoss("native restore committed before receipt")
 
         def cron_tool(self, action, jid):
             self.tool_calls.append((action, jid))
@@ -574,9 +581,6 @@ def hermes_backend(module, tmp_path):
                               next_run_at="2026-10-01T02:00:00Z")
             # Native tools ultimately commit through the scheduler saver.
             self._save_jobs_unlocked(jobs, removed_ids=None, replace=False)
-            if action == "resume" and self.crash_after_resume:
-                self.crash_after_resume = False
-                raise SimulatedPowerLoss("resume committed before restore receipt")
 
         def inflight(self, entries):
             return []
@@ -599,7 +603,7 @@ def test_native_hermes_restores_exact_controls_and_preserves_adopted_pin(module,
         expected = copy.deepcopy(backend.original)
         expected["enabled"]["script_sha256"] = "c" * 64
         assert backend.jobs == expected
-        assert backend.tool_calls == [("pause", "enabled"), ("resume", "enabled")]
+        assert backend.tool_calls == [("pause", "enabled")]
     finally:
         window.release_locks()
 
@@ -619,11 +623,11 @@ def test_native_hermes_prepared_pin_update_can_restore_after_adoption_rollback(m
         window.release_locks()
 
 
-def test_native_hermes_crash_after_resume_before_exact_repair_is_recoverable(module, tmp_path):
+def test_native_hermes_crash_after_exact_restore_save_is_recoverable(module, tmp_path):
     backend = hermes_backend(module, tmp_path)
     first = new_window(module, tmp_path, backend)
     first.enter()
-    backend.crash_after_resume = True
+    backend.crash_after_restore_save = True
     try:
         with pytest.raises(SimulatedPowerLoss):
             first.exit()
@@ -810,12 +814,20 @@ def test_process_census_excludes_authenticated_controller_but_not_stale_pid(modu
         (base / "cwd").symlink_to(root, target_is_directory=True)
         (base / "exe").symlink_to(sys.executable)
         (base / "cmdline").write_bytes(b"python\0" + str(root / "fixture.py").encode() + b"\0")
+        (base / "fd").mkdir()
+        (base / "maps").write_text("")
 
     def virtual_path(value):
         path = str(value)
         return proc / path.removeprefix("/proc/") if path.startswith("/proc/") else proc if path == "/proc" else Path(value)
 
     monkeypatch.setattr(module, "Path", virtual_path)
+    import maintenance_admission
+    import maintenance_inventory
+    original_readers = maintenance_admission.process_readers
+    monkeypatch.setattr(maintenance_admission, "process_readers",
+                        lambda paths, tasks, owners, excluded: original_readers(paths, tasks, owners, excluded, proc=proc))
+    monkeypatch.setattr(maintenance_inventory, "affected_paths", lambda *_: [root / "fixture.py"])
     journal = tmp_path / "window.json"
     data = {"schema": module.SCHEMA, "keeper": {"pid": 500}, "entries": [],
             "controller": {"pid": 501, "start_ticks": 123, "boot_id": "fixture-boot"}}

@@ -74,6 +74,14 @@ def cohort(tmp_path, monkeypatch):
             assert before.keys() == after.keys()
             assert all(sha(Path(path).read_bytes()) == digest for path, digest in before.items())
             self.file_updates.append((before, after))
+        def switch_files(self, stage, before):
+            from maintenance_cohort import switch_files
+            journal = root / 'window.json'
+            if not journal.exists():
+                journal.write_text(json.dumps({'schema': 'glp44-glp73-maintenance-window-v1'}))
+            receipt = switch_files(journal, stage, before, lambda: [])
+            assert receipt['state'] == 'published'
+            return receipt
         def accept_job_update(self, jid, before, after):
             actual = next(j for j in json.loads(registry.read_text())['jobs'] if j['id'] == jid)
             assert actual == before
@@ -109,6 +117,11 @@ def test_exact_cohort_native_saver_and_hash_only(tmp_path, monkeypatch):
         calls.append(copy.deepcopy(jobs))
         return original(jobs)
     monkeypatch.setattr(scheduler, '_save_jobs_unlocked', observed_save)
+    original_sync = pair.syncer.sync
+    def preview_only(root, checkout, apply, *args):
+        assert apply is False, 'adoption must publish through the cohort switch'
+        return original_sync(root, checkout, apply, *args)
+    monkeypatch.setattr(pair.syncer, 'sync', preview_only)
     result = pair.adopt(checkout, root, home, review, scheduler=scheduler, window=root / 'window.json')
     assert result['applied'] is True and len(calls) == 1
     assert len(window.file_updates) == 1 and len(window.job_updates) == 3
@@ -164,13 +177,15 @@ def test_paired_adoption_restores_exact_preimages_before_scheduler_lands(tmp_pat
     paths += [home / 'scripts' / name for _, name, *_ in pair.JOBS]
     before = {p: (p.read_bytes(), p.stat().st_mode & 0o777) for p in paths}
     if failure == 'source':
-        original_sync = pair.syncer.sync
-        def fail_after_sync(root, checkout, apply, *args):
-            result = original_sync(root, checkout, apply, *args)
-            if apply:
+        original_switch = window.switch_files
+        calls = []
+        def fail_after_switch(stage, before):
+            result = original_switch(stage, before)
+            calls.append(result)
+            if len(calls) == 1:
                 raise RuntimeError('fixture source write landed then raised')
             return result
-        monkeypatch.setattr(pair.syncer, 'sync', fail_after_sync)
+        monkeypatch.setattr(window, 'switch_files', fail_after_switch)
     else:
         def fail_save(jobs):
             raise RuntimeError('fixture native save refused')

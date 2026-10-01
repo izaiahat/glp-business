@@ -53,44 +53,21 @@ def test_rebaseline_requires_complete_explained_diff():
 
 
 def make_rebaseline_fixture(tmp_path, monkeypatch):
-    old, new = {}, {}
-    for rel, (before, after, receipt) in baseline.EXPLAINED.items():
-        old[rel] = before
-        body = rel.encode()
-        new[rel] = baseline.sha(body)
-        target = tmp_path / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(body)
-    explanations = {rel: (old[rel], new[rel], values[2]) for rel, values in baseline.EXPLAINED.items()}
-    before, after = state(old), state(new)
-    monkeypatch.setattr(baseline, 'BEFORE', baseline.sha(before))
-    monkeypatch.setattr(baseline, 'AFTER', baseline.sha(after))
-    monkeypatch.setattr(baseline, 'EXPLAINED', explanations)
-    evidence = {}
-    for rel in baseline.EVIDENCE:
-        target = tmp_path / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(b'{"retained": true}')
-        evidence[rel] = baseline.sha(target.read_bytes())
-    monkeypatch.setattr(baseline, 'EVIDENCE', evidence)
-    target = tmp_path / baseline.SNAPSHOT
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(before)
-    (tmp_path / 'ops/.rebuild-sync-state.json').write_bytes(after)
-    proposal = baseline.proposal(tmp_path)
-    return {'schema': 'glp73-sync-rebaseline-review-v1', 'decision': 'ACCEPT_EXPLAINED_DIFF',
-            'prepared_by': 'preparer', 'reviewer': 'independent-reviewer', 'proposal': proposal}
+    from test_glp73_sync_rebaseline import fixture, move, review
+    hashes, receipts = fixture(tmp_path, monkeypatch)
+    move(tmp_path, hashes, receipts, 'arbitrary/new-reader.py', b'current')
+    return review(tmp_path, receipts)
 
 
 def test_rebaseline_requires_independent_review_and_unchanged_evidence(tmp_path, monkeypatch):
     review = make_rebaseline_fixture(tmp_path, monkeypatch)
-    assert baseline.validate(tmp_path, review) == baseline.AFTER
+    assert baseline.validate(tmp_path, review) == review['proposal']['new_state_sha256']
     for key, value in [('reviewer', 'preparer'), ('decision', 'ACCEPT_EXACT_BYTES'), ('proposal', {})]:
         changed = copy.deepcopy(review)
         changed[key] = value
         with pytest.raises(RuntimeError, match='independent_explained_diff_review_required'):
             baseline.validate(tmp_path, changed)
-    evidence = tmp_path / next(iter(baseline.EVIDENCE))
+    evidence = tmp_path / next(iter(review['proposal']['evidence_sha256']))
     evidence.write_text('{}')
     with pytest.raises(RuntimeError, match='sync_rebaseline_evidence_moved'):
         baseline.validate(tmp_path, review)
@@ -100,9 +77,9 @@ def test_rebaseline_cannot_accept_a_fresh_unexplained_whole_state(tmp_path, monk
     review = make_rebaseline_fixture(tmp_path, monkeypatch)
     target = tmp_path / 'ops/.rebuild-sync-state.json'
     document = json.loads(target.read_bytes())
-    document['hashes']['unexplained.py'] = 'tampered'
+    document['hashes']['unexplained.py'] = baseline.sha(b'tampered')
     target.write_bytes(state(document['hashes']))
-    with pytest.raises(RuntimeError, match='sync_rebaseline_preimage_moved'):
+    with pytest.raises(RuntimeError, match='unexplained_sync_state_diff'):
         baseline.validate(tmp_path, review)
     assert glp73.STATE_BEFORE == '20a6396a78a4cb4cf82e473b0b3805b01ed279cd2e6526c2032caa10814e7436'
 

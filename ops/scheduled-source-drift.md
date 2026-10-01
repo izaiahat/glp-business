@@ -1,0 +1,9 @@
+# F09 daily installed-source drift (review required before adoption)
+
+The existing no-agent job-health manager's first tick at/after 08:00 America/Los_Angeles runs `scripts/scheduled_source_drift.py` once per local date and includes a hash-only summary plus `source-drift.json` in its normal report. There is no additional schedule, agent, automatic install/repin, rerun, RED escalation or new notification route. Existing health rerun/alert policies remain unchanged.
+
+The inventory is a safe projection of the jobs-validation collector: 111 host-local bindings, 87 explicit job/payload checks. Native profile registries and host crontab are read-only rediscovered; paused jobs remain in the census. Pinned JSON manifests are recursively inspected. New/changed host-cron bindings, missing inventory/pins, duplicate profile IDs and aliases are UNKNOWN. n8n cloud-only jobs and agent-only jobs have no installed script and are not claimed as host-source coverage; systemd resident-code/custody is not proved by this census.
+
+Keep this manifest synchronized in the same reviewed PR when a launcher, payload pin or scheduling binding changes. Do not regenerate pins from arbitrary current live hashes. Its `reviewed_sha256` comes from the fresh reviewed origin/main snapshot; known guarded-import state can identify later reviewed imports without replacing the whole live packaging manifest.
+
+Before adoption, independent review must accept the checker/inventory and scheduler owner must bind the installed health carrier's hash. Install maintained business source with `scripts/sync_from_repo.py --only ...`: dry-run, apply, dry-run with diffs=0. External `~/.hermes/scripts` carrier adoption still needs a registered guarded producer and exact scheduler readback; do not copy it by hand. This PR is not an install receipt. Real daily delivery is unverified until a natural post-review health tick.

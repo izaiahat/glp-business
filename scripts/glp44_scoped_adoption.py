@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 import sync_from_repo as syncer
-from maxbounty_pin_release import atomic_write, read_regular, preserve_custody
+from maxbounty_pin_release import read_regular, preserve_custody
 
 APPROVED = '1c459c7aff4a17063e803ba610627663d2025254'
 PATHS = (
@@ -146,6 +146,9 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window):
             state_data['hashes'].update(proposal['source_sha256'])
             stage[root / syncer.STATE] = (json.dumps(state_data, indent=2, sort_keys=True) + '\n').encode()
             stage[wrapper] = (checkout / SNAPSHOT).read_bytes()
+            if (any(digest(stage[root / p]) != proposal['source_sha256'][p] for p in PATHS)
+                    or digest(stage[wrapper]) != proposal['wrapper_sha256']):
+                raise RuntimeError('reviewed_candidate_moved_before_switch')
             custody = root / 'reports/ops/pin-archive/glp44' / digest(json.dumps(review, sort_keys=True).encode())
             preserve_custody(custody, {**original, registry: read_regular(registry)}, stage)
             # Custody is not an exclusion lock; reject late edits before first source write.
@@ -157,12 +160,8 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window):
             )
             source_written = False
             try:
-                source_written = True  # sync may partially write before raising
-                if syncer.sync(root, checkout, True, adopted, PATHS) != 0:
-                    raise RuntimeError('scoped_source_apply_refused')
-                if observed(wrapper) != wrapper_before:
-                    raise RuntimeError('wrapper_moved_before_replace')
-                atomic_write(wrapper, (checkout / SNAPSHOT).read_bytes(), wrapper_before[1])
+                source_written = True  # the switch can publish before acknowledgement fails
+                window.switch_files(stage, original)
                 current, jobs = job_record(registry)
                 if current != proposal['job_window_before']:
                     raise RuntimeError('job_moved_before_hash_update')
@@ -179,13 +178,12 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window):
                 # blindly reversed or replayed. Only restore files while registry is unchanged.
                 current, _ = job_record(registry)
                 if registry.read_bytes() == registry_before and source_written:
-                    for path, (body, mode) in original.items():
-                        now = observed(path)
-                        if now == (body, mode):
-                            continue
-                        if now != (stage[path], mode):
-                            raise RuntimeError('rollback_conflict_no_overwrite:' + str(path))
-                        atomic_write(path, body, mode)
+                    current_files = {path: observed(path) for path in stage}
+                    staged_files = {path: (body, original[path][1]) for path, body in stage.items()}
+                    if current_files != original:
+                        if current_files != staged_files:
+                            raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
+                        window.switch_files({path: value[0] for path, value in original.items()}, staged_files)
                 raise
     return {'applied': True, 'source': APPROVED, 'proposal': proposal, 'custody': str(custody)}
 

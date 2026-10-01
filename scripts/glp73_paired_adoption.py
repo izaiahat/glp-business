@@ -2,7 +2,8 @@
 """Fixed GLP73 14-source / three-wrapper / three-paused-job adoption.
 
 Apply requires a verified active maintenance window and exact independent review.
-No multi-file atomic transaction is claimed; preimages and rollback remain guarded.
+Complete source cohorts switch through the window admission barrier; exact
+preimages and uncertain scheduler outcomes remain guarded.
 """
 import argparse
 import copy
@@ -15,7 +16,7 @@ import subprocess
 import sys
 
 import sync_from_repo as syncer
-from maxbounty_pin_release import atomic_write, preserve_custody, read_regular
+from maxbounty_pin_release import preserve_custody, read_regular
 
 SOURCE = '209c3beea6e2045dcb81367d5339a23a225eda40'
 PATHS = (
@@ -219,6 +220,8 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, state
             stage = {root / p: (checkout / p).read_bytes() for p in PATHS}
             stage[state_path] = state_bytes
             stage.update(stages)
+            if any(sha(stage[root / p]) != sources[p] for p in PATHS):
+                raise RuntimeError('reviewed_candidate_moved_before_switch')
             custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(review, sort_keys=True).encode())
             preserve_custody(custody, before, stage)
             if any(read_regular(path) != value for path, value in before.items()):
@@ -231,12 +234,7 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, state
             source_written = False
             try:
                 source_written = True
-                if syncer.sync(root, checkout, True, ADOPT, PATHS) != 0:
-                    raise RuntimeError('source_apply_refused')
-                for path, body in stages.items():
-                    if read_regular(path) != before[path]:
-                        raise RuntimeError('wrapper_moved_before_replace')
-                    atomic_write(path, body, before[path][1])
+                window.switch_files(stage, {path: before[path] for path in stage})
                 if read_regular(registry) != registry_before:
                     raise RuntimeError('registry_moved_before_saver')
                 jobs = json.loads(registry_before[0])['jobs']
@@ -260,15 +258,13 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, state
                 # never rolled back or retried. Inspect every path, including a
                 # rename that landed before its call raised.
                 if read_regular(registry) == registry_before and source_written:
-                    for path, (body, mode) in before.items():
-                        if path == registry or path not in stage:
-                            continue
-                        now = read_regular(path)
-                        if now == (body, mode):
-                            continue
-                        if now != (stage[path], mode):
-                            raise RuntimeError('rollback_conflict_no_overwrite:' + str(path))
-                        atomic_write(path, body, mode)
+                    original_files = {path: before[path] for path in stage}
+                    current_files = {path: read_regular(path) for path in stage}
+                    staged_files = {path: (body, before[path][1]) for path, body in stage.items()}
+                    if current_files != original_files:
+                        if current_files != staged_files:
+                            raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
+                        window.switch_files({path: value[0] for path, value in original_files.items()}, staged_files)
                 raise
     return {'applied': True, 'source': SOURCE, 'proposal': proposal, 'custody': str(custody)}
 

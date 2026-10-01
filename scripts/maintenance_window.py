@@ -271,6 +271,8 @@ class MaintenanceWindow:
         return True
 
     def _sources_valid(self, data, for_exit=False):
+        if data.get('source_switch', {}).get('state', 'published') not in {'published', 'rolled_back'}:
+            return False
         try:
             for jid, pin in data.get('job_outcomes', {}).items():
                 if self.backend.job(jid).get('script_sha256') != pin:
@@ -318,7 +320,10 @@ class MaintenanceWindow:
                 'error': error or data.get('error')}
         transaction = data.get('source_transaction')
         if transaction and transaction.get('outcome') in {'pending', 'uncertain'}:
-            result['outcome_proposal'] = self.outcome_proposal(data)
+            try:
+                result['outcome_proposal'] = self.outcome_proposal(data)
+            except OSError:
+                result['cohort_recovery'] = data.get('source_switch')
         return result
 
     def outcome_proposal(self, data):
@@ -488,6 +493,8 @@ class LinuxBackend:
 
     def inventory(self):
         from maintenance_inventory import discover, InventoryError
+        if self.root == Path('/home/ubuntu/business'):
+            require(Path('/proc/1/comm').read_text().strip() != 'codex', 'host_pid_namespace_unavailable')
         # Controls must operate in the workspace owner's scheduler namespace.
         # Run the whole controller as that user; sudo is used ONLY for nft.
         require(os.geteuid() == self.root.stat().st_uid, 'run_window_as_workspace_owner')
@@ -567,7 +574,16 @@ class LinuxBackend:
             job = self.job(entry['id'])
             # Snapshot exact presence as well as values, and keep all unmutated
             # job data outside the journal (it may contain prompt text).
-            return {'fields': {key: copy.deepcopy(job[key]) for key in CONTROL_FIELDS if key in job},
+            fields = {key: copy.deepcopy(job[key]) for key in CONTROL_FIELDS if key in job}
+            paused_fields = copy.deepcopy(fields)
+            if fields.get('enabled') is not False:
+                paused_fields.update(enabled=False, state='paused',
+                                     paused_at=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                                     paused_reason=self.pause_reason())
+                paused_fields.pop('pending_slot', None)
+            # The expected pause is durable BEFORE native normalization/save,
+            # including optional-field absence and the exact scheduling cursor.
+            return {'fields': fields, 'paused_fields': paused_fields,
                     'script_sha256': job.get('script_sha256'), 'configuration_sha256': job_configuration(job)}
         if kind == 'crontab':
             require(not entry['prior'].get('maintenance_marker'), 'foreign_maintenance_crontab_refused')
@@ -614,7 +630,26 @@ class LinuxBackend:
                 job = self.job(entry['id'])
                 require(job_configuration(job) == prior['configuration_sha256'], 'pause_configuration_changed')
                 require({k: job[k] for k in CONTROL_FIELDS if k in job} == prior['fields'], 'pause_preimage_changed')
-                self.cron_tool('pause', entry['id'])
+                require('paused_fields' in prior, 'pause_exact_preimage_required')
+                saver = scheduler._save_jobs_unlocked
+                def exact_pause(jobs, **kwargs):
+                    require(not kwargs.get('removed_ids') and not kwargs.get('replace'),
+                            'destructive_scheduler_save_refused')
+                    require(self.job(entry['id']) == job, 'pause_record_changed')
+                    target = next(j for j in jobs if j['id'] == entry['id'])
+                    # Native update normalizes legacy records. Preserve their
+                    # original non-control fields in the SAME atomic save.
+                    target.clear()
+                    target.update(copy.deepcopy(job))
+                    for key in CONTROL_FIELDS:
+                        target.pop(key, None)
+                    target.update(copy.deepcopy(prior['paused_fields']))
+                    return saver(jobs, **kwargs)
+                scheduler._save_jobs_unlocked = exact_pause
+                try:
+                    self.cron_tool('pause', entry['id'])
+                finally:
+                    scheduler._save_jobs_unlocked = saver
         elif kind == 'crontab':
             current = self.command(['/usr/bin/crontab', '-l'])
             target = self._crontab_candidate(prior)
@@ -639,16 +674,23 @@ class LinuxBackend:
         kind = entry['kind']
         if kind == 'hermes':
             job = self.job(entry['id'])
-            original_disabled = prior['fields'].get('enabled') is False
-            reason_ok = ({k: job[k] for k in CONTROL_FIELDS if k in job} == prior['fields']
-                         if original_disabled else job.get('paused_reason') == self.pause_reason())
-            return (job.get('enabled') is False and (original_disabled or job.get('state') == 'paused')
-                    and reason_ok and job_configuration(job) == prior['configuration_sha256'])
+            expected = prior.get('paused_fields')
+            data = read_journal(self.journal)
+            update = data.get('job_updates', {}).get(entry['id'])
+            pins = {prior['script_sha256']}
+            if update:
+                pins.add(update['after_pin'])
+            return (job.get('script_sha256') in pins and expected is not None and job.get('enabled') is False
+                    and {k: job[k] for k in CONTROL_FIELDS if k in job} == expected
+                    and job_configuration(job) == prior['configuration_sha256'])
         if kind == 'crontab':
-            current = self.command(['/usr/bin/crontab', '-l']).splitlines()
-            index = prior['index']
-            marker = '# GLP44/73 maintenance ' + hashlib.sha256(str(self.journal).encode()).hexdigest()[:16] + ' '
-            return index < len(current) and current[index] == marker + prior['line']
+            current = self.command(['/usr/bin/crontab', '-l'])
+            expected = self._crontab_candidate(prior)
+            # Compare the same complete bytes restoration requires: line
+            # endings, final newline and unrelated rows are custody too.
+            return (current == expected and
+                    current.splitlines(keepends=True)[prior['index']] !=
+                    prior['text'].splitlines(keepends=True)[prior['index']])
         if kind == 'systemd':
             self.timer_unchanged(entry, prior)
             return self.command(['/usr/bin/systemctl', '--user', 'show', entry['id'], '-p', 'ActiveState', '--value']).strip() == 'inactive'
@@ -678,33 +720,22 @@ class LinuxBackend:
                 if controls == prior['fields']:
                     return  # Includes a crash after restore but before receipt.
                 require(self.paused(entry, prior), 'restore_pause_ownership_changed')
-                if prior['fields'].get('enabled') is False:
-                    require(controls == prior['fields'], 'restore_preexisting_hold_changed')
-                else:
-                    require(current.get('paused_reason') == self.pause_reason(), 'restore_pause_ownership_changed')
-                    require(current.get('next_run_at') == prior['fields'].get('next_run_at'), 'restore_schedule_cursor_changed')
-                # resume recomputes next_run_at and pause adds fields/removes
-                # pending_slot. Repair those EXACT preimages through the native
-                # scheduler saver IN the supported tool's single atomic save.
-                # There is never a re-enabled intermediate record after a crash.
-                saver = scheduler._save_jobs_unlocked
-                def exact_save(jobs, **kwargs):
-                    require(not kwargs.get('removed_ids') and not kwargs.get('replace'), 'destructive_scheduler_save_refused')
-                    target = next(j for j in jobs if j['id'] == entry['id'])
-                    for key in CONTROL_FIELDS:
-                        if key in prior['fields']:
-                            target[key] = copy.deepcopy(prior['fields'][key])
-                        else:
-                            target.pop(key, None)
-                    return saver(jobs, **kwargs)
-                scheduler._save_jobs_unlocked = exact_save
-                try:
-                    self.cron_tool('resume', entry['id'])
-                finally:
-                    scheduler._save_jobs_unlocked = saver
-                actual = self.job(entry['id'])
-                require({k: actual[k] for k in CONTROL_FIELDS if k in actual} == prior['fields'],
-                        'restore_hermes_readback_failed')
+                # Restoration is an exact CAS, not a new scheduling request.
+                # resume() rejects expired once jobs before saving and can
+                # normalize legacy fields; use the native atomic saver under
+                # the native registry + fire fences without rescheduling.
+                jobs = scheduler.load_jobs()
+                found = [j for j in jobs if j.get('id') == entry['id']]
+                require(len(found) == 1 and found[0] == current, 'restore_record_changed')
+                target = found[0]
+                for key in CONTROL_FIELDS:
+                    if key in prior['fields']:
+                        target[key] = copy.deepcopy(prior['fields'][key])
+                    else:
+                        target.pop(key, None)
+                expected = copy.deepcopy(target)
+                scheduler._save_jobs_unlocked(jobs)
+                require(self.job(entry['id']) == expected, 'restore_hermes_readback_failed')
         elif kind == 'crontab':
             current = self.command(['/usr/bin/crontab', '-l'])
             expected = self._crontab_candidate(prior)
@@ -742,22 +773,21 @@ class LinuxBackend:
             require(list(host.identity()) == owner, 'bridge_identity_changed')
             if not host.quiet(tuple(owner)) or any(r['status'] in {'queued', 'accepted', 'running'} for r in host.jobs().values()):
                 busy.append({'kind': 'n8n', 'reason': 'socket_thread_cgroup_or_job_not_drained'})
+        from maintenance_admission import native_runs
+        native_busy, owners = native_runs(self.scheduler(), entries, self.job) if any(
+            entry['kind'] == 'hermes' for entry in entries) else ([], set())
+        busy.extend(native_busy)
         for entry in entries:
-            if entry['kind'] == 'hermes':
-                job = self.job(entry['id'])
-                if any(job.get(k) for k in ('fire_claim', 'run_claim', 'running')):
-                    busy.append({'kind': 'hermes', 'id': entry['id']})
             if entry['kind'] == 'systemd':
                 service = entry['prior']['service']
                 value = self.command(['/usr/bin/systemctl', '--user', 'show', service, '-p', 'ActiveState', '--value']).strip()
                 if value not in {'inactive', 'failed'}:
                     busy.append({'kind': 'systemd', 'id': service})
-        # Commands can fork or import a library and lose the original script
-        # name. Census each process owned by the host user, and conservatively
-        # include every process referencing this root or any traced source.
-        uid = self.root.stat().st_uid
-        traces = {str(self.root), str(self.hermes / 'scripts')}
-        traces.update(str(p) for entry in entries for p in entry.get('trace', []))
+        # Bound admission to affected task launches/trees and actual source
+        # references. Gateway residency, cwd and interpreter capability are not
+        # source-reader evidence. Unknown unrelated PIDs do not block.
+        from maintenance_inventory import affected_paths
+        from maintenance_admission import process_readers
         data = read_journal(self.journal)
         excluded = {os.getpid()}
         for key in ('keeper', 'controller', 'adopter'):
@@ -766,35 +796,14 @@ class LinuxBackend:
                 try:
                     if identity(owner['pid']) == owner:
                         excluded.add(owner['pid'])
-                except (OSError, ValueError):
+                except (OSError, ValueError, KeyError):
                     pass
-        bridge_pid = next((row['prior']['identity'][0] for row in data['entries'] if row['entry']['kind'] == 'n8n'), None)
-        excluded.add(bridge_pid)
-        for base in Path('/proc').iterdir():
-            if not base.name.isdigit() or int(base.name) in excluded:
-                continue
-            try:
-                if base.stat().st_uid != uid:
-                    continue
-                argv = (base / 'cmdline').read_bytes().decode(errors='replace').rstrip('\0').split('\0')
-                command = ' '.join(argv)
-                if not command:
-                    continue
-                if control_process(argv, data):
-                    continue
-                cwd = os.readlink(base / 'cwd')
-                # Opaque agent/script entries can dynamically load the source
-                # from ANY cwd. Their remaining interpreters/shells cannot be
-                # dismissed merely because argv has lost the original path.
-                executable = Path(os.readlink(base / 'exe')).name
-                capable = (executable.startswith(('python', 'node', 'hermes', 'codex', 'claude', 'ruby', 'perl', 'php'))
-                           or executable in {'bash', 'sh', 'dash', 'zsh', 'fish'})
-                if capable or any(path in command or path in cwd for path in traces):
-                    busy.append({'kind': 'process', 'pid': int(base.name), 'start_ticks': identity(int(base.name))['start_ticks']})
-            except FileNotFoundError:
-                continue  # Exited during this sample.
-            except (OSError, ValueError) as exc:
-                raise WindowError('process_census_unreadable:' + base.name) from exc
+        # The independently fenced bridge drains its actual action threads,
+        # sockets and cgroup through host.quiet(), rather than its resident PID.
+        excluded.update(row['prior']['identity'][0] for row in data['entries']
+                        if row['entry']['kind'] == 'n8n')
+        tasks = {p for entry in entries for p in entry.get('trace', [])}
+        busy.extend(process_readers(affected_paths(self.root, self.hermes), tasks, owners, excluded))
         return busy
 
 
@@ -856,6 +865,27 @@ class ActiveWindow:
                                       'adopter': identity(), 'job_ids': []}
         atomic_json(self.journal, data)
 
+    def switch_files(self, stage, before):
+        from maintenance_cohort import switch_files
+        data = read_journal(self.journal)
+        transaction = data.get('source_transaction')
+        require(transaction and transaction['adopter'] == identity(), 'cohort_transaction_required')
+        old = {str(Path(p).resolve()): hashlib.sha256(value[0]).hexdigest() for p, value in before.items()}
+        new = {str(Path(p).resolve()): hashlib.sha256(body).hexdigest() for p, body in stage.items()}
+        require((old == transaction['before'] and new == transaction['after']) or
+                (old == transaction['after'] and new == transaction['before']), 'cohort_unreviewed_bytes')
+        def drain():
+            current = read_journal(self.journal)
+            require(locks_verified(current), 'keeper_lost_during_cohort_switch')
+            require(all(self.backend.paused(row['entry'], row['prior']) for row in current['entries']),
+                    'cohort_pause_ownership_changed')
+            return self.backend.inflight([row['entry'] for row in current['entries']])
+        receipt = switch_files(self.journal, stage, before, drain)
+        data = read_journal(self.journal)
+        data['source_transaction']['switch_verified'] = True
+        atomic_json(self.journal, data)
+        return receipt
+
     def finish(self, success):
         data = read_journal(self.journal)
         transaction = data.get('source_transaction')
@@ -898,7 +928,15 @@ def require_active_window(journal, root, hermes):
             active = ActiveWindow(journal, backend)
             try:
                 yield active
-                require(locks_verified(read_journal(journal)), 'keeper_lost_during_adoption')
+                current = read_journal(journal)
+                require(locks_verified(current), 'keeper_lost_during_adoption')
+                require(not backend.inflight([row['entry'] for row in current['entries']]),
+                        'source_reader_admitted_during_adoption')
+                require(all(backend.paused(row['entry'], row['prior']) for row in current['entries']),
+                        'paused_custody_changed_during_adoption')
+                transaction = current.get('source_transaction')
+                require(not transaction or transaction['outcome'] != 'pending' or
+                        transaction.get('switch_verified'), 'source_cohort_switch_required')
                 active.finish(True)
             except BaseException:
                 active.finish(False)
@@ -915,7 +953,7 @@ def require_active_window(journal, root, hermes):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('plan', 'enter', 'status', 'exit'))
+    parser.add_argument('command', choices=('plan', 'enter', 'status', 'exit', 'readers', 'recover-cohort'))
     parser.add_argument('--root', type=Path, default=Path('/home/ubuntu/business'))
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
     parser.add_argument('--journal', type=Path, required=True)
@@ -924,13 +962,43 @@ def main(argv=None):
     parser.add_argument('--keeper', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--controller-pid', type=int, help=argparse.SUPPRESS)
     parser.add_argument('--outcome-review', type=Path, help='exit only: independently reviewed exact landed/rolled-back outcome')
+    parser.add_argument('--cohort-review', type=Path, help='recover-cohort only: independent exact reconstruction review')
     args = parser.parse_args(argv)
     backend = LinuxBackend(args.root, args.hermes, args.journal)
     window = MaintenanceWindow(backend, args.journal, default_locks(args.root, args.hermes),
                                drain_timeout=args.drain_seconds, max_window_seconds=args.window_seconds)
     try:
         require(args.outcome_review is None or args.command == 'exit', 'outcome_review_is_exit_only')
-        if args.command == 'plan':
+        require(args.cohort_review is None or args.command == 'recover-cohort', 'cohort_review_is_recovery_only')
+        if args.command == 'readers':
+            from maintenance_admission import process_readers
+            from maintenance_inventory import affected_paths
+            visible = Path('/proc/1/comm').read_text().strip() != 'codex'
+            result = {'blockers': process_readers(affected_paths(args.root, args.hermes), excluded={os.getpid()}),
+                      'host_process_visibility': 'available' if visible else 'unavailable_private_pid_namespace',
+                      'host_blockers': 'see blockers' if visible else 'UNKNOWN'}
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0 if visible else 2
+        elif args.command == 'recover-cohort':
+            from maintenance_cohort import recovery_proposal, recover
+            with operation_lock(args.journal):
+                if args.cohort_review is None:
+                    result = recovery_proposal(args.journal)
+                else:
+                    data = read_journal(args.journal)
+                    if not locks_verified(data):
+                        window._take_locks(data)
+                    def drain():
+                        current = read_journal(args.journal)
+                        require(locks_verified(current), 'cohort_recovery_locks_unavailable')
+                        require(all(backend.paused(row['entry'], row['prior']) for row in current['entries']),
+                                'cohort_recovery_pause_changed')
+                        return backend.inflight([row['entry'] for row in current['entries']])
+                    try:
+                        result = recover(args.journal, json.loads(args.cohort_review.read_text()), drain)
+                    finally:
+                        window.release_locks()
+        elif args.command == 'plan':
             result = window.plan()
         elif args.command == 'status':
             result = window.status()

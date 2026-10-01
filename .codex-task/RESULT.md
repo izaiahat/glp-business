@@ -1,79 +1,93 @@
-Implemented locally on `feat/glp44-glp73-maintenance-window`, based on PR #101 / `0e474f8f1bd691b9b9f372429fca2fee048e7f6d`. This is source implementation and offline verification, not live adoption acceptance.
+# PR #109 review repair and GLP-44/73 maintenance
 
-**Changes**
+Implemented on `fix/pr109-review-findings` from `e00a32c062a92fb9a89ef7fcaf600f027e0426e4`, with a real merge of current `origin/main` (`d6858dd7687b3bf1d44faa3ac7683f44cf3d81f6`). A fresh authenticated GitHub branch read confirmed that base. Only the report, allowlist and manifest conflicted; allowlist/source entries from both sides are retained. No push, PR merge, installation, live scheduler change, nft invocation, service control, GA4 change or send occurred.
 
-`maintenance_inventory.discover()` enumerates Hermes jobs, user crontab rows, defined and transient user timers, and the n8n bridge listener with its actual action commands. It derives affected paths from the adoption declarations and traces Python imports, shell children, literal subprocesses, hash readers, and source writers. Opaque code behind an identifiable control is conservatively affected, so it is stopped as a whole; unavailable surfaces, malformed/sensitive commands, ambiguous controls and incomplete coverage refuse admission. Systemd lifecycle hooks and environment-file references are included without opening environment files or requesting environment contents.
+## Findings and acceptance evidence
 
-`scripts/maintenance_window.py` implements `plan`, `enter`, `status`, and `exit`. Durable, fsynced preimages and mutation intents precede every pause. A detached, bounded keeper holds the existing source, analytics, article, reporting, weekly-price, and retention flocks across commands. Verification binds the complete required lock set to live PID/start/boot identity, descriptors, inodes and kernel EX locks. Crontab rows are commented and exactly restored, including ordering/line endings. Timers retain their enablement; only active timers are stopped and restored. Hermes pause/resume uses the installed supported `cronjob` tool; resume's native atomic saver restores original scheduling field presence, pending slot and due time in that same save. No raw `jobs.json` writes.
+| Finding | Fix | Regression evidence |
+| --- | --- | --- |
+| F1: package-child imports and aliased reads silently escaped inventory | Resolve absolute/relative imported children and package initializers. Unknown child imports, wildcards and callable capabilities refuse the claim of independence; an identifiable scheduled control is conservatively affected. | Both exact review cases are maintained in `test_maintenance_inventory.py`, plus relative/dotted imports and unresolved-capability cases. Inventory debugging reproduced five failures before the fix. |
+| F2: expired one-shot and native legacy normalization broke restoration | Durable snapshot includes the exact expected paused control map. Supported native pause uses its atomic saver while preserving the original noncontrol record; restore performs an exact native saver CAS under native registry/fire locks, without resume/rescheduling. Adopted pins remain intact. No raw registry writer. | Both exact installed-native review cases in `test_maintenance_restoration_review.py` restore the complete original record, including absent fields. Native integrations assert separate scratch HERMES_HOME and disable provider notifications; they explicitly skip if the installed dependency is unavailable. Four F2/F3 cases reproduced RED before fixing. |
+| F3: ACTIVE survived un-restorable scheduler changes | Compare all paused control fields, including presence, due cursor and pending slot, and entire journal-derived crontab bytes. Unrecognized pins also invalidate ACTIVE. Guards recheck paused custody at operation completion. | Exact cursor/CRLF oracles plus every control-field conflict, unrelated crontab bytes/final newline and unknown-pin status/apply refusals. |
+| F4: advertised flocks accepted an unfenced mixed reader | Production adopters stage the complete sources/wrappers/sync-state cohort and use `ActiveWindow.switch_files`. Before any replacement, every public member and existing bytecode cache is mode 000. Native DAC denies ordinary new opens; descriptors opened before fencing authenticate the complete cohort before permissions reopen. The adoption guard refuses transactions bypassing this API and rechecks drainage. Ordinary failures restore the entire original cohort under the same fence. | Both original review scenarios are retained in `test_maintenance_admission_review.py`. The direct-write subprocess reproduction still demonstrates advisory-lock bypass, but the repaired guard refuses its success and journals uncertainty. The supported switch separately starts a real subprocess after its first rename: it is BLOCKED and never reads a mixed cohort. Tests also cover caches, short writes, removed-cache rollback, power loss, distinct exact recovery review and recovery interrupted again. |
 
-The n8n listener uses the existing external nft SYN gate from `glp44_safe_bridge_activation.py`, with exact listener/socket/thread/cgroup and durable-job drainage. It does not call credential-bearing GET/health routes, source installation, or restart. The controller runs as the business owner; only nft invokes `sudo -n`. It refuses any preexisting or unreadable gate. Timeout restores entries without killing in-flight work. A keeper crash invalidates ACTIVE status; the same journal can be resumed or restored. Pause reasons and cron comments point to retained recovery custody. Ordinary keeper verification errors attempt restoration; uncertain source, scheduler, or adoption outcomes retain an explicit `recovery_required` journal.
-
-Both adoptions require a verified window for apply. GLP-44 independently reviews original scheduled configuration and the exact paused record. Source pins, preimages, modes, reviewed candidates, preview/apply CAS, custody, and existing rollback remain. File and pin write intents are journaled; an uncertain scheduler save is never blindly replayed or reversed. Completed transactions advance verified baselines, so a later adoption cannot admit earlier predecessor bytes. Restoration preserves successfully adopted pins and original schedule/hold state. The adoption operation lock prevents expiry/exit from restoring jobs during a write.
-
-**GLP-73 state mismatch explained**
-
-The retained exact snapshot `reports/ops/glp44-scoped-live-adoption-20260929/read-only-preimages/05.bytes` hashes to `20a6396a78a4cb4cf82e473b0b3805b01ed279cd2e6526c2032caa10814e7436`. The read-only current state hashes to `bfc81ed021e5c7da93498eb450c5f71797919de0b37554ed34915e30e012cb56`. Schema, all other fields, and every other baseline are unchanged. The full semantic diff contains exactly:
-
-| Baseline path | Old hash prefix | New hash prefix | Retained authorized sync evidence |
-| --- | --- | --- | --- |
-| `ops/protected-oracles.json` | `ee12c01f` | `9f7d68ee` | `reports/ops/seat-continuation-sol61-20260930/RESULT.json` |
-| `scripts/seat_continuation.py` | `f00211d4` | `f23afdbf` | Same two-path scoped sync receipt |
-| `scripts/affiliate_sheet_batch_writer.py` | `dc713c15` | `e5a05f3d` | `reports/ops/cleanup-p0-drift-repair-20261001/INSTALL-WRITER.json` and `RESULT.json` |
-
-`scripts/glp73_sync_rebaseline.py` verifies the exact old snapshot, full old/new state digests, three changed-path successor bytes, and pinned receipt digests. Its output records the complete diff. A distinct independent reviewer must accept that exact proposal through `--state-rebaseline`; the original `STATE_BEFORE` constant remains unchanged. Any further movement or unexplained field/path refuses. Run GLP-73 before GLP-44 because both update the shared sync-state file.
-
-**Checks**
-
-Focused offline checks currently pass: inventory, lifecycle, adoption refusal/re-baseline, native scheduler saves, exact preimages and rollback. Lifecycle tests use fake schedulers and disposable real keeper processes, including SIGKILL, crash-resume, expiry, drain timeout, exact restoration, concurrent enter, configuration conflicts, every required kernel lock, operation exclusion, partial writes and uncertain outcomes. Focused command: `PYTHONPATH=.:scripts:tests /home/ubuntu/.hermes/cache/scratch/glp44-glp73-test-venv/bin/python -m pytest -q -p no:cacheprovider tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_adoptions.py tests/test_glp44_scoped_adoption.py tests/test_glp73_paired_adoption.py` returned **84 passed in 23.13s**. The final related exact-head check, including the new CRLF probe regressions, returned **126 passed in 25.51s** (exit 0). It additionally ran sync-state/manifest, reader-exclusion, reporting-pair, weekly-pin and bridge-admission/fence suites. `py_compile` and `git diff --check` passed; exact manifest verification checked all **432** tracked paths and SHA pins.
-
-Read-only host re-baseline verification returned the exact three-path proposal above. Read-only host inventory saw 144 Hermes entries, all conservatively affected; it refused with `coverage={"hermes":true}` because this sandbox denies user crontab and systemd bus access. No live preview, enter/exit, adoption/apply, scheduler pause/resume, installation, service restart, GA4 Admin change, test event, send, push or merge was performed.
-
-**Parent runbook (execute only after source review and host prerequisites)**
-
-Use the workspace owner (`ubuntu`), the exact reviewed committed checkout, and the existing Hermes Python. Do not run the controller as root. Parent must validate the existing nft gate on the target kernel and have noninteractive privilege for only its nft commands. Park other source writers and finish/stop other user interpreters, shells, and agent sessions through their owners: the process census deliberately treats those as possible readers even when argv/cwd lacks the repository. An ordinary interactive shell or persistent gateway can therefore block drainage. Use a dedicated process whose shell is replaced with `exec` for enter. Do not kill an effect to meet the deadline. These host prerequisites are unverified here.
-
-1. Set the concrete paths in a parent-owned session and create a new custody directory. Never reuse a closed journal for a new window.
+Combined focused command, using the existing isolated runner:
 
 ```bash
-TASK_CHECKOUT=/home/ubuntu/business/.worktrees/codex-ultra-glp44-73/.codex-task/committed-checkout
+PYTHONPATH=.:scripts:tests /home/ubuntu/.hermes/cache/scratch/glp44-glp73-test-venv/bin/python -m pytest -q -p no:cacheprovider \
+  tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_adoptions.py \
+  tests/test_maintenance_restoration_review.py tests/test_maintenance_admission_review.py \
+  tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py tests/test_glp73_sync_rebaseline.py \
+  tests/test_glp44_scoped_adoption.py tests/test_glp73_paired_adoption.py tests/test_glp44_reader_exclusion.py \
+  tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_weekly_pin_adoption.py \
+  tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py tests/test_glp44_safe_bridge_activation.py tests/test_sync_from_repo.py
+```
+
+Final combined result: **226 passed in 88.62s**, including the committed-manifest preflight, including all eight review cases and existing maintenance/adoption tests. Evidence: `.codex-task/focused-tests.log` and `.codex-task/focused-tests.xml`. New maintained suites are included in `scripts/run_tests.sh`. No full suite, build or browser run was attempted. Exact curated set and SHA pins verified for 466 tracked paths; The committed-manifest preflight passed against the actual committed tree using the writable local metadata; fixture repositories kept their own Git metadata. Python compilation, shell syntax and diff whitespace checks passed. Hosted CI and independent receiving acceptance remain unperformed.
+
+## Bounded admission and its proof boundary
+
+Inventory closes the actual affected Hermes jobs, crontab rows, timers and bridge actions, and keeps them closed until exact restoration. Opaque tasks with known controls are paused conservatively. Drain checks native live claims, per-job fire locks and the read-only execution ledger; stale claims need positive owner-death or matching terminal-execution evidence. Native external-worker payload identity roots its own descendant tree. In-process gateway tasks block by their durable task record, without treating the gateway's entire daemon tree as a scheduled task. Systemd service state and bridge sockets/threads/cgroup/action receipts retain their existing drain checks. Existing source/work flocks remain held throughout the window.
+
+The process census names only actual adoption-file argv operands (including executing inline commands), open descriptors, mappings, affected launchers and their descendants. Gateway residency, agent sessions, shells, an interpreter basename and a repository cwd do not establish a reader. An unreadable unrelated PID such as sd-pam is ignored; an identified task/source reader with incomplete identity remains a named blocker. PID/start identity authenticates controller exclusions. An unreadable native ledger or unresolved task ownership still refuses that task.
+
+This is a staged switch with a read fence, **not an atomic multi-file rename claim**. A directory/symlink rename also cannot pin two independent opens to one generation. The proof is continuous exclusion of admitted scheduled tasks plus a kernel read fence during the supported switch. Existing source descriptors/maps and identifiable direct readers must drain first. Stale bytecode is fenced and invalidated. Privileged controller/DAC override, symlinks, hardlinks, unpreservable ownership/group or changed preimages refuse. This does not establish isolation against hostile same-UID chmod, root launching an unregistered reader, or hidden previously retained source in memory. Those are outside bounded task admission; no whole-host idle claim is made.
+
+The complete prepared cohort and preimages are durable before fencing. A crash leaves admission closed and public files sealed. Status refuses ACTIVE/exit and reports retained cohort recovery. Reviewed recovery authenticates custody and exact target inode/size/mtime/owner metadata, reconstructs the complete preimage with closed permissions, verifies every new descriptor, then restores modes. It never temporarily chmods a sealed file readable merely to inspect it. Recovery changes no scheduler pins or transaction outcome; those require the separate existing exact outcome review when uncertain.
+
+## Today's read-only process evidence
+
+**The exact host PID blocker list is UNKNOWN in this execution environment.** `/proc` and `ps` expose a private PID namespace: PID 1 is Codex, followed by only this command's shell/process. Host gateway, scheduler workers, sd-pam and other host sessions are inaccessible. Zero visible blockers is not evidence that the host is clear. The controller refuses the live default root from this known private namespace rather than accepting incomplete drainage.
+
+Sanitized evidence is retained in `.codex-task/live-processes.json` (captured 2026-10-01T04:12:55Z). Read-only registry evidence showed 144 jobs and two disabled/paused jobs with September 9 run_claim records, `b5522c79be59` and `0993c4d2cd4e`; the records expose no PID field. They are task-ownership diagnostics, not proof of current live processes. No PID, owner death, service state or host all-clear was invented. The updated native admission algorithm uses actual claim `by` identity and the execution ledger rather than truthiness. Obtain the exact current PID list on the host using the `readers` command below. No live process was signaled or stopped.
+
+## Runtime re-baseline
+
+The fixed successor hash/three-path allowlist is removed. `glp73_sync_rebaseline.py --receipts` reads the anchored original snapshot, current state and a supplied JSON list of authorized receipt descriptors. It generates the complete runtime diff/current digest, verifies receipt and authority-evidence hashes, validates ordered contiguous transitions for every changed path, and checks current successor bytes (or authorized removals). Missing, extra, gapped, malformed or moved evidence/state/source refuses. Original `BEFORE`/paired-adoption `STATE_BEFORE` remain unchanged. The proposal embeds the supplied descriptors; adoption regenerates it from current files before accepting a distinct reviewer's exact proposal.
+
+Receipt descriptor format (repeat changes/receipts as needed; do not copy old successor hashes):
+
+```json
+[{"path":"reports/actual-sync.json","sha256":"<receipt SHA256>",
+  "authorization":{"path":"reports/actual-authority.json","sha256":"<authority SHA256>","pointer":"/authority"},
+  "changes":[{"path":"<moved relative source path>","before_sha256":"<predecessor SHA256>",
+              "after_sha256":"<successor SHA256>","after_pointer":"/actual/after/hash",
+              "before_pointer":"/actual/before/hash"}]}]
+```
+
+`before_pointer` is optional for retained legacy receipts containing only successors; the anchored state and complete ordered chain still bind the predecessor. Receipt/authority pointers must resolve to retained real evidence. The independent reviewer authenticates the authority's provenance and scope; the producer does not turn arbitrary prose into permission. Every movement, including a further protected-oracle successor, needs its receipt. No current host re-baseline or approval was fabricated in this task.
+
+## Updated receiving runbook
+
+Execute only from the independently reviewed committed checkout, as the workspace owner, after receiving source acceptance. Use the existing Hermes Python; no installation or runtime command below was executed by this task. Keep all preexisting provider/publish/spend/send holds. The bridge's existing target-kernel nft/sudo prerequisites still require receiving-side validation.
+
+```bash
+TASK_CHECKOUT=/path/to/exact/reviewed/checkout
 TASK_PYTHON=/home/ubuntu/.hermes/hermes-agent/venv/bin/python
-TASK_RUN=/home/ubuntu/business/reports/ops/glp44-glp73-maintenance-20261001
+TASK_RUN=/home/ubuntu/business/reports/ops/glp44-73-maintenance-<fresh-id>
 TASK_JOURNAL="$TASK_RUN/window.json"
 mkdir -m 700 "$TASK_RUN"
+"$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" readers \
+  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes --journal "$TASK_JOURNAL" > "$TASK_RUN/readers.json"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" plan \
-  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes \
-  --journal "$TASK_JOURNAL" > "$TASK_RUN/plan.json"
+  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes --journal "$TASK_JOURNAL" > "$TASK_RUN/plan.json"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/glp73_sync_rebaseline.py" \
-  --root /home/ubuntu/business > "$TASK_RUN/rebaseline-proposal.json"
+  --root /home/ubuntu/business --receipts "$TASK_RUN/authorized-sync-receipts.json" > "$TASK_RUN/rebaseline-proposal.json"
 ```
 
-Expected: plan exit 0 with complete four-surface coverage and no errors; re-baseline exit 0, old `20a6396a…`, new `bfc81ed0…`, exactly the three rows above. On `REFUSED`, stop before enter. Have an independent reviewer create `rebaseline-review.json` containing `{schema:"glp73-sync-rebaseline-review-v1", decision:"ACCEPT_EXPLAINED_DIFF", prepared_by:<actual preparer>, reviewer:<distinct reviewer>, proposal:<exact rebaseline-proposal.json object>}`. This lane does not supply an approval.
-
-2. From a dedicated execution process, replace its shell with the maintained enter command (use the literal paths if session variables are unavailable):
+`readers` is ps/proc only and names direct source readers; full plan/enter also covers scheduled task owners. Require actual host visibility, complete four-surface coverage, no inventory errors, and a fully explained re-baseline. Related PID blockers drain through their owners; unrelated gateway/shell/session residency does not require shutdown. Never kill an effect to meet a deadline. The receipt list must already contain the actual authorized sync evidence. An independent reviewer creates `rebaseline-review.json` with schema `glp73-sync-rebaseline-review-v1`, decision `ACCEPT_EXPLAINED_DIFF`, actual distinct `prepared_by`/`reviewer`, and `proposal` equal to the complete generated v2 proposal.
 
 ```bash
-exec /home/ubuntu/.hermes/hermes-agent/venv/bin/python \
-  /home/ubuntu/business/.worktrees/codex-ultra-glp44-73/.codex-task/committed-checkout/scripts/maintenance_window.py enter \
-  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes \
-  --journal /home/ubuntu/business/reports/ops/glp44-glp73-maintenance-20261001/window.json \
+"$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" enter \
+  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes --journal "$TASK_JOURNAL" \
   --drain-seconds 300 --window-seconds 3600
-```
-
-Expected: exit 0, `state="active"`, `verified=true`, detached live keeper. This pauses the conservative scheduler cohort, gates n8n, drains work, and only then takes locks. On drain timeout, expected restoration is `state="closed"`; inspect `status`. On a restore conflict, expect `recovery_required` and reconcile before any adoption. Enter's output is not adoption approval.
-
-3. Verify status, then preview GLP-73 inside the window.
-
-```bash
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" status --journal "$TASK_JOURNAL"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/glp73_paired_adoption.py" \
   --checkout "$TASK_CHECKOUT" --root /home/ubuntu/business --hermes /home/ubuntu/.hermes \
-  --window "$TASK_JOURNAL" --state-rebaseline "$TASK_RUN/rebaseline-review.json" \
-  > "$TASK_RUN/glp73-preview.json"
+  --window "$TASK_JOURNAL" --state-rebaseline "$TASK_RUN/rebaseline-review.json" > "$TASK_RUN/glp73-preview.json"
 ```
 
-Expected: status verified true; preview exit 0 and `applied=false`. Independent reviewer creates `glp73-review.json` with schema `glp73-paired-adoption-review-v1`, decision `ACCEPT_EXACT_BYTES`, source `209c3beea6e2045dcb81367d5339a23a225eda40`, their real reviewer identity, and every preview field except `applied` exactly. Include `state_rebaseline_sha256`; preserve all original paused/retired holds.
-
-4. Apply once, verify under the same window, then preview GLP-44 against its freshly changed shared-state preimage.
+Enter must return `state=active, verified=true`. The bounded detached keeper owns the full lock set. Timeout restores exact controls; a conflict retains `recovery_required`. Use fresh journals; old pre-repair journals without exact paused maps cannot prove ACTIVE. Run GLP-73 first because both adoptions change shared sync state. Independently accept its exact preview fields (everything except `applied`) with schema `glp73-paired-adoption-review-v1`, decision `ACCEPT_EXACT_BYTES`, source `209c3beea6e2045dcb81367d5339a23a225eda40`, actual reviewer, including `state_rebaseline_sha256`.
 
 ```bash
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/glp73_paired_adoption.py" \
@@ -86,64 +100,48 @@ Expected: status verified true; preview exit 0 and `applied=false`. Independent 
   --window "$TASK_JOURNAL" > "$TASK_RUN/glp44-preview.json"
 ```
 
-Expected: GLP-73 `applied=true`, exact candidate source/wrapper hashes and hash-only job changes, followed by verified true. Its predecessor preview is not a post-apply verifier. Independently accept the exact `proposal` in GLP-44 preview using schema `glp44-scoped-adoption-review-v1`, decision `ACCEPT_EXACT_BYTES`, approved_source `1c459c7aff4a17063e803ba610627663d2025254`, actual reviewer identity, and every proposal field, including `job_before`, `job_window_before`, and the fresh `state_before_sha256`.
-
-5. Apply GLP-44 once. Verify bytes, pins, modes, selected state baselines and unrelated scheduler records against custody/reviews before exit.
+Require verified status after the first apply. Independently accept every field of GLP-44's freshly generated `proposal`, including original/paused job and fresh state preimage, with schema `glp44-scoped-adoption-review-v1`, decision `ACCEPT_EXACT_BYTES`, approved_source `1c459c7aff4a17063e803ba610627663d2025254`, and actual reviewer.
 
 ```bash
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/glp44_scoped_adoption.py" \
   --checkout "$TASK_CHECKOUT" --root /home/ubuntu/business --hermes /home/ubuntu/.hermes \
-  --window "$TASK_JOURNAL" --review "$TASK_RUN/glp44-review.json" --apply \
-  > "$TASK_RUN/glp44-apply.json"
+  --window "$TASK_JOURNAL" --review "$TASK_RUN/glp44-review.json" --apply > "$TASK_RUN/glp44-apply.json"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" status --journal "$TASK_JOURNAL"
-```
-
-Expected: `applied=true`, then verified true. Both context exits authenticate every staged file digest and exact hash-only scheduler record and commit those baselines to the journal. Independent receiving review still checks actual modes and unaffected records. Do not send events or change GA4 Admin settings for verification.
-
-6. Restore admission and exact prior schedules, keeping adopted pins and all preexisting holds:
-
-```bash
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" exit --journal "$TASK_JOURNAL"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" status --journal "$TASK_JOURNAL"
 ```
 
-Expected: `state="closed"`, `verified=false`, no live lock owner; cron rows restored byte-for-byte, prior timer active/enablement states retained, Hermes original due/pending/paused fields restored, the maintenance nft table absent. GLP-73's three originally paused jobs remain paused. Restore other owner-held sessions only after receiving acceptance. Read natural analytics/article receipts separately; installation does not establish live GA4 coverage or release/publish authority.
+Before exit, verify actual source/wrapper bytes, modes, pins and unrelated records against the exact reviews/custody. Expect closed/unverified after exit, exact crontab bytes/control field presence and original one-shot due time, prior timer enablement/active state, removed maintenance ingress gate, adopted pins preserved and every original hold retained. Restoring an expired original one-shot does not promise it will execute; it gives back the original record. Installation is not live analytics/publishing acceptance.
 
-**Rollback / crash commands**
-
-Before an apply, or after an apply exception that fully restores preimages, run the same `exit` command above. Existing adoptions restore owned source/wrapper/state bytes only while the scheduler preimage remains unchanged. On keeper crash, `status` must return exit 2 with verified false/recovery required; repeat `enter` with the same journal to resume an incomplete, unexpired entry, or run `exit` to restore. Closed/expired windows require a new journal for another attempt.
-
-On an ambiguous landed save, do not repeat either adoption. `status` emits an `outcome_proposal` with exact journal/source/job hashes and a coherent `side="before"` or `"after"` if identifiable. Independent reviewer accepts that exact readback in `outcome-review.json` using schema `glp-maintenance-outcome-review-v1`, decision `ACCEPT_EXACT_OUTCOME`, actual distinct preparer/reviewer identities, and `proposal` equal to the emitted object. Then:
+On sealed switch interruption, keep tasks paused. Status emits `cohort_recovery`. Generate reconstruction evidence:
 
 ```bash
-"$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" exit \
-  --journal "$TASK_JOURNAL" --outcome-review "$TASK_RUN/outcome-review.json"
+"$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" recover-cohort \
+  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes --journal "$TASK_JOURNAL" > "$TASK_RUN/cohort-proposal.json"
+```
+
+A distinct reviewer accepts its exact proposal with schema `glp-maintenance-cohort-recovery-review-v1`, decision `RESTORE_EXACT_COHORT_PREIMAGE`, and actual distinct preparer/reviewer identities. Then reconstruct without restoring admission:
+
+```bash
+"$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" recover-cohort \
+  --root /home/ubuntu/business --hermes /home/ubuntu/.hermes --journal "$TASK_JOURNAL" \
+  --cohort-review "$TASK_RUN/cohort-review.json"
 "$TASK_PYTHON" "$TASK_CHECKOUT/scripts/maintenance_window.py" status --journal "$TASK_JOURNAL"
 ```
 
-This reacquires locks, authenticates unchanged inventory/owned pauses/drain and the exact complete source/job cohort, records the reviewed landed or rolled-back outcome, and restores schedules. A mixed cohort (`side=null`), changed review, foreign hold, or unknown bytes cannot be accepted this way. Retain the journal and `reports/ops/pin-archive/glp44|glp73/<review-digest>` custody; the adoption owner must reconcile the specific conflict before restoration. There is no universal safe overwrite command for unknown bytes. Expiry/SIGTERM attempts normal restoration; SIGKILL/reboot requires explicit resume/exit from the durable journal.
+If the source transaction is uncertain, status emits the existing `outcome_proposal`. Independently accept the exact coherent before/after readback in `outcome-review.json` (schema `glp-maintenance-outcome-review-v1`, decision `ACCEPT_EXACT_OUTCOME`, distinct preparer/reviewer, exact proposal), then `exit --outcome-review "$TASK_RUN/outcome-review.json"`. Unknown inode/bytes, mixed cohorts, moved receipt, scheduler save or foreign hold refuse; never replay an uncertain saver or overwrite unknown source. Keeper death before source mutation can use the existing same-journal enter/exit recovery. Retain all journals and custody.
 
-**Unverified**
+## Local Git custody
 
-Live crontab/systemd/n8n coverage, target-kernel nft behavior and sudo policy, normal host interpreter drainage, existing Hermes gateway tool compatibility beyond native offline fixtures, live preview/apply, real scheduler restoration, production source adoption, natural receiving/publishing results and remote CI. The read-only plan currently refuses in this sandbox. The parent owns review, push and any runtime execution.
-
-**Local commit custody**
-
-The assigned worktree links to `/home/ubuntu/business/.claude-cloud-checkouts/glp-business/.git/worktrees/codex-ultra-glp44-73`; the sandbox makes that metadata read-only (`index.lock: Read-only file system`). No permission escalation was attempted. The same branch and complete modified source tree are committed in the writable local checkout `.codex-task/committed-checkout`. Its Git objects share only read-only predecessor storage. The original worktree source changes are retained, and its original Git HEAD remains the base. A standalone `.codex-task/maintenance-window.bundle` contains the branch delta for parent import; neither checkout is pushed. Use the committed checkout path above for producers requiring committed HEAD.
-
-**Broader check result and parent import**
-
-The authoritative committed-checkout `scripts/run_tests.sh` attempt stopped at an unchanged browser fixture: `tests/test_gpt6pro_relay_binding.py::NativeComposerTests::test_captured_initial_placeholder_uses_same_exact_preflight_reader`, **1 failed, 197 passed in 12.53s**. The Node fixture returned `read ECONNRESET` / Node.js v22.22.2. No relay or browser-fixture source changed in this branch; broader acceptance remains unverified. An earlier broader attempt used the original read-only-metadata worktree and was interrupted while stalled; it is not acceptance evidence. The focused/related exact-head checks above use the writable committed checkout and are green.
-
-The parent can verify and inspect the standalone bundle before choosing its review branch; these are local Git reads/imports and do not push or merge:
+Despite the stated writable metadata, the sandbox binds the original per-worktree metadata and `.git` pointer read-only. Common objects/refs are writable. `.codex-task/git` is a private writable per-worktree metadata directory with the same branch HEAD, a copied index and `commondir` pointing to the existing shared Git directory. All merge/stage/commit operations use:
 
 ```bash
-git -C /path/to/parent-review-checkout bundle verify \
-  /home/ubuntu/business/.worktrees/codex-ultra-glp44-73/.codex-task/maintenance-window.bundle
-git -C /path/to/parent-review-checkout fetch \
-  /home/ubuntu/business/.worktrees/codex-ultra-glp44-73/.codex-task/maintenance-window.bundle \
-  refs/heads/feat/glp44-glp73-maintenance-window:refs/remotes/maintenance-local/glp44-glp73-maintenance-window
-git -C /path/to/parent-review-checkout show --stat refs/remotes/maintenance-local/glp44-glp73-maintenance-window
+export GIT_DIR=/home/ubuntu/business/.worktrees/codex-ultra-pr109-fix/.codex-task/git
+export GIT_WORK_TREE=/home/ubuntu/business/.worktrees/codex-ultra-pr109-fix
 ```
 
-Use the commit named by that bundle ref and the final handoff; the report is tracked in that same commit. Remote CI and runtime execution remain with the parent.
+The commit updates this assigned branch in the common repository; no alternate source checkout or remote is used. Original immutable metadata is untouched, so its old index remains stale. Use these environment variables for subsequent Git status/work in this worktree until the environment restores metadata writability. Predecessor ancestry and current-main merge ancestry are verified after commit. Historical reports from both merge parents remain in Git history and local ignored copies; the conflicted task report is replaced by this explicitly requested report.
+
+Final test plumbing uses a temporary Git launcher only for `git -C` targeting this exact worktree, routing those reads to `.codex-task/git`; independent fixture repositories use `/usr/bin/git` unchanged. This addresses the read-only stale index without changing test assertions or repository source.
+
+The full run used committed source head `b01b274`. The final amendment changes only this report and its manifest pin; tested implementation and test blobs are identical. The committed-manifest check is also run on the final amended head, with evidence in `.codex-task/final-manifest.log` and `.codex-task/final-manifest.xml`.
