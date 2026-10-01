@@ -1,5 +1,14 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
+  "omitted_runtime_inputs": [
+    "~/.hermes/cron/jobs.json (live scheduler/state)",
+    "~/.hermes/secrets/ and auth/config",
+    "site-system/flagship-v2 candidates and private runtime data",
+    "ops/linear issue briefs, approvals, result ledgers and queued state",
+    "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
+  ],
+  "schema": "GLP_BUSINESS_SOURCE_V1",
+  "tracked_count": 508,
   "files": {
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -239,7 +248,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "86c0e40b3a23e174dbbe6ef281cc08c071364cffaa173592f1b35961b788764f"
+      "sha256": "7cbfd62044db8f994247bd66b2a7f609542ffa8dd029c8ce88cf15f748d9de38"
     },
     ".hermes.md": {
       "callers": [],
@@ -1881,7 +1890,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "791358f88dd6978249960b4eacacb4c4431cfdba4e01e13a28a1de6651feacb3"
+      "sha256": "4ae15e0aa64c03ac9062928a6ae1fdd8230158b65762af6ab8b3b291232d4eee"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3136,7 +3145,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "8c80e3f04e1a307e18476e0e4a8bd339239936a343ce80e4463cf15905cff470"
+      "sha256": "d61aa27a59e1720c85e28dacda406fb049896647006450faf9f4cfe531e9e075"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3151,6 +3160,13 @@
       ],
       "kind": "test",
       "sha256": "c8c0a36e815843ff9dc04b0b7494fbe8ba6884baa857b2ad764c1d2cf29a8848"
+    },
+    "tests/test_maintenance_window_lock_contention.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "3a169eeca5362e6ac3c07e143a20ec4c31f2c4abe60d3ecff6244d0a832494a3"
     },
     "tests/test_maintenance_window.py": {
       "callers": [
@@ -3354,14 +3370,5 @@
       "kind": "test",
       "sha256": "209b84d5a84c109cc090e032f352f8405ca47899cae463886a0361a56050686b"
     }
-  },
-  "omitted_runtime_inputs": [
-    "~/.hermes/cron/jobs.json (live scheduler/state)",
-    "~/.hermes/secrets/ and auth/config",
-    "site-system/flagship-v2 candidates and private runtime data",
-    "ops/linear issue briefs, approvals, result ledgers and queued state",
-    "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
-  ],
-  "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 507
+  }
 }
