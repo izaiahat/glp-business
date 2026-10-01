@@ -371,7 +371,7 @@ def set_status_event(f, kind, status):
     save_event(f, event)
 
 
-@pytest.mark.parametrize("kind,status", [("network_cancelled", "cancelled_by_network"),
+@pytest.mark.parametrize("kind,status", [("status_correction", "rejected_application"),
                                         ("partner_email_hold", "hold_partner_email")])
 def test_adverse_status_disables_commercial_surfaces_without_losing_review(fixture, kind, status):
     f = fixture
@@ -391,7 +391,7 @@ def test_adverse_status_needs_selected_relationship_crosswalk(fixture):
     mapping = fanout.read(f.mapping)
     mapping["mappings"][0].pop("selected_relationship")
     f.mapping.write_bytes(fanout.encoded(mapping))
-    set_status_event(f, "network_cancelled", "cancelled_by_network")
+    set_status_event(f, "status_correction", "rejected_application")
     with pytest.raises(ValueError, match="selected_relationship_required"):
         consume(f, enabled=True, apply=True)
 
@@ -424,7 +424,7 @@ def test_native_site_registry_shape_accepts_commercial_projection(fixture, adver
     profile["surfaces"] = {key: True for key in ("go", "compare", "quiz", "calculator", "review", "sitemap")}
     f.registry.write_bytes(fanout.encoded(registry))
     if adverse:
-        set_status_event(f, "network_cancelled", "cancelled_by_network")
+        set_status_event(f, "status_correction", "rejected_application")
     consume(f, enabled=True, apply=True)
     validator = Path(__file__).parent / "fixtures/affiliate_terms_registry_validator.mjs"
     code = "import {validateRegistryShape} from " + json.dumps(validator.as_uri()) + ";\n"

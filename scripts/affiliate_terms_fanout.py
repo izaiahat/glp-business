@@ -178,11 +178,30 @@ def project(registry: dict, identity_map: dict, event: dict) -> tuple[dict, str]
     reason = hold_reason(program, row)
     if reason:
         raise ValueError(reason)
+    cancellation = None
+    if event["kind"] == "network_cancelled":
+        import affiliate_program_withdrawal as withdrawal
+        source = withdrawal.evidence_of(event['queue_source'])
+        cancellation = withdrawal.verify_writer_entry({
+            'program': row[2], 'evidence': {**source, 'network': event['network'],
+                                                'network_program_id': event['program_id']}},
+            row, root=withdrawal.BUSINESS)
+        if row[10] != "cancelled_by_network":
+            raise ValueError("fanout_withdrawal_status_readback_required")
     # Terms alone never change prices, routes, selected rail or activation.
     # Adverse selected-relationship status may only retract commercial surfaces.
     result = copy.deepcopy(registry)
     target = next(p for p in result["programs"] if p["program_id"] == pid)
     key = event["network"].casefold() + ":" + event["program_id"]
+    if cancellation:
+        import affiliate_program_withdrawal as withdrawal
+        source = withdrawal.evidence_of(event["queue_source"])
+        prior = [h for h in target.get("affiliate_program_history", [])
+                 if h.get("event_id") == source["event_id"] and h.get("relationship") == key]
+        if prior:
+            if len(prior) != 1 or prior[0].get("provider_verification") != source["provider_verification"]:
+                raise ValueError("fanout_withdrawal_event_payload_conflict")
+            return result, pid
     terms = {
         "network": event["network"], "network_program_id": event["program_id"],
         "commission_terms": row[16] if row[16] not in ("", None) else None,
@@ -213,7 +232,8 @@ def project(registry: dict, identity_map: dict, event: dict) -> tuple[dict, str]
         target.setdefault("go", {})["entry_state"] = "held"
         for profile in target.get("profiles", {}).values():
             profile["wired"] = False
-            for surface in ("compare", "quiz", "calculator", "go"):
+            surfaces = ("compare", "quiz", "calculator", "go", "review", "sitemap") if cancellation else ("compare", "quiz", "calculator", "go")
+            for surface in surfaces:
                 profile.setdefault("surfaces", {})[surface] = False
                 profile.setdefault("exceptions", {}).setdefault(surface, {
                     "enabled": True,
@@ -222,6 +242,19 @@ def project(registry: dict, identity_map: dict, event: dict) -> tuple[dict, str]
                     "authority_path": event["writer_receipt"]["path"],
                     "authority_sha256": event["writer_receipt"]["sha256"],
                 })
+    if cancellation:
+        # Native schema permits live/held only. Keep that safety gate and record
+        # explicit withdrawn lifecycle separately, not as an invented pause.
+        target["affiliate_program_state"] = "withdrawn"
+        target.setdefault("affiliate_program_history", []).append({
+            "state": "withdrawn", "decision_class": source["decision_class"],
+            "provider_relationship_status": cancellation["relationship_status"],
+            "event_id": source["event_id"], "relationship": key,
+            "update_id": event["update_id"], "raw_sha256": source["raw_sha256"],
+            "notice_path": source["path"], "provider_verification": source["provider_verification"],
+            "observed_at_utc": cancellation["observed_at_utc"],
+            "writer_receipt": event["writer_receipt"], "sheet_row": event["sheet_row"],
+        })
     return result, pid
 
 
@@ -267,12 +300,21 @@ def consume(event_path: Path, registry_path: Path, identity_map_path: Path,
         return {"status": "DISABLED", "registry_written": False, "site_dispatched": False}
     event = read(event_path)
     event_hash = digest(encoded(event))
+    if event.get("kind") == "network_cancelled":
+        import affiliate_program_withdrawal as withdrawal
+        proof = withdrawal.evidence_of(event["queue_source"])
+        # A new zero-write Sheet receipt is not a new cancellation. Full event
+        # validation still runs; semantic custody owns replay identity.
+        event_hash = digest(encoded({k: proof.get(k) for k in
+            ("event_id", "raw_sha256", "decision_class", "provider_verification")}))
     registry_raw = registry_path.read_bytes()
     successor, pid = project(json.loads(registry_raw), read(identity_map_path), event)
     successor_raw = encoded(successor)
     request = {"schema": SCHEMA, "event_sha256": event_hash,
                "update_id": event["update_id"], "registry_program_id": pid,
                "registry_path": str(registry_path.resolve()),
+               "link_removal_candidate_required": event['kind'] == 'network_cancelled',
+               "retired_tracking_link": event['sheet_values'][event['sheet_row'] - 1][14] if event['kind'] == 'network_cancelled' else None,
                "registry_before_sha256": digest(registry_raw),
                "registry_after_sha256": digest(successor_raw),
                "status": "PENDING_REVIEWED_SITE_RELEASE", "site_dispatched": False}
@@ -286,6 +328,7 @@ def consume(event_path: Path, registry_path: Path, identity_map_path: Path,
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         operation = digest((str(registry_path.resolve()) + "\0" + event["update_id"]).encode())
         journal_path = state_dir / (operation + ".json")
+        request['candidate_request'] = str(journal_path.resolve())
         if journal_path.exists():
             request = read(journal_path)
             if request["event_sha256"] != event_hash:
@@ -294,6 +337,9 @@ def consume(event_path: Path, registry_path: Path, identity_map_path: Path,
                 return {**request, "status": "ALREADY_APPLIED", "registry_written": False}
             if request.get("dispatch_intent"):
                 raise ValueError("fanout_dispatch_uncertain_reconcile_carrier_receipt_before_retry")
+            if (event["kind"] == "network_cancelled" and not dispatch_site
+                    and digest(registry_path.read_bytes()) == request["registry_after_sha256"]):
+                return {**request, "status": "ALREADY_APPLIED", "registry_written": False}
         # Re-establish the journal barrier even on a retry after an earlier
         # fsync failure; existence alone does not acknowledge durability.
         atomic(journal_path, encoded(request))  # intent before candidate mutation
@@ -328,16 +374,23 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--dispatch-site", action="store_true")
     parser.add_argument("--release-handoff", type=Path)
+    parser.add_argument("--build-candidate", action="store_true", help="Build detached withdrawal source only; no release")
     args = parser.parse_args()
     try:
+        if args.build_candidate and (not args.enable or not args.apply or args.dispatch_site):
+            raise ValueError('fanout_candidate_build_requires_enable_apply_and_no_dispatch')
         result = consume(args.event, args.registry, args.identity_map, args.state_dir,
                          enabled=args.enable, apply=args.apply, dispatch_site=args.dispatch_site,
                          release_handoff=args.release_handoff)
+        if args.build_candidate:
+            import affiliate_withdrawal_candidate as candidate
+            result['link_removal_build'] = candidate.build(
+                Path(result['candidate_request']), args.registry.resolve().parent.parent)
     except (ValueError, OSError, KeyError, TypeError, IndexError) as exc:
         print(json.dumps({"status": "REFUSED", "reason": str(exc)}))
         return 1
     print(json.dumps(result, sort_keys=True))
-    return 0
+    return 1 if result.get('link_removal_build', {}).get('status') == 'BLOCKED_NATIVE_BUILD' else 0
 
 
 if __name__ == "__main__":
