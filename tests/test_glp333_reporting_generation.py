@@ -290,7 +290,10 @@ def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
             pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler, window=f.journal)
         assert payloads(f) == landed and len(f.saves) == 1
         assert {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS} == checkout_before
-        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == pair.PR119_PREREQUISITES
+        # PR71 remains immutable; only the successor requires PR142's collector.
+        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == {
+            rel: sha(blob(pair.APPROVED, rel)) for rel in pair.PR119_PREREQUISITES
+        }
         assert all(sha((f.root / rel).read_bytes()) == expected for rel, expected in pair.PR119_BEFORE.items())
     finally:
         f.window.release_locks()
