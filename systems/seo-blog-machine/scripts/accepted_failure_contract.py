@@ -125,7 +125,19 @@ def validate_binding(binding, pointer, *, planned_manifest=None):
             raise RuntimeError('accepted_failures_sealed_manifest_ambiguous')
         sealed = read_bound({'path': sealed_rows[0]['snapshot_path'], 'sha256': sealed_rows[0]['sha256']})
         accepted_files = {row['path']: (row['sha256'], row['bytes']) for row in sealed}
-        release_files = {row['path']: (row['sha256'], row['bytes']) for row in manifest['release_rows']}
+        # The maintained current_pointer_intent producer emits size, unlike the
+        # article manifest's bytes. Admit only its exact manifest/row shape;
+        # independent acceptance and exact sealed-file comparison still apply.
+        current_shape = {'schema', 'release_root', 'release_tree_sha256',
+                         'release_rows', 'site_head', 'deploy_directory'}
+        current_manifest = (set(manifest) == current_shape
+                            and manifest['schema'] == 'glp-opus-release-deployment-manifest-v1')
+        length_key = 'size' if current_manifest else 'bytes'
+        if current_manifest and any(
+                set(row) != {'path', 'sha256', 'size'} or type(row['size']) is not int
+                or row['size'] < 0 for row in manifest['release_rows']):
+            raise RuntimeError('accepted_failures_current_row_invalid')
+        release_files = {row['path']: (row['sha256'], row[length_key]) for row in manifest['release_rows']}
         extras = release_files.keys() - accepted_files.keys()
         if ROOT_BINDING_NAME in extras:
             # K6d retention class is one exact, non-public, validated predecessor
