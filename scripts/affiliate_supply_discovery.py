@@ -416,7 +416,6 @@ class DiscoveryCheckpoint:
                 # No read started. Persist the full tail once in finish(), not
                 # an increasingly large checkpoint for every skipped callback.
                 raise SourceDeferred("run_budget_exhausted")
-            self.calls += 1
             self.save()  # an interrupted process leaves a retryable pending read
             prior_handler = signal.getsignal(signal.SIGALRM)
             prior_timer = signal.getitimer(signal.ITIMER_REAL)
@@ -426,11 +425,18 @@ class DiscoveryCheckpoint:
                 raise _ReadDeadline()
             signal.signal(signal.SIGALRM, expire)
             try:
+                remaining = self.deadline - time.monotonic()
+                if remaining <= 0:
+                    row['reason'] = 'run_budget_exhausted'
+                    raise SourceDeferred(row['reason'])
                 signal.setitimer(signal.ITIMER_REAL, min(remaining, self.source_timeout_s))
+                self.calls += 1
                 result = callback(*args)
                 if isinstance(result, dict) and str(result.get("status", "")).lower().startswith("error"):
                     raise SourceUnavailable("provider_read_error")
                 row.update(status="ok", result=result)
+            except SourceDeferred:
+                row.update(status='pending', reason='run_budget_exhausted')
             except _ReadDeadline:
                 if remaining < self.source_timeout_s:
                     row.update(status="pending", reason="run_budget_exhausted")
@@ -1039,16 +1045,17 @@ def commercial_page_evidence(body: str) -> dict:
     Search snippets, a US mention, or an /affiliate URL alone prove neither.
     Adverse statements outrank positive language elsewhere on the same page.
     """
-    us = r"(?:United States|USA|U\.S\.A?\.?|all 50 states|US)"
+    # Acronyms are case-sensitive: lowercase "us" is a pronoun, not geography.
+    us = r"(?:(?i:United States|all 50 states)|USA|U\.S\.(?:A\.?)?|US)"
     sentences = [part.strip() for part in re.split(r"\n+|(?<=[!?])\s+|(?<=\.)\s+(?=[A-Z])", body)
                  if part.strip()]
-    negatives = [part for part in sentences if re.search(r"\b" + us + r"\b", part, re.I)
+    negatives = [part for part in sentences if re.search(r"\b" + us + r"(?=\W|$)", part)
                  and re.search(r"\b(?:not|never|cannot|can't|don't|except|excluding|outside|unavailable)\b", part, re.I)]
     service = None
     if not negatives:
         for part in sentences:
-            if re.search(r"\b(?:serve|serving|available|deliver|ship|based|located|operate|operating)\b"
-                         + r"[^.!?\n]{0,100}\b" + us + r"\b", part, re.I):
+            if re.search(r"(?i:\b(?:serve|serving|available|deliver|ship)\b)"
+                         + r"[^!?\n]{0,100}\b" + us + r"(?=\W|$)", part):
                 service = part[:600]
                 break
     status, quote = "", None

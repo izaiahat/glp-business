@@ -314,7 +314,7 @@ def site_identities(*, check_live_manifest: bool = False) -> dict[str, Any]:
             if fuzzy and fuzzy != key:
                 brands.setdefault(fuzzy, cite_full)
         network = norm(network_label)
-        network_program_id = str(identity.get("network_program_id") or "").strip().casefold()
+        network_program_id = str(identity.get("network_program_id") or "").strip()
         if network and network_program_id:
             pairs.setdefault((network, network_program_id),
                              f"{cite} = {network_label}:{network_program_id} — already {relationship}")
@@ -454,7 +454,7 @@ def _engaged_row_identities(rows: Iterable[dict[str, Any]], source: str,
             names.setdefault(key, cite)
         program_id = str(row.get("program_id") or "").strip()
         if network and program_id:
-            pairs.setdefault((norm(network), program_id.casefold()), cite)
+            pairs.setdefault((norm(network), program_id), cite)
         for url in (row.get("official_url"), row.get("apply_url")):
             host = domain_key(url)
             if host:
@@ -518,7 +518,7 @@ def _sheet_leg(sheet_index: dict[str, Any] | None, mirror_path: Path | None,
         for key in sheet_index.get("engaged_names") or ():
             names.setdefault(str(key), "governed Sheet: an engaged row carries this program name")
         for network, program_id in sheet_index.get("engaged_ids") or ():
-            pairs.setdefault((norm(network), str(program_id).casefold()),
+            pairs.setdefault((norm(network), str(program_id).strip()),
                              f"governed Sheet: engaged row {network}:{program_id}")
         return out({"ok": True, "source": "live_read"})
 
@@ -533,7 +533,7 @@ def _sheet_leg(sheet_index: dict[str, Any] | None, mirror_path: Path | None,
     for encoded in mirror.get("engaged_ids") or ():
         network, _, program_id = str(encoded).partition("\t")
         if program_id:
-            pairs.setdefault((norm(network), program_id.casefold()),
+            pairs.setdefault((norm(network), program_id),
                              f"governed Sheet mirror: engaged row {network}:{program_id}")
     return out({"ok": True, "source": "mirror",
                 "captured_at_utc": mirror.get("captured_at_utc"),
@@ -574,7 +574,7 @@ def suppression_identities(path: Path | None = None) -> dict[str, Any]:
             fuzzy = brand_key(spelling)
             if fuzzy and fuzzy != spelled:
                 brands.setdefault(fuzzy, cite)
-        campaign = str(entry.get("campaign_id") or "").strip().casefold()
+        campaign = str(entry.get("campaign_id") or "").strip()
         if network and campaign:
             pairs.setdefault((norm(network), campaign), cite)
         host = domain_key(entry.get("destination"))
@@ -613,7 +613,7 @@ def ledger_identities(path: Path | None = None) -> dict[str, Any]:
         if fuzzy and fuzzy != name_key:
             brands.setdefault(fuzzy, cite)
         network = norm(row.get("network"))
-        program_id = str(row.get("program_id") or "").strip().casefold()
+        program_id = str(row.get("program_id") or "").strip()
         if network and program_id:
             pairs.setdefault((network, program_id), cite)
         for url in (row.get("url"), row.get("application_url")):
@@ -648,7 +648,7 @@ def queue_identities(path: Path | None = None,
         for key, entry in entries.items():
             network, _, program_id = str(key).partition(":")
             if network and program_id:
-                pairs.setdefault((norm(network), program_id.casefold()),
+                pairs.setdefault((norm(network), program_id),
                                  f"already queued to the Sheet writer as `{key}`")
             name_key = norm((entry or {}).get("name") if isinstance(entry, dict) else "")
             if name_key:
@@ -660,7 +660,7 @@ def queue_identities(path: Path | None = None,
             names.setdefault(name_key, f"sheet_update_queue row `{row.get('update_id')}` "
                                        f"({row.get('kind')})")
         network = norm(row.get("network"))
-        program_id = str(row.get("program_id") or "").strip().casefold()
+        program_id = str(row.get("program_id") or "").strip()
         if network and program_id:
             pairs.setdefault((network, program_id),
                              f"sheet_update_queue row `{row.get('update_id')}` ({row.get('kind')})")
@@ -728,9 +728,10 @@ class DedupeIndex:
         other store still stops the caller.
         """
         network_key = norm(network)
-        program_key = str(program_id or "").strip().casefold()
+        program_key = str(program_id or "").strip()
         pair_hit = self.pairs.get((network_key, program_key)) if network_key and program_key else None
-        spellings = [name, program_id, *aliases]
+        # Network IDs are opaque and belong only to the exact pair axis.
+        spellings = [name, *aliases]
         name_keys = [key for key in dict.fromkeys(norm(value) for value in spellings) if key]
         domain_keys = [key for key in dict.fromkeys(domain_key(value) for value in urls) if key]
         brand_keys = [key for key in dict.fromkeys(brand_key(value) for value in spellings)

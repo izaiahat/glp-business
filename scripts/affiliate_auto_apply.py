@@ -189,6 +189,10 @@ def candidate_gate(candidate, dedupe_index):
     return ('suppressed_or_engaged:' + str(verdict.reason)) if verdict is not None else ''
 
 
+class DiscoveryAdmissionPending(ValueError):
+    """Exact custody is valid, but feeder readback has not confirmed admission."""
+
+
 def validate_discovery_row(row, *, journal_dir=JOURNAL_DIR):
     """Consumer admission proof, independent of queue-supplied authority strings.
 
@@ -202,8 +206,8 @@ def validate_discovery_row(row, *, journal_dir=JOURNAL_DIR):
     path = Path(journal_dir) / (key + '.json')
     record = json.loads(path.read_text())
     expected = record.get('queue_row') or {}
-    if record.get('schema') != ADMISSION_SCHEMA or record.get('state') != 'confirmed':
-        raise ValueError('discovery_admission_not_confirmed')
+    if record.get('schema') != ADMISSION_SCHEMA:
+        raise ValueError('discovery_admission_schema_invalid')
     if any(row.get(k) != expected.get(k) for k in
            ('queue_id', 'network', 'program_id', 'program_name', 'payload', 'instructions', 'operator_authority')):
         raise ValueError('discovery_admission_queue_drift')
@@ -215,6 +219,10 @@ def validate_discovery_row(row, *, journal_dir=JOURNAL_DIR):
     source_path = Path(journal_dir) / 'sources' / (source['sha256'] + '.json')
     if hashlib.sha256(source_path.read_bytes()).hexdigest() != source['sha256']:
         raise ValueError('discovery_source_hash_mismatch')
+    if record.get('state') in {'prepared', 'dispatching'}:
+        raise DiscoveryAdmissionPending('discovery_admission_not_confirmed')
+    if record.get('state') != 'confirmed':
+        raise ValueError('discovery_admission_state_invalid')
     return dict(payload['candidate'])
 
 
@@ -288,8 +296,21 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
     with lock as handle:
         if apply:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        for inventory_path in inventory_paths:
-            candidates, source = read_inventory(inventory_path)
+        # Freeze the complete supplied denominator before any queue effect.
+        # Every observation of an exact rail must pass; first-seen positive
+        # evidence cannot discard a later hold, unknown geography or conflict.
+        inventories = [read_inventory(path) for path in inventory_paths]
+        refusals = {}
+        for candidates, _source in inventories:
+            for c in candidates:
+                try:
+                    key = stable_key(c['network'], c['program_id'])
+                except ValueError:
+                    continue  # the row-local identity refusal below owns this
+                reason = candidate_gate(c, dedupe_index)
+                if reason:
+                    refusals.setdefault(key, set()).add(reason)
+        for candidates, source in inventories:
             for c in candidates:
                 identity = [c['network'], c['program_id']]
                 result = {'network': identity[0], 'program_id': identity[1]}
@@ -304,14 +325,13 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     result.update(status='refused', reason=str(exc))
                     continue
                 result['queue_id'] = key
+                if key in refusals:
+                    result.update(status='refused', reason=';'.join(sorted(refusals[key])))
+                    continue
                 if key in seen:
                     result.update(status='duplicate', reason='same_network_program')
                     continue
                 seen.add(key)
-                reason = candidate_gate(c, dedupe_index)
-                if reason:
-                    result.update(status='refused', reason=reason)
-                    continue
                 if not apply:
                     result.update(status='would_admit')
                     continue
@@ -372,6 +392,10 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     if len(landed) != 1 or not _same_operation(landed[0], expected):
                         result.update(status='reconcile_required', reason='queue_readback_missing_or_drift')
                         continue
+                    result['queue_status'] = landed[0].get('status')
+                    if result['queue_status'] != 'queued':
+                        result.update(status='reconcile_required', reason='queue_lifecycle_not_queued')
+                        continue  # never requeue claimed, blocked or completed work
                     already = record['state'] == 'confirmed'
                     record['state'] = 'confirmed'
                     write_json(record_path, record)

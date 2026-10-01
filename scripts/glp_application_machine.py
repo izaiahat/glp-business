@@ -369,7 +369,7 @@ def sheet_index(values: list[list[Any]]) -> dict[str, Any]:
         if status not in UNAPPLIED_SHEET_STATUSES:
             engaged_names.add(norm(program))
             if program_id:
-                engaged_ids.add((norm(network), program_id.casefold()))
+                engaged_ids.add((norm(network), program_id))
             engaged_rows.append({
                 "name": program, "network": network, "status": status,
                 "program_id": program_id, "sheet_row": row_number,
@@ -2086,6 +2086,7 @@ def main(argv: list[str] | None = None, *, queue_client=None) -> int:
     processed_scoped = 0
     unprocessed_after_block: list[dict[str, Any]] = []
 
+    from scripts.affiliate_auto_apply import DiscoveryAdmissionPending
     for raw_row in selected_rows:
         processed_scoped += 1
         stop_after_current = True
@@ -2195,6 +2196,13 @@ def main(argv: list[str] | None = None, *, queue_client=None) -> int:
                 attempts_used=total_effects["provider_application_attempts"],
                 attempt_cap=remaining_applications,
             )
+        except DiscoveryAdmissionPending as exc:
+            # Custody passed, but feeder readback is still pending. Leave the
+            # existing queued row untouched and never claim/submit it yet.
+            outcomes.append({'queue_id': queue_id, 'status': 'DEFERRED_ADMISSION',
+                             'blocker': str(exc), 'sheet_queue_rows': 0,
+                             'effects': {'applications_submitted': 0}})
+            stop_after_current = False
         except Exception as exc:  # one queued item cannot strand the rest
             blocker = f"{type(exc).__name__}:{str(exc)[:500]}"
             outcomes.append({"queue_id": queue_id, "status": "BLOCKED", "blocker": blocker,

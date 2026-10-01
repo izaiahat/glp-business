@@ -53,6 +53,16 @@ def atomic(path: Path, raw: bytes) -> None:
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
+        # Persist the rename AND every containing directory entry. A fresh
+        # state tree (or one left by a failed barrier) is not durable merely
+        # because its leaf directory was fsynced. Any failure propagates.
+        parent = path.parent.resolve()
+        for ancestor in (parent, *parent.parents):
+            directory = os.open(ancestor, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
@@ -284,8 +294,9 @@ def consume(event_path: Path, registry_path: Path, identity_map_path: Path,
                 return {**request, "status": "ALREADY_APPLIED", "registry_written": False}
             if request.get("dispatch_intent"):
                 raise ValueError("fanout_dispatch_uncertain_reconcile_carrier_receipt_before_retry")
-        else:
-            atomic(journal_path, encoded(request))  # intent before candidate mutation
+        # Re-establish the journal barrier even on a retry after an earlier
+        # fsync failure; existence alone does not acknowledge durability.
+        atomic(journal_path, encoded(request))  # intent before candidate mutation
         current = digest(registry_path.read_bytes())
         if current == request["registry_before_sha256"]:
             if digest(successor_raw) != request["registry_after_sha256"]:

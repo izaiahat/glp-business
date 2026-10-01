@@ -25,6 +25,25 @@ def discovery():
     return load('affiliate_supply_discovery')
 
 
+def test_pro_f1_country_service_evidence_is_not_pronoun_or_headquarters(discovery):
+    for text in (
+        'GLP-1 treatment is available through us. Join our affiliate program.',
+        'We are based in the US. Join our affiliate program.',
+        'Our headquarters are located in the United States.',
+        'We operate in the USA.',
+        'We serve patients in the US. Treatment is not available in the US.',
+    ):
+        assert discovery.commercial_page_evidence(text)['us_service_evidence'] is None, text
+    for text in (
+        'We serve patients in the US.',
+        'GLP-1 treatment is available in the United States.',
+        'We deliver medication across all 50 states.',
+        'We serve patients in the USA.',
+        'We serve patients in the U.S.',
+    ):
+        assert discovery.commercial_page_evidence(text)['us_service_evidence'], text
+
+
 def test_blocking_read_is_bounded_and_error_not_empty(discovery, tmp_path):
     checkpoint = discovery.DiscoveryCheckpoint(tmp_path / 'checkpoint.json', run_id='one',
                                                budget_s=1, source_timeout_s=.03)
@@ -39,6 +58,26 @@ def test_blocking_read_is_bounded_and_error_not_empty(discovery, tmp_path):
     assert receipt['status'] == 'DISCOVERED_WITH_SOURCE_ERRORS'
     assert signal.getsignal(signal.SIGALRM) == previous_handler
     assert signal.getitimer(signal.ITIMER_REAL)[0] == 0
+
+
+def test_pro_f4_checkpoint_save_cannot_start_read_after_deadline(discovery, tmp_path, monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(discovery.time, 'monotonic', lambda: clock[0])
+    checkpoint = discovery.DiscoveryCheckpoint(tmp_path / 'checkpoint.json', run_id='one', budget_s=1)
+    original_save = checkpoint.save
+    def slow_save():
+        original_save()
+        clock[0] = 2.0
+    monkeypatch.setattr(checkpoint, 'save', slow_save)
+    calls = []
+    with pytest.raises(discovery.SourceDeferred, match='run_budget_exhausted'):
+        checkpoint.wrap('catalog', lambda: calls.append('read'))()
+    assert calls == []
+    assert checkpoint.finish()['pending'][0]['reason'] == 'run_budget_exhausted'
+    clock[0] = 3.0
+    resumed = discovery.DiscoveryCheckpoint(checkpoint.path, run_id='two', budget_s=1)
+    assert resumed.wrap('catalog', lambda: {'programs': []})() == {'programs': []}
+    assert resumed.finish()['complete']
 
 
 def test_deadline_inside_read_stays_retryable(discovery, tmp_path):

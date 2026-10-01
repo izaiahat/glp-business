@@ -35,10 +35,38 @@ def machine(monkeypatch, tmp_path):
     monkeypatch.setattr(module, 'sheet_offers', lambda _: [])
     module.offline_test_original_application_ledger_offers = module.application_ledger_offers
     monkeypatch.setattr(module, 'application_ledger_offers', lambda: [])
+    module.offline_test_original_inventory_programs = module.inventory_programs
     monkeypatch.setattr(module, 'inventory_programs', lambda _: [])
     module.offline_test_original_performance_loader = module.load_performance_rows
     monkeypatch.setattr(module, 'load_performance_rows', lambda: [])
     return module
+
+
+def test_pro_f5_unknown_currency_stays_unknown_and_cannot_compete(machine, tmp_path):
+    from scripts import affiliate_payout_policy as policy
+    source = {'name': 'Fixture Clinic', 'network': 'impact', 'program_id': 'rail',
+              'relationship': 'approved', 'wire_in_ready': True, 'traffic_collectible': True,
+              'headline_payout': 500, 'payout_model': 'CPL', 'paid_event': 'qualified lead'}
+    def normalize(currency_marker):
+        (tmp_path / 'impact.json').write_text(json.dumps({
+            'network': 'impact', 'programs': [{**source, **currency_marker}]}))
+        return machine.offline_test_original_inventory_programs(tmp_path)[0]
+    for fields in ({}, {'currency': None}, {'currency': ''}, {'currency': '  '}):
+        unknown = normalize(fields)
+        assert unknown['currency'] is None
+        eligibility = policy.collectible_eligibility(unknown)
+        assert not eligibility['eligible'] and 'currency_unavailable' in eligibility['reasons']
+        unknown['wire_in_ready'] = True
+        usd = normalize({'currency': ' usd '})
+        usd.update(network='cj', program_id='usd', headline_payout=50, wire_in_ready=True)
+        assert usd['currency'] == 'USD'
+        result = machine.selection_with_offers([unknown, usd], [])
+        assert result['providers'][0]['selected_winner']['program_id'] == 'usd'
+        table = result['providers'][0]['cross_rail_comparisons']
+        assert not table[0]['comparable']
+        assert not policy._comparable(unknown, usd)
+    for currency in ('USD', 'GBP', 'CAD'):
+        assert normalize({'currency': currency})['currency'] == currency
 
 
 def test_held_xentraffic_lock_no_longer_aborts_eligible_terms(machine, monkeypatch, tmp_path):
