@@ -365,7 +365,7 @@
         "hermes:f0c6a95a371c"
       ],
       "kind": "script",
-      "sha256": "3c03a816852f74f65e159efa5006d0560087e17aeea7f4a4956f2b1b8a0ec253"
+      "sha256": "6eb8e6fba1bd6fc15236f97768432f8c700e799a20146cb218ff285046e6cd63"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh": {
       "callers": [
@@ -2786,7 +2786,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "1b538272876421a9b23ad19b5fa47f7290433f8ce1814e39a5099a74543b37cb"
+      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
     }
   },
   "omitted_runtime_inputs": [

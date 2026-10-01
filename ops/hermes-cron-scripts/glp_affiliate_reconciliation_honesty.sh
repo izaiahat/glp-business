@@ -37,7 +37,7 @@ fi
 # The rail scanner is a queue-only preflight and must still report when the
 # protected live glp-design/deploy surface is changing under its own pin gate.
 wire_scanner='/home/ubuntu/business/scripts/glp_wire_in_ready_queue.py'
-wire_scanner_expected_sha256='365f18241f4d1ada26a2f691179b0a553dd9131ad1cdfba7315d4de1aabc9bce'
+wire_scanner_expected_sha256='f1c097bbdfcb2a64e9445d89f0896a020b7c3f2eea9dde0f983a5e39140190c1'
 wire_rails='/home/ubuntu/business/scripts/glp_affiliate_link_rails.py'
 wire_rails_expected_sha256='7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd58b30c6c70d6'
 wire_scope='/home/ubuntu/business/scripts/affiliate_provider_row_scope.py'
