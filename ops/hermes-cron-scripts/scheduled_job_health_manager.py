@@ -39,6 +39,7 @@ sys.path.insert(0, str(BUSINESS / "ops" / "operator-console"))
 import pushover_client  # noqa: F401,E402 - operator RED-alert wiring/readiness
 import red_alert_hook  # noqa: E402
 import monitor_heartbeats  # noqa: E402
+import n8n_execution_budget  # noqa: E402
 JOBS_PATH = HOME / ".hermes" / "cron" / "jobs.json"
 OUTPUT_ROOT = HOME / ".hermes" / "cron" / "output"
 REGISTRY_PATH = BUSINESS / "ops" / "kael-mission-registry.yaml"
@@ -956,6 +957,20 @@ def run(dry_run: bool, force_report: bool, verbose: bool) -> int:
             can_auto_fix=False,
             safe_to_rerun=False,
         ))
+    budget = n8n_execution_budget.health_check(now=now, dry_run=dry_run)
+    if budget.get('daily_line'):
+        print(budget['daily_line'])
+    if budget.get('issue'):
+        fault = budget['issue']
+        issues.append(Issue(
+            job_id='n8n-execution-budget', job_name='n8n monthly execution budget',
+            schedule='hourly cached check / daily usage line',
+            side_effect_class='read_report_monitor',
+            classification=fault['classification'], severity=fault['severity'],
+            reason=fault['reason'], evidence=fault['evidence'],
+            operator_fix=fault['operator_fix'], can_auto_fix=False, safe_to_rerun=False,
+        ))
+    state['last_n8n_execution_budget'] = budget['snapshot']
     issues = primary_issue_per_job(issues)
     # De-dupe by job + primary classification fingerprint.
     unique: dict[str, Issue] = {}
