@@ -241,12 +241,19 @@ def main(argv=None):
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
     p.add_argument('--live-cj-readonly',action='store_true')
+    p.add_argument('--live-network-readonly',action='store_true')
     args=p.parse_args(argv)
     here=Path(__file__).resolve().parent
     business=Path('/home/ubuntu/business')
     required=[Path(__file__).resolve(),here/'glp_network_revenue_v2.py']
     if args.live_cj_readonly:
         required += [business/'scripts/marketplace_adapters'/f for f in ('__init__.py','cj.py','_base.py')]
+    if args.live_network_readonly:
+        if args.live_cj_readonly:
+            raise ValueError('choose_one_live_mode')
+        required += [here/'affiliate_network_access.py', here/'impact_api_credentials.py']
+        required += [here/'marketplace_adapters'/f for f in (
+            '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
     pin_hash=verify_pins(args.source_manifest,required)
     roster=json.loads(args.roster.read_text())
     registry=json.loads(args.identity_registry.read_text())
@@ -280,6 +287,13 @@ def main(argv=None):
                 receipts.extend(pages)
             return receipts
         collectors['cj']=cj_collector
+    if args.live_network_readonly:
+        sys.path.insert(0,str(here.parent))
+        from affiliate_network_access import weekly_collectors
+        from marketplace_adapters._base import RequestsTransport
+        collectors=weekly_collectors([token(m['marketplace']) for m in roster['marketplaces']],
+                                     RequestsTransport(timeout=30))
+    live_readonly=args.live_cj_readonly or args.live_network_readonly
     args.output.parent.mkdir(parents=True,exist_ok=True)
     # No lock deletion: flock releases on process exit, preserving other owners.
     lockpath=args.output.parent/'.weekly-reporting.lock'
@@ -287,7 +301,7 @@ def main(argv=None):
     with os.fdopen(fd,'w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         oldhandler=None
-        if args.live_cj_readonly:
+        if live_readonly:
             def expired(signum,frame):
                 raise SystemExit('bounded_reporting_deadline_checkpoint_retained')
             oldhandler=signal.signal(signal.SIGALRM,expired)
@@ -296,10 +310,10 @@ def main(argv=None):
             result=run(args.output,roster,registry.get('identities',[]),lookback_days=args.lookback_days,
                 collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests)
             result['source_pins_sha256']=pin_hash
-            result['invocation']='MANUAL_READ_ONLY' if args.live_cj_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
+            result['invocation']='MANUAL_READ_ONLY' if live_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
             save(args.output/'RESULT.json',result)
         finally:
-            if args.live_cj_readonly:
+            if live_readonly:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM,oldhandler)
     print(json.dumps({'status':result['status'],'marketplace_count':result['marketplace_count'],

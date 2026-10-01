@@ -123,6 +123,33 @@ class CorrectionTests(unittest.TestCase):
         self.assertLess(main.index('validate(candidate,'), main.index('os.replace('))
         self.assertIn("REGISTRY.read_bytes() != original", main)
 
+    def test_curex_retained_affirmative_reanchor_and_missing_offer_refusal(self):
+        # Exact paragraphs from retained capture sha256
+        # 8712b05c8f971d6be6caca58dd3b379ec5e56662f9a0fbf4244dd4c0c912dd43,
+        # https://getcurex.com/cl/glp, received 2026-09-30T12:01:27.664129+00:00.
+        # Retained marketing context is fixture evidence, not an efficacy claim.
+        import re
+        self.module.re = re
+        policy = json.loads(POLICY.read_text())['curex-glp-1']
+        quote = 'If medication is appropriate for you, options may include compounded semaglutide or tirzepatide'
+        self.assertEqual(policy['quotes']['treatment_type_tags']['compounded'], quote)
+        offer = 'If medication is appropriate for you, options may include compounded semaglutide or tirzepatide — GLP-1 treatments formulated specifically for you by a licensed pharmacy, which may include supportive ingredients like vitamin B12 to help you reach your goals faster.'
+        other = '\n\n'.join([
+            'We do not prescribe Ozempic®, Wegovy®, Zepbound®, or Mounjaro®, but we may prescribe treatments containing compounded semaglutide or tirzepatide, formulated specifically for you by a licensed pharmacy.',
+            'Curex offers oral dissolving tablets (ODT) for both semaglutide and tirzepatide. Simply dissolve under your tongue once daily — no needles, no syringes, no measuring.',
+            'If you do choose the injectable format, we provide clear instructions and your care team is available to walk you through your first dose.',
+            'Please note that in California, state regulations currently limit prescriptions to oral tablet formulations only — injectable medications are not available to California residents at this time.',
+        ])
+        row = {'molecule_tags': ['semaglutide', 'tirzepatide'], 'brand_name_tags': [],
+               'delivery_form_tags': ['injectable', 'oral'], 'treatment_type_tags': ['compounded'],
+               'verified_as_of': '2026-08-30'}
+        before = copy.deepcopy((row, policy))
+        supported = self.module.support(row, policy, offer + '\n\n' + other)
+        self.assertEqual(supported['treatment_type_tags']['compounded']['quote'], quote)
+        with self.assertRaisesRegex(ValueError, 'assertion_no_longer_supported:treatment_type_tags:compounded'):
+            self.module.support(row, policy, other)
+        self.assertEqual((row, policy), before)
+
     def test_reviewed_policy_has_two_care_sources_and_exact_five_novi_literals(self):
         policy = json.loads(POLICY.read_text())
         self.assertIn('sources', policy[CARE], 'Care reviewed policy not reconciled')

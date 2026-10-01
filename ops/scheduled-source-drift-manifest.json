@@ -1469,7 +1469,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_weekly_reporting.sh",
       "source": "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
-      "reviewed_sha256": "2f393f863bfb41bb46254b3b7f6544497bb6a9996757ea21f2abfdb1680d26ca",
+      "reviewed_sha256": "a8f45ca9d26654a02ae7d0d70bd32eb157fbb6639f0e6f4fceb98f5b5c9f8445",
       "payloads": []
     },
     {

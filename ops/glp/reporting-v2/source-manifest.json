@@ -1,12 +1,20 @@
 {
   "files": {
-    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting.py": "c8a0503f3e092a162ca027403974235d14e7c800523bde15792de10d2243feb9",
-    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8",
+    "/home/ubuntu/business/scripts/affiliate_network_access.py": "18cb6cf584deea0cd08eda1fa1fd63b6426ae3acaf829d57fbbe0e6600ba6003",
+    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting.py": "d3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795",
+    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py": "79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18",
     "/home/ubuntu/business/scripts/glp_network_revenue_import_v2.py": "0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c",
     "/home/ubuntu/business/scripts/glp_network_revenue_v2.py": "cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1",
+    "/home/ubuntu/business/scripts/impact_api_credentials.py": "5b58b1b38ce503970f6f891f312cc9a273e4ea31fbc1267f78d4ceeba7bf8f81",
     "/home/ubuntu/business/scripts/marketplace_adapters/__init__.py": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445",
     "/home/ubuntu/business/scripts/marketplace_adapters/_base.py": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+    "/home/ubuntu/business/scripts/marketplace_adapters/affiliati.py": "7d344371305a318965b74fb775c84add9e0091aba57642524255048abb686f5f",
+    "/home/ubuntu/business/scripts/marketplace_adapters/awin.py": "864b16dc7816ec92a19964f465e08d833311462c0c4cb6c469d101b5f2854de8",
     "/home/ubuntu/business/scripts/marketplace_adapters/cj.py": "16eb39ee1d04c3d3e08e38547080273c45ea74f98ee5e916bd1d63cd5a9478db",
+    "/home/ubuntu/business/scripts/marketplace_adapters/healthtrader.py": "c9d5eda58beddc84d607d84e3b6228dc91980fc943a8ab116282fca9332eeb97",
+    "/home/ubuntu/business/scripts/marketplace_adapters/impact.py": "0fad97d3513e325fe5d5b074e94df56d28fa90a997f8cae8a6cde0b702e6368b",
+    "/home/ubuntu/business/scripts/marketplace_adapters/katalys.py": "ce4a93e614af98a460370499d01fa06764f780747c2163c0fa3b95f0691e37f5",
+    "/home/ubuntu/business/scripts/marketplace_adapters/partnerize.py": "a86e01d09a41fa3e747c511c197d4c1a06739524a9f3c6842363dc7db156ff6e",
     "/home/ubuntu/business/systems/analytics-brain/analytics_brain.py": "19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa"
   },
   "schema": "reporting-source-pins-v1"
