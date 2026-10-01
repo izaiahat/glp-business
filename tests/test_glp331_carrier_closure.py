@@ -197,6 +197,16 @@ def test_target_specific_native_hash_only_release(tmp_path, monkeypatch, outcome
     receipt, proposal, observed, staged = review_fixture(f, tmp_path)
     marker = tmp_path/'execution-marker'
     calls = []
+    readbacks = []
+    read_regular = p.read_regular
+    def observed_readback(path):
+        if path == registry and calls and not readbacks:
+            for member in staged:
+                assert member.stat().st_mode & 0o777 == 0
+                with pytest.raises(PermissionError): member.read_bytes()
+            readbacks.append('sealed-native-readback')
+        return read_regular(path)
+    monkeypatch.setattr(p, 'read_regular', observed_readback)
     save = native._save_jobs_unlocked
     def native_save(candidate, **kw):
         calls.append('save')
@@ -228,6 +238,7 @@ def test_target_specific_native_hash_only_release(tmp_path, monkeypatch, outcome
         with pytest.raises(RuntimeError, match=reason):
             release.release_glp331(receipt, repo, business=business, hermes=home, apply=True, scheduler=native)
         assert calls == ['save']
+        assert readbacks == (['sealed-native-readback'] if outcome == 'bad_readback' else [])
         for path in staged: assert path.stat().st_mode & 0o777 == 0
         with pytest.raises(RuntimeError, match='no_replay'):
             release.release_glp331(receipt, repo, business=business, hermes=home, apply=True, scheduler=native)
@@ -238,6 +249,10 @@ def test_target_specific_native_hash_only_release(tmp_path, monkeypatch, outcome
         return
     result = release.release_glp331(receipt, repo, business=business, hermes=home, apply=True, scheduler=native)
     assert result['applied'] and calls == ['save']
+    assert readbacks == ['sealed-native-readback']
+    for path, before in observed.items():
+        if path not in staged and path != registry:
+            assert p.read_regular(path) == before
     expected = copy.deepcopy(jobs); expected[0]['script_sha256'] = p.sha_bytes(staged[target])
     assert json.loads(registry.read_text())['jobs'] == expected
     for path, body in staged.items():
