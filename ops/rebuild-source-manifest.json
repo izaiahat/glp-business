@@ -1466,7 +1466,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "22553ed7612e1608a97c2838ed32af7d1f1d1df4fb7146b7dab9ddb137c129df"
+      "sha256": "e5933e99e0cd8570f5cf85c8b36cffb22ddb02cddb4a77f1a4a0742480be556a"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -2594,7 +2594,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "cd3ac04423551f4c45e9c372914b2608f6c8e47d2a1fdc4e606aaff8502ecee8"
+      "sha256": "e93ebafb464790e6ff7306bfa47946a136b549b69bb250c329f152aaea14b324"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [

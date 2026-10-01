@@ -399,6 +399,13 @@ def _lint_ordinary_result(path, iss):
                      r'\b(?:real earning\w*|commission|settlement|cash)\b')
         require(not re.search(protected, scope, re.I) and not re.search(r'\bREAL\b', scope),
                 'protected release/design/financial REAL/send scope is not ordinary')
+        # Coordinator membership is not authenticated independent source review.
+        # This contract has no execution-author custody: route explicit independent
+        # acceptance to the existing --brief contract, never trust RESULT identities
+        # or shared GitHub account metadata as proof of separation.
+        require(not re.search(r'\bindependent\b[^\n.]*\b(source|review\w*|acceptance)\b|'
+                              r'\breviewer\b[^\n.]*\bother than the author\b', scope, re.I),
+                'independent source acceptance requires the existing --brief contract')
         if readonly:
             require('pr' not in data and data.get('changed_files', []) == [],
                     'read-only non-code work cannot claim a PR or source changes')
@@ -439,6 +446,12 @@ def _lint_ordinary_result(path, iss):
                 (comment_row.get('user') or {}).get('id') in (
                     OPERATOR_USER_ID, '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'),
                 'existing coordinator acceptance comment required on exact issue')
+        # Negative custody only: self-declared distinct IDs cannot prove independence,
+        # but an admitted ops coordinator declaring itself the author must refuse.
+        reviewer_id = comment_row['user']['id']
+        require(reviewer_id != '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7' or
+                data.get('author_id') != reviewer_id,
+                'ops execution author cannot accept its own ordinary outcome')
         body = comment_row['body']
         require(hashlib.sha256(body.encode()).hexdigest() == review['body_sha256'],
                 'coordinator acceptance body changed')

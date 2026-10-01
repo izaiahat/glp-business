@@ -83,6 +83,38 @@ def completion(tmp_path, monkeypatch):
     return target, path, data, writes, remote, review
 
 
+@pytest.mark.parametrize('control', ['same_ops', 'same_ops_independent',
+                                   'distinct_independent', 'unbound_independent'])
+def test_ops_author_equals_reviewer_must_refuse(completion, control):
+    """R1 reviewer counterexample plus unbound/distinct-ID fail-closed controls.
+
+    Identities and PR author metadata are synthetic, not authenticated custody.
+    Independent source acceptance must use the existing designated contract.
+    """
+    ops = '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'
+    target, path, data, writes, remote, review = completion
+    target.update(title='Repair ordinary source',
+                  description='## Acceptance\n\n* Source-only regression passes.')
+    if control != 'same_ops':
+        target['description'] += ('\n* Independent source acceptance by a reviewer '
+                                  'other than the author is required.')
+    data.update(scope='ordinary-code', description_sha256=digest(target['description']))
+    data['evidence'][0]['kind'] = 'check'
+    review.update(user={'id': ops},
+                  body='Coordinator acceptance verified: source at ' + data['pr']['merge_sha'])
+    data['review']['body_sha256'] = digest(review['body'])
+    if control != 'unbound_independent':
+        author = 'synthetic-other-author' if control == 'distinct_independent' else ops
+        remote['author'] = {'id': author, 'login': 'synthetic-ops-author'}
+        data['author_id'] = author
+        data['review']['reviewer_id'] = ops
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(SystemExit, match='author cannot accept|independent source acceptance'):
+        lo.pass_issue(target, path, {}, ordinary=True, check_only=True)
+    assert path.read_bytes() == before and writes == []
+
+
 def run_cli(monkeypatch, path, *extra):
     monkeypatch.setattr(sys, 'argv', ['linear_orchestrator.py', 'pass', 'GLP-60', str(path), '--ordinary', *extra])
     lo.main()
