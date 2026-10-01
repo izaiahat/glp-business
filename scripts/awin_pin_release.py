@@ -309,10 +309,12 @@ class HermesRegistry:
                     scheduler._record_load_stamp(None)
 
 
+# PR28 scope hold: 52e2014a9579 and 5a2cba16e057 are retired daily
+# application jobs, never eligible for paused-registration proposals or CAS.
+# This retained legacy preflight mapping is not adoption authority: the canonical
+# fresh-preflight candidate's identity-resolution and migration holds remain.
 PAUSED_WRAPPERS = {
-    "52e2014a9579": "affiliate_portal_apply_daily.sh",
     "7a269c665b12": "awin_auth_liveness_preflight.sh",
-    "5a2cba16e057": "affiliate_multi_network_portal_apply_daily.sh",
 }
 
 
@@ -351,7 +353,7 @@ def release_paused_registrations(review_path: Path, registry: Any, *,
     wrappers = {job_id: report.HERMES_SCRIPTS / name for job_id, name in PAUSED_WRAPPERS.items()}
     if (set(approved) != set(wrappers.values())
             or any(entry["review_basis"] != "current_wrapper_review" for entry in approved.values())):
-        raise RuntimeError("paused_review_must_name_exact_three_wrappers")
+        raise RuntimeError("paused_review_must_name_exact_eligible_wrappers")
     jobs = registry.paused_jobs()
     expected = [job for job in jobs if str(job.get("id")) in PAUSED_WRAPPERS]
     digests = {job_id: approved[path]["reviewed_sha256"] for job_id, path in wrappers.items()}
@@ -597,7 +599,7 @@ def main() -> int:
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--package-binaries-only", action="store_true")
     modes.add_argument("--paused-registrations-only", action="store_true",
-                       help="Exact three-wrapper review; hash-only, never unpauses")
+                       help="Exact eligible-wrapper review; excludes retired daily jobs, never unpauses")
     args = parser.parse_args()
     registry_path = Path(args.registry_json) if args.registry_json else CRON_REGISTRY
     registry = JsonRegistry(registry_path) if args.registry_json else HermesRegistry()

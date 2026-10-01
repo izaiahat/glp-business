@@ -1844,7 +1844,7 @@
     "scripts/awin_pin_release.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "d6c5883aaae24a16877814990740eb0c0963ddb42ede07ea0f9de4c20b95cf53"
+      "sha256": "c9c3ffeec58b3234b4b29530b5a8ce938ca738eacaa9d5c0da32fde711fd74dd"
     },
     "scripts/pin_drift_report.py": {
       "callers": [],
@@ -1854,7 +1854,7 @@
     "tests/test_awin_paused_registration_release.py": {
       "callers": ["awin_pin_release"],
       "kind": "test",
-      "sha256": "be13bed2d6a3e6a82b1abe3cddf34f2dec734b5a57fa11444d024579ddcee4b8"
+      "sha256": "dfa9095b391212e7d16540c372d729f5cbf258b1697c634f4c701e8ecfa53020"
     },
     "tests/test_awin_pin_shell_conventions.py": {
       "callers": [],
