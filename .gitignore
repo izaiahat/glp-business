@@ -321,6 +321,34 @@
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
 
+# GLP affiliate discovery/application/terms source and offline fixtures
+!/.codex-task/
+/.codex-task/*
+!/.codex-task/RESULT.md
+!/config/
+/config/*
+!/config/affiliate-sites/
+/config/affiliate-sites/*
+!/config/affiliate-sites/best-terms-selection.json
+!/ops/affiliate_apply_gate.py
+!/scripts/affiliate_auto_apply.py
+!/scripts/glp_application_machine.py
+!/scripts/glp_application_dedupe.py
+!/scripts/glp_application_submit_child.py
+!/scripts/affiliate_monday_marketplace_receipt.py
+!/scripts/affiliate_monday_discovery_card.py
+!/scripts/affiliate_terms_fanout.py
+!/tests/test_affiliate_discovery_resume.py
+!/tests/test_affiliate_discovery_admission.py
+!/tests/test_affiliate_best_terms_recovery.py
+!/tests/test_affiliate_terms_fanout.py
+!/tests/fixtures/
+/tests/fixtures/*
+!/tests/fixtures/best_terms/
+/tests/fixtures/best_terms/*
+!/tests/fixtures/best_terms/held_xentraffic_failure.json
+!/tests/fixtures/affiliate_terms_registry_validator.mjs
+
 # Phase 0 canonical affiliate decision notices (source and offline tests only)
 !/inbox_control_plane/
 /inbox_control_plane/*

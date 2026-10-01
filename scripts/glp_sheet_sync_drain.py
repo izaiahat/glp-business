@@ -2703,6 +2703,26 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
             base["status"] = RESULT_APPLIED
         if apply and base["status"] in (RESULT_APPLIED, RESULT_NOOP):
             values = read_sheet(svc, sleep=sleep)  # later rows must see earlier writes
+            # Receipt capture remains available while the candidate/site fan-out
+            # is OFF. A terminal Sheet update can therefore be replayed without
+            # another Sheet write. Fan-out failure never changes Sheet truth.
+            import affiliate_terms_fanout as terms_fanout
+            if kind in terms_fanout.KINDS:
+                try:
+                    event_path = run_dir / f"{index + 1:02d}-{slug}-fanout.json"
+                    base["terms_fanout_event"] = terms_fanout.capture_readback(
+                        queue_row, base, plan_path, receipt_path, values, event_path)
+                    if os.environ.get("GLP_AFFILIATE_TERMS_FANOUT_ENABLE") == "1":
+                        base["terms_fanout"] = terms_fanout.consume(
+                            event_path,
+                            Path(os.environ["GLP_AFFILIATE_TERMS_REGISTRY"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_IDENTITY_MAP"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_STATE_DIR"]),
+                            enabled=True, apply=True)
+                    else:
+                        base["terms_fanout"] = {"status": "DISABLED"}
+                except (ValueError, OSError, KeyError, TypeError, IndexError) as exc:
+                    base["terms_fanout"] = {"status": "REFUSED", "reason": str(exc)}
         results.append(base)
 
     counts = {status: sum(1 for r in results if r["status"] == status)
