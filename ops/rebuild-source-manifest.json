@@ -2193,7 +2193,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "42b8b2c82c6663cca3aa9d57f05c526a9046f880874a1f404ad8e3e76b79463e"
+      "sha256": "db287f13d36144e106587bb2c3a74f69a8b6b659c711f63e31bd24e4397ced4a"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
       "callers": [
@@ -2782,7 +2782,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "1f3b16e4c0363c29ec905ad577a2c0b57cf958fcc4abe0ae224db4e3fec76881"
+      "sha256": "5649994650d1b98607d24825d650516d3574ae212f51060ed7b0d95fbac9b4a8"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
