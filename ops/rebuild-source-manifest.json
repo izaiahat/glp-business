@@ -8,17 +8,42 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 524,
+  "tracked_count": 526,
   "files": {
     "tests/test_maintenance_keeper_contention.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
       "sha256": "16450db3c01b9988e5ea00f8a15ea37a6afbac79133fe15e481f3587ca634766"
     },
+    "scripts/glp_go_runtime_manifest_refresh.mjs": {
+      "kind": "script",
+      "callers": ["Backlog worker detached current-base candidate; GLP331 required unchanged dependency"],
+      "sha256": "a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e",
+      "predecessor_sha256": "35f99538dd648fe21b781766a0a81952ad222265e0aec552b42dda5563eaccbe",
+      "runtime_contract": {
+        "code_and_selection_map_sha256": "5482f25b74d6eb6f458e98f603275839bc835baf980d983250220537d6bc291c",
+        "map_serialization": "JSON sorted keys compact separators UTF-8; GO_REFRESH_CONTRACT literal in this script",
+        "source_module_count": 17,
+        "selection_input_count": 3,
+        "selection_module_sha256": "ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e",
+        "authenticated_pointer": {
+          "path": "reports/glp-clinic-scout/seo-machine/current-content-base.json",
+          "sha256": "dce12bc2ebf5eddbcb122c54918f044a327fd183cd8a8642d000ae72cbad5190",
+          "release_root": "reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release",
+          "site_head": "38133df58fc5406adeb87ed88771cc6ceeb26342"
+        },
+        "root_semantics": "Provenance only, not a universal current root or effect approval. Actual backlog caller chooses authenticated current predecessor/batch override, materializes a detached candidate and passes --release. CLI requires its complete exact protected code/selection contract before any ESM import. No obsolete candidate repair."
+      }
+    },
+    "tests/test_glp331_dependency_closure.py": {
+      "kind": "test",
+      "callers": ["GLP331 F1 signature and F2 pre-import custody refusal; exact-head CI"],
+      "sha256": "a202ae6d3d8c9adb2eaebf14ff29b8bed7a2611fe1f84363bd6d0d11dc0ee263"
+    },
     "scripts/fleet_pin_release.py": {
       "kind": "script",
       "callers": ["GLP331 scoped carrier closure; independent exact review required"],
-      "sha256": "6fd83b134bd8e8a70f2f092d9a22f450f522da3b8cdf61c8a4a068f1f13a2d8d"
+      "sha256": "ff14a17a8e208a12e8d15de5972c356bf31dc0cd8031c4706e143d1017136ffc"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
@@ -33,17 +58,17 @@
     "tests/test_glp331_carrier_closure.py": {
       "kind": "test",
       "callers": ["GLP331 disposable native fixture; no live effects"],
-      "sha256": "b136d0fc81149a2a493454fb963b0ed9b5d1a1c06f573ab1a863dbf76a319670"
+      "sha256": "e3cbfd36b92d7f76d5fe94f1731cdc02f913fb7eb9498c023643988e686c00e5"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
       "callers": ["GLP331 exact proposal and independent review contract"],
-      "sha256": "349806861fe06d8dfda54659b1b99e91b099ddb8dfd721125a998ad2cdeea42c"
+      "sha256": "9dc515ac2e97a581afb435ea1c9df15718b5d16d4905523b84366cd230159190"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
       "callers": ["GLP331 exact-head native acceptance fixtures"],
-      "sha256": "4700d33b6af121073ab8b3af911e278da86ececc4bb7fb37862d1a89b943bab2"
+      "sha256": "7dc2aa2bfa1628caaec8f3c08418f3e9fba49e5be9e3c77d4c3a15d1848b8d90"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -325,7 +350,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "24a0d9c127e5b50eca22f2edac87d3233d741e3fd1e883deb6408649c26fd7a3"
+      "sha256": "01c51881fe511182e001e432e213e25e6bbf0493af65d9883bda7f1c124951d6"
     },
     ".hermes.md": {
       "callers": [],
@@ -1019,7 +1044,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "2389ae760986159c32e3305bfaa1dfa7151ade573cbaaa2e83728dd5ddf40dcd"
+      "sha256": "e999f3e4e6c4e478312be26a44fe7653006725b1d6579d32a15caab2c3b7a3d1"
     },
     "ops/rook-mcp/README.md": {
       "callers": [
@@ -1560,7 +1585,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "b313063f54848dbf4e7e8ff8b4dbf2bf697ff1ccb7245837d950b61c3ed255a0"
+      "sha256": "59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05"
     },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": [

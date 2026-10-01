@@ -3,9 +3,14 @@
  "why": "PERSISTENT PATH ONLY (operator 2026-09-14): every repair lands in the REGISTERED path. Until 2026-09-16 that was prose in three files and a receipt; nothing mechanical distinguished a registered producer from a one-off that appends a well-formed entry. On 2026-09-16 01:06Z a one-off adopted a pinned capture with check_successor disabled, and on the same day four dose_pricing rows were hand-written into the pricing matrix. Both were well-formed bytes. result_lint now refuses a RESULT that changes one of these artifacts without a producer.registered_command whose program is listed here.",
  "artifacts": [
   {
+   "glob": "site-system/flagship-v2/candidates/*/functions/go/program-manifest.js",
+   "producers": ["scripts/glp_go_runtime_manifest_refresh.mjs"],
+   "scope": "Existing backlog caller only, detached authenticated predecessor/batch candidate. Exact protected go-selection code ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e and entire pinned code/selection graph required before import; selected HOLD beats legacy VERIFIED. Current-base custody and full contract-map digest live in rebuild-source-manifest. No historical root override, held-provider clearance, release or live-effect authorization."
+  },
+  {
    "glob": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh",
    "producers": ["scripts/fleet_pin_release.py"],
-   "scope": "Explicit --scope glp331 only: exact seven PR117 source bytes, one external carrier, only f0c6a95a371c.script_sha256 under native full-record CAS, independent fresh review, source/consumer fences and coherent DAC cohort. No lifecycle, schedule, hold or unrelated-job changes. Registration is not adoption authority."
+   "scope": "Explicit --scope glp331 only: exact seven PR117 source bytes unchanged, one external carrier derived by only four literal reviewed dependency-hash substitutions (backlog worker/refresher plus unchanged PR35/37 inputs), only f0c6a95a371c.script_sha256 under native full-record CAS, independent fresh review, source/consumer fences and coherent DAC cohort. No lifecycle, schedule, hold or unrelated-job changes. Registration is not adoption authority."
   },
   {
    "glob": "scripts/glp_maxbounty_capacity_monitor.pins.json",

@@ -539,6 +539,23 @@ GLP331_LOCKS = ('glp-affiliate-approval-reconciler.lock',
                 'glp-sheet-sync-drain.lock', 'email-monitor-cron.lock')
 GLP331_PREDECESSOR = '119fdf2c23d748888cf29e6449e4e7a149826141213e944e38ea8a1e122b0e6d'
 GLP331_SOURCE_HEAD = '727ad1f6af8e1000f04b96f1c267e5b0de2a832f'
+# Exact legacy carrier bindings -> reviewed source successor. These are inputs,
+# not additional source outputs. PR35 date protection and PR37 cardinality stay
+# byte-identical; the original seven PR117 files remain the accepted Git blobs.
+GLP331_DEPENDENCY_BINDINGS = {
+    'scripts/glp_affiliate_wire_backlog_worker.py': (
+        '1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a',
+        '59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05'),
+    'scripts/glp_go_runtime_manifest_refresh.mjs': (
+        'e7588766ac147bccb507da889c818d97b35f25a8e1664253ce653de3ed0dde5c',
+        'a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'),
+    'scripts/glp_provider_cardinality_test_refresh.py': (
+        '85837d85f38275366058f4ab2be2e85dac2481770edb9687297393deb5be80f3',
+        '83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa'),
+    'scripts/build_glp_affiliate_wirein_incremental_v2.py': (
+        '1b2f3196d318c3712796a8d2afca5cee16b78831038faa529f83a71df06f5cbb',
+        'a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432'),
+}
 
 
 def _scoped_modules():
@@ -609,11 +626,36 @@ def prepare_glp331(repo, source_head, prepared_by, *, business=BUSINESS,
     observed[carrier] = p.read_regular(carrier)
     if sha_bytes(observed[carrier][0]) != GLP331_PREDECESSOR or observed[carrier][1] != 0o700:
         raise RuntimeError('glp331_unknown_carrier_preimage_or_mode')
-    staged[carrier] = staged[business/GLP331_SNAPSHOT]
+    text = staged[business/GLP331_SNAPSHOT].decode()
+    source_manifest_path = repo/'ops/rebuild-source-manifest.json'
+    observed[source_manifest_path] = p.read_regular(source_manifest_path)
+    source_manifest = p.strict_json(p.git(repo, 'show', head+':ops/rebuild-source-manifest.json'))
+    if p.json_bytes(p.strict_json(observed[source_manifest_path][0])) != p.json_bytes(source_manifest):
+        raise RuntimeError('reviewed_dependency_manifest_moved')
+    binding_changes = []
+    occurrences = pins.covered(text)
+    for name, (legacy, reviewed) in GLP331_DEPENDENCY_BINDINGS.items():
+        target = business/name
+        matches = [(digest, start, end) for path, digest, start, end in occurrences
+                   if path == str(target)]
+        if len(matches) != 1 or matches[0][0] != legacy:
+            raise RuntimeError('glp331_exact_legacy_dependency_pin_required:' + name)
+        body = p.git(repo, 'show', head+':'+name)
+        if (sha_bytes(body) != reviewed
+                or source_manifest['files'].get(name, {}).get('sha256') != reviewed):
+            raise RuntimeError('glp331_reviewed_dependency_source_required:' + name)
+        observed[target] = p.read_regular(target)
+        if sha_bytes(observed[target][0]) != reviewed:
+            raise RuntimeError('in_scope_unreviewed_pin_drift:' + str(target))
+        binding_changes.append({'path': str(target), 'from_sha256': legacy,
+                                'to_sha256': reviewed, 'hash_offset': matches[0][1]})
+    for change in sorted(binding_changes, key=lambda item: item['hash_offset'], reverse=True):
+        start = change['hash_offset']
+        text = text[:start] + change['to_sha256'] + text[start+64:]
+    staged[carrier] = text.encode()
     modes[str(carrier)] = 0o700
     # Authenticate ALL shell conventions, including FIT authority and the two
     # writer occurrences. Unknown/malformed pins cannot become a false clean.
-    text = staged[carrier].decode()
     class StagedShell:
         # Feed exact in-memory successor bytes to the unchanged read-only
         # reporter without exposing a temporary candidate or altering globals.
@@ -667,6 +709,7 @@ def prepare_glp331(repo, source_head, prepared_by, *, business=BUSINESS,
                     name: sha_bytes(staged[business/name]) for name in sorted(GLP331_SOURCES)},
                 'proposed_sha256': {str(path): sha_bytes(body) for path, body in sorted(staged.items())},
                 'source_modes': modes, 'expected_job': job, 'registration_delta': ['script_sha256'],
+                'dependency_binding_changes': binding_changes,
                 'consumer_ids': list(GLP331_CONSUMERS), 'consumer_locks': list(GLP331_LOCKS)}
     return proposal, observed, staged
 
