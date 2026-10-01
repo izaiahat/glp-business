@@ -59,7 +59,7 @@ PR119_BEFORE = {
 }
 PR119_PREREQUISITES = {
     'systems/analytics-brain/analytics_brain.py': '19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa',
-    'systems/analytics-brain/collector.py': '24f3798f4e31c400a82fa7ae0dffaab27509636d0f4188265235247321b95b3c',
+    'systems/analytics-brain/collector.py': 'af1d8f9187384f025bcd042a17710581fabb1870fd5bf05c8dcff174f2a4203e',
     'ops/glp/analytics-brain-control.json': '68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815',
 }
 

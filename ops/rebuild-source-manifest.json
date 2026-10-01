@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 554,
+  "tracked_count": 555,
   "files": {
     "tests/test_maintenance_pause_cursor_race.py": {
       "kind": "test",
@@ -1611,7 +1611,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
+      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -3582,7 +3582,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
+      "sha256": "c54f73ed18e66ad16e5913b3b094af9127705150631a696ff5ff46e8f243c311"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
