@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import copy
+import datetime as dt
+import sqlite3
 from contextlib import contextmanager
 import fcntl
 import hashlib
@@ -644,7 +646,8 @@ class LinuxBackend:
             # The expected pause is durable BEFORE native normalization/save,
             # including optional-field absence and the exact scheduling cursor.
             return {'fields': fields, 'paused_fields': paused_fields,
-                    'script_sha256': job.get('script_sha256'), 'configuration_sha256': job_configuration(job)}
+                    'script_sha256': job.get('script_sha256'), 'configuration_sha256': job_configuration(job),
+                    'repeat': copy.deepcopy(job.get('repeat')), 'captured_at': time.time()}
         if kind == 'crontab':
             require(not entry['prior'].get('maintenance_marker'), 'foreign_maintenance_crontab_refused')
             text = self.command(['/usr/bin/crontab', '-l'])
@@ -682,15 +685,129 @@ class LinuxBackend:
             lines[index] = marker + lines[index]
         return ''.join(lines)
 
+    def completed_cursor_progress(self, entry, prior, job, data, scheduler):
+        """Only a fenced, completed native occurrence chain may move the cursor.
+
+        No lifecycle/config/pin/field-presence relaxation. Missing, pruned,
+        manual, failed or ambiguous execution evidence stays a refusal.
+        """
+        fields = {k: job[k] for k in CONTROL_FIELDS if k in job}
+        before = prior['fields']
+        require(before.get('enabled') is True and before.get('state') == 'scheduled'
+                and {k: v for k, v in fields.items() if k != 'next_run_at'}
+                == {k: v for k, v in before.items() if k != 'next_run_at'}
+                and all(not job.get(k) for k in ('fire_claim', 'run_claim', 'pending_slot')),
+                'native_cursor_controls_changed')
+        repeat = prior.get('repeat', entry.get('prior', {}).get('repeat'))
+        current_repeat = job.get('repeat')
+        require(isinstance(repeat, dict) and isinstance(current_repeat, dict)
+                and {k: v for k, v in repeat.items() if k != 'completed'}
+                == {k: v for k, v in current_repeat.items() if k != 'completed'},
+                'native_cursor_repeat_changed')
+        old_count, new_count = repeat.get('completed'), current_repeat.get('completed')
+        require(type(old_count) is int and type(new_count) is int
+                and 0 < new_count - old_count <= 10000, 'native_cursor_count_unproven')
+        schedule = job.get('schedule', {})
+        require(schedule.get('kind') in {'cron', 'interval'} and job.get('last_status') == 'ok',
+                'native_cursor_schedule_unproven')
+
+        def instant(value):
+            try:
+                result = dt.datetime.fromisoformat(value)
+                require(result.tzinfo is not None, 'native_cursor_timestamp_unproven')
+                return result.astimezone(dt.timezone.utc)
+            except (TypeError, ValueError):
+                raise WindowError('native_cursor_timestamp_unproven') from None
+
+        cursor = before.get('next_run_at')
+        first = instant(cursor)
+        captured = dt.datetime.fromtimestamp(prior.get('captured_at', data['created_at']), dt.timezone.utc)
+        database = scheduler._current_cron_store().cron_dir / 'executions.db'
+        require(database.is_file(), 'native_cursor_ledger_missing')
+        try:
+            with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as db:
+                db.execute('PRAGMA query_only=ON')
+                db.row_factory = sqlite3.Row
+                rows = db.execute(
+                    'SELECT id, status, scheduled_instant, claimed_at, started_at, finished_at, '
+                    'handoff_pending FROM executions WHERE job_id=? AND scheduled_instant>=? '
+                    'ORDER BY scheduled_instant LIMIT ?',
+                    (entry['id'], first.isoformat(), new_count - old_count + 1)).fetchall()
+        except sqlite3.Error:
+            raise WindowError('native_cursor_ledger_unreadable') from None
+        require(len(rows) == new_count - old_count, 'native_cursor_occurrences_unproven')
+        previous_finish = captured
+        for index, row in enumerate(rows):
+            slot, claimed, started, finished = (instant(row[k]) for k in
+                ('scheduled_instant', 'claimed_at', 'started_at', 'finished_at'))
+            require(row['status'] == 'completed' and not row['handoff_pending']
+                    and slot == instant(cursor)
+                    and slot - dt.timedelta(seconds=scheduler.FIRE_CLAIM_SKEW_SECONDS) <= claimed
+                    and previous_finish <= claimed <= started <= finished
+                    and finished <= scheduler._hermes_now(), 'native_cursor_execution_unproven')
+            # mark_job_run precedes finish_execution. For an intermediate cron
+            # occurrence require both ends of that interval compute the SAME
+            # next slot; interval chains cannot be reconstructed without marks.
+            if index == len(rows) - 1:
+                marked = job.get('last_run_at')
+                require(started <= instant(marked) <= finished, 'native_cursor_mark_unproven')
+            else:
+                require(schedule['kind'] == 'cron' and
+                        scheduler.compute_next_run(schedule, row['started_at']) ==
+                        scheduler.compute_next_run(schedule, row['finished_at']),
+                        'native_cursor_intermediate_mark_unproven')
+                marked = row['finished_at']
+            cursor = scheduler.compute_next_run(schedule, marked)
+            require(instant(cursor) > slot, 'native_cursor_not_advanced')
+            previous_finish = finished
+        require(cursor == fields.get('next_run_at'), 'native_cursor_next_unproven')
+        return {'from': before['next_run_at'], 'to': cursor, 'executions': [r['id'] for r in rows]}
+
+    def legacy_pause_not_started(self, data, row):
+        """Authenticate the old pre-save refusal, not merely paused=False.
+
+        This digest is the reviewed controller at receiving HEAD 09ca37b4.
+        Its pause_preimage_changed callsite is before native pause/save; its
+        sequential entry frontier binds that durable error to exactly one row.
+        New/unknown controllers or ambiguous saver errors are NOT equivalent.
+        """
+        legacy = 'ff238691b508fdfefe8d546fd4d5c2dc7f7ceaa396aca14b72eec563374490d7'
+        rows = data['entries']
+        frontier = [r for r in rows if r.get('intent') is True and r.get('paused') is False]
+        if (data.get('error') != 'pause_preimage_changed' or frontier != [row]
+                or row.get('intent') is not True or row.get('paused') is not False
+                or data.get('source_transaction') or data.get('job_updates')):
+            return False
+        index = rows.index(row)
+        if (any(r.get('intent') is not True or r.get('paused') is not True for r in rows[:index])
+                or any(r.get('intent') is not False for r in rows[index + 1:])):
+            return False
+        return any(Path(path).name == 'maintenance_window.py' and digest == legacy
+                   and Path(path).is_file() and hashlib.sha256(Path(path).read_bytes()).hexdigest() == legacy
+                   for path, digest in data.get('control_tools', {}).items())
+
     def pause(self, entry, prior):
         kind = entry['kind']
         if kind == 'hermes':
             scheduler = self.scheduler()
-            with native_registry_lock(scheduler):
+            with scheduler._fire_job_lock(entry['id']) as acquired, native_registry_lock(scheduler):
+                require(acquired, 'native_pause_fire_lock_required')
                 job = self.job(entry['id'])
                 require(job.get('script_sha256') == prior['script_sha256'], 'pause_pin_changed')
                 require(job_configuration(job) == prior['configuration_sha256'], 'pause_configuration_changed')
-                require({k: job[k] for k in CONTROL_FIELDS if k in job} == prior['fields'], 'pause_preimage_changed')
+                fields = {k: job[k] for k in CONTROL_FIELDS if k in job}
+                if fields != prior['fields']:
+                    data = read_journal(self.journal)
+                    progress = self.completed_cursor_progress(entry, prior, job, data, scheduler)
+                    # Write the accepted cursor/expected pause BEFORE invoking
+                    # native pause. Preserve every other snapshot field exactly.
+                    prior['cursor_progress'] = progress
+                    prior['fields']['next_run_at'] = fields['next_run_at']
+                    prior['paused_fields']['next_run_at'] = fields['next_run_at']
+                    prior['repeat'] = copy.deepcopy(job['repeat'])
+                    row = next(r for r in data['entries'] if entry_key(r['entry']) == entry_key(entry))
+                    row['prior'] = copy.deepcopy(prior)
+                    atomic_json(self.journal, data)
                 require('paused_fields' in prior, 'pause_exact_preimage_required')
                 saver = scheduler._save_jobs_unlocked
                 def exact_pause(jobs, **kwargs):
@@ -780,6 +897,12 @@ class LinuxBackend:
                 controls = {k: current[k] for k in CONTROL_FIELDS if k in current}
                 if controls == prior['fields']:
                     return  # Includes a crash after restore but before receipt.
+                # Authenticate the legacy pre-save refusal, not paused=False.
+                # Leave genuine native progress intact; closure needs no saver.
+                row = next(r for r in data['entries'] if entry_key(r['entry']) == entry_key(entry))
+                if self.legacy_pause_not_started(data, row):
+                    self.completed_cursor_progress(entry, prior, current, data, scheduler)
+                    return
                 require(self.paused(entry, prior), 'restore_pause_ownership_changed')
                 # Restoration is an exact CAS, not a new scheduling request.
                 # resume() rejects expired once jobs before saving and can

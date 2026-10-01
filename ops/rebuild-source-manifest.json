@@ -8,8 +8,22 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 557,
+  "tracked_count": 561,
   "files": {
+    "tests/test_maintenance_pause_cursor_race.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/maintenance-pause-cursor-race.yml"
+      ],
+      "sha256": "e6de11619b55903eadb453ac27082e866b7946011ab79bf83ca63e6940f55bd4"
+    },
+    ".github/workflows/maintenance-pause-cursor-race.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "Exact-head native maintenance race acceptance fixtures"
+      ],
+      "sha256": "f4f2aeb9e568a6eca1ffe9eb8b9ac456de08f56dbc007d36ca571a9b7fc345be"
+    },
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
       "callers": [
@@ -414,7 +428,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d48e292e2b3749b49c942f30b9cabdb6da08cd0732ee1efe7c9e3922004695db"
+      "sha256": "89f54fba9bb426003969e9260fcbb80dc1e1f14f5b5055d97e675a6fcbd99691"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -424,7 +438,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "323d291c0b02b2c987d4fc8319b0e18e8161e3fcf16c30d770c36aa0aaa02823"
+      "sha256": "34fc95761bf8e53846fbb326ff4a09df9f7ef18c395fb170bced00cac0a192f6"
     },
     ".hermes.md": {
       "callers": [],
@@ -2243,7 +2257,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "b0ef98f3448cdbeaa06f62a1d85ea612d6a13a4312ef5e319b8a032abe7f0e90"
+      "sha256": "80a200ace77b606adeadad08e663843530e6b2308932d4847edfbbfea70827b9"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -3345,7 +3359,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "ff238691b508fdfefe8d546fd4d5c2dc7f7ceaa396aca14b72eec563374490d7"
+      "sha256": "c2352ed8865a800b52f517323c782390f45fdb89e380e15cee7375d9b3bee7b4"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3667,6 +3681,27 @@
       ],
       "kind": "test",
       "sha256": "d7b2345287e836d03ab223db88fb9feb9bb434a220afd3e5643399f1a15ae620"
+    },
+    "tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs": {
+      "callers": [
+        "tests/test_glp76_carrier_calendar.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "a034fd24091cf093637b20753708f2f3c2070c29f66176e5deabfeb10aee9ba9"
+    },
+    "tests/test_glp76_carrier_calendar.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "9b929c78f8007c6e105d88ca902c7ba56f6095ee7d166d1bfb07fc96489a4d79"
+    },
+    "tests/test_glp76_calendar_workflow_guard.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
     },
     "ops/glp/evidence-refresh-k3/daily_evidence_refresh.py": {
       "callers": [
