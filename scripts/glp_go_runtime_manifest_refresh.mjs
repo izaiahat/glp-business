@@ -1,7 +1,48 @@
 #!/usr/bin/env node
-import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { access, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
+// Exact protected current-base code/selection contract, not a universal report
+// path or permission to adopt a candidate. The registered worker chooses and
+// authenticates its predecessor, then passes a detached descendant via --release.
+// Refuse obsolete GLP34 code before importing it; never repair it in this reader.
+const GO_REFRESH_CONTRACT = Object.freeze({
+  "src/affiliate-link-map.mjs": "3bb817c4a29504af087e1c06a4e8a25adeac0696e8cee371158530f659b86c45",
+  "src/citation-attribution.mjs": "5c10bc66371d34aab8428490d565f0315239e1be77e045fb55a153502b98ebc7",
+  "src/cost-calculator.mjs": "f3f8ad84786d5dc64aad8536b2bca158316801aef28b37f0c8916209e9033ad1",
+  "src/go-price-basis.mjs": "97c8b49881d5b844e4c46ad2b6e853a0ee52be06f119dac85309af7e30c90b0e",
+  "src/go-promotion-contract.mjs": "f33979da215d0387b08a3b3d4e7e6e1dece4ef1425a2ada8018f0cab7cadb94b",
+  "src/go-redirector-authority.mjs": "451b71b940334fdc5bdcb5d764976f5bea0b39e254a0e8b80a4076af15e5a800",
+  "src/go-runtime-manifest.mjs": "427903be905dc402b4fb8e32390b76a4ed0ac6120e8622cf177b386be580c6a4",
+  "src/go-runtime-selection.mjs": "ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e",
+  "src/medication-options.mjs": "0308ca9fcbf2dbe6bec76ed0cd906c0ee7d8e066d14f7e74b31d85db57420fcb",
+  "src/price-state.mjs": "a3bd6f053dea1e4f367f35a4390195dd68502f8dcfddd444f87eea481181fba9",
+  "src/pricing-coverage-floor.mjs": "3240da7fdb92d6ac953e70863a2e8983ccaba8a9dc51e3b02b064f6e658f9877",
+  "src/program-registry.mjs": "05724dc3d63f6424c772261ebf8f8798421efc7542a3c5d8c5ce9e4c31341bd8",
+  "src/provider-cta-contract.mjs": "351dbba3db12fa4cdbe3dca2adf58214444fec12a22cec7d8daee69b4909ec32",
+  "src/provider-display-evidence.mjs": "d87875aec1c9c03b5afbf5fc8135b1372fe2667f96221f0ceb8c4b1933eadd91",
+  "src/provider-dynamic-profiles.mjs": "f2b900cf740e4336beec31cd0fa4a8776eba2023f161fdc7216409ce5bab8023",
+  "src/provider-identity.mjs": "1c1d1078c90b8d528973141422137a6f92e73377c7c503bb136585a6aaa70a80",
+  "src/typed-price-labels.mjs": "374b2ebde206e1cdff74ab7c89f069db033365ffceb9bd867ac7229c477848f3",
+  "data/go-selection-receipt.json": "712a058818ee5c5c9fd9f030da286fe8979069c7e2dc21a37416ed612c543e7e",
+  "data/go-terms-review-ledger.json": "d38d452c71155b33779527944b0b6ba7b156c56a31bba6b212bf4b2cc9d274da",
+  "data/go-price-basis-supersession.json": "b2816ef01878619ab4dfa5a30130f5c1422072689dda2eb2d57df4171162e473"
+});
+
+async function verifyGoRefreshContract(release) {
+  if (await realpath(release) !== release) throw new Error("go_runtime_refresh_root_alias");
+  for (const [relative, expected] of Object.entries(GO_REFRESH_CONTRACT)) {
+    const file = path.join(release, relative);
+    let actual;
+    try {
+      if (await realpath(file) !== file) throw new Error("root_alias");
+      actual = createHash("sha256").update(await readFile(file)).digest("hex");
+    } catch { throw new Error(`go_runtime_refresh_contract_drift:${relative}`); }
+    if (actual !== expected) throw new Error(`go_runtime_refresh_contract_drift:${relative}`);
+  }
+}
 
 function parseArgs(argv) {
   const args = { release: "" };
@@ -31,6 +72,7 @@ async function atomicWrite(filePath, text) {
 async function main() {
   const { release: releaseArg } = parseArgs(process.argv.slice(2));
   const release = path.resolve(releaseArg);
+  await verifyGoRefreshContract(release);
   const registryPath = path.join(release, "data", "program-registry.json");
   const ledgerPath = path.join(release, "data", "program-content-ledger.json");
   const stagedManifestPath = path.join(release, "artifacts", "ops", "worker-manifest.staging.json");

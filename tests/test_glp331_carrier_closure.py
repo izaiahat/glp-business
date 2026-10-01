@@ -86,12 +86,25 @@ def fixture(tmp_path, monkeypatch):
     metadata.write_text('# unchanged metadata dependency\n')
     dependency = business/'scripts/unchanged.py'
     dependency.write_text('# unchanged pinned dependency\n')
+    # Four exact production dependency source bytes, never imported/executed.
+    # Legacy carrier pins are intentionally stale; producer must derive only
+    # these fixed substitutions, refusing a missing or drifted installed input.
+    legacy_dependencies = ''
+    for relative, (legacy, reviewed) in release.GLP331_DEPENDENCY_BINDINGS.items():
+        body = (ROOT/relative).read_bytes()
+        assert p.sha_bytes(body) == reviewed
+        (repo/relative).write_bytes(body)
+        (business/relative).write_bytes(body)
+        legacy_dependencies += f" ['{business/relative}']='{legacy}'\n"
+    source_manifest = {'files': {relative: {'sha256': reviewed} for relative, (_, reviewed)
+                                in release.GLP331_DEPENDENCY_BINDINGS.items()}}
+    (repo/'ops/rebuild-source-manifest.json').write_text(json.dumps(source_manifest))
     successor = ("#!/bin/bash\n"
         f"wire_writer='{writer}'\nwire_writer_expected_sha256='{p.sha_bytes(bodies[str(writer.relative_to(business))])}'\n"
         f"wire_scanner='{scanner}'\nwire_scanner_expected_sha256='{p.sha_bytes(scanner.read_bytes())}'\n"
         f"wire_metadata='{metadata}'\nwire_metadata_expected_sha256='{p.sha_bytes(metadata.read_bytes())}'\n"
         f"declare -A b2_pins=(\n ['{writer}']='{p.sha_bytes(bodies[str(writer.relative_to(business))])}'\n"
-        f" ['{dependency}']='{p.sha_bytes(dependency.read_bytes())}'\n)\n"
+        f" ['{dependency}']='{p.sha_bytes(dependency.read_bytes())}'\n{legacy_dependencies})\n"
         "printf successor > \"$1\"\n").encode()
     old = b'#!/bin/bash\nprintf predecessor > "$1"\n'
     bodies[release.GLP331_SNAPSHOT] = successor
@@ -145,6 +158,23 @@ def test_scoped_prepare_full_record_and_in_scope_drift_refuse(tmp_path, monkeypa
     preview = release.release_glp331(receipt, repo, business=business, hermes=home)
     assert not preview['applied'] and len(staged) == 8
     assert len(proposal['source_sha256']) == 7
+    assert staged[business/release.GLP331_SNAPSHOT] == bodies[release.GLP331_SNAPSHOT]
+    assert len(proposal['dependency_binding_changes']) == 4
+    # Independently reconstruct the four substitutions and reverse equality.
+    expected = bodies[release.GLP331_SNAPSHOT]
+    for name, (legacy, reviewed) in release.GLP331_DEPENDENCY_BINDINGS.items():
+        expected = expected.replace(legacy.encode(), reviewed.encode())
+        path = business/name
+        before = path.read_bytes()
+        path.unlink()
+        with pytest.raises(FileNotFoundError):
+            release.prepare_glp331(repo, release.GLP331_SOURCE_HEAD, 'fixture-author', business=business, hermes=home)
+        assert target.read_bytes() == observed[target][0]
+        path.write_bytes(before+b' ')
+        with pytest.raises(RuntimeError, match='in_scope_unreviewed_pin_drift'):
+            release.prepare_glp331(repo, release.GLP331_SOURCE_HEAD, 'fixture-author', business=business, hermes=home)
+        path.write_bytes(before)
+    assert staged[target] == expected
     assert not (business/'scripts/affiliate_program_withdrawal.py').exists()
     dependency.write_text('# unreviewed drift\n')
     with pytest.raises(RuntimeError, match='in_scope_unreviewed_pin_drift'):

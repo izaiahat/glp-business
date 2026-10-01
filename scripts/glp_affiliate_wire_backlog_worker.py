@@ -6866,9 +6866,12 @@ def _ensure_go_runtime_promotion_contract_support(
     changed: list[str] = []
 
     registry_text = registry_source.read_text(encoding="utf-8")
-    v2_supported = all(needle in registry_text for needle in (
+    v2_signature_supported = any(registry_text.count(signature) == 1 for signature in (
+        "export function deriveGoEntriesFromRegistry(registry, profileId, ledgerPrograms = [], affiliateMap = {}, goPromotionAuthority = {}) {",
+        "export function deriveGoEntriesFromRegistry(registry, profileId, ledgerPrograms = [], affiliateMap = {}, goPromotionAuthority = {}, commercialLabels = {}) {",
+    ))
+    v2_supported = v2_signature_supported and all(needle in registry_text for needle in (
         "GO_RUNTIME_PROMOTION_AUTHORITY_V2",
-        "goPromotionAuthority = {}) {",
         "goPromotionReceiptComplete(promotion, program, link)",
         'candidate_gate: promotionActive ? null : (promotion?.reason || "go_runtime_promotion_authority_missing")',
     ))

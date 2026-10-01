@@ -92,3 +92,50 @@ The exact-head workflow checks out public native fixture commit
 its leaf dependencies are byte-identical to the installed unchanged native source.
 Tests run only disposable roots and never execute business wrappers or providers.
 The retained fleet regressions verify the default full-fleet path remains intact.
+
+## F1/F2 dependency successor (2026-10-01; source only)
+
+The seven PR117 source blobs, including its `45ad2a9b...` carrier snapshot, stay
+byte-identical. That snapshot hash is **not** the newly emitted external carrier
+hash: the existing scoped producer derives the latter with exactly four reviewed
+hash-span substitutions declared in `GLP331_DEPENDENCY_BINDINGS`. Each legacy pin
+must occur exactly once; each proposed dependency must equal its literal reviewed
+SHA, the exact producer-head Git blob and that head's source-manifest entry.
+Missing/drifted inputs refuse; they are never installed by this producer or
+replaced with current-on-disk hashes. Other pins and both writer co-pins remain.
+The proposal now carries each dependency's old/new SHA and offset for independent
+byte reconstruction. Full-record CAS, seals, durable intent and no-replay remain
+unchanged. Prepare only after the separately reviewed dependency source import;
+this change supplies no new installer or host preparation authority.
+
+- F1 accepts only the two exact supported v2 derive signatures (five arguments,
+  or six with `commercialLabels = {}`); all existing receipt/identity/source and
+  marker checks remain. Unknown signature/source still refuses before mutation.
+- F2 curates the authentic installed refresher predecessor first, then binds its
+  imports to the existing protected current-base graph: 17 source modules and
+  three exact selection/terms/price-basis inputs. It refuses a mismatched or
+  aliased root before any candidate ESM import. It does not repair, repin or
+  revive the GLP34 candidate whose legacy VERIFIED overrides selected HOLD.
+- The worker's actual calling path still reads the authenticated current pointer,
+  resolves an authorized batch override if present, materializes detached
+  incremental candidates, and passes that candidate via `--release` at its two
+  existing refresh calls. The dated root in the manifest is provenance, not a
+  universal current root. Only descendants carrying the exact protected
+  code/selection contract pass; a future changed contract requires fresh review.
+- Refresher historical bytes are commit `8f81f36` before repair. Full selection
+  graph hashes and authenticated current-pointer custody are bound by the
+  refresher's `GO_REFRESH_CONTRACT` literal and its source-manifest contract
+  digest; no mutable installed global manifest is used as runtime authorization.
+- PR37 cardinality `83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa`
+  and PR35 incremental builder `a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432`
+  stay unchanged. Backlog worker is a dependency, not an eighth PR117 source.
+
+The bounded source report is
+`reports/ops/glp331-dependency-closure-fix-20261001/RESULT.json` in the operational
+report tree. Its original native projections/actual copied-root refresher proof
+are distinct from CI's portable signature/import-refusal controls. A synthetic
+Longevity legacy approval conflicts with the existing exact selected HOLD and
+still emits held; that fixture does not grant live authorization. Keeper-owned
+maintenance/admission/inventory source, live dependencies/carrier/pins/baselines,
+current release and jobs are untouched. Independent parent review and actual
+runtime acceptance remain required before any coherent cutover.
