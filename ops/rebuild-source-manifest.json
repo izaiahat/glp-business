@@ -424,7 +424,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1e991358a075a8694caf31ec63e5a7461050ca4e47b7f1022079b59ad4da0b16"
+      "sha256": "2232f2b96ae2a7fa77a2eea7e6fbfaaa149d52498917181bf182a3d1328c339e"
     },
     ".hermes.md": {
       "callers": [],

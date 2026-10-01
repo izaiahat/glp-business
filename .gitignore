@@ -38,6 +38,13 @@
 !/ops/n8n-bridge/bridge.py
 !/ops/glp/
 /ops/glp/*
+!/ops/glp/evidence-refresh-k3/
+/ops/glp/evidence-refresh-k3/*
+!/ops/glp/evidence-refresh-k3/daily_evidence_refresh.py
+!/ops/glp/evidence-refresh-k3/review_evidence.py
+!/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
+!/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
+!/tests/test_glp80_k3_prepared_consumer.py
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
 !/ops/glp/reporting-v2/identity-registry.json
