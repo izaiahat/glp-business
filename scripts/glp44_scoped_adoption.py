@@ -82,7 +82,32 @@ GLP331_HASHES = {
 }
 
 
+# Fixed PR132 launcher/cadence installation only. Inventory pins and native
+# carriers are retained inputs, not members of this source-only generation.
+GLP337_GENERATION = 'glp337-shared-bridge-20261001'
+GLP337_SOURCE = '898b45e903dffcce4046aa5548fc3e6f23b60b78'
+GLP337_PATHS = (
+    'scripts/cron_bridge_action.py',
+    'scripts/glp_analytics_brain_cadence.py',
+)
+GLP337_BEFORE = {
+    'scripts/cron_bridge_action.py': 'f00f66759a9bdc3a0f3a4156c5fbe8a6acc73597f5b83732e818b9cc7dc1ec55',
+    'scripts/glp_analytics_brain_cadence.py': '61ca597689080f6f3e5de9b00c733009df258850f58bce7f592843e527f17c53',
+}
+GLP337_HASHES = {
+    'scripts/cron_bridge_action.py': 'f1055dea298e8354bd61d9ccad084a2b33ab9c028ed7070b54e23d64ad023032',
+    'scripts/glp_analytics_brain_cadence.py': '4d51a627d7a5208238ab7ce7622772c118d9b141497942bf9ed8bd6d4587bcb2',
+}
+GLP337_CONTEXT = (
+    'ops/scheduled-source-drift-manifest.json',
+    'ops/n8n-bridge/actions.json',
+    'ops/n8n-bridge/bridge.py',
+)
+
+
 def generation_contract(generation):
+    if generation == GLP337_GENERATION:
+        return GLP337_SOURCE, GLP337_PATHS
     if generation == GLP331_GENERATION:
         return GLP331_SOURCE, GLP331_PATHS
     if generation == 'pr71':
@@ -110,7 +135,7 @@ def job_record(registry):
 
 @contextmanager
 def candidate_checkout(checkout, generation):
-    """Materialize PR71/GLP331 immutable trees without moving caller HEAD.
+    """Materialize PR71/GLP331/GLP337 immutable trees without moving HEAD.
 
     Keep the frozen caller HEAD for reviewed_prior_hashes: retained predecessor
     curation can postdate PR71. The index/files/global manifest are all APPROVED,
@@ -119,7 +144,7 @@ def candidate_checkout(checkout, generation):
     """
     approved, _ = generation_contract(generation)
     checkout = checkout.resolve(strict=True)
-    if generation not in ('pr71', GLP331_GENERATION):
+    if generation not in ('pr71', GLP331_GENERATION, GLP337_GENERATION):
         yield checkout
         return
     head = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip()
@@ -138,8 +163,14 @@ def plan(checkout, root, hermes, review=None, *, window=None, generation='pr71')
         return _plan(candidate, root, hermes, review, window=window, generation=generation)
 
 
-def _plan_dependencies(checkout, root, hermes, review, window):
-    """Read-only exact dependency proposal; the importer is never used to apply."""
+def _plan_dependencies(checkout, root, hermes, review, window, generation=GLP331_GENERATION):
+    """Read-only fixed source proposal; the importer is never used to apply."""
+    approved, paths = generation_contract(generation)
+    shared = generation == GLP337_GENERATION
+    hashes = GLP337_HASHES if shared else GLP331_HASHES
+    before_hashes = GLP337_BEFORE if shared else GLP331_BEFORE
+    runtime_schema = ('glp337-shared-bridge-runtime-review-v1' if shared
+                      else 'glp331-dependency-runtime-review-v1')
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import read_journal, MaintenanceWindow, default_locks
@@ -149,45 +180,53 @@ def _plan_dependencies(checkout, root, hermes, review, window):
         raise RuntimeError('active_maintenance_window_required')
     if journal['state'] != 'active' or journal['root'] != str(root) or journal['hermes'] != str(hermes):
         raise RuntimeError('active_maintenance_window_required')
-    # The control producer is current reviewed HEAD, but candidate files/index/
-    # manifest are exclusively the immutable GLP331_SOURCE tree.
+    # Producer is reviewed HEAD; candidate files/index/manifest are exclusively
+    # the generation's immutable approved tree, not caller-worktree bytes.
     head = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip()
     producer = subprocess.check_output(['git', '-C', str(checkout), 'show', 'HEAD:scripts/glp44_scoped_adoption.py'])
     if Path(__file__).read_bytes() != producer:
         raise RuntimeError('producer_bytes_not_reviewed_head')
-    for rel, expected in GLP331_HASHES.items():
-        committed = subprocess.check_output(['git', '-C', str(checkout), 'show', GLP331_SOURCE + ':' + rel])
+    for rel, expected in hashes.items():
+        committed = subprocess.check_output(['git', '-C', str(checkout), 'show', approved + ':' + rel])
         if digest(committed) != expected or read_regular(checkout / rel)[0] != committed:
             raise RuntimeError('approved_source_moved:' + rel)
-    before = {rel: read_regular(root / rel) for rel in GLP331_PATHS}
+    before = {rel: read_regular(root / rel) for rel in paths}
     for rel, value in before.items():
-        if digest(value[0]) != GLP331_BEFORE[rel] or value[1] != 0o644:
+        if digest(value[0]) != before_hashes[rel] or value[1] != 0o644:
             raise RuntimeError('dependency_generation_predecessor_refused:' + rel)
     state = read_regular(root / syncer.STATE)
     baselines = json.loads(state[0]).get('hashes', {})
-    adopted = tuple(rel for rel in GLP331_PATHS if rel not in baselines)
-    # Includes real Git predecessor provenance for the initially untracked leaf.
-    if syncer.sync(root, checkout, False, adopted, GLP331_PATHS) != 0:
+    adopted = tuple(rel for rel in paths if rel not in baselines)
+    # GLP337 reuses PR132's fixed private no-apply importer handoff. Ordinary
+    # sync still refuses the authentic launcher literal edit. No baseline healing.
+    if shared:
+        with syncer.source_lock(root):
+            result = syncer._sync_locked(root, checkout, False, adopted, paths,
+                                         _shared_bridge_preimage=GLP337_BEFORE[GLP337_PATHS[0]])
+    else:
+        result = syncer.sync(root, checkout, False, adopted, paths)
+    if result != 0:
         raise RuntimeError('scoped_source_preflight_refused')
     state_after = json.loads(state[0])
-    state_after['hashes'].update(GLP331_HASHES)
+    state_after['hashes'].update(hashes)
     state_body = (json.dumps(state_after, indent=2, sort_keys=True) + '\n').encode()
     registry = hermes / 'cron/jobs.json'
     registry_before = read_regular(registry)
     global_manifest = read_regular(root / syncer.MANIFEST)
+    retained_context = {rel: read_regular(root / rel) for rel in GLP337_CONTEXT} if shared else {}
     # adopter is ephemeral context ownership; everything else binds the same
     # lease, paused cohort, prior transactions and exact source baselines.
     journal.pop('adopter', None)
     proposal = {
-        'generation': GLP331_GENERATION, 'approved_source': GLP331_SOURCE,
+        'generation': generation, 'approved_source': approved,
         'producer_head': head, 'producer_sha256': digest(producer),
         'candidate_source_manifest_sha256': digest(read_regular(checkout / syncer.MANIFEST)[0]),
-        'source_sha256': dict(GLP331_HASHES), 'source_before_sha256': dict(GLP331_BEFORE),
+        'source_sha256': dict(hashes), 'source_before_sha256': dict(before_hashes),
         'source_before_modes': {rel: value[1] for rel, value in before.items()},
         'source_after_modes': {rel: value[1] for rel, value in before.items()},
         'state_before_sha256': digest(state[0]), 'state_after_sha256': digest(state_body),
         'state_before_mode': state[1], 'state_after_mode': state[1],
-        'state_delta': dict(GLP331_HASHES), 'adopted_baselines': list(adopted),
+        'state_delta': dict(hashes), 'adopted_baselines': list(adopted),
         'installed_source_manifest_sha256': digest(global_manifest[0]),
         'installed_source_manifest_mode': global_manifest[1],
         'registry_before_sha256': digest(registry_before[0]), 'registry_before_mode': registry_before[1],
@@ -195,6 +234,9 @@ def _plan_dependencies(checkout, root, hermes, review, window):
                    'registry': str(registry.resolve())},
         'window_before_sha256': digest(json.dumps(journal, sort_keys=True).encode()),
     }
+    if shared:
+        proposal['retained_context'] = {rel: {'sha256': digest(value[0]), 'mode': value[1]}
+                                        for rel, value in retained_context.items()}
     if review is not None:
         for key, value in proposal.items():
             if review.get(key) != value:
@@ -205,7 +247,7 @@ def _plan_dependencies(checkout, root, hermes, review, window):
         if (review.get('schema') != 'glp44-scoped-adoption-review-v1'
                 or review.get('decision') != 'ACCEPT_EXACT_BYTES' or not preparer
                 or not reviewer or reviewer == preparer
-                or runtime.get('schema') != 'glp331-dependency-runtime-review-v1'
+                or runtime.get('schema') != runtime_schema
                 or runtime.get('decision') != 'ACCEPT_EXACT_BYTES'
                 or not str(runtime.get('reviewer') or '').strip()
                 or str(runtime['reviewer']).strip() == preparer
@@ -214,10 +256,12 @@ def _plan_dependencies(checkout, root, hermes, review, window):
     return proposal, before, state, registry
 
 
-def _adopt_dependencies(checkout, root, hermes, review, scheduler, window):
+def _adopt_dependencies(checkout, root, hermes, review, scheduler, window, generation=GLP331_GENERATION):
+    approved, paths = generation_contract(generation)
+    hashes = GLP337_HASHES if generation == GLP337_GENERATION else GLP331_HASHES
     if review is None:
         raise RuntimeError('independent_review_required')
-    proposal, before, state, registry = _plan_dependencies(checkout, root, hermes, review, window)
+    proposal, before, state, registry = _plan_dependencies(checkout, root, hermes, review, window, generation)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
     from maintenance_window import read_journal
@@ -231,7 +275,7 @@ def _adopt_dependencies(checkout, root, hermes, review, scheduler, window):
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         lock = fences.enter_context(os.fdopen(fd, 'a+'))
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fresh, _, _, _ = _plan_dependencies(checkout, root, hermes, review, window)
+        fresh, _, _, _ = _plan_dependencies(checkout, root, hermes, review, window, generation)
         if fresh != proposal:
             raise RuntimeError('preimage_moved_under_lock')
         # Serialize maintained imports throughout custody/publication. Previously
@@ -240,15 +284,20 @@ def _adopt_dependencies(checkout, root, hermes, review, scheduler, window):
         original = {root / rel: value for rel, value in before.items()}
         original[root / syncer.STATE] = state
         retained = {registry: read_regular(registry), root / syncer.MANIFEST: read_regular(root / syncer.MANIFEST)}
+        for rel, expected in proposal.get('retained_context', {}).items():
+            value = read_regular(root / rel)
+            if digest(value[0]) != expected['sha256'] or value[1] != expected['mode']:
+                raise RuntimeError('dependency_retained_preimage_moved:' + rel)
+            retained[root / rel] = value
         if (digest(retained[registry][0]) != proposal['registry_before_sha256']
                 or retained[registry][1] != proposal['registry_before_mode']
                 or digest(retained[root / syncer.MANIFEST][0]) != proposal['installed_source_manifest_sha256']
                 or retained[root / syncer.MANIFEST][1] != proposal['installed_source_manifest_mode']):
             raise RuntimeError('dependency_retained_preimage_moved')
-        stage = {root / rel: read_regular(checkout / rel)[0] for rel in GLP331_PATHS}
-        state_data = json.loads(state[0]); state_data['hashes'].update(GLP331_HASHES)
+        stage = {root / rel: read_regular(checkout / rel)[0] for rel in paths}
+        state_data = json.loads(state[0]); state_data['hashes'].update(hashes)
         stage[root / syncer.STATE] = (json.dumps(state_data, indent=2, sort_keys=True) + '\n').encode()
-        if ({rel: digest(stage[root / rel]) for rel in GLP331_PATHS} != proposal['source_sha256']
+        if ({rel: digest(stage[root / rel]) for rel in paths} != proposal['source_sha256']
                 or digest(stage[root / syncer.STATE]) != proposal['state_after_sha256']):
             raise RuntimeError('reviewed_candidate_moved_before_switch')
         custody = root / 'reports/ops/pin-archive/glp44' / digest(json.dumps(review, sort_keys=True).encode())
@@ -263,12 +312,12 @@ def _adopt_dependencies(checkout, root, hermes, review, scheduler, window):
         window.switch_files(stage, original)
         if any(observed(path) != value for path, value in retained.items()):
             raise RuntimeError('dependency_retained_preimage_moved_no_retry')
-    return {'applied': True, 'source': GLP331_SOURCE, 'proposal': proposal, 'custody': str(custody)}
+    return {'applied': True, 'source': approved, 'proposal': proposal, 'custody': str(custody)}
 
 
 def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'):
-    if generation == GLP331_GENERATION:
-        return _plan_dependencies(checkout, root, hermes, review, window)
+    if generation in (GLP331_GENERATION, GLP337_GENERATION):
+        return _plan_dependencies(checkout, root, hermes, review, window, generation)
     approved, paths = generation_contract(generation)
     successor = generation == PR119_GENERATION
     checkout = checkout.resolve(strict=True)
@@ -397,8 +446,8 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
 
 
 def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71'):
-    if generation == GLP331_GENERATION:
-        return _adopt_dependencies(checkout, root, hermes, review, scheduler, window)
+    if generation in (GLP331_GENERATION, GLP337_GENERATION):
+        return _adopt_dependencies(checkout, root, hermes, review, scheduler, window, generation)
     approved, paths = generation_contract(generation)
     successor = generation == PR119_GENERATION
     proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation)
@@ -497,8 +546,8 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, GLP331_GENERATION), default='pr71',
-                        help='exact approved cohort; GLP331 dependencies precede the PR71 preview; PR119 requires completed GLP44 adoption')
+    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, GLP331_GENERATION, GLP337_GENERATION), default='pr71',
+                        help='exact approved cohort; GLP331/GLP337 source-only installs invalidate earlier previews; PR119 requires completed GLP44 adoption')
     parser.add_argument('--checkout', type=Path, required=True)
     parser.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
