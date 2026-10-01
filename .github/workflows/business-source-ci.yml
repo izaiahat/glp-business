@@ -44,6 +44,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_cleanup_maxbounty_capture.py
+      - name: Daily source drift exact-head fixtures (no job execution)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_scheduled_source_drift.py
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
