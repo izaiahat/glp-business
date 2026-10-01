@@ -1,0 +1,1499 @@
+{
+  "schema": "scheduled-source-drift-v1",
+  "source_head": "28dceafd656325b75ab278874597bf3dbf4617cb",
+  "source_inventory": "jobs-validation EVIDENCE.json and PIN-CHECKS.json; hash/path projection only",
+  "jobs": [
+    {
+      "id": "crontab:ee89e6f755fe8e46",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/wiki_maintenance.py",
+          "source": "scripts/wiki_maintenance.py",
+          "reviewed_sha256": "fb59f5470763ab6598b0b05dd3ea7b3102221bb4a2909cbc9943b6bc4fe86c53"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:d1449753b8c4b011",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/.hermes/scripts/disk_monitor.sh",
+          "source": "ops/hermes-cron-scripts/disk_monitor.sh",
+          "reviewed_sha256": "1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:9b1208faf1dc112a",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/.hermes/scripts/ram_monitor.sh",
+          "source": "ops/hermes-cron-scripts/ram_monitor.sh",
+          "reviewed_sha256": "9490a337f969fea9ac91d411b5df0b679d0eb65b7380c19e4a0c904e6d4a81bf"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:53712ee315cdca8e",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/hermes-state-backup.sh",
+          "source": "scripts/hermes-state-backup.sh",
+          "reviewed_sha256": "494b0edb5d1c0dc6605c6ac86045694abb944462578a6191bbe6e11fc84b4f20"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:1d8e3aa705894432",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/capacity_pacing.py",
+          "source": "scripts/capacity_pacing.py",
+          "reviewed_sha256": "d99f6a4d07086f599b9d49d124e241d50d147fa1cfbecffb9f622d40ba8ef102"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:2cd96762aafd957d",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/codex_capacity_alert.py",
+          "source": "scripts/codex_capacity_alert.py",
+          "reviewed_sha256": "411ef6262baedbcb863380034519df8b50127f2442cd6751a473c99e244527a2"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:8164272c29a33ee0",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_evidence_refresh_cycle.py",
+          "source": "scripts/glp_evidence_refresh_cycle.py",
+          "reviewed_sha256": "c1a7a73919328f7a40de2fb80efb80619965a207ff5091f7646e622e65a4f2bf"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:b20e35a8c762b5d3",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/linear_audit.py",
+          "source": "scripts/linear_audit.py",
+          "reviewed_sha256": "39f17781c5b42c5dcfebec442817d2ac84196e702e2e6adf64c81b3c8a7b0a19"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:b17e6334e5153805",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/browser_session_reaper.py",
+          "source": "scripts/browser_session_reaper.py",
+          "reviewed_sha256": "3ccd1716662e21a3d12b3d50cc8ade8862934b0b096234ea8f94d1965fd924c8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:d60fc46ae91918af",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_topic_supply_bridge.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:22fd4a63eab08507",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:607efe4379607b3f",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:05019eb4240f6873",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:cc54f4c39cb8b381",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:f0219aaec58dd4ba",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:d7188459ee65110e",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
+          "source": "scripts/glp_analytics_brain_cadence.py",
+          "reviewed_sha256": "30848ce684f7eee7f0136c93801cd315f27fd6cdad86156d3ee1aca18f7528f8"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:64c68a0e3cd4a5d4",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_weekly_seo_control.py",
+          "source": "scripts/glp_weekly_seo_control.py",
+          "reviewed_sha256": "5a52510eab2b5cf98fa198a6cc1aa78a66ef137f59265bdcf67121cbad9f5260"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:f6ca8866839295ce",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_sheet_sync_drain.py",
+          "source": "scripts/glp_sheet_sync_drain.py",
+          "reviewed_sha256": "c5ce505c501724d17381b50dd85e2389ec36b4310e17067f80a714522ac7f9a1"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:984ae390ce31fbc5",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_sheet_vs_site_reconciler.py",
+          "source": "scripts/glp_sheet_vs_site_reconciler.py",
+          "reviewed_sha256": "d3aae9ee3313fdd7319e74205a02e361765a095451fb0b0315bb7ff0e00df682"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:60b69e957b1a4141",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/error-fixer/daily_ops_review.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:daf0c212391b0319",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_pricing_refresh.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:67865b135a6e0d6c",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_onboarding_manifest.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:c7d5291723b30532",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/article_carrier_run.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:c88dfe0480277c8d",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
+          "source": "scripts/glp_ads_three_platform_monitor.py",
+          "reviewed_sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:a2b8908d27dbead6",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
+          "source": "scripts/glp_ads_three_platform_monitor.py",
+          "reviewed_sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:58e3725ef908e358",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/runner.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:50cc1ce2cf00bed7",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_three_engine_telemetry.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:1ccf1a2ae3661dde",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_ports_sheet/inbox_mirror.py",
+          "source": "scripts/cron_ports_sheet/inbox_mirror.py",
+          "reviewed_sha256": "6009dbe2a59a1145ac1cc986d80e5133974eaeb2fd0bf757611021760ab264e6"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:26511b0d7a2227be",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_ports_sheet/applications.py",
+          "source": "scripts/cron_ports_sheet/applications.py",
+          "reviewed_sha256": "a64d02d4e07bc2cc7972ae8a7955d4d849018d8dc1f35275999be8d41e487449"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:4cf416dad81d167c",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_ports_sheet/approval_watch.py",
+          "source": "scripts/cron_ports_sheet/approval_watch.py",
+          "reviewed_sha256": "d8286fde1e415e88c2a7e1c757c7da6d63ef250ba2d4331f832013b13c229448"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:dc2d7aabbcbdea0a",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_research_autowire.py"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:f0fd03c722a87537",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_ports_sheet/program_liveness.py",
+          "source": "scripts/cron_ports_sheet/program_liveness.py",
+          "reviewed_sha256": "ac2836d8f7c5ea4d0e84f7bf067e80ca956233756f0b24af10d23b6aa241cbbd"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:7641c59994f4af1f",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_ports/fleet_sentinel.py",
+          "source": "scripts/cron_ports/fleet_sentinel.py",
+          "reviewed_sha256": "466ac7756845d46c428f790349347b0076dbbbfebc5e8170dd9d057dd70d1e35"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "crontab:20bfff2f96eeda91",
+      "surface": "crontab",
+      "sources": [
+        {
+          "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
+          "source": "scripts/cron_bridge_action.py",
+          "reviewed_sha256": "64b566fba444c3e0af316d7394680a9539bd875c3654c863e721281e1d47b3d6"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/decisions_router.py",
+          "source": "ops/decisions_router.py",
+          "reviewed_sha256": "1cb48c8ceb8306bf18fdf86a8acca18635e1a7c75129e47cc446590f63c8b31f"
+        }
+      ],
+      "payloads": []
+    },
+    {
+      "id": "6b4baa232362",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/kael_ops_standup.sh",
+      "source": "ops/hermes-cron-scripts/kael_ops_standup.sh",
+      "reviewed_sha256": "72c8af2efc499873ce4efe4d6d75ae148042d967981dbe7ee376c206ac7ac029",
+      "payloads": []
+    },
+    {
+      "id": "020bcdd7f0e1",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/weekly_strategy_review_gate.py",
+      "source": "ops/hermes-cron-scripts/weekly_strategy_review_gate.py",
+      "reviewed_sha256": "484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e",
+      "payloads": []
+    },
+    {
+      "id": "167be2b70817",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/codex_gate_watchdog.py",
+      "source": "ops/hermes-cron-scripts/codex_gate_watchdog.py",
+      "reviewed_sha256": "62bce6009b2a319fabf69f7910a6d8147a19a099ce881b2ff00ff2932851b6df",
+      "payloads": []
+    },
+    {
+      "id": "50af51572594",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_scout_ops_gmail_monitor.py",
+      "payloads": []
+    },
+    {
+      "id": "0243de69595a",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_reply_monitor.py",
+      "payloads": []
+    },
+    {
+      "id": "4b6311c3b720",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_cadence_runner.py",
+      "payloads": []
+    },
+    {
+      "id": "4e7632e59067",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_first_touch_runner.py",
+      "payloads": []
+    },
+    {
+      "id": "275614f2ea1a",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_inbound_monitor.py",
+      "payloads": []
+    },
+    {
+      "id": "f53c4320c66d",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_refill_guard.py",
+      "payloads": []
+    },
+    {
+      "id": "a732f42c657b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_refill_runner.py",
+      "payloads": []
+    },
+    {
+      "id": "cc231cba7ebe",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_ads_optimizer_gate.py",
+      "payloads": []
+    },
+    {
+      "id": "73f19edeaad3",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_clinic_partner_daily_health_report.py",
+      "payloads": []
+    },
+    {
+      "id": "b86ec8937c20",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py",
+      "source": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+      "reviewed_sha256": "d652c1d7bd3b6968af117d36ebbdd39ce119aa6c9b0fcadb0f0fd79191370dc9",
+      "payloads": []
+    },
+    {
+      "id": "571c0284d590",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/state_guard_watchdog.py",
+      "source": "ops/hermes-cron-scripts/state_guard_watchdog.py",
+      "reviewed_sha256": "1768fca2272f1b009f8bfce45dbac32e4fe723c03d1bfc70f5fc14aff12796c2",
+      "payloads": []
+    },
+    {
+      "id": "4731091d0d7c",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/cron_scope_guard.py",
+      "source": "ops/hermes-cron-scripts/cron_scope_guard.py",
+      "reviewed_sha256": "ba2993316fb0799b5b8fb21bb5c2afc96e7daddd82b7b4e21c5fcaadcbdbe0e2",
+      "payloads": []
+    },
+    {
+      "id": "361906b756da",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/session_bloat_watchdog.py",
+      "source": "ops/hermes-cron-scripts/session_bloat_watchdog.py",
+      "reviewed_sha256": "dce105790b73b191e903ccac244aabf9201b3da798135165f7b520c8a97b89d7",
+      "payloads": []
+    },
+    {
+      "id": "251df3f23a01",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_google_approval_activator.py",
+      "payloads": []
+    },
+    {
+      "id": "3c4c3c075554",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_google_ads_spend_guard.py",
+      "source": "ops/hermes-cron-scripts/glp_google_ads_spend_guard.py",
+      "reviewed_sha256": "297623b74ceeae0969ecdbcf8f8e40e3ad2f87417c25f53231a4f7844fe2fe8d",
+      "payloads": []
+    },
+    {
+      "id": "b316c6df82b0",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/loom_guard_events_poller.py",
+      "source": "ops/hermes-cron-scripts/loom_guard_events_poller.py",
+      "reviewed_sha256": "a0ea36922f2e9bd54e8369395e756fb2682ac69c88d46306c3df3179b3df3c5b",
+      "payloads": []
+    },
+    {
+      "id": "69a28f878ce3",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/f13_growth_retention.py",
+      "source": "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py",
+      "reviewed_sha256": "5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797",
+      "payloads": []
+    },
+    {
+      "id": "3c79a0b5f7b2",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/inbox_control_plane_cron.py",
+      "source": "ops/hermes-cron-scripts/inbox_control_plane_cron.py",
+      "reviewed_sha256": "cf8ebde12014e28cf1cf176d2b272ad72d6d76b4dac3d2173c4995157d120594",
+      "payloads": []
+    },
+    {
+      "id": "169f77ee8b30",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/shared_email_flow_scheduler.py",
+      "source": "ops/hermes-cron-scripts/shared_email_flow_scheduler.py",
+      "reviewed_sha256": "58492a76146acd81c50b053aae8f2424af387eaa9da15d0846bffd715cdacd7f",
+      "payloads": []
+    },
+    {
+      "id": "0d734f16c0e9",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_g6_weekly_traction_report.sh",
+      "source": "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh",
+      "reviewed_sha256": "29692f247224b472ddb047719dea215fe5b239521e29f67b69e03a51b380bf17",
+      "payloads": []
+    },
+    {
+      "id": "ce7dbf4a797b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/higgsfield_auth_keepalive.py",
+      "source": "ops/hermes-cron-scripts/higgsfield_auth_keepalive.py",
+      "reviewed_sha256": "975ed46fcbd22f588b4b41293d289cc45ce42c7f8769052ce771202774b479ae",
+      "payloads": []
+    },
+    {
+      "id": "b0c800751b88",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_approval_reconciler.sh",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_approval_reconciler.sh",
+      "reviewed_sha256": "090e1b54a1d8f6dd66a3b95584db2f889b2163582a2ac9e45f33ad78a915e8a3",
+      "payloads": []
+    },
+    {
+      "id": "42391e23a232",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_observability_collect.sh",
+      "payloads": []
+    },
+    {
+      "id": "921b9414282a",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/process_glp_go1_decision.sh",
+      "payloads": []
+    },
+    {
+      "id": "60a51184ee92",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/run_glp_wave2_when_ready.py",
+      "payloads": []
+    },
+    {
+      "id": "11c5c918c395",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/synthesize_glp_wave1_audit_when_ready.py",
+      "payloads": []
+    },
+    {
+      "id": "4deda0872933",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_weekly_report_only.py",
+      "payloads": []
+    },
+    {
+      "id": "1367d82d1a6e",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_link_rot.py",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_link_rot.py",
+      "reviewed_sha256": "356efb6da1d4db0373ce16c4847a6bf0caf2b8cb4df645f5482b89cc3e8b7fab",
+      "payloads": []
+    },
+    {
+      "id": "f0c6a95a371c",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh",
+      "reviewed_sha256": "119fdf2c23d748888cf29e6449e4e7a149826141213e944e38ea8a1e122b0e6d",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_affiliate_reconciliation_honesty.py",
+          "sha256": "f91595edee8f8cc8d0fd0e31039cdc2fdc523fa333e4750b7d0daf3dc49d86d3",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_wire_in_ready_queue.py",
+          "sha256": "365f18241f4d1ada26a2f691179b0a553dd9131ad1cdfba7315d4de1aabc9bce",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_affiliate_link_rails.py",
+          "sha256": "7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd58b30c6c70d6",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/affiliate_provider_row_scope.py",
+          "sha256": "4c2eb769723efbde2c7cb6fcb5f5bd7da2b236333dc1376098cd08056db4af90",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py",
+          "sha256": "f2fb762ae12930de69bd5be1d6c85806f8d192f32e48d00cfe1526d07903eb8c",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/affiliate_provider_metadata.py",
+          "sha256": "b41ccfc51bc6d9def1466e6d37d9a326010b3ab16dc35c2a7ab6275bad0c20c4",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/Q41/candidate/actual-evidence/FIT-MANIFEST-678.json",
+          "sha256": "7bb77dfded7f0c34c849f6a286d19cef17e377405f8176a4e02bc8af3b877a81",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh"
+        }
+      ]
+    },
+    {
+      "id": "b8948c536d31",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_daily_article_carrier.py",
+      "payloads": []
+    },
+    {
+      "id": "bb577641ebd9",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/process_partner_info_replies_watchdog.sh",
+      "source": "ops/hermes-cron-scripts/process_partner_info_replies_watchdog.sh",
+      "reviewed_sha256": "9e4933fc48b1b2a232308b560f446120dc2f84ea334df2ed4237eca1685ebaf6",
+      "payloads": []
+    },
+    {
+      "id": "419c6ade4e69",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/swap_pressure_guard.sh",
+      "source": "ops/hermes-cron-scripts/swap_pressure_guard.sh",
+      "reviewed_sha256": "adb0ea09b18020444e31af06c1305c2aee22c82bc5512e210a4cce4aaed29e63",
+      "payloads": []
+    },
+    {
+      "id": "a8bd5651f1d8",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_backrun_daily.sh",
+      "source": "ops/hermes-cron-scripts/affiliate_backrun_daily.sh",
+      "reviewed_sha256": "344f0abfb43719cc076274367bd5e9e7f977391a8bc6e3d6b29d29f26a828ac9",
+      "payloads": []
+    },
+    {
+      "id": "2dd6ae1a4db9",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_auto_apply_daily.sh",
+      "payloads": []
+    },
+    {
+      "id": "50afe4815612",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_weekly_outward_strategy_registered.py",
+      "payloads": []
+    },
+    {
+      "id": "8f9ed1204f03",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/opus_autopilot_cron.sh",
+      "payloads": []
+    },
+    {
+      "id": "f3d2db07d83f",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/f12_generator_archiver.py",
+      "source": "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py",
+      "reviewed_sha256": "e1bdddb158f7c5d66e325c12099a4ad0a90d53ecb27b513ecf1b7f8fd9c37633",
+      "payloads": []
+    },
+    {
+      "id": "583daf76f49b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_deploy_completeness_sensor_daily.sh",
+      "source": "ops/hermes-cron-scripts/glp_deploy_completeness_sensor_daily.sh",
+      "reviewed_sha256": "599acc395458a08e0f41517b264c0b5d0c2f2150bd8dbd74bfc5c1bb199006b1",
+      "payloads": []
+    },
+    {
+      "id": "58202b06bdc0",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_discovery_daily.sh",
+      "source": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+      "reviewed_sha256": "2525bbb73f290ee8242c72d5800cd781f5dc50a4286fbb8f580d2e4b03616ab4",
+      "payloads": []
+    },
+    {
+      "id": "ecbe6fdc0163",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_sweep_daily.sh",
+      "source": "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh",
+      "reviewed_sha256": "356ed9ffed0d5feed7477d05d6bd7214f0767d3f65c420bb86f668704ca2ac9c",
+      "payloads": []
+    },
+    {
+      "id": "52e2014a9579",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_awin_portal_drain_cron.py",
+          "sha256": "23b25d5520dd56120dc5007049fb7d844023bbd2749067111fc71569dc5bb8ae",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/sha256sum",
+          "sha256": "4d2db56c867e5324e0084c9e897f6360d37517de77ac96f2bd31494223d69a60",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/readlink",
+          "sha256": "4c6117ae99adf14e90ee49c860ca6f827db657423d0d0b3e4f6eb29d39daebe0",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/date",
+          "sha256": "7d870c845fe650dffb1f55f3db9233a1815213de3f4d1db5d0c2af06c2d22752",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/chmod",
+          "sha256": "636dc2e0792244a537121ec10b6e140797cb8d27d231f5c1d025148d1b0c6fc8",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/flock",
+          "sha256": "e619344dc3eec4023498465679262f9ca27d1e8cef9cfc4c1ae72b428577b806",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        },
+        {
+          "path": "/usr/bin/systemd-run",
+          "sha256": "dbc8b988a849d5c9d7ef2de7068a6f107021bc6c11e0d7864c73f373eef726a7",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_portal_apply_daily.sh"
+        }
+      ]
+    },
+    {
+      "id": "ef70059fa85b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_daily_report_cron.sh",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_daily_report_cron.sh",
+      "reviewed_sha256": "29d62f97fc519352d5cfa04ea140000df8e5ac044ef26cbfe4808ef06400d969",
+      "payloads": []
+    },
+    {
+      "id": "567f20134cc2",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh",
+      "source": "ops/hermes-cron-scripts/glp73-predecessors/glp_price_index_weekly.sh",
+      "reviewed_sha256": "5e7e4c67ed1d4a514a7776403eb7a7f87450740bb6074b22a81cf2c943b69522",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/ops/claude_model_policy.py",
+          "sha256": "06d925636b5d25e21ed2e1ed34184cb482d40400e10ae1869fd3eb4b24f8f8e4",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/discord_fmt.py",
+          "sha256": "e6e0ed7231282b2f222a435d8879ca22cfe2317900f6cbb122f48a83e9263acc",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/glp/seo_business_context.py",
+          "sha256": "ba5d96812d06c08fb828bb87523894f8898f21a1ad8e58fffb3450c66d54ea44",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/glp/seo_data_rails.py",
+          "sha256": "5b2ad3984df46ef1d66c855f0fb23ca6b3780f51223c45e88a044be854c20386",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_bing_fast_index.py",
+          "sha256": "63780813af20a5670fd7587484f98dc23dc6c60376d6b308539c26c8b1f11017",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_current_content_base_schema.py",
+          "sha256": "a2a65183b8f501213e9f03730a64101e141c79c43035009a7bf7b28c0a676e46",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_deploy_completeness_sensor.py",
+          "sha256": "3beabf18de1c04f08bed54d638626c4aabd842ce417a85bab969a2079ae1d99c",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_deploy_sensor_hook.py",
+          "sha256": "5e8b2cb133a476a6b42fe2ff0ce0fd7bb21100563e783532022b5d246c7323fb",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_indexnow_changed_set.py",
+          "sha256": "19395be174d77c1bb39f1b020c8d9dc137ecfc0f57ae59db5f92c30723c4c668",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_llms_txt_gate.py",
+          "sha256": "85885f37baafd09494439a3108fdaa11148170a82d327fb04694ef448c5b0666",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_price_index_recovery.py",
+          "sha256": "20d84ddc3f27eb18aba86de11d80177ca66ad46b5059ca3ed816beac04300ef9",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_price_index_weekly.py",
+          "sha256": "0f5d99182b376526fb6ff4fbf420c0c9c3868996359127c367729bd31f235105",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_price_index_weekly_successor.py",
+          "sha256": "d70510d518021e1da9f5a8987b2b11ff0942425920aaaa5c036d3879fb91f241",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_robots_gate.py",
+          "sha256": "8086732046b456893c7c5757171a6f86f21c337b6df3d59f35d3ed71b0ffa3e1",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_served_test_contract.py",
+          "sha256": "7b08da73ffed67dbac6545aa14ced5fdb67b6167797b017bd6b4fe08611f1234",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_sitemap_lastmod_gate.py",
+          "sha256": "061c01d7cf60903040d929bde9b7ee0e1521ee4ec5ad5b9d0a242913440b3321",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/site_tree_materializer.py",
+          "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/accepted_failure_contract.py",
+          "sha256": "42b8b2c82c6663cca3aa9d57f05c526a9046f880874a1f404ad8e3e76b79463e",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/analytics_feedback.py",
+          "sha256": "b856ffdfd94f395333b56f7f6d6401fbbda1ff137a680907144919c0d652f74f",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/article_image_release_contract.py",
+          "sha256": "911aaabbd62bc901a420cb8eae2c4cb2edac52834fc9b067720a44ae846297fa",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/article_images.py",
+          "sha256": "76f1582c0cd3d0fb652bc9760fd21dc9561da562f77781887ac5c2dbb67a2f3a",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/build_opus_article_release.py",
+          "sha256": "5398096b79f89556ce26a93c3a10160a5fdd329ec67a6993b9d5475eb688e287",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/carrier_fixture_contracts.py",
+          "sha256": "125a4b5b2067074a9f21f0aac2ac98145c3e3b9e6bfa3ac06b5585b4353007e9",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/carrier_lock.py",
+          "sha256": "10e90004795c150b1a459f78b34b990d96494cf75c923e35dfd33e348ca4c9cf",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/current_content_base.py",
+          "sha256": "841e7f4330f6ee435d3b0f1ab551cf789bc2f0b3e5cf47deca4190c2ca98588c",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/defect_remediation.py",
+          "sha256": "dcbf7dd9094e1bbd1dc9c46fea6183e6713aea9e2b7424f78b75f116f9ff6abe",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/deterministic_qa_repair.py",
+          "sha256": "10b2e9f76c386839917da5760b23fc013007ce8657ed8fbf1d236aa83ac1b380",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/existing_article_updates.py",
+          "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/gpt_image_2_native.py",
+          "sha256": "3ed62995e892457a5123fd48c361cad6d76253f701d5f934f69428b91dc35d18",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/machine_config.py",
+          "sha256": "76d04a30fdca5183f7788cc9f29b1408999cd5f9fb9a3d09b59392c5489fe0d4",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/materialize_opus_run.py",
+          "sha256": "1b6600045de75c1600b7b0fe11f93e128318beb6e657d4b69d572f654fd0a165",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/r2_execution_control.py",
+          "sha256": "eea97573c0c269aa6092b57300bb86fe196d00c28b5181e5f080f476d53f93cc",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/r2_update_carrier.py",
+          "sha256": "5b831b9f3318b97b892d96700a62a9684c2844555ff1b7af04bfa6460bf37d71",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/remint_content_base.py",
+          "sha256": "020eee1b281e9638b0e74b1f8f46ff32b30dfd6b342c2ff78ce27c48f2438b35",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/review_transports.py",
+          "sha256": "021f6bc70925160b88a1a71d3bb3f7162e203360bfc99a85e16cec712203d1ad",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/selection_receipt.py",
+          "sha256": "ab0f9a18484fdb3c4e62c3b7e835cf4aa63954f8a79fec7a5c7a68be12eac301",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/systems/seo-blog-machine/scripts/topic_feed.py",
+          "sha256": "bc1691c3934dd3b0dd0cc1e926a05b08ecd945696e927c765350077eadc1bd50",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_price_index_weekly.sh"
+        }
+      ]
+    },
+    {
+      "id": "de3fec71cd2e",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_digital_pr_weekly_cron.py",
+      "source": "ops/hermes-cron-scripts/glp_digital_pr_weekly_cron.py",
+      "reviewed_sha256": "33dc00f0b53397086efa92bc75ac7fa34fd8c5f872861eac967f16f58d06b03a",
+      "payloads": []
+    },
+    {
+      "id": "a782df6fad1d",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_daily_article_watchdog.py",
+      "source": "ops/hermes-cron-scripts/glp_seo_daily_article_watchdog.py",
+      "reviewed_sha256": "41c29890950aed734897245be7e17d39c811df3d2c4b611cd71620e3a51fb309",
+      "payloads": []
+    },
+    {
+      "id": "8ecc8499748f",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_reddit_daily_scout_wrapper.sh",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_reddit_daily_scout.py",
+          "sha256": "4f05255287f614fbb6e37eafb9a8f0bb1a3d60f83ec64b54097ae893f7f44443",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_reddit_daily_scout_wrapper.sh"
+        }
+      ]
+    },
+    {
+      "id": "7a269c665b12",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/awin_auth_liveness_preflight.sh",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_awin_portal_drain_cron.py",
+          "sha256": "23b25d5520dd56120dc5007049fb7d844023bbd2749067111fc71569dc5bb8ae",
+          "owner": "/home/ubuntu/.hermes/scripts/awin_auth_liveness_preflight.sh"
+        },
+        {
+          "path": "/usr/bin/sha256sum",
+          "sha256": "4d2db56c867e5324e0084c9e897f6360d37517de77ac96f2bd31494223d69a60",
+          "owner": "/home/ubuntu/.hermes/scripts/awin_auth_liveness_preflight.sh"
+        }
+      ]
+    },
+    {
+      "id": "6b90e90e3347",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_article_publish_notifier.py",
+      "source": "ops/hermes-cron-scripts/glp_article_publish_notifier.py",
+      "reviewed_sha256": "313c89e63d62234249514a73482b7269e9e92df4ae6fefa56a648348cbac1535",
+      "payloads": []
+    },
+    {
+      "id": "dc3649d3c84c",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_relationship_hygiene_daily.sh",
+      "source": "ops/hermes-cron-scripts/glp_relationship_hygiene_daily.sh",
+      "reviewed_sha256": "353e382af382dd7535aab4cba9a65fd875d0ca3c367473b12ca13e4719649491",
+      "payloads": []
+    },
+    {
+      "id": "5a2cba16e057",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_multi_network_portal_apply_daily.sh",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/portal_apply.py",
+          "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_multi_network_portal_apply_daily.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/portal_lane.py",
+          "sha256": "ef9b477d0a658148227bb69e6a1ed5df6d626a080511669553a2638ff7821b69",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_multi_network_portal_apply_daily.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/_base.py",
+          "sha256": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_multi_network_portal_apply_daily.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/affiliate_multi_network_portal_apply_card.py",
+          "sha256": "9a5ab9d178f49eae6b622c88774261e66b1c55e472263643d38ff909724eac29",
+          "owner": "/home/ubuntu/.hermes/scripts/affiliate_multi_network_portal_apply_daily.sh"
+        }
+      ]
+    },
+    {
+      "id": "d4047c17de28",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/affiliate_site_evidence_daily.sh",
+      "payloads": []
+    },
+    {
+      "id": "dad2f4bebbb4",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_weekly_self_report.sh",
+      "payloads": []
+    },
+    {
+      "id": "76de44046a9b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh",
+      "source": "ops/hermes-cron-scripts/glp_seo_publish_failure_alert_cron.sh",
+      "reviewed_sha256": "bc11df966517025e109519d2840ea24ca4eadfdb9f7c5c339ccd455afe6751a2",
+      "payloads": []
+    },
+    {
+      "id": "777ee08cf53b",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/daily_outcome_cards_cron.sh",
+      "source": "ops/hermes-cron-scripts/daily_outcome_cards_cron.sh",
+      "reviewed_sha256": "4c0bae63f07fcb9e98388f3bfade6eee3612d76a701e488a264044de679ecfcc",
+      "payloads": []
+    },
+    {
+      "id": "f80f1b899380",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_seo_topic_supply_registered.sh",
+      "payloads": []
+    },
+    {
+      "id": "eb6a4b2a47a3",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/business_output_health_cron.sh",
+      "source": "ops/hermes-cron-scripts/business_output_health_cron.sh",
+      "reviewed_sha256": "294fb8147b59d605c3f9800f4aefd0c10bd9773d268878c68737b9f597ab6f5a",
+      "payloads": []
+    },
+    {
+      "id": "0a655008af3c",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_awin_drain_sheet_queue.sh",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_awin_drain_sheet_queue.py",
+          "sha256": "72a5207869a4ac94f4a9499dc0e8f760997c79dd23bd8cbd4549a88bc1236778",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_awin_drain_sheet_queue.sh"
+        }
+      ]
+    },
+    {
+      "id": "f61e5f029743",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_blocker_ack_ingest.sh",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_blocker_ack_ingest.sh",
+      "reviewed_sha256": "ec654c9cba8443c075599945ceaef350b66d334c5123d671179dfbf7411f35fd",
+      "payloads": []
+    },
+    {
+      "id": "113e1599dbbb",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_article_image_health.sh",
+      "source": "ops/hermes-cron-scripts/glp_article_image_health.sh",
+      "reviewed_sha256": "337c50438585491518b339309b8d331f0d357c488fabfc275ba1dae1973bdc1b",
+      "payloads": []
+    },
+    {
+      "id": "075ed81c6b43",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/host_disk_pruner.py",
+      "source": "ops/hermes-cron-scripts/host_disk_pruner.py",
+      "reviewed_sha256": "7d469fb2305cdb5bfc742b25e8681df73b3a7dbe4b385b18b54e10de8fd379d2",
+      "payloads": []
+    },
+    {
+      "id": "f918ef069c4a",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/cgroup_headroom_guardian.py",
+      "source": "ops/hermes-cron-scripts/cgroup_headroom_guardian.py",
+      "reviewed_sha256": "4a137a9081b5b42cef5422690dc3214015f5359d99df3b7b093c3e97ffe5b6a2",
+      "payloads": []
+    },
+    {
+      "id": "d5d5b954f303",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_best_terms_weekly.py",
+      "source": "ops/hermes-cron-scripts/glp_best_terms_weekly.py",
+      "reviewed_sha256": "59f3789b072511029f0c2b11358b05e1e393613c04a2fc077b75b04e34c230be",
+      "payloads": []
+    },
+    {
+      "id": "89cd7b766dba",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_maxbounty_capacity_resume.sh",
+      "source": "ops/hermes-cron-scripts/glp_maxbounty_capacity_resume.sh",
+      "reviewed_sha256": "b0e7d2770fcc5918aa5eaeef122bbede96caee8e68c28fa233bbcb7349215222",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.py",
+          "sha256": "a80092bb830a68931383f5819ecb81b0fc726ff69d4583cb02d7d3bf63c22f73",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_maxbounty_capacity_resume.sh"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/__init__.py",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/n8n_dt.py",
+          "sha256": "3c029b4441de0928dca4294077c9a351b4c3b17d50969cc3b4ee84ffbce5569c",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/__init__.py",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.py",
+          "sha256": "a80092bb830a68931383f5819ecb81b0fc726ff69d4583cb02d7d3bf63c22f73",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_maxbounty_fresh_probe.py",
+          "sha256": "bbfca936af93758ec6f2cf5c9a1f146810b4b48d4e21d969b1d3deb32ed8356a",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/__init__.py",
+          "sha256": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/_base.py",
+          "sha256": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/maxbounty.py",
+          "sha256": "2928cdda48370e4bcce686f6d5180c10533c43d7fac76f1308afeb6d45e21e93",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/maxbounty_discovery.py",
+          "sha256": "853e7cb8f16856d570d9f842a29a500d61cf1258387207d2c678406d3b72268e",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/marketplace_adapters/portal_lane.py",
+          "sha256": "ef9b477d0a658148227bb69e6a1ed5df6d626a080511669553a2638ff7821b69",
+          "owner": "/home/ubuntu/business/scripts/glp_maxbounty_capacity_monitor.pins.json"
+        }
+      ]
+    },
+    {
+      "id": "d5aa912047cf",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_article_carrier_status_recheck.sh",
+      "payloads": []
+    },
+    {
+      "id": "617a6a6ab907",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/subscription_capacity_monitor.py",
+      "source": "ops/hermes-cron-scripts/subscription_capacity_monitor.py",
+      "reviewed_sha256": "98c60b2ef4ab054d3ffd30453ee8e00d413c23a7cc3d68fe89c9a6924bed9e14",
+      "payloads": []
+    },
+    {
+      "id": "ea5bad730e53",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py",
+      "source": "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+      "reviewed_sha256": "b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d9871",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py",
+          "sha256": "d6cd1bd502ce602c6ff7655200a0191a37a95fd06d6b3688ff87134386ee408e",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+          "sha256": "d51b9ea03eddfd72641a4cd79e04d6b76e114e80c645ba6f866a7ca29705d1d1",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json",
+          "sha256": "62bfd7a9fffdae836ace33f6148e3225aa5ebe1be6853e4c0e59d717a402c5dc",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/result_contract.py",
+          "sha256": "fca32b1a7b8b7cacb4d1dcf2be5f11b5c450d3d9db450cf730d9bc01c65519f1",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/briefs/plan/A3-CAMPAIGNS-THREE-PLATFORMS.md",
+          "sha256": "f5d5343f649080b5f949f44d44c726e7102eb81ccb2e65972dcc7fab98e506eb",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
+          "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e",
+          "owner": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-G/offline_extension.py",
+          "sha256": "669e1c35e881c8a5e340e455079c5327d11b53f89cffe075b6b04b897411d227",
+          "owner": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/discord_fmt.py",
+          "sha256": "e6e0ed7231282b2f222a435d8879ca22cfe2317900f6cbb122f48a83e9263acc",
+          "owner": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/microsoft_ads_api.py",
+          "sha256": "5cb798bb9c1416cad6a05aaf378599517629289f099335e66ea082ac2840970e",
+          "owner": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json"
+        },
+        {
+          "path": "/home/ubuntu/business/ops/glp/seo_data_rails.py",
+          "sha256": "aa0be353d3bd08d592a99193117d76d69ea80f828ce0d459d6844d1600506fc4",
+          "owner": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json"
+        }
+      ]
+    },
+    {
+      "id": "a0d5cb0609b9",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/hermes_state_archive_weekly.py",
+      "source": "ops/hermes-cron-scripts/hermes_state_archive_weekly.py",
+      "reviewed_sha256": "036e61bf4476633314254bc16018a3c24220ce57ce4bb408c04ba58e5f3bfeee",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/scripts/hermes_state_archive/archive.py",
+          "sha256": "d00b8e73b0647bc7635d818a6371df871e5eb48ff38cee8b9a2a6637d10853b2",
+          "owner": "/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/hermes_state_archive/weekly.py",
+          "sha256": "a091a3a4d7dbf2b963eebc61a48e8406cbaf6bac30e3c07e4be95fcef25bec24",
+          "owner": "/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/disk_retention.py",
+          "sha256": "c18c9e9a9b4d7cf9aac580a23285637b5916f1e06fdd91796a5405ecfb732321",
+          "owner": "/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json"
+        },
+        {
+          "path": "/home/ubuntu/business/scripts/host_disk_pruner.py",
+          "sha256": "d05c344bc53c6f5b2f198ce1a8e47b38ff0406681942461c0eebbbd08bc42cec",
+          "owner": "/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json"
+        },
+        {
+          "path": "/home/ubuntu/.config/systemd/user/hermes-state-archive-weekly.service",
+          "sha256": "b523fe7a326b413d5c6b33cc38174ba8cc5775fc262c48a4123987dfc08ea3df",
+          "owner": "/home/ubuntu/business/scripts/hermes_state_archive/weekly-pins.json"
+        }
+      ]
+    },
+    {
+      "id": "1ef582b6c7a0",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_evidence_refresh_daily.py",
+      "source": "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py",
+      "reviewed_sha256": "69f22b42cbafb75e4decd50fb02aac67503dea37639e48bb3e30b0881b850d27",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/K3/cadence-candidate/daily_evidence_refresh.py",
+          "sha256": "11e154dfb82af38a5f1db7121b6723959a49c7ca086bc07918e4380c6a9c32a8",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_evidence_refresh_daily.py"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/K3/cadence-candidate/review_evidence.py",
+          "sha256": "b09e35b546459235da30cb9a7a2922e34e4ef0d39d1c1927d48fa6eac79238a6",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_evidence_refresh_daily.py"
+        }
+      ]
+    },
+    {
+      "id": "aadf6677c7f0",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_affiliate_weekly_reporting.sh",
+      "source": "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+      "reviewed_sha256": "2f393f863bfb41bb46254b3b7f6544497bb6a9996757ea21f2abfdb1680d26ca",
+      "payloads": []
+    },
+    {
+      "id": "db3fb99c1044",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/n8n_workflow_registry_sensor.py",
+      "source": "ops/hermes-cron-scripts/n8n_workflow_registry_sensor.py",
+      "reviewed_sha256": "b78245e97243f90655a1a4ca649481f6aefa5be56fb8c700ad6711aaa5e60934",
+      "payloads": []
+    },
+    {
+      "id": "1150a7c03636",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_cron_error_sensor.py",
+      "source": "ops/hermes-cron-scripts/glp_cron_error_sensor.py",
+      "reviewed_sha256": "96fc8619c1fbecfa094748f1030110cfa0dafef7d4ee083d7fcd12f627b8f554",
+      "payloads": []
+    },
+    {
+      "id": "34be1e2cb8e7",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/overnight_continuity_20260926.py",
+      "payloads": []
+    },
+    {
+      "id": "8ed5dd217d4c",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/glp_tui_wake_20260926.py",
+      "payloads": []
+    },
+    {
+      "id": "e6e207d2337a",
+      "surface": "native",
+      "path": "/home/ubuntu/.hermes/scripts/issue97_monitor.py",
+      "payloads": []
+    }
+  ]
+}
