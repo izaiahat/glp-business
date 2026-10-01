@@ -1165,3 +1165,468 @@ class TestResearchCommunication:
             m.research_from_args(parser.parse_args(args[2:]))
         with pytest.raises(ValueError):
             m.research_from_args(parser.parse_args(args + ['--allowed-request-sender', '999']))
+
+
+class TestFinchCommunication:
+    """Approved two-binding reply/artifact lane; real HTTP/REST/CDN code, synthetic peers."""
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path, monkeypatch):
+        from dataclasses import replace
+        import socket
+        self.m = m = module()
+        self.root = tmp_path
+        token_dir = tmp_path / 'tokens'; token_dir.mkdir(mode=0o700)
+        token = token_dir / 'finch.token'; token.write_text('synthetic-finch-token'); token.chmod(0o600)
+        self.dot = m.FinchIdentity('901', '902', '903', token, (m.OPERATOR, m.BOT, m.ROOK_BOT))
+        self.cfg = replace(config(m), audience='https://finch.example/mcp', finch=self.dot)
+        self.cursors = {'901': '100', '902': '200'}
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        jwk = jwt.PyJWK.from_json(jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key()), algorithm='RS256')
+        class Keys:
+            def get_signing_key_from_jwt(_, token): return jwk
+        self.keys = Keys()
+        self.callbacks = []; self.http = []; self.posts = []; self.messages = {}
+        self.raw = b'bounded source evidence\n'; self.cdn = self.raw
+        self.fault = None
+        monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network denied'))
+        monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('bind denied'))
+        monkeypatch.setattr(m, 'load_token', lambda: pytest.fail('Kael credential denied'))
+        monkeypatch.setattr(m, 'callback_target', lambda url:
+            (url.split('/')[2], '8.8.8.8', '/' + url.split('/', 3)[3] if len(url.split('/', 3)) == 4 else '/'))
+        outer = self
+        class Response:
+            status = 200
+            def __init__(_, value, cdn=False): _.value, _.cdn = value, cdn
+            def read(_, limit):
+                data = outer.cdn if _.cdn else json.dumps(_.value).encode()
+                return data[:limit]
+            def getheader(_, name, fallback=None):
+                return {'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': str(len(outer.raw))}.get(name, fallback)
+        class Connection:
+            def __init__(_, host, address): _.host = host; assert address == '8.8.8.8'
+            def request(_, method, path, body=None, headers=None):
+                outer.http.append((_.host, method, path, headers))
+                if _.host != 'discord.com':
+                    assert _.host == 'cdn.discordapp.com' and method == 'GET' and 'Authorization' not in headers
+                    _.response = Response(None, True); return
+                assert headers['Authorization'] == 'Bot synthetic-finch-token'
+                assert path.startswith('/api/v10/channels/')
+                channel = path.split('/')[4]
+                assert channel in outer.dot.channels
+                if method == 'POST':
+                    from email.parser import BytesParser
+                    from email.policy import default
+                    file = None
+                    if headers['Content-Type'].startswith('multipart/'):
+                        parsed = BytesParser(policy=default).parsebytes(
+                            ('Content-Type: ' + headers['Content-Type'] + '\r\n\r\n').encode() + body)
+                        parts = list(parsed.iter_parts()); assert len(parts) == 2
+                        payload = json.loads(parts[0].get_payload(decode=True))
+                        file = parts[1].get_payload(decode=True)
+                        assert file == outer.raw and parts[1].get_filename() == 'notes.txt'
+                    else: payload = json.loads(body)
+                    request_id = payload['content'].split(' · ')[-1]
+                    row = outer.app.store.get('requests', request_id)
+                    assert row['state'] == 'sending' and row['channel_id'] == channel
+                    assert payload['allowed_mentions'] == {'parse': [], 'replied_user': False}
+                    assert payload['flags'] == 4
+                    outer.posts.append((channel, payload, file))
+                    if outer.fault == 'timeout': raise TimeoutError('synthetic ambiguity')
+                    identity = str(500 + len(outer.posts))
+                    value = {'id': identity, 'channel_id': channel, 'author': {'id': outer.dot.bot},
+                             'content': payload['content'], 'attachments': []}
+                    if file is not None:
+                        value['attachments'] = [{'id': '601', 'filename': 'notes.txt', 'content_type': 'text/plain; charset=utf-8',
+                            'size': len(file), 'url': f'https://cdn.discordapp.com/attachments/{channel}/601/notes.txt?backend=b2&ex=aa&is=bb&hm=cc&'}]
+                    if outer.fault == 'author': value['author']['id'] = m.ROOK_BOT
+                    if outer.fault == 'channel': value['channel_id'] = '902' if channel == '901' else '901'
+                    if outer.fault == 'guild': value['guild_id'] = '999'
+                    if outer.fault == 'attachment': value['attachments'][0]['filename'] = 'other.txt'
+                    outer.messages[(channel, identity)] = deepcopy(value)
+                elif '/messages/' in path:
+                    identity = path.split('/')[6]
+                    value = outer.messages.get((channel, identity), {'id': identity, 'channel_id': channel,
+                        'author': {'id': m.OPERATOR}, 'content': 'original', 'attachments': []})
+                else: value = [v for (c, _), v in outer.messages.items() if c == channel][:25]
+                _.response = Response(value)
+            def getresponse(_): return _.response
+            def close(_): pass
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        self.app = m.Application(self.cfg, tmp_path / 'finch-state', auth=m.Authenticator(self.cfg, self.keys), callback=self.callback)
+        yield
+        self.app.close()
+
+    def callback(self, url, body, headers):
+        from standardwebhooks.webhooks import Webhook
+        Webhook(self.secret()).verify(body, headers)
+        value = json.loads(body)
+        self.callbacks.append((url, value))
+        if value.get('name') == 'discord.finch.request.created':
+            row = self.app.store.get('requests', value['data']['request_id'])
+            sub = self.app.store.get('subscriptions', value['subscriptionId'])
+            assert row['state'] == 'ready'
+            assert (row['guild_id'], row['channel_id'], row['message_id']) == (
+                value['data']['guild_id'], value['data']['channel_id'], value['data']['message_id'])
+            assert sub['channel_id'] == row['channel_id']
+            assert self.app.store.get('deliveries', sub['id'] + ':' + row['id'])['state'] == 'attempted'
+        return (200, json.dumps({'challenge': value['challenge']}).encode()) if value.get('type') == 'verification' else (200, b'{}')
+
+    def secret(self): return 'whsec_' + base64.b64encode(b'synthetic-offline-secret-32-bytes!!').decode()
+
+    def http_call(self, method, params=None, **claims):
+        import io
+        m = self.m
+        scopes = 'finch.requests.read finch.replies.write finch.channel.read rook.channel.write research.channel.write'
+        claim = {'iss': self.cfg.issuer, 'aud': self.cfg.audience, 'sub': self.cfg.subject,
+            'iat': int(time.time()), 'exp': int(time.time()) + 600, 'scope': scopes, 'permissions': scopes.split(), **claims}
+        token = jwt.encode(claim, self.key, algorithm='RS256')
+        body = m.canonical(rpc(m, method, params)).encode()
+        class MemorySocket:
+            def __init__(_): _.input = io.BytesIO(raw); _.output = bytearray()
+            def makefile(_, *a): return _.input
+            def settimeout(_, seconds): pass
+            def sendall(_, data): _.output.extend(data)
+        raw = (f'POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nAuthorization: Bearer {token}\r\n'
+            f'MCP-Protocol-Version: {m.VERSION}\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n').encode() + body
+        sock = MemorySocket(); m.make_handler(self.app, {'127.0.0.1:8765'})(sock, ('127.0.0.1', 1), object())
+        head, data = bytes(sock.output).split(b'\r\n\r\n', 1)
+        return int(head.split()[1]), json.loads(data)
+
+    def call(self, name, arguments, **claims): return self.http_call('tools/call', {'name': name, 'arguments': arguments}, **claims)
+
+    def subscribe(self, channel, url='https://callback.example/events'):
+        status, body = self.http_call('events/subscribe', {'name': 'discord.finch.request.created',
+            'arguments': {'guild_id': self.m.GUILD, 'channel_id': channel},
+            'delivery': {'mode': 'webhook', 'url': url, 'secret': self.secret()}})
+        assert status == 200 and 'error' not in body, body
+        return body['result']['id']
+
+    def event(self, identity='301', channel='901', author=None, content='<@903> bounded assignment', **extra):
+        return {'t': 'MESSAGE_CREATE', 'd': {'id': identity, 'guild_id': self.m.GUILD, 'channel_id': channel,
+            'type': 0, 'author': {'id': author or self.m.OPERATOR}, 'content': content, **extra}}
+
+    def args(self, identity='301', file=True):
+        return {'request_id': 'discord-' + identity, 'text': 'answer', **({'file': {'filename': 'notes.txt',
+            'content_type': 'text/plain', 'content_base64': base64.b64encode(self.raw).decode()}} if file else {})}
+
+    def ready(self, identity='301', channel='901'):
+        self.subscribe(channel)
+        assert self.app.ingest(self.event(identity, channel), self.cursors) == 1
+
+    def reopen(self):
+        self.app.close()
+        self.app = self.m.Application(self.cfg, self.root / 'finch-state', auth=self.m.Authenticator(self.cfg, self.keys), callback=self.callback)
+
+    def test_exact_two_identity_bindings_and_cli_inputs(self):
+        from dataclasses import replace
+        import argparse
+        for delta in ({'private_channel': '01'}, {'shared_channel': '901'}, {'shared_channel': self.m.CHANNEL},
+            {'bot': self.m.ROOK_BOT}, {'token_path': 'relative'}, {'allowed_senders': (self.m.OPERATOR,)},
+            {'allowed_senders': (*self.dot.allowed_senders, '999')}, {'guild': '999'}):
+            with pytest.raises(ValueError): replace(self.dot, **delta)
+        parser = argparse.ArgumentParser(); self.m.add_research_arguments(parser)
+        args = ['--profile', 'finch', '--finch-channel', '901', '--dots-shared-channel', '902', '--finch-bot', '903',
+            '--finch-token-path', str(self.dot.token_path)]
+        for sender in self.dot.allowed_senders: args.extend(['--allowed-request-sender', sender])
+        assert self.m.finch_from_args(parser.parse_args(args)) == self.dot
+        assert self.m.research_from_args(parser.parse_args(args)) is None
+        for invalid in (['--profile', 'finch'], args[2:], args + ['--research-channel', '904']):
+            with pytest.raises(ValueError): self.m.finch_from_args(parser.parse_args(invalid))
+        with pytest.raises(ValueError): replace(self.cfg, research=self.m.ResearchIdentity('904', '905', self.root / 'other.token', self.dot.allowed_senders))
+
+    def test_identity_bound_state_and_legacy_policy_hashes(self):
+        from dataclasses import replace
+        self.app.close()
+        for cfg in (config(self.m), replace(self.cfg, finch=replace(self.dot, shared_channel='904')),
+            replace(self.cfg, finch=replace(self.dot, private_channel='905')), replace(self.cfg, finch=replace(self.dot, bot='906')),
+            replace(self.cfg, finch=replace(self.dot, token_path=self.root / 'other.token')),
+            replace(self.cfg, issuer='https://other.example/'), replace(self.cfg, audience='https://other.example/mcp'),
+            replace(self.cfg, subject='auth0|other')):
+            with pytest.raises(ValueError, match='state identity'): self.m.Application(cfg, self.root / 'finch-state', auth=object())
+        self.app = self.m.Application(self.cfg, self.root / 'finch-state', auth=self.m.Authenticator(self.cfg, self.keys), callback=self.callback)
+        legacy = config(self.m)
+        assert legacy.policy_fields() == {'issuer': legacy.issuer, 'audience': legacy.audience, 'subject': legacy.subject}
+        research = self.m.ResearchIdentity('904', '905', self.root / 'research.token', self.dot.allowed_senders)
+        assert replace(legacy, research=research).policy_fields() == {**legacy.policy_fields(), 'identity': research.policy_fields()}
+
+    def test_discovery_only_two_tools_and_direct_forbidden_dispatch(self):
+        _, body = self.http_call('tools/list')
+        tools = body['result']['tools']
+        assert [t['name'] for t in tools] == ['reply_to_finch_request', 'read_finch_messages']
+        assert 'file' in tools[0]['inputSchema']['properties'] and 'channel_id' not in tools[0]['inputSchema']['properties']
+        assert tools[1]['inputSchema']['required'] == ['channel_id']
+        for name in ('discord_api', 'github_pr_comment', 'send_rook_message', 'read_rook_file', 'create_rook_thread',
+            'set_rook_reaction', 'reply_to_research_request', 'send_finch_message', 'read_finch_file'):
+            status, result = self.call(name, {})
+            assert status == 200 and result['error']['message'] == 'ToolNotAllowed'
+        assert not self.http and not self.posts
+        _, body = self.http_call('events/list')
+        assert body['result']['events'][0]['inputSchema']['properties']['channel_id']['enum'] == ['901', '902']
+
+    def test_auth_http_subject_resource_scope_and_rbac_fail_closed(self):
+        for delta in ({'aud': 'https://other.example/mcp'}, {'iss': 'https://other.example/'},
+            {'sub': 'auth0|other'}, {'exp': 1}):
+            assert self.call('read_finch_messages', {'channel_id': '901'}, **delta)[0] == 401
+        for delta in ({'scope': 'rook.channel.read', 'permissions': ['rook.channel.read']},
+            {'permissions': []}, {'scope': 'finch.requests.read', 'permissions': ['finch.channel.read']}):
+            assert self.call('read_finch_messages', {'channel_id': '901'}, **delta)[0] == 403
+        assert not self.http
+        metadata = self.app.handle('GET', '/.well-known/oauth-protected-resource/mcp', {}, None)[2]
+        assert set(metadata['scopes_supported']) == {'finch.requests.read', 'finch.replies.write', 'finch.channel.read', 'offline_access'}
+
+    def test_subscriptions_are_per_channel_no_private_shared_forwarding(self):
+        private = self.subscribe('901'); shared = self.subscribe('902')
+        assert private != shared and len(self.app.store.all('subscriptions')) == 2
+        for channel, sub in (('901', private), ('902', shared)):
+            assert self.app.store.get('subscriptions', sub)['channel_id'] == channel
+            assert self.app.ingest(self.event('301' if channel == '901' else '302', channel), self.cursors) == 1
+        events = [v for _, v in self.callbacks if v.get('type') != 'verification']
+        assert [(v['subscriptionId'], v['data']['channel_id']) for v in events] == [(private, '901'), (shared, '902')]
+        for args in ({'guild_id': '999', 'channel_id': '901'}, {'guild_id': self.m.GUILD, 'channel_id': '904'}):
+            _, bad = self.http_call('events/subscribe', {'name': self.app.event, 'arguments': args,
+                'delivery': {'mode': 'webhook', 'url': 'https://callback.example/events', 'secret': self.secret()}})
+            assert 'error' in bad
+        self.http_call('events/unsubscribe', {'name': self.app.event, 'arguments': {'guild_id': self.m.GUILD, 'channel_id': '901'},
+            'delivery': {'mode': 'webhook', 'url': 'https://callback.example/events'}})
+        assert self.app.ingest(self.event('303'), self.cursors) == 0
+        assert self.app.store.get('subscriptions', shared)
+
+    def test_per_channel_fresh_cursors_durable_dedup_and_origin_reservation(self):
+        self.subscribe('901'); self.subscribe('902')
+        assert self.app.ingest(self.event('150', '901'), self.cursors) == 1
+        assert self.app.ingest(self.event('150', '902'), self.cursors) == 0
+        row = self.app.store.get('requests', 'discord-150')
+        assert (row['guild_id'], row['channel_id'], row['message_id']) == (self.m.GUILD, '901', '150')
+        self.reopen()
+        assert self.app.ingest(self.event('150', '901'), self.cursors) == 0
+        assert self.app.ingest(self.event('149', '901'), self.cursors) == 0
+        assert self.app.ingest(self.event('201', '902'), self.cursors) == 1
+        for cursors in ('100', {'901': '100'}, {'901': '100', '902': '200', '904': '1'}, {'901': '01', '902': '200'}):
+            with pytest.raises(ValueError): self.app.ingest(self.event('399'), cursors)
+
+    def test_literal_mentions_allowlist_self_webhook_ack_and_metadata_loops(self):
+        self.subscribe('901')
+        for i, author in enumerate(self.dot.allowed_senders):
+            assert self.app.ingest(self.event(str(301 + i), author=author, content='<@!903> assignment'), self.cursors) == 1
+        bad = [{'author': {'id': self.dot.bot}}, {'author': {'id': '999'}}, {'webhook_id': '777'},
+            {'content': 'Finch: assignment'}, {'content': 'ack', 'mentions': [{'id': '903'}]},
+            {'content': '<@903>'}, {'content': '<@903> assignment', 'mentions': []}, {'guild_id': '999'},
+            *[{'content': '<@903> ' + t} for t in ('ack', 'acknowledged', 'received', 'Finch reply', 'Finch handoff', 'Research reply')],
+            {'author': {'id': self.m.ROOK_BOT}, 'content': '<@903> assignment\n-# rook.reply · discord-299'}]
+        for i, delta in enumerate(bad):
+            event = self.event(str(310 + i)); event['d'].update(delta)
+            assert self.app.ingest(event, self.cursors) == 0
+        assert len(self.app.store.all('requests')) == 3
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_bounded_history_real_rest_own_token_exact_selected_channel(self, channel):
+        status, result = self.call('read_finch_messages', {'channel_id': channel, 'message_id': '701'})
+        assert status == 200 and result['result']['structuredContent']['channel_id'] == channel
+        assert result['result']['structuredContent']['messages'][0]['url'].endswith('/' + channel + '/701')
+        self.call('read_finch_messages', {'channel_id': channel, 'before_message_id': '800', 'limit': 2})
+        assert self.http[-1][2].endswith('/' + channel + '/messages?limit=2&before=800')
+        before = len(self.http)
+        for bad in ({}, {'channel_id': '904'}, {'channel_id': channel, 'thread_id': '999'},
+            {'channel_id': channel, 'message_id': '701', 'limit': 2}, {'channel_id': channel, 'limit': True}):
+            assert 'error' in self.call('read_finch_messages', bad)[1]
+        assert len(self.http) == before and not self.app.store.all('requests')
+        self.messages[(channel, '701')] = {'id': '701', 'channel_id': '904', 'content': 'foreign'}
+        assert 'error' in self.call('read_finch_messages', {'channel_id': channel, 'message_id': '701'})[1]
+
+    def test_transport_exact_routes_not_arbitrary_send_or_research_files(self):
+        m = self.m; before = len(self.http)
+        for method, path in [('GET', '/channels/904/messages'), ('GET', '/channels/901/messages?limit=1&limit=2'),
+            ('POST', '/channels/901/messages/301/threads'), ('GET', '/guilds/' + m.GUILD),
+            ('PATCH', '/users/@me'), ('DELETE', '/channels/901/messages/301')]:
+            with pytest.raises(m.RpcError): m.discord_request(method, path, finch=self.dot)
+        assert len(self.http) == before
+        research = m.ResearchIdentity('904', '905', self.root / 'research.token', self.dot.allowed_senders)
+        with pytest.raises(m.RpcError): m.discord_request('POST', '/channels/904/messages', {},
+            {'filename': 'notes.txt', 'content_type': 'text/plain', 'data': self.raw}, research=research)
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_full_signed_assignment_http_artifact_multipart_cdn_receiver_and_replay(self, channel):
+        import receive_one_discord_message as receiver
+        self.ready(channel=channel)
+        status, result = self.call('reply_to_finch_request', self.args())
+        assert status == 200 and not result['result']['isError'], result
+        assert len(self.posts) == 1 and self.posts[0][0] == channel
+        row = self.app.store.get('requests', 'discord-301')
+        assert row['state'] == 'confirmed' and row['attachment']['sha256'] == hashlib.sha256(self.raw).hexdigest()
+        event = self.event(row['reply_id'], channel, self.dot.bot, self.posts[0][1]['content'])
+        event['d']['attachments'] = deepcopy(self.messages[(channel, row['reply_id'])]['attachments'])
+        scope = receiver.Scope('discord-301', 'finch.reply', '100', 'author', self.dot.bot, 2,
+            str(self.root / 'finch-state'), self.cfg.issuer, self.cfg.audience, self.cfg.subject, finch=self.dot, finch_channel=channel)
+        received = receiver.match_event(event, scope, self.dot.bot)
+        assert received['authenticated_reply_binding'] and received['attachment']['sha256'] == row['attachment']['sha256']
+        assert received['channel_id'] == channel
+        self.reopen()
+        assert self.call('reply_to_finch_request', self.args())[1] == result and len(self.posts) == 1
+        for delta in ({'text': 'changed'}, {'file': {**self.args()['file'], 'content_base64': base64.b64encode(b'changed').decode()}},
+            {'file': {**self.args()['file'], 'filename': 'other.txt'}}, {'channel_id': '902'}):
+            assert 'error' in self.call('reply_to_finch_request', {**self.args(), **delta})[1]
+        assert len(self.posts) == 1 and self.raw.decode() not in self.m.canonical(self.app.store.all('requests'))
+
+    def test_receiver_rejects_wrong_origin_identity_and_file_custody(self):
+        from dataclasses import replace
+        import receive_one_discord_message as r
+        self.ready(); self.call('reply_to_finch_request', self.args())
+        row = self.app.store.get('requests', 'discord-301')
+        event = self.event(row['reply_id'], author=self.dot.bot, content=self.posts[0][1]['content'])
+        event['d']['attachments'] = deepcopy(self.messages[('901', row['reply_id'])]['attachments'])
+        scope = r.Scope('discord-301', 'finch.reply', '100', 'author', self.dot.bot, 2, str(self.root / 'finch-state'),
+            self.cfg.issuer, self.cfg.audience, self.cfg.subject, finch=self.dot, finch_channel='901')
+        assert r.match_event(event, scope, self.dot.bot)
+        for delta in ({'channel_id': '902'}, {'guild_id': '999'}, {'webhook_id': '777'}, {'attachments': []},
+            {'attachments': event['d']['attachments'] * 2}, {'content': 'forged'}, {'author': {'id': self.m.ROOK_BOT}}):
+            assert r.match_event({**event, 'd': {**event['d'], **delta}}, scope, self.dot.bot) is None
+        for field, value in (('id', '602'), ('filename', 'other.txt'), ('content_type', 'text/html'), ('size', 999), ('url', 'https://evil.example/x')):
+            forged = deepcopy(event); forged['d']['attachments'][0][field] = value
+            assert r.match_event(forged, scope, self.dot.bot) is None
+        for delta in ({'finch_channel': '902'}, {'mcp_subject': 'auth0|other'}, {'mcp_audience': 'https://other.example/mcp'},
+            {'finch': replace(self.dot, token_path=self.root / 'other.token')}):
+            assert r.match_event(event, replace(scope, **delta), self.dot.bot) is None
+        assert r.match_event(event, scope, self.m.BOT) is None
+        for delta in ({'channel_id': '902'}, {'guild_id': '999'}, {'message_id': '399'}, {'state': 'uncertain'}):
+            self.app.store.put('requests', 'discord-301', {**row, **delta})
+            assert r.match_event(event, scope, self.dot.bot) is None
+        self.app.store.put('requests', 'discord-301', row)
+
+    @pytest.mark.parametrize('fault', ['timeout', 'author', 'channel', 'guild', 'attachment', 'cdn'])
+    def test_artifact_uncertainty_pre_effect_restart_no_resend(self, fault):
+        self.ready()
+        if fault == 'cdn': self.cdn = b'x' * len(self.raw)
+        else: self.fault = fault
+        _, result = self.call('reply_to_finch_request', self.args())
+        assert result['result']['isError'] and len(self.posts) == 1
+        assert self.app.store.get('requests', 'discord-301')['state'] == 'uncertain'
+        self.reopen()
+        assert self.call('reply_to_finch_request', self.args())[1] == result and len(self.posts) == 1
+        assert 'error' in self.call('reply_to_finch_request', {**self.args(), 'text': 'changed'})[1]
+
+    def test_text_only_exact_origin_and_attachment_absence(self):
+        self.ready(channel='902')
+        _, result = self.call('reply_to_finch_request', self.args(file=False))
+        assert not result['result']['isError'] and self.posts[0][0] == '902' and self.posts[0][2] is None
+        assert self.app.store.get('requests', 'discord-301')['attachment'] is None
+        assert 'error' in self.call('reply_to_finch_request', self.args())[1]
+        assert len(self.posts) == 1
+
+    def test_interrupted_sending_receipt_restarts_uncertain_without_post(self, monkeypatch):
+        self.ready(); sender = self.app.sender
+        def interrupted(channel, wire, file):
+            sender(channel, wire, file)
+            raise KeyboardInterrupt()
+        monkeypatch.setattr(self.app, 'sender', interrupted)
+        with pytest.raises(KeyboardInterrupt): self.call('reply_to_finch_request', self.args())
+        assert self.app.store.get('requests', 'discord-301')['state'] == 'sending' and len(self.posts) == 1
+        self.reopen()
+        assert self.app.store.get('requests', 'discord-301')['state'] == 'uncertain'
+        assert self.call('reply_to_finch_request', self.args())[1]['result']['isError']
+        assert len(self.posts) == 1
+
+    def test_undelivered_expired_wrong_origin_requests_cannot_send(self):
+        self.ready(); row = self.app.store.get('requests', 'discord-301')
+        delivery = self.app.store.all('deliveries')[0]
+        self.app.store.put('deliveries', delivery['id'], {**delivery, 'state': 'attempted'})
+        assert 'error' in self.call('reply_to_finch_request', self.args())[1]
+        self.app.store.put('deliveries', delivery['id'], delivery)
+        for delta in ({'expires': 1}, {'channel_id': '904'}, {'guild_id': '999'}, {'message_id': '399'}):
+            self.app.store.put('requests', 'discord-301', {**row, **delta})
+            assert 'error' in self.call('reply_to_finch_request', self.args())[1]
+        assert not self.posts
+        self.app.store.put('requests', 'discord-301', row)
+        def ambiguous(*args): raise TimeoutError('callback uncertainty')
+        self.app.callback = ambiguous
+        assert self.app.ingest(self.event('302'), self.cursors) == 0
+        assert all(d['state'] == 'attempted' for d in self.app.store.all('deliveries') if d['request_id'] == 'discord-302')
+        assert 'error' in self.call('reply_to_finch_request', self.args('302'))[1]
+        self.reopen()
+        assert self.app.ingest(self.event('302'), self.cursors) == 0 and not self.posts
+
+    def test_adapter_and_receiver_cli_exact_channel_inputs_offline(self, monkeypatch):
+        import receive_one_discord_message as r
+        args = ['--profile', 'finch', '--finch-channel', '901', '--dots-shared-channel', '902', '--finch-bot', '903',
+                '--finch-token-path', str(self.dot.token_path)]
+        for sender in self.dot.allowed_senders: args.extend(['--allowed-request-sender', sender])
+        base = args + ['--issuer', self.cfg.issuer, '--audience', self.cfg.audience, '--operator-subject', self.cfg.subject,
+            '--state-dir', str(self.root / 'new-state'), '--port', '9876', '--max-run-seconds', '1',
+            '--protected-resource-metadata-url', self.cfg.protected_metadata_url]
+        captured = []
+        class App:
+            def __init__(_, cfg, state): assert cfg.finch == self.dot; captured.append(cfg)
+            def close(_): pass
+        async def run(app, server, cursors, deadline):
+            assert cursors == self.cursors and deadline == 1; return 0
+        monkeypatch.setattr(self.m, 'Application', App)
+        monkeypatch.setattr(self.m, 'HTTPServer', lambda *args: object())
+        monkeypatch.setattr(self.m, 'run_adapter', run)
+        monkeypatch.setattr(self.m, 'make_handler', lambda *args: object())
+        for tail in ([], ['--finch-after-message', '100'], ['--finch-after-message', '100', '--dots-shared-after-message', '01'],
+            ['--finch-after-message', '100', '--dots-shared-after-message', '200', '--after-message', '100']):
+            with pytest.raises(SystemExit): self.m.main(base + tail)
+        assert not captured
+        assert self.m.main(base + ['--finch-after-message', '100', '--dots-shared-after-message', '200']) == 0
+        async def receive(scope):
+            assert scope.finch == self.dot and scope.channel == '902'; return {'status': 'synthetic'}, 0
+        monkeypatch.setattr(r, 'receive_one', receive)
+        receiver_args = args + ['--guild', self.m.GUILD, '--channel', '902', '--correlation', 'discord-301',
+            '--reply-kind', 'finch.reply', '--after-message', '200', '--allowed-author', '903', '--max-wait-seconds', '1',
+            '--mcp-state-dir', str(self.root / 'finch-state'), '--mcp-issuer', self.cfg.issuer,
+            '--mcp-audience', self.cfg.audience, '--mcp-subject', self.cfg.subject]
+        assert r.main(receiver_args) == 0
+        with pytest.raises(SystemExit): r.main(receiver_args + ['--channel', '904'])
+
+    def test_file_http_exception_and_unsafe_or_oversized_uploads(self):
+        self.ready()
+        args = self.args()
+        for value in ({'path': '/etc/passwd'}, {'url': 'https://example.com/file'},
+            {**args['file'], 'filename': 'notes.md'}, {**args['file'], 'content_type': 'text/html'},
+            {**args['file'], 'filename': '../notes.txt'}, {**args['file'], 'content_base64': '%%%'}):
+            assert 'error' in self.call('reply_to_finch_request', {**args, 'file': value})[1]
+        for raw in (b'PRIVATE KEY', b'patient DOB: 1900-01-01', b'<script>bad</script>', b'x' * (self.m.FILE_LIMIT + 1)):
+            assert 'error' in self.call('reply_to_finch_request', {**args, 'file': {**args['file'],
+                'content_base64': base64.b64encode(raw).decode()}})[1]
+        assert not self.posts
+        assert self.call('reply_to_finch_request', {'request_id': 'discord-301', 'text': 'x' * 33000})[0] == 400
+        assert self.call('reply_to_research_request', {**args, 'text': 'x' * 33000})[0] == 400
+        self.raw = self.cdn = b'x' * self.m.FILE_LIMIT
+        status, result = self.call('reply_to_finch_request', self.args())
+        assert status == 200 and not result['result']['isError'] and len(self.posts) == 1
+        assert result['result']['structuredContent']['attachment']['byte_length'] == self.m.FILE_LIMIT
+
+    def test_gateway_and_receiver_use_finch_own_token_and_both_channel_cursors(self, monkeypatch):
+        import asyncio
+        import receive_one_discord_message as r
+        self.subscribe('901'); self.subscribe('902'); tokens = []
+        class Server:
+            def serve_forever(_, **kw): pass
+            def shutdown(_): pass
+            def server_close(_): pass
+        def factory(observer):
+            def make(on_event, on_error):
+                class Client:
+                    async def start(_, token, reconnect):
+                        tokens.append(token); assert reconnect is False
+                        on_event(self.event('150', '901'), observer); on_event(self.event('201', '902'), observer)
+                        await asyncio.Future()
+                    async def close(_): pass
+                return Client()
+            return make
+        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.dot.bot))) == 0
+        assert tokens == ['synthetic-finch-token'] and len(self.app.store.all('requests')) == 2
+        assert asyncio.run(self.m.run_adapter(self.app, Server(), self.cursors, .05, client_factory=factory(self.m.BOT))) == 2
+        self.call('reply_to_finch_request', self.args('150', False))
+        row = self.app.store.get('requests', 'discord-150')
+        event = self.event(row['reply_id'], author=self.dot.bot, content=self.posts[0][1]['content'])
+        event['d']['attachments'] = []
+        scope = r.Scope('discord-150', 'finch.reply', '100', 'author', self.dot.bot, 1, str(self.root / 'finch-state'),
+            self.cfg.issuer, self.cfg.audience, self.cfg.subject, finch=self.dot, finch_channel='901')
+        def receiver_factory(on_event, on_error):
+            class Client:
+                async def start(_, token, reconnect):
+                    tokens.append(token); on_event(event, self.dot.bot); await asyncio.Future()
+                async def close(_): pass
+            return Client()
+        result, code = asyncio.run(r.receive_one(scope, client_factory=receiver_factory))
+        assert code == 0 and result['authenticated_reply_binding'] and tokens[-1] == 'synthetic-finch-token'

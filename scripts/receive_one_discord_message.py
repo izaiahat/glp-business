@@ -28,7 +28,7 @@ import time
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from rook_mcp_events import ResearchIdentity
+    from rook_mcp_events import ResearchIdentity, FinchIdentity
 
 from post_discord_message import load_token
 
@@ -54,20 +54,29 @@ class Scope:
     mcp_audience: str | None = None
     mcp_subject: str | None = None
     research: ResearchIdentity | None = None
+    finch: FinchIdentity | None = None
+    finch_channel: str | None = None
 
     @property
     def guild(self):
-        return self.research.guild if self.research else GUILD
+        return self.finch.guild if self.finch else self.research.guild if self.research else GUILD
 
     @property
     def channel(self):
-        return self.research.channel if self.research else CHANNEL
+        return self.finch_channel if self.finch else self.research.channel if self.research else CHANNEL
 
     @property
     def bot(self):
-        return self.research.bot if self.research else ROOK_BOT
+        return self.finch.bot if self.finch else self.research.bot if self.research else ROOK_BOT
 
     def __post_init__(self):
+        if self.finch:
+            from rook_mcp_events import FinchIdentity
+            if (not isinstance(self.finch, FinchIdentity) or self.research is not None or not self.mcp_state_dir
+                    or self.finch_channel not in self.finch.channels):
+                raise ValueError('Finch receiver requires exact channel, identity and complete private custody')
+        elif self.finch_channel is not None:
+            raise ValueError('Finch receive channel requires Finch profile')
         if self.research:
             from rook_mcp_events import ResearchIdentity
             if not isinstance(self.research, ResearchIdentity) or not self.mcp_state_dir:
@@ -86,7 +95,7 @@ class Scope:
         if any((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject)):
             if (not all((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject))
                     or self.origin_kind != 'author' or self.origin_id != self.bot
-                    or self.reply_kind != ('research.reply' if self.research else 'rook.reply')
+                    or self.reply_kind != ('finch.reply' if self.finch else 'research.reply' if self.research else 'rook.reply')
                     or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', self.correlation)):
                 raise ValueError('complete fixed MCP binding configuration required')
 
@@ -114,10 +123,28 @@ def verified_reply_binding(data, scope, reply_author):
             return False
         binding = json.loads(row[0])
         fields = {'issuer': scope.mcp_issuer, 'audience': scope.mcp_audience, 'subject': scope.mcp_subject}
+        if scope.finch:
+            fields['identity'] = scope.finch.policy_fields()
+            if binding.get('message_id') != scope.correlation.removeprefix('discord-'):
+                return False
+            items = data.get('attachments')
+            attachment = binding.get('attachment')
+            if not isinstance(items, list) or len(items) != (1 if attachment is not None else 0):
+                return False
+            file_binding = None
+            if attachment is not None:
+                from rook_mcp_events import finch_attachment_custody
+                if finch_attachment_custody(items[0], CHANNEL, attachment['sha256']) != attachment:
+                    return False
+                file_binding = {key: attachment[key] for key in ('filename', 'content_type', 'byte_length', 'sha256')}
+            effect = json.dumps([GUILD, CHANNEL, binding.get('reply_sha256'), file_binding],
+                                ensure_ascii=True, separators=(',', ':'), sort_keys=True)
+            if binding.get('reply_effect_sha256') != hashlib.sha256(effect.encode()).hexdigest():
+                return False
         if scope.research:
             fields['identity'] = scope.research.policy_fields()
         policy = json.dumps(fields, ensure_ascii=True, separators=(',', ':'), sort_keys=True)
-        return (binding.get('state') == 'confirmed' and binding.get('policy') == hashlib.sha256(policy.encode()).hexdigest()
+        valid = (binding.get('state') == 'confirmed' and binding.get('policy') == hashlib.sha256(policy.encode()).hexdigest()
                 and binding.get('auth_method') == 'RS256-authenticated-tools/call'
                 and binding.get('subject') == scope.mcp_subject and binding.get('auth_subject') == scope.mcp_subject
                 and binding.get('reply_id') == data['id'] and binding.get('reply_author') == reply_author
@@ -127,6 +154,7 @@ def verified_reply_binding(data, scope, reply_author):
                 and binding.get('confirmed_at', 0) > 0
                 and 0 <= time.time() - binding['confirmed_at'] < scope.max_wait_seconds + 5
                 and binding.get('reply_sha256') == hashlib.sha256(data['content'].encode()).hexdigest())
+        return binding if valid and scope.finch else valid
     except Exception:
         return False
 
@@ -157,7 +185,7 @@ def parse_reply_content(content, reply_kind='rook.reply'):
 def match_event(event, scope: Scope, self_id: str | None):
     """Fresh MESSAGE_CREATE; MCP replies and self-echo need private custody."""
     GUILD, CHANNEL = scope.guild, scope.channel
-    if scope.research and self_id != scope.bot:
+    if (scope.research or scope.finch) and self_id != scope.bot:
         return None
     if not self_id or not isinstance(event, dict) or event.get("t") != "MESSAGE_CREATE":
         return None
@@ -189,7 +217,8 @@ def match_event(event, scope: Scope, self_id: str | None):
     same_bot = author['id'] == self_id
     # Gateway observer identity is independent of the fixed authenticated author.
     needs_binding = bool(scope.mcp_state_dir) or same_bot
-    if needs_binding and not verified_reply_binding(data, scope, author['id']):
+    binding = verified_reply_binding(data, scope, author['id']) if needs_binding else None
+    if needs_binding and not binding:
         return None
     return {
         "status": "received", "event": "MESSAGE_CREATE",
@@ -200,6 +229,7 @@ def match_event(event, scope: Scope, self_id: str | None):
         "text": body["text"][:TEXT_LIMIT],
         "text_truncated": len(body["text"]) > TEXT_LIMIT,
         **({'authenticated_reply_binding': True} if needs_binding else {}),
+        **({'attachment': binding['attachment']} if scope.finch else {}),
     }
 
 
@@ -234,9 +264,9 @@ def create_client(on_event, on_error):
 async def receive_one(scope: Scope, *, client_factory=create_client, token_loader=load_token):
     """One result, bounded wait including login, and bounded cleanup on every exit."""
     GUILD, CHANNEL = scope.guild, scope.channel
-    if scope.research and token_loader is _DEFAULT_TOKEN_LOADER:
+    if (scope.research or scope.finch) and token_loader is _DEFAULT_TOKEN_LOADER:
         from rook_mcp_events import load_rook_token
-        dot = scope.research
+        dot = scope.finch or scope.research
         token_loader = lambda: load_rook_token(dot.token_path)
     accepted = asyncio.get_running_loop().create_future()
     binding_waiter = None
@@ -315,7 +345,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--guild", required=True, choices=[GUILD])
     parser.add_argument("--channel", required=True)
-    from rook_mcp_events import add_research_arguments, research_from_args
+    from rook_mcp_events import add_research_arguments, research_from_args, finch_from_args
     add_research_arguments(parser)
     parser.add_argument("--correlation", required=True)
     parser.add_argument("--reply-kind", required=True)
@@ -331,12 +361,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         research = research_from_args(args)
-        if args.channel != (research.channel if research else CHANNEL):
+        finch = finch_from_args(args)
+        if (args.channel not in finch.channels if finch else args.channel != (research.channel if research else CHANNEL)):
             raise ValueError('exact profile channel required')
         scope = Scope(args.correlation, args.reply_kind, args.after_message,
                       "author" if args.allowed_author else "webhook",
                       args.allowed_author or args.allowed_webhook, args.max_wait_seconds,
-                      args.mcp_state_dir, args.mcp_issuer, args.mcp_audience, args.mcp_subject, research)
+                      args.mcp_state_dir, args.mcp_issuer, args.mcp_audience, args.mcp_subject, research,
+                      finch, args.channel if finch else None)
     except ValueError as exc:
         parser.error(str(exc))
     try:
