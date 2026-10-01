@@ -1,4 +1,27 @@
-# Rook message-only adapter — source, not rollout
+# Rook guild-scoped adapter — source, not rollout
+
+## General `discord_api` tool (source only)
+
+The six existing tools and fixed-#rook reply/ingress behavior remain unchanged. `discord_api` adds Rook's bot-Administrator latitude across Kael HQ without a new policy framework, token, bot, scope, scheduler or deployment.
+
+- Required arguments: `operation_id` (existing safe 16–64 character pattern), `method` (`GET|POST|PATCH|PUT|DELETE`), `path` (relative Discord API v10 route, optional query, not a URL). Optional `json` object and `audit_reason` (1–512 characters, URL-encoded into `X-Audit-Log-Reason`). No file attachment in this tool; `send_rook_message` retains its existing upload contract.
+- Authorization: the existing exact-subject/issuer/resource JWT **scope AND RBAC permission `rook.channel.write`**, including reads. The same Rook bot credential and pinned REST transport are reused, with no redirects or automatic retries.
+- Scope: `/guilds/1486887661099815126` and descendants; `/channels/<id>` and descendants only after `GET /channels/<id>` verifies the guild. Thread parents are also verified. Exact `/users/@me` and `/applications/@me` allow GET/PATCH for the bot's own profile. Other guilds, DMs, other-user profiles, gateway, webhook-by-token, OAuth2 and interaction routes are refused. Encoded route segments are canonicalized before checks; traversal/alternate-origin paths are refused.
+- Small hard-denial list: deleting/leaving the guild; kicking/banning/timing out/changing roles or nicknames of Izaiah (`392067741500309517`) or Kael (`1486880423568211968`), including bulk bans; deleting #rook (`1554668115239899196`) or ops-alerts (`1487300132054765629`) or changing their permission overwrites; editing/deleting Kael's messages, including bulk deletion. Other ordinary guild/channel/role/thread/message/pin/reaction/emoji/event routes use Discord's own permissions and validation.
+- Message POSTs (also forum thread initial messages) default to `{"parse":["users"],"replied_user":false}` unless `allowed_mentions` is explicit. No default everyone/here/role ping; the five narrow communication tools retain their stricter mention behavior.
+- GETs return status and Discord JSON directly, without operation receipts. Non-GETs use the existing durable operation lock/reservation/conflict/uncertainty machinery. Fresh calls return status and Discord JSON; receipt replays return **stored status/IDs/digest**, not the original body, without REST calls. Identical uncertain effects are never retried, even with a changed operation ID. Receipts retain only method/path/status/IDs/digest plus the existing subject/policy/state envelope, never payloads, avatar bytes, tokens or raw Discord error text.
+- Responses are bounded to about 60k JSON characters with `truncated` explicitly set: large lists preserve a whole-item prefix; oversized objects return a JSON text prefix and original size. The transport caps input responses at 4 MiB. Discord 4xx errors are tool errors with status and Discord's message; redirects/5xx/transport failures do not get retried. A successful Discord response is not independent runtime acceptance.
+- `discord_api` has a 1,500,000-byte JSON-envelope exception for base64 profile images. All other tools retain the ordinary 32 KiB envelope (except existing `send_rook_message` file uploads). Discord controls which profile fields are supported and their size limits; this does not claim bot support for arbitrary user-only profile fields.
+
+Examples (distinct stable `operation_id` for each intended write):
+
+```json
+{"operation_id":"rook_create_room_001","method":"POST","path":"/guilds/1486887661099815126/channels","json":{"name":"rook-lab","type":0},"audit_reason":"Operator-authorized Rook setup"}
+{"operation_id":"rook_avatar_update_001","method":"PATCH","path":"/users/@me","json":{"avatar":"data:image/png;base64,<PNG bytes>"}}
+{"operation_id":"rook_bio_update_0001","method":"PATCH","path":"/applications/@me","json":{"description":"Rook bot bio"}}
+```
+
+Offline acceptance: `tests/test_rook_mcp_events.py::TestDiscordAPI` mocks REST/credentials/sockets and covers scope, each denial, normal Administrator routes, profile changes, durable replay/uncertainty, mentions, result truncation, audit transport, 4xx and large-image HTTP parsing. Existing Rook communication/reply/ingress suites remain the regression gates. This change does not deploy, restart, merge, change Auth0 grants/config/secrets or call live Discord.
 
 ## Bounded communication expansion (source only)
 
@@ -12,7 +35,7 @@ The communication expansion preserves `reply_to_rook_request` and receive-one sa
 | `read_rook_file` | `rook.channel.read` | Attachment ID from a REST-verified message; only its verified Discord CDN metadata URL (bounded signed query), no caller URL/path. Pinned public TLS, no redirects/proxies, exact metadata/bytes/SHA readback. |
 | `set_rook_reaction` | `rook.channel.write` | Bounded Unicode emoji or custom emoji verified in the fixed guild. Only `@me` add/remove. Removal requires this tool's receipt; preexisting unrelated same-bot reactions are not adopted. No other-user/bulk moderation. |
 
-Fixed guild `1486887661099815126`, parent `1554668115239899196`, plus REST-verified public type-11 children only. Writes reject archived/locked children. No other guild/channel, DM, admin or moderation capability. This initial envelope is **not full-server capability**. There is no existing configurable channel allowlist field; later agreed channels need separate source/authorization work. No future routing framework is implemented here.
+The five narrow tools below stay fixed to guild `1486887661099815126`, parent `1554668115239899196`, plus REST-verified public type-11 children only. Their writes reject archived/locked children; they do not gain general admin/moderation capability. The separate `discord_api` tool above supplies the broader guild scope; fixed ingress and correlated replies still use #rook.
 
 Files: 1–1,048,576 decoded bytes; strict base64 sends; safe ASCII basenames; exact `.txt`/`text/plain`, `.json`/`application/json`, `.pdf`/`application/pdf`, `.png`/`image/png`, `.jpg` or `.jpeg`/`image/jpeg`, `.webp`/`image/webp`. UTF-8/JSON/signatures and conservative sensitive/active-content markers are checked. **Not malware scanning, full format decoding or reliable PHI/secret classification**, especially for images/compressed PDF contents. Only approved non-sensitive files may be supplied; this lane uses no old PDF. The ordinary 32 KiB inbound RPC limit remains; file-bearing `send_rook_message` alone has a 1,500,000-byte JSON envelope exception. File/history bytes are not duplicated into text result fields.
 
