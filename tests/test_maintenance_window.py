@@ -858,6 +858,165 @@ def test_detached_cli_keeper_owns_locks_and_recovers_after_real_process_crash(tm
             subprocess.run([*argv, "exit", *options], capture_output=True, timeout=8)
 
 
+def test_cli_exit_serializes_stale_keeper_routing_during_crash_resume(tmp_path):
+    """Freeze real journal read/admission against a resumed keeper's operation.
+
+    Only transport/backend and scheduling barriers are replaced. Kernel lock
+    proof, CLI routing, journal transitions and restoration remain production.
+    """
+    import os
+    import signal
+    import subprocess
+    import time
+
+    wrapper = tmp_path / "sandbox_keeper.py"
+    wrapper.write_text(
+        "import sys, json, time\n"
+        "from pathlib import Path\n"
+        "from contextlib import contextmanager\n"
+        f"sys.path.insert(0, {str(ROOT / 'scripts')!r})\n"
+        "import maintenance_window as mw\n"
+        "base = Path(__file__).parent\n"
+        "def mark(name): (base / name).touch()\n"
+        "def wait(name):\n"
+        " deadline = time.monotonic() + 6\n"
+        " while not (base / name).exists():\n"
+        "  assert time.monotonic() < deadline, name\n"
+        "  time.sleep(0.01)\n"
+        "class Backend:\n"
+        " def __init__(self, root, hermes, journal):\n"
+        "  self.root, self.hermes = Path(root).resolve(), Path(hermes).resolve()\n"
+        "  self.file = self.root / 'scheduler.json'\n"
+        " def inventory(self):\n"
+        "  return {'complete': True, 'errors': [], 'entries': [{'kind': 'hermes', 'id': 'fixture', 'command': 'fixture', 'affected': True, 'trace': []}]}\n"
+        " def snapshot(self, entry): return json.loads(self.file.read_text())\n"
+        " def pause(self, entry, prior):\n"
+        "  with (base / 'effects').open('a') as out: out.write('pause\\n')\n"
+        "  self.file.write_text(json.dumps({'paused': True}))\n"
+        " def paused(self, entry, prior): return json.loads(self.file.read_text())['paused']\n"
+        " def restore(self, entry, prior):\n"
+        "  data = mw.read_journal(base / 'window.json')\n"
+        "  assert mw.locks_verified(data), 'restore must retain source fences'\n"
+        "  with (base / 'effects').open('a') as out: out.write('restore\\n')\n"
+        "  self.file.write_text(json.dumps(prior))\n"
+        " def inflight(self, entries): return []\n"
+        "mw.LinuxBackend = Backend\n"
+        "mw.__file__ = __file__\n"
+        "original_read, original_operation = mw.read_journal, mw.operation_lock\n"
+        "is_exit = sys.argv[1] == 'exit' and not (base / 'cleanup').exists()\n"
+        "first_read = first_operation = True\n"
+        "admitted = False\n"
+        "def read(path):\n"
+        " global first_read\n"
+        " data = original_read(path)\n"
+        " if is_exit and first_read:\n"
+        "  first_read = False\n"
+        "  if not admitted:\n"
+        "   assert not mw.locks_verified(data), 'snapshot must name dead keeper'\n"
+        "   mark('exit-ready')\n"
+        "   wait('exit-go')\n"
+        " return data\n"
+        "@contextmanager\n"
+        "def operation(path, **kwargs):\n"
+        " global first_operation, admitted\n"
+        " if is_exit and first_operation:\n"
+        "  first_operation = False\n"
+        "  mark('exit-ready')\n"
+        "  wait('exit-go')\n"
+        "  mark('exit-attempting')\n"
+        " with original_operation(path, **kwargs):\n"
+        "  admitted = True\n"
+        "  try: yield\n"
+        "  finally: admitted = False\n"
+        "mw.read_journal, mw.operation_lock = read, operation\n"
+        "original_verify = mw.MaintenanceWindow._verify\n"
+        "def verify(self, data):\n"
+        " result = original_verify(self, data)\n"
+        " if result and '--keeper' in sys.argv and (base / 'resume-arm').exists() and not (base / 'resume-held').exists():\n"
+        "  mark('resume-held')\n"
+        "  wait('resume-go')\n"
+        " return result\n"
+        "mw.MaintenanceWindow._verify = verify\n"
+        "raise SystemExit(mw.main())\n"
+    )
+    root, hermes = tmp_path / "root", tmp_path / "hermes"
+    root.mkdir()
+    hermes.mkdir()
+    state = root / "scheduler.json"
+    state.write_text('{"paused": false}')
+    journal = tmp_path / "window.json"
+    options = ["--root", str(root), "--hermes", str(hermes), "--journal", str(journal),
+               "--drain-seconds", "0", "--window-seconds", "20"]
+    argv = [sys.executable, str(wrapper)]
+
+    def wait_for(predicate):
+        deadline = time.monotonic() + 5
+        while not predicate():
+            assert time.monotonic() < deadline, "fixture barrier timeout"
+            time.sleep(0.01)
+
+    def command(action, code=0):
+        result = subprocess.run([*argv, action, *options], capture_output=True, text=True, timeout=8)
+        assert result.returncode == code, result.stdout + result.stderr
+        return json.loads(result.stdout)
+
+    exit_process = None
+    try:
+        assert command("enter")["verified"]
+        original = json.loads(journal.read_text())
+        os.kill(original["keeper"]["pid"], signal.SIGKILL)  # Disposable fake keeper only.
+
+        def fences_free():
+            for row in original["locks"]:
+                with Path(row["path"]).open("a+") as handle:
+                    try:
+                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        return False
+            return True
+
+        wait_for(fences_free)
+        assert command("status", code=2)["recovery_required"]
+        exit_process = subprocess.Popen([*argv, "exit", *options], stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, text=True)
+        wait_for(lambda: (tmp_path / "exit-ready").exists())
+        (tmp_path / "resume-arm").touch()
+        assert command("enter")["verified"]
+        wait_for(lambda: (tmp_path / "resume-held").exists())
+        resumed = json.loads(journal.read_text())
+        assert resumed["keeper"]["pid"] != original["keeper"]["pid"]
+        assert json.loads(state.read_text()) == {"paused": True}
+        assert (tmp_path / "effects").read_text().splitlines() == ["pause"]
+        (tmp_path / "exit-go").touch()
+        wait_for(lambda: (tmp_path / "exit-attempting").exists())
+
+        def exit_queued_or_refused():
+            with Path(str(journal) + ".operation.lock.admission").open("a+") as handle:
+                try:
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    return True  # Fixed exit has queued behind the held keeper.
+            return exit_process.poll() is not None  # Original exit fails immediately.
+
+        wait_for(exit_queued_or_refused)
+        (tmp_path / "resume-go").touch()
+        stdout, stderr = exit_process.communicate(timeout=8)
+        assert exit_process.returncode == 0, stdout + stderr
+        assert json.loads(stdout)["state"] == "closed"
+        assert json.loads(journal.read_text())["state"] == "closed"
+        assert json.loads(state.read_text()) == {"paused": False}
+        assert (tmp_path / "effects").read_text().splitlines() == ["pause", "restore"]
+        wait_for(fences_free)
+    finally:
+        (tmp_path / "cleanup").touch()
+        (tmp_path / "exit-go").touch()
+        (tmp_path / "resume-go").touch()
+        if exit_process is not None and exit_process.poll() is None:
+            exit_process.communicate(timeout=8)
+        if journal.exists():
+            subprocess.run([*argv, "exit", *options], capture_output=True, timeout=8)
+
+
 def test_source_updates_accept_only_reviewed_before_after_and_detect_drift(module, tmp_path, monkeypatch):
     import hashlib
     import maintenance_inventory
