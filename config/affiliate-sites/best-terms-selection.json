@@ -1,0 +1,58 @@
+{
+  "schema": "glp.best-terms-selection-config.v1",
+  "rerank": {
+    "cadence": "weekly",
+    "window": "iso_week",
+    "one_run_per_window": true
+  },
+  "priors": {
+    "cpa_sale": {
+      "models": [
+        "cpa",
+        "cps",
+        "fixed",
+        "sale",
+        "action",
+        "acquisition",
+        "cpa/sale",
+        "cpa / sale",
+        "cpa/cps",
+        "cpa / cps"
+      ],
+      "conversion_rate_per_click": "0.015",
+      "expected_conversions_per_100_clicks": "1.5"
+    },
+    "cpl_lead": {
+      "models": [
+        "cpl",
+        "lead"
+      ],
+      "conversion_rate_per_click": "0.08",
+      "expected_conversions_per_100_clicks": "8"
+    }
+  },
+  "performance_path": "data/affiliate-payout-performance.json",
+  "collector_runtime": {
+    "interpreter": "/home/ubuntu/.hermes/venvs/glp-maxbounty-runtime/bin/python",
+    "required_imports": [
+      "requests",
+      "playwright.sync_api",
+      "google.oauth2.credentials",
+      "googleapiclient.discovery"
+    ]
+  },
+  "source_authority": {
+    "order_high_to_low": [
+      "api",
+      "sheet",
+      "portal",
+      "email",
+      "unknown"
+    ],
+    "rule": "API truth outranks portal and email evidence. Provider x marketplace x program rails remain distinct."
+  },
+  "contradiction_policy": {
+    "risk_acceptance": "accept_api_truth_pending_recheck",
+    "recheck_hours": 48
+  }
+}

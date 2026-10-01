@@ -3415,8 +3415,9 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
         required_columns=(10, 19, 20, 21, 23, 24),
         allowed_status=frozenset({"cancelled_by_network"}),
         required_flags={19: "FALSE", 20: "FALSE"},
-        evidence_fields=(("path", "repo_path"), ("event_id", "text"),
-                         ("event_at_utc", "timestamp")),
+        # Hash-bound private canonical notice/capture paths are validated by
+        # affiliate_program_withdrawal, not the public-report prefix allowlist.
+        evidence_fields=(("event_id", "text"), ("event_at_utc", "timestamp")),
         note_must_cite=("path", "event_id", "event_at_utc"),
         allowed_link_qa=frozenset({"link_retired_network_program_cancelled"}),
         forbid_wired_live_source=False,
@@ -6223,6 +6224,9 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
             require_maxbounty_publisher_id(entry)
         if spec.key == "deployed_live":
             deployed_live_tuple(entry)
+        if spec.key == "network_cancelled":
+            import affiliate_program_withdrawal as withdrawal
+            withdrawal.verify_writer_entry(entry, root=_REPO_ROOT)
 
         cells = entry.get("cells")
         if not isinstance(cells, dict) or not cells:
@@ -6849,6 +6853,9 @@ def require_sheet_sync_preconditions(
         if len(values) < row_num or not row_has_business_value(values[row_num - 1]):
             raise RuntimeError(f"{spec.key}_target_row_blank:{row_num}")
         actual = pad(values[row_num - 1])
+        if spec.key == "network_cancelled":
+            import affiliate_program_withdrawal as withdrawal
+            withdrawal.verify_writer_entry(entry, actual, root=_REPO_ROOT)
         if str(actual[2]).strip() != program:
             raise RuntimeError(f"{spec.key}_program_mismatch:{row_num}:{str(actual[2]).strip()!r}")
         if spec.key == "research_only_provider":

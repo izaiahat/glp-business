@@ -45,7 +45,29 @@
     }
   },
   "care-bare-rx-glp1-review": {
-    "review_required": "Retained Mounjaro quote is a parenthetical comparator for compounded tirzepatide, not affirmative brand supply. Retained tag needs independent source/claim review; do not drop it or renew it from the comparator."
+    "sources": [
+      {
+        "url": "https://www.carebarerx.com/products/weight-loss-medications",
+        "quotes": {
+          "molecule_tags": {
+            "semaglutide": "CareBareRX also offers injectable versions of Semaglutide and Tirzepatide, typically administered once weekly.",
+            "tirzepatide": "CareBareRX also offers injectable versions of Semaglutide and Tirzepatide, typically administered once weekly."
+          },
+          "delivery_form_tags": {
+            "injectable": "CareBareRX also offers injectable versions of Semaglutide and Tirzepatide, typically administered once weekly.",
+            "oral": "For patients looking for GLP-1 benefits without injections, CareBareRX offers oral options — including Semaglutide in pill form (Rybelsus®)"
+          }
+        }
+      },
+      {
+        "url": "https://www.carebarerx.com/home2",
+        "quotes": {
+          "treatment_type_tags": {
+            "compounded": "Starting at **$199** \\- compounded **Semaglutide** (Ozempic®) & **Tirzepatide** (Mounjaro®) in stock"
+          }
+        }
+      }
+    ]
   },
   "curex-glp-1": {
     "url": "https://getcurex.com/cl/glp",
@@ -59,7 +81,7 @@
         "injectable": "If you do choose the injectable format, we provide clear instructions and your care team is available to walk you through your first dose."
       },
       "treatment_type_tags": {
-        "compounded": "but we may prescribe treatments containing compounded semaglutide or tirzepatide, formulated specifically for you by a licensed pharmacy."
+        "compounded": "If medication is appropriate for you, options may include compounded semaglutide or tirzepatide"
       }
     }
   },
@@ -478,13 +500,13 @@
     "url": "https://www.joinnovi.com/",
     "quotes": {
       "molecule_tags": {
-        "semaglutide": "Semaglutide injections\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/6a16e8de81c7e667e252f8dd_vial_grey_01%201.png)\n\n[In stock • Up to $200 OFF](https://www.joinnovi.com/intake-v2)",
-        "tirzepatide": "Tirzepatide  injections\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/6a16e8f06a10ed608cf92b9d_vial_grey_01%20(1)%201.png)\n\n[In stock • Up to $250 OFF](https://www.joinnovi.com/intake-v2)"
+        "semaglutide": "Semaglutide injections\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/6a16e8de81c7e667e252f8dd_vial_grey_01%201.avif)\n\n[In stock • Up to $200 OFF](https://www.joinnovi.com/intake-v2)",
+        "tirzepatide": "Tirzepatide  injections\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/6a16e8f06a10ed608cf92b9d_vial_grey_01%20(1)%201.avif)\n\n[In stock • Up to $250 OFF](https://www.joinnovi.com/intake-v2)"
       },
       "brand_name_tags": {
-        "wegovy": "Wegovy®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e91057965751a32460cc38_pr-5.png)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)",
-        "mounjaro": "Mounjaro®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e910344e2218fc554ac59c_pr-3.png)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)",
-        "zepbound": "Zepbound®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e91067fe374518e4383d5f_pr-6.png)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)"
+        "wegovy": "Wegovy®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e91057965751a32460cc38_pr-5.avif)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)",
+        "mounjaro": "Mounjaro®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e910344e2218fc554ac59c_pr-3.avif)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)",
+        "zepbound": "Zepbound®\n\nOne simple injection per week\n\n![](https://cdn.prod.website-files.com/689e30a9c14a62df71bb20e3/69e91067fe374518e4383d5f_pr-6.avif)\n\n[In stock • Started at $1500](https://www.joinnovi.com/intake-v2)"
       }
     }
   },
