@@ -578,7 +578,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py",
       "source": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
-      "reviewed_sha256": "d652c1d7bd3b6968af117d36ebbdd39ce119aa6c9b0fcadb0f0fd79191370dc9",
+      "reviewed_sha256": "a3d8492ef3203414f95cb68f161e058d4f82e08be77447850ff48155c5bf932c",
       "payloads": []
     },
     {
