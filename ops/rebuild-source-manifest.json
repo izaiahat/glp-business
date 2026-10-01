@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 553,
+  "tracked_count": 554,
   "files": {
     "tests/test_maintenance_pause_cursor_race.py": {
       "kind": "test",
@@ -156,7 +156,7 @@
       "callers": [
         "GLP331 exact-head native acceptance fixtures"
       ],
-      "sha256": "28f8dabd038b15c12569334f555a03d4b8ecece7673d1c63f0606d63dc1ef062"
+      "sha256": "238eca8bda75e7a43bb443d11269f5557ae23531366a401bd67f60531599cf3a"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -1616,7 +1616,7 @@
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ed8399f647b3b2a1a161b9d9ca8b003b7861fbf99500c2957dc1d1397be2e29f"
+      "sha256": "bf8e88588ff8e67fd5bfe52d525bfe0e265df140d8f4c8a63ead8f253967b32e"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -3351,7 +3351,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "e6ea6b5c18146d75f8fd19ebd4767f1c41d2f7a84123bb7594cb937beffff30b"
+      "sha256": "52b539fe61e02507dbcec7f7d493c814157fc48da8352cb48d0324968c2668e9"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3653,6 +3653,13 @@
       ],
       "kind": "test",
       "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
+    },
+    "tests/test_glp73_retention_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp331-carrier-closure.yml"
+      ],
+      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
     },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [
