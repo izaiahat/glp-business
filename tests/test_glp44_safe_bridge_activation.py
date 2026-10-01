@@ -360,6 +360,27 @@ def test_only_unique_connected_journal_stream_is_exempt(journal_stdio_host, chan
     assert not host.quiet((100, 1000))
 
 
+@pytest.mark.parametrize('endpoint', ['local', 'peer'])
+@pytest.mark.parametrize('malformed', ['truncated_peer_inode', 'truncated_peer_path',
+                                      'missing_queue', 'invalid_queue',
+                                      'invalid_peer_inode', 'extra_field'])
+def test_malformed_matching_journal_row_keeps_bridge_busy(
+        journal_stdio_host, endpoint, malformed):
+    host, proc, group, states, snapshot, calls = journal_stdio_host
+    assert host.quiet((100, 1000))
+    local, peer = snapshot['ss'].splitlines()
+    row = (local if endpoint == 'local' else peer).split()
+    if malformed == 'truncated_peer_inode': row = row[:7]
+    elif malformed == 'truncated_peer_path': row = row[:6]
+    elif malformed == 'missing_queue': del row[2]
+    elif malformed == 'invalid_queue': row[2] = 'unknown'
+    elif malformed == 'invalid_peer_inode': row[7] = 'unknown'
+    elif malformed == 'extra_field': row.append('unknown')
+    # A valid observation cannot erase a conflicting malformed observation.
+    snapshot['ss'] += ' '.join(row) + '\n'
+    assert host.quiet((100, 1000)) is False
+
+
 def test_unreadable_journal_peer_evidence_refuses(activation, journal_stdio_host, monkeypatch):
     host, proc, group, states, snapshot, calls = journal_stdio_host
     assert host.quiet((100, 1000))

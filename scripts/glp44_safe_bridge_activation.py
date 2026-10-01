@@ -187,12 +187,18 @@ class LinuxHost:
                 and {fd for fd, target in descriptors.items() if target == stdio} == {'1', '2'}):
             unix = [line.split() for line in self.command(
                 ['/usr/bin/ss', '--unix', '--all', '--numeric', '--no-header']).splitlines()]
+            # Parse the census before endpoint selection: dropping malformed
+            # rows first can hide a second observation of either journal inode.
+            # Unknown row shapes (including shifted/trailing fields) stay busy.
+            if any(len(row) != 8 or not all(row[i].isdigit() for i in (2, 3, 5, 7))
+                   for row in unix):
+                return False
             inode = stdio[8:-1]
-            local = [row for row in unix if len(row) >= 8 and row[5] == inode]
+            local = [row for row in unix if row[5] == inode]
             if (len(local) == 1 and local[0][:2] == ['u_str', 'ESTAB']
                     and local[0][4] == '*' and local[0][6] == '*'
                     and local[0][7].isdigit()):
-                peer = [row for row in unix if len(row) >= 8 and row[5] == local[0][7]]
+                peer = [row for row in unix if row[5] == local[0][7]]
                 if (len(peer) == 1 and peer[0][:2] == ['u_str', 'ESTAB']
                         and peer[0][4] == '/run/systemd/journal/stdout'
                         and peer[0][6:8] == ['*', inode]):
