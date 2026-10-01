@@ -18,7 +18,7 @@
   {
    "glob": "/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py",
    "producers": ["scripts/scheduled_job_health_carrier_release.py"],
-   "scope": "Only exact reviewed F09 successor bytes from the curated snapshot; fixed known predecessor and byte/mode custody. No job execution or unrelated repins."
+   "scope": "Only exact reviewed F09 successor bytes from the curated snapshot, drift checker/inventory, ops/n8n_execution_budget.py and ops/n8n_dt.py: exact five-source hashes and reviewed installed modes required. Fixed known predecessor, preimage recheck and byte/mode custody; dependency paths are read-only inputs, not producer outputs. No job execution or unrelated repins."
   },
   {
    "glob": "ops/evidence-freshness/adoptions.jsonl",

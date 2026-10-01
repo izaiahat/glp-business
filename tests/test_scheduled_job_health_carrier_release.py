@@ -66,6 +66,7 @@ def fixture(tmp_path):
         'reviewed_at_utc':'2026-01-01T00:00:00Z', 'evidence':['fixture only'],
         'producer_head':head, 'source_head':head,
         'source_sha256':{n:p.sha_bytes((business/n).read_bytes()) for n in p.SOURCES},
+        'source_mode':{n:(business/n).stat().st_mode & 0o7777 for n in p.SOURCES},
         'predecessor_sha256':p.sha_bytes(old), 'predecessor_mode':0o750,
         'expected_job':copy.deepcopy(job),
         'writer_exclusion':'fixture single writer; no direct carrier callers'}
@@ -79,6 +80,69 @@ def accept(f):
     review.update(decision='ACCEPT_EXACT_CURRENT_BYTES', proposed_sha256=plan['proposed_sha256'])
     receipt.write_text(json.dumps(review))
     return plan
+
+
+def test_combined_dependency_preview_refuses_unbound_bytes(tmp_path, monkeypatch):
+    """The real dependency_preview_probe.py counterexample, scratch-only.
+
+    Keep genuine committed candidate bytes; never import/run the health manager,
+    budget or transport. No live acceptance or apply is made by this regression.
+    """
+    f = fixture(tmp_path)
+    p, repo, business, hermes, scheduler, receipt, review = f
+    dependencies = ('ops/n8n_execution_budget.py', 'ops/n8n_dt.py')
+    # Let the old three-source producer reach the genuine omission boundary.
+    for name in dependencies:
+        path = business/name
+        if not path.exists():
+            path.write_bytes((ROOT/name).read_bytes())
+    targets = (hermes/'scripts'/p.CARRIER, hermes/'cron/jobs.json')
+    before = {path:(path.read_bytes(), path.stat().st_mtime_ns,
+                    path.stat().st_mode) for path in targets}
+    monkeypatch.setattr(p, 'preserve_custody', lambda *a:pytest.fail('preview made custody'))
+    monkeypatch.setattr(p, 'atomic_write', lambda *a:pytest.fail('preview wrote output'))
+    monkeypatch.setattr(scheduler, '_save_jobs_unlocked', lambda *a:pytest.fail('preview saved'))
+    healthy = p.release(receipt, repo, business=business, hermes=hermes)
+    assert healthy['proposed_sha256'] == p.sha_bytes((ROOT/p.SNAPSHOT).read_bytes())
+    assert healthy['applied'] is False and healthy['jobs_executed'] == 0
+    for name in dependencies:
+        path = business/name
+        body, mode = path.read_bytes(), path.stat().st_mode & 0o7777
+        for mutation in ('missing', 'incompatible', 'forged_hash', 'omitted_hash',
+                         'mode', 'omitted_mode', 'extra_hash'):
+            bad = copy.deepcopy(review)
+            if mutation == 'missing':
+                path.unlink()
+            elif mutation in ('incompatible', 'forged_hash'):
+                path.write_bytes(b'fixture deliberately incompatible; do not execute\n')
+                if mutation == 'forged_hash':
+                    bad['source_sha256'][name] = p.sha_bytes(path.read_bytes())
+            elif mutation == 'omitted_hash':
+                bad['source_sha256'].pop(name, None)
+            elif mutation == 'mode':
+                path.chmod(0o700)
+            elif mutation == 'omitted_mode':
+                bad['source_mode'].pop(name, None)
+            elif mutation == 'extra_hash':
+                bad['source_sha256']['ops/arbitrary.py'] = '0'*64
+            receipt.write_text(json.dumps(bad))
+            with pytest.raises((RuntimeError, OSError)):
+                p.release(receipt, repo, business=business, hermes=hermes)
+            assert before == {target:(target.read_bytes(), target.stat().st_mtime_ns,
+                                      target.stat().st_mode) for target in targets}
+            assert not (business/'reports').exists()
+            path.write_bytes(body); path.chmod(mode)
+        receipt.write_text(json.dumps(review))
+        assert p.release(receipt, repo, business=business, hermes=hermes) == healthy
+    assert p.SOURCES == {p.SNAPSHOT, 'scripts/scheduled_source_drift.py',
+                         'ops/scheduled-source-drift-manifest.json', *dependencies}
+    inventory = json.loads((ROOT/'ops/scheduled-source-drift-manifest.json').read_bytes())
+    row = next(row for row in inventory['jobs'] if row['id'] == p.JOB_ID)
+    assert row['reviewed_sha256'] == healthy['proposed_sha256']
+    assert {payload['path']:payload['sha256'] for payload in row['payloads']} == {
+        str(p.BUSINESS/name):p.sha_bytes((ROOT/name).read_bytes()) for name in dependencies}
+    assert all(payload['owner'] == str(p.HERMES/'scripts'/p.CARRIER)
+               for payload in row['payloads'])
 
 
 def test_preview_and_apply_only_carrier_and_target_hash_with_custody(tmp_path):
@@ -132,7 +196,8 @@ def test_refusals_write_nothing(tmp_path, mutation, monkeypatch):
     assert not (business/'reports').exists()
 
 
-@pytest.mark.parametrize('race', ['source', 'mode', 'record', 'lock'])
+@pytest.mark.parametrize('race', ['source', 'mode', 'record', 'lock',
+    'budget_bytes', 'budget_mode', 'transport_bytes', 'transport_mode'])
 def test_intervening_changes_refuse_before_custody(tmp_path, race, monkeypatch):
     f=fixture(tmp_path)
     p, repo, business, hermes, scheduler, receipt, review=f
@@ -144,6 +209,11 @@ def test_intervening_changes_refuse_before_custody(tmp_path, race, monkeypatch):
         if race=='source': (business/'scripts/scheduled_source_drift.py').write_bytes(b'moved')
         elif race=='mode': carrier.chmod(0o700)
         elif race=='record': registry.write_bytes(b'{"jobs":[]}')
+        elif race.startswith(('budget_', 'transport_')):
+            dependency = business/('ops/n8n_execution_budget.py' if race.startswith('budget_')
+                                   else 'ops/n8n_dt.py')
+            if race.endswith('_bytes'): dependency.write_bytes(b'moved')
+            else: dependency.chmod(0o700)
         return plan
     monkeypatch.setattr(p, 'checked_plan', moved)
     import contextlib, fcntl
