@@ -4,12 +4,14 @@
 /.github/*
 !/ops/
 /ops/*
+!/ops/n8n_execution_budget.py
 !/reports/
 /reports/*
 !/scripts/
 /scripts/*
 !/tests/
 /tests/*
+!/tests/test_n8n_execution_budget.py
 !/tests/test_rook_communication.py
 !/.github/workflows/
 /.github/workflows/*
