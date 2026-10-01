@@ -17,7 +17,7 @@
       "callers": ["GLP337 receiving-host installation owner"], "kind": "repository_control", "sha256": "8771c44e9836c3e72c383a429b53d75cd70df478de8654e81d220b93f13502b5"
     },
     "tests/test_glp337_shared_bridge_migration.py": {
-      "callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "e4b0edb9a97541bdd4119048c4add829f6d552e8975887788ca85a2fd4786962"
+      "callers": [".github/workflows/business-source-ci.yml"], "kind": "test", "sha256": "aca2532ef1b0f9473224209cd75c6b544481b3624bf7b44098598f48ecd9a726"
     },
     "scripts/glp331_carrier_adoption.py": {
       "kind": "script",
@@ -369,7 +369,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "cf05c7070f5d63754ecddab12c9385c181d49db1968879e0e07adc5cfc9fa80c"
+      "sha256": "d1cf4acb485631e95199827a6dc4c4d045a6e737d499ebf39fd2a4b59c269703"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],

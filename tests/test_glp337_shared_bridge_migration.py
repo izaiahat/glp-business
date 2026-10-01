@@ -209,9 +209,15 @@ def test_paired_caller_and_child_fences_do_not_self_deadlock(tmp_path, monkeypat
     assert result['rc'] == 0 and calls == ['hourly']
 
 
-def test_host_sol_preserves_literal_and_durable_no_replay(tmp_path, monkeypatch):
-    from ops import decisions_router
-    monkeypatch.setattr(decisions_router, 'AGENT_DIR', tmp_path)
+@pytest.mark.parametrize('launch_fails', [False, True])
+def test_host_sol_preserves_literal_and_durable_no_replay(tmp_path, monkeypatch, launch_fails):
+    import sys
+    import types
+    # Only the private router's directory constant is consumed by this function;
+    # do not import the router's uncurated live action-items/send dependencies.
+    router = types.ModuleType('ops.decisions_router')
+    router.AGENT_DIR = tmp_path
+    monkeypatch.setitem(sys.modules, 'ops.decisions_router', router)
     state, calls = {}, []
     state_path = tmp_path / 'state.json'
     def fake_spawn(command, **kwargs):
@@ -220,6 +226,8 @@ def test_host_sol_preserves_literal_and_durable_no_replay(tmp_path, monkeypatch)
         assert command[command.index('--model') + 1] == 'gpt-6.1-sol'
         assert command[command.index('--provider') + 1] == 'openai-codex'
         assert command[command.index('--reasoning') + 1] == 'xhigh'
+        if launch_fails:
+            raise OSError('fixture unconfirmed launch')
         class Process:
             returncode = 0
             def communicate(self, timeout):
@@ -228,6 +236,12 @@ def test_host_sol_preserves_literal_and_durable_no_replay(tmp_path, monkeypatch)
         return Process()
     monkeypatch.setattr(subprocess, 'Popen', fake_spawn)
     args = ('fixture prompt', str(tmp_path / 'receipt.json'), 'fixture', state, state_path)
-    assert cron.decisions_host_sol(*args)['rc'] == 0
-    assert cron.decisions_host_sol(*args)['rc'] == 0
+    if launch_fails:
+        with pytest.raises(OSError):
+            cron.decisions_host_sol(*args)
+        with pytest.raises(RuntimeError, match='unconfirmed_no_replay'):
+            cron.decisions_host_sol(*args)
+    else:
+        assert cron.decisions_host_sol(*args)['rc'] == 0
+        assert cron.decisions_host_sol(*args)['rc'] == 0
     assert len(calls) == 1
