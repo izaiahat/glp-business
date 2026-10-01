@@ -69,6 +69,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_scheduled_source_drift.py tests/test_scheduled_job_health_carrier_release.py tests/test_f09_native_maintenance_boundary.py tests/test_f09_cutover.py
+      - name: GLP-73 optional retention lanes (offline, no archive or sends)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_glp73_optional_retention_lanes.py tests/test_glp73_retention_prepared_consumer.py
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
