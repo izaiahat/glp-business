@@ -23,6 +23,9 @@ import tempfile
 import time
 
 SCHEMA = 'glp44-glp73-maintenance-window-v1'
+# Preserve the retained exit wrapper's pre-effect ceiling, but admit atomically
+# behind at most the current owner, not repeated keeper inventories.
+OPERATION_ADMISSION_SECONDS = 300.0
 CONTROL_FIELDS = ('enabled', 'state', 'paused_at', 'paused_reason', 'pending_slot', 'next_run_at')
 RUNTIME_FIELDS = {'fire_claim', 'run_claim', 'running', 'last_run_at', 'last_status',
                   'last_dispatch', 'last_error', 'last_delivery_error', 'last_delivery_unverified',
@@ -161,18 +164,45 @@ def locks_verified(data):
 
 
 @contextmanager
-def operation_lock(journal):
+def operation_lock(journal, *, timeout=0):
+    """Bounded pre-effect admission; a queued foreground owner beats the keeper.
+
+    All owners take the admission gate before the existing operation lock. A
+    waiter retains the gate until acquisition, so the nonblocking keeper cannot
+    barge into another full verification. Neither lock is a source/fire fence:
+    those remain continuously held by the keeper. Never retry the yielded body.
+    """
     path = Path(str(journal) + '.operation.lock')
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    deadline = time.monotonic() + timeout
+    gate = fd = None
+
+    def acquire(handle):
+        require(stat.S_ISREG(os.fstat(handle).st_mode), 'operation_lock_not_regular')
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return
+            except BlockingIOError as exc:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise WindowError('window_operation_busy') from exc
+                time.sleep(min(0.05, remaining))
+                require(time.monotonic() < deadline, 'window_operation_busy')
+
     try:
-        require(stat.S_ISREG(os.fstat(fd).st_mode), 'operation_lock_not_regular')
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield
-    except BlockingIOError as exc:
-        raise WindowError('window_operation_busy') from exc
+        gate = os.open(str(path) + '.admission', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        acquire(gate)
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        acquire(fd)
+        os.close(gate)
+        gate = None
+        yield  # Outside acquisition handling: ambiguous effects propagate once.
     finally:
-        os.close(fd)
+        if fd is not None:
+            os.close(fd)
+        if gate is not None:
+            os.close(gate)
 
 
 def entry_key(entry):
@@ -944,7 +974,7 @@ class ActiveWindow:
 def require_active_window(journal, root, hermes):
     require(journal is not None, 'active_maintenance_window_required')
     journal = Path(journal)
-    with operation_lock(journal):
+    with operation_lock(journal, timeout=OPERATION_ADMISSION_SECONDS):
         data = read_journal(journal)
         require(data['root'] == str(Path(root).resolve()) and data['hermes'] == str(Path(hermes).resolve()),
                 'window_target_mismatch')
@@ -1082,7 +1112,7 @@ def main(argv=None):
             review = json.loads(args.outcome_review.read_text()) if args.outcome_review else None
             data = read_journal(args.journal) if args.journal.exists() else None
             if data and locks_verified(data) and data['keeper'] != identity():
-                with operation_lock(args.journal):
+                with operation_lock(args.journal, timeout=OPERATION_ADMISSION_SECONDS):
                     data = read_journal(args.journal)
                     if review is not None:
                         # Review refers to the pre-request journal. Verify it
