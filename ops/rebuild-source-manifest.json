@@ -1,6 +1,16 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    ".github/workflows/glp80-taxonomy-unblock.yml": {
+      "callers": ["GLP-80 exact-head offline acceptance"],
+      "kind": "repository_control",
+      "sha256": "4bd2bfc3b59e55df8107a329467d2f0de8ab62689750dc6b0409dd063ca18e00"
+    },
+    "tests/test_glp80_taxonomy_correction.py": {
+      "callers": [".github/workflows/glp80-taxonomy-unblock.yml"],
+      "kind": "test",
+      "sha256": "1dcf996a2969e64346fc2c41cf55aa7bd3027c491916aecf0c8063ad7b96ed37"
+    },
     "tests/test_glp341_weekly_ads_compatibility.py": {
       "callers": [
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
@@ -113,7 +123,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89fcccee0c56be77c645655b108ef0fb4d108bcd076783f8d6f36589558b24d0"
+      "sha256": "b589a216b99329f282c41d804e7577b719aaf2f5225aa60fff6cf39ca5496af3"
     },
     ".hermes.md": {
       "callers": [],
@@ -1819,12 +1829,12 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "f5b8b7039439d7f43f8a5416f01818a9a89f5ec806dcc9e1787b90713d520e61"
+      "sha256": "740fe294e9fd1a326b9af604154baa2dc4deaddf856125fe898b693fe86bc317"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
       "kind": "policy",
-      "sha256": "c9b7e7b2881f43f076c2f4815eb4b47a09d7f89c4fef18ad75d7f316f84adba4"
+      "sha256": "ddf298013959544874d3423f805585d402e82cbd4730ed4d375a4ddfeba8648f"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -2974,7 +2984,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "28cc7db0c8b3de90758c1dc62492a2d1fe6cd03239d9850b2f545acef33bd04e"
+      "sha256": "803ff0254fcc450d53a743561f669c1bc598911ad41a2422216d7c8231cc822d"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -3225,5 +3235,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 487
+  "tracked_count": 489
 }

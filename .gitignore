@@ -382,3 +382,7 @@
 !/tests/test_maintenance_cohort_recovery.py
 !/tests/test_adoption_cache_restore.py
 !/tests/test_glp73_sync_rebaseline.py
+
+# GLP-80 registered therapeutic producer correction (offline, exact head)
+!/tests/test_glp80_taxonomy_correction.py
+!/.github/workflows/glp80-taxonomy-unblock.yml

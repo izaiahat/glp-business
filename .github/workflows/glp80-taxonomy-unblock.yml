@@ -1,0 +1,25 @@
+name: glp80-taxonomy-unblock
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  focused-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline correction and unchanged evidence guard fixtures
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5'
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_taxonomy_correction.py tests/test_therapeutic_taxonomy_refresh.py
+          git diff --exit-code
