@@ -2800,14 +2800,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "6b14de3683c70b020b7fdcacb9f1d2b7f9077c183c8ce95c31108c33bb295dcc"
+      "sha256": "289c2a27df81371b6d247b24604a15726b6dba12f364277fd1571e511e140627"
     },
     "tests/test_scheduled_source_drift.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "5f65e2673be742c2c0535d1db8804ee4cec364fdbb68d599e13e113fd42ef0c7"
+      "sha256": "6dafa26124a39af0eb1062c319822196718c3b03000cd30305c59f9ee2a52fe8"
     }
   },
   "omitted_runtime_inputs": [

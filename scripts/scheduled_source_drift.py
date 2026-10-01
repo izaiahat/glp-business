@@ -86,6 +86,14 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
         expected = imported.get(rel) or spec.get('reviewed_sha256') or source_files.get(rel, {}).get('sha256')
         check(job, 'script_drift', path, expected, rel)
 
+    def inventory_payloads(job, spec, path):
+        pins = spec.get('payloads') if spec else None
+        # Only an explicit reviewed list (including []) establishes coverage.
+        if not isinstance(pins, list):
+            unknown(job, 'transitive_pin_inventory_missing', path)
+            return []
+        return pins
+
     def payload_check(job, pin, depth=0, seen=None):
         path = Path(pin['path']); owner = pin.get('owner', '')
         if not path.is_absolute():
@@ -101,7 +109,10 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
         try:
             digest(path)  # same no-alias/protected-path policy before decoding
             value = read_json(path)
-            files = value.get('files', {})
+            files = value.get('files')
+            if not isinstance(files, dict) or not files:
+                unknown(job, 'transitive_manifest_coverage_missing', path)
+                return
             for target, spec in files.items():
                 if isinstance(spec, str):
                     child = {'path':target, 'sha256':spec, 'owner':str(path)}
@@ -138,10 +149,8 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
                 source_check(jid, path, spec)
                 if job.get('script_sha256'):
                     check(jid, 'scheduler_drift', path, job['script_sha256'], str(registry))
-                for pin in (spec or {}).get('payloads', []):
+                for pin in inventory_payloads(jid, spec, path):
                     payload_check(jid, pin)
-                if not spec:
-                    unknown(jid, 'transitive_pin_inventory_missing', path)
         except (OSError, ValueError, KeyError, TypeError):
             unknown('native_registry', 'registry_invalid', registry)
 
@@ -155,7 +164,7 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
         spec=inventory[jid]
         for source in spec['sources']:
             source_check(jid, Path(source['path']), source)
-        for pin in spec.get('payloads', []):
+        for pin in inventory_payloads(jid, spec, spec['path']):
             payload_check(jid, pin)
     return {'schema':'scheduled-source-drift-result-v1', 'status':'UNKNOWN' if counts['unknown'] else ('DRIFT' if findings else 'CLEAN'),
             'counts':dict(counts), 'checked':len(checks), 'native_script_jobs':len(native_ids),

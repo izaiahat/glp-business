@@ -1,6 +1,7 @@
 import hashlib
 import json
 import importlib.util
+import pytest
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -106,6 +107,78 @@ def test_health_digest_executes_checker_without_importing_host_effects(tmp_path)
     assert scope['collect_daily_source_drift'](state,now) is None
     assert calls==['audit']
     assert state['last_source_drift']==result
+
+
+@pytest.mark.parametrize('surface', ['native', 'crontab'])
+@pytest.mark.parametrize('coverage', ['missing', None, {}, 'unsupported'])
+def test_missing_payload_coverage_must_be_unknown(tmp_path, surface, coverage):
+    root, hermes, installed, payload, _ = fixture(tmp_path)
+    payload.write_bytes(b'changed payload that is no longer covered\n')
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    spec = inventory['jobs'][0]
+    crontab_ids = []
+    if surface == 'crontab':
+        spec['surface'] = surface
+        spec['sources'] = [{'path':str(installed), 'source':spec['source']}]
+        (hermes/'cron/jobs.json').write_text('{"jobs":[]}')
+        crontab_ids = ['job']
+    if coverage == 'missing':
+        del spec['payloads']
+    else:
+        spec['payloads'] = coverage
+    inventory_path.write_text(json.dumps(inventory))
+    result = load().audit(root, hermes, crontab_ids=crontab_ids)
+    assert result['status'] == 'UNKNOWN', result
+    assert any(f['job_id'] == 'job' and f['reason'] == 'transitive_pin_inventory_missing'
+               for f in result['findings'])
+
+
+def test_reviewed_explicit_no_payload_coverage_remains_clean(tmp_path):
+    root, hermes, *_ = fixture(tmp_path)
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    inventory['jobs'][0]['payloads'] = []
+    inventory_path.write_text(json.dumps(inventory))
+    assert load().audit(root, hermes, crontab_ids=[])['status'] == 'CLEAN'
+
+
+@pytest.mark.parametrize('files', [{}, 'missing', None, []])
+def test_empty_nested_pin_coverage_must_be_unknown(tmp_path, files):
+    root, hermes, _, _, _ = fixture(tmp_path)
+    pinmanifest = root/'payload-pins.json'
+    value = {'schema':'payload-pins-v1'}
+    if files != 'missing':
+        value['files'] = files
+    pinmanifest.write_text(json.dumps(value))
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    inventory['jobs'][0]['payloads'] = [{'path':str(pinmanifest),
+        'sha256':sha(pinmanifest.read_bytes()), 'owner':'job.py'}]
+    inventory_path.write_text(json.dumps(inventory))
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status'] == 'UNKNOWN', result
+    assert any(f['job_id'] == 'job' and f['reason'] == 'transitive_manifest_coverage_missing'
+               for f in result['findings'])
+    assert result['counts']['payload_drift'] == 0  # matching outer bytes are still checked
+
+
+def test_nested_pin_member_and_outer_hash_drift_remain_visible(tmp_path):
+    root, hermes, _, payload, _ = fixture(tmp_path)
+    pinmanifest = root/'payload-pins.json'
+    value = {'files': {str(payload):sha(payload.read_bytes())}}
+    pinmanifest.write_text(json.dumps(value))
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    inventory['jobs'][0]['payloads'] = [{'path':str(pinmanifest),
+        'sha256':sha(pinmanifest.read_bytes()), 'owner':'job.py'}]
+    inventory_path.write_text(json.dumps(inventory))
+    assert load().audit(root, hermes, crontab_ids=[])['status'] == 'CLEAN'
+    payload.write_bytes(b'child drift\n')
+    pinmanifest.write_text(json.dumps(value) + '\n')
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status'] == 'DRIFT'
+    assert result['counts']['payload_drift'] == 2
 
 
 def test_report_is_hash_only_and_not_job_payload_text(tmp_path):
