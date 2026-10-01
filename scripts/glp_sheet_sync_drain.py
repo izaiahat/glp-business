@@ -1605,6 +1605,12 @@ def build_entry(
         }}
 
     if kind == "network_cancelled":
+        import affiliate_program_withdrawal as withdrawal
+        capture = withdrawal.verify(queue_row, root=BUSINESS)
+        evidence = {**evidence, "network": capture["network"],
+                    "network_program_id": str(capture["program_id"]),
+                    "path": str((Path(evidence["path"]) if Path(evidence["path"]).is_absolute()
+                                 else BUSINESS / evidence["path"]).resolve().relative_to(BUSINESS.resolve()))}
         if row_num is None:
             raise ValueError("network_cancelled_requires_existing_row")
         event_id = str(evidence.get("event_id") or "").strip()
@@ -2550,12 +2556,26 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
                 results.append(base)
                 continue
             decision = str(evidence.get("decision_class") or "")
-            base["status"] = RESULT_ESCALATED
-            base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"
-            base["decision_class"] = decision
-            base["intended_writer_kind"] = str(evidence.get("intended_writer_kind") or "")
-            results.append(base)
-            continue
+            if decision in {"cancelled", "terminated"} and evidence.get("provider_verification"):
+                import affiliate_program_withdrawal as withdrawal
+                try:
+                    queue_row = withdrawal.promote_verified_notice(
+                        queue_row, evidence["provider_verification"], root=BUSINESS)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    base.update(status=RESULT_REFUSED, reason=str(exc))
+                    results.append(base)
+                    continue
+                kind = queue_row["kind"]
+                base["kind"] = kind
+                base.update({key: queue_row[key] for key in ("network", "program_id", "program_name")})
+                base["source_notice_update_id"] = update_id
+            else:
+                base["status"] = RESULT_ESCALATED
+                base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"
+                base["decision_class"] = decision
+                base["intended_writer_kind"] = str(evidence.get("intended_writer_kind") or "")
+                results.append(base)
+                continue
         mode = writer.SHEET_SYNC_KIND_MODE.get(kind)
         if not mode:
             base["reason"] = f"unknown_kind:{kind or '(blank)'}"

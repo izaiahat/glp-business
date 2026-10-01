@@ -38,17 +38,12 @@ def test_cancellation_email_dry_run_status_update(tmp_path, monkeypatch):
     finally:
         state.close()
     receipt = json.loads(Path(result['receipt']).read_text())
-    queue = receipt['sheet_queue_receipt']['queue_row']
-    evidence = json.loads(queue['evidence'])
-    entry = drain.build_entry(queue['kind'], queue, evidence, 2, row)
-    assert queue['kind'] == 'network_cancelled'
-    assert queue['program_id'] == '29946'
-    assert entry['cells']['10'] == 'cancelled_by_network'
-    assert entry['cells']['19'] == 'FALSE'
-    assert event['event_id'] in entry['cells']['23']
-    assert evidence['event_at_utc'] == event['received_at']
-    assert receipt['sheet_queue_receipt']['queued'] is False
+    assert result['disposition'] == 'requires_provider_verification'
+    assert receipt['status'] == 'BLOCKED'
     assert receipt['sheet_write_count'] == 0
     assert receipt['sheet_readback_verified'] is False
+    assert receipt['provider_readback_verified'] is False
+    assert receipt['action_completed'] is False
     assert receipt['signal'] == 'campaign_cancellation'
     assert receipt['outbound_send'] is False
+    service.spreadsheets.assert_not_called()
