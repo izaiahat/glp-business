@@ -39,7 +39,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "543ef27d17f10408485e3c5eea20937d310183a5d2470bd3158912847fda5dd1"
+      "sha256": "a261c0974db9a3bc28826bccae1079de83fd02a2fb51b2b375cd4141a71ef8c6"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -3083,6 +3083,13 @@
       "kind": "script",
       "sha256": "01ff4668916212ed7b970b6df542d4d86abc28fd00322246e707f5fee562eb3c"
     },
+    "tests/test_f09_native_maintenance_boundary.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "f971e9ab54c7b84db24580a4dc8045b3d2907f0270db9ce841496e5d01624543"
+    },
     "tests/test_scheduled_job_health_carrier_release.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
@@ -3102,7 +3109,7 @@
         "ops/scheduled-source-drift.md"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "104ec5491eb7471c3c8b367b629b8c98da86097e8ef329f04d0f6f1fa1416ee7"
+      "sha256": "23d0dee928e07aa05ef0ec76a12eb0aaa689839e9869eef92b10603829bcdb60"
     },
     "ops/n8n_dt.py": {
       "callers": [
@@ -3142,5 +3149,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 475
+  "tracked_count": 476
 }
