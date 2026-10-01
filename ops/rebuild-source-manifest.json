@@ -8,8 +8,23 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 543,
+  "tracked_count": 546,
   "files": {
+    ".github/workflows/glp93-current-base-consumer.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "28e4c7542eebc492c1d914ba50712b59d4a95f2c9950dc9fbd76468980503265"
+    },
+    "ops/glp93-current-base-consumer.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "368846da60dd77bd7cfed68306876ff6f1bc0868b8ee5104da95183c1f6615f7"
+    },
+    "tests/test_glp93_current_base_consumer.py": {
+      "kind": "test",
+      "callers": [".github/workflows/glp93-current-base-consumer.yml"],
+      "sha256": "857a87894f6c756e614a87bc9d0243f45145b4ccf1993921583c3c2fec578484"
+    },
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
       "callers": [
@@ -1659,7 +1674,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05"
+      "sha256": "83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b"
     },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": [

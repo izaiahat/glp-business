@@ -2387,11 +2387,44 @@ def routing_basis_age_guard_drill(plan: dict[str, Any]) -> dict[str, Any]:
 
 def _registry_by_id(pointer: dict[str, Any]) -> tuple[Path, dict[str, dict[str, Any]], dict[str, Any]]:
     release = Path(str(pointer.get("release_root") or "")).resolve()
-    if release.parent != RELEASES or not release.is_dir():
+    prepared_evidence = None
+    current_base = None
+    pointer_binding = None
+    if release.parent != RELEASES:
+        # Only the canonical published prepared base may extend the historical
+        # direct-child contract. A raw report path is never a source override.
+        try:
+            import glp_price_index_weekly as current_base
+            from glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape
+
+            validate_pointer_shape(pointer, require_release_dirs=True)
+            if not is_prepared_pointer(pointer):
+                raise RuntimeError("current_release_not_prepared")
+            pointer_binding = current_base._read_bound_regular_file(str(CURRENT_BASE), "pointer")
+            if current_base._load_base_document(pointer_binding[1], "pointer") != pointer:
+                raise RuntimeError("current_release_pointer_mismatch")
+            prepared_evidence = current_base._validate_base_evidence(pointer, release)
+            if not prepared_evidence.get("prepared_binding"):
+                raise RuntimeError("current_release_prepared_binding_missing")
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise B2Error(f"current_release_scope_invalid:{exc}") from exc
+    elif not release.is_dir():
         raise B2Error("current_release_scope_invalid")
     registry_path = release / "data/program-registry.json"
     registry = read_json(registry_path)
     programs = {str(row.get("program_id")): row for row in registry.get("programs") or []}
+    if prepared_evidence is not None:
+        # Re-authenticate after consumption: pointer, tree, and native retained
+        # preparation/publication inputs must still be the same generation.
+        try:
+            if current_base is None or pointer_binding is None:
+                raise RuntimeError("current_release_prepared_binding_missing")
+            if current_base._validate_base_evidence(pointer, release) != prepared_evidence:
+                raise RuntimeError("current_release_prepared_binding_changed")
+            if current_base._read_bound_regular_file(str(CURRENT_BASE), "pointer") != pointer_binding:
+                raise RuntimeError("current_release_pointer_changed")
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise B2Error(f"current_release_scope_invalid:{exc}") from exc
     return release, programs, registry
 
 
@@ -11514,7 +11547,9 @@ def release_prepared(
                     spec = _extract_program_spec(read_json(spec_path), plan_row["site_program_id"])
                     _research_valid(read_json(research_path), plan_row["site_program_id"])
                     _terms_valid(read_json(terms_path), plan_row)
-                    source_registry = _registry_by_id({"release_root": str(current_source)})[1]
+                    source_registry = _registry_by_id(
+                        pointer if current_source == current_predecessor else {"release_root": str(current_source)}
+                    )[1]
                     source_row = source_registry.get(str(spec["program_id"]))
                     source_profile = (((source_row or {}).get("profiles") or {}).get("glp-clinic-scout") or {})
                     already_live = (

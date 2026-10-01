@@ -1,0 +1,23 @@
+name: glp93-current-base-consumer
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  authenticated-current-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact-head offline current-base consumer regression
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m venv .glp93-venv
+          .glp93-venv/bin/python -m pip install 'requests==2.32.3'
+          PYTHONDONTWRITEBYTECODE=1 .glp93-venv/bin/python -m unittest discover -s tests -p test_glp93_current_base_consumer.py -v
