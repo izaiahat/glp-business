@@ -1,60 +1,25 @@
-# Eden factual-source closure (GLP-80)
+# Eden qualified source closure (GLP-80, source only)
 
-This source-only successor replaces Eden's obsolete two-page literals with seven
-assertions owned by four independently accepted official URLs. Four new
-read-only captures were obtained through the unchanged registered `capture()`
-transport. The capture fixtures retain exact encoded receipts, actual
-`received_at`, redirect metadata, body hashes, source ownership and full
-prescription/nonapproval/conflict context. No producer main or live writer was
-run to obtain them; no intake or tracking link was followed.
+PR123 retains the four actual October 1 capture receipts and seven exact assertions from its predecessor `dd97df07f36300b1dabb1bc2b5e4cf78dfb9134f`. This successor does not repeat collection. It adds only the now-authorized staged active membership and independently required public qualification interface. Renderer ownership is [glp-site-candidate PR23](https://github.com/izaiahat/glp-site-candidate/pull/23), head `6cd6b49`; maintained owner paths are `src/therapeutic-taxonomy.mjs`, `src/money-page.mjs`, `src/quiz.mjs`, `assets/quiz-page.js`, and `assets/matches-customized.js`. Do not duplicate these files in glp-business or patch old generated candidate HTML.
 
-## Interpretation and remaining representation gap
+## Exact qualification and interpretation
 
-Only provider-reported conditional advertisements and provider-level injection
-context are accepted. No clinical identity, indication, efficacy, pharmacy
-quality, stock, actual supply, all-state availability or guaranteed prescription
-is accepted. Price text is offer context, not economic renewal.
+> Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified.
 
-Required public note (preserved verbatim in the existing policy `finding`):
+Only conditional advertised offerings and provider-level injection context are accepted. Availability depends on clinician decision and prescription after online consultation; membership is not a guaranteed prescription. Compounded medications are not FDA-approved. Neither prices nor this closure establish economic renewal, actual supply/stock, clean clinical identity/indication or all-state eligibility. Side-captured `In Stock`/`Coming Soon` ambiguity is retained in the predecessor/reviewer reports; the independent DOM review records visible `In Stock` and hidden `Coming Soon`. No stock/supply verdict is inferred, and no intake/affiliate URL is followed.
 
-> Reported information: Eden advertises a conditional Zepbound-labelled offering.
-> Its explanatory paragraph names Mounjaro; the medication actually prescribed
-> or supplied has not been verified.
+## Registered future-writer path
 
-`finding` is retained by `verify_sources()` in the producer manifest, but it is
-not a consumed public qualification. The current
-`src/therapeutic-taxonomy.mjs:publicTaxonomy()` projection exports tags,
-treatment state, date and digest only. Neither the row's digest basis nor this
-projection has a claim-qualification field. Therefore the policy remains
-`review_required`; a successful raw assertion replay is **not** permission to
-refresh Eden or to publish an unqualified positive brand claim. No new
-qualification framework or public field has been invented.
+The unchanged registered `scripts/refresh-therapeutic-taxonomy.py` entry stages Eden via `prepare_qualified_source_row` before its unchanged source-membership and exact assertion guards. The preimage permits only the historical three source URLs or the already adopted exact reviewed four URLs. All seven tags must match the reviewed policy; the optional note, if present, must be exact. Staging is copy-only: dates, commercial states, old bindings and all other fields remain unchanged. All other provider rows and policies remain untouched.
 
-Separately, current Eden `source_urls` lacks the three exact treatment URLs.
-The unchanged source-membership guard still rejects this. Only test-local
-future-closure membership is used in the positive replay; the live registry
-remains untouched, including historical source attachments and dates.
+After successful future capture and original-row CAS, `apply_qualified_source_row` consumes the exact four-source manifest plus qualification into the candidate. The immutable existing verification manifest retains the actual original complete row, historical source attachments and clocks. Active bindings become the four current captures through the existing writer. A real native consumer-interface check refuses qualification adoption if the paired digest consumer is absent. The original native `validate()` and its pinned source hash, 31-day rules, clocks, reconciliation and CAS remain unchanged. These functions were exercised offline only; no live producer invocation occurred.
 
-## Verification scope
+The exact old representation-only `review_required` is removed from Eden's policy because the paired source now provides the interface; it is not a runtime activation or a global hold removal. The operational installed consumer still lacks this interface and current full-site evidence remains stale. Both PRs require separately authorized review/source adoption before any future writer effect. CareBare/Novi/Curex corrections, commercial network holds and all existing unknown/held outcomes remain unchanged.
 
-- Portable authentic full-page replay: all seven assertions pass unchanged
-  `verify_sources()` / `support()`; captures never concatenate pages.
-- Per-brand semantic negatives remove the complete hero and bottom offer while
-  retaining educational/navigation names, prescription disclaimers and the
-  Zepbound-route Mounjaro conflict. Only the removed brand fails.
-- Compound-offer removal rejects semaglutide, tirzepatide and compounded while
-  preserving generic names/nonapproval and injection context.
-- Injection-context removal rejects injection without inferring it from
-  molecule options; remaining molecule/compound assertions still pass.
-- Host-only native test calls the actual unchanged producer `validate()` and
-  Node reconciler on a labelled single-row in-memory fixture. It also rejects
-  stale evidence under the existing 31-day rule. No validator pass is stubbed.
-  Hosted CI lacks private native source and explicitly skips that one test;
-  its exact-head job runs the portable replay and the existing focused suites.
+## Public consumers and evidence
 
-CareBare, Novi and Curex installed source corrections are unchanged. Source
-closure alone cannot clear today's complete-registry stale denominator. This
-PR does not adopt sources, renew any dates, modify commercial holds, install,
-merge, build or release. Coordinator authority is required to resolve the
-missing public qualification representation and future source membership;
-future observations and whole-registry validation remain separate work.
+The paired optional plain-text field is validated and authenticated without changing old unqualified digest bases. It reaches public taxonomy, all five canonical compare paths, both table revisions/shared blog tables, affected branded card prose, Phase4 `candidate_records`, and both card runtimes. The current survey completes to `/matches/customized/`; its actual renderer receives visible adjacent text, not only machine metadata. Qualification HTML is escaped; runtime uses `textContent`. No unrelated row gets blanket legal copy.
+
+Offline suites replay the actual four full-page captures and seven assertions; brand/compound/injection-offer removals retaining names/disclaimers still refuse. Staging and manifest drift refuse without mutation. Paired host integration executes the unchanged native validator and compares producer closure to the renderer fixture; stale evidence still refuses. Companion exact-head CI executes native taxonomy/dynamic/consumer-authority validators and public/DOM fixture tests; business exact-head CI runs capture/guard suites, with host-only paired native tests explicitly skipped when their owner source is absent.
+
+The DOM presentation fixture uses an explicit synthetic result-set arrangement and does not assert live ranking eligibility. The existing `all_eligible`/legacy `slice` mismatch remains outside scope. No full site build, gate bypass, registry write, evidence-date edit, source install, merge, release, tracking/intake action or independent self-acceptance occurred. Full-site readiness and independent health/source/design acceptance remain separate.

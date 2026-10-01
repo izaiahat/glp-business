@@ -8,17 +8,22 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 514,
+  "tracked_count": 515,
   "files": {
+    "tests/test_glp80_eden_qualified_projection.py": {
+      "callers": ["GLP-80 qualified source and paired renderer fixtures"],
+      "kind": "test",
+      "sha256": "a716dcfc69e59900d9f87a471b7255d96415406f73e85d855387f88522825992"
+    },
     "ops/glp80-eden-policy-successor.md": {
       "callers": ["GLP-80 Eden source-only successor"],
       "kind": "documentation",
-      "sha256": "1c8697bb5e539aca741e52ee3eaff8a08ec549f6a34f3408fa8294675cf08ce5"
+      "sha256": "e0ec04fed04d94308544314c64af7d25b6f060cd967ab9904d7eb12e0dc67529"
     },
     "tests/test_glp80_eden_policy.py": {
       "callers": ["GLP-80 Eden authentic assertion replay"],
       "kind": "test",
-      "sha256": "825a6ecdcf17a9c7ec26e6bdb1ab883b9b19cca6157b08959ec11715f8a5bb61"
+      "sha256": "9a46c160d03f3c4f352159f0b3b3eaa31dc71322c17205bb9b72c48968bbf7f8"
     },
     "tests/fixtures/glp80-eden/capture-manifest.json": {
       "callers": ["GLP-80 Eden authentic assertion replay"],
@@ -167,7 +172,7 @@
         "GLP-80 exact-head offline acceptance"
       ],
       "kind": "repository_control",
-      "sha256": "6874c62f14a17ad945d70519d4841f6687b2396330951b9a4e107fb961d3895b"
+      "sha256": "f57d4eb0a5701a3ee216ebdfcac8f34099d43b62ad9651c11e1cc01b3554a812"
     },
     "tests/test_glp80_taxonomy_correction.py": {
       "callers": [
@@ -1994,12 +1999,12 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "740fe294e9fd1a326b9af604154baa2dc4deaddf856125fe898b693fe86bc317"
+      "sha256": "798e7064e7f39a8281af285c74e6383227832bd5c74238121c60f3420c7e1fd3"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
       "kind": "policy",
-      "sha256": "9ee0e1fad953c03a293f109ac064276f23f7580d8cfe109edb197d2611495359"
+      "sha256": "7a0f50d4858597c950d64b976158a8fb722b794631c4d7f1e1989a1c4a3a85f8"
     },
     "site-system/flagship-v2/work/glp215-accepted-base/scripts/build-staging.mjs": {
       "callers": [
@@ -3149,7 +3154,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "7b18ed9220b0b62186552392edd578f7c5c7a4df66146758561c456a8eceea5e"
+      "sha256": "5d1979876d0e72666bdd8e3a88f6fad6ea197a7ce91104b9628bd11f7abad4a8"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [

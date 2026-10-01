@@ -147,8 +147,13 @@
         }
       }
     ],
-    "finding": "Provider-reported conditional advertisements only: Eden advertises compounded semaglutide, compounded tirzepatide, Mounjaro, Wegovy and Zepbound; injectable is provider-level only. Availability depends on a clinician decision and a prescription after online consultation; membership does not guarantee a prescription. Compounded medications are not FDA-approved. No verified stock, actual supply, guaranteed eligibility, brand-specific compound identity or clean clinical identity is accepted. Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified. Public projection is blocked: therapeutic_taxonomy.programs[eden-xentraffic-offer-3051] has no consumed claim-qualification field; finding is retained in the producer manifest only.",
-    "review_required": "qualified_public_claim_representation_missing:therapeutic_taxonomy.programs[eden-xentraffic-offer-3051]; finding is manifest-only, not a public qualification path. Adopt the four exact sources and required public qualification separately before any future refresh; no date renewal authorized."
+    "finding": "Provider-reported conditional advertisements only: Eden advertises compounded semaglutide, compounded tirzepatide, Mounjaro, Wegovy and Zepbound; injectable is provider-level only. Availability depends on a clinician decision and a prescription after online consultation; membership does not guarantee a prescription. Compounded medications are not FDA-approved. No verified stock, actual supply, guaranteed eligibility, brand-specific compound identity or clean clinical identity is accepted. Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified. Public representation is an exact reviewed claim_qualification text carried by the paired glp-site-candidate renderer; no actual supply or clinical indication is accepted.",
+    "claim_qualification": "Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified.",
+    "previous_source_urls": [
+      "https://www.eden.health/policies/terms-of-service",
+      "https://www.eden.health/treatment/glp-1-treatments",
+      "https://www.eden.health/weight-loss"
+    ]
   },
   "enhance-md": {
     "sources": [

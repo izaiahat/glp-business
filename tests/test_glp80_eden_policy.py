@@ -102,7 +102,8 @@ def test_seven_assertions_exact_bytes_and_context(replay):
     assert QUALIFICATION in p['finding']
     assert 'prescription after online consultation' in p['finding']
     assert 'membership does not guarantee a prescription' in p['finding']
-    assert 'qualified_public_claim_representation_missing' in p['review_required']
+    assert p['claim_qualification'] == QUALIFICATION
+    assert 'review_required' not in p
     assert 'Mounjaro® is an FDA-approved weekly injectable medication for type 2 diabetes' in receipts[URLS[3]]['response']['data']['markdown']
     assert 'Compounded medications are not FDA-approved' in receipts[URLS[0]]['response']['data']['markdown']
     result = collect(replay)

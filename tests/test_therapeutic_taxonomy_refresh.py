@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import sys
 import types
+import subprocess
+REAL_SUBPROCESS_RUN = subprocess.run
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +94,8 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
         return candidate
     monkeypatch.setattr(producer, 'validate', validate)
     def lock(args, **kwargs):
+        if args[0] == 'node':
+            return REAL_SUBPROCESS_RUN(args, **kwargs)  # real consumer gate; no PASS stub
         assert args[2] in ('acquire', 'release')
         return types.SimpleNamespace(returncode=0, stdout=json.dumps({'status': 'ACQUIRED'}))
     monkeypatch.setattr(producer.subprocess, 'run', lock)
@@ -213,7 +217,10 @@ def test_all_58_rows_accounted_for_and_all_48_near_expiry_selected(producer):
             assert policy['review_required'].strip()
             continue
         sources = policy.get('sources', [policy])
-        assert all(s['url'] in rows[pid]['source_urls'] for s in sources)
+        staged = producer.prepare_qualified_source_row(rows[pid], pid)
+        assert all(s['url'] in staged['source_urls'] for s in sources)
+        if pid != 'eden-xentraffic-offer-3051':
+            assert staged == rows[pid]
         for field in producer.FIELDS:
             tags = [tag for s in sources for tag in s['quotes'].get(field, {})]
             expected = rows[pid][field]
@@ -250,8 +257,9 @@ def test_default_selection_runs_all_policies_without_dropping_review_rows(produc
     ids = list(producer.POLICIES)
     code, result, before, after, _ = run_fixture(producer, monkeypatch, tmp_path, ids, linked=True, default=True)
     assert result['requested'] == ids and len(ids) == 57
-    assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
-    assert 'breeze-meds-review' in [w['program_id'] for w in result['written']]
+    assert code == 1 and result['status'] == 'BLOCKED'
+    assert result['written'] == [] and after == before
+    assert 'qualified_source_renderer_refused' in result['condition']
     held = {pid for pid, p in producer.POLICIES.items() if p.get('review_required')}
     assert {f['program_id'] for f in result['findings'] if f['status'] == 'REVIEW_REQUIRED'} == held
     for pid in held:
