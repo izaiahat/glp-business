@@ -73,6 +73,26 @@ def material_resolver_call_satisfied(source):
 
 
 def patch_material_date_resolver(source, binding=None):
+    # GLP76: carry the exact PR21 reviewed calendar resolver into candidates.
+    # once() accepts its exact successor and refuses missing/ambiguous preimages.
+    calendar_preimage = r'''export function resolveMaterialDate(route, materialDate, resolved, releaseDate) {
+  if (!materialDate) return resolved;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(materialDate) || materialDate > releaseDate) throw new Error(`lastmod_material_date_future_or_invalid:${route}`);
+  if (materialDate <= resolved.lastmod) return resolved;
+  return { lastmod: materialDate, action: "declared_material_page_edit" };
+}
+'''
+    calendar_postimage = r'''export function resolveMaterialDate(route, materialDate, resolved, releaseDate) {
+  if (!materialDate) return resolved;
+  const materialTimestamp = Date.parse(materialDate + "T00:00:00Z");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(materialDate) || !Number.isFinite(materialTimestamp) || new Date(materialTimestamp).toISOString().slice(0, 10) !== materialDate || materialDate > releaseDate) throw new Error(`lastmod_material_date_future_or_invalid:${route}`);
+  if (materialDate <= resolved.lastmod) return resolved;
+  return { lastmod: materialDate, action: "declared_material_page_edit" };
+}
+'''
+    if source.count(calendar_preimage) + source.count(calendar_postimage) != 1:
+        raise RuntimeError('material_calendar_resolver_anchor_invalid')
+    source = once(source, calendar_preimage, calendar_postimage, 'material_calendar_resolver')
     # With no binding this exercises the resolver only; production constructor
     # supplies a binding derived from the already-manifest-verified base.
     binding=binding or {'material_dates':{}}
