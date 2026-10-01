@@ -14,6 +14,7 @@
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/tests/test_glp331_dependency_generation.py
 !/tests/test_glp331_dependency_closure.py
 !/tests/test_maintenance_window_lock_contention.py
 !/tests/test_maintenance_keeper_contention.py
