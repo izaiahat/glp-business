@@ -298,6 +298,7 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
     directory = tmp_path / 'old-controls'
     put(directory / 'glp44_scoped_adoption.py', old.encode())
     put(directory / 'glp73_paired_adoption.py', (ROOT / 'scripts/glp73_paired_adoption.py').read_bytes())
+    put(directory / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
     monkeypatch.setattr(inventory, '__file__', str(directory / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
     dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')

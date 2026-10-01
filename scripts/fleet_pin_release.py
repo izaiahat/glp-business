@@ -570,7 +570,7 @@ def _scoped_modules():
 
 
 def prepare_glp331(repo, source_head, prepared_by, *, business=BUSINESS,
-                   hermes=Path('/home/ubuntu/.hermes')):
+                   hermes=Path('/home/ubuntu/.hermes'), active_window=None):
     """Read-only, byte-bound review proposal. Never emit an ACCEPT decision.
 
     Owner-controlled retirement of old/nonparticipating importers and bounded
@@ -693,11 +693,20 @@ def prepare_glp331(repo, source_head, prepared_by, *, business=BUSINESS,
         if job.get('run_claim') or job.get('fire_claim') or job.get('running'):
             raise RuntimeError('consumer_claim_or_run_refused:' + jid)
     job = next(j for j in jobs if j['id'] == GLP331_JOB)
-    if (job.get('script') not in {GLP331_CARRIER, str(carrier)}
-            or job.get('script_sha256') != GLP331_PREDECESSOR
-            or job.get('state') != 'scheduled' or job.get('enabled') is not True
-            or job.get('schedule', {}).get('kind') != 'cron'
-            or job['schedule'].get('expr') != '15 7 * * *'):
+    identity_job = job
+    if active_window is not None:
+        for jid in GLP331_CONSUMERS:
+            current = next(j for j in jobs if j['id'] == jid)
+            if (current != active_window.current_job(jid)
+                    or current.get('enabled') is not False or current.get('state') != 'paused'):
+                raise RuntimeError('maintenance_consumer_moved_or_not_paused:' + jid)
+            active_window.original_job(jid)  # requires actual admitted membership
+        identity_job = active_window.original_job(GLP331_JOB)
+    if (identity_job.get('script') not in {GLP331_CARRIER, str(carrier)}
+            or identity_job.get('script_sha256') != GLP331_PREDECESSOR
+            or identity_job.get('state') != 'scheduled' or identity_job.get('enabled') is not True
+            or identity_job.get('schedule', {}).get('kind') != 'cron'
+            or identity_job['schedule'].get('expr') != '15 7 * * *'):
         raise RuntimeError('target_registration_identity_schedule_or_hold')
     for path, before in observed.items():
         preimages[str(path)] = None if before is None else {
