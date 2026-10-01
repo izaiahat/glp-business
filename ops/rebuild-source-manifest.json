@@ -708,7 +708,7 @@
     "ops/protected-oracles.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "ee12c01f76fdab6ee645370b261459146330ed74257d8c6d24725f61c0fa2384"
+      "sha256": "9f7d68ee3d79f6cb1cabe739f68628c31b7b566a626d82adf04838b18e02775d"
     },
     "ops/registered-producers.json": {
       "callers": [],
@@ -1597,7 +1597,7 @@
         "protected:ops/protected-oracles.json"
       ],
       "kind": "script",
-      "sha256": "f00211d4fb278cdbacb5fa09b419597785ebb321bb58bb2ded3a28fec26a6c0c"
+      "sha256": "f23afdbfe3040d2c19712a57a5ac6ddb4cf977d2af142af1ccd7a040f83b4716"
     },
     "scripts/site_tree_materializer.py": {
       "callers": [
