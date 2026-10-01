@@ -9,8 +9,8 @@
   },
   {
    "glob": "/home/ubuntu/.hermes/scripts/glp_affiliate_reconciliation_honesty.sh",
-   "producers": ["scripts/fleet_pin_release.py"],
-   "scope": "Explicit --scope glp331 only: exact seven PR117 source bytes unchanged, one external carrier derived by only four literal reviewed dependency-hash substitutions (backlog worker/refresher plus unchanged PR35/37 inputs), only f0c6a95a371c.script_sha256 under native full-record CAS, independent fresh review, source/consumer fences and coherent DAC cohort. No lifecycle, schedule, hold or unrelated-job changes. Registration is not adoption authority."
+   "producers": ["scripts/fleet_pin_release.py", "scripts/glp331_carrier_adoption.py"],
+   "scope": "Explicit --scope glp331 only: exact seven PR117 source bytes unchanged, one external carrier derived by only four literal reviewed dependency-hash substitutions (backlog worker/refresher plus unchanged PR35/37 inputs), only f0c6a95a371c.script_sha256 under native full-record CAS, independent fresh review, source/consumer fences and coherent DAC cohort. No lifecycle, schedule, hold or unrelated-job changes. Registration is not adoption authority. glp331_carrier_adoption.py --generation glp331-carrier-20261001 additionally supports the same eight outputs only inside a verified maintenance window: three complete paused consumer records fenced, only f0 pin repinned with scoped CAS under the native jobs lock, existing immutable scope/derivation reused; no sync-state change."
   },
   {
    "glob": "scripts/glp_maxbounty_capacity_monitor.pins.json",
@@ -22,8 +22,8 @@
   },
   {
    "glob": "/home/ubuntu/.hermes/cron/jobs.json",
-   "producers": ["scripts/maxbounty_pin_release.py", "scripts/scheduled_job_health_carrier_release.py", "scripts/fleet_pin_release.py"],
-   "scope": "MaxBounty: only 89cd7b766dba.script_sha256, disabled/paused required. F09: only b86ec8937c20.script_sha256, existing enabled no-agent every-15m registration preserved, native claims absent. GLP331: explicit fleet_pin_release.py --scope glp331 only f0c6a95a371c.script_sha256 with its exact seven-source/one-carrier closure and unchanged enabled/scheduled daily registration. All require full-record CAS and independent exact review; no schedule/lifecycle changes. This listing is not adoption authority."
+   "producers": ["scripts/maxbounty_pin_release.py", "scripts/scheduled_job_health_carrier_release.py", "scripts/fleet_pin_release.py", "scripts/glp331_carrier_adoption.py"],
+   "scope": "MaxBounty: only 89cd7b766dba.script_sha256, disabled/paused required. F09: only b86ec8937c20.script_sha256, existing enabled no-agent every-15m registration preserved, native claims absent. GLP331: explicit fleet_pin_release.py --scope glp331 only f0c6a95a371c.script_sha256 with its exact seven-source/one-carrier closure and unchanged enabled/scheduled daily registration. All require full-record CAS and independent exact review; no schedule/lifecycle changes. This listing is not adoption authority. The fixed glp331_carrier_adoption.py in-window generation CASes the complete three admitted paused consumer records under sorted fire fences and the native registry lock, merges only f0 script_sha256 into the current registry, preserves unrelated rows and leaves restoration to the reviewed window journal."
   },
   {
    "glob": "/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py",

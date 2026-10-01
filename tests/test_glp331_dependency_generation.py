@@ -56,6 +56,7 @@ def test_dependency_generation_journals_exact_cohort_and_restores_window(tmp_pat
         put(old_dir / 'maintenance_inventory.py', old_inventory)
         for name in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py'):
             put(old_dir / name, blob('d6c193eeff4489c2605fded809cb54e4ba09b22d', 'scripts/' + name))
+        put(old_dir / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)

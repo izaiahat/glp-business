@@ -36,3 +36,7 @@ jobs:
           test "$(git -C native-scheduler rev-parse HEAD)" = 07bf28d6446025d3b3b16c758ca4a300ed6db9ba
           test "$(id -u)" != 0
           .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp331_carrier_closure.py tests/test_fleet_pin_release.py tests/test_glp331_dependency_closure.py
+          # Native cron binds its home at import; every outcome gets a fresh interpreter.
+          for outcome in ok lost_ack bad_readback second_link alias_unlink; do
+            GLP331_NATIVE_CRON_SOURCE="$GLP_NATIVE_CHECKOUT" .venv/bin/python -m pytest -q -p no:cacheprovider "tests/test_glp331_carrier_generation.py::test_unrelated_registry_churn_in_window[$outcome]"
+          done
