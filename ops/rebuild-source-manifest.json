@@ -1604,7 +1604,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
+      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -3575,7 +3575,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
+      "sha256": "18d7f494c40bec58ebb351cfd6c4ddf5698d01c85cea91cf12bce4af49807864"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3647,6 +3647,13 @@
       "kind": "test",
       "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
     },
+    "tests/test_glp73_retention_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp331-carrier-closure.yml"
+      ],
+      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
+    },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [
         "GLP75/76 Sunday workweek source admission; consumer/test review context"
@@ -3710,6 +3717,13 @@
       "kind": "test",
       "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
     },
+    "tests/test_glp44_collector_release.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "40ec3ea5c56b65cbe75a272442bc95676fd98f3ec126bf439c1ad4eed3e4196e"
+    },
     "ops/glp/evidence-refresh-k3/daily_evidence_refresh.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
@@ -3768,20 +3782,6 @@
       ],
       "kind": "repository_control",
       "sha256": "0656677017b9ee058fe2b8159b67dcea6e29122aa090fa549992ca3b6140243f"
-    },
-    "tests/test_glp73_retention_adoption.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp331-carrier-closure.yml"
-      ],
-      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
-    },
-    "tests/test_glp44_collector_release.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "40ec3ea5c56b65cbe75a272442bc95676fd98f3ec126bf439c1ad4eed3e4196e"
     }
   }
 }
