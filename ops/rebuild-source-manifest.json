@@ -2104,7 +2104,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "780215f6ed527f8f85ce08fc71e5f2310d26f930a857b5ea4cee215811f2cde4"
+      "sha256": "9ce667a56b001a5bfa2b865bf7765ffffe37a7da1fa801547a84841a6259349a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2201,7 +2201,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "24f3798f4e31c400a82fa7ae0dffaab27509636d0f4188265235247321b95b3c"
+      "sha256": "af1d8f9187384f025bcd042a17710581fabb1870fd5bf05c8dcff174f2a4203e"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -3709,6 +3709,13 @@
       ],
       "kind": "test",
       "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
+    },
+    "tests/test_glp44_collector_release.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "40ec3ea5c56b65cbe75a272442bc95676fd98f3ec126bf439c1ad4eed3e4196e"
     }
   }
 }
