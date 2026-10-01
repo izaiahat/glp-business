@@ -3002,7 +3002,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "5621dfd5270ed2a1eef8bea8b87a0e4f0152888d57c48e3206dd692ee23bb93b"
+      "sha256": "63a6ab1018ddf4ec6fbcce91974cdcae6bd5b1e812883ede98d30e6b0a563f0f"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3010,7 +3010,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "958bdb23603d35874d5097e256ed2549042006c1b8fe655546156162be28bdec"
+      "sha256": "8c80e3f04e1a307e18476e0e4a8bd339239936a343ce80e4463cf15905cff470"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3031,7 +3031,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "e530348184c001642328e40d1e8534dca8ff7475c4c470220e7c0189a626ed7f"
+      "sha256": "3b5f867d59cf87b57369e2a82004fd08efd07cf3f7dce9341f4327ae9dd1ef04"
     },
     "ops/unreviewed-local-edits/maxbounty-20261001/README.md": {
       "callers": [

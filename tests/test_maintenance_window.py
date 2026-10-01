@@ -393,10 +393,103 @@ def test_native_crontab_concurrent_edit_is_preserved_and_requires_recovery(modul
         window.release_locks()
 
 
+def test_systemd_snapshot_refresh_has_bounded_census_and_equivalent_metadata(module, tmp_path, monkeypatch):
+    """Real discovery/parsing/hashing; only scheduler command transport is fake."""
+    import maintenance_inventory as inventory
+
+    root, hermes = tmp_path / "root", tmp_path / "hermes"
+    (root / "scripts").mkdir(parents=True)
+    (root / "ops/n8n-bridge").mkdir(parents=True)
+    (hermes / "cron").mkdir(parents=True)
+    source = root / "scripts/glp_price_index_weekly.py"
+    source.write_text('print("fixture")\n')
+    (hermes / "cron/jobs.json").write_text('{"jobs": []}')
+    (root / "ops/n8n-bridge/actions.json").write_text('{}')
+    command = "python3 " + str(source)
+    calls, units, scans = [], {}, []
+    discover = inventory.discover
+
+    def counted_discover(*args, **kwargs):
+        scans.append(1)
+        return discover(*args, **kwargs)
+
+    monkeypatch.setattr(inventory, "discover", counted_discover)
+
+    def probe(argv, payload=None):
+        assert payload is None
+        calls.append(argv)
+        if argv == ["/usr/bin/crontab", "-l"]:
+            return ""
+        assert argv[:2] == ["/usr/bin/systemctl", "--user"]
+        operation = argv[2]
+        if operation in {"list-unit-files", "list-units"}:
+            return "\n".join(name + " enabled" for name in units if name.endswith(".timer"))
+        assert operation == "show", "regression must never mutate schedulers"
+        assert "Environment" not in argv[-1].split("=", 1)[-1].split(",")
+        return "\n".join(key + "=" + value for key, value in units[argv[3]].items())
+
+    for count in (1, 8):
+        units.clear()
+        units["n8n-bridge.service"] = {
+            "Id": "n8n-bridge.service", "LoadState": "loaded", "ActiveState": "active",
+            "UnitFileState": "enabled", "MainPID": "123", "ExecStart": "{ argv[]=/bin/true ; }"}
+        for index in range(count):
+            name, service = f"reader{index}.timer", f"reader{index}.service"
+            units[name] = {
+                "Id": name, "LoadState": "loaded", "ActiveState": "active" if index % 2 == 0 else "inactive",
+                "UnitFileState": "enabled-runtime" if index % 2 == 0 else "disabled", "Triggers": service,
+                "TimersCalendar": "{ OnCalendar=daily ; next_elapse=100 ; }", "Persistent": "yes"}
+            units[service] = {
+                "Id": service, "LoadState": "loaded", "ActiveState": "inactive", "UnitFileState": "static",
+                "ExecStart": "{ argv[]=" + command + " ; ignore_errors=no ; pid=3 ; status=0 ; }",
+                "ExecStartPre": "{ argv[]=" + command + " ; ignore_errors=no ; pid=4 ; }",
+                "WorkingDirectory": str(root), "EnvironmentFiles": "/not-opened.env", "Restart": "no"}
+        backend = module.LinuxBackend(root, hermes, tmp_path / "window.json")
+        monkeypatch.setattr(backend, "command", probe)
+        window = new_window(module, tmp_path, backend)
+        scans.clear()
+        report = window.plan()
+        rows = [row for row in report["entries"] if row["kind"] == "systemd"]
+        assert len(rows) == count
+        assert set(report["coverage"]) == {"hermes", "crontab", "systemd", "n8n"}
+        assert all(row["affected"] and row["source_sha256"] for row in rows)
+        calls.clear()
+        snapshots = [backend.snapshot(row) for row in rows]
+        for row, prior in zip(rows, snapshots):
+            backend.timer_unchanged(row, prior, refresh=True)
+        assert len(scans) == 1, f"{count} timer snapshots/refreshes repeated full inventory {len(scans)} times"
+        assert len(calls) == 4 * count  # Fresh timer + service show per snapshot and refresh.
+        assert all(argv[2] == "show" for argv in calls)
+        assert snapshots == [row["prior"] for row in rows]
+        # Compare freshly parsed production metadata with full discovery, not a fabricated prior.
+        for row in rows:
+            metadata, _ = inventory.timer_metadata(row["id"], root, probe=lambda argv: probe(["/usr/bin/" + argv[0], *argv[1:]]))
+            assert metadata == {key: row[key] for key in ("command", "prior", "cwd")}
+        assert backend._report is report  # Target refresh must not replace the full-cohort oracle.
+        first = rows[0]
+        timer, service = units[first["id"]], units[first["prior"]["service"]]
+        for target, field, value in (
+            (timer, "UnitFileState", "enabled"), (timer, "Persistent", "no"),
+            (timer, "Triggers", "reader1.service" if count > 1 else "n8n-bridge.service"),
+            (service, "UnitFileState", "enabled"), (service, "ExecStart", "{ argv[]=/bin/false ; }"),
+            (service, "ExecStartPre", "{ argv[]=/bin/false ; }"), (service, "WorkingDirectory", "/changed"),
+        ):
+            original = target[field]
+            target[field] = value
+            with pytest.raises(module.WindowError, match="timer_(command|configuration)_changed"):
+                backend.timer_unchanged(first, first["prior"], refresh=True)
+            target[field] = original
+        assert len(scans) == 1
+        fresh = window.plan()
+        assert len(scans) == 2  # Cohort boundaries still require complete fresh discovery.
+        assert fresh == report
+
+
 def systemd_backend(module, tmp_path):
     class Backend(module.LinuxBackend):
         def __init__(self):
             super().__init__(tmp_path / "root", tmp_path / "hermes", tmp_path / "window.json")
+            self.root.mkdir()
             self.units = {
                 "active-disabled.timer": {"timer_active": "active", "timer_enabled": "disabled", "service": "one.service"},
                 "active-runtime.timer": {"timer_active": "active", "timer_enabled": "enabled-runtime", "service": "two.service"},
@@ -406,17 +499,28 @@ def systemd_backend(module, tmp_path):
             self.calls = []
 
         def inventory(self):
-            return {"complete": True, "errors": [], "entries": [
-                {"kind": "systemd", "id": name, "command": "python affected.py",
-                 "affected": True, "trace": [], "prior": copy.deepcopy(state)}
-                for name, state in self.units.items()]}
+            from maintenance_inventory import timer_metadata
+            self._report = {"complete": True, "errors": [], "entries": [
+                {"kind": "systemd", "id": name, "affected": True, "trace": [],
+                 **timer_metadata(name, self.root, probe=lambda argv: self.command(
+                     ["/usr/bin/" + argv[0], *argv[1:]]))[0]}
+                for name in self.units]}
+            return self._report
 
         def command(self, argv, payload=None):
             assert argv[:2] == ["/usr/bin/systemctl", "--user"]
             operation, name = argv[2:4]
             if operation == "show":
-                assert argv[4:] == ["-p", "ActiveState", "--value"]
-                return self.units[name]["timer_active"] + "\n"
+                if argv[4:] == ["-p", "ActiveState", "--value"]:
+                    return self.units[name]["timer_active"] + "\n"
+                assert argv[4].startswith("--property=")
+                if name in self.units:
+                    unit = self.units[name]
+                    return (f"LoadState=loaded\nActiveState={unit['timer_active']}\n"
+                            f"UnitFileState={unit['timer_enabled']}\nTriggers={unit['service']}\n")
+                assert name in {unit["service"] for unit in self.units.values()}
+                return ("LoadState=loaded\nActiveState=inactive\nUnitFileState=static\n"
+                        "ExecStart={ argv[]=python affected.py ; }\n")
             assert operation in {"stop", "start"}, "window must not change timer enablement"
             self.calls.append((operation, name))
             self.units[name]["timer_active"] = "active" if operation == "start" else "inactive"
