@@ -269,10 +269,11 @@ def required_scopes(method, params):
     return {'rook.replies.write'}
 
 
-def load_rook_token():
-    check_private(ROOK_TOKEN_PATH.parent, directory=True)
-    check_private(ROOK_TOKEN_PATH)
-    with os.fdopen(os.open(ROOK_TOKEN_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
+def load_rook_token(path=None):
+    path = ROOK_TOKEN_PATH if path is None else path
+    check_private(path.parent, directory=True)
+    check_private(path)
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)) as source:
         info = os.fstat(source.fileno())
         if info.st_uid != os.getuid() or info.st_mode & 0o077 or not stat.S_ISREG(info.st_mode):
             raise ValueError('private owned regular token file required')
@@ -293,13 +294,22 @@ def readback(channel, identity):
     return discord_request('GET', f'/channels/{channel}/messages/{identity}')
 
 
-def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None):
+def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None):
     """Rook REST identity; general routes require the scoped tool's preflight.
 
     Legacy callers retain their narrow routes and JSON-only return contract.
     Scoped callers receive (HTTP status, JSON), with no retry or redirect.
     """
     id_pattern = r'[1-9][0-9]{0,19}'
+    if research is not None:
+        if not isinstance(research, ResearchIdentity):
+            raise RpcError(-32602, 'ResearchRouteNotAllowed')
+        root = f'/channels/{research.channel}/messages'
+        if (guild_scoped or file is not None or audit_reason is not None
+                or not ((method == 'POST' and path == root)
+                        or (method == 'GET' and re.fullmatch(re.escape(root) +
+                            rf'(?:/{id_pattern}|\?limit=[0-9]+(?:&before={id_pattern})?)?', path)))):
+            raise RpcError(-32602, 'ResearchRouteNotAllowed')
     reads = (rf'/channels/{id_pattern}(?:/messages(?:/{id_pattern})?)?(?:\?limit=[0-9]+(?:&before={id_pattern})?)?',
              rf'/guilds/{GUILD}/emojis/{id_pattern}',
              # Internal protected-role inspection only, not arbitrary member reads.
@@ -317,7 +327,8 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
     host, address, _ = callback_target('https://discord.com/')
     conn = PinnedHTTPSConnection(host, address)
     try:
-        headers = {'Authorization': 'Bot ' + load_rook_token(), 'User-Agent': 'HermesDiscordPoster/1.0'}
+        token = load_rook_token(research.token_path) if research else load_rook_token()
+        headers = {'Authorization': 'Bot ' + token, 'User-Agent': 'HermesDiscordPoster/1.0'}
         body = None if payload is None else canonical(payload).encode()
         headers['Content-Type'] = 'application/json'
         if guild_scoped and audit_reason is not None:
@@ -897,13 +908,19 @@ def message_projection(value, channel):
             'truncated': len(attachments) > 5 or len(reactions) > 10}
 
 
-def read_messages(arguments):
+def read_messages(arguments, *, research=None):
     if (not isinstance(arguments, dict) or set(arguments) - {'thread_id', 'message_id', 'before_message_id', 'limit'}
-            or ('message_id' in arguments and set(arguments) & {'before_message_id', 'limit'})):
+            or ('message_id' in arguments and set(arguments) & {'before_message_id', 'limit'})
+            or (research is not None and 'thread_id' in arguments)):
         raise RpcError(-32602, 'InvalidParams')
-    channel = permitted_channel(arguments)
+    channel = research.channel if research else permitted_channel(arguments)
+    def request(path):
+        return discord_request('GET', path, research=research) if research else discord_request('GET', path)
     if 'message_id' in arguments:
-        values = [permitted_message(channel, arguments['message_id'])]
+        values = ([request(f'/channels/{channel}/messages/{snowflake(arguments["message_id"])}')]
+                  if research else [permitted_message(channel, arguments['message_id'])])
+        if research and (not isinstance(values[0], dict) or values[0].get('id') != arguments['message_id']):
+            raise RpcError(-32602, 'MessageContextMismatch')
     else:
         limit = arguments.get('limit', 25)
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 25:
@@ -911,7 +928,7 @@ def read_messages(arguments):
         path = f'/channels/{channel}/messages?limit={limit}'
         if 'before_message_id' in arguments:
             path += '&before=' + snowflake(arguments['before_message_id'])
-        values = discord_request('GET', path)
+        values = request(path)
         if not isinstance(values, list) or len(values) > limit:
             raise RpcError(-32030, 'DiscordResponseRefused')
     result = {'channel_id': channel, 'messages': [], 'truncated': False,
@@ -945,6 +962,51 @@ class RpcError(Exception):
 
 
 @dataclass(frozen=True)
+class ResearchIdentity:
+    """First dot only; fixed guild and exact approved sender set, no Rook reuse."""
+    channel: str
+    bot: str
+    token_path: Path
+    allowed_senders: tuple[str, ...]
+    guild: str = GUILD
+
+    def __post_init__(self):
+        if (self.guild != GUILD or not isinstance(self.channel, str) or not isinstance(self.bot, str)
+                or not re.fullmatch(SNOWFLAKE['pattern'], self.channel)
+                or not re.fullmatch(SNOWFLAKE['pattern'], self.bot)
+                or self.channel == CHANNEL or self.bot in {OPERATOR, BOT, ROOK_BOT}
+                or not isinstance(self.allowed_senders, tuple)
+                or len(self.allowed_senders) != 3 or set(self.allowed_senders) != {OPERATOR, BOT, ROOK_BOT}
+                or not isinstance(self.token_path, Path) or not self.token_path.is_absolute()
+                or '..' in self.token_path.parts or self.token_path == ROOK_TOKEN_PATH):
+            raise ValueError('distinct Research identity and exact Izaiah/Kael/Rook sender configuration required')
+
+    def policy_fields(self):
+        return {'profile': 'research', 'guild_id': self.guild, 'channel_id': self.channel,
+                'bot_id': self.bot, 'observer_id': self.bot, 'token_path': str(self.token_path),
+                'allowed_senders': sorted(self.allowed_senders), 'tools': ['reply_to_research_request', 'read_research_messages']}
+
+
+def add_research_arguments(parser):
+    parser.add_argument('--profile', choices=['rook', 'research'], default='rook')
+    parser.add_argument('--research-channel')
+    parser.add_argument('--research-bot')
+    parser.add_argument('--research-token-path', type=Path)
+    parser.add_argument('--allowed-request-sender', action='append')
+
+
+def research_from_args(args):
+    inputs = (args.research_channel, args.research_bot, args.research_token_path, args.allowed_request_sender)
+    if args.profile == 'rook':
+        if any(value is not None for value in inputs):
+            raise ValueError('Research inputs require --profile research')
+        return None
+    if not all(inputs):
+        raise ValueError('Research requires channel, bot, token reference and all three allowed request senders')
+    return ResearchIdentity(*inputs[:3], tuple(inputs[3]))
+
+
+@dataclass(frozen=True)
 class Config:
     issuer: str
     audience: str
@@ -952,8 +1014,25 @@ class Config:
     protected_metadata_url: str
     metadata_only: bool = False
     local_tunnel_metadata: bool = False
+    research: ResearchIdentity | None = None
+
+    def policy_fields(self):
+        fields = {'issuer': self.issuer, 'audience': self.audience, 'subject': self.subject}
+        if self.research:
+            fields['identity'] = self.research.policy_fields()
+        return fields
+
+    def scopes(self, method, params):
+        if not self.research:
+            return required_scopes(method, params)
+        if method != 'tools/call':
+            return {'research.requests.read'}
+        name = params.get('name') if isinstance(params, dict) else None
+        return {'research.channel.read' if name == 'read_research_messages' else 'research.replies.write'}
 
     def __post_init__(self):
+        if self.research is not None and not isinstance(self.research, ResearchIdentity):
+            raise ValueError('validated Research identity required')
         for value in (self.issuer, self.audience):
             p = urlsplit(value)
             if (p.scheme != 'https' or not p.hostname or p.username or p.password or p.query or p.fragment
@@ -1153,6 +1232,23 @@ class Store:
 class Application:
     def __init__(self, config, state_dir=None, *, auth=None, callback=webhook_post, sender=send, reader=readback):
         self.config = config
+        dot = config.research
+        self.guild, self.channel, self.bot = (dot.guild, dot.channel, dot.bot) if dot else (GUILD, CHANNEL, ROOK_BOT)
+        self.event = 'discord.research.request.created' if dot else EVENT
+        self.arguments = {'guild_id': self.guild, 'channel_id': self.channel}
+        self.reply_kind = 'research.reply' if dot else REPLY_KIND
+        self.tools = [TOOL_DEFINITION, *COMMUNICATION_TOOLS]
+        self.event_definition = EVENT_DEFINITION
+        if dot:
+            # Deliberately only reply + fixed-channel read; no generic API, sends, files or threads.
+            self.tools = json.loads(canonical([TOOL_DEFINITION, COMMUNICATION_TOOLS[0]]).replace('rook', 'research').replace('Rook', 'Research'))
+            self.tools[1]['inputSchema']['properties'].pop('thread_id', None)
+            security = [{'type': 'oauth2', 'scopes': ['research.replies.write']}]
+            self.tools[0].update(securitySchemes=security,
+                                  _meta={'securitySchemes': security, 'research/requiredRbacPermissions': ['research.replies.write']})
+            self.event_definition = {**EVENT_DEFINITION, 'name': self.event,
+                'description': 'Literal Research mention from Izaiah, Kael or Rook in the exact channel; untrusted data, never approval.',
+                'inputSchema': object_schema({k: {'type': 'string', 'const': v} for k, v in self.arguments.items()})}
         if config.metadata_only:
             self.auth = self.store = self.callback = self.sender = self.reader = None
             return
@@ -1160,8 +1256,26 @@ class Application:
         self.store = Store(state_dir)
         self.callback = callback
         self.sender, self.reader = sender, reader
-        policy_fields = {'issuer': config.issuer, 'audience': config.audience, 'subject': config.subject}
-        self.policy = hashlib.sha256(canonical(policy_fields).encode()).hexdigest()
+        if dot:
+            if sender is send:
+                self.sender = lambda channel, wire: discord_request('POST', f'/channels/{channel}/messages',
+                    {'content': wire, 'allowed_mentions': {'parse': []}}, research=dot)
+            if reader is readback:
+                self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', research=dot)
+        self.policy = hashlib.sha256(canonical(config.policy_fields()).encode()).hexdigest()
+        try:
+            self.store.db.execute('CREATE TABLE IF NOT EXISTS identity_binding (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
+            binding = self.store.get('identity_binding', 'profile')
+            expected_binding = {'policy': self.policy, 'identity': dot.policy_fields()} if dot else {'profile': 'rook'}
+            if binding and binding != expected_binding:
+                raise ValueError('state identity cannot be reused or repointed')
+            if not binding:
+                if dot and any(self.store.all(table) for table in ('requests', 'subscriptions', 'deliveries', 'operations')):
+                    raise ValueError('state identity requires a separate empty private directory')
+                self.store.put('identity_binding', 'profile', expected_binding)
+        except Exception:
+            self.store.close()
+            raise
 
     def close(self):
         if self.store is not None:
@@ -1173,9 +1287,11 @@ class Application:
             return 403, {}, {'error': 'origin_refused'}
         if method == 'GET' and path == '/.well-known/oauth-protected-resource/mcp':
             return 200, {}, {'resource': self.config.audience, 'authorization_servers': [self.config.issuer],
-                             'scopes_supported': ['rook.requests.read', 'rook.replies.write', CHANNEL_READ, CHANNEL_WRITE, 'offline_access'], 'bearer_methods_supported': ['header']}
+                             'scopes_supported': (['research.requests.read', 'research.replies.write', 'research.channel.read', 'offline_access']
+                                                  if self.config.research else ['rook.requests.read', 'rook.replies.write', CHANNEL_READ, CHANNEL_WRITE, 'offline_access']),
+                             'bearer_methods_supported': ['header']}
         request_id = body.get('id') if isinstance(body, dict) else None
-        required = required_scopes(body.get('method'), body.get('params')) if isinstance(body, dict) else {'rook.requests.read'}
+        required = self.config.scopes(body.get('method'), body.get('params')) if isinstance(body, dict) else self.config.scopes(None, None)
         if self.config.metadata_only and path == '/mcp':
             return self.challenge(required)
         if method != 'POST' or path != '/mcp':
@@ -1218,7 +1334,7 @@ class Application:
                 # Only a valid identified communication-tool request receives tool-result metadata.
                 if (body['method'] != 'tools/call' or set(body) != {'jsonrpc', 'id', 'method', 'params'}
                         or set(params) != {'name', 'arguments', '_meta'} or not isinstance(params.get('arguments'), dict)
-                        or params.get('name') not in [tool['name'] for tool in COMMUNICATION_TOOLS]
+                        or params.get('name') not in [tool['name'] for tool in self.tools[1:]]
                         or h.get('mcp-method', 'tools/call') != 'tools/call'
                         or h.get('mcp-name', params['name']) != params['name']):
                     return 403, response_headers, {'error': 'insufficient_scope'}
@@ -1243,7 +1359,7 @@ class Application:
 
     def dispatch(self, principal, method, params):
         if (self.config.metadata_only or principal.subject != self.config.subject or principal.expires <= time.time()
-                or not required_scopes(method, params) <= principal.scopes):
+                or not self.config.scopes(method, params) <= principal.scopes):
             raise RpcError(-32001, 'Unauthorized')
         if method == 'server/discover':
             if params:
@@ -1252,12 +1368,18 @@ class Application:
         if method in ('tools/list', 'events/list'):
             if params.get('cursor') is not None or set(params) - {'cursor'}:
                 raise RpcError(-32602, 'InvalidParams')
-            return {'tools': [TOOL_DEFINITION, *COMMUNICATION_TOOLS]} if method == 'tools/list' else {'events': [EVENT_DEFINITION]}
+            return {'tools': self.tools} if method == 'tools/list' else {'events': [self.event_definition]}
         if method in ('events/subscribe', 'events/unsubscribe'):
             return self.subscription(principal, params, method == 'events/subscribe')
         if method == 'tools/call':
             if set(params) != {'name', 'arguments'}:
                 raise RpcError(-32602, 'InvalidParams')
+            if self.config.research:
+                if params['name'] == 'reply_to_research_request':
+                    return self.reply(principal, params['arguments'])
+                if params['name'] == 'read_research_messages':
+                    return read_messages(params['arguments'], research=self.config.research)
+                raise RpcError(-32602, 'ToolNotAllowed')
             if params['name'] == 'reply_to_rook_request':
                 return self.reply(principal, params['arguments'])
             if params['name'] == 'read_rook_messages':
@@ -1540,13 +1662,13 @@ class Application:
             raise RpcError(-32001, 'Unauthorized')
         allowed = {'name', 'arguments', 'delivery', 'ttlMs', 'cursor'} if subscribe else {'name', 'arguments', 'delivery'}
         delivery = params.get('delivery')
-        if (set(params) - allowed or params.get('name') != EVENT or params.get('arguments') != ARGUMENTS
+        if (set(params) - allowed or params.get('name') != self.event or params.get('arguments') != self.arguments
                 or not isinstance(delivery, dict) or delivery.get('mode') != 'webhook'
                 or set(delivery) != ({'mode', 'url', 'secret'} if subscribe else {'mode', 'url'})):
             raise RpcError(-32602, 'InvalidParams')
         url = delivery.get('url')
         callback_url(url)
-        identity = 'sub_' + hashlib.sha256(canonical([self.policy, principal.subject, EVENT, ARGUMENTS, url]).encode()).hexdigest()[:32]
+        identity = 'sub_' + hashlib.sha256(canonical([self.policy, principal.subject, self.event, self.arguments, url]).encode()).hexdigest()[:32]
         with self.store.lock:
             self.expire_subscriptions()
             old = self.store.get('subscriptions', identity)
@@ -1603,6 +1725,7 @@ class Application:
                 self.store.put('subscriptions', sub['id'], sub)
 
     def reply(self, principal, arguments):
+        GUILD, CHANNEL, ROOK_BOT, REPLY_KIND = self.guild, self.channel, self.bot, self.reply_kind
         if self.config.metadata_only or self.store is None or self.sender is None or self.reader is None:
             raise RpcError(-32001, 'Unauthorized')
         if (not isinstance(arguments, dict) or set(arguments) != {'request_id', 'text'}
@@ -1666,6 +1789,8 @@ class Application:
         return {'isError': True, 'content': [{'type': 'text', 'text': 'Send outcome uncertain; no retry. Operator must reconcile the fixed channel.'}]}
 
     def ingest(self, event, after_message):
+        GUILD, CHANNEL, ROOK_BOT, EVENT = self.guild, self.channel, self.bot, self.event
+        allowed_senders = self.config.research.allowed_senders if self.config.research else {OPERATOR, BOT}
         if self.config.metadata_only or self.store is None:
             return 0
         if not isinstance(event, dict) or event.get('t') != 'MESSAGE_CREATE' or not isinstance(event.get('d'), dict):
@@ -1676,12 +1801,12 @@ class Application:
         content = data.get('content')
         if (data.get('guild_id') != GUILD or data.get('channel_id') != CHANNEL or data.get('type', 0) not in (0, 19)
                 or data.get('webhook_id') is not None or not isinstance(author, dict)
-                or author.get('id') == ROOK_BOT or author.get('id') not in {OPERATOR, BOT} or not isinstance(message, str)
+                or author.get('id') == ROOK_BOT or author.get('id') not in allowed_senders or not isinstance(message, str)
                 or not message.isdecimal() or not 0 < len(message) <= 20 or int(message) <= int(after_message)
                 or not isinstance(content, str)
                 or len(content) > 2000):
             return 0
-        if content.startswith('Rook:'):
+        if not self.config.research and content.startswith('Rook:'):
             text = content[5:].strip()  # Preserve existing automation's extraction.
         else:
             mention_pattern = rf'<@!?{ROOK_BOT}>'
@@ -1696,6 +1821,8 @@ class Application:
             text = re.sub(mention_pattern, '', content).strip()
         if not text:
             return 0
+        if self.config.research and re.match(r'(?i)^(?:ack(?:nowledged)?|received|research\s+(?:handoff|reply))\b', text):
+            return 0  # Acknowledgments are never new Research assignments.
         request_id = 'discord-' + message
         with self.store.lock:
             self.expire_subscriptions()
@@ -1809,18 +1936,23 @@ def make_handler(application, allowed_hosts):
     return Handler
 
 
-async def run_adapter(application, http_server, after_message, max_run_seconds, *, client_factory=create_client, token_loader=load_token):
+async def run_adapter(application, http_server, after_message, max_run_seconds, *, client_factory=create_client, token_loader=None):
     """One foreground adapter lifespan; no cron, restart, autonomous loop or replay."""
     queue = asyncio.Queue(maxsize=16)
+    dot = application.config.research
+    expected_observer = dot.bot if dot else BOT
+    if token_loader is None:
+        token_loader = (lambda: load_rook_token(dot.token_path)) if dot else load_token
     failed = asyncio.get_running_loop().create_future()
 
     def on_event(event, self_id):
         if not isinstance(event, dict) or event.get('t') != 'MESSAGE_CREATE':
             return
         data = event.get('d')
-        if not isinstance(data, dict) or data.get('guild_id') != GUILD or data.get('channel_id') != CHANNEL:
+        if (not isinstance(data, dict) or data.get('guild_id') != application.guild
+                or data.get('channel_id') != application.channel):
             return
-        if self_id != BOT:
+        if self_id != expected_observer:
             if not failed.done():
                 failed.set_result(True)
             return
@@ -1897,7 +2029,12 @@ def main(argv=None):
     parser.add_argument('--max-run-seconds', type=int, required=True)
     parser.add_argument('--overnight-pilot', action='store_true', help='allow up to 57600s (16h) in full mode only; no auth or subscription extension')
     parser.add_argument('--allowed-host', action='append', default=[])
+    add_research_arguments(parser)
     args = parser.parse_args(argv)
+    try:
+        research = research_from_args(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     logging.disable(logging.CRITICAL)
     max_lifespan = 57600 if args.overnight_pilot and not args.metadata_only else 3600
     if not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= max_lifespan:
@@ -1920,7 +2057,7 @@ def main(argv=None):
         os.umask(0o077)
         application = Application(Config(args.issuer, args.audience, args.operator_subject,
                                          args.protected_resource_metadata_url, args.metadata_only,
-                                         args.local_tunnel_metadata), args.state_dir)
+                                         args.local_tunnel_metadata, research), args.state_dir)
         hosts = {'127.0.0.1:' + str(args.port), 'localhost:' + str(args.port), *args.allowed_host}
         server = HTTPServer(('127.0.0.1', args.port), make_handler(application, hosts))
         print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION,
