@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fixed GLP73 14-source / three-wrapper / three-paused-job adoption.
 
-Apply is not launch exclusion: an authorized caller must separately exclude source
-writers and *all* direct readers/launchers for the whole operation. The scheduler
-locks only its own registry. No multi-file atomic transaction is claimed.
+Apply requires a verified active maintenance window and exact independent review.
+Complete source cohorts switch through the window admission barrier; exact
+preimages and uncertain scheduler outcomes remain guarded.
 """
 import argparse
 import copy
@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 import sync_from_repo as syncer
-from maxbounty_pin_release import atomic_write, preserve_custody, read_regular
+from maxbounty_pin_release import preserve_custody, read_regular
 
 SOURCE = '209c3beea6e2045dcb81367d5339a23a225eda40'
 PATHS = (
@@ -106,7 +106,7 @@ def replace_lines(body, updates):
     return b''.join(lines)
 
 
-def plan(checkout, root, hermes):
+def plan(checkout, root, hermes, *, state_rebaseline=None):
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', SOURCE, 'HEAD'], check=True)
     producer = checkout / 'scripts/glp73_paired_adoption.py'
@@ -114,7 +114,11 @@ def plan(checkout, root, hermes):
         raise RuntimeError('producer_not_committed_head')
     before = {root / p: exact(root / p, *SOURCE_BEFORE[i]) for i, p in enumerate(PATHS)}
     state = root / syncer.STATE
-    before[state] = exact(state, STATE_BEFORE)
+    expected_state = STATE_BEFORE
+    if state_rebaseline is not None:
+        from glp73_sync_rebaseline import validate
+        expected_state = validate(root, state_rebaseline)
+    before[state] = exact(state, expected_state)
     sources = {}
     for p in PATHS:
         body = subprocess.check_output(['git', '-C', str(checkout), 'show', SOURCE + ':' + p])
@@ -170,12 +174,21 @@ def plan(checkout, root, hermes):
     return before, stages, sources, records
 
 
-def adopt(checkout, root, hermes, review, *, scheduler):
-    """External writer/direct-reader exclusion must already be independently held."""
-    before, stages, sources, records = plan(checkout, root, hermes)
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebaseline=None):
+    if window is None:
+        raise RuntimeError('active_maintenance_window_required')
+    from maintenance_window import require_active_window
+    with require_active_window(window, root, hermes) as active:
+        return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler,
+                                window=active, state_rebaseline=state_rebaseline)
+
+
+def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, state_rebaseline):
+    before, stages, sources, records = plan(checkout, root, hermes, state_rebaseline=state_rebaseline)
     proposal = {'source_sha256': sources, 'wrapper_sha256': {name: sha(stages[hermes / 'scripts' / name]) for _, name, *_ in JOBS},
                 'source_before_sha256': {p: SOURCE_BEFORE[i][0] for i, p in enumerate(PATHS)},
-                'state_before_sha256': STATE_BEFORE, 'job_before': records,
+                'state_before_sha256': sha(before[root / syncer.STATE][0]), 'job_before': records,
+                'state_rebaseline_sha256': sha(json.dumps(state_rebaseline, sort_keys=True).encode()) if state_rebaseline else None,
                 'registry_before_sha256': sha(before[hermes / 'cron/jobs.json'][0])}
     if (review.get('schema') != 'glp73-paired-adoption-review-v1'
             or review.get('decision') != 'ACCEPT_EXACT_BYTES'
@@ -195,7 +208,7 @@ def adopt(checkout, root, hermes, review, *, scheduler):
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fresh = plan(checkout, root, hermes)
+            fresh = plan(checkout, root, hermes, state_rebaseline=state_rebaseline)
             if fresh != (before, stages, sources, records):
                 raise RuntimeError('preimage_moved_under_lock')
             if any(read_regular(path) != value for path, value in before.items()):
@@ -207,20 +220,21 @@ def adopt(checkout, root, hermes, review, *, scheduler):
             stage = {root / p: (checkout / p).read_bytes() for p in PATHS}
             stage[state_path] = state_bytes
             stage.update(stages)
+            if any(sha(stage[root / p]) != sources[p] for p in PATHS):
+                raise RuntimeError('reviewed_candidate_moved_before_switch')
             custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(review, sort_keys=True).encode())
             preserve_custody(custody, before, stage)
             if any(read_regular(path) != value for path, value in before.items()):
                 raise RuntimeError('preimage_moved_after_custody')
             registry_before = before[registry]
+            window.accept_file_updates(
+                {str(path.resolve()): sha(before[path][0]) for path in stage},
+                {str(path.resolve()): sha(body) for path, body in stage.items()},
+            )
             source_written = False
             try:
                 source_written = True
-                if syncer.sync(root, checkout, True, ADOPT, PATHS) != 0:
-                    raise RuntimeError('source_apply_refused')
-                for path, body in stages.items():
-                    if read_regular(path) != before[path]:
-                        raise RuntimeError('wrapper_moved_before_replace')
-                    atomic_write(path, body, before[path][1])
+                window.switch_files(stage, {path: before[path] for path in stage})
                 if read_regular(registry) != registry_before:
                     raise RuntimeError('registry_moved_before_saver')
                 jobs = json.loads(registry_before[0])['jobs']
@@ -229,7 +243,9 @@ def adopt(checkout, root, hermes, review, *, scheduler):
                     hit = next(j for j in next_jobs if j.get('id') == jid)
                     if hit != records[jid]:
                         raise RuntimeError('job_moved_before_saver')
+                    previous = copy.deepcopy(hit)
                     hit['script_sha256'] = new
+                    window.accept_job_update(jid, previous, hit)
                 scheduler._record_load_stamp(None)
                 try:
                     scheduler._save_jobs_unlocked(next_jobs)
@@ -242,15 +258,13 @@ def adopt(checkout, root, hermes, review, *, scheduler):
                 # never rolled back or retried. Inspect every path, including a
                 # rename that landed before its call raised.
                 if read_regular(registry) == registry_before and source_written:
-                    for path, (body, mode) in before.items():
-                        if path == registry or path not in stage:
-                            continue
-                        now = read_regular(path)
-                        if now == (body, mode):
-                            continue
-                        if now != (stage[path], mode):
-                            raise RuntimeError('rollback_conflict_no_overwrite:' + str(path))
-                        atomic_write(path, body, mode)
+                    original_files = {path: before[path] for path in stage}
+                    current_files = {path: read_regular(path) for path in stage}
+                    staged_files = {path: (body, before[path][1]) for path, body in stage.items()}
+                    if current_files != original_files:
+                        if current_files != staged_files:
+                            raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
+                        window.switch_files({path: value[0] for path, value in original_files.items()}, staged_files)
                 raise
     return {'applied': True, 'source': SOURCE, 'proposal': proposal, 'custody': str(custody)}
 
@@ -261,20 +275,32 @@ def main():
     parser.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
     parser.add_argument('--review', type=Path)
+    parser.add_argument('--window', type=Path, help='active maintenance journal; required for apply')
+    parser.add_argument('--state-rebaseline', type=Path, help='independent exact explained-diff review')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     try:
+        state_rebaseline = json.loads(args.state_rebaseline.read_text()) if args.state_rebaseline else None
         if args.apply:
+            if args.window is None:
+                raise RuntimeError('active_maintenance_window_required')
             if args.review is None:
                 raise RuntimeError('independent_review_required')
             sys.path.insert(0, str(args.hermes / 'hermes-agent'))
             from cron import jobs as scheduler
-            result = adopt(args.checkout, args.root, args.hermes, json.loads(args.review.read_text()), scheduler=scheduler)
+            result = adopt(args.checkout, args.root, args.hermes, json.loads(args.review.read_text()), scheduler=scheduler, window=args.window, state_rebaseline=state_rebaseline)
         else:
-            before, staged, sources, records = plan(args.checkout, args.root, args.hermes)
+            from contextlib import nullcontext
+            from maintenance_window import require_active_window
+            context = require_active_window(args.window, args.root, args.hermes) if args.window else nullcontext(None)
+            with context:
+                before, staged, sources, records = plan(args.checkout, args.root, args.hermes, state_rebaseline=state_rebaseline)
             result = {'applied': False, 'source_sha256': sources,
                       'wrapper_sha256': {p.name: sha(b) for p, b in staged.items()},
-                      'job_before': records, 'registry_before_sha256': sha(before[args.hermes / 'cron/jobs.json'][0])}
+                      'job_before': records, 'registry_before_sha256': sha(before[args.hermes / 'cron/jobs.json'][0]),
+                      'source_before_sha256': {p: SOURCE_BEFORE[i][0] for i, p in enumerate(PATHS)},
+                      'state_before_sha256': sha(before[args.root / syncer.STATE][0]),
+                      'state_rebaseline_sha256': sha(json.dumps(state_rebaseline, sort_keys=True).encode()) if state_rebaseline else None}
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (RuntimeError, ValueError, OSError, subprocess.CalledProcessError) as exc:

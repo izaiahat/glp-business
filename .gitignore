@@ -323,11 +323,17 @@
 !/scripts/root_custody/single_unit.py
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
-
-# GLP affiliate discovery/application/terms source and offline fixtures
 !/.codex-task/
 /.codex-task/*
 !/.codex-task/RESULT.md
+!/scripts/maintenance_inventory.py
+!/scripts/maintenance_window.py
+!/scripts/glp73_sync_rebaseline.py
+!/tests/test_maintenance_inventory.py
+!/tests/test_maintenance_window.py
+!/tests/test_maintenance_adoptions.py
+
+# GLP affiliate discovery/application/terms source and offline fixtures
 !/config/
 /config/*
 !/config/affiliate-sites/
@@ -358,3 +364,13 @@
 !/inbox_control_plane/affiliate_decision_queue.py
 !/tests/test_cleanup_inbox_reader.py
 !/tests/test_cleanup_affiliate_decisions.py
+
+# PR109 bounded admission and cohort regression coverage
+!/scripts/maintenance_admission.py
+!/scripts/maintenance_cohort.py
+!/tests/test_maintenance_restoration_review.py
+!/tests/test_maintenance_admission_review.py
+!/tests/test_maintenance_native_admission.py
+!/tests/test_maintenance_cohort_recovery.py
+!/tests/test_adoption_cache_restore.py
+!/tests/test_glp73_sync_rebaseline.py
