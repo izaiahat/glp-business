@@ -30,6 +30,8 @@
 !/tests/test_rook_communication.py
 !/.github/workflows/
 /.github/workflows/*
+!/.github/workflows/maintenance-pause-cursor-race.yml
+!/tests/test_maintenance_pause_cursor_race.py
 !/tests/test_glp85_cj_reporting_identity.py
 !/tests/test_glp44_bridge_source_admission.py
 !/tests/test_glp44_bridge_fence_successor.py
