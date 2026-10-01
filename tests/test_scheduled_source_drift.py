@@ -230,6 +230,42 @@ def test_missing_native_binding_path_does_not_abort_sibling_rows(tmp_path):
     assert [f['job_id'] for f in result['findings'] if f['kind']=='unknown'] == ['job']
 
 
+@pytest.mark.parametrize('bad_script', ['', None, 0, False, []])
+def test_reviewed_native_falsey_binding_is_row_local_unknown(tmp_path, bad_script):
+    import copy
+    root, hermes, _, _, jobs = fixture(tmp_path)
+    inventory_path = root/'ops/scheduled-source-drift-manifest.json'
+    inventory = json.loads(inventory_path.read_text())
+    good = copy.deepcopy(inventory['jobs'][0]); good['id'] = 'healthy-sibling'
+    inventory['jobs'].append(good)
+    jobs.append(dict(jobs[0], id='healthy-sibling'))
+    jobs[0]['script'] = bad_script
+    (hermes/'cron/jobs.json').write_text(json.dumps({'jobs':jobs}))
+    inventory_path.write_text(json.dumps(inventory))
+    before = {str(p): (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_mode)
+              for p in tmp_path.rglob('*') if p.is_file()}
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status'] == 'UNKNOWN', result
+    assert result['findings'] == [{'job_id':'job', 'kind':'unknown',
+                                  'reason':'installed_source_path_unresolved', 'path':''}]
+    assert result['counts'] == {'script_drift':0, 'scheduler_drift':0,
+                                'payload_drift':0, 'unknown':1}
+    assert result['native_script_jobs'] == 2 and result['checked'] == 3
+    assert before == {str(p): (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_mode)
+                      for p in tmp_path.rglob('*') if p.is_file()}
+
+
+def test_genuine_agent_only_jobs_remain_clean_with_healthy_native_sibling(tmp_path):
+    root, hermes, _, _, jobs = fixture(tmp_path)
+    jobs.extend([{'id':'agent-missing', 'prompt':'inert fixture'},
+                 {'id':'agent-null', 'script':None, 'prompt':'inert fixture'},
+                 {'id':'agent-empty', 'script':'', 'prompt':'inert fixture'}])
+    (hermes/'cron/jobs.json').write_text(json.dumps({'jobs':jobs}))
+    result = load().audit(root, hermes, crontab_ids=[])
+    assert result['status'] == 'CLEAN' and result['findings'] == []
+    assert result['native_script_jobs'] == 1 and result['checked'] == 3
+
+
 @pytest.mark.parametrize('bad_script', [42, ['job.py'], '\u0000bad'])
 def test_bad_native_script_binding_does_not_abort_sibling_rows(tmp_path, bad_script):
     root, hermes, installed, _, jobs = fixture(tmp_path)

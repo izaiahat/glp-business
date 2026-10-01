@@ -2828,14 +2828,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "affc023b842a724776a982dbd62c3a0cc4312e501789ce38a0aaa26d494f131b"
+      "sha256": "d2b1fd7b503f507a4698fe80928d7dd080103875caa6b6bbd529346d756c5939"
     },
     "tests/test_scheduled_source_drift.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "2f42a32f5256a4fcf508be0453dc59650ebb159bbb16f35528b51076dd69596e"
+      "sha256": "5fbbd65d92034aaffedd5d33a4174bbe4fecfabb6f65eafecff5d926a58b5e20"
     },
     "tests/test_cleanup_affiliate_copins.py": {
       "callers": [

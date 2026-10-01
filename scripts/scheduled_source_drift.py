@@ -141,20 +141,20 @@ def audit(root=BUSINESS, hermes=HERMES, *, crontab_ids=None, inventory_path=None
             if not isinstance(jobs, list):
                 raise ValueError('registry_schema')
             for job in jobs:
-                if not job.get('script'):
-                    continue  # agent-only jobs have no installed script
+                spec = inventory.get(job.get('id'))
+                if not job.get('script') and not (spec and spec.get('surface') == 'native'):
+                    continue  # only genuinely agent-only jobs have no installed script
                 jid = job['id']
                 if jid in native_ids:
                     unknown(jid, 'ambiguous_profile_identity', registry)
                     continue
                 native_ids.add(jid)
-                script = job['script']
+                script = job.get('script')
                 if not isinstance(script, str) or not script.strip() or '\x00' in script:
                     unknown(jid, 'installed_source_path_unresolved')
                     continue
                 raw = Path(script)
                 path = raw if raw.is_absolute() else registry.parent.parent/'scripts'/raw
-                spec = inventory.get(jid)
                 if spec:
                     reviewed_path = inventory_source_path(jid, spec)
                     if reviewed_path is None:
