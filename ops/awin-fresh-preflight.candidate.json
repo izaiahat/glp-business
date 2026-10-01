@@ -1,0 +1,37 @@
+{
+  "schema": "awin-fresh-preflight-candidate-v1",
+  "issue": "GLP-317",
+  "activation_authority": false,
+  "requested_job_id": "7a2692ad0639",
+  "observed_paused_job_id": "7a269c665b12",
+  "target_resolution": "PARENT_MUST_RESOLVE_ID_MISMATCH_BEFORE_ADOPTION",
+  "required_preimage": {
+    "name": "GLP Awin auth liveness preflight",
+    "script": "awin_auth_liveness_preflight.sh",
+    "no_agent": true,
+    "enabled": false,
+    "state": "paused"
+  },
+  "retired_job_ids_never_update": ["52e2014a9579", "5a2cba16e057"],
+  "proposed_updates": {
+    "no_agent": false,
+    "script": null,
+    "script_sha256": null,
+    "model": "gpt-6-astra-900k",
+    "provider": "openai-codex",
+    "reasoning_effort": "medium",
+    "workdir": "/home/ubuntu/business",
+    "skills": ["credential-boundaries", "headless-portal-apply-sessions", "host-ops-cron-systemd"],
+    "enabled": false,
+    "state": "paused",
+    "prompt": "CRON_DISCORD_HOUSE_STYLE_V1. Awin authentication/read-only preflight ONLY. Before importing source or browsing, use stdlib hashlib/json to read ops/awin-fresh-preflight.candidate.json source_sha256. SHA-256 of json.dumps(pins, sort_keys=True, separators=(',', ':')).encode() MUST equal ff637750fef1bc7dfbb44cae4a8dfec5f9b744d5bb0f50e77a56d6d4c928d7c0; independently hash every named source file and require an exact match. Refuse drift without repinning. Follow the pinned ops/awin-fresh-preflight.md bounded instructions: real API first, then one fresh named AI-browser session using glp_awin_portal_login.prepare, actual origin-bound browser_vault_list/fill at id.awin.com, then finish/read_directory. No old shell/parent/portal_apply/CDP profile fallback. Preserve host admission/lock, model, fit, credential and provider holds. Stop for unsatisfied device challenge. No applications, joins, sends, tracking clicks, scheduler edits or unpause. SILENT only after current real exact-publisher and protected-directory readiness readback plus private receipt. Otherwise one fixed-stage ops-alerts failure card; never fabricate success."
+  },
+  "source_sha256": {
+    "scripts/awin_fresh_preflight.py": "2f4029cc289da3b605cd42a53e059923a9c158676eb287641a32c392108e00ef",
+    "scripts/glp_awin_portal_login.py": "7174f1d1898b2f32ff01f3436a004bc9cfbafb2b624e4a71e229d5a2a8d619f5",
+    "scripts/marketplace_adapters/__init__.py": "aa62689002588da40cca2bab8373f663fc86a567c83eb747710f4ca82bde7445",
+    "scripts/marketplace_adapters/awin.py": "864b16dc7816ec92a19964f465e08d833311462c0c4cb6c469d101b5f2854de8",
+    "scripts/marketplace_adapters/_base.py": "107642d2bb9a4445fa96804fc2132cf44869fe5d967eb353a2142c1fb6da1d72",
+    "ops/awin-fresh-preflight.md": "876d99e0c60afad99d5e3188a67c087ee4400302ee2556850219e19f57497ec1"
+  }
+}

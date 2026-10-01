@@ -97,11 +97,11 @@
   },
   {
    "path": "scripts/seat_continuation.py",
-   "sha256": "d21a778fc05f5990019645e375c733dd510fc9603b07cbc544a6408c1a42f2a4",
+   "sha256": "f23afdbfe3040d2c19712a57a5ac6ddb4cf977d2af142af1ccd7a040f83b4716",
    "why": "Regenerates seat briefs; scope invention here is silent.",
    "rebaselined_by": {
-    "decision": "/home/ubuntu/business/ops/linear/approvals/FABLE-DECISION-20260916-gate-batch-audit-repairs.json",
-    "review": "/home/ubuntu/business/reports/ops/ultracode-audit-20260916/GATE-BATCH-REVIEW-5-RESULT.json"
+    "decision": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20261001-seat-continuation-sol61.json",
+    "review": "/home/ubuntu/business/reports/ops/seat-continuation-sol61-20260930/ORACLE-REVIEW.json"
    }
   },
   {

@@ -1040,8 +1040,8 @@ GRID_ROW_CEILING = 20000
 
 
 def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
-                          needed: int, mode_key: str) -> list[int]:
-    """Append blank rows to the tab and return the new row numbers, schema applied.
+                          needed: int, mode_key: str, apply: bool = True) -> list[int]:
+    """Reserve new row numbers; append and apply schema only when applying.
 
     2026-08-26: the Sheet filled up. rowCount was 778 with 777 rows carrying
     business value and **zero** blank rows, so every `create` refused with
@@ -1067,17 +1067,18 @@ def grow_grid_for_creates(svc, sheet_id_num: int, current_row_count: int,
             "Needing this many rows means an upstream queue or matcher is "
             "producing duplicates; grow the ceiling only after checking that.")
 
-    svc.spreadsheets().batchUpdate(
-        spreadsheetId=SHEET_ID,
-        body={"requests": [{"appendDimension": {
-            "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
-    ).execute()
-
-    new_rows = list(range(current_row_count + 1, target + 1))
-    requests = schema_requests(sheet_id_num, new_rows)
-    if requests:
+    if apply:
         svc.spreadsheets().batchUpdate(
-            spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+            spreadsheetId=SHEET_ID,
+            body={"requests": [{"appendDimension": {
+                "sheetId": sheet_id_num, "dimension": "ROWS", "length": grow_by}}]},
+        ).execute()
+    new_rows = list(range(current_row_count + 1, target + 1))
+    if apply:
+        requests = schema_requests(sheet_id_num, new_rows)
+        if requests:
+            svc.spreadsheets().batchUpdate(
+                spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
     return new_rows
 
 
@@ -1779,6 +1780,8 @@ def run_add_approved_row(plan_path: Path, out: Path, apply: bool) -> int:
         if row_has_business_value(row)
     }
     blank_rows = [row for row in range(2, int(grid_before["rowCount"]) + 1) if row not in used]
+    # Track growth locally so the receipt keeps the original pre-growth grid.
+    grid_row_count = int(grid_before["rowCount"])
     target_rows: dict[str, int] = {}
     for entry in rows:
         program = str(entry["program"])
@@ -1793,10 +1796,10 @@ def run_add_approved_row(plan_path: Path, out: Path, apply: bool) -> int:
             # The grid is full. Grow it rather than refusing a real approval.
             still_needed = sum(1 for item in rows if str(item["program"]) not in target_rows)
             grown = grow_grid_for_creates(
-                svc, int(props["sheetId"]), int(grid_before["rowCount"]),
-                still_needed, "add_approved_row")
+                svc, int(props["sheetId"]), grid_row_count,
+                still_needed, "add_approved_row", apply=apply)
             blank_rows.extend(grown)
-            grid_before["rowCount"] = int(grid_before["rowCount"]) + len(grown)
+            grid_row_count += len(grown)
         if not blank_rows:
             raise RuntimeError("add_approved_row_no_blank_grid_row_available")
         target_rows[program] = blank_rows.pop(0)
@@ -3412,8 +3415,9 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
         required_columns=(10, 19, 20, 21, 23, 24),
         allowed_status=frozenset({"cancelled_by_network"}),
         required_flags={19: "FALSE", 20: "FALSE"},
-        evidence_fields=(("path", "repo_path"), ("event_id", "text"),
-                         ("event_at_utc", "timestamp")),
+        # Hash-bound private canonical notice/capture paths are validated by
+        # affiliate_program_withdrawal, not the public-report prefix allowlist.
+        evidence_fields=(("event_id", "text"), ("event_at_utc", "timestamp")),
         note_must_cite=("path", "event_id", "event_at_utc"),
         allowed_link_qa=frozenset({"link_retired_network_program_cancelled"}),
         forbid_wired_live_source=False,
@@ -3526,6 +3530,25 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
         description="Record a network/brand rejection. Never usable on a live row - "
                     "a live program that stops is a pause or a removal, not a rejection. "
                     "May create the row when the rejected program never reached the Sheet.",
+    ),
+    # Email custody is NOT a portal relationship capture. This mode only records
+    # the exact retained advertiser/postback hold; it cannot create or release one.
+    "partner_email_hold": SheetSyncModeSpec(
+        key="partner_email_hold",
+        plan_schema="affiliate-partner-email-hold-plan-v1",
+        write_schema="affiliate-partner-email-hold-write-v1",
+        mutable_columns=(10, 19, 23),
+        required_columns=(10, 19, 23),
+        allowed_status=frozenset({"hold_advertiser_postback_pending"}),
+        required_flags={19: "FALSE"},
+        evidence_fields=(("event_id", "text"), ("raw_sha256", "sha256_hex"),
+                         ("received_at", "timestamp"), ("corrected_at_utc", "timestamp")),
+        note_must_cite=("event_id", "raw_sha256", "received_at", "corrected_at_utc"),
+        source_status=frozenset({"approved_active_tracking_ready"}),
+        require_tracking_link=True,
+        forbid_wired_live_source=True,
+        description="Retract readiness for the exact retained XenTraffic 3277 email hold; "
+                    "preserve all other cells and prior notes, including Last Checked UTC.",
     ),
     # --- status_correction ----------------------------------------------------
     # The class the 2026-08-18 backfill audit found five of: the Sheet claims an
@@ -4029,6 +4052,34 @@ SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
                     "work down the list. Never claims an account, an application, an "
                     "approval, a link or a live wire, and refuses any network the Sheet "
                     "already names.",
+    ),
+    # A published care subject, not a publisher programme or application.
+    # Domain identity is deliberately separate from any known retail rail tuple.
+    "research_only_provider": SheetSyncModeSpec(
+        key="research_only_provider",
+        plan_schema="affiliate-research-only-provider-plan-v1",
+        write_schema="affiliate-research-only-provider-write-v1",
+        mutable_columns=(0, 1, 10, 11, 19, 20, 21, 23, 24),
+        required_columns=(0, 1, 10, 11, 19, 20, 21, 23, 24),
+        allowed_status=frozenset({"research_only_hold"}),
+        required_flags={1: "FALSE", 11: "FALSE", 19: "FALSE", 20: "FALSE"},
+        evidence_fields=(
+            ("research_capture_path", "repo_path"),
+            ("research_capture_sha256", "sha256_of:research_capture_path"),
+            ("provider_id", "text"), ("official_url", "url"),
+            ("observed_at_utc", "timestamp"), ("application_hold", "text"),
+        ),
+        note_must_cite=("research_capture_path", "observed_at_utc", "provider_id"),
+        source_status=frozenset(),
+        forbidden_source_status=SHEET_SYNC_LIVE_STATUS,
+        forbid_source_approval_claim=True,
+        allowed_link_qa=frozenset({"not_tested_no_link"}),
+        require_tracking_link=False,
+        may_create=True,
+        create_required_columns=(0, 1, 2, 3, 4, 6, 7, 10, 11, 19, 20, 21, 23, 24, 25, 26),
+        cells_from_evidence={6: "official_url"},
+        description="Hold a source-bound consumer care subject for internal research only; "
+                    "no application, publisher relationship, link, payout or SEO promotion.",
     ),
     # --- Impact programme candidate ------------------------------------------
     # The Partner API can resolve a KNOWN campaign id and return public terms even
@@ -5188,6 +5239,7 @@ SHEET_SYNC_KIND_MODE = {
     "network_paused": "network_paused_disposition",
     "network_cancelled": "network_cancelled",
     "status_correction": "status_correction",
+    "partner_email_hold": "partner_email_hold",
     "deployed_live": "deployed_live",
     "removed": "removed",
     "evidence_blocked": "evidence_blocked",
@@ -5200,6 +5252,7 @@ SHEET_SYNC_KIND_MODE = {
     "cross_network_duplicate_relationship": "cross_network_duplicate_relationship",
     "approval_confirmed": "approval_confirmed",
     "invitation_disposition": "invitation_disposition",
+    "research_only_provider": "research_only_provider",
     "marketplace_candidate": "marketplace_candidate",
     "impact_program_candidate": "impact_program_candidate",
     "commercial_economics_hold": "commercial_economics_hold",
@@ -5234,7 +5287,7 @@ SHEET_SYNC_KIND_MODE = {
     "junk_row_purge": "junk_row_purge",
 }
 
-_REPO_ROOT = Path("/home/ubuntu/business")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 _EVIDENCE_PATH_PREFIXES = ("reports/", "site-system/", "data/")
 _TIMESTAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T[\d:.+\-]+Z?")
 
@@ -5267,7 +5320,10 @@ def sheet_sync_changed_cells(
         actual = pad(values[row_num - 1] if len(values) >= row_num else [])
         for column, expected in entry["cells"].items():
             column = int(column)
-            if not sheet_sync_cell_equal(column, actual[column], expected):
+            if (entry.get("create") and entry.get("network") == "Research-only provider"
+                    and column in SHEET_SYNC_CHECKBOX_COLUMNS and actual[column] == ""):
+                changes.append((row_num, column, expected))
+            elif not sheet_sync_cell_equal(column, actual[column], expected):
                 changes.append((row_num, column, expected))
     return changes
 
@@ -5920,6 +5976,99 @@ def require_katalys_tracking_ready(entry: dict[str, Any], values: list[list[Any]
                 refuse("partial_target_or_source_drift")
 
 
+# Nonsecret custody pins only. The retained mailbox bytes stay outside Git.
+# This is one historical hold, not a classifier or authority to impose new holds.
+PARTNER_EMAIL_HOLD_EVENT = {
+    "event_id": "evt_b9198b5da083f97f78cd4a79685f",
+    "raw_sha256": "5bd183e1fd002fd99ffb04312c2fa57cbba75218f37cd4b5e7e7f4f61fa863e9",
+    "received_at": "2026-09-21T14:06:14Z",
+}
+PARTNER_EMAIL_HOLD_INBOX_DB = Path("/home/ubuntu/.hermes/state/email-monitor.sqlite3")
+PARTNER_EMAIL_HOLD_APPLY_URL = "https://xentraffic.everflowclient.io/offers/3277"
+
+
+def partner_email_hold_cells(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Deterministic three-cell projection; no free-form instruction/note input."""
+    source = evidence.get("source_row")
+    if (not isinstance(source, list) or len(source) != len(HEADERS)
+            or source[4] != "XenTraffic" or source[5] != PARTNER_EMAIL_HOLD_APPLY_URL
+            or source[10] != "approved_active_tracking_ready"
+            or source[19] is not True or source[20] is not False
+            or not isinstance(source[14], str) or not source[14]
+            or not isinstance(source[23], str)):
+        raise RuntimeError("partner_email_hold_source_invalid")
+    if any(evidence.get(key) != value for key, value in PARTNER_EMAIL_HOLD_EVENT.items()):
+        raise RuntimeError("partner_email_hold_exact_event_mismatch")
+    try:
+        corrected = datetime.strptime(evidence["corrected_at_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        received = datetime.strptime(evidence["received_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        if not received < corrected <= datetime.now(timezone.utc):
+            raise ValueError("correction must follow historical mail and not be in the future")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("partner_email_hold_correction_time_invalid") from exc
+    note = (f"Partner-email advertiser/postback HOLD; event_id={evidence['event_id']}; "
+            f"raw_sha256={evidence['raw_sha256']}; email_received_at={evidence['received_at']}; "
+            f"metadata_corrected_at={evidence['corrected_at_utc']}. "
+            "Advertiser clearance and postback configuration readback remain pending. "
+            "Wire-In Ready retracted; prior readiness and no-per-offer-gate claims do not release this hold. "
+            "Current network eligibility UNKNOWN: not a portal pause, withdrawal or zero-economics finding. "
+            "Existing tracker, payout and Last Checked UTC preserved, not reverified; no activation or hold release.")
+    return {"10": "hold_advertiser_postback_pending", "19": "FALSE",
+            "23": source[23] + ("\n" if source[23] else "") + note}
+
+
+def require_partner_email_hold(entry: dict[str, Any], values: list[list[Any]] | None = None) -> None:
+    """Rebind exact mail custody and the full preimage OR full postimage on replay."""
+    import sqlite3
+    from contextlib import closing
+    from email import policy
+    from email.parser import BytesParser
+    from email.utils import parseaddr
+
+    evidence = entry["evidence"]
+    desired = partner_email_hold_cells(evidence)
+    source = evidence["source_row"]
+    expected_id = f"partner-email-hold-{evidence['event_id']}-{evidence['raw_sha256']}"
+    if (entry.get("network") != "XenTraffic" or entry.get("provider_program_id") != "3277"
+            or entry.get("program") != source[2] or entry.get("queue_update_id") != expected_id
+            or entry.get("create") or entry.get("cells") != desired):
+        raise RuntimeError("partner_email_hold_identity_or_projection_mismatch")
+    # URI read-only + query_only: preview and apply never mutate inbox state.
+    with closing(sqlite3.connect(
+            PARTNER_EMAIL_HOLD_INBOX_DB.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+        db.execute("PRAGMA query_only=ON")
+        records = db.execute(
+            "SELECT event_id, received_at, raw_path, raw_sha256 FROM inbox_events WHERE event_id=?",
+            (evidence["event_id"],),
+        ).fetchall()
+    if (len(records) != 1 or records[0][1] != evidence["received_at"]
+            or records[0][3] != evidence["raw_sha256"]):
+        raise RuntimeError("partner_email_hold_retained_event_mismatch")
+    raw = Path(records[0][2]).read_bytes()
+    if hashlib.sha256(raw).hexdigest() != evidence["raw_sha256"]:
+        raise RuntimeError("partner_email_hold_raw_hash_drift")
+    message = BytesParser(policy=policy.default).parsebytes(raw)
+    sender = parseaddr(str(message.get("From") or ""))[1].lower()
+    trusted = [str(value).lower() for value in message.get_all("Authentication-Results", [])
+               if str(value).strip().lower().startswith("mx.google.com;")]
+    if (sender.rsplit("@", 1)[-1] != "xentraffic.com" or not any(
+            re.search(r"(?:^|;)\s*dmarc=pass\b[^;]*\bheader\.from=xentraffic\.com(?:\s|;|$)", auth)
+            for auth in trusted)):
+        raise RuntimeError("partner_email_hold_authentication_failed")
+    if values is not None:
+        hits = [n for n, row in enumerate(values[1:], 2)
+                if pad(row)[4] == "XenTraffic" and pad(row)[5] == PARTNER_EMAIL_HOLD_APPLY_URL]
+        if hits != [entry["row"]]:
+            raise RuntimeError("partner_email_hold_current_identity_missing_or_ambiguous")
+        post = list(source)
+        for column, value in desired.items():
+            post[int(column)] = sheet_sync_write_value(int(column), value)
+        # JSON equality preserves typed FALSE vs 0; no partial-postimage shortcut.
+        actual = json.dumps(pad(values[entry["row"] - 1]), ensure_ascii=False)
+        if actual not in (json.dumps(source, ensure_ascii=False), json.dumps(post, ensure_ascii=False)):
+            raise RuntimeError("partner_email_hold_full_preimage_or_postimage_required")
+
+
 def require_maxbounty_publisher_id(entry: dict[str, Any], actual: list[Any] | None = None) -> None:
     from urllib.parse import parse_qs, urlsplit
 
@@ -5938,6 +6087,82 @@ def require_maxbounty_publisher_id(entry: dict[str, Any], actual: list[Any] | No
             raise RuntimeError(f"maxbounty_publisher_id_source_drift:{entry['row']}")
         if str(actual[13] or "").strip() not in {"", publisher}:
             raise RuntimeError(f"publisher_id_drift:{entry['row']}:MaxBounty")
+
+
+def research_only_provider_cells(entry: dict[str, Any]) -> dict[str, str]:
+    """Derive the entire held row from a hash-checked source snapshot, not queue cells."""
+    from urllib.parse import urlsplit
+
+    e = entry["evidence"]
+    allowed_evidence = {"research_capture_path", "research_capture_sha256", "provider_id",
+                        "official_url", "observed_at_utc", "source_observations",
+                        "known_program_observation", "application_hold"}
+    if (set(e) != allowed_evidence or set(entry) - {"program", "network", "provider_program_id",
+                                                   "evidence", "create", "row", "cells",
+                                                   "queue_update_id"}):
+        raise RuntimeError("research_only_provider_forbidden_claim")
+    path = _REPO_ROOT / str(e["research_capture_path"])
+    try:
+        prospects = json.loads(path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("research_only_provider_capture_invalid") from exc
+    domain_id = str(e.get("provider_id") or "")
+    domain = domain_id.removeprefix("domain:")
+    matches = [p for p in prospects if isinstance(p, dict) and p.get("provider_id") == domain_id]
+    if (not domain_id.startswith("domain:") or not domain or len(matches) != 1
+            or entry.get("provider_program_id") != domain_id
+            or entry.get("network") != "Research-only provider"
+            or entry.get("program") != matches[0].get("identity")):
+        raise RuntimeError("research_only_provider_identity_conflict")
+    p = matches[0]
+    observations = p.get("source_observations") or []
+    official = next((o for o in observations if isinstance(o, dict) and
+                     (urlsplit(str(o.get("url") or "")).hostname == domain or
+                      str(urlsplit(str(o.get("url") or "")).hostname or "").endswith("." + domain))), None)
+    if (p.get("requested_state") != "research_only_hold"
+            or p.get("recorded_in_remote_intake") is not False
+            or p.get("report_only_not_queue_fact") is not True
+            or "fella" in domain.casefold()
+            or (p.get("known_program_observation") is not None and
+                p.get("rail") != p["known_program_observation"].get("rail"))
+            or p.get("research_intake_eligible") is not True
+            or p.get("application_eligible") is not False or p.get("apply") is not False
+            or p.get("wire_in_ready") is not False or p.get("wired_live") is not False
+            or not p.get("unknowns_and_application_hold") or not official
+            or not all(isinstance(o, dict) and o.get("source_sha256") and o.get("observed_at")
+                       and o.get("quote") for o in observations)
+            or e.get("source_observations") != observations
+            or e.get("known_program_observation") != p.get("known_program_observation")
+            or e.get("application_hold") != p["unknowns_and_application_hold"]
+            or e.get("official_url") != official["url"]
+            or e.get("observed_at_utc") != official["observed_at"]):
+        raise RuntimeError("research_only_provider_source_identity_drift")
+    for observation in observations:
+        source_path = str(observation.get("source_path") or "")
+        source_sha = str(observation.get("source_sha256") or "")
+        if (not source_path.startswith("reports/") or ".." in source_path
+                or not re.fullmatch(r"[a-f0-9]{64}", source_sha)
+                or not (_REPO_ROOT / source_path).is_file()
+                or hashlib.sha256((_REPO_ROOT / source_path).read_bytes()).hexdigest() != source_sha):
+            raise RuntimeError("research_only_provider_source_hash_drift")
+    url = urlsplit(official["url"])
+    if url.scheme != "https" or not url.hostname:
+        raise RuntimeError("research_only_provider_official_url_invalid")
+    note = ("RESEARCH ONLY — NOT APPLIED; no affiliate approval, payable event, "
+            "or tracking link established. " + domain_id + " source " +
+            e["research_capture_path"] + " sha256 " + e["research_capture_sha256"] +
+            " observed_at_utc " + e["observed_at_utc"] +
+            "; application hold: " + str(e["application_hold"]) +
+            "; known rail observation (not a clinical payable event): " +
+            json.dumps(p.get("known_program_observation"), sort_keys=True, ensure_ascii=False))
+    return {"0": "LOW", "1": "FALSE", "2": p["identity"],
+            "3": "Provider research (held)", "4": "Research-only provider", "5": "",
+            "6": official["url"], "7": "Published care subject; affiliate route and paid event unverified.",
+            "8": "", "9": "", "10": "research_only_hold", "11": "FALSE",
+            "12": "", "13": "", "14": "", "15": "", "16": "", "17": "",
+            "18": "", "19": "FALSE", "20": "FALSE", "21": "not_tested_no_link",
+            "22": "", "23": note, "24": e["observed_at_utc"],
+            "25": "glp1-weightloss", "26": ""}
 
 
 def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]]:
@@ -5982,14 +6207,26 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
 
         require_sheet_sync_evidence(spec, entry, program)
         evidence = entry["evidence"]
+        if spec.key == "research_only_provider":
+            expected = research_only_provider_cells(entry)
+            if not creating:
+                expected = {key: value for key, value in expected.items()
+                            if int(key) in spec.mutable_columns}
+            if entry.get("cells") != expected:
+                raise RuntimeError("research_only_provider_forbidden_or_conflicting_cells")
         if spec.key in provider_metadata.KINDS:
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT)
+        if spec.key == "partner_email_hold":
+            require_partner_email_hold(entry)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry)
         if spec.key == "maxbounty_publisher_id":
             require_maxbounty_publisher_id(entry)
         if spec.key == "deployed_live":
             deployed_live_tuple(entry)
+        if spec.key == "network_cancelled":
+            import affiliate_program_withdrawal as withdrawal
+            withdrawal.verify_writer_entry(entry, root=_REPO_ROOT)
 
         cells = entry.get("cells")
         if not isinstance(cells, dict) or not cells:
@@ -6189,7 +6426,7 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
         if spec.note_scrub:
             require_secret_scrub_note(spec, entry, note)
         checked = str(get(24) or "").strip()
-        if spec.key not in {"maxbounty_publisher_id", provider_metadata.MAXBOUNTY_IDENTITY_KIND, *provider_metadata.SLUG_ONLY_KINDS} and (not checked or "T" not in checked):
+        if spec.key not in {"partner_email_hold", "maxbounty_publisher_id", provider_metadata.MAXBOUNTY_IDENTITY_KIND, *provider_metadata.SLUG_ONLY_KINDS} and (not checked or "T" not in checked):
             raise RuntimeError(f"{spec.key}_last_checked_invalid:{program}")
 
         if creating:
@@ -6605,6 +6842,8 @@ def require_sheet_sync_preconditions(
     """
     spec = SHEET_SYNC_MODES[mode]
     for entry in rows:
+        if spec.key == "partner_email_hold":
+            require_partner_email_hold(entry, values)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry, values)
         if entry.get("create"):
@@ -6614,8 +6853,18 @@ def require_sheet_sync_preconditions(
         if len(values) < row_num or not row_has_business_value(values[row_num - 1]):
             raise RuntimeError(f"{spec.key}_target_row_blank:{row_num}")
         actual = pad(values[row_num - 1])
+        if spec.key == "network_cancelled":
+            import affiliate_program_withdrawal as withdrawal
+            withdrawal.verify_writer_entry(entry, actual, root=_REPO_ROOT)
         if str(actual[2]).strip() != program:
             raise RuntimeError(f"{spec.key}_program_mismatch:{row_num}:{str(actual[2]).strip()!r}")
+        if spec.key == "research_only_provider":
+            expected = research_only_provider_cells(entry)
+            if str(actual[4]) != "Research-only provider" or any(
+                not sheet_sync_cell_equal(int(column), actual[int(column)], value)
+                for column, value in expected.items()
+            ):
+                raise RuntimeError(f"research_only_provider_existing_identity_or_source_conflict:{row_num}")
         if spec.key in provider_metadata.KINDS:
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT, values,
                                              provider_metadata.SLUG_APPROVED_STATUSES)
@@ -6899,6 +7148,21 @@ def require_sheet_sync_create_preconditions(
         if not entry.get("create"):
             continue
         program = str(entry["program"])
+        if spec.key == "research_only_provider":
+            from urllib.parse import urlsplit
+            domain = str(entry["provider_program_id"]).removeprefix("domain:")
+            collisions = []
+            for index, existing in enumerate(values[1:], 2):
+                actual = pad(existing)
+                if not row_has_business_value(actual):
+                    continue
+                host = urlsplit(str(actual[6] or "")).hostname or ""
+                if (norm(actual[2]) == norm(program) or host == domain
+                        or host.endswith("." + domain)):
+                    collisions.append(index)
+            if collisions:
+                raise RuntimeError(
+                    f"research_only_provider_existing_identity_conflict:{program}:{collisions}")
         matches = sheet_sync_existing_matches(values, entry)
         row_num = target_rows.get(program)
         if spec.require_marketplace_candidate_row:
@@ -7162,6 +7426,14 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
             if str(pad(values[item["row"] - 1])[10] or "") in spec.allowed_status
         ]
         if reused:
+            if spec.key == "research_only_provider":
+                if len(reused) != 1:
+                    raise RuntimeError("research_only_provider_replay_ambiguous")
+                prior = pad(values[reused[0]["row"] - 1])
+                expected = research_only_provider_cells(entry)
+                if any(not sheet_sync_cell_equal(int(key), prior[int(key)], value)
+                       for key, value in expected.items()):
+                    raise RuntimeError("research_only_provider_replay_source_conflict")
             target_rows[program] = reused[0]["row"]
             continue
         # Relevance gate on CREATES only (existing rows are never filtered).
@@ -7169,12 +7441,13 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
         # account into the Sheet -- Netgear Germany, Sports Direct DK, Indeed
         # AU, Etihad Holidays GCC, 32 rows in one drain. Enforced here at the
         # single writer so no future producer can bypass it by forgetting.
-        verdict = program_relevance.create_verdict(
-            program, fit_verified=bool(entry.get("fit_verified")))
-        if not verdict["allow"]:
-            raise RuntimeError(
-                f"{spec.key}_program_not_relevant:{program}:"
-                f"{verdict['reason']}:{verdict['detail']}")
+        if spec.key != "research_only_provider":
+            verdict = program_relevance.create_verdict(
+                program, fit_verified=bool(entry.get("fit_verified")))
+            if not verdict["allow"]:
+                raise RuntimeError(
+                    f"{spec.key}_program_not_relevant:{program}:"
+                    f"{verdict['reason']}:{verdict['detail']}")
         if not blank_rows:
             # The grid is full. Grow it rather than refusing every new provider.
             still_needed = sum(
@@ -7182,9 +7455,8 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
                 if item.get("create") and str(item["program"]) not in target_rows)
             grown = grow_grid_for_creates(
                 svc, int(props["sheetId"]), int(grid_before["rowCount"]),
-                still_needed, spec.key)
+                still_needed, spec.key, apply=apply)
             blank_rows.extend(grown)
-            grid_before["rowCount"] = int(grid_before["rowCount"]) + len(grown)
         if not blank_rows:
             raise RuntimeError(f"{spec.key}_no_blank_grid_row_available")
         target_rows[program] = blank_rows.pop(0)
@@ -7258,7 +7530,7 @@ def run_sheet_sync_mode(mode: str, plan_path: Path, out: Path, apply: bool) -> i
             values, live, created
         ):
             raise RuntimeError("sheet_concurrency_drift_before_value_write")
-        if spec.key == "katalys_tracking_ready" or spec.key in provider_metadata.KINDS:
+        if spec.key in {"katalys_tracking_ready", "partner_email_hold"} or spec.key in provider_metadata.KINDS:
             require_sheet_sync_preconditions(mode, live, planned_rows)
         if changes:
             require_parent_row_protection(spec, changes, planned_rows)

@@ -1,0 +1,25 @@
+name: glp333-network-access
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  network-contract-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install pytest==8.3.5
+      - name: Offline adapters, unknown-money invariant and source pin closure
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONPATH: scripts:.
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_network_access_contract.py tests/test_network_access_review_regressions.py tests/test_glp44_reporting_source_pin_pair.py tests/test_glp85_cj_reporting_identity.py tests/test_glp319_incomplete_period.py

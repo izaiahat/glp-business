@@ -449,6 +449,20 @@ def require_opus(job: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
                 or receipt.get("model") != transport["model"]
                 or receipt.get("effort") != transport["effort"]):
             raise RuntimeError("opus_identity_invalid")
+        # The summary is not authority for the runtime that actually reviewed.
+        # Buffer admission already enforces this same raw pin and shared predicate.
+        if (not isinstance(receipt.get("raw_review_path"), str)
+                or not isinstance(receipt.get("raw_review_sha256"), str)):
+            raise RuntimeError("opus_raw_pin_missing")
+        raw_path = checked({"path": receipt["raw_review_path"],
+                            "sha256": receipt["raw_review_sha256"]}, "opus_raw_review")
+        try:
+            raw_transport = review_transports.validate_raw_review_runtime(
+                json.loads(raw_path.read_text()))
+        except (ValueError, review_transports.TransportError) as error:
+            raise RuntimeError(f"opus_raw_runtime_invalid:{error}") from error
+        if raw_transport["transport_id"] != transport["transport_id"]:
+            raise RuntimeError("opus_review_transport_mismatch")
     if receipt.get("subject_manifest_sha256") != sha(manifest_path):
         raise RuntimeError("opus_subject_binding_invalid")
     if receipt.get("findings") or any(row.get("status") != "PASS" for row in receipt.get("gates") or []):
