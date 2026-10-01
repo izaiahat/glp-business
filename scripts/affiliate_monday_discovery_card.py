@@ -78,7 +78,7 @@ def marketplace_scan_resolution(discovery_dir: Path,
     five_routes = load(discovery_dir / "five-route-receipts.json")
     platform_route = (five_routes.get("routes") or {}).get("platform_sweeps") or {}
     receipts = {str(row.get("platform") or ""): row
-                for row in (platform_route.get("platform_receipts") or [])}
+                for row in (platform_route.get("subroutes") or [])}
     fallback = []
     unattempted = []
     for network in missing:
@@ -116,6 +116,11 @@ def compose(discovery_dir: Path, marketplace_receipt: dict[str, Any]) -> dict[st
         (f"joined marketplace scans attempted: **{resolution['attempted']}/{resolution['expected']}** "
          f"· marketplace execution: **{execution_id}** · direct web: **Firecrawl**"),
     ]
+    source_coverage = summary.get("source_coverage") or {}
+    lines.append(f"Discovery: **{summary.get('status', 'UNKNOWN')}** · "
+                 f"pending reads: **{len(source_coverage.get('pending') or [])}** · "
+                 f"unavailable reads: **{len(source_coverage.get('unavailable') or [])}**")
+    lines.append("Marketplace coverage uses prior local receipts; it is not a fresh catalog scan.")
     if resolution["fallback_scans"]:
         names = ", ".join(
             f"{row['network']} ({'public fallback' if row['public_fallback'] else 'bounded attempt'}; "
@@ -131,15 +136,23 @@ def compose(discovery_dir: Path, marketplace_receipt: dict[str, Any]) -> dict[st
         if row["application_url"]:
             lines.append(row["application_url"])
     if not candidates:
-        lines.append("No new evidence-backed candidates found this scan.")
-    lines.extend(["", "Review only. Nothing was applied, joined, deployed, or re-pointed."])
+        lines.append("No new candidates in the completed source reads; check coverage above.")
+    admission = summary.get("application_admission") or {}
+    outcomes = admission.get("outcomes") or []
+    counts = {status: sum(row.get("status") == status for row in outcomes)
+              for status in ("admitted", "already_admitted", "already_queued", "deferred", "reconcile_required")}
+    lines.insert(5, f"Queue: **{counts['admitted']} admitted** · "
+                 f"**{counts['already_admitted'] + counts['already_queued']} already queued** · "
+                 f"**{counts['deferred']} deferred** · **{counts['reconcile_required']} need reconciliation**")
+    lines.extend(["", f"Application queue admission: {admission.get('status', 'disabled')}. "
+                  "No applications submitted, marketplaces joined, or site changes made here."])
     card = "\n".join(lines)
     if len(card) > 1900:
         card = card[:1888].rstrip() + "\n…"
     return {
         "schema": "affiliate-monday-discovery-card-v1",
         "captured_at_utc": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "status": "REVIEW_READY",
+        "status": summary.get("status", "UNKNOWN"),
         "candidate_count": len(candidates),
         "ranked_candidates": candidates,
         "marketplace_execution": marketplace_receipt,

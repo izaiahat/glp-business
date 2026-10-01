@@ -46,8 +46,10 @@ import importlib.util
 import json
 import os
 import re
+import signal
 import stat
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,6 +60,8 @@ MACHINE_DIR = BUSINESS / "reports/glp-clinic-scout/affiliate-machine"
 SUPPLY_DIR = MACHINE_DIR / "supply-discovery"
 LEDGER_PATH = MACHINE_DIR / "applications-ledger.json"
 DEFAULT_DISCOVERY_TARGET = 25
+DEFAULT_RUN_BUDGET_SECONDS = 360
+DEFAULT_SOURCE_TIMEOUT_SECONDS = 20
 
 DIR_MODE = stat.S_IRWXU
 FILE_MODE = stat.S_IRUSR | stat.S_IWUSR
@@ -334,9 +338,137 @@ def private_json(path: Path, payload) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, DIR_MODE)
     body = json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
-    path.write_text(body)
-    os.chmod(path, FILE_MODE)
+    fd, temporary_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w") as stream:
+            stream.write(body)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+class SourceDeferred(Exception):
+    """A declared read is pending; this never means an empty source."""
+
+
+class SourceUnavailable(Exception):
+    """An attempted read failed; keep it distinct from zero results."""
+
+
+class _ReadDeadline(BaseException):
+    # Provider adapters often catch Exception internally. The timer must reach
+    # our boundary instead of being swallowed and starting another retry.
+    pass
+
+
+class DiscoveryCheckpoint:
+    """Replay successful read-only inputs while continuing unfinished sources.
+
+    A source failure is retained for this cycle (so a broken first source cannot
+    starve later work). A fresh completed cycle retries failures next Monday.
+    The cron lock serializes checkpoint writers. No application/join callbacks
+    may be passed here: interrupting a read is safe; interrupting effects isn't.
+    """
+
+    def __init__(self, path, *, run_id, budget_s, source_timeout_s=20, max_calls=200):
+        self.path = Path(path)
+        self.deadline = time.monotonic() + budget_s
+        self.source_timeout_s = source_timeout_s
+        self.max_calls = max_calls
+        self.calls = 0
+        self.visited = set()
+        self.doc = {"schema": "affiliate-discovery-checkpoint-v1", "cycle_id": run_id,
+                    "complete": False, "operations": {}}
+        if self.path.exists():
+            if self.path.is_symlink():
+                raise ValueError("unsafe_checkpoint_symlink")
+            prior = json.loads(self.path.read_text())
+            if prior.get("schema") != self.doc["schema"]:
+                raise ValueError("unsupported_discovery_checkpoint")
+            if not prior.get("complete") or prior.get("cycle_id") == run_id:
+                self.doc = prior
+
+    def wrap(self, kind, callback):
+        def bounded(*args):
+            identity = json.dumps([kind, args], sort_keys=True)
+            key = hashlib.sha256(identity.encode()).hexdigest()
+            self.visited.add(key)
+            operations = self.doc["operations"]
+            saved = operations.get(key)
+            if saved and saved["status"] == "ok":
+                return saved["result"]
+            if saved and saved["status"] == "unavailable":
+                raise SourceUnavailable(saved["reason"])
+            row = {"kind": kind, "arguments": args, "status": "pending"}
+            operations[key] = row
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0 or self.calls >= self.max_calls:
+                row["reason"] = "run_budget_exhausted"
+                # No read started. Persist the full tail once in finish(), not
+                # an increasingly large checkpoint for every skipped callback.
+                raise SourceDeferred("run_budget_exhausted")
+            self.calls += 1
+            self.save()  # an interrupted process leaves a retryable pending read
+            prior_handler = signal.getsignal(signal.SIGALRM)
+            prior_timer = signal.getitimer(signal.ITIMER_REAL)
+            if prior_timer[0]:
+                raise RuntimeError("discovery_requires_exclusive_read_timer")
+            def expire(_signum, _frame):
+                raise _ReadDeadline()
+            signal.signal(signal.SIGALRM, expire)
+            try:
+                signal.setitimer(signal.ITIMER_REAL, min(remaining, self.source_timeout_s))
+                result = callback(*args)
+                if isinstance(result, dict) and str(result.get("status", "")).lower().startswith("error"):
+                    raise SourceUnavailable("provider_read_error")
+                row.update(status="ok", result=result)
+            except _ReadDeadline:
+                if remaining < self.source_timeout_s:
+                    row.update(status="pending", reason="run_budget_exhausted")
+                else:
+                    row.update(status="unavailable", reason="source_timeout")
+            except Exception as exc:
+                # Never serialize provider exception text (URLs/headers may be secret).
+                row.update(status="unavailable", reason=type(exc).__name__)
+            finally:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, prior_handler)
+            self.save()
+            if row["status"] == "pending":
+                raise SourceDeferred(row["reason"])
+            if row["status"] != "ok":
+                raise SourceUnavailable(row["reason"])
+            return result
+        bounded.discovery_checkpoint = self
+        return bounded
+
+    def save(self):
+        private_json(self.path, self.doc)
+
+    def finish(self):
+        for key, row in self.doc["operations"].items():
+            if key not in self.visited and row["status"] == "pending":
+                row.update(status="retired", reason="no_longer_in_current_input_plan")
+        operations = list(self.doc["operations"].values())
+        pending = [row for row in operations if row["status"] == "pending"]
+        unavailable = [row for row in operations if row["status"] == "unavailable"]
+        self.doc["complete"] = not pending
+        self.save()
+        return {"checkpoint": str(self.path), "cycle_id": self.doc["cycle_id"],
+                "complete": not pending, "calls_this_run": self.calls,
+                "operations": len(operations), "pending": pending,
+                "unavailable": unavailable,
+                "status": "PARTIAL_RESUMABLE" if pending else (
+                    "DISCOVERED_WITH_SOURCE_ERRORS" if unavailable else "DISCOVERED")}
 
 
 def host_of(url: str) -> str:
@@ -886,6 +1018,7 @@ def enrich(candidate: dict, scrape) -> dict:
     candidate["glp_evidence"] = verdict
     candidate["evidence_source"] = "program_page"
     candidate["evidence_sha256"] = hashlib.sha256(markdown.encode()).hexdigest()
+    candidate["commercial_page_evidence"] = commercial_page_evidence(body)
     candidate["commission_terms"] = _commission_terms(body)
     candidate["evidence_excerpt"] = excerpt
     if hosted_by and candidate["network"] == "direct":
@@ -894,6 +1027,42 @@ def enrich(candidate: dict, scrape) -> dict:
     candidate["enrichment"] = {"status": "ok", "chars": len(markdown),
                                "hosted_by": hosted_by}
     return candidate
+
+
+def commercial_page_evidence(body: str) -> dict:
+    """Capture affirmative service and recruitment statements, never infer them.
+
+    Only enrich() calls this on a successful first-party program-page read.
+    Search snippets, a US mention, or an /affiliate URL alone prove neither.
+    Adverse statements outrank positive language elsewhere on the same page.
+    """
+    us = r"(?:United States|USA|U\.S\.A?\.?|all 50 states|US)"
+    sentences = [part.strip() for part in re.split(r"\n+|(?<=[!?])\s+|(?<=\.)\s+(?=[A-Z])", body)
+                 if part.strip()]
+    negatives = [part for part in sentences if re.search(r"\b" + us + r"\b", part, re.I)
+                 and re.search(r"\b(?:not|never|cannot|can't|don't|except|excluding|outside|unavailable)\b", part, re.I)]
+    service = None
+    if not negatives:
+        for part in sentences:
+            if re.search(r"\b(?:serve|serving|available|deliver|ship|based|located|operate|operating)\b"
+                         + r"[^.!?\n]{0,100}\b" + us + r"\b", part, re.I):
+                service = part[:600]
+                break
+    status, quote = "", None
+    for part in sentences:
+        if re.search(r"\baffiliate (?:program|applications?)\b", part, re.I) and re.search(
+                r"\b(?:closed|paused|suspended|discontinued|not accepting|no longer accepting)\b", part, re.I):
+            status, quote = "paused", part[:600]
+            break
+    if not status:
+        for part in sentences:
+            if re.search(r"\b(?:join|apply to|apply for)\s+(?:our\s+|the\s+)?affiliate program\b"
+                         r"|\b(?:now accepting|accepting new) affiliate applications\b"
+                         r"|\baffiliate program is (?:active|open)\b", part, re.I):
+                status, quote = "active", part[:600]
+                break
+    return {"us_service_evidence": service, "offer_status": status,
+            "offer_status_evidence": quote}
 
 
 COMMISSION_RE = re.compile(
@@ -1022,6 +1191,10 @@ def discover_direct_programs(search, scrape, *, known: KnownSupply, queries=None
     if gap is not None:  # compatibility for provider-free tests and old callers
         target = gap
     policy_snapshot = policy_snapshot or operator_rulings.load_snapshot()
+    if getattr(scrape, "discovery_checkpoint", None):
+        # Durable read budgets replace lossy count caps. Every source is visited
+        # and receives either a result or an explicit pending/error disposition.
+        enrich_cap = mine_cap = float("inf")
     query_log: list = []
     hits = list(initial_hits or [])
     if queries is not None or initial_hits is None:
@@ -1131,7 +1304,7 @@ def discover_direct_programs(search, scrape, *, known: KnownSupply, queries=None
         "accepted_count": len(accepted),
         "accepted": accepted,
         "rejected_count": len(rejected),
-        "rejected": rejected[:400],
+        "rejected": rejected,
         "effects": {"applications_submitted": 0, "tracking_links_clicked": 0, "sheet_writes": 0},
         "secret_printed": False,
     }
@@ -1392,41 +1565,59 @@ def carry_forward_supply(ledger: dict | None = None, machine_dir: Path | None = 
 
 
 def build_apply_inventory(accepted: list, carried: list | None = None) -> dict:
-    """The document `affiliate_auto_apply.freshest_inventories()` will pick up.
+    """Stable first-party identities with explicitly sourced US service only.
 
-    It is written as `enumeration-supply-<stamp>/direct-supply.json`, so the
-    apply lane reads it as network `direct` through its generic shape handler —
-    no change to the apply lane is needed for discovered supply to be applied to.
+    Public route availability is discovery evidence, never relationship approval.
+    Older inventories with inferred US/name IDs remain research history; they
+    cannot be carried into the new admission contract.
     """
     programs = []
     seen = set()
     for program in (carried or []):
         key = str(program.get("program_id") or "")
-        if not key or key in seen:
+        if (not key.startswith("domain:") or key in seen
+                or program.get("discovery_geo_contract") != "explicit_us_v1"):
             continue
         seen.add(key)
         programs.append({**program, "carried_forward": True})
     for candidate in accepted:
-        if candidate["provider"] in seen:
+        official = str(candidate.get("official_url") or "")
+        host = (urlparse(official).hostname or "").lower().removeprefix("www.")
+        key = "domain:" + host if host else ""
+        if key in seen and key:
             continue
-        seen.add(candidate["provider"])
+        if key:
+            seen.add(key)
+        excerpt = str(candidate.get("evidence_excerpt") or "")
+        page_verified = (candidate.get("evidence_source") == "program_page"
+                         and candidate.get("enrichment", {}).get("status") == "ok"
+                         and bool(candidate.get("evidence_sha256")))
+        page_evidence = candidate.get("commercial_page_evidence", {}) if page_verified else {}
+        us_evidence = page_evidence.get("us_service_evidence")
         programs.append({
-            "program_id": candidate["provider"],
+            "program_id": key,
             "name": candidate["provider"],
-            # The PAGE evidence, not the search snippet: the apply lane re-runs
-            # the same GLP gate against this text and must reach the same verdict.
-            "description": (candidate.get("evidence_excerpt")
-                            or candidate.get("snippet") or "")[:500],
-            "region": "US",
-            "currency": "USD",
+            "description": excerpt,
+            "region": "US" if us_evidence else "",
+            "currency": None,
+            "payout": None,
+            "terms": None,
+            "discovery_geo_contract": "explicit_us_v1",
+            "us_service_evidence": us_evidence,
+            "offer_status": page_evidence.get("offer_status", ""),
+            "offer_status_evidence": page_evidence.get("offer_status_evidence"),
+            "evidence_sha256": candidate.get("evidence_sha256"),
+            "official_url": official,
             "url": candidate["program_url"],
-            "relationship": "notjoined",
+            "application_url": candidate["program_url"],
+            "relationship": "available",
+            "hosted_network": candidate.get("network"),
             "glp_evidence_tier": candidate["glp_evidence"]["tier"],
             "discovered_by": candidate["discovered_by"],
             "evidence_source": candidate["evidence_source"],
         })
     return {
-        "schema": "affiliate-supply-discovered-inventory-v1",
+        "schema": "affiliate-supply-discovered-inventory-v2",
         "network": "direct",
         "captured_at_utc": utc(),
         "mode": "supply_discovery",
@@ -1610,11 +1801,24 @@ def run(*, search, scrape, run_id: str, out_dir: Path,
         do_marketplaces: bool = True, join_network: str = "",
         session_factory=None, headless: bool = True,
         do_five_routes: bool = True, expansion_fixtures: dict | None = None,
-        platform_adapters: dict | None = None) -> dict:
+        platform_adapters: dict | None = None, checkpoint_path: Path | None = None,
+        source_timeout_s: float = DEFAULT_SOURCE_TIMEOUT_SECONDS,
+        max_source_calls: int = 200) -> dict:
     """One full discovery run. Writes every receipt; submits and joins nothing."""
     if gap is not None:  # compatibility only; no application-volume trigger remains
         target = gap
-    deadline = (time.monotonic() + float(time_budget_s)) if time_budget_s else None
+    checkpoint = DiscoveryCheckpoint(
+        checkpoint_path or out_dir / "checkpoint.json", run_id=run_id,
+        budget_s=time_budget_s or DEFAULT_RUN_BUDGET_SECONDS,
+        source_timeout_s=source_timeout_s, max_calls=max_source_calls)
+    search = checkpoint.wrap("search", search)
+    scrape = checkpoint.wrap("scrape", scrape)
+    platform_adapters = {
+        slug: checkpoint.wrap("catalog:" + slug, adapter) if callable(adapter) else adapter
+        for slug, adapter in (platform_adapters or {}).items()}
+    # Traversal continues after the budget: wrappers record each pending read,
+    # while replayed results remain available to discover the rest of the work.
+    deadline = None
     policy_snapshot = operator_rulings.load_snapshot()
     if known is None:
         known = load_known_supply()
@@ -1755,9 +1959,11 @@ def run(*, search, scrape, run_id: str, out_dir: Path,
                   "captured_at_utc": utc(), "count": len(cards), "cards": cards,
                   "route": "discord:1524254375453786294", "secret_printed": False})
 
+    coverage = checkpoint.finish()
     summary = {
         "schema": "affiliate-supply-discovery-summary-v1",
-        "status": "DISCOVERED",
+        "status": coverage["status"],
+        "source_coverage": coverage,
         "captured_at_utc": utc(),
         "run_id": run_id,
         "candidate_target": int(target),
@@ -1814,7 +2020,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", type=int, default=DEFAULT_DISCOVERY_TARGET,
                         help="bounded discovery target; independent of application volume")
     parser.add_argument("--limit", type=int, default=10, help="results per query")
-    parser.add_argument("--time-budget-seconds", type=float, default=0)
+    parser.add_argument("--time-budget-seconds", type=float, default=DEFAULT_RUN_BUDGET_SECONDS)
+    parser.add_argument("--source-timeout-seconds", type=float, default=DEFAULT_SOURCE_TIMEOUT_SECONDS)
+    parser.add_argument("--max-source-calls", type=int, default=200)
+    parser.add_argument("--checkpoint", default=str(SUPPLY_DIR / "checkpoint.json"))
+    parser.add_argument("--admit-applications", action="store_true",
+                        help="admit eligible discoveries to the existing queue; never submit applications")
     parser.add_argument("--no-marketplaces", action="store_true")
     parser.add_argument("--join", default="", help="attempt ONE marketplace self-signup")
     parser.add_argument("--headed", action="store_true")
@@ -1824,6 +2035,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--join-only", action="store_true",
                         help="attempt the --join marketplace signup and nothing else")
     ns = parser.parse_args(argv)
+    if not (0 < ns.time_budget_seconds <= 480 and 0 < ns.source_timeout_seconds <= 60
+            and ns.max_source_calls > 0):
+        parser.error("require run budget in (0,480], source timeout in (0,60], and positive call cap")
+    if ns.admit_applications and ns.time_budget_seconds > 360:
+        parser.error("queue admission requires a discovery budget <=360s to reserve scheduler headroom")
 
     if ns.join_only:
         if not ns.join:
@@ -1847,9 +2063,24 @@ def main(argv: list[str] | None = None) -> int:
     summary = run(search=firecrawl_search(), scrape=firecrawl_scrape(), target=max(1, ns.target),
                   run_id=run_id, out_dir=out_dir, limit=ns.limit,
                   time_budget_s=ns.time_budget_seconds or None,
+                  checkpoint_path=Path(ns.checkpoint),
+                  source_timeout_s=ns.source_timeout_seconds,
+                  max_source_calls=ns.max_source_calls,
                   do_marketplaces=not ns.no_marketplaces, join_network=ns.join,
                   headless=not ns.headed,
                   platform_adapters=live_platform_discovery_adapters())
+    if ns.admit_applications:
+        # Imports and queue access happen only with explicit scheduled admission.
+        sys.path.insert(0, str(BUSINESS / "scripts"))
+        import affiliate_auto_apply
+        inventories = [Path(summary["apply_inventory"])] + affiliate_auto_apply.freshest_inventories(
+            include_direct=False)
+        summary["application_admission"] = affiliate_auto_apply.admit_discovery(
+            inventories, apply=True, deadline_seconds=120)
+        if summary["application_admission"]["status"] != "COMPLETE":
+            summary["discovery_status"] = summary["status"]
+            summary["status"] = "ADMISSION_INCOMPLETE"
+        private_json(out_dir / "summary.json", summary)
     print(json.dumps(summary if ns.json else {
         "status": summary["status"],
         "candidate_target": summary["candidate_target"],
@@ -1859,7 +2090,7 @@ def main(argv: list[str] | None = None) -> int:
         "unblock_cards": len(summary["unblock_cards"]),
         "out_dir": summary["out_dir"],
     }, indent=2))
-    return 0
+    return 2 if summary.get("status") == "ADMISSION_INCOMPLETE" else 0
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
-BUSINESS = Path("/home/ubuntu/business")
+BUSINESS = Path(__file__).resolve().parents[1]
 SCRIPTS = BUSINESS / "scripts"
 sys.path.insert(0, str(BUSINESS))
 sys.path.insert(0, str(SCRIPTS))
@@ -76,6 +76,9 @@ REQUIRED_MARKETPLACES = (
     "katalys", "maxbounty", "partnerize", "refersion", "impact", "clickbank",
     "goaffpro", "uppromote", "affiliati",
 )
+# Standing operator holds apply to census and selection, including old Sheet
+# evidence. A hold is an explicit scope exclusion, never an empty catalogue.
+HELD_NETWORKS = frozenset({"xentraffic"})
 SHEET_LOCK_RC = 75
 SHEET_LOCK_RETRY_SECONDS = (3, 8, 20, 40)
 
@@ -139,10 +142,10 @@ def weekly_window_id(moment: dt.datetime | None = None) -> str:
 
 
 def claim_weekly_window(
-    state_dir: Path = STATE_DIR, *, moment: dt.datetime | None = None,
+    state_dir: Path | None = None, *, moment: dt.datetime | None = None,
 ) -> dict[str, Any]:
     """Atomically permit at most one weekly machine run per ISO-week window."""
-    state_dir = Path(state_dir)
+    state_dir = Path(state_dir or STATE_DIR)
     state_dir.mkdir(parents=True, exist_ok=True)
     window = weekly_window_id(moment)
     marker = state_dir / f"weekly-window-{window}.json"
@@ -853,10 +856,14 @@ def merge_offers(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def run_supply_census(run_dir: Path) -> tuple[Path, dict[str, Any]]:
+    collector = SCRIPTS / "marketplace_supply_sweep.py"
+    if not collector.is_file():
+        raise RuntimeError(f"best_terms_collector_source_missing:{collector}")
     runtime = collector_runtime_preflight()
     census_dir = run_dir / "census"
-    command = [str(COLLECTOR_INTERPRETER), str(SCRIPTS / "marketplace_supply_sweep.py"),
-               "--outdir", str(census_dir)]
+    command = [str(COLLECTOR_INTERPRETER), str(collector),
+               "--outdir", str(census_dir), "--only",
+               *[name for name in REQUIRED_MARKETPLACES if name not in HELD_NETWORKS]]
     completed = subprocess.run(command, cwd=BUSINESS, capture_output=True, text=True, timeout=1800)
     summary = read_json(census_dir / "_sweep-summary.json", {})
     if completed.returncode != 0 or not summary:
@@ -942,6 +949,9 @@ def census_contract(summary: dict[str, Any], xen: dict[str, Any]) -> dict[str, A
     networks["xentraffic"] = xen
     failures = []
     for network in REQUIRED_MARKETPLACES:
+        if network in HELD_NETWORKS:
+            networks[network] = held_source_summary(network)
+            continue
         row = networks.get(network)
         if network == "affiliati" and row and row.get("auth_state") == "BLOCKED":
             row = {**row, "completeness": "NOT_YET_APPROVED",
@@ -964,18 +974,46 @@ def census_contract(summary: dict[str, Any], xen: dict[str, Any]) -> dict[str, A
         "status": "PASS" if not failures else "PARTIAL",
         "denominator_proven": not failures,
         "required_marketplaces": list(REQUIRED_MARKETPLACES),
+        "denominator_scope": "eligible_nonheld_marketplaces_only",
+        "excluded_marketplaces": sorted(HELD_NETWORKS),
         "networks": networks,
         "failures": failures,
     }
+
+
+def held_source_summary(network: str) -> dict[str, Any]:
+    return {"completeness": "EXCLUDED_OPERATOR_HOLD", "auth_state": "NOT_ATTEMPTED",
+            "detail": f"Standing operator hold: {network}; no catalogue or terms used",
+            "enumerated": None, "reported_total": None}
+
+
+def offer_exclusion_reason(offer: dict[str, Any]) -> str | None:
+    if policy.network_key(offer.get("network")) in HELD_NETWORKS:
+        return "operator_network_hold"
+    name = policy.provider_name_key(offer.get("provider_name") or offer.get("provider"))
+    if name.startswith(("fellahealth",)) or name == "fella":
+        return "permanent_provider_exclusion"
+    if name.startswith(("telos", "healthrx")):
+        return "operator_provider_hold"
+    if offer.get("held") is True or offer.get("suppressed") is True:
+        return "source_hold_or_suppression"
+    if str(offer.get("relationship") or "").casefold() in {"hold", "held", "suppressed"}:
+        return "source_hold_or_suppression"
+    return None
 
 
 def selection_with_offers(
     offers: list[dict[str, Any]],
     performance_rows: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    excluded = [{"provider_name": row.get("provider_name"), "network": row.get("network"),
+                 "program_id": row.get("program_id"), "reason": reason}
+                for row in offers if (reason := offer_exclusion_reason(row))]
+    offers = [row for row in offers if not offer_exclusion_reason(row)]
     measured = load_performance_rows() if performance_rows is None else list(performance_rows)
     selection = policy.select_best_collectible(
         offers, measured, selection_config=SELECTION_CONFIG)
+    selection["excluded_offers"] = excluded
     by_provider: dict[str, list[dict[str, Any]]] = {}
     for offer in policy.resolve_provider_records(offers):
         by_provider.setdefault(str(offer.get("provider_identity") or ""), []).append(offer)
@@ -1013,7 +1051,8 @@ def expected_28_reconciliation(
     values: list[list[Any]], offers: list[dict[str, Any]], selection: dict[str, Any],
 ) -> dict[str, Any]:
     clinic = read_json(CLINIC_FITS, {})
-    expected = [str(row.get("provider") or "") for row in clinic.get("providers") or []]
+    expected = [str(row.get("provider") or "") for row in clinic.get("providers") or []
+                if not offer_exclusion_reason(row)]
     sheet_rows_by_provider: dict[str, list[int]] = {}
     sheet_offer_rows: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     normalized_sheet_rows = {
@@ -1174,7 +1213,7 @@ def baseline_comparison_decisions(selection: dict[str, Any] | None = None) -> li
         )
         current = selected_by_provider.get(slug(clean_provider_name(row.get("provider"))))
         selected = (current or {}).get("selected_winner") or {}
-        if current is not None:
+        if current is not None or selection is not None:
             winner = selected
             switch_staged = bool(selected) and not bool(selected.get("wired_live"))
             selected_winner_key = (
@@ -2043,7 +2082,7 @@ def run_machine(
             atomic_json(run_dir / "run-receipt.json", result)
             return result
 
-        if xentraffic_catalog is None and approval_lock_held():
+        if "xentraffic" not in HELD_NETWORKS and xentraffic_catalog is None and approval_lock_held():
             # No cursor advance, no stale-catalog substitution, no census/browser
             # retry on every inbox poll. A daily retry or a new safe collector
             # deployment must establish recovery through the registered path.
@@ -2056,7 +2095,10 @@ def run_machine(
     else:
         supply_summary = {"networks": (read_json(LATEST_RUN, {}).get("census") or {}).get("networks", {}), "gaps": []}
 
-    if xentraffic_catalog is None:
+    if "xentraffic" in HELD_NETWORKS:
+        xentraffic_catalog = None
+        xen_summary = held_source_summary("xentraffic")
+    elif xentraffic_catalog is None:
         xentraffic_catalog, xen_summary = run_xentraffic_census(run_dir)
     else:
         xentraffic_catalog = latest_xentraffic_catalog(xentraffic_catalog)
@@ -2069,11 +2111,12 @@ def run_machine(
 
     offers = merge_offers([
         *sheet_offers(values),
-        *xentraffic_offers(xentraffic_catalog),
+        *(xentraffic_offers(xentraffic_catalog) if xentraffic_catalog is not None else []),
         *application_ledger_offers(),
         *inventory_programs(census_dir),
     ])
-    reconcile_xentraffic_availability(offers, xentraffic_catalog)
+    if xentraffic_catalog is not None:
+        reconcile_xentraffic_availability(offers, xentraffic_catalog)
     selection = selection_with_offers(offers)
     selection.update({
         "generated_at_utc": utc_now(),

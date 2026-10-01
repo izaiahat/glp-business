@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""GLP Clinic Scout — operator-queued affiliate application drain.
+"""GLP Clinic Scout — guarded affiliate application queue drain.
 
-Applications are never discovered or selected by this worker. The operator names
-the network and exact program, supplies application instructions, and creates a
-row in n8n's ``affiliate_application_queue``. This worker drains only those rows,
+Applications are never discovered by this worker. Operator-staged packets and
+hash-bound weekly discovery admissions use n8n's ``affiliate_application_queue``.
+This worker drains only those rows,
 re-checks fit, dedupe and legality gates, then queues verified Sheet facts through
 the governed single writer. An empty queue is healthy and completely silent.
 
@@ -87,8 +87,8 @@ APPLICATION_MACHINE_LOCK = APPLICATIONS_DIR / ".application-machine.lock"
 RUN_RECEIPT_SCHEMA = "glp-affiliate-application-machine-run.v1"
 RUN_RECEIPT_CONTRACT_SCHEMA = "glp-application-queue-drain-run-v1"
 
-if str(BUSINESS) not in sys.path:
-    sys.path.insert(0, str(BUSINESS))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ops import affiliate_apply_gate as apply_gate  # noqa: E402
 
 
@@ -516,8 +516,7 @@ def marketplace_candidates(networks: set[str]) -> list[dict[str, Any]]:
             doc = json.loads(inventory.read_text())
         except (OSError, ValueError):
             continue
-        rows = (planner.candidates_from_awin(doc) if doc.get("relationships")
-                else planner.candidates_from_generic(doc, network))
+        rows, _source = planner.read_inventory(inventory)
         for row in rows:
             if not str(row.get("program_id") or "").strip():
                 continue
@@ -977,6 +976,8 @@ def gate_and_dedupe(pool: list[dict[str, Any]], index: dict[str, Any],
             "description": candidate.get("description") or candidate.get("evidence_tier") or "",
             "categories": candidate.get("categories") or [],
             "region": candidate.get("region") or "",
+            "network_status": candidate.get("network_status") or "",
+            "offer_status": candidate.get("offer_status") or "",
             "application_url": candidate.get("application_url") or "",
         }
         verdict = nfilter.choke_candidate(
@@ -1046,9 +1047,11 @@ def enqueue_ledger(rows: list[dict[str, Any]], run_id: str) -> list[dict[str, An
             "application_url": row.get("application_url") or "",
             "description": row.get("description") or "",
             "fit_reason": ";".join(row.get("fit_reason_codes") or [])[:400],
-            "region": row.get("region") or "US",
-            "currency": row.get("currency") or "USD",
+            "region": row.get("region") or "",
+            "currency": row.get("currency"),
             "categories": row.get("categories") or [],
+            "network_status": row.get("network_status") or "",
+            "offer_status": row.get("offer_status") or "",
             "queued_by": f"glp_application_machine:{run_id}",
         })
     if entries:
@@ -1589,6 +1592,20 @@ def queued_candidate(row: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("queue_payload_invalid_json") from exc
     if not isinstance(payload, dict):
         raise ValueError("queue_payload_not_object")
+    if (payload.get("admission_schema")
+            or str(row.get("queue_id") or "").startswith("discovery-")
+            or str(row.get("operator_authority") or "").startswith("operator-approved:2026-10-01:")):
+        from scripts import affiliate_auto_apply as admission
+        candidate = admission.validate_discovery_row(row)
+        # Special API packet routes retain their staged-form requirements;
+        # discovery never invents the five MaxBounty answers or traffic counts.
+        if candidate.get("network") == "maxbounty":
+            raise ValueError("discovery_maxbounty_requires_staged_submission_packet")
+        return {**candidate, "queue_id": row["queue_id"],
+                "network_label": candidate["network"],
+                "instructions": row["instructions"],
+                "operator_authority": row["operator_authority"],
+                "source": "weekly_discovery_application_queue"}
     network = str(row.get("network") or payload.get("network") or "").strip().lower()
     program_id = str(row.get("program_id") or payload.get("program_id") or "").strip()
     name = str(row.get("program_name") or payload.get("program_name") or "").strip()
