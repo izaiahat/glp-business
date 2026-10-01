@@ -29,9 +29,44 @@ PATTERNS = (
     ('paused', r'\b(?:program(?:me)?|partnership)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+paused\b'),
     ('rejection', r'\bmembership rejection\b|\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:rejected|declined|denied)\b|\bhas (?:rejected|declined|denied) your application\b|\bdecided not to move forward\b'),
     ('rate_change', r'\bchanges? to your commission\b|\b(?:commission(?: rate)?|payout(?: rate)?|rate)\b[^\n.!?]{0,100}\b(?:has|have|is|was|will be)\s+(?:(?:been|being)\s+)?(?:changed|updated|increased|decreased|reduced)\b|\byour (?:updated|new) commission (?:rate|terms)\b'),
-    ('approval', r'\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:approved|accepted)\b|\bhas approved your application\b|\byour membership\b[^\n.!?]{0,180}\bis now active\b|\bwelcome to (?:the )?[^\n.!?]{1,120}(?:affiliate|partner) program\b'),
 )
 COMPILED = tuple((kind, re.compile(pattern, re.I)) for kind, pattern in PATTERNS)
+# A complete recipient-bound declarative clause is evidence; an approval phrase
+# embedded in a condition, instruction or hypothetical is not. These positive
+# productions intentionally leave unfamiliar wording unknown (not approved).
+APPROVAL_STATEMENT = re.compile(
+    r'(?:your (?:application|request)(?: (?:to(?: join)?|for) [^\n.!?,;:]{1,180})? '
+    r'(?:has been|is|was) (?:approved|accepted)'
+    r'|your membership(?: (?:for|in|with) [^\n.!?,;:]{1,180})? is now active'
+    r'|we have approved your application'
+    r'|welcome to (?:the )?[^\n.!?,;:]{1,120}(?:affiliate|partner) program)', re.I)
+
+
+def _approval_statements(text: str) -> list[str]:
+    statements = []
+    for paragraph in re.split(r'\n\s*\n', text):
+        # A standalone colon introducer binds the following lines as displayed
+        # content, not the sender's own decision. Only recipient/status labels
+        # and salutations can introduce an asserted account notice. This is a
+        # scope rule, not a list of training/marketing keywords.
+        lines = paragraph.splitlines()
+        while lines and re.fullmatch(
+                r'\s*(?:dear [^:!,]+[:,]?|(?:hello|hi)[^:!,]*[:,]?|'
+                r'(?:your )?(?:application|membership|account|program) (?:status|decision):)\s*',
+                lines[0], re.I):
+            lines.pop(0)
+        if any(re.fullmatch(r'\s*[^.!?\n]+:\s*', line) for line in lines):
+            # Plain text gives no reliable close delimiter for this display
+            # scope; a blank line is not proof the next snippet is a decision.
+            return statements
+        # Join soft wraps BEFORE recognizing sentences: a newline cannot turn
+        # a dependent clause ("Until\\nYour application...") into an assertion.
+        prose = ' '.join(' '.join(lines).split())
+        for sentence in re.split(r'(?<=[.!?])\s+', prose):
+            statement = sentence.strip().rstrip('.!')
+            if APPROVAL_STATEMENT.fullmatch(statement):
+                statements.append(statement)
+    return statements
 
 
 def detect(subject: str, newest_body: str, *, network_root: str = '') -> str | None:
@@ -41,9 +76,16 @@ def detect(subject: str, newest_body: str, *, network_root: str = '') -> str | N
     text = headline + '\n' + newest_body
     # Preserve within-name/domain dots (eMed.com), not sentence boundaries.
     text = re.sub(r'(?<=\w)\.(?=\w)', '\u2024', text)
-    # Conditional/educational/negated state is not an observed decision.
+    # A headline alone cannot authenticate the account outcome: body-level
+    # instructional/display context must not be overruled by a copied subject.
+    approval_statements = _approval_statements(re.sub(
+        r'(?<=\w)\.(?=\w)', '\u2024', newest_body))
+    # Retain the existing adverse-outcome negation boundary independently of
+    # approval's affirmative-clause grammar.
     text = re.sub(r'[^\n.!?]*\b(?:if|unless|when|example|not yet|not been|not approved|not paused|not cancelled|not canceled|not terminated)\b[^\n.!?]*', '', text, flags=re.I)
     found = {kind for kind, pattern in COMPILED if pattern.search(text)}
+    if approval_statements:
+        found.add('approval')
     # Maintained MaxBounty cancellation template: exact network + headline +
     # advertiser-required expiry with a date/time, never a bare cancellation word.
     if (network_root == 'maxbounty.com'

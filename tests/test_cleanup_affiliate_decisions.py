@@ -300,6 +300,74 @@ def test_promotion_sender_and_structure_never_stage_decision(inbox, sender, subj
     assert queue.inserts == 0
 
 
+def test_multiline_training_template_is_not_an_account_approval(inbox, monkeypatch):
+    import socket
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network forbidden'))
+    cp, q, ledger, mailbox = inbox
+    raw = mail('Publisher template gallery',
+               'Training snippet:\nYour application has been approved.\nThis is sample copy for our template gallery; no account status has changed. Explore the marketplace today.',
+               sender='education@cj.com', headers={'Precedence': 'bulk',
+               'Authentication-Results': 'mx.google.com; dmarc=pass header.from=cj.com'})
+    assert ledger.ingest(mailbox, 'multiline-training-template', raw)['status'] == 'persisted'
+    assert ledger.conn.execute('SELECT count(*) FROM mailbox_actions WHERE action=?', (q.ACTION,)).fetchone()[0] == 0
+    queue = Queue()
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 0
+    assert queue.inserts == 0
+
+
+def test_until_instruction_is_not_an_account_approval(inbox, monkeypatch):
+    import socket
+    monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network forbidden'))
+    cp, q, ledger, mailbox = inbox
+    raw = mail('Publisher onboarding tips',
+               'Until your application is approved, do not place advertiser links. Explore our marketplace and apply today.',
+               sender='offers@awin.com', headers={'Precedence': 'bulk',
+               'Authentication-Results': 'mx.google.com; dmarc=pass header.from=awin.com'})
+    assert ledger.ingest(mailbox, 'conditional-until', raw)['status'] == 'persisted'
+    assert ledger.conn.execute('SELECT count(*) FROM mailbox_actions WHERE action=?', (q.ACTION,)).fetchone()[0] == 0
+    queue = Queue()
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 0
+    assert queue.inserts == 0
+
+
+@pytest.mark.parametrize('subject,body', [
+    ('Application status', 'Your application has been approved?'),
+    ('Your application has been approved', 'Until your application is approved, do not place advertiser links.'),
+    ('Publisher notes', 'Illustration:\n\nYour application has been approved.'),
+    ('Publisher notes', 'Until\nyour application is approved, do not place advertiser links.'),
+    ('Publisher notes', 'Your application is approved if you complete onboarding.'),
+    ('Publisher notes', 'Please write "Your application has been approved." in the email.'),
+    ('Publisher notes', 'Imagine your application has been approved.'),
+    ('Publisher notes', 'The application has been approved.'),
+])
+def test_approval_requires_a_body_assertion_outside_displayed_copy(inbox, subject, body):
+    cp, q, ledger, mailbox = inbox
+    ledger.ingest(mailbox, 'assertion-boundary', mail(subject, body, sender='education@cj.com'))
+    queue = Queue()
+    q.dispatch(ledger, live=True, client=queue)
+    assert queue.inserts == 0
+    assert ledger.conn.execute('SELECT count(*) FROM mailbox_actions WHERE action=?', (q.ACTION,)).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('body', [
+    'Dear Publisher:\nYour application has been approved.',
+    'Your application status:\nYour application has been approved.',
+    'Your request to join the\neMed.com partner program has been accepted.',
+    'We have approved your application.',
+])
+def test_affirmative_grammar_keeps_bulk_account_notices(inbox, body):
+    cp, q, ledger, mailbox = inbox
+    raw = mail('Publisher notes', body, sender='education@cj.com', headers={'Precedence': 'bulk'})
+    ledger.ingest(mailbox, 'affirmative-grammar', raw)
+    queue = Queue()
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 1
+    assert json.loads(queue.items[0]['evidence'])['decision_class'] == 'approval'
+    assert queue.items[0]['sheet_row'] is None and queue.items[0]['program_id'] == ''
+    assert ledger.ingest(mailbox, 'affirmative-grammar', raw)['status'] == 'duplicate'
+    q.dispatch(ledger, live=True, client=queue)
+    assert queue.inserts == 1
+
+
 @pytest.mark.parametrize('network,decision,subject,body', REVIEWED_TEMPLATES + [
     ('awin.com', decision, subject, body) for decision, subject, body in DECISIONS
 ])
