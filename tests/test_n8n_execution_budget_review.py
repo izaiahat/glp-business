@@ -27,7 +27,7 @@ def runner(tmp_path, monkeypatch, get, audit=None):
     for name in ('title', 'kv', 'kvline', 'section', 'meaning', 'subtext', 'render'):
         setattr(fmt, name, lambda *a, **kw: '')
     monkeypatch.setitem(sys.modules, 'discord_fmt', fmt)
-    for name in ('pushover_client', 'red_alert_hook', 'monitor_heartbeats'):
+    for name in ('pushover_client', 'red_alert_hook', 'monitor_heartbeats', 'scheduled_source_drift'):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
     manager = load('budget_review_manager', ROOT / 'ops/hermes-cron-scripts/scheduled_job_health_manager.py', monkeypatch)
     state_path = tmp_path / 'incidents.json'
@@ -41,6 +41,7 @@ def runner(tmp_path, monkeypatch, get, audit=None):
     monkeypatch.setattr(manager, 'load_yaml', lambda *a: {})
     monkeypatch.setattr(manager, 'build_registry_map', lambda: {})
     monkeypatch.setattr(manager, 'job_list', lambda: [])
+    monkeypatch.setattr(manager, 'collect_daily_source_drift', lambda *a: None, raising=False)
     monkeypatch.setattr(manager.monitor_heartbeats, 'audit', lambda **kw: {'status': 'PASS', 'issues': []}, raising=False)
     monkeypatch.setattr(manager, 'append_ledger', lambda *a: None)
     monkeypatch.setattr(manager, 'write_full_report', lambda issues, **kw: reports.append(issues) or tmp_path / 'report.md')
@@ -198,3 +199,78 @@ def test_failure_cache_is_not_bypassed_by_utc_month_boundary(tmp_path, monkeypat
     assert len(calls) == 1
     assert b.health_check(path, now=now + timedelta(hours=1), get=fail)['snapshot']['month_utc'] == '2026-11'
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize('count', [330, 700])
+@pytest.mark.parametrize('recovery', ['inactive', 'unknown'])
+def test_f5_article_activation_rearms_only_after_verified_recovery(tmp_path, monkeypatch, count, recovery):
+    active, failed = [False], [False]
+    def get(method, path):
+        assert method == 'GET'
+        if failed[0]:
+            raise RuntimeError('offline unknown article state')
+        if path.startswith('/executions?'):
+            return {'data': rows(count), 'nextCursor': None}
+        if path.endswith('uabEqV8bzEYanLVJ'):
+            return {'active': active[0]}
+        return {'active': True, 'activeVersionId': 'v', 'settings': {},
+                'activeVersion': {'versionId': 'v', 'nodes': [
+                    {'name': 'poll', 'type': 'n8n-nodes-base.scheduleTrigger', 'disabled': True}]}}
+    b, m, clock, path, reports, reds, run = runner(tmp_path, monkeypatch, get)
+    article_counts = []
+    keys = []
+    for hour, flag in enumerate((False, True, False, True, False, True)):
+        clock[0] = datetime(2026, 10, 11, tzinfo=timezone.utc) + timedelta(hours=hour)
+        active[0] = flag
+        failed[0] = recovery == 'unknown' and hour == 2
+        before = len(reds)
+        state = run()
+        emitted = [i for i in reds[before:] if i.classification == 'n8n_article_carrier_active']
+        article_counts.append(len(emitted))
+        keys.extend(i.incident_key for i in emitted)
+        assert all(not i.can_auto_fix and not i.safe_to_rerun for i in emitted)
+        if failed[0]:
+            assert state['last_n8n_execution_budget']['status'] == 'UNKNOWN'
+    assert article_counts == ([0, 1, 0, 1, 0, 1] if recovery == 'inactive' else [0, 1, 0, 0, 0, 1])
+    assert len(keys) == len(set(keys))
+
+
+@pytest.mark.parametrize('initial_count', [330, 700])
+@pytest.mark.parametrize('unknown_between', [False, True])
+def test_f6_cap_risk_alerts_once_independently_of_warning(tmp_path, monkeypatch, initial_count, unknown_between):
+    current, failed = [rows(initial_count)], [False]
+    def get(method, path):
+        assert method == 'GET' and path.startswith('/executions?')
+        if failed[0]:
+            raise RuntimeError('offline unknown budget')
+        return {'data': current[0], 'nextCursor': None}
+    b, m, clock, path, reports, reds, run = runner(tmp_path, monkeypatch, get, lambda get: {'status': 'PASS'})
+    first = run()
+    assert first['last_alert_count'] == 1
+    if unknown_between:
+        clock[0] += timedelta(hours=1)
+        failed[0] = True
+        assert run()['last_n8n_execution_budget']['status'] == 'UNKNOWN'
+        failed[0] = False
+    clock[0] += timedelta(hours=1)
+    current[0] = rows(700)
+    escalated = run()
+    assert escalated['last_n8n_execution_budget']['status'] == 'CAP_RISK'
+    assert escalated['last_alert_count'] == (1 if initial_count == 330 else 0)
+    assert len(reds) == 1
+    # Changed evidence and cooldown expiry cannot repeat RED within this episode.
+    for hour, count in ((3, 710), (7, 330), (8, 720)):
+        clock[0] = datetime(2026, 10, 11, tzinfo=timezone.utc) + timedelta(hours=hour)
+        current[0] = rows(count)
+        assert run()['last_alert_count'] == 0
+    assert len(reds) == 1
+    # A known below-threshold read starts a genuinely new warning episode.
+    clock[0] += timedelta(hours=1)
+    current[0] = []
+    assert run()['last_n8n_execution_budget']['status'] == 'PASS'
+    clock[0] += timedelta(hours=1)
+    current[0] = rows(800)
+    assert run()['last_alert_count'] == 1
+    assert len(reds) == 2
+    assert len({i.incident_key for i in reds}) == 2
+    assert all(not i.can_auto_fix and not i.safe_to_rerun for i in reds)

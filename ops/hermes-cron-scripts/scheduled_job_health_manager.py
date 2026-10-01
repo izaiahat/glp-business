@@ -488,6 +488,11 @@ def should_alert(issue: Issue, state: dict[str, Any], policy: dict[str, Any], fo
         return True
     incident = state.setdefault("incidents", {}).setdefault(issue.incident_key, {})
     if issue.alert_once:
+        # A yellow threshold report is not a delivered CAP_RISK escalation.
+        # Track RED separately from last-seen severity (which can change on
+        # deduped ticks); recovery still uses the producer's warning episode.
+        if issue.classification == 'n8n_execution_budget_70_percent' and issue.severity == 'red':
+            return not incident.get('red_alert_at')
         return not incident.get('last_alert_at')
     first = incident.get("first_seen_at")
     if not first:
@@ -517,6 +522,8 @@ def update_incident_state(issue: Issue, state: dict[str, Any], alerted: bool) ->
     inc["operator_fix"] = issue.operator_fix
     if alerted:
         inc["last_alert_at"] = now_s
+        if issue.classification == 'n8n_execution_budget_70_percent' and issue.severity == 'red':
+            inc['red_alert_at'] = now_s
 
 
 def raise_red_alert_for_issue(issue: Issue, *, live: bool = True) -> dict[str, Any]:

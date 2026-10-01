@@ -4,12 +4,12 @@
     "ops/n8n_execution_budget.py": {
       "callers": ["hermes:b86ec8937c20", "ops/hermes-cron-scripts/scheduled_job_health_manager.py"],
       "kind": "script",
-      "sha256": "0eadc1cc627606875b05f50e6c0d6e92852f04e20ed38211f1ba7657c792ca39"
+      "sha256": "988b05a8b9c9b8c0906d6c678b1d5ce10d87b9640fc2ead568bda7aaa102ee23"
     },
     "tests/test_n8n_execution_budget_review.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "c1730eebc6add9953c4c55014b73afcb53a14b1a598ec9e39a5c9711a7814dcb"
+      "sha256": "74a813bbcf66d4e0e1a1b906c1d62e932ab49b9a61c11f988c8e62a3e2156924"
     },
     "tests/test_n8n_execution_budget.py": {
       "callers": ["scripts/run_tests.sh"],
@@ -582,7 +582,7 @@
         "hermes:b86ec8937c20"
       ],
       "kind": "script",
-      "sha256": "399c73c5d4ce0e668bbff962b4a6c05434019c9c0911d8aaef9b4413d69831e5"
+      "sha256": "eff4ceb8ca8302767dc6f56662fe043ae0cf344575cf7c013f619952a572aabf"
     },
     "ops/hermes-cron-scripts/session_bloat_watchdog.py": {
       "callers": [

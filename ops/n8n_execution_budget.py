@@ -66,13 +66,14 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
                     for key in ('month_execution_high_water', 'projected_month_end'):
                         if type(saved[key]) is not int or saved[key] < 0:
                             raise ValueError('state_snapshot_count')
-            for key in ('month_high_water', 'warning_episode'):
+            for key in ('month_high_water', 'warning_episode', 'article_activation_episode'):
                 if type(state.get(key, 0)) is not int or state.get(key, 0) < 0:
                     raise ValueError('state_count')
             if not isinstance(state.get('observed_execution_ids', []), list):
                 raise ValueError('state_ids')
-            if type(state.get('warning_active', False)) is not bool:
-                raise ValueError('state_warning')
+            for key in ('warning_active', 'article_activation_active'):
+                if type(state.get(key, False)) is not bool:
+                    raise ValueError('state_warning')
         except (ValueError, KeyError, TypeError, OSError, AttributeError):
             return corrupt_state_health(path, now, dry_run)
         month = now.astimezone(timezone.utc).strftime('%Y-%m')
@@ -130,17 +131,26 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
                      'operator_fix': 'Reconcile the vendor usage counter and event callers; keep migrated polling on the direct host bridge. Do not disable postbacks or replay pending effects.'}
             if status != 'UNKNOWN':
                 issue.update(incident_key=f"n8n-execution-budget:warning:{state['warning_episode']}", alert_once=True)
+        # Article episodes are independent of budget severity and month rollover.
+        # Only an explicit inactive invariant proves recovery; UNKNOWN cannot.
+        invariants = snapshot.get('invariants') or {}
+        inactive = invariants.get('article_inactive')
+        if status != 'UNKNOWN' and type(inactive) is bool:
+            if inactive is False and not state.get('article_activation_active', False):
+                state['article_activation_episode'] = state.get('article_activation_episode', 0) + 1
+            state['article_activation_active'] = not inactive
         if not dry_run:
             atomic_json(path, state)
             atomic_json(reporting_path, reporting)
         issues = []
         if issue:
             issues.append(issue)
-        invariants = snapshot.get('invariants') or {}
-        if invariants.get('article_inactive') is False:
+        if inactive is False:
             issues.append({'job_id': 'n8n-article-carrier-hold',
                           'classification': 'n8n_article_carrier_active', 'severity': 'red',
                           'reason': 'article_carrier_active',
+                          'incident_key': f"n8n-article-carrier-hold:activation:{state['article_activation_episode']}",
+                          'alert_once': True,
                           'evidence': f'workflow={ARTICLE}; active=true; host cron owns publishing',
                           'operator_fix': 'Investigate unauthorized article-carrier activation under the existing release gate; do not execute or replay it.'})
         if invariants.get('enabled_schedule_nodes') or invariants.get('error_handler_recursion_findings'):
