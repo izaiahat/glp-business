@@ -188,22 +188,40 @@ def inventory_shape(report):
 
 @contextmanager
 def native_registry_lock(scheduler):
-    """The native lock may degrade on failure; maintenance must never do so."""
-    with scheduler._jobs_file_lock:
+    """Wait only before acquisition; never replay a yielded save/effect.
+
+    Native locking can degrade on failure. Maintenance must instead fail closed
+    after a short bounded wait, then re-read/CAS under the acquired lock.
+    """
+    deadline = time.monotonic() + 5.0
+    require(scheduler._jobs_file_lock.acquire(timeout=5.0), 'native_registry_lock_timeout')
+    fd = None
+    state = getattr(scheduler, '_jobs_lock_state', None)
+    entered = False
+    try:
+        require(state is None or not getattr(state, 'depth', 0), 'nested_registry_lock_refused')
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        state = getattr(scheduler, '_jobs_lock_state', None)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if state is not None:
-                require(not getattr(state, 'depth', 0), 'nested_registry_lock_refused')
-                state.depth = 1  # Native tool calls reuse this held descriptor.
-                state.load_stamp = None
-            yield
-        finally:
-            if state is not None:
-                state.depth = 0
-                state.load_stamp = None
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, 'native_registry_lock_timeout')
+                time.sleep(min(0.05, remaining))
+                require(time.monotonic() < deadline, 'native_registry_lock_timeout')
+        if state is not None:
+            state.depth = 1  # Native tool calls reuse this held descriptor.
+            state.load_stamp = None
+            entered = True
+        yield  # Outside the contention handler: ambiguous failures propagate.
+    finally:
+        if entered:
+            state.depth = 0
+            state.load_stamp = None
+        if fd is not None:
             os.close(fd)
+        scheduler._jobs_file_lock.release()
 
 
 class MaintenanceWindow:
@@ -640,6 +658,7 @@ class LinuxBackend:
             scheduler = self.scheduler()
             with native_registry_lock(scheduler):
                 job = self.job(entry['id'])
+                require(job.get('script_sha256') == prior['script_sha256'], 'pause_pin_changed')
                 require(job_configuration(job) == prior['configuration_sha256'], 'pause_configuration_changed')
                 require({k: job[k] for k in CONTROL_FIELDS if k in job} == prior['fields'], 'pause_preimage_changed')
                 require('paused_fields' in prior, 'pause_exact_preimage_required')
