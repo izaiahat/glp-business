@@ -43,3 +43,48 @@ exclusion for retained code or hostile same-UID/root writers. The intentionally
 stale reconciliation carrier gates still require a separate reviewed cutover or
 explicit safe fenced handoff before allowing a natural run. This source change,
 its CI and the disposable-root test confer no live-window or release authority.
+
+## GLP337 fixed shared-bridge generation
+
+The existing scoped adopter's `--generation glp337-shared-bridge-20261001`
+materializes only immutable independently reviewed PR132 commit
+`898b45e903dffcce4046aa5548fc3e6f23b60b78`, and journals/switches exactly
+`scripts/cron_bridge_action.py`, `scripts/glp_analytics_brain_cadence.py` and
+`ops/.rebuild-sync-state.json`. Resident source hashes must be the literal
+`f00f667…` / `61ca597…` pair in mode `0644`; targets are fixed `f1055de…` /
+`4d51a62…`. No caller-supplied path/hash override exists. The no-apply PR132
+importer handoff requires the retained launcher `4e8da70…` baseline and either
+an absent cadence baseline (authenticated through Git history) or `61ca597…`.
+It never performs publication; the maintained active-window cohort switch does.
+
+Preview and apply both require a verified active journal. A fresh
+`glp44-scoped-adoption-review-v1` / `ACCEPT_EXACT_BYTES` receipt binds every
+proposal field, with nonempty distinct `prepared_by` / `reviewer`; its
+`runtime_review` must have schema `glp337-shared-bridge-runtime-review-v1`,
+`ACCEPT_EXACT_BYTES`, an independent reviewer distinct from the preparer and
+SHA256 of the exact proposal serialized as `json.dumps(proposal, sort_keys=True)`.
+The proposal binds producer HEAD/bytes, immutable manifest, both source modes,
+full sync-state before/after hashes and two-entry delta, complete paused native
+registry and active journal, installed global manifest and retained drift
+inventory/actions/bridge bytes and modes. Existing keeper/source fences, all
+paused Hermes fire fences, registry fence, importer source lock, durable custody,
+CAS and the maintained uncertain-transaction/no-replay rules remain in force.
+Complete this state-changing cohort before preparing subsequent proposals;
+earlier state preimages are stale. Source/context movement requires refusal or
+fresh review, never an arbitrary baseline repair.
+
+This is not the external-exclusion `shared_bridge_predecessor_migration.apply()`
+route: that API remains unchanged and must not be used for an unjournaled import
+inside a maintained window. Window owner admission must continuously exclude
+and drain old/new direct bridge and imported cadence readers and all competing
+source/state writers before first read and through publication/restoration.
+The `analytics_brain.lock` / `analytics_brain.state.lock` transition does not
+establish exclusion for old loaded code. Maintained flocks and ordinary-reader
+cohort seals are not hostile-root/same-UID or retained-memory guarantees.
+
+No carrier/job/schedule or inventory-pin write is authorized. All **26** drift
+inventory source-pin occurrences, installed inventory and global manifest stay
+unchanged; inventory adoption is a separate later reviewed step. Default PR71,
+PR119 and GLP331 generations, PR122 callback, PR126/PR131 keeper and PR130 carrier
+are preserved. Disposable fixtures/CI are source proof, not independent review,
+owner authority, runtime installation or permission to enter a live window.

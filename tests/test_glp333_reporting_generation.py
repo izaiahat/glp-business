@@ -302,7 +302,8 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
     monkeypatch.setattr(inventory, '__file__', str(directory / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
     dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')
-    assert supported - previous == {root / p for p in (*EXTRA, *dependencies)}
+    shared_bridge = ('scripts/cron_bridge_action.py', 'scripts/glp_analytics_brain_cadence.py')
+    assert supported - previous == {root / p for p in (*EXTRA, *dependencies, *shared_bridge)}
     journal = tmp_path / 'journal.json'
     put(journal, json.dumps({'schema': window_module.SCHEMA}).encode())
     active = window_module.ActiveWindow(journal, SimpleNamespace(root=root, hermes=hermes))
