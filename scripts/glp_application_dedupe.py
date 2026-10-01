@@ -730,7 +730,8 @@ class DedupeIndex:
         network_key = norm(network)
         program_key = str(program_id or "").strip()
         pair_hit = self.pairs.get((network_key, program_key)) if network_key and program_key else None
-        spellings = [name, program_id, *aliases]
+        # Network IDs are opaque and belong only to the exact pair axis.
+        spellings = [name, *aliases]
         name_keys = [key for key in dict.fromkeys(norm(value) for value in spellings) if key]
         domain_keys = [key for key in dict.fromkeys(domain_key(value) for value in urls) if key]
         brand_keys = [key for key in dict.fromkeys(brand_key(value) for value in spellings)

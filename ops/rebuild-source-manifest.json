@@ -1010,7 +1010,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "script",
-      "sha256": "03d39919b559e3860082a9ef9a5b2567cd31238c859a7657a31eb8ab05b4975d"
+      "sha256": "ebaa4ab5224326d75a861d27214be3be041d31060866795832f324fe985a4a65"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
@@ -1275,7 +1275,7 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "214e5340ebce5a51d02dbcfcdcba8255fdcefff8e6a3967ff24b650a42d27015"
+      "sha256": "b953a2982294711b80a03c3d4b7fea4232e69fa361a559b27e7282cc18388836"
     },
     "scripts/glp_application_machine.py": {
       "callers": [
@@ -2151,14 +2151,14 @@
     "tests/test_pro_opaque_program_identity.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
-      "sha256": "00051f70530d45ae3f4e5cb15055988e354a7b2c43aeb9a316c7eb16c8e2d9be"
+      "sha256": "ad923ea90d724c3feb4bb024800045f624edd06137bf8f5b83fba001ff11a74d"
     },
     "tests/test_affiliate_terms_fanout.py": {
       "callers": [
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "b52b83e1da23459f041f039bf65cca8122e24c0b1b5b452105ae61c95d168ffc"
+      "sha256": "c5b8d264eb895aee6767c1b00862d402fe329a48e2fd142772c50ab658c5d0d7"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [

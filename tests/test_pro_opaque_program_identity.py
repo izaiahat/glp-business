@@ -4,6 +4,30 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
+def test_pro_f6_residual_opaque_id_never_matches_content_name(tmp_path, monkeypatch):
+    from scripts import glp_application_dedupe as dedupe
+    fake_site = SimpleNamespace(
+        release_root=lambda: tmp_path,
+        go_manifest_programs=lambda _: {'programs': {'abc-x': {}}},
+        registry_live_programs=lambda _: {'abc-x': {'display_name': 'North Orchard'}},
+        identity_map=lambda _: {'abc-x': {'network': 'impact', 'network_program_id': 'AbC-X'}})
+    monkeypatch.setattr(dedupe, '_load_by_path', lambda *a: fake_site)
+    leg = dedupe.site_identities()
+    index = dedupe.DedupeIndex()
+    index.add(dedupe.LEG_SITE, leg['names'], leg['pairs'], leg['leg'],
+              leg['domains'], leg['brands'])
+    assert index.verdict('South Meadow', 'impact', 'AbC-X') is not None
+    assert index.verdict('North Orchard', 'cj', 'unrelated') is not None
+    assert index.verdict('South Meadow', 'impact', 'abc-x') is None
+    assert index.verdict('South Meadow', 'cj', 'abc-x') is None
+    # Explicit provider aliases/domains and suffix-stripped brand review stay intact.
+    assert index.verdict('South Meadow', 'cj', 'unrelated', aliases=['North Orchard']) is not None
+    index.add(dedupe.LEG_SITE, {}, {}, {}, brands={'northorchard': 'explicit provider brand'})
+    assert index.verdict('North Orchard Health', 'cj', 'unrelated') is not None
+    index.add(dedupe.LEG_SITE, {}, {}, {}, {'orchard.example': 'existing provider domain'})
+    assert index.verdict('South Meadow', 'cj', 'unrelated', urls=['https://orchard.example']) is not None
+
+
 def test_pro_f6_all_dedupe_legs_preserve_opaque_identity(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'scripts'))
     from scripts import glp_application_dedupe as dedupe

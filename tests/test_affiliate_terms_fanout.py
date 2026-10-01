@@ -124,6 +124,62 @@ def test_pro_f7_directory_fsync_precedes_dispatch_and_failure_stops(fixture, mon
     assert calls == ['dispatch']
 
 
+def test_pro_f7_residual_new_state_ancestry_is_durable_before_dispatch(fixture, monkeypatch):
+    import stat
+    f = fixture
+    root = f.event.parent
+    source_parent = root / 'site-source'
+    source_parent.mkdir()
+    state_parent = root / 'journals'
+    state_parent.mkdir()
+    registry = source_parent / 'registry.json'
+    f.registry.rename(registry)
+    f.registry = registry
+    original_registry = registry.read_bytes()
+    real_fsync = fanout.os.fsync
+    calls, trace = [], []
+    fault = [None]
+
+    def fsync(fd):
+        path = Path(os.readlink(f'/proc/self/fd/{fd}'))
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            trace.append(path)
+            if path == fault[0]:
+                raise OSError('fixture_state_directory_parent_fsync_failed')
+        real_fsync(fd)
+
+    def dispatcher(request, handoff):
+        journal = next(f.state.glob('*.json'))
+        assert fanout.read(journal)['dispatch_intent'] is True
+        assert all(parent in trace for parent in (f.state, *f.state.parents))
+        calls.append(request['update_id'])
+        return {'returncode': 0}
+
+    monkeypatch.setattr(fanout.os, 'fsync', fsync)
+    # Original new-consumer counterexample, then more than one missing component.
+    for leaf in ('new-consumer', 'new-parent/new-consumer'):
+        f.state = state_parent / leaf
+        assert not f.state.exists()
+        fault[0] = state_parent
+        for _ in range(2):  # A failed barrier must not be bypassed on retry.
+            with pytest.raises(OSError, match='fixture_state_directory_parent_fsync_failed'):
+                consume(f, enabled=True, apply=True, dispatch_site=True,
+                        release_handoff=f.plan, dispatcher=dispatcher)
+            assert calls == []
+            assert registry.read_bytes() == original_registry
+            assert not fanout.read(next(f.state.glob('*.json'))).get('dispatch_intent')
+        fault[0] = None
+        trace.clear()
+        assert consume(f, enabled=True, apply=True, dispatch_site=True,
+                       release_handoff=f.plan, dispatcher=dispatcher)['status'] == 'DISPATCHED'
+        assert calls == ['terms-1']
+        assert consume(f, enabled=True, apply=True, dispatch_site=True,
+                       release_handoff=f.plan, dispatcher=dispatcher)['status'] == 'ALREADY_APPLIED'
+        assert calls == ['terms-1']
+        calls.clear()
+        registry.write_bytes(original_registry)
+
+
 def test_disabled_and_dry_run_have_no_writes_or_dispatch(fixture):
     f = fixture
     before = f.registry.read_bytes()
