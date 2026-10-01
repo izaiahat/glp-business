@@ -743,7 +743,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "f4c12a0906a977c3e1a2eaa5efc76e00186d0649529b342eefc9c3bccc3d45d5"
+      "sha256": "95e6a625d60dccccfd69977b398dca34db4bf81eb013d58b17ac14525342de2d"
     },
     "ops/rook-mcp/README.md": {
       "callers": [
@@ -2954,7 +2954,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "d117e0132cb97c8109861af252983a6ee2bada11eafd824ab27b2d6d85615c58"
+      "sha256": "6de0a14d3660bd6e17eb7bb9bcac3c55b81f8cfc7eb768a53b371e748440d626"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2982,14 +2982,14 @@
         "ops/registered-producers.json"
       ],
       "kind": "script",
-      "sha256": "bae2004fcf2dc31228dbcbf231ba3594d9bd720eac0f072b34710431eec17e58"
+      "sha256": "01ff4668916212ed7b970b6df542d4d86abc28fd00322246e707f5fee562eb3c"
     },
     "tests/test_scheduled_job_health_carrier_release.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "73cb8327cb8d52aa29b1ddc274a37f4c596ac37b9f4973796560b50c87983e46"
+      "sha256": "7e331ae6de1ecf344ab99d2f4e73a00943dc52928ca0fadab63433b696701776"
     },
     "tests/fixtures/scheduled_source_drift_crontab_row.json": {
       "callers": [
@@ -3003,7 +3003,7 @@
         "ops/scheduled-source-drift.md"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "1174b26194ed4c6e27742e3341010b7cb738154d13b3787731ffe7869ab4b3b6"
+      "sha256": "a96527c0932a6db98846aca424b8253a5cba3bdfad3fd396ba3ca18353c257cd"
     },
     "ops/n8n_dt.py": {
       "callers": [
