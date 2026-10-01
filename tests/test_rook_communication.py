@@ -897,3 +897,271 @@ class TestRookCommunication:
         status, _, result = self.app.handle('POST', '/mcp', {**headers, 'Authorization': 'Bearer ' + self.token()}, read)
         assert status == 200 and base64.b64decode(result['result']['structuredContent']['content_base64']) == blob
         assert len(m.canonical(result).encode()) < m.FILE_HTTP_LIMIT
+
+
+class TestResearchCommunication:
+    """Minimum pilot: reply/read only, synthetic identities and transport."""
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path, monkeypatch):
+        from dataclasses import replace
+        self.m = m = module()
+        self.root = tmp_path
+        self.dot = m.ResearchIdentity('901', '902', tmp_path / 'research.token',
+                                     (m.OPERATOR, m.BOT, m.ROOK_BOT))
+        self.cfg = replace(config(m), research=self.dot)
+        monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network denied'))
+        monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('bind denied'))
+        monkeypatch.setattr(m, 'load_token', lambda: pytest.fail('Kael credential denied'))
+        monkeypatch.setattr(m, 'load_rook_token', lambda *a: pytest.fail('real credential denied'))
+        self.calls = []
+        self.app = m.Application(self.cfg, tmp_path / 'research-state', auth=object(), callback=self.callback,
+                                 sender=self.send, reader=self.read)
+        self.principal = m.Principal(self.cfg.subject, time.time() + 600,
+            frozenset({'research.requests.read', 'research.replies.write', 'research.channel.read',
+                       'research.channel.write', 'rook.channel.write'}))
+        self.wire = None
+        yield
+        self.app.close()
+
+    def callback(self, url, body, headers):
+        self.calls.append(json.loads(body))
+        return 200, b'{}'
+
+    def send(self, channel, wire):
+        assert channel == self.dot.channel
+        row = self.app.store.get('requests', 'discord-301')
+        assert row['state'] == 'sending' and row['policy'] == self.app.policy
+        self.wire = wire
+        return self.read(channel, '401')
+
+    def read(self, channel, identity):
+        return {'id': identity, 'channel_id': channel, 'author': {'id': self.dot.bot}, 'content': self.wire}
+
+    def subscribe(self):
+        self.app.store.put('subscriptions', 'sub-test', {'id': 'sub-test', 'subject': self.cfg.subject,
+            'policy': self.app.policy, 'expires': time.time() + 600, 'url': 'https://callback.example/events',
+            'secret': 'whsec_' + base64.b64encode(b'synthetic-offline-secret-32-bytes!!').decode()})
+
+    def event(self, identity='301', author=None, content=None, **extra):
+        return {'t': 'MESSAGE_CREATE', 'd': {'id': identity, 'guild_id': self.m.GUILD,
+            'channel_id': self.dot.channel, 'author': {'id': author or self.m.OPERATOR}, 'type': 0,
+            'content': content if content is not None else '<@902> bounded assignment', **extra}}
+
+    def test_validated_exact_identity_and_sender_configuration(self):
+        from dataclasses import replace
+        for delta in ({'channel': self.m.CHANNEL}, {'channel': '01'}, {'bot': self.m.ROOK_BOT},
+                      {'bot': 'bad'}, {'allowed_senders': (self.m.OPERATOR,)},
+                      {'allowed_senders': (*self.dot.allowed_senders, '999')}, {'token_path': 'relative.token'}):
+            with pytest.raises(ValueError): replace(self.dot, **delta)
+        assert self.dot.guild == self.m.GUILD
+
+    def test_only_two_tools_advertised_and_forbidden_even_with_write_scope(self, monkeypatch):
+        tools = self.app.dispatch(self.principal, 'tools/list', {})['tools']
+        assert {t['name'] for t in tools} == {'reply_to_research_request', 'read_research_messages'}
+        assert 'thread_id' not in tools[1]['inputSchema']['properties']
+        for name in ('discord_api', 'github_pr_comment', 'send_rook_message', 'read_rook_file',
+                     'reply_to_rook_request', 'create_rook_thread', 'set_rook_reaction'):
+            with pytest.raises(self.m.RpcError, match='ToolNotAllowed'):
+                self.app.dispatch(self.principal, 'tools/call', {'name': name, 'arguments': {}})
+        assert not self.calls
+        events = self.app.dispatch(self.principal, 'events/list', {})['events']
+        assert events[0]['name'] == 'discord.research.request.created'
+        assert events[0]['inputSchema']['properties']['channel_id']['const'] == self.dot.channel
+
+    def test_subject_and_research_scope_isolation(self):
+        m = self.m
+        wrong = m.Principal('auth0|other', time.time() + 600, self.principal.scopes)
+        rook = m.Principal(self.cfg.subject, time.time() + 600, frozenset({'rook.requests.read', 'rook.replies.write'}))
+        for principal in (wrong, rook):
+            with pytest.raises(m.RpcError, match='Unauthorized'):
+                self.app.dispatch(principal, 'tools/list', {})
+
+    def test_literal_mentions_exact_allowlist_and_no_ack_self_webhook_prefix(self):
+        self.subscribe()
+        for index, sender in enumerate(self.dot.allowed_senders):
+            assert self.app.ingest(self.event(str(301 + index), sender), '100') == 1
+        rejected = [self.event('310', self.dot.bot), self.event('311', '999'),
+            self.event('312', webhook_id='777'), self.event('313', content='Rook: old trigger'),
+            self.event('314', content='Research: no literal mention'),
+            self.event('315', content='ack', mentions=[{'id': self.dot.bot}]),
+            self.event('316', content='<@902>'), self.event('317', mentions=[]),
+            self.event('318', channel_id=self.m.CHANNEL), self.event('319', guild_id='999'),
+            self.event('320', self.m.ROOK_BOT, '<@902> acknowledged'),
+            self.event('321', self.m.BOT, '<@902> ack'),
+            self.event('322', content='<@902> received')]
+        for event in rejected: assert self.app.ingest(event, '100') == 0
+        assert self.app.ingest(self.event('301'), '100') == 0
+        assert [c['data']['sender_id'] for c in self.calls] == list(self.dot.allowed_senders)
+
+    def test_private_state_cannot_repoint_between_dots_or_rook(self):
+        from dataclasses import replace
+        m = self.m
+        self.app.close()
+        for cfg in (config(m), replace(self.cfg, research=replace(self.dot, bot='903')),
+                    replace(self.cfg, research=replace(self.dot, channel='904')),
+                    replace(self.cfg, research=replace(self.dot, token_path=self.root / 'other.token')),
+                    replace(self.cfg, audience='https://other.example/mcp')):
+            with pytest.raises(ValueError, match='state identity'):
+                m.Application(cfg, self.root / 'research-state', auth=object())
+        self.app = m.Application(self.cfg, self.root / 'research-state', auth=object())
+        rook = m.Application(config(m), self.root / 'rook-state', auth=object())
+        rook.store.put('requests', 'old', {'id': 'old'})
+        rook.close()
+        with pytest.raises(ValueError, match='state identity'):
+            m.Application(self.cfg, self.root / 'rook-state', auth=object())
+
+    def test_exact_reply_custody_receiver_and_restart_uncertainty(self):
+        from dataclasses import replace
+        import receive_one_discord_message as receiver
+        self.subscribe()
+        assert self.app.ingest(self.event(), '100') == 1
+        args = {'request_id': 'discord-301', 'text': 'answer'}
+        result = self.app.dispatch(self.principal, 'tools/call', {'name': 'reply_to_research_request', 'arguments': args})
+        assert not result['isError'] and self.wire == 'answer\n-# research.reply · discord-301'
+        scope = receiver.Scope('discord-301', 'research.reply', '100', 'author', self.dot.bot, 1,
+            str(self.root / 'research-state'), self.cfg.issuer, self.cfg.audience, self.cfg.subject,
+            research=self.dot)
+        event = self.event('401', self.dot.bot, self.wire)
+        assert receiver.match_event(event, scope, self.dot.bot)['authenticated_reply_binding']
+        assert receiver.match_event(event, scope, self.m.BOT) is None
+        assert receiver.match_event(event, replace(scope, research=replace(self.dot, bot='903'), origin_id='903'), '903') is None
+        assert self.app.dispatch(self.principal, 'tools/call', {'name': 'reply_to_research_request', 'arguments': args}) == result
+        self.subscribe()
+        assert self.app.ingest(self.event('302'), '100') == 1
+        effects = []
+        def fail(channel, wire):
+            assert self.app.store.get('requests', 'discord-302')['state'] == 'sending'
+            effects.append(wire)
+            raise TimeoutError('synthetic uncertainty')
+        self.app.sender = fail
+        args['request_id'] = 'discord-302'
+        uncertain = self.app.dispatch(self.principal, 'tools/call', {'name': 'reply_to_research_request', 'arguments': args})
+        assert uncertain['isError'] and len(effects) == 1
+        self.app.close()
+        self.app = self.m.Application(self.cfg, self.root / 'research-state', auth=object(), sender=fail, reader=self.read)
+        assert self.app.dispatch(self.principal, 'tools/call', {'name': 'reply_to_research_request', 'arguments': args}) == uncertain
+        assert len(effects) == 1
+
+    def test_receiver_uses_own_bot_and_exact_private_custody(self, monkeypatch):
+        import asyncio
+        import receive_one_discord_message as receiver
+        self.subscribe()
+        self.app.ingest(self.event(), '100')
+        self.app.reply(self.principal, {'request_id': 'discord-301', 'text': 'answer'})
+        scope = receiver.Scope('discord-301', 'research.reply', '100', 'author', self.dot.bot, 1,
+            str(self.root / 'research-state'), self.cfg.issuer, self.cfg.audience, self.cfg.subject, research=self.dot)
+        tokens = []
+        monkeypatch.setattr(self.m, 'load_rook_token', lambda path=None:
+            'synthetic-research' if path == self.dot.token_path else pytest.fail('wrong token'))
+        def factory(on_event, on_error):
+            class Client:
+                async def start(_, token, reconnect):
+                    tokens.append(token)
+                    on_event(self.event('401', self.dot.bot, self.wire), self.dot.bot)
+                    await asyncio.Future()
+                async def close(_): pass
+            return Client()
+        result, status = asyncio.run(receiver.receive_one(scope, client_factory=factory))
+        assert status == 0 and result['status'] == 'received' and result['authenticated_reply_binding']
+        assert tokens == ['synthetic-research']
+
+    def test_research_rest_read_and_reply_use_own_token(self, monkeypatch):
+        m = self.m
+        self.app.close()
+        self.app = m.Application(self.cfg, self.root / 'research-state', auth=object(), callback=self.callback)
+        seen = []
+        monkeypatch.setattr(m, 'load_rook_token', lambda path=None: 'synthetic-research' if path == self.dot.token_path else pytest.fail('wrong token'))
+        monkeypatch.setattr(m, 'callback_target', lambda url: ('discord.com', '93.184.216.34', '/'))
+        class Connection:
+            def __init__(_, *a): pass
+            def request(_, method, path, body=None, headers=None):
+                seen.append((method, path, headers['Authorization']))
+                if body: self.wire = json.loads(body)['content']
+                _.value = self.read(self.dot.channel, '401')
+            def getresponse(_):
+                data = json.dumps(_.value).encode()
+                return type('Response', (), {'status': 200, 'read': lambda *a: data})()
+            def close(_): pass
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        read = self.app.dispatch(self.principal, 'tools/call', {'name': 'read_research_messages', 'arguments': {'message_id': '401'}})
+        assert read['structuredContent']['channel_id'] == self.dot.channel
+        assert f'/{m.GUILD}/{self.dot.channel}/401' in read['structuredContent']['messages'][0]['url']
+        with pytest.raises(m.RpcError):
+            self.app.dispatch(self.principal, 'tools/call', {'name': 'read_research_messages', 'arguments': {'thread_id': '999'}})
+        self.subscribe(); self.app.ingest(self.event(), '100')
+        assert not self.app.dispatch(self.principal, 'tools/call', {'name': 'reply_to_research_request',
+            'arguments': {'request_id': 'discord-301', 'text': 'answer'}})['isError']
+        assert all(auth == 'Bot synthetic-research' and f'/channels/{self.dot.channel}/messages' in path
+                   for _, path, auth in seen)
+
+    def test_research_gateway_own_observer_identity(self, monkeypatch):
+        import asyncio
+        m = self.m
+        self.subscribe()
+        tokens = []
+        class Server:
+            def serve_forever(_, **kw): pass
+            def shutdown(_): pass
+            def server_close(_): pass
+        def factory(observer):
+            def make(on_event, on_error):
+                class Client:
+                    async def start(_, token, reconnect):
+                        tokens.append(token)
+                        assert reconnect is False
+                        on_event(self.event(), observer)
+                        await asyncio.Future()
+                    async def close(_): pass
+                return Client()
+            return make
+        monkeypatch.setattr(m, 'load_rook_token', lambda path=None: 'synthetic-research' if path == self.dot.token_path else pytest.fail('wrong token'))
+        assert asyncio.run(m.run_adapter(self.app, Server(), '100', .05, client_factory=factory(self.dot.bot))) == 0
+        assert len(self.calls) == 1 and tokens == ['synthetic-research']
+        assert asyncio.run(m.run_adapter(self.app, Server(), '100', .05, client_factory=factory(m.BOT))) == 2
+        assert len(self.calls) == 1
+
+    def test_rs256_research_http_auth_and_tool_denials(self):
+        m = self.m
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        jwk = jwt.PyJWK.from_json(jwt.algorithms.RSAAlgorithm.to_jwk(key.public_key()), algorithm='RS256')
+        class Keys:
+            def get_signing_key_from_jwt(_, token): return jwk
+        self.app.auth = m.Authenticator(self.cfg, Keys())
+        scopes = ' '.join(self.principal.scopes)
+        def request(name, **overrides):
+            claims = {'iss': self.cfg.issuer, 'aud': self.cfg.audience, 'sub': self.cfg.subject,
+                'iat': int(time.time()), 'exp': int(time.time()) + 600,
+                'scope': scopes, 'permissions': scopes.split()}
+            claims.update(overrides)
+            return self.app.handle('POST', '/mcp', {'Authorization': 'Bearer ' + jwt.encode(claims, key, algorithm='RS256'),
+                'MCP-Protocol-Version': m.VERSION}, rpc(m, 'tools/call', {'name': name, 'arguments': {}}))
+        for name in ('discord_api', 'github_pr_comment'):
+            status, _, result = request(name)
+            assert status == 200 and result['error']['message'] == 'ToolNotAllowed'
+        for delta in ({'aud': 'https://other.example/mcp'}, {'sub': 'auth0|other'},
+                      {'iss': 'https://other.example/'}, {'exp': int(time.time()) - 300}):
+            assert request('read_research_messages', **delta)[0] == 401
+        for delta in ({'scope': 'rook.channel.read', 'permissions': ['rook.channel.read']},
+                      {'permissions': []}):
+            assert request('read_research_messages', **delta)[0] == 403
+        metadata = self.app.handle('GET', '/.well-known/oauth-protected-resource/mcp', {}, None)[2]
+        assert set(metadata['scopes_supported']) == {'research.requests.read', 'research.replies.write',
+                                                    'research.channel.read', 'offline_access'}
+
+    def test_research_cli_identity_inputs_are_required(self):
+        import argparse
+        m = self.m
+        parser = argparse.ArgumentParser()
+        m.add_research_arguments(parser)
+        assert m.research_from_args(parser.parse_args([])) is None
+        with pytest.raises(ValueError):
+            m.research_from_args(parser.parse_args(['--profile', 'research']))
+        args = ['--profile', 'research', '--research-channel', self.dot.channel,
+                '--research-bot', self.dot.bot, '--research-token-path', str(self.dot.token_path)]
+        for sender in self.dot.allowed_senders:
+            args.extend(['--allowed-request-sender', sender])
+        assert m.research_from_args(parser.parse_args(args)) == self.dot
+        with pytest.raises(ValueError):
+            m.research_from_args(parser.parse_args(args[2:]))
+        with pytest.raises(ValueError):
+            m.research_from_args(parser.parse_args(args + ['--allowed-request-sender', '999']))
