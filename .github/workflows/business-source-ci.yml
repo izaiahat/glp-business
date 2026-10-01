@@ -54,6 +54,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_rook_communication.py
+      - name: Canonical inbox and affiliate decision routing (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)

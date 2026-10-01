@@ -2538,6 +2538,18 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         base = result_base(queue_row, index)
         update_id = base["update_id"]
         kind = base["kind"]
+        if kind == "affiliate_decision_notice":
+            # Canonical mail is a wake signal, not program/terms authority.
+            # Keep a typed, visible queue receipt for provider reconciliation;
+            # never turn free text or an unbound identity into Sheet cells.
+            evidence = parse_evidence(queue_row)
+            decision = str(evidence.get("decision_class") or "")
+            base["status"] = RESULT_ESCALATED
+            base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"
+            base["decision_class"] = decision
+            base["intended_writer_kind"] = str(evidence.get("intended_writer_kind") or "")
+            results.append(base)
+            continue
         mode = writer.SHEET_SYNC_KIND_MODE.get(kind)
         if not mode:
             base["reason"] = f"unknown_kind:{kind or '(blank)'}"
