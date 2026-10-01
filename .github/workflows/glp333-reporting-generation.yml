@@ -27,6 +27,7 @@ jobs:
           # Diagnostic-only disposable copy: no maintained source/oracle edits.
           export DIAG_ROOT="$RUNNER_TEMP/maintenance-exit-diagnostic"
           git clone --shared "$PWD" "$DIAG_ROOT"
+          git -C "$DIAG_ROOT" checkout --detach 04b1c9ed238a6ff77ee4c54133d39998ec16328d
           .venv/bin/python - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -36,7 +37,11 @@ jobs:
           needle = "    except Exception as exc:\n        failure = {'status': 'REFUSED'"
           insertion = "    except Exception as exc:\n        import traceback\n        traceback.print_exc()\n        print('DIAG_ORIGIN', __file__, main.__code__.co_filename, file=sys.stderr)\n        tb = exc.__traceback__\n        while tb:\n            frame = tb.tb_frame\n            print('DIAG_FRAME', frame.f_code.co_name, tb.tb_lineno, {k: repr(v) for k,v in frame.f_locals.items() if k in ('result', 'keeper_exit_requested', 'timeout', 'handle', 'remaining', 'path')}, file=sys.stderr)\n            tb = tb.tb_next\n        failure = {'status': 'REFUSED'"
           assert text.count(needle) == 1
-          source.write_text(text.replace(needle, insertion))
+          instrumented = text.replace(needle, insertion)
+          busy = "                    raise WindowError('window_operation_busy') from exc"
+          assert instrumented.count(busy) == 1
+          instrumented = instrumented.replace(busy, "                    print('DIAG_BUSY', os.readlink('/proc/self/fd/' + str(handle)), os.fstat(handle).st_dev, os.fstat(handle).st_ino, read_journal(journal), file=sys.stderr)\n" + busy)
+          source.write_text(instrumented)
           manifest = root / 'ops/rebuild-source-manifest.json'
           data = json.loads(manifest.read_text())
           data['files']['scripts/maintenance_window.py']['sha256'] = hashlib.sha256(source.read_bytes()).hexdigest()
