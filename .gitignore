@@ -339,6 +339,20 @@
 !/scripts/root_custody/single_unit.py
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
+
+# GLP75/76 minimal Sunday workweek source admission
+!/systems/
+/systems/*
+!/systems/seo-blog-machine/
+/systems/seo-blog-machine/*
+!/systems/seo-blog-machine/scripts/
+/systems/seo-blog-machine/scripts/*
+!/systems/seo-blog-machine/tests/
+/systems/seo-blog-machine/tests/*
+!/systems/seo-blog-machine/scripts/learning_loop_actions.py
+!/systems/seo-blog-machine/scripts/r2_update_carrier.py
+!/systems/seo-blog-machine/tests/test_learning_loop_actions.py
+!/systems/seo-blog-machine/tests/test_workweek_boundary.py
 !/.codex-task/
 /.codex-task/*
 !/.codex-task/RESULT.md
@@ -369,6 +383,12 @@
 !/tests/test_affiliate_terms_fanout.py
 !/tests/fixtures/
 /tests/fixtures/*
+!/tests/test_glp76_carrier_calendar.py
+!/tests/fixtures/
+/tests/fixtures/*
+!/tests/fixtures/glp76-carrier-material/
+/tests/fixtures/glp76-carrier-material/*
+!/tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs
 !/tests/fixtures/best_terms/
 /tests/fixtures/best_terms/*
 !/tests/fixtures/best_terms/held_xentraffic_failure.json

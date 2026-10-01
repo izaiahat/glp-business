@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 547,
+  "tracked_count": 554,
   "files": {
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
@@ -414,7 +414,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d7680b2dc7b7b4539ac0f04f43583d35437e6e26119a9398ddefec29230c80bc"
+      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -424,7 +424,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9933930cd24bd61ce628f24ed7afdc859045388155a2f42ace761c38a8429db4"
+      "sha256": "bde74e2711d0299334db4264de93a90c263bc72b91bb3d5d4545a21ea3b955d8"
     },
     ".hermes.md": {
       "callers": [],
@@ -2090,7 +2090,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "746bd7d942646ecec28b77319a743ee2a15231958fca113d724117f0b0d0c1e2"
+      "sha256": "780215f6ed527f8f85ce08fc71e5f2310d26f930a857b5ea4cee215811f2cde4"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2243,7 +2243,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "b0ef98f3448cdbeaa06f62a1d85ea612d6a13a4312ef5e319b8a032abe7f0e90"
+      "sha256": "80a200ace77b606adeadad08e663843530e6b2308932d4847edfbbfea70827b9"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -3658,6 +3658,55 @@
       ],
       "kind": "test",
       "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
+    },
+    "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "script",
+      "sha256": "4c7c52fae0722a70a1f9519ca4cae600b6513ac99bb584f46a77b98c457d3512"
+    },
+    "systems/seo-blog-machine/scripts/r2_update_carrier.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "script",
+      "sha256": "5b831b9f3318b97b892d96700a62a9684c2844555ff1b7af04bfa6460bf37d71"
+    },
+    "systems/seo-blog-machine/tests/test_learning_loop_actions.py": {
+      "callers": [
+        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+      ],
+      "kind": "test",
+      "sha256": "618501442825dcb3831da65e9f68b3f0e11a7933575656ddc168eb7de3e5f9bb"
+    },
+    "systems/seo-blog-machine/tests/test_workweek_boundary.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d7b2345287e836d03ab223db88fb9feb9bb434a220afd3e5643399f1a15ae620"
+    },
+    "tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs": {
+      "callers": [
+        "tests/test_glp76_carrier_calendar.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "a034fd24091cf093637b20753708f2f3c2070c29f66176e5deabfeb10aee9ba9"
+    },
+    "tests/test_glp76_carrier_calendar.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "9b929c78f8007c6e105d88ca902c7ba56f6095ee7d166d1bfb07fc96489a4d79"
+    },
+    "tests/test_glp76_calendar_workflow_guard.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
     }
   }
 }
