@@ -45,6 +45,26 @@ class AccessResult:
         return asdict(self)
 
 
+class ProviderResponseError(ValueError):
+    """An explicit provider error proves no observation coverage."""
+
+
+def _failure_coverage(transport, error):
+    return ('UNKNOWN' if isinstance(error, ProviderResponseError) or not transport.receipts
+            else 'PARTIAL')
+
+
+def _meaningful(value):
+    """Empty nested containers and parser placeholders are not field evidence."""
+    if isinstance(value, str):
+        return bool(value.strip()) and value.strip().casefold() != 'unknown'
+    if isinstance(value, dict):
+        return any(_meaningful(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return bool(value) and all(_meaningful(v) for v in value)
+    return value is not None
+
+
 def _projection(network, rows):
     """Allowlisted reported money; no customer/click/order data or cash inference."""
     import re
@@ -58,7 +78,7 @@ def _projection(network, rows):
     out=[]
     for item in rows:
         row=item.get('conversion',item)
-        if any('fella' in str(row.get(k,'')).casefold() for k in ('advertiserName','AdvertiserName','offer_name')):
+        if any('fella' in str(row.get(k,'')).casefold() for k in ('advertiserName','AdvertiserName','offer_name','CampaignName')):
             continue
         identity=str(row.get(program,''))
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}',identity):
@@ -138,9 +158,9 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
             reason='ACCOUNT_ROWS_ONLY_TEST_REAL_ATTRIBUTION_AND_CURRENCY_UNKNOWN',
             account_binding='request:publisher:' + awin.PUBLISHER_ID,
             report_complete_period=b <= datetime.now(timezone.utc))
-    except Exception:
+    except Exception as error:
         return AccessResult(network, 'conversions_earnings', 'SUPPORTED', source,
-            coverage='PARTIAL' if transport.receipts else 'UNKNOWN', receipts=tuple(transport.receipts),
+            coverage=_failure_coverage(transport, error), receipts=tuple(transport.receipts),
             reason='READ_FAILED_OR_INCOMPLETE_NO_AUTOMATIC_RETRY')
 
 
@@ -182,9 +202,9 @@ def _metadata(network, capability, transport, program_id, **kwargs):
             coverage='COMPLETE', records=(record,), record_count=1, receipts=tuple(t.receipts),
             reason='EXACT_RECORD_ONLY_NOT_FULL_LEGAL_TERMS_OR_ELIGIBILITY_CLEARANCE',
             account_binding='CONFIGURED_PARTNER_API_CREDENTIAL')
-    except Exception:
+    except Exception as error:
         return AccessResult(network, capability, 'SUPPORTED', source,
-            coverage='PARTIAL' if t.receipts else 'UNKNOWN', receipts=tuple(t.receipts),
+            coverage=_failure_coverage(t, error), receipts=tuple(t.receipts),
             reason='EXACT_RECORD_OR_CAPABILITY_FIELD_UNPROVEN')
 
 
@@ -284,17 +304,20 @@ def _catalogue_metadata(network, capability, transport, program_id, **kwargs):
             keys = {'program_status':('status',),'terms_commission':('payout','commission','restrictions','currency','description'),
                     'issued_tracking_link':('tracking_url',)}[capability]
             record = {k:row.get(k) for k in keys}
-        record = {k:v for k,v in record.items() if v not in (None,'',[],{})}
-        if not record:
+        record = {k:v for k,v in record.items() if _meaningful(v)}
+        if (not record or (capability == 'program_status' and
+                not _meaningful(record.get('relationship', record.get('status')))) or
+                (network == 'partnerize' and capability == 'terms_commission' and
+                 not all(_meaningful(term.get('content')) for term in record.get('terms', [])))):
             raise ValueError('capability_fields_missing')
         record['program_id'] = str(program_id)
         return AccessResult(network, capability, 'SUPPORTED', source, coverage='COMPLETE',
             records=(record,), record_count=1, receipts=tuple(t.receipts),
             reason='EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE',
             account_binding='CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY')
-    except Exception:
+    except Exception as error:
         return AccessResult(network, capability, 'SUPPORTED', source,
-            coverage='PARTIAL' if t.receipts else 'UNKNOWN', receipts=tuple(t.receipts),
+            coverage=_failure_coverage(t, error), receipts=tuple(t.receipts),
             reason='EXACT_RECORD_OR_CAPABILITY_FIELD_UNPROVEN')
 
 
@@ -377,7 +400,8 @@ class ReadTransport:
             valid = url.startswith('https://api.katalys.com/') or (
                 isinstance(body.get('query'), str) and
                 not re.search(r'\b(mutation|subscription)\b', body['query'], re.I))
-        if not valid or parsed.scheme != 'https' or parsed.query or parsed.fragment or parsed.username or parsed.port:
+        if (not valid or parsed.scheme != 'https' or parsed.query or parsed.fragment or
+                parsed.username is not None or parsed.password is not None or parsed.port):
             raise ValueError('route_not_read_allowlisted')
         if len(self.receipts) >= self.max_requests or time.monotonic() >= self.deadline:
             raise ValueError('read_budget_exhausted')
@@ -388,11 +412,20 @@ class ReadTransport:
             'response_sha256':hashlib.sha256(response.body).hexdigest(),
             'fetched_at':datetime.now(timezone.utc).isoformat()})
         if not response.ok:
+            if response.status == 429 and url == REPORT_ROUTES['katalys']:
+                # The shared limiter must observe this response while holding its
+                # lock. The report parser rejects it without retrying or decoding.
+                return Response(response.status, response.body, response.headers)
             raise ValueError('http_error_no_retry')
         try:
-            self.raw_documents.append(response.json())
+            document = response.json()
         except ValueError:
-            pass
+            document = None
+        if isinstance(document, dict) and any(
+                value for key, value in document.items() if key.casefold() in {'error','errors'}):
+            raise ProviderResponseError('provider_error_envelope')
+        if document is not None:
+            self.raw_documents.append(document)
         return Response(response.status, response.body, response.headers)  # drop credentialed response.url
 
 
@@ -502,7 +535,7 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
             account_binding=binding, report_complete_period=period,
             reason='ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN'
                 if complete else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE')
-    except Exception:
+    except Exception as error:
         return AccessResult(network, 'conversions_earnings', 'SUPPORTED', source,
-            coverage='PARTIAL' if t.receipts else 'UNKNOWN', receipts=tuple(t.receipts),
+            coverage=_failure_coverage(t, error), receipts=tuple(t.receipts),
             reason='READ_FAILED_OR_INCOMPLETE_NO_AUTOMATIC_RETRY', account_binding=binding)

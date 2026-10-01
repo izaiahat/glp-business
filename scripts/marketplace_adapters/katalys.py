@@ -185,7 +185,21 @@ class SharedReportingLimiter:
             save(self.clock() + 2.1)
             response = transport.request(method, url, **kwargs)
             if response.status == 429:
-                save(self.clock() + 60.0)
+                import math
+                from email.utils import parsedate_to_datetime
+                now = self.clock()
+                cooldown = 60.0  # retain the conservative shared fallback
+                retry_after = next((v for k, v in response.headers.items()
+                                    if k.casefold() == 'retry-after'), None)
+                if retry_after is not None:
+                    try:
+                        delay = (float(retry_after) if str(retry_after).strip().isdigit()
+                                 else parsedate_to_datetime(str(retry_after)).timestamp() - now)
+                        if math.isfinite(delay):
+                            cooldown = max(cooldown, delay)
+                    except (ValueError, TypeError, OverflowError):
+                        pass
+                save(now + cooldown)
             return response
 
 

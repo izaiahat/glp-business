@@ -1,12 +1,19 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_network_access_review_regressions.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "test",
+      "sha256": "d856c8098f923d7ef8c0a21d291a8ee073727de982b8025c8374020f0eb001b9"
+    },
     ".github/workflows/glp333-network-access.yml": {
       "callers": [
         "GLP-333 read-only network access contract"
       ],
       "kind": "repository_control",
-      "sha256": "12be262e996fa702f7ef9e174197aedc3b2b6fe7bb3561823b024a5f2f324374"
+      "sha256": "acd1d005e59c832a20b16612a0f01e2ee79b6447cce3d5c8648a1d6949eaaebf"
     },
     "ops/glp333-network-access-contract.md": {
       "callers": [
@@ -41,7 +48,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "f0aa82b05fcb451b907709ea05f261e31dac869130597815ed739e799b9265cf"
+      "sha256": "18cb6cf584deea0cd08eda1fa1fd63b6426ae3acaf829d57fbbe0e6600ba6003"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -90,7 +97,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "ad1e794750ba0a3a7c09bfa4651206bf9421d127eed1c5cfa43b0c48aeb67b6f"
+      "sha256": "ce4a93e614af98a460370499d01fa06764f780747c2163c0fa3b95f0691e37f5"
     },
     "scripts/marketplace_adapters/partnerize.py": {
       "callers": [
@@ -392,7 +399,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "1246ad4ef075a4fc84d438ff1f327fce4cd5c5a1c3a37474be7200b2d95a0adf"
+      "sha256": "be4047627a84dd80efbff33b271a945c4a8e04da133bcfe8dc36bb69c200802f"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -568,7 +575,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "a8f45ca9d26654a02ae7d0d70bd32eb157fbb6639f0e6f4fceb98f5b5c9f8445"
+      "sha256": "efe1cc68c12206a2df832148e468c5418edafec473b45d2e60df18aa180aa25d"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -3330,5 +3337,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 502
+  "tracked_count": 503
 }
