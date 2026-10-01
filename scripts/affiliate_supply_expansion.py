@@ -94,13 +94,13 @@ ZERO_EFFECTS = {
 
 
 def _unique(values, cap: int = 200) -> list[str]:
+    # Count caps used to silently discard the tail forever. Read callbacks now
+    # enforce a durable per-run budget; retain the whole declared denominator.
     out: list[str] = []
     for value in values:
         clean = re.sub(r"\s+", " ", str(value or "")).strip()
         if clean and clean not in out:
             out.append(clean)
-        if len(out) >= cap:
-            break
     return out
 
 
@@ -146,7 +146,7 @@ def _artifact_docs(core, paths: list[Path] | None, *, root: Path,
     docs: list[Any] = []
     evidence: list[dict] = []
     candidates = list(paths) if paths is not None else sorted(root.glob(glob_pattern))
-    for path in candidates[:cap]:
+    for path in candidates:
         doc, status = core.safe_json_artifact(Path(path), root=root)
         evidence.append({"path": str(path), "status": status})
         if doc is not None:
@@ -173,12 +173,19 @@ def _receipt(core, route: str, discovery: dict, *, evidence: list,
              query_log: list | None = None, subroutes: list | None = None) -> dict:
     accepted = discovery.get("accepted") or []
     rejected = discovery.get("rejected") or []
-    evidenced_empty = not accepted and bool(evidence or query_log or subroutes)
+    observations = list(evidence) + list(query_log or []) + list(subroutes or [])
+    incomplete = any(any(word in str(row.get("status", "")).lower()
+                         for word in ("error", "blocked", "skipped", "unavailable",
+                                      "no_artifacts", "too_thin", "refused"))
+                     for row in observations)
+    incomplete = incomplete or any(
+        row.get("reason") == "NO_PUBLIC_CATALOG_EVIDENCE" for row in observations)
+    evidenced_empty = not accepted and bool(query_log) and not incomplete
     return {
         "schema": "affiliate-supply-route-receipt-v1",
         "route": route,
         "captured_at_utc": core.utc(),
-        "status": "FIT_FOUND" if accepted else (
+        "status": "INCOMPLETE" if incomplete else "FIT_FOUND" if accepted else (
             "EVIDENCED_EMPTY" if evidenced_empty else "BLOCKED_NO_EVIDENCE"
         ),
         "found": int(discovery.get("hits") or 0),
@@ -187,8 +194,8 @@ def _receipt(core, route: str, discovery: dict, *, evidence: list,
         "parked": len(rejected),
         "evidenced_empty": evidenced_empty,
         "accepted": accepted,
-        "parked_records": rejected[:400],
-        "evidence": evidence[:200],
+        "parked_records": rejected,
+        "evidence": evidence,
         "queries_run": list(query_log or []),
         "subroutes": list(subroutes or []),
         "effects": dict(ZERO_EFFECTS),
@@ -293,7 +300,8 @@ def _provider_seeds(core, doc: Any) -> list[dict]:
             rows.append(doc)
     elif isinstance(doc, list):
         rows.extend(doc)
-    for row in rows[:1000]:
+    # Durable callback budgets bound execution without losing declared seeds.
+    for row in rows:
         if isinstance(row, str):
             name, domain = row.strip(), ""
         elif isinstance(row, dict):
@@ -349,8 +357,6 @@ def provider_first(core, search, scrape, *, known, policy_snapshot,
         key = (core._norm_name(seed.get("provider")), str(seed.get("domain") or ""))
         if key != ("", ""):
             unique.setdefault(key, seed)
-        if len(unique) >= MAX_PROVIDER_SEEDS:
-            break
     program_hits: list[Any] = []
     targeted_queries: list[str] = []
     for seed in unique.values():
@@ -425,6 +431,7 @@ def platform_sweeps(core, search, scrape, *, known, policy_snapshot,
         slug = definition["slug"]
         mode = definition["mode"]
         subroute_start = len(all_hits)
+        query_start = len(query_log)
         rows: list[dict] = []
         status = ""
         reason = ""
@@ -486,6 +493,15 @@ def platform_sweeps(core, search, scrape, *, known, policy_snapshot,
                     search, (f"{name} affiliate program",), limit=limit,
                     deadline=deadline, log=query_log,
                 ))
+        platform_queries = query_log[query_start:]
+        failures = [q for q in platform_queries if str(q.get("status")) != "ok"]
+        if failures:
+            pending = any("Deferred" in str(q.get("status")) or
+                          str(q.get("status", "")).startswith("skipped") for q in failures)
+            status = "UNKNOWN" if pending else "FAILED"
+            reason = "public_query_incomplete" if pending else "public_query_failed"
+        elif mode == "public_search" and not platform_queries and adapter is None:
+            status, reason = "UNKNOWN", "no_public_query_attempted"
         subroutes.append({
             "platform": slug,
             "mode": mode,
@@ -593,9 +609,9 @@ def inbox_newsletters(core, search, scrape, *, known, policy_snapshot,
 def query_expansion(core, search, scrape, *, known, policy_snapshot,
                     queries=QUERY_EXPANSION_QUERIES, limit: int = 10,
                     deadline=None) -> dict:
-    """Route 5: one capped therapeutic/modality-specific wave per daily run."""
+    """Route 5: a resumable therapeutic/modality-specific query wave."""
     declared = tuple(queries)
-    capped = declared[:MAX_QUERY_EXPANSION_QUERIES]
+    capped = declared
     query_log: list = []
     hits = core.run_search(
         search, capped, limit=limit, deadline=deadline, log=query_log,
@@ -605,7 +621,8 @@ def query_expansion(core, search, scrape, *, known, policy_snapshot,
         policy_snapshot=policy_snapshot, deadline=deadline,
     )
     evidence = [{
-        "query_cap": MAX_QUERY_EXPANSION_QUERIES,
+        "query_cap": None,
+        "work_bound": "durable read callback time/call budget",
         "queries_declared": len(declared),
         "queries_executed": len(query_log),
     }]
