@@ -1,5 +1,23 @@
 # Rook guild-scoped adapter — source, not rollout
 
+## GitHub identity (operator setup; not performed by this source change)
+
+`github_pr_comment` posts advisory PR **issue-comments**, not reviews or approvals, through a host-held GitHub App identity. It requires the existing JWT scope **and** RBAC permission `rook.channel.write`; no new OAuth scope. Arguments are `repo` (exactly `izaiahat/glp-business` or `izaiahat/glp-site-candidate`), positive integer `pr_number`, `body` (1–20,000 characters), required 40-hex `inspected_head_sha`, and the existing safe 16–64 character `operation_id`.
+
+Operator setup:
+1. Create the App at <https://github.com/settings/apps/new>, named `rook-glp` for `rook-glp[bot]` authorship (GitHub must accept that name). Leave the webhook inactive; set repository permissions **Pull requests: Read & write**, **Contents: Read-only**, **Metadata: Read-only**. Make it installable only on this account.
+2. Generate the private key yourself, and install the App on **only** `izaiahat/glp-business` and `izaiahat/glp-site-candidate`.
+3. Place the PEM at `/home/ubuntu/.hermes/secrets/dot-bots/rook-github-app.pem`, owned by the adapter's Unix user; run `chmod 600` on it. The tool refuses any other mode, wrong ownership, symlink, nonregular file or invalid/non-RSA key.
+4. Write the nonsecret `/home/ubuntu/.hermes/secrets/dot-bots/rook-github-app.json` with `{"app_id": <positive integer>, "installation_id": <positive integer>}` (substitute the real numeric IDs). Never paste the key into Rook/ChatGPT, a PR, logs or chat.
+5. After separately approving deployment, restart `rook-mcp-adapter`. This source PR does **not** install, provision, restart or exercise the App.
+
+The adapter validates both files before any network call, signs a host-side RS256 App JWT (`iat` 60 seconds back, expiration at most 9 minutes ahead), and exchanges it only at `POST /app/installations/{id}/access_tokens`, requesting the two repository names and only `pull_requests: write`. Installation tokens are cached **in memory only**, until five minutes before expiration. Missing/invalid configuration returns `GitHubIdentityNotConfigured` with no network calls; there is no fallback to the operator's GitHub connector/token.
+
+Repository calls are only `GET /repos/{repo}/pulls/{n}` and `POST /repos/{repo}/issues/{n}/comments`; a plain issue or unverifiable PR head is refused. The comment begins with `**Rook advisory review** (automated; not operator approval or a formal review)`, followed by a visible `stale: inspected head differs from current head` line when heads differ and `-- inspected head: <sha> · PR head at posting: <sha> · op <operation_id>`. All generated metadata precedes the supplied Markdown, so an unclosed HTML comment or code fence in the body cannot swallow it. The current head is the pre-POST snapshot, not an atomic guard against concurrent pushes. Every `@` in the supplied body is followed by a zero-width joiner to neutralize user/team mentions. No review states, merges, pushes, closes, labels, edits or deletes are supported. The GitHub-only JSON envelope is capped at 250,000 bytes to accommodate 20,000 Unicode characters; unrelated tools retain their existing caps.
+
+Durable reservations reuse the existing operation store: same ID and semantic arguments return only the saved comment ID/URL and repo/PR/head/status metadata with no HTTP calls. Conflicting arguments are refused. Timeouts, 5xx, malformed post responses or socket failures are uncertain and never automatically resent, even with a new operation ID or a changed current PR head. Semantic identity excludes the generated operation metadata and current-head snapshot. Receipts never store request/response bodies, JWTs, tokens, PEMs or headers; fixed sanitized errors only. Operator reconciliation is required after uncertainty. Offline transport-mocked acceptance is in `tests/test_rook_mcp_events.py::TestGitHubPRComment`; live App provisioning/authorship remains unverified and operator-owned.
+
+
 ## General `discord_api` tool (source only)
 
 The six existing tools and fixed-#rook reply/ingress behavior remain unchanged. `discord_api` adds Rook's bot-Administrator latitude across Kael HQ without a new policy framework, token, bot, scope, scheduler or deployment.

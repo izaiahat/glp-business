@@ -8,8 +8,16 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 546,
+  "tracked_count": 548,
   "files": {
+    "tests/test_glp337_shared_bridge_generation.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml",
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "9aa78ac2ca431518094f006cd5a61cc733c1954a78806c74a18f8d9637e000ae"
+    },
     "ops/glp337-shared-bridge-custody.md": {
       "callers": [],
       "kind": "source_control",
@@ -56,7 +64,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "d557d2d0718d161ea5a3df2c9f7cf899305cecc9a252be478e9421030ac66f8c"
+      "sha256": "43de7b9d2081d08800b0ca3210901b29b4ad7c09624cd09695dfcbbe3f7b66ff"
     },
     "tests/test_maintenance_keeper_contention.py": {
       "callers": [
@@ -406,7 +414,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d1cf4acb485631e95199827a6dc4c4d045a6e737d499ebf39fd2a4b59c269703"
+      "sha256": "d48e292e2b3749b49c942f30b9cabdb6da08cd0732ee1efe7c9e3922004695db"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -416,7 +424,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "115e5a23a749bb027cb28fbabdf1544adf69cc8b64a53771059148c9ec9c30ba"
+      "sha256": "1e991358a075a8694caf31ec63e5a7461050ca4e47b7f1022079b59ad4da0b16"
     },
     ".hermes.md": {
       "callers": [],
@@ -436,7 +444,7 @@
     "README.md": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e12d8acada0f3ae65df136d3c9d7af0e9a89fdd3d5b56fd55210c71310208c57"
+      "sha256": "3422c63324780d8105c71bd41500cf7ae386ab0320cff47e89a9ec0ad6ff022f"
     },
     "config/affiliate-sites/best-terms-selection.json": {
       "callers": [
@@ -1117,7 +1125,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "1864938473e0e93a3b341c687e650a9d61e15762b1985e0ace8ff9e2d4e741dd"
+      "sha256": "dfc80488871ce4eed270b044c31295d4e72e29fb1847821d05842f656889b00e"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -1125,7 +1133,7 @@
         "manual:isolated Rook adapter environment only"
       ],
       "kind": "repository_control",
-      "sha256": "47d559813fedec2ff3b99f043478f1be400155c19276871b7882ed5056e602f7"
+      "sha256": "cfd2f9638d67f16c14ff88ec6e2667c71d5fbdb3f7cc9d36eaf376fb03ac8136"
     },
     "ops/sender_envelope.py": {
       "callers": [
@@ -1589,7 +1597,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2db9cb4d29ca1c33a8131ca99348ad5f721c05f3c435b9ba93f33c16cf3bea76"
+      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -1980,7 +1988,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "4f2ad5cf2b29f886d8cef64a550d1e3bb66ff22a1e1d75ccabdd01c0cd8c6e18"
+      "sha256": "e5933e99e0cd8570f5cf85c8b36cffb22ddb02cddb4a77f1a4a0742480be556a"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -2055,7 +2063,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "e305cd57898e49b2dc57e3486aade3dc22c361b81844cf667c492c725a730020"
+      "sha256": "d4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2067,7 +2075,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "aa1c8a3c249340630897804ca07e32af7b91d6af01c35d252b482257a07469bc"
+      "sha256": "018ecd6c36b939ca6ae62e8ea297170e043b49f7483334ec31b0684e9aec9c11"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -2082,7 +2090,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2ad1f9018e959485ac245f99041e54198bc8403b8e406b8835a832da9cbbbeb5"
+      "sha256": "780215f6ed527f8f85ce08fc71e5f2310d26f930a857b5ea4cee215811f2cde4"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3182,7 +3190,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "067b4be7b04d7324a9a131e992dddd00fd0a1bf22772d8a3946333dc5e38d5cd"
+      "sha256": "e93ebafb464790e6ff7306bfa47946a136b549b69bb250c329f152aaea14b324"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -3251,14 +3259,14 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "97f5bd6f5d1075e05eb6e105186b601ecc9698b2150001bcd3a0560716f67c8e"
+      "sha256": "20ba1078e5fb71933781980fd9d0644c01ef645a7994059faf77ebe7391506fd"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "14542256c2cf4c4331452243bb6f5394ca3a70185d1a823a2087761d6d4d741e"
+      "sha256": "75e325bed33366e27ceac9115eb6646dee6fd04e972298cf954ed34adea92617"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -3329,7 +3337,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "ece5636cb1e168d4a27e157455c25f55106d47d0a3be79a588225cc219c68b7d"
+      "sha256": "e6ea6b5c18146d75f8fd19ebd4767f1c41d2f7a84123bb7594cb937beffff30b"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3560,7 +3568,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "8b284f3b12ef53994e5c7b1349066a04e10c1d1cb4a638168943ea000e6f046b"
+      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3624,6 +3632,13 @@
       ],
       "kind": "test_fixture",
       "sha256": "f90af2d6ed6b770c3a8ef2c4af3b34e9ad311d20e7309c787410674d9228c2ca"
+    },
+    "tests/test_glp73_optional_retention_lanes.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
     },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [

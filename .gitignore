@@ -16,6 +16,7 @@
 /tests/*
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
+!/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py

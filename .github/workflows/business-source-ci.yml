@@ -43,7 +43,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp44_reader_exclusion.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
       - name: GLP330 retained discovery migration (offline, exact head)
         env:
@@ -69,6 +69,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_scheduled_source_drift.py tests/test_scheduled_job_health_carrier_release.py tests/test_f09_native_maintenance_boundary.py tests/test_f09_cutover.py
+      - name: GLP-73 optional retention lanes (offline, no archive or sends)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_glp73_optional_retention_lanes.py tests/test_glp73_retention_prepared_consumer.py
       - name: GLP-73 exact-head sensor/hook contract (synthetic, effect-denied)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
