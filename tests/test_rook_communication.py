@@ -808,7 +808,7 @@ class TestRookCommunication:
         from email.policy import default
         m = self.m
         keys = {t['name']: t for t in self.app.dispatch(m.Principal(self.cfg.subject, time.time() + 60, frozenset({'rook.requests.read'})), 'tools/list', {})['tools']}
-        assert set(keys) == {'reply_to_rook_request', 'read_rook_messages', 'send_rook_message', 'create_rook_thread', 'read_rook_file', 'set_rook_reaction'}
+        assert set(keys) == {'reply_to_rook_request', 'read_rook_messages', 'send_rook_message', 'create_rook_thread', 'read_rook_file', 'set_rook_reaction', 'discord_api'}
         for name, tool in keys.items():
             assert tool['inputSchema']['additionalProperties'] is False
             if name != 'reply_to_rook_request':
