@@ -55,6 +55,7 @@ class TestDiscordAPI:
         self.status = 200
         self.response = {'id': '501', 'name': 'new channel'}
         self.authors = {}
+        self.member_roles = {identity: ['701'] for identity in m.PROTECTED_MEMBERS}
         self.channels = {
             '201': {'id': '201', 'guild_id': m.GUILD, 'type': 0},
             '202': {'id': '202', 'guild_id': '999', 'type': 0},
@@ -72,6 +73,9 @@ class TestDiscordAPI:
         self.calls.append((method, path, deepcopy(payload), kwargs))
         if not kwargs.get('guild_scoped'):
             assert method == 'GET'
+            if path.startswith(f'/guilds/{self.m.GUILD}/members/'):
+                identity = path.split('/')[4]
+                return {'user': {'id': identity}, 'roles': deepcopy(self.member_roles[identity])}
             if path in ['/channels/' + identity for identity in self.channels]:
                 return deepcopy(self.channels[path.split('/')[2]])
             if '/messages/' in path:
@@ -90,6 +94,212 @@ class TestDiscordAPI:
 
     def effects(self):
         return [call for call in self.calls if call[3].get('guild_scoped') and call[0] != 'GET']
+
+    @pytest.mark.parametrize('destination', ['202', '203', '999', '204'])
+    @pytest.mark.parametrize('kind', ['follower', 'forward', 'parent', 'guild_channel', 'event', 'guild_setting'])
+    def test_review_payload_scope(self, destination, kind):
+        if destination == '204':
+            self.channels['204']['parent_id'] = '202'
+        method, path, body = {
+            'follower': ('POST', '/channels/201/followers', {'webhook_channel_id': destination}),
+            'forward': ('POST', '/channels/201/messages', {'message_reference': {'type': 1, 'channel_id': destination, 'message_id': '101'}}),
+            'parent': ('PATCH', '/channels/201', {'parent_id': destination}),
+            'guild_channel': ('POST', f'/guilds/{self.m.GUILD}/channels', {'name': 'child', 'parent_id': destination}),
+            'event': ('POST', f'/guilds/{self.m.GUILD}/scheduled-events', {'channel_id': destination}),
+            'guild_setting': ('PATCH', f'/guilds/{self.m.GUILD}', {'system_channel_id': destination}),
+        }[kind]
+        assert self.call(self.args(method, path, json=body))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('body', [
+        {'message_reference': {'type': 1, 'message_id': '101'}},
+        {'message_reference': {'type': 1, 'channel_id': '201', 'guild_id': '999', 'message_id': '101'}},
+        {'message': {'message_reference': {'type': 1, 'channel_id': '202'}}},
+        {'channel_ids': ['201', '202']},
+    ])
+    def test_review_nested_or_unverifiable_references(self, body):
+        assert self.call(self.args('POST', '/channels/201/messages', json=body))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('delta', [
+        {'audit_reason': 'changed metadata'},
+        {'path_suffix': '?unused=1'},
+        {'path_suffix': '?unused=2', 'audit_reason': 'another reason'},
+    ])
+    def test_review_uncertain_semantic_effect(self, monkeypatch, delta):
+        peer = self.peer
+        def timeout(method, path, payload=None, **kwargs):
+            if kwargs.get('guild_scoped'):
+                self.calls.append((method, path, payload, kwargs))
+                raise TimeoutError('synthetic uncertain effect')
+            return peer(method, path, payload, **kwargs)
+        monkeypatch.setattr(self.m, 'discord_request', timeout)
+        args = self.args('POST', json={'name': 'uncertain'}, audit_reason='first reason')
+        assert self.call(args)['isError']
+        self.app.close()
+        self.app = self.m.Application(config(self.m), self.app.store.directory)
+        suffix = delta.get('path_suffix', '')
+        assert self.call({**args, 'operation_id': 'changed_review_id_001',
+                          'path': args['path'] + suffix,
+                          **{k: v for k, v in delta.items() if k != 'path_suffix'}})['isError']
+        assert len(self.effects()) == 1
+
+    @pytest.mark.parametrize('target', ['392067741500309517', '1486880423568211968'])
+    @pytest.mark.parametrize('method,body', [('DELETE', {}), ('PATCH', {'permissions': '0'})])
+    def test_review_protected_roles(self, target, method, body):
+        self.member_roles = {identity: [] for identity in self.m.PROTECTED_MEMBERS}
+        self.member_roles[target] = ['701']
+        assert self.call(self.args(method, f'/guilds/{self.m.GUILD}/roles/701', json=body))['isError']
+        assert not self.effects()
+
+    def test_review_everyone_permissions(self):
+        assert self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}/roles/{self.m.GUILD}', json={'permissions': '0'}))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('method', ['POST', 'GET'])
+    def test_review_query_token_never_persisted_or_replayed(self, method):
+        token = 'synthetic-query-token-never-store'
+        args = self.args(method, path=f'/guilds/{self.m.GUILD}/channels?token={token}')
+        result = self.call(args)
+        replay = self.call(args)
+        assert token not in self.m.canonical(self.app.store.all('operations'))
+        assert token not in self.m.canonical(replay)
+        assert token.encode() not in self.app.store.path.read_bytes()
+        assert result['isError'] and not self.calls
+
+    @pytest.mark.parametrize('target', ['392067741500309517', '1486880423568211968'])
+    @pytest.mark.parametrize('kind', ['member', 'bulk_ban'])
+    def test_review_noncanonical_protected_ids(self, target, kind):
+        path = f'/guilds/{self.m.GUILD}/members/0{target}' if kind == 'member' else f'/guilds/{self.m.GUILD}/bulk-ban'
+        assert self.call(self.args('DELETE' if kind == 'member' else 'POST', path,
+                                   json={} if kind == 'member' else {'user_ids': ['0' + target]}))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('channel', ['1554668115239899196', '1487300132054765629'])
+    def test_review_protected_channel_permission_sync(self, channel):
+        assert self.call(self.args('PATCH', '/channels/' + channel,
+                                   json={'parent_id': '201', 'lock_permissions': True}))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('body', [{'owner_id': '555'}, {'owner_id': '392067741500309517'}])
+    def test_review_ownership_transfer(self, body):
+        assert self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}', json=body))['isError']
+        assert not self.effects()
+
+    def test_review_mfa_change(self):
+        assert self.call(self.args('POST', f'/guilds/{self.m.GUILD}/mfa', json={'level': 0}))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('channel', ['1554668115239899196', '1487300132054765629'])
+    @pytest.mark.parametrize('body', [ {'lock_permissions': True}, {'parent_id': '201'} ])
+    def test_review_protected_channel_position_array(self, channel, body):
+        assert self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}/channels',
+                                   json=[{'id': channel, **body}]))['isError']
+        assert not self.effects()
+
+    def test_review_webhook_response_token_not_stored(self):
+        token = 'synthetic-webhook-token-never-store'
+        self.response = {'id': '501', 'token': token, 'channel_id': '201'}
+        args = self.args('POST', '/channels/201/webhooks', json={'name': 'Rook hook'})
+        assert not self.call(args)['isError']
+        assert token not in self.m.canonical(self.app.store.all('operations'))
+        assert token not in self.m.canonical(self.call(args))
+        assert token.encode() not in self.app.store.path.read_bytes()
+        assert len(self.effects()) == 1
+
+    @pytest.mark.parametrize('method,body', [('DELETE', {}), ('PATCH', {'permissions': '8'})])
+    def test_unheld_role_mutation_verifies_both_protected_members(self, method, body):
+        self.member_roles = {identity: [] for identity in self.m.PROTECTED_MEMBERS}
+        assert not self.call(self.args(method, f'/guilds/{self.m.GUILD}/roles/702', json=body))['isError']
+        assert {c[1] for c in self.calls[:-1]} == {
+            f'/guilds/{self.m.GUILD}/members/{identity}' for identity in self.m.PROTECTED_MEMBERS}
+        assert len(self.effects()) == 1
+
+    def test_protected_role_cosmetic_patch_remains_allowed(self):
+        assert not self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}/roles/701', json={'name': 'cosmetic'}))['isError']
+        assert len(self.calls) == len(self.effects()) == 1
+
+    @pytest.mark.parametrize('response', [None, {}, {'user': {'id': '999'}, 'roles': []},
+        {'user': {'id': '1486880423568211968'}, 'roles': None},
+        {'user': {'id': '1486880423568211968'}, 'roles': ['0701']}])
+    def test_role_context_unverifiable_denied(self, monkeypatch, response):
+        peer = self.peer
+        def invalid(method, path, payload=None, **kwargs):
+            if '/members/' in path and not kwargs.get('guild_scoped'):
+                return deepcopy(response)
+            return peer(method, path, payload, **kwargs)
+        monkeypatch.setattr(self.m, 'discord_request', invalid)
+        assert self.call(self.args('DELETE', f'/guilds/{self.m.GUILD}/roles/702'))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('body', [
+        {'webhook_channel_id': '204'},
+        {'message_reference': {'type': 1, 'channel_id': '204', 'guild_id': '1486887661099815126', 'message_id': '101'}},
+        {'parent_id': '201'}, {'channel_id': '201'}, {'system_channel_id': '201'},
+        {'message': {'message_reference': {'channel_id': '201', 'message_id': '101'}}},
+    ])
+    def test_in_guild_body_references_allowed(self, body):
+        assert not self.call(self.args('POST', '/channels/201/messages', json=body))['isError']
+        assert len(self.effects()) == 1
+        assert all(c[0] == 'GET' for c in self.calls[:-1])
+
+    @pytest.mark.parametrize('body', [
+        [{'id': '201', 'parent_id': '204', 'lock_permissions': True}],
+        [{'id': '1554668115239899196', 'position': 2}],
+    ])
+    def test_safe_channel_position_arrays_allowed(self, body):
+        assert not self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}/channels', json=body))['isError']
+        assert self.effects()[0][2] == body
+
+    @pytest.mark.parametrize('body', [[{'id': '202', 'position': 2}], [{'id': '201', 'parent_id': '202'}],
+        [{'id': '01554668115239899196', 'lock_permissions': True}]])
+    def test_foreign_or_noncanonical_channel_positions_denied(self, body):
+        assert self.call(self.args('PATCH', f'/guilds/{self.m.GUILD}/channels', json=body))['isError']
+        assert not self.effects()
+
+    def test_thread_parent_cycle_denied(self):
+        self.channels['204']['parent_id'] = '204'
+        assert self.call(self.args('POST', '/channels/204/messages', json={'content': 'no'}))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('query', ['token=synthetic', 'unused=1', 'limit=25&limit=26',
+        'before=0101', 'limit=synthetic', 'limit=', 'limit=1&token=synthetic', 'limit=%FF'])
+    def test_unknown_duplicate_or_invalid_read_query_denied(self, query):
+        assert self.call(self.args(path='/channels/201/messages?' + query))['isError']
+        assert not self.calls and not self.app.store.all('operations')
+
+    @pytest.mark.parametrize('body', [
+        {'message_reference': {'type': '1', 'message_id': '101'}},
+        {'message_reference': {'type': True, 'message_id': '101'}},
+        {'components': [{'type': 8, 'default_values': [{'type': 'channel', 'id': '202'}]}]},
+        {'thread_id': '202'}, {'source_guild_id': '999'}, {'guild_ids': ['1486887661099815126', '999']},
+    ])
+    def test_additional_body_channel_and_guild_references_denied(self, body):
+        assert self.call(self.args('POST', '/channels/201/messages', json=body))['isError']
+        assert not self.effects()
+
+    @pytest.mark.parametrize('path', [
+        '/channels/201/users/@me/threads/archived/private?before=101&limit=25',
+        '/channels/201/messages/pins?before=2026-09-30T00:00:00Z&limit=25',
+    ])
+    def test_documented_timestamp_and_snowflake_pagination(self, path):
+        assert not self.call(self.args(path=path))['isError']
+
+    def test_allowlisted_read_query_is_normalized_and_separate_from_route(self):
+        args = self.args(path='/channels/%32%30%31/messages?limit=025&before=%31%30%31')
+        got = self.call(args)['structuredContent']
+        assert self.calls[-1][1] == '/channels/201/messages?before=101&limit=25'
+        assert got['path'] == '/channels/201/messages'
+        assert got['query'] == {'before': '101', 'limit': '25'}
+        assert not self.app.store.all('operations')
+
+    def test_confirmed_audit_reason_change_replays_without_rest(self):
+        args = self.args('POST', '/channels/201/messages', json={'content': 'once'}, audit_reason='original')
+        assert not self.call(args)['isError']
+        before = len(self.calls)
+        replay = self.call({**args, 'audit_reason': 'changed', 'path': '/channels/%32%30%31/messages'})
+        assert not replay['isError'] and replay['structuredContent']['replayed']
+        assert len(self.calls) == before
 
     def test_allowed_guild_path_and_direct_get(self):
         args = self.args(path=f'/guilds/{self.m.GUILD}/roles')

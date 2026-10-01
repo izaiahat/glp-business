@@ -30,7 +30,7 @@ import ssl
 import stat
 import threading
 import time
-from urllib.parse import urlsplit, quote, unquote, parse_qs
+from urllib.parse import urlsplit, quote, unquote, parse_qs, parse_qsl, urlencode
 
 import jwt
 from standardwebhooks.webhooks import Webhook
@@ -118,7 +118,7 @@ DISCORD_API_TOOL = communication_tool('discord_api', {
     'operation_id': OPERATION_ID,
     'method': {'type': 'string', 'enum': ['GET', 'POST', 'PATCH', 'PUT', 'DELETE']},
     'path': {'type': 'string', 'minLength': 1, 'maxLength': 2048},
-    'json': {'type': 'object'},
+    'json': {'oneOf': [{'type': 'object'}, {'type': 'array', 'items': {'type': 'object'}, 'minItems': 1}]},
     'audit_reason': {'type': 'string', 'minLength': 1, 'maxLength': 512},
 }, ['operation_id', 'method', 'path'])
 DISCORD_API_TOOL['description'] = (
@@ -244,6 +244,73 @@ def validate_audit_reason(value):
     return value
 
 
+def discord_api_query(method, parts, raw):
+    """Only documented read parameters; writes have no caller query metadata."""
+    allowed = set()
+    if method == 'GET':
+        tail = parts[2:]
+        if parts[0] == 'channels':
+            if tail == ['messages']:
+                allowed = {'around', 'before', 'after', 'limit'}
+            elif len(tail) == 4 and tail[0] == 'messages' and tail[2] == 'reactions':
+                allowed = {'after', 'limit', 'type'}
+            elif tail in (['threads', 'archived', 'public'], ['threads', 'archived', 'private'],
+                          ['users', '@me', 'threads', 'archived', 'private']):
+                allowed = {'before', 'limit'}
+            elif tail == ['thread-members']:
+                allowed = {'after', 'limit', 'with_member'}
+            elif len(tail) == 2 and tail[0] == 'thread-members':
+                allowed = {'with_member'}
+            elif tail in (['pins'], ['messages', 'pins']):
+                allowed = {'before', 'limit'}
+        elif parts[0] == 'guilds':
+            if not tail:
+                allowed = {'with_counts'}
+            elif tail == ['members']:
+                allowed = {'limit', 'after'}
+            elif tail == ['members', 'search']:
+                allowed = {'query', 'limit'}
+            elif tail == ['bans']:
+                allowed = {'limit', 'before', 'after'}
+            elif tail == ['audit-logs']:
+                allowed = {'user_id', 'action_type', 'before', 'after', 'limit'}
+            elif tail == ['prune']:
+                allowed = {'days', 'include_roles'}
+            elif tail == ['scheduled-events'] or (len(tail) == 2 and tail[0] == 'scheduled-events'):
+                allowed = {'with_user_count'}
+            elif len(tail) == 3 and tail[0] == 'scheduled-events' and tail[2] == 'users':
+                allowed = {'limit', 'with_member', 'before', 'after'}
+    try:
+        pairs = parse_qsl(raw, keep_blank_values=True, strict_parsing=True, errors='strict', max_num_fields=16)
+    except (ValueError, UnicodeError):
+        raise RpcError(-32602, 'InvalidDiscordQuery') from None
+    values = {}
+    for key, value in pairs:
+        if key not in allowed or key in values or not value:
+            raise RpcError(-32602, 'InvalidDiscordQuery')
+        if key in {'with_counts', 'with_member', 'with_user_count'}:
+            if value not in {'true', 'false'}:
+                raise RpcError(-32602, 'InvalidDiscordQuery')
+        elif key in {'limit', 'days', 'action_type', 'type'}:
+            if not re.fullmatch(r'[0-9]{1,4}', value):
+                raise RpcError(-32602, 'InvalidDiscordQuery')
+            value = str(int(value))
+        elif key == 'query':
+            if len(value) > 100 or any(ord(c) < 32 or ord(c) == 127 for c in value):
+                raise RpcError(-32602, 'InvalidDiscordQuery')
+        elif key == 'include_roles':
+            value = ','.join(sorted({snowflake(v) for v in value.split(',')}))
+        elif key == 'before' and (parts[2:] in (['threads', 'archived', 'public'],
+                ['threads', 'archived', 'private'], ['messages', 'pins'])):
+            # Archive and pin pagination use timestamps; joined private threads use snowflakes.
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})', value):
+                raise RpcError(-32602, 'InvalidDiscordQuery')
+        else:
+            value = snowflake(value)
+        values[key] = value
+    return urlencode(sorted(values.items()))
+
+
 def discord_api_route(method, path, payload):
     """Canonicalize before checking the small scope/denial list; never accept URLs."""
     if (not isinstance(method, str) or method not in {'GET', 'POST', 'PATCH', 'PUT', 'DELETE'} or not isinstance(path, str)
@@ -260,9 +327,30 @@ def discord_api_route(method, path, payload):
         raise RpcError(-32602, 'InvalidDiscordRoute') from None
     if any(not p or p in {'.', '..'} or any(c in '/\\%?#' or ord(c) < 32 or ord(c) == 127 for c in p) for p in parts):
         raise RpcError(-32602, 'InvalidDiscordRoute')
+    if any(p.isascii() and p.isdecimal() and len(p) > 1 and p.startswith('0') for p in parts):
+        raise RpcError(-32602, 'NoncanonicalDiscordID')
+    positions = isinstance(payload, list)
+    if positions and not (method == 'PATCH' and parts == ['guilds', GUILD, 'channels']
+                          and payload and all(isinstance(item, dict) for item in payload)):
+        raise RpcError(-32602, 'InvalidChannelPositions')
     if parts[:2] == ['guilds', GUILD]:
+        if method == 'PATCH' and len(parts) == 2 and 'owner_id' in payload:
+            raise RpcError(-32602, 'GuildOwnershipTransferDenied')
+        if parts[2:] == ['mfa'] and method != 'GET':
+            raise RpcError(-32602, 'GuildMFAChangeDenied')
+        if positions:
+            for item in payload:
+                identity = snowflake(item.get('id'))
+                if identity in PROTECTED_CHANNELS and set(item) & {'parent_id', 'lock_permissions', 'permission_overwrites'}:
+                    raise RpcError(-32602, 'ProtectedChannelActionDenied')
+        if len(parts) == 4 and parts[2] == 'roles':
+            snowflake(parts[3])
+            if parts[3] == GUILD and method == 'PATCH' and 'permissions' in payload:
+                raise RpcError(-32602, 'EveryonePermissionsDenied')
         if method == 'DELETE' and len(parts) == 2:
             raise RpcError(-32602, 'GuildDeletionDenied')
+        if len(parts) >= 4 and parts[2] in {'members', 'bans'} and parts[3] not in {'@me', 'search'}:
+            snowflake(parts[3])
         if len(parts) >= 4 and parts[2] in {'members', 'bans'} and parts[3] in PROTECTED_MEMBERS:
             if ((parts[2] == 'bans' and method in {'PUT', 'POST'})
                     or (parts[2] == 'members' and (
@@ -270,16 +358,17 @@ def discord_api_route(method, path, payload):
                             set(payload) & {'nick', 'roles', 'communication_disabled_until'})))
                         or (len(parts) >= 5 and parts[4] == 'roles' and method != 'GET')))):
                 raise RpcError(-32602, 'ProtectedMemberActionDenied')
-        if parts[2:] == ['bulk-ban'] and method == 'POST':
+        if parts[2:] == ['bulk-ban'] and method == 'POST' and isinstance(payload, dict):
             targets = payload.get('user_ids', [])
             if not isinstance(targets, list):
                 raise RpcError(-32602, 'InvalidBulkBanMembers')
-            if any(str(p) in PROTECTED_MEMBERS for p in targets):
+            if any(snowflake(str(p)) in PROTECTED_MEMBERS for p in targets):
                 raise RpcError(-32602, 'ProtectedMemberActionDenied')
     elif len(parts) >= 2 and parts[0] == 'channels':
         snowflake(parts[1])
         if parts[1] in PROTECTED_CHANNELS and (
-                (len(parts) == 2 and (method == 'DELETE' or (method == 'PATCH' and 'permission_overwrites' in payload)))
+                (len(parts) == 2 and (method == 'DELETE' or (method == 'PATCH' and (
+                    'permission_overwrites' in payload or {'parent_id', 'lock_permissions'} <= set(payload)))))
                 or (len(parts) >= 3 and parts[2] == 'permissions' and method != 'GET')):
             raise RpcError(-32602, 'ProtectedChannelActionDenied')
     elif parts in (['users', '@me'], ['applications', '@me']) and method in {'GET', 'PATCH'}:
@@ -287,21 +376,85 @@ def discord_api_route(method, path, payload):
     else:
         raise RpcError(-32602, 'DiscordScopeDenied')
     route = '/' + '/'.join(quote(p, safe='@:-_') for p in parts)
-    return route + ('?' + parsed.query if parsed.query else ''), parts
+    query = discord_api_query(method, parts, parsed.query)
+    return route + ('?' + query if query else ''), parts
 
 
-def verify_discord_api_context(method, parts, payload):
-    if parts[0] != 'channels':
+def verify_discord_api_channel(channel, checked, visiting):
+    """Verify all referenced channels, recursively including thread parents."""
+    channel = snowflake(channel)
+    if channel in checked:
         return
-    channel = parts[1]
-    value = discord_request('GET', '/channels/' + channel)
+    if channel in visiting or len(visiting) >= 16:
+        raise RpcError(-32602, 'DiscordThreadParentUnverifiable')
+    visiting.add(channel)
+    try:
+        value = discord_request('GET', '/channels/' + channel)
+    except Exception:
+        raise RpcError(-32602, 'DiscordChannelUnverifiable') from None
     if not isinstance(value, dict) or value.get('id') != channel or value.get('guild_id') != GUILD:
         raise RpcError(-32602, 'DiscordChannelOutsideGuild')
     if value.get('type') in {10, 11, 12}:
-        parent = snowflake(value.get('parent_id'))
-        context = discord_request('GET', '/channels/' + parent)
-        if not isinstance(context, dict) or context.get('id') != parent or context.get('guild_id') != GUILD:
-            raise RpcError(-32602, 'DiscordThreadParentOutsideGuild')
+        verify_discord_api_channel(value.get('parent_id'), checked, visiting)
+    visiting.remove(channel)
+    checked.add(channel)
+
+
+def verify_discord_api_references(payload, checked):
+    """Walk nested bodies: forwards, followers, events, guild settings and moves."""
+    if isinstance(payload, list):
+        for value in payload:
+            verify_discord_api_references(value, checked)
+    elif isinstance(payload, dict):
+        if payload.get('type') == 'channel' and 'id' in payload:
+            verify_discord_api_channel(snowflake(str(payload['id'])), checked, set())
+        for key, value in payload.items():
+            if key == 'message_reference':
+                if (not isinstance(value, dict) or type(value.get('type', 0)) is not int
+                        or value.get('type', 0) not in {0, 1}
+                        or (value.get('type') == 1 and not value.get('channel_id'))):
+                    raise RpcError(-32602, 'DiscordMessageReferenceUnverifiable')
+            if key == 'guild_ids' or key.endswith('_guild_ids'):
+                if not isinstance(value, list) or any(snowflake(str(v)) != GUILD for v in value):
+                    raise RpcError(-32602, 'DiscordPayloadOutsideGuild')
+            elif key == 'guild_id' or key.endswith('_guild_id'):
+                if snowflake(str(value)) != GUILD:
+                    raise RpcError(-32602, 'DiscordPayloadOutsideGuild')
+            elif key in {'parent_id', 'channel_id', 'thread_id'} or key.endswith(('_channel_id', '_thread_id')):
+                if value is not None:  # Discord allows clearing optional guild/channel settings.
+                    verify_discord_api_channel(snowflake(str(value)), checked, set())
+            elif key in {'channel_ids', 'thread_ids'} or key.endswith(('_channel_ids', '_thread_ids')):
+                if not isinstance(value, list):
+                    raise RpcError(-32602, 'DiscordChannelUnverifiable')
+                for identity in value:
+                    verify_discord_api_channel(snowflake(str(identity)), checked, set())
+            verify_discord_api_references(value, checked)
+
+
+def verify_discord_api_context(method, parts, payload):
+    checked = set()
+    if parts[0] == 'channels':
+        verify_discord_api_channel(parts[1], checked, set())
+    verify_discord_api_references(payload, checked)
+    if isinstance(payload, list):
+        for item in payload:
+            verify_discord_api_channel(item['id'], checked, set())
+    if (parts[0] == 'guilds' and len(parts) == 4 and parts[2] == 'roles'
+            and (method == 'DELETE' or (method == 'PATCH' and 'permissions' in payload))):
+        for member in sorted(PROTECTED_MEMBERS):
+            try:
+                value = discord_request('GET', f'/guilds/{GUILD}/members/{member}')
+            except Exception:
+                raise RpcError(-32602, 'ProtectedMemberRolesUnverifiable') from None
+            if (not isinstance(value, dict) or not isinstance(value.get('user'), dict)
+                    or value['user'].get('id') != member or not isinstance(value.get('roles'), list)):
+                raise RpcError(-32602, 'ProtectedMemberRolesUnverifiable')
+            roles = [snowflake(role) for role in value['roles']]
+            if parts[3] in roles:
+                raise RpcError(-32602, 'ProtectedMemberRoleActionDenied')
+    if parts[0] != 'channels' or not isinstance(payload, dict):
+        return
+    channel = parts[1]
     targets = []
     if len(parts) == 4 and parts[2] == 'messages' and method in {'PATCH', 'DELETE'}:
         targets = [snowflake(parts[3])]
@@ -327,7 +480,7 @@ def discord_api_receipt_result(result):
     """Store metadata only; fresh Discord JSON and error text are never persisted."""
     if 'structuredContent' not in result:
         return result  # Existing fixed uncertainty result contains no external bytes.
-    value = {k: v for k, v in result['structuredContent'].items() if k in {'method', 'path', 'status', 'ids', 'digest'}}
+    value = {k: v for k, v in result['structuredContent'].items() if k in {'method', 'path', 'query', 'status', 'ids', 'digest'}}
     value['replayed'] = True
     saved = tool_result(value)
     saved['isError'] = result['isError']
@@ -978,21 +1131,25 @@ class Application:
                     or not {'operation_id', 'method', 'path'} <= set(arguments)
                     or not isinstance(arguments['operation_id'], str)
                     or not re.fullmatch(OPERATION_ID['pattern'], arguments['operation_id'])
-                    or ('json' in arguments and not isinstance(arguments['json'], dict))):
+                    or ('json' in arguments and not isinstance(arguments['json'], (dict, list)))):
                 raise RpcError(-32602, 'InvalidParams')
             method = arguments['method']
-            payload = dict(arguments.get('json', {}))
+            body = arguments.get('json', {})
+            payload = dict(body) if isinstance(body, dict) else list(body)
             path, parts = discord_api_route(method, arguments['path'], payload)
+            route = urlsplit(path).path
+            query = dict(parse_qsl(urlsplit(path).query))
             reason = validate_audit_reason(arguments['audit_reason']) if 'audit_reason' in arguments else None
-            if method == 'POST' and parts[0] == 'channels':
+            if method == 'POST' and parts[0] == 'channels' and isinstance(payload, dict):
                 if parts[2:] == ['messages']:
                     payload.setdefault('allowed_mentions', {'parse': ['users'], 'replied_user': False})
                 elif parts[2:] == ['threads'] and isinstance(payload.get('message'), dict):
                     payload['message'] = dict(payload['message'])
                     payload['message'].setdefault('allowed_mentions', {'parse': ['users'], 'replied_user': False})
-            digest = hashlib.sha256(canonical([method, path, payload, reason]).encode()).hexdigest()
+            # Audit annotations and operation IDs cannot change an effect's identity.
+            digest = hashlib.sha256(canonical([method, route, query, payload]).encode()).hexdigest()
             def action(row):
-                metadata = {'method': method, 'path': path, 'digest': digest, 'status': None, 'ids': {}}
+                metadata = {'method': method, 'path': route, 'query': query, 'digest': digest, 'status': None, 'ids': {}}
                 try:
                     verify_discord_api_context(method, parts, payload)
                     status, response = discord_request(method, path, payload if 'json' in arguments or payload else None,
@@ -1015,7 +1172,7 @@ class Application:
             if method == 'GET':
                 return discord_api_result(action(None))
             return self.operation(principal, arguments['operation_id'], 'rook.discord_api', digest, action,
-                                  receipt={'method': method, 'path': path, 'status': None, 'ids': {}},
+                                  receipt={'method': method, 'path': route, 'query': query, 'status': None, 'ids': {}},
                                   result_builder=discord_api_result, receipt_result=discord_api_receipt_result)
         except RpcError as exc:
             return discord_api_result({'error': exc.message, 'status': exc.data.get('status') if isinstance(exc.data, dict) else None})
