@@ -37,6 +37,26 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
         '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9')
 
 
+def test_current_base_worker_successor_copin_and_historical_custody():
+    name = 'scripts/glp_affiliate_wire_backlog_worker.py'
+    legacy = '1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a'
+    predecessor = '59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05'
+    successor = '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'
+    assert release.GLP331_DEPENDENCY_BINDINGS[name] == (legacy, successor)
+    assert p.sha_bytes((ROOT/name).read_bytes()) == successor
+    manifest = json.loads((ROOT/'ops/rebuild-source-manifest.json').read_text())
+    assert manifest['files'][name]['sha256'] == successor
+    # Immutable predecessor producer/source remain reproducible, not relabeled
+    # as approval of this new dependency. The accepted seven source blobs stay
+    # at their historical source_head (also checked by the literal scope test).
+    historical = 'ae6a761c53c035e5fd7a79b3a6f2af2ba85378b7'
+    assert p.sha_bytes(p.git(ROOT, 'show', historical+':'+name)) == predecessor
+    old_producer = p.git(ROOT, 'show', historical+':scripts/fleet_pin_release.py')
+    assert predecessor.encode() in old_producer and successor.encode() not in old_producer
+    old_manifest = json.loads(p.git(ROOT, 'show', historical+':ops/rebuild-source-manifest.json'))
+    assert old_manifest['files'][name]['sha256'] == predecessor
+
+
 def test_original_writer_two_copins_every_occurrence(tmp_path, monkeypatch, capsys):
     writer = tmp_path/'writer.py'
     writer.write_text('VALUE = 1\n')
@@ -190,6 +210,49 @@ def test_scoped_prepare_full_record_and_in_scope_drift_refuse(tmp_path, monkeypa
     with pytest.raises(RuntimeError, match='duplicate_registration_refused'):
         release.prepare_glp331(repo, release.GLP331_SOURCE_HEAD, 'fixture-author', business=business, hermes=home)
     assert target.read_bytes() == observed[target][0]
+
+
+@pytest.mark.parametrize('boundary', ['installed_predecessor', 'forged_source_and_manifest', 'historical_review'])
+def test_worker_successor_does_not_admit_historical_dependency_or_review(tmp_path, monkeypatch, boundary):
+    f = fixture(tmp_path, monkeypatch)
+    repo, business, home, _, _, target, registry, _ = f
+    receipt, proposal, observed, staged = review_fixture(f, tmp_path)
+    name = 'scripts/glp_affiliate_wire_backlog_worker.py'
+    historical = 'ae6a761c53c035e5fd7a79b3a6f2af2ba85378b7'
+    before = p.git(ROOT, 'show', historical+':'+name)
+    predecessor = p.sha_bytes(before)
+    row = next(item for item in proposal['dependency_binding_changes']
+               if item['path'] == str(business/name))
+    assert row['to_sha256'] == '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'
+    if boundary == 'installed_predecessor':
+        (business/name).write_bytes(before)
+        reason = 'in_scope_unreviewed_pin_drift'
+    elif boundary == 'forged_source_and_manifest':
+        # Matching old Git blob + manifest + receiving bytes must not bypass
+        # the literal successor, even in an otherwise clean committed checkout.
+        (business/name).write_bytes(before)
+        (repo/name).write_bytes(before)
+        manifest = json.loads((repo/'ops/rebuild-source-manifest.json').read_text())
+        manifest['files'][name]['sha256'] = predecessor
+        (repo/'ops/rebuild-source-manifest.json').write_text(json.dumps(manifest))
+        subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c',
+                        'user.email=fixture@example.invalid', 'commit', '-qm', 'old dependency graph'], check=True)
+        reason = 'glp331_reviewed_dependency_source_required'
+    else:
+        review = json.loads(receipt.read_text())
+        old = review['proposal']
+        old['producer_head'] = historical
+        next(item for item in old['dependency_binding_changes']
+             if item['path'] == str(business/name))['to_sha256'] = predecessor
+        receipt.write_text(json.dumps(review))
+        reason = 'review_proposal_moved_full_record_cas'
+    with pytest.raises(RuntimeError, match=reason):
+        release.release_glp331(receipt, repo, business=business, hermes=home, apply=True)
+    assert target.read_bytes() == observed[target][0]
+    assert registry.read_bytes() == observed[registry][0]
+    assert not (business/'reports').exists()
+    assert not (business/'scripts/affiliate_program_withdrawal.py').exists()
 
 
 @pytest.mark.parametrize('mutation', ['self_review', 'stale', 'review_only', 'claim', 'schedule', 'source_mode'])

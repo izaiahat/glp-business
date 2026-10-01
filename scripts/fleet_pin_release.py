@@ -542,10 +542,13 @@ GLP331_SOURCE_HEAD = '727ad1f6af8e1000f04b96f1c267e5b0de2a832f'
 # Exact legacy carrier bindings -> reviewed source successor. These are inputs,
 # not additional source outputs. PR35 date protection and PR37 cardinality stay
 # byte-identical; the original seven PR117 files remain the accepted Git blobs.
+# GLP93 advances only the fixed worker dependency below. Historical producer
+# commits/receipts still bind 59e25a8c; their source_head accepts seven outputs,
+# NOT this new worker. A fresh producer_head-bound independent review is required.
 GLP331_DEPENDENCY_BINDINGS = {
     'scripts/glp_affiliate_wire_backlog_worker.py': (
         '1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a',
-        '59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05'),
+        '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'),
     'scripts/glp_go_runtime_manifest_refresh.mjs': (
         'e7588766ac147bccb507da889c818d97b35f25a8e1664253ce653de3ed0dde5c',
         'a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'),
