@@ -11,6 +11,14 @@ from datetime import datetime, timezone
 import importlib.util
 from pathlib import Path
 import re
+import os
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import maintenance_admission as admission
+import maintenance_cohort as cohort
+import maintenance_window as window
+import sync_from_repo as importer
 
 # Load shared, already-curated transaction primitives from THIS checkout only.
 _HELPER_PATH = Path(__file__).resolve().with_name('maxbounty_pin_release.py')
@@ -33,7 +41,8 @@ JOB_ID = 'b86ec8937c20'
 CARRIER = 'scheduled_job_health_manager.py'
 SNAPSHOT = 'ops/hermes-cron-scripts/' + CARRIER
 PRODUCER = 'scripts/scheduled_job_health_carrier_release.py'
-CODE = frozenset((PRODUCER, 'scripts/maxbounty_pin_release.py'))
+DEPENDENCIES = (_primitives, admission, cohort, window, importer)
+CODE = frozenset((PRODUCER, *(str(Path('scripts') / Path(m.__file__).name) for m in DEPENDENCIES)))
 SOURCES = frozenset((SNAPSHOT, 'scripts/scheduled_source_drift.py',
                      'ops/scheduled-source-drift-manifest.json',
                      'ops/n8n_execution_budget.py', 'ops/n8n_dt.py'))
@@ -65,8 +74,11 @@ def checked_plan(review_path, repo, business, hermes):
     if git(repo, 'status', '--porcelain', '--untracked-files=no').strip():
         raise RuntimeError('dirty_producer_checkout')
     git(repo, 'merge-base', '--is-ancestor', review['source_head'], head)
-    for name, path in ((PRODUCER, Path(__file__)), ('scripts/maxbounty_pin_release.py', _HELPER_PATH)):
-        if git(repo, 'show', head+':'+name) != read_regular(path)[0]:
+    paths = [Path(__file__), *(Path(m.__file__) for m in DEPENDENCIES)]
+    for path in paths:
+        name = 'scripts/' + path.name
+        if (path.resolve().parent != Path(__file__).resolve().parent
+                or git(repo, 'show', head+':'+name) != read_regular(path)[0]):
             raise RuntimeError('executing_producer_dependency_not_reviewed:' + name)
     registration = strict_json(git(repo, 'show', head+':ops/registered-producers.json'))
     for target in (str(HERMES/'scripts'/CARRIER), str(HERMES/'cron/jobs.json')):
@@ -130,58 +142,77 @@ def checked_plan(review_path, repo, business, hermes):
 
 
 def release(review_path, repo, *, business=BUSINESS, hermes=HERMES, apply=False, scheduler=None):
-    """Scheduler lock is not exclusion of direct callers or source writers."""
-    review, observed, staged, candidate, result = checked_plan(review_path, repo, business, hermes)
+    """Review outside exclusion; exact CAS inside a short, sealed cutover.
+
+    No pause/resume: the native fire + registry fences close scheduled admission
+    without changing any control/due field. DAC closes first reads of the sole
+    mutable carrier, including direct runpy/callable imports, then census drains
+    pre-seal readers. The five preinstalled inputs are never written here.
+    """
     if not apply:
-        return result
-    if review['decision'] != 'ACCEPT_EXACT_CURRENT_BYTES':
-        raise RuntimeError('apply_requires_independent_exact_review')
-    if scheduler is None:
-        import sys
-        sys.path.insert(0, str(hermes/'hermes-agent'))
-        from cron import jobs as scheduler
-    registry = hermes/'cron/jobs.json'
-    if (scheduler._current_cron_store().jobs_file != registry
-            or scheduler._jobs_lock_file() != registry.parent/'.jobs.lock'):
-        raise RuntimeError('wrong_scheduler_store_or_lock')
-    import fcntl
-    import os
-    with scheduler._jobs_file_lock:
-        fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, 'a+') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return checked_plan(review_path, repo, business, hermes)[-1]
+    with importer.source_lock(business):
+        review, observed, staged, candidate, result = checked_plan(review_path, repo, business, hermes)
+        if review['decision'] != 'ACCEPT_EXACT_CURRENT_BYTES':
+            raise RuntimeError('apply_requires_independent_exact_review')
+        if scheduler is None:
+            os.environ['HERMES_HOME'] = str(hermes)
+            sys.path.insert(0, str(hermes/'hermes-agent'))
+            from cron import jobs as scheduler
+        registry = hermes/'cron/jobs.json'
+        carrier = hermes/'scripts'/CARRIER
+        if (scheduler._current_cron_store().jobs_file != registry
+                or scheduler._jobs_lock_file() != registry.parent/'.jobs.lock'):
+            raise RuntimeError('wrong_scheduler_store_or_lock')
+        with scheduler._fire_job_lock(JOB_ID) as fenced, window.native_registry_lock(scheduler):
+            window.require(fenced, 'native_fire_fence_unavailable')
             assert_unchanged(observed)
+            entry = {'kind': 'hermes', 'id': JOB_ID}
+
+            def drain():
+                # Native fire fence is reentrant on the owning thread. No ledger
+                # mutation, no TTL-only discharge, no effects or forced drain.
+                def job(_):
+                    jobs = strict_json(read_regular(registry)[0])['jobs']
+                    hits = [j for j in jobs if j.get('id') == JOB_ID]
+                    window.require(len(hits) == 1, 'registration_identity_changed')
+                    return hits[0]
+                busy, owners = admission.native_runs(scheduler, [entry], job)
+                busy += admission.process_readers([carrier], [carrier], owners, {os.getpid()})
+                return busy
+
+            window.require(not drain(), 'carrier_not_drained')
             custody = business/'reports/ops/pin-archive/scheduled-job-health'/result['review_sha256']
+            journal = custody/'cutover.json'
+            window.require(not journal.exists(), 'cutover_already_attempted_reconcile_no_replay')
             preserve_custody(custody, observed, staged)
             assert_unchanged(observed)
-            current = dict(observed)
-            try:
-                for path, body in staged.items():
-                    assert_unchanged(current)
-                    atomic_write(path, body, observed[path][1])
-                    current[path] = (body, observed[path][1])
-                assert_unchanged(current)
+            window.atomic_json(journal, {'schema': window.SCHEMA, 'kind': 'f09-short-cutover-v1',
+                'review_sha256': result['review_sha256'], 'job_id': JOB_ID})
+            # All but the carrier stay readable, unchanged and importer-fenced.
+            remaining = {p: value for p, value in observed.items() if p != carrier}
+
+            def commit():
+                assert_unchanged(remaining)
+                window.require(not drain(), 'carrier_not_drained')
                 scheduler._record_load_stamp(None)
                 try:
-                    scheduler._save_jobs_unlocked(candidate)
+                    scheduler._save_jobs_unlocked(copy.deepcopy(candidate))
                 finally:
                     scheduler._record_load_stamp(None)
-                if strict_json(read_regular(registry)[0])['jobs'] != candidate:
+                actual = read_regular(registry)
+                if strict_json(actual[0])['jobs'] != candidate:
                     raise RuntimeError('registration_readback_mismatch_no_retry')
-                current[registry] = read_regular(registry)
-                assert_unchanged(current)
-            except Exception:
-                # Include post-rename failures. Never replay/revert an uncertain saver.
-                if read_regular(registry) == observed[registry]:
-                    for path in staged:
-                        actual = read_regular(path)
-                        if actual == observed[path]:
-                            continue
-                        if actual != (staged[path], observed[path][1]):
-                            raise RuntimeError('rollback_conflict_no_overwrite')
-                        atomic_write(path, *observed[path])
-                raise
-            result.update(applied=True, custody=str(custody))
+                remaining[registry] = actual
+                assert_unchanged(remaining)
+
+            # Do NOT reopen between rename and native save/readback. On a saver
+            # exception the durable commit intent and sealed inode survive; no
+            # source-only rollback can certify a registry outcome.
+            cohort.switch_files(journal, staged, {carrier: observed[carrier]}, drain, commit=commit)
+            assert_unchanged({**remaining, carrier: (staged[carrier], observed[carrier][1])})
+            result.update(applied=True, custody=str(custody), admission_restored=True,
+                          lifecycle_mutations=0, cutover_journal=str(journal))
             atomic_write(custody/'acceptance.json', json_bytes(result), 0o600)
             return result
 
