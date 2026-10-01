@@ -8,8 +8,13 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 523,
+  "tracked_count": 524,
   "files": {
+    "scripts/glp_go_runtime_manifest_refresh.mjs": {
+      "kind": "script",
+      "callers": ["Backlog worker detached current-base candidate; GLP331 required unchanged dependency"],
+      "sha256": "35f99538dd648fe21b781766a0a81952ad222265e0aec552b42dda5563eaccbe"
+    },
     "scripts/fleet_pin_release.py": {
       "kind": "script",
       "callers": ["GLP331 scoped carrier closure; independent exact review required"],
@@ -320,7 +325,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9293b646cb712373626f81b7aeb6b1adbb7ddada66c3839dd3c9a71c7d7b18c0"
+      "sha256": "04198290433461dbb0ac0ded6b6138dc2964b20dc06cf7f7415f0531cfdb8939"
     },
     ".hermes.md": {
       "callers": [],
