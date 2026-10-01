@@ -67,13 +67,15 @@ def inbox(tmp_path, monkeypatch):
     ledger.close()
 
 
-def mail(subject, body, recipient='ops@glpclinicscout.com', sender='notice@awin.com'):
+def mail(subject, body, recipient='ops@glpclinicscout.com', sender='notice@awin.com', headers=None):
     m = EmailMessage()
     m['From'] = sender
     m['To'] = recipient
     m['Subject'] = subject
     m['Date'] = 'Thu, 01 Oct 2026 02:00:00 +0000'
     m['Message-ID'] = '<synthetic-decision@example.invalid>'
+    for key, value in (headers or {}).items():
+        m[key] = value
     m.set_content(body)
     return m.as_bytes()
 
@@ -194,3 +196,118 @@ def test_sheet_drain_records_notice_without_any_writer_mode(inbox, tmp_path, mon
         assert r['decision_class'] == decision
         assert r['mode'] is None
         assert r['cells_written'] == 0
+
+
+@pytest.mark.parametrize('bad', ['not-json', '[]', 'null'])
+def test_malformed_notice_is_row_local_and_retains_writer_readbacks(tmp_path, monkeypatch, bad):
+    import importlib.util
+    from support.google_stubs import google_import_stubs
+    with google_import_stubs():
+        monkeypatch.syspath_prepend(str(ROOT / 'scripts'))
+        spec = importlib.util.spec_from_file_location('notice_batch_drain', ROOT / 'scripts/glp_sheet_sync_drain.py')
+        assert spec is not None and spec.loader is not None
+        d = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(d)
+        monkeypatch.setattr(d.writer, 'creds', lambda: None)
+        reads, attempts = [], []
+        def read(*a, **k):
+            reads.append(len(attempts))
+            return [[]]
+        # Synthetic authoritative row/mode transport; the actual drain owns
+        # ordering, row refusal, result accumulation and post-mode readbacks.
+        monkeypatch.setattr(d, 'read_sheet', read)
+        monkeypatch.setattr(d, 'resolve_sheet_row', lambda *a: (1, None))
+        monkeypatch.setattr(d, 'build_entry', lambda *a: {})
+        monkeypatch.setattr(d, 'plan_for', lambda mode, entry, row: {'update_id': row['update_id']})
+        monkeypatch.setattr(d, 'repo_relative', str)
+        def mode(mode, plan, *a, **k):
+            attempts.append(plan['update_id'])
+            return {'rc': 0, 'receipt': {'status': 'PASS', 'value_cells_written': 1}}
+        monkeypatch.setattr(d, 'run_mode_with_retry', mode)
+        rows = [{'update_id': 'before', 'kind': 'approval_confirmed', 'evidence': '{}'},
+                {'update_id': 'bad', 'kind': 'affiliate_decision_notice', 'evidence': bad},
+                {'update_id': 'after', 'kind': 'approval_confirmed', 'evidence': '{}'}]
+        result = d.drain(rows, tmp_path / 'drain', apply=True)
+        assert [r['update_id'] for r in result['results']] == ['before', 'bad', 'after']
+        assert [r['status'] for r in result['results']] == ['applied', 'refused', 'applied']
+        refused = result['results'][1]
+        assert refused['reason'].startswith('evidence_not_')
+        assert refused['mode'] is None and refused['cells_written'] == 0
+        assert attempts == ['before', 'after']
+        assert reads == [0, 1, 2]
+        assert result['applied'] == 2 and result['refused'] == 1
+        assert result['cells_written'] == 2  # fixture writes only, never live
+
+
+# Reviewed variants: Partnerize punctuation is documented in control_plane;
+# MaxBounty wording is the maintained test_affiliate_cancellation_intake template.
+REVIEWED_TEMPLATES = [
+    ('partnerize.com', 'approval', 'Partnerize Email Alert', 'Your request to join the eMed.com partner program has been accepted.'),
+    ('maxbounty.com', 'cancelled', 'Campaign Cancellation Notice', 'The advertiser for campaign Roman Health - Metabolic Weight Loss - CPL (US) requires that it expire on 09/14/2026 21:30.'),
+    ('awin.com', 'approval', 'Membership Approved', 'Your membership for Northstar Health is now active.'),
+    ('cj.com', 'rejection', 'Application Declined', 'Northstar Health has declined your application.'),
+    ('impact.com', 'terminated', 'Partnership termination', 'Northstar Health has terminated your partnership.'),
+]
+
+
+@pytest.mark.parametrize('network,decision,subject,body', REVIEWED_TEMPLATES)
+def test_reviewed_templates_route_from_ingest_once(inbox, network, decision, subject, body):
+    cp, q, ledger, mailbox = inbox
+    raw = mail(subject, body, sender='no-reply@' + network)
+    ledger.ingest(mailbox, 'reviewed-template', raw)
+    queue = Queue()
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 1
+    assert len(queue.items) == 1
+    evidence = json.loads(queue.items[0]['evidence'])
+    assert evidence['decision_class'] == decision
+    assert evidence['requires_provider_verification'] is True
+    assert evidence['sheet_write_authority'] is False
+    assert queue.items[0]['program_id'] == '' and queue.items[0]['sheet_row'] is None
+    assert ledger.ingest(mailbox, 'reviewed-template', raw)['status'] == 'duplicate'
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 0
+    assert queue.inserts == 1
+
+
+@pytest.mark.parametrize('sender,subject,body', [
+    ('no-reply@awin.com', REVIEWED_TEMPLATES[1][2], REVIEWED_TEMPLATES[1][3]),
+    ('no-reply@maxbounty.com', 'Campaign Cancellation Notice', 'Browse campaigns that expire soon.'),
+    ('no-reply@maxbounty.com', 'Campaign Cancellation Notice', 'The advertiser for campaign Fixture requires that it expire on an unknown date.'),
+    ('no-reply@partnerize.com', 'Program update', 'Your request to join eMed.com is being reviewed. Your application has not been approved.'),
+    ('no-reply@partnerize.com', 'Program update', 'Your application has been approved. Your request to join eMed.com has been rejected.'),
+])
+def test_reviewed_templates_do_not_weaken_network_structure_or_ambiguity(inbox, sender, subject, body):
+    cp, q, ledger, mailbox = inbox
+    ledger.ingest(mailbox, 'template-negative', mail(subject, body, sender=sender))
+    queue = Queue()
+    q.dispatch(ledger, live=True, client=queue)
+    assert queue.inserts == 0
+
+
+@pytest.mark.parametrize('sender,subject,body,headers', [
+    ('newsletters@cj.com', 'CJ Partner Newsletter', 'Join our webinar on what to do when a program is paused. Register today!', {'Precedence': 'bulk', 'List-Unsubscribe': '<mailto:unsubscribe@cj.com>'}),
+    ('newsletters@awin.com', 'Publisher newsletter', 'A new commission rate is available for selected advertisers. Explore our marketplace today!', {'Precedence': 'bulk'}),
+    ('no-reply@cj.com', 'Program education', 'Learn what to do when the program is paused.', {}),
+    ('no-reply@awin.com', 'Marketplace offers', 'A new commission rate is available for selected advertisers.', {}),
+    ('newsletters@awin.com', 'Publisher newsletter', 'Example: Your application has been approved.', {}),
+    ('no-reply@cj.com', 'CJ webinar', 'Example: Your application has been approved.', {'Precedence': 'bulk'}),
+])
+def test_promotion_sender_and_structure_never_stage_decision(inbox, sender, subject, body, headers):
+    cp, q, ledger, mailbox = inbox
+    ledger.ingest(mailbox, 'promotion', mail(subject, body, sender=sender, headers=headers))
+    assert ledger.conn.execute('SELECT count(*) FROM mailbox_actions WHERE action=?', (q.ACTION,)).fetchone()[0] == 0
+    queue = Queue()
+    q.dispatch(ledger, live=True, client=queue)
+    assert queue.inserts == 0
+
+
+@pytest.mark.parametrize('network,decision,subject,body', REVIEWED_TEMPLATES + [
+    ('awin.com', decision, subject, body) for decision, subject, body in DECISIONS
+])
+def test_true_bulk_status_templates_still_route(inbox, network, decision, subject, body):
+    cp, q, ledger, mailbox = inbox
+    raw = mail(subject, body, sender='no-reply@' + network, headers={
+        'Precedence': 'bulk', 'List-Unsubscribe': '<mailto:unsubscribe@' + network + '>'})
+    ledger.ingest(mailbox, 'bulk-status', raw)
+    queue = Queue()
+    assert q.dispatch(ledger, live=True, client=queue)['delivered'] == 1
+    assert json.loads(queue.items[0]['evidence'])['decision_class'] == decision

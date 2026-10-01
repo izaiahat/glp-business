@@ -2542,7 +2542,13 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
             # Canonical mail is a wake signal, not program/terms authority.
             # Keep a typed, visible queue receipt for provider reconciliation;
             # never turn free text or an unbound identity into Sheet cells.
-            evidence = parse_evidence(queue_row)
+            try:
+                evidence = parse_evidence(queue_row)
+            except ValueError as exc:
+                base["status"] = RESULT_REFUSED
+                base["reason"] = str(exc)
+                results.append(base)
+                continue
             decision = str(evidence.get("decision_class") or "")
             base["status"] = RESULT_ESCALATED
             base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"

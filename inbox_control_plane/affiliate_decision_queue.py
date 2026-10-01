@@ -24,24 +24,32 @@ KINDS = {
 }
 # Match asserted outcomes, not a keyword in an invitation/marketing message.
 PATTERNS = (
-    ('terminated', r'\b(?:program(?:me)?|partnership|relationship|agreement)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+terminated\b'),
+    ('terminated', r'\b(?:program(?:me)?|partnership|relationship|agreement)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+terminated\b|\bhas terminated your (?:partnership|relationship|agreement)\b'),
     ('cancelled', r'\b(?:program(?:me)?|partnership|relationship|agreement)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+cancelled\b|\b(?:program(?:me)?|partnership|relationship|agreement)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+canceled\b'),
     ('paused', r'\b(?:program(?:me)?|partnership)\b[^\n.!?]{0,180}\b(?:has been|is|was|will be)\s+paused\b'),
-    ('rejection', r'\bmembership rejection\b|\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:rejected|declined|denied)\b|\bdecided not to move forward\b'),
-    ('rate_change', r'\bchanges? to your commission\b|\b(?:commission(?: rate)?|payout(?: rate)?|rate)\b[^\n.!?]{0,100}\b(?:has|have|is|was|will be)\s+(?:(?:been|being)\s+)?(?:changed|updated|increased|decreased|reduced)\b|\b(?:updated|new) commission (?:rate|terms)\b'),
-    ('approval', r'\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:approved|accepted)\b|\bhas approved your application\b|\bwelcome to (?:the )?[^\n.!?]{1,120}(?:affiliate|partner) program\b'),
+    ('rejection', r'\bmembership rejection\b|\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:rejected|declined|denied)\b|\bhas (?:rejected|declined|denied) your application\b|\bdecided not to move forward\b'),
+    ('rate_change', r'\bchanges? to your commission\b|\b(?:commission(?: rate)?|payout(?: rate)?|rate)\b[^\n.!?]{0,100}\b(?:has|have|is|was|will be)\s+(?:(?:been|being)\s+)?(?:changed|updated|increased|decreased|reduced)\b|\byour (?:updated|new) commission (?:rate|terms)\b'),
+    ('approval', r'\b(?:application|request)\b[^\n.!?]{0,180}\b(?:has been|is|was)\s+(?:approved|accepted)\b|\bhas approved your application\b|\byour membership\b[^\n.!?]{0,180}\bis now active\b|\bwelcome to (?:the )?[^\n.!?]{1,120}(?:affiliate|partner) program\b'),
 )
 COMPILED = tuple((kind, re.compile(pattern, re.I)) for kind, pattern in PATTERNS)
 
 
-def detect(subject: str, newest_body: str) -> str | None:
+def detect(subject: str, newest_body: str, *, network_root: str = '') -> str | None:
     # The caller removes quoted history using the canonical parser. Ignore a
     # reply subject: an old "approved" subject must not overrule the new reply.
     headline = '' if re.match(r'^\s*(?:re|fw|fwd)\s*:', subject, re.I) else subject
     text = headline + '\n' + newest_body
-    # Conditional/negated state is not an observed decision.
-    text = re.sub(r'[^\n.!?]*\b(?:if|unless|not yet|not been|not approved|not paused|not cancelled|not canceled|not terminated)\b[^\n.!?]*', '', text, flags=re.I)
+    # Preserve within-name/domain dots (eMed.com), not sentence boundaries.
+    text = re.sub(r'(?<=\w)\.(?=\w)', '\u2024', text)
+    # Conditional/educational/negated state is not an observed decision.
+    text = re.sub(r'[^\n.!?]*\b(?:if|unless|when|example|not yet|not been|not approved|not paused|not cancelled|not canceled|not terminated)\b[^\n.!?]*', '', text, flags=re.I)
     found = {kind for kind, pattern in COMPILED if pattern.search(text)}
+    # Maintained MaxBounty cancellation template: exact network + headline +
+    # advertiser-required expiry with a date/time, never a bare cancellation word.
+    if (network_root == 'maxbounty.com'
+            and re.fullmatch(r'\s*Campaign Cancellation Notice\s*', headline, re.I)
+            and re.search(r'^The advertiser for campaign [^\n!?]{1,180} requires that it expire on \d{2}/\d{2}/\d{4} \d{2}:\d{2}\.?\s*$', text, re.I | re.M)):
+        found.add('cancelled')
     # Conflicting positive/adverse claims require reconciliation, not guessing.
     return next(iter(found)) if len(found) == 1 else None
 
@@ -59,13 +67,19 @@ def stage(ledger: Any, *, event_id: str, mailbox: dict, parsed: dict,
     network = network_for_domain(str(parsed.get('sender_domain') or ''))
     if not network:
         return False
+    # An explicit promotional sender/edition is not a relationship notice.
+    # Do not reject newsletter classification or bulk/unsubscribe headers alone:
+    # networks use those headers for genuine account/program status templates.
+    if (re.match(r'^(?:newsletters?|marketing|marketplace)@', str(parsed.get('sender') or ''), re.I)
+            or re.search(r'\b(?:newsletter|digest|webinar)\b', str(parsed.get('subject') or ''), re.I)):
+        return False
     # Permanent exclusion and suppression/terminal handling remain intact.
     if re.search(r'\bfella(?:\s+health)?\b', str(parsed.get('subject') or '') + '\n' + newest_body, re.I):
         return False
     state = ledger.conn.execute('SELECT state FROM inbox_events WHERE event_id=?', (event_id,)).fetchone()
     if not state or state['state'] in {'quarantined', 'held', 'archived', 'resolved_externally'}:
         return False
-    decision = detect(str(parsed.get('subject') or ''), newest_body)
+    decision = detect(str(parsed.get('subject') or ''), newest_body, network_root=network[0])
     if decision is None:
         return False
     update_id = 'inbox-decision-' + hashlib.sha256(
