@@ -82,7 +82,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
       - name: Rook communication exact-head acceptance (offline, no credentials)

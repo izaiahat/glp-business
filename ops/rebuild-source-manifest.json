@@ -406,7 +406,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ffa863b578380c0b153e71b65d5c6248c4e506e75f92bafda3b79d64354f5788"
+      "sha256": "62cc5889b80e43b7cf5133b7ae2916c72a52867e73c5acb8060ab297a1c1dc84"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -3641,7 +3641,7 @@
     },
     "tests/test_glp76_calendar_workflow_guard.py": {
       "callers": [
-        "scripts/run_tests.sh"
+        ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
       "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
