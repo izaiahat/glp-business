@@ -1,6 +1,111 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    ".github/workflows/glp333-network-access.yml": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "repository_control",
+      "sha256": "12be262e996fa702f7ef9e174197aedc3b2b6fe7bb3561823b024a5f2f324374"
+    },
+    "ops/glp333-network-access-contract.md": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "documentation",
+      "sha256": "2bf22b391c3b61984851b1ef656899c36b13272a373ab2ce5bc87d253a46c270"
+    },
+    "reports/ops/glp333-network-access-contract-20261001/LIVE-READS-predecessor.json": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "documentation",
+      "sha256": "63641d929feed2719f5d0f9aa0323ddcb7381edcd4140ef346cafc41050c20a1"
+    },
+    "reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "documentation",
+      "sha256": "c58e7494768897b10a0fbb03a0061c6487c7706b8d7af43c09356539d1d8baab"
+    },
+    "reports/ops/glp333-network-access-contract-20261001/RESULT.json": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "documentation",
+      "sha256": "e8bf4235014a46e8fb00e7681e63078aa11082fd28cf164cd40dbad0d85cbdbd"
+    },
+    "scripts/affiliate_network_access.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "f0aa82b05fcb451b907709ea05f261e31dac869130597815ed739e799b9265cf"
+    },
+    "scripts/glp_network_revenue_import_v2.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c"
+    },
+    "scripts/impact_api_credentials.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "5b58b1b38ce503970f6f891f312cc9a273e4ea31fbc1267f78d4ceeba7bf8f81"
+    },
+    "scripts/marketplace_adapters/affiliati.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "7d344371305a318965b74fb775c84add9e0091aba57642524255048abb686f5f"
+    },
+    "scripts/marketplace_adapters/cj.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "16eb39ee1d04c3d3e08e38547080273c45ea74f98ee5e916bd1d63cd5a9478db"
+    },
+    "scripts/marketplace_adapters/healthtrader.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "c9d5eda58beddc84d607d84e3b6228dc91980fc943a8ab116282fca9332eeb97"
+    },
+    "scripts/marketplace_adapters/impact.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "0fad97d3513e325fe5d5b074e94df56d28fa90a997f8cae8a6cde0b702e6368b"
+    },
+    "scripts/marketplace_adapters/katalys.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "ad1e794750ba0a3a7c09bfa4651206bf9421d127eed1c5cfa43b0c48aeb67b6f"
+    },
+    "scripts/marketplace_adapters/partnerize.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "script",
+      "sha256": "a86e01d09a41fa3e747c511c197d4c1a06739524a9f3c6842363dc7db156ff6e"
+    },
+    "tests/test_network_access_contract.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "test",
+      "sha256": "a3e0627f86f2a6554a4c0070158ce554df79d8c32639222eb39f839eef20ee25"
+    },
     "tests/test_glp341_weekly_ads_compatibility.py": {
       "callers": [".github/workflows/glp341-weekly-ads-compatibility.yml"],
       "kind": "test",
@@ -268,7 +373,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb"
+      "sha256": "1246ad4ef075a4fc84d438ff1f327fce4cd5c5a1c3a37474be7200b2d95a0adf"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -444,7 +549,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "2f393f863bfb41bb46254b3b7f6544497bb6a9996757ea21f2abfdb1680d26ca"
+      "sha256": "a8f45ca9d26654a02ae7d0d70bd32eb157fbb6639f0e6f4fceb98f5b5c9f8445"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1283,14 +1388,14 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "c8a0503f3e092a162ca027403974235d14e7c800523bde15792de10d2243feb9"
+      "sha256": "d3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "script",
-      "sha256": "ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8"
+      "sha256": "79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
       "callers": [
@@ -2467,7 +2572,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "3156faf2de38e86438462e6a27b49e04992515b8700ab3fd5649f5385db944a8"
+      "sha256": "589fdcdcf9c0266a907a864e6206c0cdc1dbc5347d06c01cbe3aa88bd56b56a0"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
       "callers": [
@@ -2554,7 +2659,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "c2befbbef9c2813e3766949fb6fbbbbcfc918412681bfdf3e04dd4edf91e76d9"
+      "sha256": "0555fc21bdfc5fff3c5a28ee2d41676a32104a6e3a6557b81d67047a213b6f4b"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
@@ -3047,7 +3152,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "6de0a14d3660bd6e17eb7bb9bcac3c55b81f8cfc7eb768a53b371e748440d626"
+      "sha256": "2d0f5f4c22978000a10856bb2c0605362a2d8017a9610cf729f189fd05edb1eb"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3192,5 +3297,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 485
+  "tracked_count": 500
 }

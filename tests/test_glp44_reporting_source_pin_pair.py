@@ -17,9 +17,9 @@ def test_reporting_source_pin_pair_is_coherent():
     assert manifest['schema'] == 'reporting-source-pins-v1'
     host_only = {
         'scripts/glp_network_revenue_import_v2.py': '0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c',
-        'scripts/marketplace_adapters/cj.py': '16eb39ee1d04c3d3e08e38547080273c45ea74f98ee5e916bd1d63cd5a9478db',
     }
-    assert len(manifest['files']) == 8
+    assert len(manifest['files']) == 16
+    assert str(LIVE/'scripts/affiliate_network_access.py') in manifest['files']
     for absolute, expected in manifest['files'].items():
         rel = Path(absolute).relative_to(LIVE)
         if str(rel) in host_only:

@@ -8,11 +8,11 @@ check_source() {
   actual="$(/usr/bin/sha256sum -- "$1")"
   [[ "${actual%% *}" == "$2" ]] || { printf 'K3_REPORTING_SOURCE_DRIFT\n' >&2; exit 66; }
 }
-check_source scripts/glp_affiliate_weekly_reporting_job.py ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8
-check_source ops/glp/reporting-v2/source-manifest.json 34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb
+check_source scripts/glp_affiliate_weekly_reporting_job.py 79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18
+check_source ops/glp/reporting-v2/source-manifest.json 1246ad4ef075a4fc84d438ff1f327fce4cd5c5a1c3a37474be7200b2d95a0adf
 check_source ops/glp/reporting-v2/identity-registry.json 93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271
 check_source reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json 9e0bc9ba3f1910e1f5e540bcbfcaa1c344a27366fbc0209ee55972ef4628a799
-args=(--live-cj-readonly)
+args=(--live-network-readonly)
 if (( $# )); then
   [[ $# == 1 && "$1" == '--dry-run' ]] || exit 64
   args=()
@@ -21,7 +21,7 @@ export PYTHONDONTWRITEBYTECODE=1
 exec /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B \
   /home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py \
   --source-manifest /home/ubuntu/business/ops/glp/reporting-v2/source-manifest.json \
-  --manifest-sha256 34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb \
+  --manifest-sha256 1246ad4ef075a4fc84d438ff1f327fce4cd5c5a1c3a37474be7200b2d95a0adf \
   --roster /home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json \
   --identity-registry /home/ubuntu/business/ops/glp/reporting-v2/identity-registry.json \
   --report-root /home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/weekly-reporting \

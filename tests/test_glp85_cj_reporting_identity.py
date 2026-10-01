@@ -76,6 +76,15 @@ def test_ro_public_offer_reporting_identity_resolves_without_financial_event():
 
 def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     wrapper = (ROOT / 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh').read_bytes()
+    # GLP333 successor: authenticate the three source/mode changes, then undo
+    # only those changes before the unchanged GLP85 historical inverse oracle.
+    source_pin = hashlib.sha256((ROOT/'ops/glp/reporting-v2/source-manifest.json').read_bytes()).hexdigest().encode()
+    job_pin = hashlib.sha256((ROOT/'scripts/glp_affiliate_weekly_reporting_job.py').read_bytes()).hexdigest().encode()
+    assert wrapper.count(source_pin) == 2 and wrapper.count(job_pin) == 1
+    assert wrapper.count(b'args=(--live-network-readonly)') == 1
+    wrapper = wrapper.replace(source_pin,b'34f39b915a78e9ce188777f9c33bd30e9edab147ceba7df26328bae75dba54bb')
+    wrapper = wrapper.replace(job_pin,b'ae7cba876c14fd52594a4827d2c9289e264080bd9d72fb355b4dab64b48e57d8')
+    wrapper = wrapper.replace(b'args=(--live-network-readonly)',b'args=(--live-cj-readonly)')
     prefix = b'check_source ops/glp/reporting-v2/identity-registry.json '
     lines = [line for line in wrapper.splitlines() if line.startswith(prefix)]
     assert len(lines) == 1
