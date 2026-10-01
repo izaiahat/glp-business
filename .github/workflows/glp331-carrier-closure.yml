@@ -1,0 +1,37 @@
+name: glp331-carrier-closure
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  exact-head-native-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Unchanged public native scheduler fixture dependency
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: izaiahat/hermes-agent
+          ref: 07bf28d6446025d3b3b16c758ca4a300ed6db9ba
+          path: native-scheduler
+          persist-credentials: false
+      - name: Isolated runner
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install 'pytest==8.3.5' 'PyYAML==6.0.2' 'croniter==6.0.0'
+      - name: Exact-head, disposable target-specific native CAS and co-pin proof
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          GLP_NATIVE_CHECKOUT: ${{ github.workspace }}/native-scheduler
+          HERMES_SKIP_ENV_FILE: '1'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git -C native-scheduler rev-parse HEAD)" = 07bf28d6446025d3b3b16c758ca4a300ed6db9ba
+          test "$(id -u)" != 0
+          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp331_carrier_closure.py tests/test_fleet_pin_release.py
