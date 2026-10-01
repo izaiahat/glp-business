@@ -194,7 +194,9 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
     """
     id_pattern = r'[1-9][0-9]{0,19}'
     reads = (rf'/channels/{id_pattern}(?:/messages(?:/{id_pattern})?)?(?:\?limit=[0-9]+(?:&before={id_pattern})?)?',
-             rf'/guilds/{GUILD}/emojis/{id_pattern}')
+             rf'/guilds/{GUILD}/emojis/{id_pattern}',
+             # Internal protected-role inspection only, not arbitrary member reads.
+             rf'/guilds/{GUILD}/members/(?:{"|".join(sorted(PROTECTED_MEMBERS))})')
     write = rf'/channels/{id_pattern}/messages(?:/{id_pattern}/threads)?'
     reaction = rf'/channels/{id_pattern}/messages/{id_pattern}/reactions/(?:[A-Za-z0-9_]|%[A-F0-9]{{2}})+/@me'
     if guild_scoped:
@@ -366,6 +368,9 @@ def discord_api_route(method, path, payload):
                 raise RpcError(-32602, 'ProtectedMemberActionDenied')
     elif len(parts) >= 2 and parts[0] == 'channels':
         snowflake(parts[1])
+        if len(parts) == 5 and parts[2] == 'messages' and parts[4] == 'crosspost':
+            # The source guild says nothing about the unenumerable follower destinations.
+            raise RpcError(-32602, 'DiscordPublishDenied')
         if parts[1] in PROTECTED_CHANNELS and (
                 (len(parts) == 2 and (method == 'DELETE' or (method == 'PATCH' and (
                     'permission_overwrites' in payload or {'parent_id', 'lock_permissions'} <= set(payload)))))
@@ -464,6 +469,11 @@ def verify_discord_api_context(method, parts, payload):
             raise RpcError(-32602, 'InvalidBulkDeleteMessages')
     for identity in targets:
         message = permitted_message(channel, identity)
+        flags = message.get('flags', 0)
+        if type(flags) is not int or flags < 0:
+            raise RpcError(-32602, 'DiscordMessageFlagsUnverifiable')
+        if flags & 1:  # CROSSPOSTED: edits/deletions also propagate to following servers.
+            raise RpcError(-32602, 'DiscordPublishDenied')
         if message.get('author', {}).get('id') == BOT:
             raise RpcError(-32602, 'KaelMessageMutationDenied')
 

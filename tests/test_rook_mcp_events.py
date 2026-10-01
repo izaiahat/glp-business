@@ -95,6 +95,88 @@ class TestDiscordAPI:
     def effects(self):
         return [call for call in self.calls if call[3].get('guild_scoped') and call[0] != 'GET']
 
+    @pytest.mark.parametrize('path', [
+        '/channels/201/messages/101/crosspost',
+        '/channels/%32%30%31/messages/%31%30%31/%63rosspost',
+    ])
+    def test_review_crosspost_fanout_denied_before_effect(self, path):
+        self.channels['201']['type'] = 5  # Local source, unknowable following guilds.
+        result = self.call(self.args('POST', path))
+        assert not self.effects()
+        assert result['isError'] and 'DiscordPublishDenied' in result['content'][0]['text']
+        assert not self.calls and not self.app.store.all('operations')
+
+    @pytest.mark.parametrize('action', ['PATCH', 'DELETE', 'bulk-delete'])
+    @pytest.mark.parametrize('published', [True, False])
+    def test_review_published_message_mutation_fanout(self, monkeypatch, action, published):
+        # Published edits/deletes propagate too, even after a channel changes type.
+        peer = self.peer
+        def message_flags(method, path, payload=None, **kwargs):
+            value = peer(method, path, payload, **kwargs)
+            if method == 'GET' and '/messages/' in path and not kwargs.get('guild_scoped'):
+                value['flags'] = 1 if published and path.endswith('/101') else 0
+            return value
+        monkeypatch.setattr(self.m, 'discord_request', message_flags)
+        path = '/channels/201/messages/' + ('bulk-delete' if action == 'bulk-delete' else '101')
+        body = {'messages': ['102', '101']} if action == 'bulk-delete' else {'content': 'edit'}
+        result = self.call(self.args('POST' if action == 'bulk-delete' else action, path, json=body))
+        assert len(self.effects()) == (0 if published else 1)
+        assert result['isError'] == published
+        if published:
+            assert 'DiscordPublishDenied' in result['content'][0]['text']
+
+    @pytest.mark.parametrize('method,body', [('DELETE', {}), ('PATCH', {'permissions': '8'})])
+    @pytest.mark.parametrize('holder', [None, '392067741500309517', '1486880423568211968'])
+    def test_review_protected_role_real_transport(self, monkeypatch, method, body, holder):
+        """Mock HTTP only: both inspection and effects use the actual route validator."""
+        m = self.m
+        sent = []
+        class Connection:
+            def __init__(self, host, address):
+                assert (host, address) == ('discord.com', '8.8.8.8')
+            def request(self, verb, path, body=None, headers=None):
+                sent.append((verb, path, body))
+                assert headers['Authorization'] == 'Bot synthetic-test-only'
+                if verb == 'GET':
+                    identity = path.rsplit('/', 1)[1]
+                    assert identity in m.PROTECTED_MEMBERS
+                    self.value = {'user': {'id': identity}, 'roles': ['702'] if identity == holder else []}
+                else:
+                    assert (verb, path) == (method, f'/api/v10/guilds/{m.GUILD}/roles/702')
+                    self.value = {}
+            def getresponse(self):
+                data = json.dumps(self.value).encode()
+                return type('Response', (), {'status': 200, 'read': lambda _, maximum: data[:maximum]})()
+            def close(self): pass
+        monkeypatch.setattr(m, 'callback_target', lambda *a: ('discord.com', '8.8.8.8', '/'))
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        monkeypatch.setattr(m, 'load_rook_token', lambda: 'synthetic-test-only')
+        monkeypatch.setattr(m, 'discord_request', self.transport)
+        result = self.call(self.args(method, f'/guilds/{m.GUILD}/roles/702', json=body))
+        reads = [path for verb, path, _ in sent if verb == 'GET']
+        writes = [verb for verb, _, _ in sent if verb != 'GET']
+        assert reads  # A mocked allowlist must not hide InvalidDiscordRoute.
+        if holder is None:
+            assert not result['isError'], result
+            assert set(reads) == {f'/api/v10/guilds/{m.GUILD}/members/{identity}' for identity in m.PROTECTED_MEMBERS}
+            assert writes == [method]
+        else:
+            assert result['isError'] and 'ProtectedMemberRoleActionDenied' in result['content'][0]['text']
+            assert not writes
+
+    @pytest.mark.parametrize('method,path', [
+        ('GET', '/guilds/999/members/392067741500309517'),
+        ('GET', '/guilds/1486887661099815126/members/555'),
+        ('GET', '/guilds/1486887661099815126/members/392067741500309517/roles'),
+        ('GET', '/guilds/1486887661099815126/members/392067741500309517?limit=1'),
+        ('PATCH', '/guilds/1486887661099815126/members/392067741500309517'),
+        ('DELETE', '/guilds/1486887661099815126/members/1486880423568211968'),
+    ])
+    def test_review_inspection_transport_stays_narrow(self, monkeypatch, method, path):
+        monkeypatch.setattr(self.m, 'callback_target', lambda *a: pytest.fail('HTTP must not be reached'))
+        with pytest.raises(self.m.RpcError, match='InvalidDiscordRoute'):
+            self.transport(method, path)
+
     @pytest.mark.parametrize('destination', ['202', '203', '999', '204'])
     @pytest.mark.parametrize('kind', ['follower', 'forward', 'parent', 'guild_channel', 'event', 'guild_setting'])
     def test_review_payload_scope(self, destination, kind):
