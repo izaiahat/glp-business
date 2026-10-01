@@ -5,6 +5,7 @@
 !/ops/
 /ops/*
 !/ops/n8n_execution_budget.py
+!/ops/n8n_dt.py
 !/reports/
 /reports/*
 !/scripts/
