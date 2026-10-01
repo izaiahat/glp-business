@@ -287,7 +287,60 @@ def verify_sources(pid, row, policy, run):
     return {'program_id': pid, 'sources': captures, 'assertions': assertions,
             'verified_as_of': min(c['verified_as_of'] for c in captures),
             'finding': policy.get('finding'), 'previous_row': row,
-            'tags_unchanged': {field: row[field] for field in FIELDS}}
+            'tags_unchanged': {field: row[field] for field in FIELDS},
+            **({'claim_qualification': row['claim_qualification']}
+               if row.get('claim_qualification') else {})}
+
+
+def prepare_qualified_source_row(row, pid):
+    """Stage only Eden's exact reviewed closure; retain clocks/tags/bindings."""
+    staged = copy.deepcopy(row)
+    if pid != 'eden-xentraffic-offer-3051':
+        return staged
+    policy = POLICIES[pid]
+    expected = sorted(source['url'] for source in policy['sources'])
+    if row['source_urls'] not in (policy['previous_source_urls'], expected):
+        raise ValueError('qualified_source_membership_changed')
+    qualification = policy['claim_qualification']
+    if 'claim_qualification' in row and row['claim_qualification'] != qualification:
+        raise ValueError('qualified_source_note_changed')
+    for field in FIELDS:
+        tags = sorted(tag for source in policy['sources'] for tag in source['quotes'].get(field, {}))
+        if row[field] != tags:
+            raise ValueError('qualified_source_tags_changed:' + field)
+    staged['source_urls'] = expected
+    staged['claim_qualification'] = qualification
+    return staged
+
+
+def apply_qualified_source_row(row, pid, manifest):
+    """Consume the successful four-source manifest inside the existing CAS writer."""
+    if pid != 'eden-xentraffic-offer-3051':
+        return
+    staged = prepare_qualified_source_row(row, pid)
+    if (manifest.get('claim_qualification') != staged['claim_qualification'] or
+            sorted(s['source_url'] for s in manifest.get('sources', [])) != staged['source_urls'] or
+            manifest.get('tags_unchanged') != {field: row[field] for field in FIELDS}):
+        raise ValueError('qualified_source_manifest_changed')
+    row['source_urls'] = staged['source_urls']
+    row['claim_qualification'] = staged['claim_qualification']
+
+
+def validate_qualified_renderer(registry, ids):
+    """Refuse source adoption until the paired authenticated consumer is present."""
+    if not any(registry['therapeutic_taxonomy']['programs'][pid].get('claim_qualification') for pid in ids):
+        return
+    code = '''import fs from 'node:fs';
+import {taxonomyDigestBasis} from './src/therapeutic-taxonomy.mjs';
+const x=JSON.parse(fs.readFileSync(0,'utf8'));
+for(const id of x.ids) {
+ const row=x.registry.therapeutic_taxonomy.programs[id];
+ if(row.claim_qualification && taxonomyDigestBasis(row).claim_qualification!==row.claim_qualification) throw new Error('qualified_source_renderer_not_installed');
+}'''
+    result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
+        input=json.dumps({'registry':registry,'ids':ids}), text=True, capture_output=True)
+    if result.returncode:
+        raise ValueError('qualified_source_renderer_refused:' + result.stderr[-2400:])
 
 
 def main():
@@ -303,6 +356,7 @@ def main():
         policy = POLICIES[pid]
         try:
             row, correction = prepare_reviewed_correction(before, pid)
+            row = prepare_qualified_source_row(row, pid)
             if policy.get('review_required'):
                 raise ValueError('policy_review_required:' + policy['review_required'])
             if 'sources' in policy:
@@ -362,6 +416,7 @@ def main():
             candidate['therapeutic_taxonomy']['authorities'][authority] = {
                 'path': str(manifest_path.relative_to(BUSINESS)), 'sha256': sha(manifest_path.read_bytes())}
             sources = manifest.get('sources', [manifest])
+            apply_qualified_source_row(row, pid, manifest)
             row['source_urls'] = sorted(set(row['source_urls'] + [s['source_url'] for s in sources]))
             row['verified_as_of'] = manifest['verified_as_of']
             # The prior active bindings remain in the immutable verification
@@ -371,6 +426,7 @@ def main():
                 'verified_as_of': s['verified_as_of'], 'evidence_sha256': s['capture_sha256']} for s in sources]
         if any(manifest.get('reviewed_correction') is not None for manifest, _ in proposals.values()):
             candidate = derive_reviewed_metadata(candidate)
+        validate_qualified_renderer(candidate, list(proposals))
         candidate = validate(candidate, list(proposals))
         if REGISTRY.read_bytes() != original:
             raise ValueError('registry_changed_during_validation')

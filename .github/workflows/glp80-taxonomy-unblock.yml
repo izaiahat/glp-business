@@ -21,5 +21,5 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5'
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_taxonomy_correction.py tests/test_therapeutic_taxonomy_refresh.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_taxonomy_correction.py tests/test_therapeutic_taxonomy_refresh.py tests/test_glp80_eden_policy.py tests/test_glp80_eden_qualified_projection.py
           git diff --exit-code

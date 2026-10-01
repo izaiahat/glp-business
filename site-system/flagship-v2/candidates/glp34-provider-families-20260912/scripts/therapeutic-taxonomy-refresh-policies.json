@@ -111,27 +111,48 @@
         "url": "https://www.eden.health/treatment/glp-1-treatments",
         "quotes": {
           "molecule_tags": {
-            "semaglutide": "Compounded Semaglutide\n\n$99/mo\n\n\\+ Eden Membership\\*",
-            "tirzepatide": "Compounded Tirzepatide\n\n$199/mo\n\n\\+ Eden Membership\\*"
+            "semaglutide": "If prescribed, your plan may include compounded semaglutide or tirzepatide, along with dosing guidance and ongoing support.",
+            "tirzepatide": "If prescribed, your plan may include compounded semaglutide or tirzepatide, along with dosing guidance and ongoing support."
           },
           "treatment_type_tags": {
-            "compounded": "Compounded Semaglutide\n\n$99/mo\n\n\\+ Eden Membership\\*"
+            "compounded": "If prescribed, your plan may include compounded semaglutide or tirzepatide, along with dosing guidance and ongoing support."
           },
           "delivery_form_tags": {
-            "injectable": "### Personalized GLP **‑** 1 Injections\n\n[See if you qualify](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)"
+            "injectable": "## A smoother dose, by design.\n\nEven the needle is considered, with details that help each injection feel softer, steadier, and easier to control.\n\n**Fine-gauge comfort**\n\nA 31-gauge design helps each injection feel small, steady, and controlled.\n\n**Low-friction glide**\n\nLubrication helps reduce drag, so each dose feels smoother going in.\n\n**Clear dose control**\n\nEasy-read markings and a steady grip help you inject with confidence.\n\n![Woman in green workout clothes injecting herself in the abdomen with a syringe.](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a6e2eeb8fc171e8f2957dfc_By%20DesignBackground%20Image.png)\n\n[Start your personalized assessment](https://app.eden.health/intake/weightloss-v2)\n\nSemaglutide & Tirzepatide available now\n\n![Woman in green workout clothes injecting herself in the abdomen with a syringe.](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a6e2eeb8fc171e8f2957dfc_By%20DesignBackground%20Image.png)"
           }
         }
       },
       {
-        "url": "https://www.eden.health/weight-loss",
+        "url": "https://www.eden.health/treatment/mounjaro",
         "quotes": {
           "brand_name_tags": {
-            "mounjaro": "### Mounjaro®\n\n### Personalized GLP-1 Treatments\n\n$1,399/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)",
-            "wegovy": "### Wegovy®\n\n### Personalized GLP-1 Treatments\n\n$1,695/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)",
-            "zepbound": "### Zepbound®\n\n### Personalized GLP-1 Treatments\n\n$1,399/mo\n\n[Get started](https://app.eden.health/intake/weightloss/welcome?coupon=GLP60)"
+            "mounjaro": "# Mounjaro®\n\n$1,399/month\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69c_klarna.png)\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69b_afterpay.png)\n\nFSA/HSA Eligible\n\n[See if you qualify](https://www.tryeden.com/intake/glp1-treatments)"
+          }
+        }
+      },
+      {
+        "url": "https://www.eden.health/treatment/wegovy",
+        "quotes": {
+          "brand_name_tags": {
+            "wegovy": "# Wegovy®\n\n$1,695/month\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69c_klarna.png)\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69b_afterpay.png)\n\nFSA/HSA Eligible\n\n[See if you qualify](https://www.tryeden.com/intake/glp1-treatments)"
+          }
+        }
+      },
+      {
+        "url": "https://www.eden.health/treatment/zepbound",
+        "quotes": {
+          "brand_name_tags": {
+            "zepbound": "# Zepbound®\n\n$1,399/month\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69c_klarna.png)\n\n![](https://cdn.prod.website-files.com/6a0ccac3db38d1a0339ab050/6a0ccac3db38d1a0339ab69b_afterpay.png)\n\nFSA/HSA Eligible\n\n[See if you qualify](https://www.tryeden.com/intake/glp1-treatments)"
           }
         }
       }
+    ],
+    "finding": "Provider-reported conditional advertisements only: Eden advertises compounded semaglutide, compounded tirzepatide, Mounjaro, Wegovy and Zepbound; injectable is provider-level only. Availability depends on a clinician decision and a prescription after online consultation; membership does not guarantee a prescription. Compounded medications are not FDA-approved. No verified stock, actual supply, guaranteed eligibility, brand-specific compound identity or clean clinical identity is accepted. Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified. Public representation is an exact reviewed claim_qualification text carried by the paired glp-site-candidate renderer; no actual supply or clinical indication is accepted.",
+    "claim_qualification": "Reported information: Eden advertises a conditional Zepbound-labelled offering. Its explanatory paragraph names Mounjaro; the medication actually prescribed or supplied has not been verified.",
+    "previous_source_urls": [
+      "https://www.eden.health/policies/terms-of-service",
+      "https://www.eden.health/treatment/glp-1-treatments",
+      "https://www.eden.health/weight-loss"
     ]
   },
   "enhance-md": {
