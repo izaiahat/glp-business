@@ -172,8 +172,10 @@ class ReviewerRoutingTests(unittest.TestCase):
             self.assertIn("agent-evaluation-review", command[command.index("--skills") + 1].split(","))
             for flag in ("--ignore-user-config", "--ignore-rules", "--toolsets", "--safe-mode", "--yolo"):
                 self.assertNotIn(flag, command)
-            for flag in ("--resume", "--continue", "-c", "-r"):
-                self.assertNotIn(flag, command)
+            self.assertNotIn("--resume", command)
+            self.assertEqual(command[command.index("--continue") + 1],
+                             command[command.index("--source") + 1])
+            self.assertIn("--create-if-missing", command)
             path = Path(command[command.index("--query-file") + 1])
             self.assertTrue(path.is_file())
             self.assertEqual(path.read_text(), prompt)
@@ -288,9 +290,10 @@ class ReviewerRoutingTests(unittest.TestCase):
                 self.assertEqual(output.splitlines()[0], ACCEPT)
                 self.assertTrue(output.endswith(suffix))
                 over = bridge._tag_reply(kind, body + "x", identity)
-                self.assertLessEqual(len(over), limit)
-                self.assertNotIn(ACCEPT, over)
-                self.assertIn("no authority decision", over)
+                self.assertEqual(over, body + "x" + suffix)
+                wrapper, raw, digest = bridge._oversize_reply(over, kind)
+                self.assertEqual(raw, (body + "x").encode())
+                self.assertIn(digest, wrapper)
                 self.assertTrue(over.endswith(suffix))
         self.assertEqual(bridge._tag_reply("transport_test", "FABLE_BRIDGE_READY nonce", FABLE).splitlines()[0],
                          "FABLE_BRIDGE_READY nonce")

@@ -1,4 +1,5 @@
 """Offline binding regressions: execute the real browser-use scripts against a strict fake CDP session."""
+import ast
 import importlib.util
 import io
 import json
@@ -18,6 +19,8 @@ spec = importlib.util.spec_from_file_location("relay_binding_test_subject", RELA
 relay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(relay)
 REAL_BU = relay.bu
+REAL_DRIVE_SUBFOLDER = relay.drive_subfolder
+REAL_SUBPROCESS_RUN = subprocess.run
 HOME = "https://chatgpt.com/"
 SIBLING = HOME + "c/11111111-1111-1111-1111-111111111111"
 WANT = HOME + "c/22222222-2222-2222-2222-222222222222"
@@ -56,6 +59,9 @@ class FakeCDP:
         self.composer_delay = 0
         self.first_composer_probe = None
         self.clock = 0
+        self.app_ready_at = 0
+        self.app_samples = []
+        self.app_overrides = {}
         self.on_run = lambda: None
 
     def list_tabs(self):
@@ -112,7 +118,7 @@ class FakeCDP:
             requested = params["url"]
             url = (self.home_redirect if requested == HOME else self.reopen_redirect) or requested
             text = self.history.get(url, "")
-            self.pages[tid] = {"url": url, "text": text, "composer": self.blank_paragraph, "messages": bool(text), "stop": False}
+            self.pages[tid] = {"url": url, "text": text, "composer": self.blank_paragraph, "placeholder": bool(self.blank_paragraph), "messages": bool(text), "stop": False}
             self.created.append((tid, requested))
             return {"targetId": tid}  # deliberately does not change self.active
         if method == "Target.getTargetInfo":
@@ -121,6 +127,7 @@ class FakeCDP:
         page = self.pages[addressed]
         if method == "Input.insertText":
             self.inserts.append((addressed, params["text"]))
+            if page.pop('placeholder', False): page['composer'] = ''
             page["composer"] += params["text"]
             return {}
         if method == 'Input.dispatchMouseEvent':
@@ -132,6 +139,33 @@ class FakeCDP:
                 page["composer"] = ""
             return {}
         raise AssertionError(f"unexpected CDP command: {method}")
+
+    def eval_retained_js(self, expression):
+        page = self.pages[self.active]
+        source = '''const p=JSON.parse(process.argv[1]);let clicks=0;
+            const editor={innerText:p.composer,getClientRects:()=>[1],tagName:'DIV',
+              getAttribute:k=>k==='contenteditable'?'true':null,
+              classList:{contains:c=>c==='ProseMirror'},
+              childNodes:p.composer.split('\\n').map(t=>({nodeType:1,tagName:'P',attributes:[],
+                childNodes:t?[{nodeType:3,data:t}]:[{nodeType:1,tagName:'BR',className:'ProseMirror-trailingBreak',attributes:['class']}]}))};
+            const button={disabled:false,click:()=>clicks++};
+            const model={innerText:p.model||'6 Pro'};
+            const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
+              body:{innerText:p.challenge?'Checking your browser':'ChatGPT'},
+              querySelector:s=>s.includes('prompt-textarea')?editor:
+                s.includes('send-button')?button:null,
+              querySelectorAll:s=>s==='button'?[model]:[],};
+            const performance={timeOrigin:p.origin||12345.5};
+            const getComputedStyle=()=>({display:'block',visibility:'visible'});
+            const result=''' + expression + ''';
+            console.log(JSON.stringify({result,clicks}));'''
+        run = REAL_SUBPROCESS_RUN(['node', '-e', source, json.dumps(page)],
+                                 capture_output=True, text=True, check=True)
+        outcome = json.loads(run.stdout)
+        if outcome['clicks']:
+            # Apply FakeCDP's transition only after the actual guard clicked.
+            self.js("(()=>{const b=document.querySelector('button[data-testid=\\\"send-button\\\"]');if(!b||b.disabled)return false;b.click();return true;})()")
+        return outcome
 
     def js(self, expression):
         page = self.pages[self.active]
@@ -161,21 +195,38 @@ class FakeCDP:
         if expression.startswith("location.href="):
             self.goto_url(json.loads(expression.split("=", 1)[1]))
             return page["url"]
+        if expression.startswith('(()=>{const retainedOrigin='):
+            return self.eval_retained_js(expression)['result']
+        if expression.startswith(('(()=>{const prefix=', '(()=>{const expected=')):
+            # Transport fixture only; NativeComposerTests executes the actual JS
+            # and DOM selection/Input behavior independently.
+            expected, _ = json.JSONDecoder().raw_decode(expression.split('const ', 1)[1].split('=', 1)[1])
+            return ('' if page.get('placeholder') else page['composer']) == expected
         if "const mb=" in expression:
             model = None if self.pro_only_trigger or self.medium_trigger else '6 Pro'
             failure_location = page.get('failure_location', 'activity-header')
             failure_selector = ('main.querySelectorAll' in expression and
                                 ('div[class*="group/activity-header"] span' in expression if failure_location == 'activity-header'
                                  else "span, button')" in expression or "main.querySelectorAll('button')" in expression))
-            return {"url": page["url"], "model": model, "logged_out": False, "rate_limited": False,
+            ready = self.clock >= self.app_ready_at
+            self.app_samples.append((self.active, self.clock))
+            return {"url": page["url"], "model": model if ready else None,
+                    "title": "ChatGPT" if ready else "Just a moment...",
+                    "ready_state": "complete", "composer_present": ready,
+                    "model_trigger": ('Medium' if self.medium_trigger else 'Pro') if ready else None,
+                    "security_interstitial": not ready, "human_challenge": False,
+                    "logged_out": False, "rate_limited": False,
                     "drive_reconnect": False, "stop": page["stop"], "send": True,
                     "thinking_failed": bool(page.get("thinking_failed", False) and failure_selector),
-                    "assistant_count": int(bool(page["text"])), "last_len": len(page["text"])}
+                    "assistant_count": int(bool(page["text"])), "last_len": len(page["text"]),
+                    **self.app_overrides}
         if "user_identity_matched" not in expression and ("div.text-size-chat.whitespace-pre-wrap" in expression or '[data-message-author-role=user]' in expression):
             identity_selector = ('[data-message-author-role=user]' in expression if page.get('identity_location') == 'user-role-only'
                                  else 'div.text-size-chat.whitespace-pre-wrap' in expression or '[data-message-author-role=user]' in expression)
             return bool(identity_selector and page.get("identity_matched", False))
         if 'return b?b.innerText.trim():null' in expression:
+            if self.clock < self.app_ready_at:
+                return None
             return 'Medium' if self.medium_trigger else ('Pro' if self.pro_only_trigger else None)
         if 'r.right-13' in expression:
             return {'x': 1100, 'y': 470} if self.medium_trigger else None
@@ -243,6 +294,7 @@ class FakeCDP:
         clock = types.ModuleType("time")
         clock.sleep = self.sleep
         clock.time = lambda: self.clock
+        clock.monotonic = lambda: self.clock
         env = {"cdp": self.cdp, "js": self.js, "list_tabs": self.list_tabs, "switch_tab": self.switch_tab,
                "current_tab": self.current_tab, "goto_url": self.goto_url, "wait_for_load": lambda: None,
                "activate_tab": lambda tid: None, "close_tab": lambda tid: self.pages.pop(tid)}
@@ -302,6 +354,150 @@ class BindingTests(unittest.TestCase):
         relay.job_write(name, st)
         return st
 
+    def test_drive_folder_timeout_registered_cli_one_shot(self):
+        """Actual submit CLI timeout-after-create, then same-reservation recovery CLI."""
+        import hashlib
+        sha = lambda b: hashlib.sha256(b).hexdigest()
+        job = relay.DRIVE_TIMEOUT_PR60['job']
+        self.cfg['job_classes_allowed'].append('independent-review')
+        d = relay.job_dir(job)
+        prompt = d / 'PROMPT.md'
+        prompt.write_text('# retained prompt\n')
+        (d / 'drive-input').mkdir()
+        files = [d / f'DRIVE-{i:02}.txt' for i in range(27)]
+        for i, p in enumerate(files):
+            p.write_text(f'retained attachment {i}\n')
+        manifest = {'job': job, 'job_class': 'independent-review', 'kind': 'freeform', 'attach': [],
+                    'drive_attach': [str(Path('/home/ubuntu/business/reports/ops/gpt6pro-relay/jobs') / job / p.name)
+                                     for p in files],
+                    **{k: 'fixture-' + k for k in relay.PROVENANCE_FIELDS}}
+        (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+        folder_id = 'retained-folder-id'
+        folder = {'id': folder_id, 'name': job, 'mimeType': 'application/vnd.google-apps.folder'}
+        created = []
+        def listing(**kw):
+            q = kw['q']
+            return types.SimpleNamespace(execute=lambda: {'files':
+                ([folder] if created else []) if "mimeType = 'application/vnd.google-apps.folder'" in q else []})
+        def create(**kw):
+            created.append(kw)
+            return types.SimpleNamespace(execute=lambda: (_ for _ in ()).throw(TimeoutError('after create')))
+        self.svc.files.return_value.list.side_effect = listing
+        self.svc.files.return_value.create.side_effect = create
+        args = ['gpt6pro_relay.py', 'submit', '--job', job, '--account', 'account-a',
+                '--job-class', 'independent-review', '--prompt', str(prompt), '--prompt-on-drive',
+                '--drive-attach', *map(str, files)]
+        cli = ['gpt6pro_relay.py', 'resume-drive-timeout', '--job', job]
+        with mock.patch.object(relay, 'drive_subfolder', wraps=REAL_DRIVE_SUBFOLDER), \
+             mock.patch.object(relay, 'cleanup_tabs', return_value=0), \
+             mock.patch.object(sys, 'argv', args), self.assertRaisesRegex(TimeoutError, 'after create'):
+            relay.main()
+        self.assertEqual(len(created), 1)
+        self.assertEqual(len(self.browser.sent), 0)
+        held = (d / 'JOB.json').read_bytes()
+        message = (d / 'MESSAGE.md').read_bytes()
+        st = json.loads(held)
+        self.assertEqual((st['status'], st['typed'], st['sent'], st['retry_blocked']),
+                         ('submitting', 'UNKNOWN', 'UNKNOWN', True))
+        self.assertEqual(len(relay.ledger_rows(self.cfg)), 1)
+        incident = {'job_sha256': sha(held), 'message_sha256': sha(message),
+                    'reservation_ledger_line': 1, 'submission_bound_count': 0,
+                    'fully_paginated_exact_inbox_query': True,
+                    'drive_inbox_folders': [{'folder_id_sha256': sha(folder_id.encode()),
+                                             'file_count': 0, 'media': []}]}
+        rp = self.root / 'reports/ops/glp96-current-integration-pro-review-20260928'
+        rp.mkdir(parents=True)
+        (rp / 'SUBMISSION-INCIDENT.json').write_text(json.dumps(incident))
+        (rp / '20260928T011108Z-submit.json').write_text(json.dumps(
+            {'returncode': 1, 'stderr': 'TimeoutError in _cmd_submit in drive_subfolder'}))
+        c = {'job': job, 'job_sha256': sha(held), 'message_sha256': sha(message),
+             'manifest_sha256': sha((d / 'MANIFEST.json').read_bytes()),
+             'prompt_sha256': sha(prompt.read_bytes()),
+             'incident_sha256': sha((rp / 'SUBMISSION-INCIDENT.json').read_bytes()),
+             'submit_sha256': sha((rp / '20260928T011108Z-submit.json').read_bytes()),
+             'folder_id_sha256': sha(folder_id.encode()), 'input_sha256': st['input_sha256'],
+             'reservation_ledger_line': 1, 'account': 'account-a'}
+        def call(*extra):
+            with mock.patch.object(sys, 'argv', cli + list(extra)), redirect_stdout(io.StringIO()) as out:
+                return relay.main(), out.getvalue()
+        with mock.patch.object(relay, 'DRIVE_TIMEOUT_PR60', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('no cleanup')), \
+             mock.patch.object(relay, 'drive_subfolder', side_effect=AssertionError('no second folder create')), \
+             mock.patch.object(relay, 'drive_upload', return_value='uploaded') as upload:
+            original_ledger = relay.ledger_path(self.cfg).read_bytes()
+            self.assertIn('WOULD_RESUME_DRIVE_FOLDER', call()[1])
+            self.assertEqual((d / 'JOB.json').read_bytes(), held)
+            self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
+            self.assertEqual(upload.call_count, 0)
+            self.assertEqual(len(self.browser.sent), 0)
+            self.clock += 61  # make pacing eligible before every mutation refusal
+            backup = d / ('JOB.pre-drive-timeout-' + sha(held) + '.json')
+            def refused(label, reason, modify, restore=lambda: None, default=False):
+                with self.subTest(label=label):
+                    modify()
+                    try:
+                        before = relay.ledger_path(self.cfg).read_bytes()
+                        job_before = (d / 'JOB.json').read_bytes()
+                        attempts = ((), ('--authorize-preimage', sha(held))) if default else (('--authorize-preimage', sha(held)),)
+                        for extra in attempts:
+                            with self.assertRaises(SystemExit) as cm:
+                                call(*extra)
+                            self.assertEqual(str(cm.exception), 'DRIVE_RESUME_REFUSED_' + reason)
+                            self.assertEqual((d / 'JOB.json').read_bytes(), job_before)
+                            self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), before)
+                            self.assertFalse(backup.exists())
+                            self.assertEqual(upload.call_count, 0)
+                            self.assertEqual(len(self.browser.sent), 0)
+                    finally:
+                        restore()
+                    self.assertEqual(relay.ledger_path(self.cfg).read_bytes(), original_ledger)
+                    self.assertEqual((d / 'JOB.json').read_bytes(), held)
+            with self.assertRaisesRegex(SystemExit, 'DRIVE_RESUME_REFUSED_AUTHORITY'):
+                call('--authorize-preimage', '0'*64)
+            original_list = self.svc.files.return_value.list.side_effect
+            def duplicate(**kw):
+                if 'mimeType =' in kw['q']:
+                    return types.SimpleNamespace(execute=lambda: {'files': [folder, folder]})
+                return original_list(**kw)
+            refused('duplicate folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', duplicate),
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
+            def nonempty(**kw):
+                if f"'{folder_id}' in parents" in kw['q']:
+                    return types.SimpleNamespace(execute=lambda: {'files': [{'id': 'payload'}]})
+                return original_list(**kw)
+            refused('nonempty folder', 'FOLDER',
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', nonempty),
+                    lambda: setattr(self.svc.files.return_value.list, 'side_effect', original_list))
+            transported_prompt = d / 'drive-input/PROMPT.md'
+            original_transport = transported_prompt.read_bytes()
+            refused('preexisting transport prompt replacement', 'PACKET_OR_RESERVATION',
+                    lambda: transported_prompt.write_bytes(b'# substituted review instructions\n'),
+                    lambda: transported_prompt.write_bytes(original_transport), default=True)
+            refused('packet drift', 'PACKET_OR_RESERVATION',
+                    lambda: files[0].write_text('changed'),
+                    lambda: files[0].write_text('retained attachment 0\n'))
+            refused('send evidence', 'PACKET_OR_RESERVATION',
+                    lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
+                    lambda: relay.ledger_path(self.cfg).write_bytes(original_ledger))
+            refused('changed state', 'STATE_OR_PACKET',
+                    lambda: (d / 'JOB.json').write_bytes(held+b' '),
+                    lambda: (d / 'JOB.json').write_bytes(held))
+            self.assertEqual(call('--authorize-preimage', sha(held))[0], 0)
+            self.assertEqual(upload.call_count, 29)
+            self.assertEqual(len(created), 1)
+            self.assertEqual(len(self.browser.sent), 1)
+            self.assertEqual(self.browser.sent[0][1], message.decode())
+            self.assertEqual((d / 'MESSAGE.md').read_bytes(), message)
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'drive_timeout_resume', 'submission_bound'])
+            self.assertEqual((relay.job_state(job)['typed'], relay.job_state(job)['sent']), (True, True))
+            with self.assertRaises(SystemExit):
+                call('--authorize-preimage', sha(held))
+            self.assertEqual(len(self.browser.sent), 1)
+
     def test_cleanup_reclaims_terminal_chat_tabs_but_preserves_generating_binding(self):
         self.browser.pages['active'] = {"url": WANT, "text": "", "composer": "", "messages": True, "stop": True}
         self.browser.pages['done'] = {"url": SIBLING, "text": "reply", "composer": "", "messages": True, "stop": False}
@@ -336,6 +532,67 @@ class BindingTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             relay.reconcile_no_reply("job")
         self.assertEqual(relay.job_state("job"), before)
+
+    def test_ambiguous_sent_bound_polls_never_navigate_or_release_reservation(self):
+        # Reproduce the incident: virtualized generation has neither assistant
+        # text nor a legacy Stop button. Three polls used to trigger a reload.
+        self.browser.pages['exact'] = {'url': WANT, 'text': '', 'composer': '',
+                                       'messages': True, 'stop': False}
+        original = self.job(tab='exact', sent=True, typed=True,
+                            input_sha256='a'*64, reply_token='b'*64,
+                            dispatcher_profile='default', hermes_session_id='offline',
+                            linear_child='GLP-test', request_id='ambiguous')
+        (relay.JOBS / 'job/MESSAGE.md').write_text(relay._failed_generation_identity(original))
+        relay.ledger_append(self.cfg, {'event': 'submission_bound', 'job': 'job',
+            'account': original['account'], 'conversation_url': WANT,
+            **{key: original[key] for key in relay.PROVENANCE_FIELDS}})
+        events = relay.ledger_rows(self.cfg)
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp, \
+             mock.patch.object(relay, 'read_reply', wraps=relay.read_reply) as reads:
+            for elapsed in (0, 150, 150, 86400):
+                self.clock += elapsed
+                self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+                self.assertEqual(self.browser.navigations, [], 'empty polls must not reload')
+                self.assertEqual(relay.job_state('job')['status'], 'running')
+                self.assertEqual([r['job'] for r in relay.active_registry()], ['job'])
+            self.assertEqual(len(reads.call_args_list), 4)
+            self.assertTrue(all(not c.kwargs.get('reload') for c in reads.call_args_list))
+            self.assertEqual(relay.reconcile_no_reply('job'), 3)
+            before = relay.job_state('job')
+            # A lost/reused bound tab must not turn a read into a new-tab reopen,
+            # including fetch-outbox's initial read of a nonterminal job.
+            for tab_state in ('missing', 'reused'):
+                if tab_state == 'missing':
+                    self.browser.pages.pop('exact')
+                else:
+                    self.browser.pages['exact'] = {**self.browser.pages['sibling']}
+                for entry in ('poll', 'fetch'):
+                    with self.subTest(tab_state=tab_state, entry=entry):
+                        self.clock += 150
+                        with self.assertRaises(SystemExit):
+                            if entry == 'poll':
+                                relay.poll('job', False, 150, 3600)
+                            else:
+                                relay.cmd_fetch_outbox(types.SimpleNamespace(job='job'))
+                        self.assertEqual(relay.job_state('job'), before)
+                        self.assertEqual(self.browser.created, [])
+            self.assertFalse(any(c.args[0] in ('Page.navigate', 'Page.reload', 'Target.createTarget')
+                                 for c in cdp.call_args_list))
+        current = relay.job_state('job')
+        self.assertEqual(current['tab'], original['tab'])
+        self.assertEqual(current['conversation_url'], original['conversation_url'])
+        self.assertTrue(current['sent'])
+        self.assertFalse(current.get('reloaded_once', False))
+        self.assertEqual([r['job'] for r in relay.active_registry()], ['job'])
+        self.assertEqual(relay.ledger_rows(self.cfg), events)
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        relay.close_tab_quiet.assert_not_called()
+        self.svc.files.assert_not_called()
+        self.assertFalse((relay.JOBS / 'job/RESPONSE.md').exists())
+        self.assertFalse((relay.JOBS / 'job/outbox').exists())
 
     def test_thinking_failed_bound_generation_is_terminal_but_ambiguous_controls_are_not(self):
         page = {"url": WANT, "text": "", "composer": "", "messages": True,
@@ -447,6 +704,204 @@ class BindingTests(unittest.TestCase):
         self.assertNotIn("conversation_url", st)
         self.assertEqual(self.browser.inserts, [])
         self.assertEqual(self.browser.sent, [])
+
+    def test_passive_interstitial_clears_after_old_model_deadline_on_same_tab(self):
+        # The real pacing prelude advances the fixture to t=60 before navigation.
+        self.browser.app_ready_at = 100
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp:
+            result = relay.send_message('packet', forbidden=[SIBLING])
+        self.assertNotIn('error', result)
+        self.assertEqual(self.browser.inserts, [('new-1', 'packet')])
+        self.assertEqual(self.browser.sent, [('new-1', 'packet')])
+        self.assertGreaterEqual(self.browser.first_composer_probe, self.browser.app_ready_at)
+        self.assertEqual({tab for tab, _ in self.browser.app_samples}, {'new-1'})
+        self.assertEqual(self.browser.created, [('new-1', 'about:blank')])
+        navigation = [c for c in cdp.call_args_list if c.args[0] in ('Page.navigate', 'Page.reload')]
+        self.assertEqual(len(navigation), 1)
+        self.assertEqual(navigation[0].kwargs, {'session_id': 'session-new-1', 'url': HOME})
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.current_tab_calls, 0)
+
+    def test_human_challenge_preserves_target_without_waiting_or_interaction(self):
+        self.browser.app_overrides = {'human_challenge': True}
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp, \
+             mock.patch.object(self.browser, 'js', wraps=self.browser.js) as js:
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'HUMAN_CHALLENGE')
+        self.assertEqual(result['readiness']['elapsed_s'], 0)
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertIn(result['tab'], self.browser.pages)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertFalse(any(c.args[0].startswith('Input.') for c in cdp.call_args_list))
+        self.assertFalse(any('.click()' in c.args[0] for c in js.call_args_list))
+
+    def test_readiness_timeout_has_bounded_evidence_and_never_retries(self):
+        self.browser.app_ready_at = float('inf')
+        with mock.patch.object(self.browser, 'cdp', wraps=self.browser.cdp) as cdp:
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'SECURITY_INTERSTITIAL')
+        self.assertEqual(result['readiness'], {'elapsed_s': 90, 'observations': 46, 'limit_s': 90})
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertIn(result['tab'], self.browser.pages)
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual([c.args[0] for c in cdp.call_args_list if c.args[0].startswith('Page.')], ['Page.navigate'])
+
+    def test_incomplete_app_is_not_wrong_model(self):
+        self.browser.app_overrides = {'composer_present': False, 'model': '5 Pro'}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'APP_NOT_READY')
+        self.assertEqual(result['readiness']['elapsed_s'], 90)
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_ready_wrong_model_still_refuses_before_input(self):
+        self.browser.app_overrides = {'model': '5 Pro'}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'WRONG_MODEL')
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_readiness_rate_limit_refuses_immediately_even_with_ready_model(self):
+        self.browser.app_overrides = {'rate_limited': True}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'RATE_LIMITED')
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_readiness_logged_out_preserves_unsent_flags(self):
+        self.browser.app_overrides = {'logged_out': True}
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'LOGGED_OUT')
+        self.assertEqual(result['readiness']['observations'], 1)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_readiness_refusal_keeps_registered_reservation_retry_blocked(self):
+        self.browser.app_overrides = {'human_challenge': True}
+        args = self.args()
+        with self.assertRaisesRegex(SystemExit, 'SEND_FAILED HUMAN_CHALLENGE'):
+            relay.cmd_submit(args)
+        st = relay.job_state(args.job)
+        self.assertEqual(st['reason'], 'HUMAN_CHALLENGE')
+        self.assertTrue(st['retry_blocked'])
+        self.assertFalse(st['typed'])
+        self.assertFalse(st['sent'])
+        self.assertIn(st['error']['tab'], self.browser.pages)
+        self.assertNotIn('conversation_url', st)
+        self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)], ['submitted'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        created = list(self.browser.created)
+        with self.assertRaises(SystemExit):
+            relay.cmd_submit(args)
+        self.assertEqual(self.browser.created, created)
+        relay.cleanup_tabs()
+        self.assertIn(st['error']['tab'], self.browser.pages, 'registered cleanup must preserve the challenge')
+
+    def test_readiness_observation_refuses_reused_target_without_new_navigation(self):
+        self.browser.app_ready_at = float('inf')
+        original_sleep = self.browser.sleep
+        def move_target(seconds):
+            original_sleep(seconds)
+            if self.browser.app_samples:
+                self.browser.pages['new-1']['url'] = SIBLING
+        with mock.patch.object(self.browser, 'sleep', side_effect=move_target):
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'conversation_collision')
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual(self.browser.navigations, [])
+
+    def test_readiness_observation_does_not_reopen_lost_target(self):
+        self.browser.app_ready_at = float('inf')
+        original_cdp = self.browser.cdp
+        def lose_target(method, **params):
+            if method == 'Target.getTargetInfo' and self.browser.app_samples:
+                raise RuntimeError('No target with given id')
+            return original_cdp(method, **params)
+        with mock.patch.object(self.browser, 'cdp', side_effect=lose_target):
+            with self.assertRaisesRegex(RuntimeError, 'No target with given id'):
+                relay.send_message('packet')
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertEqual(self.browser.navigations, [])
+
+    def test_late_app_readiness_still_requires_maximum_picker_gate(self):
+        self.browser.app_ready_at = 100
+        self.browser.medium_trigger = True
+        self.browser.slider_works = False
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'WRONG_MODEL')
+        self.assertGreaterEqual(self.browser.clock, 100)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_readiness_checks_deadline_before_accepting_slow_ready_observation(self):
+        original_js = self.browser.js
+        def slow_observation(expression):
+            if expression.lstrip().startswith('(()=>{') and 'const mb=' in expression and 'const here=' not in expression:
+                self.browser.clock += 91
+            return original_js(expression)
+        with mock.patch.object(self.browser, 'js', side_effect=slow_observation):
+            result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'APP_NOT_READY')
+        self.assertEqual(result['readiness']['elapsed_s'], 91)
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+
+    def test_real_state_javascript_distinguishes_passive_and_human_security(self):
+        # Execute the actual probe, not FakeCDP's state dictionary. No browser/network.
+        env = {'js': lambda expression: expression}
+        exec(relay.BU_PRELUDE, env)
+        expression = env['_state']()
+        fixtures = [
+            {'title': 'Just a moment...', 'text': 'Checking your browser', 'human': False, 'passive': True},
+            {'text': 'Verify you are human', 'human': True, 'passive': False},
+            {'text': 'Please complete the security check', 'human': True, 'passive': False},
+            {'frame': 'https://challenges.cloudflare.com/turnstile', 'human': True, 'passive': False},
+            {'frame': 'https://www.google.com/recaptcha/api2/anchor', 'human': True, 'passive': False},
+            {'frame': 'https://hcaptcha.com/challenge', 'human': True, 'passive': False},
+            {'frame': 'https://challenges.cloudflare.com/turnstile', 'hidden': True, 'human': False, 'passive': False},
+            {'frame': 'https://example.test/help', 'human': False, 'passive': False},
+            {'app': True, 'human': False, 'passive': False},
+        ]
+        harness = r'''
+const fixtures = FIXTURES;
+console.log(JSON.stringify(fixtures.map(f => {
+  const node = {innerText:'Medium',src:f.frame||'',title:'',getAttribute:k=>k==='src'?f.frame:null,
+    getClientRects:()=>f.hidden?[]:[{}],style:{},hidden:!!f.hidden};
+  global.getComputedStyle = ()=>({display:f.hidden?'none':'block',visibility:'visible'});
+  global.location = {href:'https://chatgpt.com/'};
+  global.document = {title:f.title||'ChatGPT',readyState:'complete',body:{innerText:f.text||''},
+    querySelector:s=>f.app&&(s.includes('prompt-textarea')||s.includes('Select ChatGPT model'))?node:null,
+    querySelectorAll:s=>s.includes('iframe')&&f.frame?[node]:[]};
+  return PROBE;
+})));
+'''.replace('FIXTURES', json.dumps(fixtures)).replace('PROBE', expression)
+        completed = subprocess.run(['node', '-e', harness], capture_output=True, text=True, check=True)
+        for fixture, state in zip(fixtures, json.loads(completed.stdout)):
+            with self.subTest(fixture=fixture):
+                self.assertEqual(state['human_challenge'], fixture['human'])
+                self.assertEqual(state['security_interstitial'], fixture['passive'])
+                self.assertEqual(state['composer_present'], fixture.get('app', False))
+                self.assertEqual(state['model_trigger'], 'Medium' if fixture.get('app') else None)
 
     def test_current_tab_is_not_the_created_target(self):
         result = relay.send_message("packet", forbidden=[SIBLING])
@@ -732,6 +1187,908 @@ class BindingTests(unittest.TestCase):
         (self.root / report).parent.mkdir(parents=True, exist_ok=True)
         (self.root / report).write_text(json.dumps({'jobs': [{'job_id': job, **row}]}))
         return d, state, report
+
+    def test_security_readiness_reconciliation_retains_exact_unsent_tab(self):
+        """Real registered caller + browser script; fixture-only apply, never live."""
+        import copy
+        import hashlib
+        job = 'fixture-security-readiness'
+        d = relay.job_dir(job)
+        state = {'job': job, 'account': 'account-a', 'status': 'failed',
+                 'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+                 'typed': False, 'sent': False, 'input_sha256': 'a' * 64,
+                 'reply_token': 'b' * 64,
+                 **{key: 'fixture-' + key for key in relay.PROVENANCE_FIELDS},
+                 'error': {'error': 'SECURITY_INTERSTITIAL', 'typed': False, 'sent': False,
+                           'tab': 'retained', 'state': {'url': HOME, 'model': None,
+                           'assistant_count': 0, 'last_len': 0, 'security_interstitial': True,
+                           'human_challenge': False, 'logged_out': False, 'rate_limited': False,
+                           'stop': False, 'drive_reconnect': False, 'thinking_failed': False,
+                           'composer_present': False}}}
+        relay.job_write(job, state)
+        message = ('RELAY_IDENTITY job=' + job + ' input_sha256=' + state['input_sha256'] +
+                   ' reply_token=' + state['reply_token']).encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        row = {'event': 'submitted', 'job': job, 'account': 'account-a',
+               'kind': 'initial', 'certainty': 'reserved_may_send',
+               **{key: state[key] for key in relay.PROVENANCE_FIELDS}}
+        relay.ledger_append(self.cfg, row)
+        ledger = relay.ledger_path(self.cfg)
+        ledger_preimage = ledger.read_bytes()
+        preimage = (d / 'JOB.json').read_bytes()
+        digest = lambda raw: hashlib.sha256(raw).hexdigest()
+        report = 'reports/readiness.json'
+        receipt = {'job': job, 'reason': 'SECURITY_INTERSTITIAL', 'submission_bound': False,
+                   'typed': False, 'sent': False, 'error_tab': 'retained',
+                   'job_sha256': digest(preimage), 'message_sha256': digest(message),
+                   'ledger_rows_sha256': digest(json.dumps(relay.ledger_rows(self.cfg),
+                        sort_keys=True, separators=(',', ':')).encode()),
+                   'time_origin': 12345.5}
+        (self.root / report).parent.mkdir(parents=True, exist_ok=True)
+        (self.root / report).write_text(json.dumps({'jobs': [receipt]}))
+        self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',
+                                          'messages': False, 'stop': False}
+        old_js = self.browser.js
+        extra = {'url': HOME, 'time_origin': 12345.5, 'composer_empty': True,
+                 'user_count': 0}
+        expressions = set()
+        def probe(expression):
+            if expression.startswith('(()=>{const e=') and 'time_origin' in expression:
+                expressions.add(expression)
+                return dict(extra)
+            return old_js(expression)
+        self.browser.js = probe
+        def snapshot():
+            return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in self.root.rglob('*') if p.is_file() and '.lock' not in p.name}
+        with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('retained tab must survive')):
+            before = snapshot()
+            output = io.StringIO()
+            with redirect_stdout(output), mock.patch.object(sys, 'argv',
+                    ['gpt6pro_relay.py', 'reconcile-unsent-model', '--job', job, '--report', report]):
+                self.assertEqual(relay.main(), 0)
+            self.assertIn('WOULD_RECONCILE_UNSENT_READINESS', output.getvalue())
+            self.assertEqual(snapshot(), before)
+            self.assertIn('require-held', admission.call_args.args[0])
+            # Each refusal is evaluated through the registered method in both modes.
+            mutations = [
+                ('typed', lambda s: s.update(typed=True)),
+                ('sent', lambda s: s.update(sent=True)),
+                ('unknown', lambda s: s.update(typed='UNKNOWN')),
+                ('bound', lambda s: s.update(conversation_url=WANT)),
+                ('error-typed', lambda s: s['error'].update(typed=True)),
+                ('error-sent', lambda s: s['error'].update(sent=True)),
+                ('human-original', lambda s: s['error']['state'].update(human_challenge=True)),
+                ('login-original', lambda s: s['error']['state'].update(logged_out=True)),
+                ('rate-original', lambda s: s['error']['state'].update(rate_limited=True)),
+                ('wrong-reason', lambda s: s.update(reason='APP_NOT_READY')),
+                ('error-reason', lambda s: s['error'].update(error='HUMAN_CHALLENGE')),
+                ('target', lambda s: s['error'].update(tab='sibling')),
+            ]
+            for name, mutate in mutations:
+                with self.subTest(guard=name):
+                    changed = copy.deepcopy(state); mutate(changed)
+                    (d / 'JOB.json').write_text(json.dumps(changed))
+                    for apply in (False, True):
+                        prior = snapshot()
+                        with self.assertRaises(SystemExit):
+                            relay.reconcile_unsent_model(job, apply=apply, report=report)
+                        self.assertEqual(snapshot(), prior)
+                    (d / 'JOB.json').write_bytes(preimage)
+            before = snapshot()  # reset mtime baseline after our fixture mutations
+            for key, value in [('security_interstitial', True), ('human_challenge', True),
+                               ('logged_out', True), ('rate_limited', True), ('stop', True),
+                               ('composer_present', False), ('assistant_count', 1),
+                               ('ready_state', 'loading')]:
+                with self.subTest(current_page=key):
+                    self.browser.app_overrides[key] = value
+                    for apply in (False, True):
+                        with self.assertRaisesRegex(SystemExit, 'READINESS_RECONCILE_REFUSED_TAB_EVIDENCE'):
+                            relay.reconcile_unsent_model(job, apply=apply, report=report)
+                    self.browser.app_overrides.clear()
+                    self.assertEqual(snapshot(), before)
+            for key, value in [('composer_empty', False), ('user_count', 1),
+                               ('time_origin', 999), ('url', WANT)]:
+                saved = extra[key]; extra[key] = value
+                with self.subTest(extra=key), self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                    relay.reconcile_unsent_model(job, report=report)
+                extra[key] = saved
+            self.browser.pages['retained']['url'] = WANT
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            retained = self.browser.pages.pop('retained')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            retained['url'] = HOME; self.browser.pages['retained'] = retained
+            self.browser.active = 'sibling'
+            self.browser.wrong_switch = True
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_TAB_EVIDENCE'):
+                relay.reconcile_unsent_model(job, report=report)
+            self.browser.wrong_switch = False
+            live.return_value = {job}
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_LIVE_RUNNER'):
+                relay.reconcile_unsent_model(job, report=report)
+            live.return_value = set()
+            admission.return_value.returncode = 1
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_ADMISSION'):
+                relay.reconcile_unsent_model(job, report=report)
+            admission.return_value.returncode = 0
+            for key, value in [('job_sha256', '0' * 64), ('message_sha256', '0' * 64),
+                               ('ledger_rows_sha256', '0' * 64), ('error_tab', 'other'),
+                               ('submission_bound', True), ('typed', True), ('sent', True)]:
+                bad = {**receipt, key: value}
+                (self.root / report).write_text(json.dumps({'jobs': [bad]}))
+                with self.subTest(report=key), self.assertRaisesRegex(SystemExit, 'REFUSED_REPORT'):
+                    relay.reconcile_unsent_model(job, report=report)
+            (self.root / report).write_text(json.dumps({'jobs': [receipt]}))
+            relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'})
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_LEDGER'):
+                relay.reconcile_unsent_model(job, report=report)
+            ledger.write_bytes(ledger_preimage)
+            # Late drift in the real browser read refuses before any backup/write.
+            self.browser.on_run = lambda: (d / 'MESSAGE.md').write_bytes(b'moved')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_STATE_DRIFT'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            self.browser.on_run = lambda: None
+            (d / 'MESSAGE.md').write_bytes(message)
+            backup = d / ('JOB.pre-readiness-reconcile-' + digest(preimage) + '.json')
+            backup.write_bytes(b'conflict')
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_BACKUP_CONFLICT'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            backup.unlink()
+            self.assertEqual(relay.reconcile_unsent_model(job, apply=True, report=report), 0)
+            self.assertEqual(backup.read_bytes(), preimage)
+            updated = relay.job_state(job)
+            self.assertEqual(updated['reason'], state['reason'])
+            self.assertEqual(updated['error'], state['error'])
+            self.assertIs(updated['retry_blocked'], True)  # reconciliation is not replay permission
+            self.assertEqual((d / 'MESSAGE.md').read_bytes(), message)
+            self.assertIn('retained', self.browser.pages)
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_STATE'):
+                relay.reconcile_unsent_model(job, apply=True, report=report)
+            events = relay.ledger_rows(self.cfg)
+            self.assertEqual([(r['event'], r.get('phase')) for r in events],
+                             [('submitted', None), ('readiness_unsent_reconcile', 'STARTED'),
+                              ('readiness_unsent_reconcile', 'APPLIED')])
+            self.assertFalse(self.browser.created or self.browser.inserts or self.browser.sent or self.browser.navigations)
+        # Execute the actual new DOM expression, not a rewritten Python oracle.
+        self.assertEqual(len(expressions), 1)
+        expression = expressions.pop()
+        for primary, fallback, text, users, empty in [
+                (True, False, '', 0, True), (False, True, ' \n', 0, False),
+                (True, False, 'draft', 0, False), (False, False, '', 0, False),
+                (True, False, '', 1, True), (False, True, '', 0, True)]:
+            # Exact logical DOM contract, not the obsolete innerText-only stub.
+            setup = ('const location={href:' + json.dumps(HOME) + '};'
+                     'const performance={timeOrigin:12345.5};const text=' + json.dumps(text) + ';'
+                     'const attrs=text?{}:{"data-empty-paragraph":"true","data-placeholder":"Ask ChatGPT","class":"placeholder"};'
+                     'const p={nodeType:1,tagName:"P",attributes:Object.keys(attrs),getAttribute:k=>attrs[k]??null,'
+                     'hasAttribute:k=>k in attrs,childNodes:text?[{nodeType:3,data:text}]:[{nodeType:1,tagName:"BR",className:"ProseMirror-trailingBreak",attributes:["class"]}]};'
+                     'const e={tagName:"DIV",getAttribute:k=>k==="contenteditable"?"true":null,'
+                     'classList:{contains:k=>k==="ProseMirror"},childNodes:[p]};'
+                     'const document={querySelector:s=>s==="#prompt-textarea"?'
+                     + ('e' if primary else 'null') + ':' + ('e' if fallback else 'null') + ','
+                     'querySelectorAll:s=>Array(' + str(users) + ').fill({})};')
+            result = subprocess.run(['node', '-e', setup + 'console.log(JSON.stringify(' + expression + '))'],
+                                    capture_output=True, text=True, check=True)
+            self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
+                             'composer_empty': empty, 'user_count': users})
+
+    def test_pr52_terminal_unsent_actual_cli(self):
+        """Exact obsolete preinsert job: no replay; only different-ID admission."""
+        import copy
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        job = 'pro-glp318-pr52-44f52bba-integration-review-20260927'
+        tab, origin = 'D3DD42837C1937487F27C4C6870EF9D9', 1790488400308.6
+        d = relay.job_dir(job)
+        prompt = b'original obsolete PR52 fixture'
+        (d / 'PROMPT.md').write_bytes(prompt)
+        (d / 'drive-input').mkdir()
+        (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+        original = {'job': job, 'account': 'account-a', 'job_class': 'review',
+                    'status': 'failed', 'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+                    'typed': False, 'sent': False, 'reply_token': 'b'*64,
+                    'input_sha256': sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode()),
+                    **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS},
+                    'error': {'error': 'SECURITY_INTERSTITIAL', 'tab': tab, 'typed': False, 'sent': False}}
+        original_bytes = json.dumps(original).encode()
+        old_backup = d / ('JOB.pre-retained-resume-' + sha(original_bytes) + '.json')
+        old_backup.write_bytes(original_bytes)
+        message = relay._failed_generation_identity(original).encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        manifest = {k: original[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+        manifest.update(attach=[], drive_attach=[])
+        (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+        attempt = {'job': job, 'account': 'account-a', 'preimage_sha256': sha(original_bytes),
+                   'message_sha256': sha(message), 'report_sha256': 'e'*64,
+                   'retained_tab': tab, 'attempt_at': '2026-09-27T12:50:55+00:00'}
+        held = {**original, 'reason': 'RETAINED_RESUME_UNCERTAIN', 'resume_attempt': attempt,
+                'resume_error': {'error': 'composer_not_empty', 'typed': False, 'sent': False, 'tab': tab}}
+        relay.job_write(job, held)
+        held_bytes = (d / 'JOB.json').read_bytes()
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'job': job, 'account': 'account-a',
+            'kind': 'initial', 'certainty': 'reserved_may_send',
+            **{k: original[k] for k in relay.PROVENANCE_FIELDS}})
+        relay.ledger_append(self.cfg, {'event': 'retained_resume', 'phase': 'STARTED', **attempt})
+        ledger = relay.ledger_path(self.cfg)
+        ledger_bytes = ledger.read_bytes()
+        c = {'job': job, 'held': sha(held_bytes), 'backup': sha(original_bytes),
+             'message': sha(message), 'manifest': sha((d / 'MANIFEST.json').read_bytes()),
+             'drive_prompt': sha(prompt), 'ledger_lines': tuple(map(sha, ledger_bytes.splitlines())),
+             'tab': tab, 'time_origin': origin}
+        report = 'reports/terminal-facts.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        row = {'job': job, 'disposition': 'terminal_unsent_obsolete', 'reason': held['reason'],
+               'submission_bound': False, 'typed': False, 'sent': False,
+               'job_sha256': c['held'], 'message_sha256': c['message'], 'error_tab': tab,
+               'time_origin': origin, 'ledger_rows_sha256': sha(json.dumps(relay.ledger_rows(self.cfg),
+                    sort_keys=True, separators=(',', ':')).encode())}
+        rp.write_text(json.dumps({'jobs': [row]}))
+        report_bytes = rp.read_bytes()
+        self.browser.pages[tab] = {'url': HOME, 'composer': '', 'text': '', 'messages': False,
+                                   'stop': False, 'origin': origin}
+        real_js = self.browser.js
+        def probe(expr):
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                p = self.browser.pages[tab]
+                return {'url': p['url'], 'time_origin': p['origin'],
+                        'composer_empty': p['composer'] == '', 'user_count': int(p['messages'])}
+            return real_js(expr)
+        self.browser.js = probe
+        def call(*extra):
+            with mock.patch.object(sys, 'argv', ['gpt6pro_relay.py', 'reconcile-unsent-model',
+                    '--job', job, '--report', report, *extra]), redirect_stdout(io.StringIO()) as out:
+                return relay.main(), out.getvalue()
+        def submit(identity):
+            with mock.patch.object(sys, 'argv', ['gpt6pro_relay.py', 'submit', '--job', identity,
+                    '--account', 'account-a', '--job-class', 'review', '--prompt', str(d / 'PROMPT.md'),
+                    *[arg for k in relay.PROVENANCE_FIELDS for arg in ('--'+k.replace('_', '-'), 'fixture')]]):
+                return relay.main()
+        def snapshot():
+            return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in self.root.rglob('*') if p.is_file()}
+        # Pre-existing lockfiles let default proof demonstrate zero writes including mtimes.
+        with relay.account_lock(), relay.global_lock():
+            pass
+        with mock.patch.object(relay, 'TERMINAL_UNSENT_PR52', c, create=True), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            before = snapshot()
+            code, text = call()
+            self.assertEqual(code, 0)
+            self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
+            self.assertEqual(snapshot(), before)
+            self.assertIn('require-held', admission.call_args.args[0])
+            self.assertEqual([r['job'] for r in relay.active_registry()], [job])
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'):
+                submit(job)
+            with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+                submit('distinct-future-review')
+            self.cfg['envelope']['max_concurrent_chats_per_account'] = 1
+            with self.assertRaisesRegex(SystemExit, 'CAPACITY_ACCOUNT'):
+                relay.admit('distinct-future-review', self.cfg['accounts'][0], self.cfg, {})
+            def refused(label, action=lambda: None, restore=lambda: None, args=None):
+                with self.subTest(guard=label):
+                    action()
+                    pre = snapshot()
+                    with self.assertRaises(SystemExit):
+                        call(*(args if args is not None else ('--apply', '--authorize-preimage', c['held'])))
+                    self.assertEqual(snapshot(), pre)
+                    restore()
+            refused('apply needs authority', args=['--apply'])
+            refused('authority needs apply', args=['--authorize-preimage', c['held']])
+            refused('old authority', args=['--apply', '--authorize-preimage', c['backup']])
+            for key, value in [('typed', True), ('sent', 'UNKNOWN'), ('reason', 'OTHER'),
+                               ('conversation_url', WANT), ('terminal_unsent', {'verified': True}),
+                               ('preinsert_cancel', {'terminal': True, 'verified': True})]:
+                refused(key, lambda k=key,v=value: relay.job_write(job, {**held,k:v}),
+                        lambda: (d / 'JOB.json').write_bytes(held_bytes))
+            for p in (old_backup, d / 'MESSAGE.md', d / 'PROMPT.md', d / 'MANIFEST.json'):
+                saved = p.read_bytes()
+                refused('custody '+p.name, lambda p=p: p.write_bytes(b'drift'),
+                        lambda p=p,saved=saved: p.write_bytes(saved))
+            refused('report', lambda: rp.write_text(json.dumps({'jobs': [{**row, 'sent': 'UNKNOWN'}]})),
+                    lambda: rp.write_bytes(report_bytes))
+            for name in ('RESPONSE.md', 'outbox'):
+                p = d / name
+                refused(name, lambda p=p: p.write_bytes(b'output'), lambda p=p: p.unlink())
+            refused('bound ledger', lambda: ledger.write_bytes(ledger_bytes + json.dumps(
+                {'job':job,'event':'submission_bound'}).encode()+b'\n'), lambda: ledger.write_bytes(ledger_bytes))
+            refused('malformed ledger', lambda: ledger.write_bytes(ledger_bytes+b'{\n'),
+                    lambda: ledger.write_bytes(ledger_bytes))
+            refused('live runner', lambda: setattr(live,'return_value',{job}),
+                    lambda: setattr(live,'return_value',set()))
+            refused('heavy not held', lambda: setattr(admission.return_value,'returncode',1),
+                    lambda: setattr(admission.return_value,'returncode',0))
+            page = copy.deepcopy(self.browser.pages[tab])
+            refused('absent target', lambda: self.browser.pages.pop(tab),
+                    lambda: self.browser.pages.__setitem__(tab,dict(page)))
+            for key,value in [('composer','draft'), ('composer',' \n'), ('url',WANT),
+                              ('origin',999), ('text','output'), ('messages',True), ('stop',True)]:
+                refused('target '+key, lambda k=key,v=value: self.browser.pages[tab].update({k:v}),
+                        lambda: self.browser.pages.__setitem__(tab,dict(page)))
+            refused('human challenge', lambda: self.browser.app_overrides.update(human_challenge=True),
+                    self.browser.app_overrides.clear)
+            # Recheck after the exact target observation: late output must not terminalize.
+            self.browser.on_run = lambda: (d / 'RESPONSE.md').write_bytes(b'late')
+            with self.assertRaises(SystemExit):
+                call('--apply', '--authorize-preimage', c['held'])
+            self.browser.on_run = lambda: None
+            (d / 'RESPONSE.md').unlink()
+            self.assertEqual((d / 'JOB.json').read_bytes(), held_bytes)
+            self.assertEqual(ledger.read_bytes(), ledger_bytes)
+            self.assertEqual(call('--apply', '--authorize-preimage', c['held'])[0], 0)
+            terminal = relay.job_state(job)
+            self.assertEqual({k:v for k,v in terminal.items() if k != 'terminal_unsent'}, held)
+            self.assertIs(terminal['retry_blocked'], True)
+            backup = d / ('JOB.pre-terminal-unsent-' + c['held'] + '.json')
+            self.assertEqual(backup.read_bytes(), held_bytes)
+            self.assertEqual(old_backup.read_bytes(), original_bytes)
+            self.assertEqual((d / 'MESSAGE.md').read_bytes(), message)
+            self.assertTrue(ledger.read_bytes().startswith(ledger_bytes))
+            self.assertEqual([(r['event'],r.get('phase')) for r in relay.ledger_rows(self.cfg)],
+                [('submitted',None),('retained_resume','STARTED'),
+                 ('terminal_unsent','STARTED'),('terminal_unsent','APPLIED')])
+            self.assertEqual(relay.active_registry(), [])
+            for args in ((), ('--apply','--authorize-preimage',c['held'])):
+                with self.assertRaises(SystemExit):
+                    call(*args)
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'):
+                submit(job)
+            # A dict flag, interrupted journal, or changed proof can never release capacity.
+            applied_ledger = ledger.read_bytes()
+            ledger.write_bytes(b'\n'.join(applied_ledger.splitlines()[:-1])+b'\n')
+            self.assertEqual(len(relay.active_registry()), 1)
+            with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+                submit('distinct-future-review')
+            ledger.write_bytes(applied_ledger)
+            backup.write_bytes(b'drift')
+            self.assertEqual(len(relay.active_registry()), 1)
+            backup.write_bytes(held_bytes)
+            other = {**held, 'job': relay.CONSUMED_CANARY['job'], 'typed': True, 'sent': 'UNKNOWN',
+                     'terminal_unsent': terminal['terminal_unsent'], 'preinsert_cancel': {'verified': True}}
+            relay.job_write(other['job'], other)
+            self.assertEqual([r['job'] for r in relay.active_registry()], [other['job']])
+            with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+                submit('distinct-future-review')
+            (relay.JOBS / other['job'] / 'JOB.json').unlink()  # fixture-only unrelated row
+            # Stop after real registered admission, before its cleanup/Drive/sender.
+            class AdmissionReached(BaseException):
+                pass
+            held_snapshot = {str(p):p.read_bytes() for p in d.rglob('*') if p.is_file()}
+            with mock.patch.object(relay, 'cleanup_tabs', side_effect=AdmissionReached):
+                with self.assertRaises(AdmissionReached):
+                    submit('distinct-future-review')
+            self.assertEqual(relay.job_state('distinct-future-review')['status'], 'submitting')
+            self.assertEqual([r['job'] for r in relay.active_registry()], ['distinct-future-review'])
+            self.assertEqual({str(p):p.read_bytes() for p in d.rglob('*') if p.is_file()}, held_snapshot)
+        # Real cleanup caller on FakeCDP still protects the original retained tab.
+        self.assertEqual(relay.cleanup_tabs(), 1)
+        self.assertIn(tab, self.browser.pages)
+        self.assertEqual(self.browser.created + self.browser.navigations + self.browser.inserts + self.browser.sent, [])
+
+    def test_terminal_admission_rejects_changed_current_job_identity(self):
+        """Actual submit must refuse raw identity drift even with spare capacity."""
+        # Reuse only the accepted synthetic setup, not its 29-negative matrix.
+        # Keep that prior regression byte-identical, as in the reviewer's probe.
+        source = Path(__file__).read_text()
+        method = next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.FunctionDef)
+                      and n.name == 'test_pr52_terminal_unsent_actual_cli')
+        prefix = []
+        for node in method.body:
+            if isinstance(node, ast.With) and "'TERMINAL_UNSENT_PR52'" in (ast.get_source_segment(source, node) or ''):
+                break
+            prefix.append(node)
+        else:
+            self.fail('terminal fixture setup boundary missing')
+        ns = {**globals(), 'self': self}
+        exec(compile(ast.Module(body=prefix, type_ignores=[]), __file__, 'exec'), ns, ns)
+        c, job, call, submit, snapshot = [ns[k] for k in ('c', 'job', 'call', 'submit', 'snapshot')]
+        with mock.patch('socket.socket.connect', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch('socket.create_connection', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(relay, 'TERMINAL_UNSENT_PR52', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            self.assertEqual(call('--apply', '--authorize-preimage', c['held'])[0], 0)
+            terminal = relay.job_state(job)
+            self.assertTrue(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(relay.active_registry(), [])
+            self.assertEqual(self.cfg['envelope']['max_concurrent_chats_per_account'], 3)
+            # Mutate exactly the stored identity; all packet/proof/journal bytes survive.
+            relay.job_write(job, {**terminal, 'job': 'changed-current-job-identity'})
+            actual = relay.job_state(job)
+            self.assertFalse(relay._verified_terminal_unsent(actual))
+            self.assertEqual([r['job'] for r in relay.active_registry()], [job])
+            before = snapshot()
+            with mock.patch.object(relay, 'admit', wraps=relay.admit) as admit, \
+                 mock.patch.object(relay, 'job_write', wraps=relay.job_write) as write, \
+                 mock.patch.object(relay, 'ledger_append', wraps=relay.ledger_append) as append:
+                with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+                    submit('distinct-future-review')
+                admit.assert_not_called()
+                write.assert_not_called()
+                append.assert_not_called()
+            self.assertEqual(snapshot(), before)  # includes MESSAGE/ledger/reservation clocks
+            self.assertFalse((relay.JOBS / 'distinct-future-review' / 'JOB.json').exists())
+            self.assertFalse((relay.JOBS / 'distinct-future-review' / 'MESSAGE.md').exists())
+            self.assertFalse(relay._verified_terminal_unsent(
+                relay.sibling_bindings('account-a', 'distinct-future-review')[0]))
+            # Valid raw-record control reaches the real admission, before any effect.
+            relay.job_write(job, terminal)
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'):
+                submit(job)
+            class AdmissionReached(BaseException):
+                pass
+            with mock.patch.object(relay, 'cleanup_tabs', side_effect=AdmissionReached):
+                with self.assertRaises(AdmissionReached):
+                    submit('distinct-future-review')
+            self.assertEqual(relay.job_state('distinct-future-review')['status'], 'submitting')
+            self.assertEqual([r['job'] for r in relay.active_registry()], ['distinct-future-review'])
+            self.assertEqual(relay.job_state(job), terminal)
+            self.assertEqual(self.browser.created + self.browser.navigations + self.browser.inserts + self.browser.sent, [])
+
+    def test_consumed_canary_forward_recovery_actual_cli(self):
+        """Source-only fixture: same registered CLI, real emitted sender, no live files."""
+        import hashlib
+        sha = lambda data: hashlib.sha256(data).hexdigest()
+        job = relay.CONSUMED_CANARY['job']
+        d = relay.job_dir(job)
+        tab = relay.CONSUMED_CANARY['tab']
+        origin = relay.CONSUMED_CANARY['time_origin']
+        prompt = b'original six-PR prompt fixture'
+        (d / 'PROMPT.md').write_bytes(prompt)
+        (d / 'drive-input').mkdir()
+        (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+        packet_sha = sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode())
+        original = {'job': job, 'account': 'account-a', 'job_class': 'review',
+                    'status': 'failed', 'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+                    'typed': False, 'sent': False, 'input_sha256': packet_sha,
+                    'reply_token': 'b'*64, **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS}}
+        original['error'] = {'error': 'SECURITY_INTERSTITIAL', 'tab': tab,
+                             'typed': False, 'sent': False}
+        original_bytes = (json.dumps(original, sort_keys=True) + '\n').encode()
+        (d / ('JOB.pre-retained-resume-' + sha(original_bytes) + '.json')).write_bytes(original_bytes)
+        message = (relay._failed_generation_identity(original) + '\noriginal packet').encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        manifest = {k: original[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+        manifest.update(attach=[], drive_attach=[])
+        manifest_bytes = json.dumps(manifest).encode()
+        (d / 'MANIFEST.json').write_bytes(manifest_bytes)
+        old_attempt = {'job': job, 'account': 'account-a', 'preimage_sha256': sha(original_bytes),
+                       'message_sha256': sha(message), 'report_sha256': 'e'*64,
+                       'retained_tab': tab, 'attempt_at': '2026-09-27T09:51:20+00:00'}
+        held = {**original, 'status': 'failed', 'reason': 'RETAINED_RESUME_UNCERTAIN',
+                'resume_attempt': old_attempt,
+                'resume_error': {'error': 'page_evaluation_failed', 'typed': False,
+                                 'sent': False, 'tab': tab}}
+        relay.job_write(job, held)
+        held_bytes = (d / 'JOB.json').read_bytes()
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+            'certainty': 'reserved_may_send', 'job': job, 'account': 'account-a',
+            **{k: original[k] for k in relay.PROVENANCE_FIELDS}})
+        relay.ledger_append(self.cfg, {'event': 'retained_resume', 'phase': 'STARTED', **old_attempt})
+        ledger = relay.ledger_path(self.cfg)
+        ledger_bytes = ledger.read_bytes()
+        lines = ledger_bytes.splitlines()
+        rows = relay.ledger_rows(self.cfg)
+        report = 'reports/current-canary.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        witness = {'url': HOME, 'time_origin': origin, 'composer_empty': True, 'user_count': 0}
+        rp.write_text(json.dumps({'schema': 'pro-consumed-canary-existing-target-witness-v1',
+            'status': 'EXACT_TARGET_PASSIVE_WITNESS_HELD_NO_RECOVERY', 'job': job,
+            'target': tab, 'witness': {'first': witness, 'last': witness},
+            'custody_after': {'files': {'JOB.json': {'sha256': sha(held_bytes)},
+                'MESSAGE.md': {'sha256': sha(message)},
+                'JOB.pre-retained-resume-' + sha(original_bytes) + '.json': {'sha256': sha(original_bytes)}},
+                'ledger_rows': [{'sha256': sha(line)} for line in lines],
+                'ordered_input_sha256': original['input_sha256']}}))
+        c = dict(relay.CONSUMED_CANARY, held=sha(held_bytes), backup=sha(original_bytes),
+                 message=sha(message), manifest=sha(manifest_bytes), drive_prompt=sha(prompt),
+                 ledger_lines=tuple(map(sha, lines)), witness_sha256=sha(rp.read_bytes()))
+        self.browser.pages[tab] = {'url': HOME, 'composer': '', 'text': '',
+                                   'messages': False, 'stop': False, 'origin': origin}
+        real_js = self.browser.js
+        def probe(expr):
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                return {'url': self.browser.pages[tab]['url'], 'time_origin': origin,
+                        'composer_empty': not self.browser.pages[tab]['composer'].strip(), 'user_count': 0}
+            if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
+                p = self.browser.pages[tab]
+                return {'origin': origin, 'users': 0, 'assistants': int(bool(p['text'])),
+                        'empty': not p['composer'].strip(), 'challenge': bool(self.browser.app_overrides.get('human_challenge')),
+                        'interstitial': False, 'login': False, 'rate': False, 'stop': p['stop'],
+                        'reconnect': False}
+            return real_js(expr)
+        self.browser.js = probe
+        cli = lambda *args: ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', job,
+                              '--report', report, *args]
+        with mock.patch.object(relay, 'CONSUMED_CANARY', c), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO UPLOAD')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            def call(*args):
+                with mock.patch.object(sys, 'argv', cli(*args)), redirect_stdout(io.StringIO()) as out:
+                    return relay.main(), out.getvalue()
+            self.assertEqual(call()[0], 0)
+            self.assertEqual((d / 'JOB.json').read_bytes(), held_bytes)
+            self.assertEqual(ledger.read_bytes(), ledger_bytes)
+            self.assertEqual(list(d.glob('JOB.pre-canary-recovery-*')), [])
+            self.assertEqual(self.browser.inserts + self.browser.sent, [])
+            self.assertIn('require-held', admission.call_args.args[0])
+            def refused(label, action, restore, *args):
+                with self.subTest(label=label):
+                    action()
+                    with self.assertRaises(SystemExit):
+                        call(*args)
+                    restore()
+                    self.assertEqual((d / 'JOB.json').read_bytes(), held_bytes)
+                    self.assertEqual(ledger.read_bytes(), ledger_bytes)
+                    self.assertEqual(self.browser.inserts + self.browser.sent, [])
+            refused('wrong authority', lambda: None, lambda: None, '--authorize-preimage', '0'*64)
+            refused('packet drift', lambda: (d / 'PROMPT.md').write_bytes(b'changed'),
+                    lambda: (d / 'PROMPT.md').write_bytes(prompt), '--authorize-preimage', sha(held_bytes))
+            refused('unexpected binding', lambda: ledger.write_bytes(ledger_bytes +
+                    b'{"job":"' + job.encode() + b'","event":"submission_bound"}\n'),
+                    lambda: ledger.write_bytes(ledger_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('used state', lambda: (d / 'JOB.json').write_bytes(held_bytes + b' '),
+                    lambda: (d / 'JOB.json').write_bytes(held_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('generic failure', lambda: relay.job_write(job, {**held, 'reason': 'OTHER_FAILURE'}),
+                    lambda: (d / 'JOB.json').write_bytes(held_bytes), '--authorize-preimage', sha(held_bytes))
+            refused('missing target', lambda: self.browser.pages.pop(tab),
+                    lambda: self.browser.pages.__setitem__(tab, {'url': HOME, 'composer': '',
+                        'text': '', 'messages': False, 'stop': False, 'origin': origin}),
+                    '--authorize-preimage', sha(held_bytes))
+            refused('changed target', lambda: self.browser.pages[tab].update(url=WANT),
+                    lambda: self.browser.pages[tab].update(url=HOME), '--authorize-preimage', sha(held_bytes))
+            refused('nonempty draft', lambda: self.browser.pages[tab].update(composer='draft'),
+                    lambda: self.browser.pages[tab].update(composer=''), '--authorize-preimage', sha(held_bytes))
+            refused('challenge', lambda: self.browser.app_overrides.update(human_challenge=True),
+                    lambda: self.browser.app_overrides.clear(), '--authorize-preimage', sha(held_bytes))
+            self.assertEqual(call('--authorize-preimage', sha(held_bytes))[0], 0)
+            self.assertEqual(self.browser.inserts, [(tab, message.decode())])
+            self.assertEqual(self.browser.sent, [(tab, message.decode())])
+            self.assertEqual(self.browser.created + self.browser.navigations, [])
+            bound = relay.job_state(job)
+            self.assertEqual((bound['status'], bound['retry_blocked']), ('running', False))
+            self.assertEqual(bound['resume_history'], [old_attempt])
+            self.assertEqual(bound['error'], original['error'])
+            self.assertEqual(bound['resume_error'], held['resume_error'])
+            self.assertEqual((d / ('JOB.pre-canary-recovery-' + sha(held_bytes) + '.json')).read_bytes(), held_bytes)
+            self.assertEqual((d / ('JOB.pre-retained-resume-' + sha(original_bytes) + '.json')).read_bytes(), original_bytes)
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume', 'canary_forward_recovery', 'submission_bound'])
+            with self.assertRaises(SystemExit):
+                call('--authorize-preimage', sha(held_bytes))
+            self.assertEqual(len(self.browser.sent), 1)
+
+    def test_retained_resume_registered_one_shot_and_guards(self):
+        """RED/GREEN: actual CLI, exact browser script, fixture JOB/report/ledger."""
+        import hashlib
+        job = 'fixture-retained-resume'
+        d = relay.job_dir(job)
+        st = {'job': job, 'account': 'account-a', 'status': 'failed',
+              'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+              'typed': False, 'sent': False, 'input_sha256': 'a' * 64, 'reply_token': 'b' * 64,
+              **{k: 'fixture-' + k for k in relay.PROVENANCE_FIELDS}}
+        st['error'] = {'error': st['reason'], 'typed': False, 'sent': False, 'tab': 'retained',
+                       'state': {'url': HOME, 'model': None, 'assistant_count': 0, 'last_len': 0,
+                                 'security_interstitial': True, 'composer_present': False,
+                                 **{k: False for k in ('human_challenge', 'logged_out', 'rate_limited',
+                                                       'stop', 'drive_reconnect', 'thinking_failed')}}}
+        relay.job_write(job, st)
+        packet = relay._failed_generation_identity(st) + '\noriginal packet'
+        (d / 'MESSAGE.md').write_text(packet)
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+            'certainty': 'reserved_may_send', 'job': job, 'account': 'account-a',
+            **{k: st[k] for k in relay.PROVENANCE_FIELDS}})
+        digest = lambda b: hashlib.sha256(b).hexdigest()
+        original = (d / 'JOB.json').read_bytes()
+        report = 'reports/fixture-readiness.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        row = {'job': job, 'reason': st['reason'], 'submission_bound': False,
+               'typed': False, 'sent': False, 'error_tab': 'retained',
+               'job_sha256': digest(original), 'message_sha256': digest(packet.encode()),
+               'ledger_rows_sha256': digest(json.dumps(relay.ledger_rows(self.cfg),
+                   sort_keys=True, separators=(',', ':')).encode()), 'time_origin': 12345.5}
+        rp.write_text(json.dumps({'jobs': [row]}))
+        self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',
+                                         'messages': False, 'stop': False}
+        original_js = self.browser.js
+        def probe(expr):
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                return {'url': self.browser.pages[self.browser.active]['url'],
+                        'time_origin': 12345.5, 'composer_empty': True, 'user_count': 0}
+            if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
+                p = self.browser.pages[self.browser.active]
+                return {'origin': 12345.5, 'users': int(p.get('users', 0)),
+                        'assistants': int(bool(p['text'])), 'empty': not p['composer'].strip(),
+                        'challenge': bool(self.browser.app_overrides.get('human_challenge')),
+                        'interstitial': bool(self.browser.app_overrides.get('security_interstitial')),
+                        'login': bool(self.browser.app_overrides.get('logged_out')),
+                        'rate': bool(self.browser.app_overrides.get('rate_limited')),
+                        'stop': p['stop'], 'reconnect': bool(self.browser.app_overrides.get('drive_reconnect'))}
+            return original_js(expr)
+        self.browser.js = probe
+        cli = lambda *extra: ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', job,
+                              '--report', report, *extra]
+        with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)) as admission, \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('no cleanup')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('no upload')):
+            with mock.patch.object(sys, 'argv', cli()), redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(relay.main(), 0)
+            self.assertIn('WOULD_RESUME_RETAINED', out.getvalue())
+            self.assertEqual((d / 'JOB.json').read_bytes(), original)
+            self.assertEqual(self.browser.created + self.browser.navigations + self.browser.sent, [])
+            self.assertIn('require-held', admission.call_args.args[0])
+            with mock.patch.object(sys, 'argv', cli('--authorize-preimage', '0'*64)), \
+                 self.assertRaisesRegex(SystemExit, 'RESUME_REFUSED_AUTHORITY'):
+                relay.main()
+            live.return_value = {'another-runner'}
+            with mock.patch.object(sys, 'argv', cli('--authorize-preimage', digest(original))), \
+                 self.assertRaisesRegex(SystemExit, 'RESUME_REFUSED_LIVE_RUNNER'):
+                relay.main()
+            live.return_value = set()
+            for key in ('human_challenge', 'logged_out', 'rate_limited', 'security_interstitial', 'stop'):
+                self.browser.app_overrides[key] = True
+                with self.subTest(key=key), mock.patch.object(sys, 'argv', cli('--authorize-preimage', digest(original))), \
+                     self.assertRaises(SystemExit):
+                    relay.main()
+                self.browser.app_overrides.clear()
+                self.assertEqual(self.browser.inserts, [])
+            with mock.patch.object(sys, 'argv', cli('--authorize-preimage', digest(original))), redirect_stdout(io.StringIO()):
+                self.assertEqual(relay.main(), 0)
+            self.assertEqual(self.browser.created, [])
+            self.assertEqual(self.browser.navigations, [])
+            self.assertEqual(self.browser.inserts, [('retained', packet)])
+            self.assertEqual(self.browser.sent, [('retained', packet)])
+            bound = relay.job_state(job)
+            self.assertEqual((bound['status'], bound['typed'], bound['sent'], bound['retry_blocked']),
+                             ('running', True, True, False))
+            self.assertEqual(bound['error'], st['error'])
+            self.assertEqual((d / 'MESSAGE.md').read_text(), packet)
+            self.assertEqual(next(d.glob('JOB.pre-retained-resume-*.json')).read_bytes(), original)
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume', 'submission_bound'])
+            with mock.patch.object(sys, 'argv', cli('--authorize-preimage', digest(original))), \
+                 self.assertRaises(SystemExit):
+                relay.main()
+            self.assertEqual(len(self.browser.sent), 1)
+            # A post-insertion ambiguous result is journaled and never retried.
+            held = 'fixture-retained-ambiguous'
+            hd = relay.job_dir(held)
+            hs = {**st, 'job': held, 'error': {**st['error'], 'tab': 'held'}}
+            relay.job_write(held, hs)
+            hm = relay._failed_generation_identity(hs) + '\noriginal packet'
+            (hd / 'MESSAGE.md').write_text(hm)
+            relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+                'certainty': 'reserved_may_send', 'job': held, 'account': 'account-a',
+                **{k: hs[k] for k in relay.PROVENANCE_FIELDS}})
+            held_raw = (hd / 'JOB.json').read_bytes()
+            hr = {'job': held, 'reason': hs['reason'], 'submission_bound': False,
+                  'typed': False, 'sent': False, 'error_tab': 'held',
+                  'job_sha256': digest(held_raw), 'message_sha256': digest(hm.encode()),
+                  'ledger_rows_sha256': digest(json.dumps([r for r in relay.ledger_rows(self.cfg)
+                      if r.get('job') == held], sort_keys=True, separators=(',', ':')).encode()),
+                  'time_origin': 12345.5}
+            rp.write_text(json.dumps({'jobs': [hr]}))
+            self.browser.pages['held'] = {'url': HOME, 'composer': '', 'text': '',
+                                          'messages': False, 'stop': False}
+            hcli = ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', held,
+                    '--report', report, '--authorize-preimage', digest(held_raw)]
+            with mock.patch.object(sys, 'argv', hcli), \
+                 mock.patch.object(relay, 'send_message', return_value={
+                     'error': 'INSERT_STALLED', 'typed': True, 'sent': 'UNKNOWN'}) as sender, \
+                 self.assertRaisesRegex(SystemExit, 'RESUME_HELD INSERT_STALLED'):
+                relay.main()
+            sender.assert_called_once()
+            self.assertTrue(relay.job_state(held)['retry_blocked'])
+            self.assertEqual(relay.job_state(held)['sent'], 'UNKNOWN')
+            self.assertEqual((hd / 'MESSAGE.md').read_text(), hm)
+            self.assertEqual(next(hd.glob('JOB.pre-retained-resume-*.json')).read_bytes(), held_raw)
+            with mock.patch.object(sys, 'argv', hcli), self.assertRaises(SystemExit):
+                relay.main()
+            sender.assert_called_once()
+
+    def test_retained_resume_paced_send_guard_actual_cli(self):
+        for drift in ('document', 'draft', 'model', 'readiness', 'unchanged'):
+            with self.subTest(drift=drift):
+                case = type(self)()
+                case.setUp()
+                try:
+                    case._run_retained_resume_paced_send_guard(drift)
+                finally:
+                    case.doCleanups()
+
+    def _run_retained_resume_paced_send_guard(self, drift):
+        """The real CLI must keep its consumed attempt held on a post-pacing drift."""
+        import hashlib
+        import socket
+        job = 'fixture-retained-paced-' + drift
+        d = relay.job_dir(job)
+        st = {'job': job, 'account': 'account-a', 'status': 'failed',
+              'reason': 'SECURITY_INTERSTITIAL', 'retry_blocked': True,
+              'typed': False, 'sent': False, 'input_sha256': 'a' * 64, 'reply_token': 'b' * 64,
+              **{k: 'fixture-' + k for k in relay.PROVENANCE_FIELDS}}
+        st['error'] = {'error': st['reason'], 'typed': False, 'sent': False, 'tab': 'retained',
+                       'state': {'url': HOME, 'model': None, 'assistant_count': 0, 'last_len': 0,
+                                 'security_interstitial': True, 'composer_present': False,
+                                 **{k: False for k in ('human_challenge', 'logged_out', 'rate_limited',
+                                                      'stop', 'drive_reconnect', 'thinking_failed')}}}
+        relay.job_write(job, st)
+        original = (d / 'JOB.json').read_bytes()
+        message = relay._failed_generation_identity(st) + '\noriginal packet'
+        (d / 'MESSAGE.md').write_text(message)
+        relay.ledger_append(self.cfg, {'event': 'submitted', 'kind': 'initial',
+            'certainty': 'reserved_may_send', 'job': job, 'account': 'account-a',
+            **{k: st[k] for k in relay.PROVENANCE_FIELDS}})
+        sha = lambda value: hashlib.sha256(value).hexdigest()
+        report = 'reports/fixture-paced-readiness.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        rp.write_text(json.dumps({'jobs': [{'job': job, 'reason': st['reason'],
+            'submission_bound': False, 'typed': False, 'sent': False, 'error_tab': 'retained',
+            'job_sha256': sha(original), 'message_sha256': sha(message.encode()),
+            'ledger_rows_sha256': sha(json.dumps(relay.ledger_rows(self.cfg), sort_keys=True,
+                separators=(',', ':')).encode()), 'time_origin': 12345.5}]}))
+        page = {'url': HOME, 'composer': '', 'text': '', 'messages': False,
+                'stop': False, 'origin': 12345.5, 'model': '6 Pro'}
+        self.browser.pages['retained'] = page
+        real_js = self.browser.js
+        admission = []
+        atomic = []
+        def probe(expression):
+            expr = expression
+            if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
+                return {'url': page['url'], 'time_origin': page['origin'],
+                        'composer_empty': not page['composer'].strip(), 'user_count': 0}
+            if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
+                return {'origin': page['origin'], 'users': 0, 'assistants': 0,
+                        'empty': not page['composer'].strip(), 'challenge': False,
+                        'interstitial': bool(page.get('challenge')), 'login': False,
+                        'rate': False, 'stop': False, 'reconnect': False}
+            if expr.startswith('(()=>{const retainedOrigin='):
+                outcome = self.browser.eval_retained_js(expr)
+                atomic.append(outcome)
+                return outcome['result']
+            return real_js(expr)
+        self.browser.js = probe
+        real_sleep = self.browser.sleep
+        def paced_sleep(seconds):
+            if seconds > 20 and self.browser.inserts and not self.browser.sent:
+                admission.append(seconds)
+                if drift == 'document':
+                    page.update(origin=99999.5, composer='unrelated replacement draft')
+                elif drift == 'draft':
+                    page['composer'] = 'unrelated replacement draft'
+                elif drift == 'model':
+                    page['model'] = '6 Sol'
+                elif drift == 'readiness':
+                    page['challenge'] = True
+            real_sleep(seconds)
+        self.browser.sleep = paced_sleep
+        argv = ['gpt6pro_relay.py', 'resume-unsent-readiness', '--job', job,
+                '--report', report, '--authorize-preimage', sha(original)]
+        with mock.patch.object(socket.socket, 'connect', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(socket, 'create_connection', side_effect=AssertionError('NO NETWORK')), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO UPLOAD')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')), \
+             mock.patch.object(sys, 'argv', argv), redirect_stdout(io.StringIO()):
+            if drift == 'unchanged':
+                self.assertEqual(relay.main(), 0)
+            else:
+                with self.assertRaisesRegex(SystemExit, 'RESUME_HELD'):
+                    relay.main()
+        self.assertEqual(self.browser.inserts, [('retained', message)])
+        self.assertEqual(len(admission), 1)
+        self.assertEqual(self.browser.created + self.browser.navigations, [])
+        self.assertEqual((d / 'MESSAGE.md').read_text(), message)
+        self.assertEqual(next(d.glob('JOB.pre-retained-resume-*.json')).read_bytes(), original)
+        final = relay.job_state(job)
+        if drift == 'unchanged':
+            self.assertEqual(self.browser.sent, [('retained', message)])
+            self.assertEqual((final['status'], final['retry_blocked']), ('running', False))
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume', 'submission_bound'])
+            self.assertEqual(atomic[0]['clicks'], 1)
+        else:
+            self.assertEqual(self.browser.sent, [])
+            self.assertTrue(final['retry_blocked'])
+            self.assertEqual([r['event'] for r in relay.ledger_rows(self.cfg)],
+                             ['submitted', 'retained_resume'])
+            self.assertTrue(not atomic or atomic[0]['clicks'] == 0)
+            with mock.patch.object(sys, 'argv', argv), self.assertRaises(SystemExit):
+                relay.main()
+            self.assertEqual(self.browser.sent, [])
+
+    def test_retained_sender_generated_javascript_survives_both_python_layers(self):
+        """Capture the real sender's script, then parse and run its decoded _fresh JS."""
+        scripts = []
+        def capture(script, **kwargs):
+            scripts.append(script)
+            return {}
+        with mock.patch.object(relay, 'bu_json', side_effect=capture):
+            relay.send_message('original packet', retained_tab='retained', time_origin=12345.5)
+        self.assertEqual(len(scripts), 1)
+        generated = ast.parse(scripts[0])  # outer f-string has already been decoded
+        expressions = [n.args[2].value for n in ast.walk(generated)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == '_bound_js' and len(n.args) > 2
+            and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
+        self.assertEqual(len(expressions), 7)
+        evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
+        node = r'''const expressions=JSON.parse(process.argv[1]);
+            // Compile every actual generated constant after the nested Python parse.
+            for (const expression of expressions) new Function('return ('+expression+');');
+            const evidence=expressions.find(x=>x.includes('origin:performance.timeOrigin'));
+            function observe(title,body) {
+                const editor={innerText:''};
+                const document={title,body:{innerText:body},
+                    querySelector:s=>s==='#prompt-textarea'?editor:null,
+                    querySelectorAll:s=>[]};
+                const performance={timeOrigin:12345.5};
+                return new Function('document','performance','return ('+evidence+');')(document,performance);
+            }
+            console.log(JSON.stringify({clean:observe('ChatGPT','Ready'),
+                challenge:observe('ChatGPT','Verify you are human'),count:expressions.length}));'''
+        result = subprocess.run(['node', '-e', node, json.dumps(expressions)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        observed = json.loads(result.stdout)
+        self.assertEqual(observed['count'], 7)
+        self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
+            'assistants': 0, 'empty': True, 'challenge': False,
+            'interstitial': False, 'login': False, 'rate': False,
+            'stop': False, 'reconnect': False})
+        self.assertTrue(observed['challenge']['challenge'])
+        self.assertIn("document.title+'\\n'+body", evidence)
+
+    def test_retained_sender_refuses_reused_missing_or_wrong_model_without_fresh_tab(self):
+        self.browser.pages['retained'] = {'url': HOME, 'composer': '', 'text': '',
+                                         'messages': False, 'stop': False}
+        original_js = self.browser.js
+        def probe(expression):
+            if expression.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expression:
+                page = self.browser.pages[self.browser.active]
+                return {'origin': 12345.5, 'users': page.get('users', 0),
+                        'assistants': int(bool(page['text'])), 'empty': not page['composer'].strip(),
+                        'challenge': False, 'interstitial': False, 'login': False,
+                        'rate': False, 'stop': page['stop'], 'reconnect': False}
+            return original_js(expression)
+        self.browser.js = probe
+        def send():
+            return relay.send_message('original packet', retained_tab='retained', time_origin=12345.5)
+        self.browser.pro_only_trigger = True
+        self.browser.selected_model = '6 Sol'
+        self.assertEqual(send()['error'], 'WRONG_MODEL')
+        self.assertEqual(self.browser.inserts, [])
+        self.browser.pro_only_trigger = False
+        for change in ({'url': WANT}, {'composer': 'other draft'}, {'users': 1},
+                       {'text': 'old assistant', 'messages': True}, {'stop': True}):
+            page = self.browser.pages['retained']; before = page.copy(); page.update(change)
+            with self.subTest(change=change):
+                self.assertIn('error', send())
+                self.assertEqual(self.browser.inserts, [])
+            page.clear(); page.update(before)
+        self.browser.pages.pop('retained')
+        self.assertEqual(send()['error'], 'retained_target_missing')
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_unlisted_wrong_model_reconciles_with_explicit_report(self):
         job = 'glp999-unlisted-wrong-model'
@@ -1034,7 +2391,9 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(relay.job_state('job')['fetch_verification']['state'], 'VERIFIED')
 
     def test_reply_writer_hash_and_legacy_exact_lf_reject_tamper(self):
-        self.job(last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
+        self.browser.pages['exact'] = {'url': WANT, 'text': 'wanted answer',
+                                       'composer': '', 'messages': True, 'stop': False}
+        self.job(tab='exact', last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
         self.assertEqual(relay.poll('job', False, 30, 3600), 0)
         st = relay.job_state('job')
         local = (relay.JOBS / 'job/RESPONSE.md').read_bytes()
@@ -1855,6 +3214,178 @@ with r.account_lock():
                 if proc.poll() is None:
                     proc.kill()
                 proc.communicate()
+
+
+class NativeComposerTests(unittest.TestCase):
+    def test_captured_initial_placeholder_uses_same_exact_preflight_reader(self):
+        """PR52 passive empty capture: exact attribute presence and safe values.
+
+        Root values omitted by the privacy filter use empty placeholders; these
+        are not claimed as captured values. All reader-relevant values and every
+        descendant attribute value were captured. No account/network or Send.
+        """
+        import os
+        import hashlib
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture', retained_tab='fixture', time_origin=12345.5)
+            relay._retained_empty_witness('fixture', 12345.5)
+        sender, preflight = map(ast.parse, scripts)
+        functions = {n.name: n for n in sender.body if isinstance(n, ast.FunctionDef)}
+        recorded = []
+        ns = {'json': json, 'tab': {'targetId': 'fixture'}, 'fresh': HOME,
+              '_fresh': lambda: HOME, '_bound_js': lambda *args: recorded.append(args[2]) or True,
+              '_binding_error': lambda *a, **kw: self.fail('expression builder refused')}
+        for name in ('_exact', '_prepare'):
+            exec(compile(ast.Module(body=[functions[name]], type_ignores=[]), '<generated>', 'exec'), ns)
+        ns['_exact'](''); exact = recorded[-1]
+        ns['_prepare'](''); prepare = recorded[-1]
+        extra = next(ast.literal_eval(n.value) for n in preflight.body
+                     if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)
+                     and n.targets[0].id == 'extra')
+        html = ('<div contenteditable="true" aria-multiline="" dir="" role="textbox" '
+                'spellcheck="true" translate="no" class="ProseMirror" data-composer-markdown="" '
+                'aria-label="" data-virtualkeyboard="true" data-relay-id="">'
+                '<p data-empty-paragraph="true" data-placeholder="Ask ChatGPT" class="placeholder">'
+                '<br class="ProseMirror-trailingBreak"></p></div>')
+        attributes = [
+            ['contenteditable', 'aria-multiline', 'dir', 'role', 'spellcheck', 'translate',
+             'class', 'data-composer-markdown', 'aria-label', 'data-virtualkeyboard', 'data-relay-id'],
+            ['data-empty-paragraph', 'data-placeholder', 'class'], ['class']]
+        cases = [
+            {'name': 'captured_empty', 'mutate': '', 'empty': True},
+            {'name': 'unknown_attribute', 'mutate': 'p.setAttribute("data-unknown","")', 'empty': False},
+            {'name': 'different_marker', 'mutate': 'p.setAttribute("data-empty-paragraph","false")', 'empty': False},
+            {'name': 'different_placeholder', 'mutate': 'p.setAttribute("data-placeholder","Other")', 'empty': False},
+            {'name': 'different_class', 'mutate': 'p.className="placeholder extra"', 'empty': False},
+            {'name': 'nonempty_decoration', 'mutate': 'p.replaceChildren(document.createTextNode(" "))', 'empty': False},
+            {'name': 'multiple_paragraphs', 'mutate': 'e.append(p.cloneNode(true))', 'empty': False},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            result = REAL_SUBPROCESS_RUN(['node', '-e', NATIVE_COMPOSER_FIXTURE], text=True,
+                input=json.dumps({'expressions': [exact, prepare, extra], 'initial': {
+                    'html': html, 'attributes': attributes, 'cases': cases,
+                    'exact': exact, 'preflight': extra, 'prepare': prepare}}),
+                capture_output=True, timeout=30, env={**os.environ, 'TMPDIR': tmp})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actual = json.loads(result.stdout)['initial']
+        self.assertEqual(actual['attributes'], attributes)
+        self.assertEqual(actual['tags'], ['DIV', 'P', 'BR'])
+        self.assertEqual(hashlib.sha256(actual['inner'].encode()).hexdigest(),
+                         '01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b')
+        self.assertEqual(actual['text'], '')
+        for row, case in zip(actual['cases'], cases, strict=True):
+            with self.subTest(shape=case['name']):
+                self.assertIs(row['exact'], case['empty'], 'initial exact-empty gate')
+                self.assertIs(row['preflight'], case['empty'], 'read-only preflight must use exact reader')
+                self.assertTrue(row['unchanged'], 'readers cannot mutate the composer')
+        self.assertIs(actual['prepared'], True, 'captured empty placeholder supports end caret')
+
+    def test_exact_paragraph_content_and_chunk_caret_in_native_dom(self):
+        """Real generated JS + native DOM/Input, never a canned CDP result.
+
+        The incident proved reordered tails at chunk boundaries, not which UI
+        event moved the caret. Inject that displacement explicitly; do not claim
+        to emulate the private editor or to reconstruct its historical events.
+        """
+        import os
+        import shutil
+        self.assertIsNotNone(shutil.which('google-chrome'), 'native regression requires Chrome')
+        prefix = 'header\n\n\t spaces \u00a0 emoji \U0001f600\n' + 'a' * 5940 + 'FIRST-TAIL'
+        suffix = 'SECOND'
+        intended = prefix + suffix + '\n\n'
+        def emitted(text):
+            scripts = []
+            with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+                relay.send_message(text, retained_tab='fixture', time_origin=12345.5)
+            return ast.parse(scripts[0])
+        tree = emitted(intended)
+        emitted_text = next(ast.literal_eval(n.value) for n in tree.body
+            if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'TEXT' for t in n.targets))
+        self.assertEqual(emitted_text, intended)  # No surrogate splitting in Python chunk boundaries.
+        expressions = [n.args[2].value for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == '_bound_js' and len(n.args) > 2
+            and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
+        atomic = next(e for e in expressions if e.startswith('(()=>{const retainedOrigin='))
+        functions = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+        recorded = []
+        ns = {'json': json, 'tab': {'targetId': 'fixture'}, 'fresh': HOME,
+              '_fresh': lambda: HOME, '_bound_js': lambda *args: recorded.append(args[2]) or True,
+              '_binding_error': lambda *a, **kw: None}
+        # Execute the actual emitted expression builders (not substitute JS).
+        for name in ('_prepare' if '_prepare' in functions else '_focus', '_exact' if '_exact' in functions else '_len'):
+            exec(compile(ast.Module(body=[functions[name]], type_ignores=[]), '<generated>', 'exec'), ns)
+        if '_prepare' in ns: ns['_prepare'](prefix)
+        else: ns['_focus']()
+        prepare = recorded[-1]
+        if '_exact' in ns: ns['_exact'](prefix + suffix)
+        else: ns['_len']()
+        check = recorded[-1]
+        cases = [{'name': 'correct', 'text': intended, 'expression': atomic},
+                 {'name': 'reordered', 'text': intended[:-51] + intended[-49:] + intended[-51:-49], 'expression': atomic}]
+        for name, changed in [('tab', intended.replace('\t', ' ')),
+                              ('nbsp', intended.replace('\u00a0', ' ')),
+                              ('blank_line', intended.replace('\n\n', '\n', 1)),
+                              ('trailing_lf', intended[:-1]),
+                              ('spaces', intended.replace(' spaces ', '  spaces ', 1))]:
+            cases.append({'name': name, 'text': changed, 'expression': atomic})
+        cases.append({'name': 'unknown_structure', 'text': intended, 'expression': atomic,
+                      'mutate': 'const p=document.querySelector("p");const s=document.createElement("span");s.append(...p.childNodes);p.append(s);'})
+        # The observed decoration is permitted only on the sole trailing-BR P.
+        cases.extend([
+            {'name': 'unknown_empty_attribute', 'text': intended, 'expression': atomic,
+             'mutate': 'document.querySelector("p[data-empty-paragraph]").setAttribute("data-unknown","");'},
+            {'name': 'nonempty_marker_misuse', 'text': intended, 'expression': atomic,
+             'mutate': 'document.querySelector("p").setAttribute("data-empty-paragraph","");'},
+        ])
+        # A dedicated about:blank profile, blocked requests, pipe-only CDP.
+        node = NATIVE_COMPOSER_FIXTURE
+        with tempfile.TemporaryDirectory() as tmp:
+            result = REAL_SUBPROCESS_RUN(['node', '-e', node], text=True,
+                input=json.dumps({'expressions': expressions + [prepare, check], 'cases': cases,
+                                  'caret': {'prefix': prefix, 'suffix': suffix, 'displace': 49,
+                                            'prepare': prepare, 'check': check}}),
+                capture_output=True, timeout=30, env={**os.environ, 'TMPDIR': tmp})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actual = json.loads(result.stdout)
+        self.assertEqual(actual['caret']['actual'], prefix + suffix, 'chunk insertion must restore the exact end caret')
+        self.assertIs(actual['caret']['checked'], True, 'prefix equality must be exact, not a length')
+        for row in actual['cases']:
+            self.assertEqual(row['result']['clicked'], row['name'] == 'correct', row['name'])
+            self.assertEqual(row['clicks'], int(row['name'] == 'correct'), row['name'])
+
+
+NATIVE_COMPOSER_FIXTURE = r'''
+const fs=require('fs'),cp=require('child_process'),os=require('os'),path=require('path');
+const f=JSON.parse(fs.readFileSync(0,'utf8'));
+const dir=fs.mkdtempSync(path.join(process.env.TMPDIR,'pro-composer-native-'));
+const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
+let next=0,buf='',pending=new Map();
+chrome.stdio[4].on('data',b=>{buf+=b;let pos;while((pos=buf.indexOf('\0'))>=0){const msg=JSON.parse(buf.slice(0,pos));buf=buf.slice(pos+1);if(msg.id&&pending.has(msg.id)){const [yes,no]=pending.get(msg.id);pending.delete(msg.id);msg.error?no(new Error(msg.error.message)):yes(msg.result);}}});
+function cdp(method,params={},sessionId){return new Promise((yes,no)=>{const id=++next;pending.set(id,[yes,no]);chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0');});}
+let sid;
+async function js(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},sid);if(r.exceptionDetails)throw new Error('FIXTURE_JS_EXCEPTION');return r.result.value;}
+(async()=>{try{
+const target=(await cdp('Target.createTarget',{url:'about:blank'})).targetId;
+sid=(await cdp('Target.attachToTarget',{targetId:target,flatten:true})).sessionId;
+await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*']},sid);
+await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button>6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
+const output={};
+for(const expr of f.expressions)new Function('return ('+expr+')');
+if(f.initial){
+const i=f.initial;
+await js('document.head.innerHTML="<style>[data-composer-markdown]{white-space:break-spaces}</style>";window.initial=()=>{document.body.innerHTML='+JSON.stringify(i.html)+';};window.initial();');
+output.initial=await js('(()=>{const e=document.querySelector("[contenteditable]");const all=[e,...e.querySelectorAll("*")];return {attributes:all.map(n=>n.getAttributeNames()),tags:all.map(n=>n.tagName),inner:e.innerText,text:e.textContent,cases:[]};})()');
+for(const c of i.cases){await js('window.initial();(()=>{const e=document.querySelector("[contenteditable]"),p=e.firstChild;'+c.mutate+';})()');const before=await js('document.body.innerHTML');output.initial.cases.push({name:c.name,exact:await js(i.exact),preflight:(await js(i.preflight)).composer_empty,unchanged:before===await js('document.body.innerHTML')});}
+await js('window.initial()');output.initial.prepared=await js(i.prepare);
+process.stdout.write(JSON.stringify(output));return;
+}
+output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify(c.text)+');window.clicks=0;');if(c.mutate)await js(c.mutate);const expr=c.expression.replace('const retainedOrigin=12345.5;', 'const retainedOrigin=performance.timeOrigin;');output.cases.push({name:c.name,result:await js(expr),clicks:await js('window.clicks')});}
+const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
+process.stdout.write(JSON.stringify(output));
+}finally{await cdp('Browser.close').catch(()=>{});}})().catch(e=>{process.stderr.write(e.message);process.exitCode=1;}).finally(()=>{chrome.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));setTimeout(()=>{chrome.kill('SIGKILL');},2000).unref();});
+'''
 
 
 if __name__ == "__main__":

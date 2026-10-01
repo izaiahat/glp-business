@@ -187,6 +187,9 @@ def validate_raw_review_runtime(raw: dict[str, Any], *, error: type[Exception] =
             or runtime.get("tool_count") != 0
             or runtime.get("tool_calls") != 0
             or runtime.get("fallback_provider_count") != 0
+            # Historical receipts lack this field; an explicit runtime denial
+            # cannot be overridden by a declarative review_input=true.
+            or runtime.get("context_isolated") is False
             or int(runtime.get("model_turns") or 0) != 1):
         raise error(f"{prefix}_runtime_unproven:{row['transport_id']}")
 

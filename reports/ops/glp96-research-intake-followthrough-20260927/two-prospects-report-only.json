@@ -1,0 +1,166 @@
+[
+  {
+    "identity": "Walgreens Weight Management",
+    "provider_id": "domain:walgreens.com",
+    "research_intake_eligible": true,
+    "application_eligible": false,
+    "recorded_in_remote_intake": false,
+    "report_only_not_queue_fact": true,
+    "requested_state": "research_only_hold",
+    "wire_in_ready": false,
+    "wired_live": false,
+    "apply": false,
+    "source_observations": [
+      {
+        "id": "C1",
+        "claim": "Walgreens is a service example, not an incidental brand mention.",
+        "source_id": "article_page-001",
+        "source_path": "reports/ops/glp96-full-current-join-20260927/raw/page-001.html",
+        "source_sha256": "80291f47bedb1c74b7df0909a7f97ef869ac9f7e3b48f3f2ee285702236a1043",
+        "url": "https://glpclinicscout.com/guides/best-company-to-get-glp-1/",
+        "quote": "Walgreens Weight Management’s captured page describes clinician assessment, conditional prescribing, follow-up, distinct telehealth and pharmacy lanes, and separate visit and medication costs.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T03:48:04.993163+00:00"
+      },
+      {
+        "id": "C2",
+        "claim": "Current service exists; distinguish medical practices from Walgreens retail merchant.",
+        "source_id": "walgreens-service",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/walgreens-service.html",
+        "source_sha256": "5b6a01ebcfa6dd457a212d7d69ec2b9310928c5828b0395ba16ca43a70b177db",
+        "url": "https://www.walgreens.com/topic/virtual-healthcare/weight-loss.jsp",
+        "quote": "Walgreens-affiliated medical practices are independently owned and operated by licensed physicians who provide services using the Walgreens virtual care program telehealth platform.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:06.816450+00:00"
+      },
+      {
+        "id": "C3",
+        "claim": "Consumer visit charge is not an affiliate payable event.",
+        "source_id": "walgreens-service",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/walgreens-service.html",
+        "source_sha256": "5b6a01ebcfa6dd457a212d7d69ec2b9310928c5828b0395ba16ca43a70b177db",
+        "url": "https://www.walgreens.com/topic/virtual-healthcare/weight-loss.jsp",
+        "quote": "$49 per visit, no subscription needed.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:06.816450+00:00"
+      }
+    ],
+    "known_program_observation": {
+      "rail": "cj",
+      "advertiser_id": "2568723",
+      "publisher_account_id": null,
+      "publisher_identity_limit": "Retained inventory does not expose response-owned publisher account ID.",
+      "relationship": "notjoined",
+      "relationship_observed_at": "2026-09-26T14:36:18Z",
+      "relationship_source_id": "rail_cj",
+      "advertiser_account_status": "Active",
+      "actions": [
+        {
+          "commission": "2.00%",
+          "name": "Walgreens.com Purchase",
+          "type": "advanced sale"
+        },
+        {
+          "commission": "2.00%",
+          "name": "Walgreens.com Express Purchase",
+          "type": "advanced sale"
+        },
+        {
+          "commission": "2.00%",
+          "name": "Walgreens Mobile Website",
+          "type": "advanced sale"
+        },
+        {
+          "commission": "2.00%",
+          "name": "Wphoto Purchase",
+          "type": "advanced sale"
+        },
+        {
+          "commission": "2.00%",
+          "name": "App Purchase",
+          "type": "sale"
+        }
+      ],
+      "currency": null,
+      "clinical_payable_event": null,
+      "traffic_content_terms": null,
+      "scope": "Retail purchase/photo/app action names; no action explicitly binds Weight Management visit, prescription, or enrolment. Current first-party footer points to CJ advertiser2568723, which confirms brand/program mapping only.",
+      "public_program_source_ids": [
+        "walgreens-service",
+        "walgreens-cj-public-program",
+        "walgreens-cj-public-canonical",
+        "walgreens-cj-public-final",
+        "walgreens-cj-public-destination"
+      ]
+    },
+    "rail": "cj",
+    "clinical_program_id": null,
+    "payable_clinical_event": null,
+    "unknowns_and_application_hold": "Whether the current CJ2568723 publisher contract explicitly covers Walgreens Weight Management acquisition for this comparison publisher, with the exact payable clinical event and permitted content/traffic.",
+    "not_approval_prerequisite_for_research": true
+  },
+  {
+    "identity": "Mondae",
+    "provider_id": "domain:mondae.com",
+    "research_intake_eligible": true,
+    "application_eligible": false,
+    "recorded_in_remote_intake": false,
+    "report_only_not_queue_fact": true,
+    "requested_state": "research_only_hold",
+    "wire_in_ready": false,
+    "wired_live": false,
+    "apply": false,
+    "source_observations": [
+      {
+        "id": "C7",
+        "claim": "Mondae is a genuine consumer care-platform candidate, not itself the clinician.",
+        "source_id": "mondae-home",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-home.html",
+        "source_sha256": "ec9496b6ea3d16b691510b666d0d76958eb662f26eb4dc545430a1c7b470201b",
+        "url": "https://mondae.com/",
+        "quote": "Mondae is a telehealth platform that connects eligible patients with licensed healthcare providers for evaluation and, when medically appropriate, prescription treatment.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:06.387246+00:00"
+      },
+      {
+        "id": "C8",
+        "claim": "Separate care-provider role from platform identity.",
+        "source_id": "mondae-terms-current",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-terms-current.html",
+        "source_sha256": "534bc40eeef8127e9d3d69b93d9c381387fcc08c56fe758aefaa08efa5055d1c",
+        "url": "https://mondae.com/policies/terms-of-service",
+        "quote": "Your telehealth services will be provided by a Provider through Bask Telehealth LLC.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:49.208086+00:00"
+      },
+      {
+        "id": "C9",
+        "claim": "Consumer terms do not grant publisher creative/mark permissions; this is not a ruling against independent editorial coverage.",
+        "source_id": "mondae-terms-current",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-terms-current.html",
+        "source_sha256": "534bc40eeef8127e9d3d69b93d9c381387fcc08c56fe758aefaa08efa5055d1c",
+        "url": "https://mondae.com/policies/terms-of-service",
+        "quote": "You are not authorized to use any such Marks without the express written permission of Mondae.",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:49.208086+00:00"
+      },
+      {
+        "id": "C15",
+        "claim": "Current terms bind Mondae platform entity independently of legacy Ezra.",
+        "source_id": "mondae-terms-current",
+        "source_path": "reports/ops/glp96-article-feeder-qualification-20260927/raw/mondae-terms-current.html",
+        "source_sha256": "534bc40eeef8127e9d3d69b93d9c381387fcc08c56fe758aefaa08efa5055d1c",
+        "url": "https://mondae.com/policies/terms-of-service",
+        "quote": "Mondae LLC (collectively, \"Mondae\") owns and operates the website located at www.mondae.com",
+        "quote_normalization": "HTML decoded / whitespace collapsed; markdown captures whitespace collapsed",
+        "observed_at": "2026-09-27T04:31:49.208086+00:00"
+      }
+    ],
+    "known_program_observation": null,
+    "rail": null,
+    "clinical_program_id": null,
+    "payable_clinical_event": null,
+    "unknowns_and_application_hold": "A current Mondae-owned publisher-program identity on an existing authorized rail, binding this consumer service, payable event, permitted comparison content/traffic and this publisher’s relationship.",
+    "not_approval_prerequisite_for_research": true
+  }
+]

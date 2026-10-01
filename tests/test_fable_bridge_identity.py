@@ -138,13 +138,13 @@ class FableBridgeIdentityTests(unittest.TestCase):
         self.assertEqual(body["nonce"], "1529999999999999997")
         self.assertTrue(body["enforce_nonce"])
 
-    def test_oversized_output_never_emits_partial_acceptance(self) -> None:
+    def test_oversized_untagged_output_cannot_emit_partial_acceptance(self) -> None:
         calls = []
         with mock.patch.object(BRIDGE, "api", side_effect=lambda method, path, body=None: calls.append(body) or {"id": "1529999999999999998"}):
-            BRIDGE.post("TRUE-BRIDGE FABLE — ACCEPT " + ("x" * 3000), reply_to_message_id="1529999999999999997")
-        self.assertEqual(len(calls), 1)
-        self.assertNotIn("ACCEPT", calls[0]["content"])
-        self.assertIn("no authority decision", calls[0]["content"])
+            with self.assertRaisesRegex(RuntimeError, "oversize_reviewer_identity_unbound"):
+                BRIDGE.post("TRUE-BRIDGE FABLE — ACCEPT " + ("x" * 3000),
+                            reply_to_message_id="1529999999999999997")
+        self.assertFalse(calls)
 
     def test_ambiguous_post_transport_failure_is_not_retried(self) -> None:
         session = mock.Mock()
