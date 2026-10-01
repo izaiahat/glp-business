@@ -1,6 +1,31 @@
 {
-  "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history. Source hashes identify import provenance, not runtime deployment.",
+  "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "tests/test_glp341_weekly_ads_compatibility.py": {
+      "callers": [".github/workflows/glp341-weekly-ads-compatibility.yml"],
+      "kind": "test",
+      "sha256": "d584068e357d91c29a5e01f34280872f35147bde95409efb8672fbba1bc5425a"
+    },
+    ".github/workflows/glp341-weekly-ads-compatibility.yml": {
+      "callers": ["GLP-341 exact-head offline source acceptance"],
+      "kind": "repository_control",
+      "sha256": "f99d9b7eb19bc2ee4410f6ea017926378a94e3dab28e6adfa6d955ffc71a29a3"
+    },
+    "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py": {
+      "callers": ["hermes:ea5bad730e53 via weekly_cron_entry.py"],
+      "kind": "script",
+      "sha256": "05bda1aa7f23fc2dca94d35bbcf65276b8bd1e743a9c0e4eb21445867f306653"
+    },
+    "reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json": {
+      "callers": ["weekly_ads_loop.py::dependencies"],
+      "kind": "source_pins",
+      "sha256": "705e4128cccf2730d8a0d3c75412278975641350b7c3c6c17b0541b5dc0b0cad"
+    },
+    "tests/fixtures/glp341-a3-result.json": {
+      "callers": ["tests/test_glp341_weekly_ads_compatibility.py"],
+      "kind": "retained_offline_fixture_not_runtime_authority",
+      "sha256": "257339ab71e99ebbf845b56b6e1414d2baef8ec9ee7eb014eaf555f5cff8ce94"
+    },
     ".codex-task/RESULT.md": {
       "callers": [
         "GLP affiliate front-half repair"
@@ -495,7 +520,7 @@
         "hermes:ea5bad730e53"
       ],
       "kind": "script",
-      "sha256": "b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d9871"
+      "sha256": "210aab4f782b47b0fa1870e489ed4971dc3f83330bbc2071f7a8ec6c818b4cf1"
     },
     "ops/hermes-cron-scripts/hermes_state_archive_weekly.py": {
       "callers": [
@@ -1667,9 +1692,7 @@
       "sha256": "e305cd57898e49b2dc57e3486aade3dc22c361b81844cf667c492c725a730020"
     },
     "scripts/result_contract.py": {
-      "callers": [
-        "wrapper:ops/hermes-cron-scripts/glp_weekly_ads_analytics.py"
-      ],
+      "callers": [],
       "kind": "script",
       "sha256": "01821aa70712c2062e0b6222d7201af947c3afc4b993a717bd0f4c39e2c7035f"
     },
@@ -3149,5 +3172,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 476
+  "tracked_count": 481
 }
