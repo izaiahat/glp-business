@@ -44,6 +44,7 @@
 !/ops/glp/evidence-refresh-k3/review_evidence.py
 !/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
+!/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md
 !/tests/test_glp80_k3_prepared_consumer.py
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
@@ -61,10 +62,17 @@
 /scripts/hermes_state_archive/*
 !/scripts/hermes_state_archive/tests/
 /scripts/hermes_state_archive/tests/*
+!/.github/workflows/glp80-k3-source.yml
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
 !/.gitignore
+!/tools/
+/tools/*
+!/tools/glp/
+/tools/glp/*
+!/tools/glp/evidence_refresh.py
+!/tools/glp/evidence_refresh_verify.mjs
 !/.hermes.md
 !/AGENTS.md
 !/CLAUDE.md

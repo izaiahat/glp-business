@@ -27,6 +27,10 @@ ENGINE = ROOT / 'tools/glp/evidence_refresh.py'
 SCHEMA = ROOT / 'scripts/glp_current_content_base_schema.py'
 RELEASES = ROOT / 'site-system/flagship-v2/releases'
 PIN_FILE = HERE / 'SOURCE-PINS.json'
+NATIVE_EVIDENCE = ROOT / 'scripts/glp_price_index_weekly.py'
+NATIVE_PRODUCER = ROOT / 'scripts/glp_deploy_glp34_authority_v1.py'
+NATIVE_MATERIALIZER = ROOT / 'scripts/site_tree_materializer.py'
+NATIVE_BUILDER = ROOT / 'systems/seo-blog-machine/scripts/build_opus_article_release.py'
 
 
 def sha(path):
@@ -57,7 +61,8 @@ def load(path, name):
 
 def check_pins(pin_file=PIN_FILE):
     pins = read(pin_file)
-    required = {str(ENGINE), str(ENGINE.with_name('evidence_refresh_verify.mjs')), str(SCHEMA)}
+    required = {str(ENGINE), str(ENGINE.with_name('evidence_refresh_verify.mjs')), str(SCHEMA),
+                str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER)}
     if set(pins['sources']) != required:
         raise RuntimeError('SOURCE_PIN_SET_INVALID')
     for path, digest in pins['sources'].items():
@@ -85,7 +90,29 @@ def closure(rows):
 def binding(pointer=POINTER, releases=RELEASES):
     before = sha(pointer)
     p = read(pointer)
-    load(SCHEMA, 'k3_pointer_schema').validate_pointer_shape(p, releases_root=releases)
+    schema = load(SCHEMA, 'k3_pointer_schema')
+    prepared = schema.is_prepared_pointer(p)
+    # Shape/root syntax is not publication authority. Only the registered native
+    # validator may admit prepared roots; legacy stays confined to releases.
+    schema.validate_pointer_shape(p, releases_root=None if prepared else releases)
+    if prepared:
+        if str(NATIVE_EVIDENCE.parent) not in sys.path:
+            sys.path.insert(0, str(NATIVE_EVIDENCE.parent))
+        from glp_price_index_weekly import _validate_base_evidence
+        native = _validate_base_evidence(p, Path(p['release_root']))
+        rows = read(p['manifest']['path'])['release_rows']
+        required = {'data/program-registry.json', 'data/provider-pricing-matrix.json',
+                    'src/therapeutic-taxonomy.mjs', 'src/provider-dynamic-profiles.mjs'}
+        if not required.issubset({r['path'] for r in rows}):
+            raise RuntimeError('MISSING_RELEASE_INPUT')
+        release = Path(p['release_root'])
+        if sha(pointer) != before:
+            raise RuntimeError('POINTER_CHANGED_DURING_BINDING')
+        # JSON-stable identities survive RUN.json serialization/idempotent reuse.
+        return {'pointer_path': str(pointer), 'pointer_sha256': before, 'pointer': p,
+                'releases_root': str(releases), 'manifest_rows_verified': len(rows),
+                'prepared_binding': json.loads(json.dumps(native['prepared_binding'])),
+                'target_preimages': {str(release / n): sha(release / n) for n in sorted(required)}}
     evidence = {}
     for key in ('manifest', 'final_receipt'):
         spec = p[key]
@@ -127,6 +154,10 @@ def binding(pointer=POINTER, releases=RELEASES):
 def unchanged(bound):
     if sha(bound['pointer_path']) != bound['pointer_sha256']:
         raise RuntimeError('CURRENT_BASE_CHANGED_RESTAGE_NEXT_DAY')
+    if bound.get('prepared_binding'):
+        current = binding(Path(bound['pointer_path']), Path(bound['releases_root']))
+        if current != bound:
+            raise RuntimeError('PREPARED_PUBLICATION_BINDING_DRIFT')
     for path, digest in bound['target_preimages'].items():
         if sha(path) != digest:
             raise RuntimeError('TARGET_SOURCE_DRIFT:' + path)
