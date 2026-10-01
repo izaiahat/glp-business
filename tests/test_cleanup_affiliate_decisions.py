@@ -48,7 +48,7 @@ def inbox(tmp_path, monkeypatch):
     from inbox_control_plane import affiliate_decision_queue as q
     assert Path(cp.__file__).resolve().is_relative_to(ROOT)
     assert Path(q.__file__).resolve().is_relative_to(ROOT)
-    for name in ('RAW_ROOT', 'ATTACHMENT_ROOT', 'BACKUP_ROOT', 'REPORT_ROOT', 'DAILY_AUDIT_DIR'):
+    for name in ('PRIVATE_ROOT', 'RAW_ROOT', 'ATTACHMENT_ROOT', 'BACKUP_ROOT', 'REPORT_ROOT', 'DAILY_AUDIT_DIR'):
         monkeypatch.setattr(cp, name, tmp_path / name)
     monkeypatch.setattr(supply, 'INTAKE_ROOT', tmp_path / 'supply')
     ledger = cp.Ledger(tmp_path / 'inbox.sqlite3')

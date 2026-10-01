@@ -19,7 +19,7 @@
     "tests/test_cleanup_affiliate_decisions.py": {
       "callers": [".github/workflows/business-source-ci.yml"],
       "kind": "test",
-      "sha256": "56e87bd8668ca085eb421bfe55133718ee05f77411a71fc393db52ee271cb409"
+      "sha256": "fa5a118e3c18ff613baef56c025e6cbb269b71da772b27de8f60c2a0e2ff03ce"
     },
     "ops/rook-mcp/README.md": {
       "callers": ["manual:parent-owned launch requirements; rollout held"],
