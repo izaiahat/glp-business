@@ -348,3 +348,10 @@
 /tests/fixtures/best_terms/*
 !/tests/fixtures/best_terms/held_xentraffic_failure.json
 !/tests/fixtures/affiliate_terms_registry_validator.mjs
+
+# Phase 0 canonical affiliate decision notices (source and offline tests only)
+!/inbox_control_plane/
+/inbox_control_plane/*
+!/inbox_control_plane/affiliate_decision_queue.py
+!/tests/test_cleanup_inbox_reader.py
+!/tests/test_cleanup_affiliate_decisions.py
