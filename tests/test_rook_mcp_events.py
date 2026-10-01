@@ -44,6 +44,299 @@ def rpc(m, method, params=None):
                                   'io.modelcontextprotocol/clientCapabilities': {}}}}
 
 
+class TestGitHubPRComment:
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path, monkeypatch):
+        from cryptography.hazmat.primitives import serialization
+        self.m = m = module()
+        self.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        self.pem = tmp_path / 'app.pem'
+        self.pem.write_bytes(self.key.private_bytes(serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+        self.pem.chmod(0o600)
+        self.cfg = tmp_path / 'app.json'
+        self.cfg.write_text(json.dumps({'app_id': 123, 'installation_id': 456}))
+        monkeypatch.setattr(m, 'GITHUB_APP_KEY_PATH', self.pem, raising=False)
+        monkeypatch.setattr(m, 'GITHUB_APP_CONFIG_PATH', self.cfg, raising=False)
+        monkeypatch.setattr(m, '_github_token_cache', None, raising=False)
+        self.app = m.Application(config(m), tmp_path / 'github-private')
+        self.principal = m.Principal(self.app.config.subject, time.time() + 600, frozenset({m.CHANNEL_WRITE}))
+        self.calls = []
+        self.head = 'a' * 40
+        self.pull_status = 200
+        self.post_failure = None
+        self.pull_value = {'number': 7, 'head': {'sha': self.head}}
+        owner = self
+        class Connection:
+            def __init__(_, host, address):
+                assert (host, address) == ('api.github.com', '8.8.8.8')
+            def request(_, method, path, body=None, headers=None):
+                payload = json.loads(body) if body else None
+                owner.calls.append((method, path, payload))
+                if path == '/app/installations/456/access_tokens':
+                    claims = jwt.decode(headers['Authorization'].removeprefix('Bearer '),
+                        owner.key.public_key(), algorithms=['RS256'])
+                    assert claims['iss'] == '123'
+                    assert int(time.time()) - 62 <= claims['iat'] <= int(time.time()) - 59
+                    assert claims['exp'] - int(time.time()) <= 540
+                    assert payload == {'repositories': ['glp-business', 'glp-site-candidate'],
+                                       'permissions': {'pull_requests': 'write'}}
+                    _.status, _.value = 201, {'token': 'synthetic-installation-token',
+                        'expires_at': '2099-01-01T00:00:00Z'}
+                else:
+                    assert headers['Authorization'] == 'Bearer synthetic-installation-token'
+                    if method == 'GET':
+                        _.status, _.value = owner.pull_status, owner.pull_value
+                    else:
+                        repo = path.split('/issues/')[0].removeprefix('/repos/')
+                        assert method == 'POST' and repo in m.GITHUB_REPOS and path.endswith('/issues/7/comments')
+                        if isinstance(owner.post_failure, Exception): raise owner.post_failure
+                        _.status = owner.post_failure or 201
+                        _.value = {'id': 99, 'html_url': f'https://github.com/{repo}/pull/7#issuecomment-99',
+                                   'token': 'synthetic-do-not-store', 'body': payload['body']}
+            def getresponse(_):
+                data = json.dumps(_.value).encode()
+                return type('Response', (), {'status': _.status, 'read': lambda _, n: data[:n]})()
+            def close(_): pass
+        monkeypatch.setattr(m, 'PinnedHTTPSConnection', Connection)
+        monkeypatch.setattr(m, 'callback_target', lambda url: ('api.github.com', '8.8.8.8', '/'))
+        yield
+        self.app.close()
+
+    def args(self, **overrides):
+        return {'repo': 'izaiahat/glp-business', 'pr_number': 7, 'body': 'Review text',
+                'inspected_head_sha': 'a' * 40, 'operation_id': 'rook_github_test_001', **overrides}
+
+    def call(self, **overrides):
+        return self.app.dispatch(self.principal, 'tools/call',
+            {'name': 'github_pr_comment', 'arguments': self.args(**overrides)})
+
+    def test_happy_path_exact_body_and_routes(self):
+        result = self.call()
+        assert not result['isError'], result
+        assert [(v[0], v[1]) for v in self.calls] == [
+            ('POST', '/app/installations/456/access_tokens'),
+            ('GET', '/repos/izaiahat/glp-business/pulls/7'),
+            ('POST', '/repos/izaiahat/glp-business/issues/7/comments')]
+        assert self.calls[-1][2]['body'] == (
+            '**Rook advisory review** (automated; not operator approval or a formal review)\n\n'
+            '-- inspected head: ' + 'a' * 40 + ' · PR head at posting: ' + 'a' * 40
+            + ' · op rook_github_test_001\n\nReview text')
+        assert result['structuredContent']['comment_id'] == 99
+
+    def test_second_enumerated_repo(self):
+        result = self.call(repo='izaiahat/glp-site-candidate')
+        assert not result['isError']
+        assert result['structuredContent']['repo'] == 'izaiahat/glp-site-candidate'
+        assert self.calls[-1][1] == '/repos/izaiahat/glp-site-candidate/issues/7/comments'
+
+    def test_plain_issue_refused(self):
+        self.pull_status = 404
+        self.pull_value = {'message': 'Not Found'}
+        result = self.call()
+        assert result['isError'] and 'NotPullRequest' in result['content'][0]['text']
+        assert not [c for c in self.calls if '/issues/' in c[1]]
+
+    @pytest.mark.parametrize('overrides', [
+        {'repo': 'other/repo'}, {'repo': 'izaiahat/glp-business/../other'},
+        {'pr_number': 0}, {'pr_number': True}, {'pr_number': 1.5},
+        {'body': ''}, {'body': 'x' * 20001}, {'inspected_head_sha': 'bad'},
+        {'operation_id': 'short'}, {'extra': 'no'},
+    ])
+    def test_invalid_arguments_zero_network(self, overrides):
+        assert self.call(**overrides)['isError']
+        assert not self.calls
+
+    def test_stale_head_visible(self):
+        self.pull_value['head']['sha'] = 'b' * 40
+        assert not self.call()['isError']
+        body = self.calls[-1][2]['body']
+        assert '\nstale: inspected head differs from current head\n' in body
+        assert 'PR head at posting: ' + 'b' * 40 in body
+
+    def test_caller_html_comment_cannot_hide_rendered_head_metadata(self):
+        from html.parser import HTMLParser
+        from markdown_it import MarkdownIt
+
+        class VisibleText(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.parts = []
+
+            def handle_data(self, data):
+                self.parts.append(data)
+
+        self.pull_value['head']['sha'] = 'b' * 40
+        assert not self.call(body='<!--')['isError']
+        parser = VisibleText()
+        # Offline GFM-like rendering; raw HTML enabled, URL autolinking irrelevant here.
+        parser.feed(MarkdownIt('gfm-like', {'html': True, 'linkify': False}).render(self.calls[-1][2]['body']))
+        parser.close()
+        visible = ''.join(parser.parts)
+        assert 'Rook advisory review' in visible
+        assert 'stale: inspected head differs from current head' in visible
+        assert 'inspected head: ' + 'a' * 40 in visible
+        assert 'PR head at posting: ' + 'b' * 40 in visible
+
+    def test_mentions_neutralized(self):
+        assert not self.call(body='@izaiahat @izaiahat/team @everyone <@user>')['isError']
+        body = self.calls[-1][2]['body']
+        assert '@\u200dizaiahat @\u200dizaiahat/team @\u200deveryone <@\u200duser>' in body
+
+    @pytest.mark.parametrize('invalid', ['missing_config', 'bad_json', 'bool_id', 'missing_key', 'bad_pem', 'symlink'])
+    def test_not_configured_zero_network(self, invalid):
+        if invalid == 'missing_config': self.cfg.unlink()
+        elif invalid == 'bad_json': self.cfg.write_text('not json')
+        elif invalid == 'bool_id': self.cfg.write_text('{"app_id":true,"installation_id":456}')
+        elif invalid == 'missing_key': self.pem.unlink()
+        elif invalid == 'bad_pem': self.pem.write_text('not a key')
+        else:
+            target = self.pem.with_suffix('.real'); self.pem.rename(target); self.pem.symlink_to(target)
+        result = self.call()
+        assert result['isError'] and 'GitHubIdentityNotConfigured' in result['content'][0]['text']
+        assert not self.calls
+
+    @pytest.mark.parametrize('mode', [0o640, 0o644, 0o400, 0o700])
+    def test_bad_pem_permissions_zero_network(self, mode):
+        self.pem.chmod(mode)
+        assert 'GitHubIdentityNotConfigured' in self.call()['content'][0]['text']
+        assert not self.calls
+
+    def test_bad_key_owner_zero_network(self, monkeypatch):
+        uid = self.m.os.getuid()
+        monkeypatch.setattr(self.m.os, 'getuid', lambda: uid + 1)
+        assert 'GitHubIdentityNotConfigured' in self.call()['content'][0]['text']
+        assert not self.calls
+
+    def test_replay_no_second_http_and_no_credentials(self):
+        result = self.call()
+        assert not result['isError']
+        before = len(self.calls)
+        assert self.call() == result
+        assert len(self.calls) == before
+        saved = json.dumps(self.app.store.all('operations'))
+        for secret in ('synthetic-installation-token', 'synthetic-do-not-store', 'BEGIN', 'Authorization', 'Review text'):
+            assert secret not in saved
+        row = self.app.store.all('operations')[0]
+        assert row['comment_id'] == 99 and row['status'] == 201
+        assert row['repo'] == 'izaiahat/glp-business' and row['pr_number'] == 7
+        assert row['inspected_head_sha'] == row['current_head_sha'] == 'a' * 40
+        self.app.close()
+        self.app = self.m.Application(config(self.m), self.app.store.directory)
+        assert self.call() == result and len(self.calls) == before
+
+    @pytest.mark.parametrize('failure', [TimeoutError('synthetic'), OSError('synthetic'), 500, 503])
+    def test_uncertain_changed_id_never_resends(self, failure):
+        self.post_failure = failure
+        assert self.call()['isError']
+        before = len(self.calls)
+        self.pull_value['head']['sha'] = 'b' * 40
+        assert self.call(operation_id='rook_github_test_002')['isError']
+        assert self.call()['isError']
+        assert len(self.calls) == before
+
+    def test_operation_conflict(self):
+        assert not self.call()['isError']
+        before = len(self.calls)
+        assert 'OperationConflict' in self.call(body='different')['content'][0]['text']
+        assert len(self.calls) == before
+
+    def test_token_cache_and_no_extra_routes(self):
+        assert not self.call()['isError']
+        assert not self.call(operation_id='rook_github_test_002', body='Different')['isError']
+        assert len([c for c in self.calls if c[1].startswith('/app/')]) == 1
+        with pytest.raises(self.m.RpcError):
+            self.m.github_request('PATCH', '/repos/izaiahat/glp-business/pulls/7', 'synthetic')
+
+    @pytest.mark.parametrize('pull', [{}, {'number': 8, 'head': {'sha': 'a' * 40}},
+                                      {'number': 7, 'head': {'sha': 'bad'}}, {'number': 7, 'head': None}])
+    def test_unverifiable_pull_refused(self, pull):
+        self.pull_value = pull
+        assert 'NotPullRequest' in self.call()['content'][0]['text']
+        assert not [c for c in self.calls if '/issues/' in c[1]]
+
+    def test_cache_expiry_and_revoked_local_config(self, monkeypatch):
+        assert not self.call()['isError']
+        cache = self.m._github_token_cache
+        monkeypatch.setattr(self.m, '_github_token_cache', (cache[0], cache[1], time.time() + 299))
+        assert not self.call(operation_id='rook_github_test_002', body='second')['isError']
+        assert len([c for c in self.calls if c[1].startswith('/app/')]) == 2
+        before = len(self.calls)
+        self.pem.unlink()
+        assert 'GitHubIdentityNotConfigured' in self.call(operation_id='rook_github_test_003', body='third')['content'][0]['text']
+        assert len(self.calls) == before
+
+    def test_definite_post_4xx_sanitized_receipt(self):
+        self.post_failure = 403
+        result = self.call()
+        assert result['isError'] and result['structuredContent']['status'] == 403
+        before = len(self.calls)
+        assert self.call() == result and len(self.calls) == before
+        saved = self.m.canonical(self.app.store.all('operations'))
+        assert 'synthetic' not in saved and 'Review text' not in saved
+
+    @pytest.mark.parametrize('method,path', [
+        ('POST', '/repos/izaiahat/glp-business/pulls/7/reviews'),
+        ('PUT', '/repos/izaiahat/glp-business/pulls/7/merge'),
+        ('DELETE', '/repos/izaiahat/glp-business/issues/comments/99'),
+        ('POST', '/repos/other/repo/issues/7/comments'),
+        ('GET', 'https://api.github.com/repos/izaiahat/glp-business/pulls/7'),
+        ('GET', '/repos/izaiahat/glp-business/pulls/7?token=synthetic'),
+    ])
+    def test_transport_denies_other_routes(self, method, path):
+        with pytest.raises(self.m.RpcError, match='GitHubRouteDenied'):
+            self.m.github_request(method, path, 'synthetic')
+        assert not self.calls
+
+    def test_http_unicode_max_body_and_narrow_exception(self, monkeypatch):
+        m = self.m
+        monkeypatch.setattr(self.app.auth, 'authenticate', lambda *a: self.principal)
+        class MemorySocket:
+            def __init__(self, raw): self.input = io.BytesIO(raw); self.output = bytearray()
+            def makefile(self, *args): return self.input
+            def settimeout(self, timeout): pass
+            def sendall(self, data): self.output.extend(data)
+        handler = m.make_handler(self.app, {'127.0.0.1:8765'})
+        def request(body):
+            wire = m.canonical(body).encode()
+            raw = (f'POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nAuthorization: Bearer synthetic\r\n'
+                   f'MCP-Protocol-Version: {m.VERSION}\r\nContent-Type: application/json\r\nContent-Length: {len(wire)}\r\n\r\n').encode() + wire
+            sock = MemorySocket(raw); handler(sock, ('127.0.0.1', 1), object())
+            return bytes(sock.output)
+        body = rpc(m, 'tools/call', {'name': 'github_pr_comment', 'arguments': self.args(body='😀' * 20000)})
+        result = request(body)
+        assert result.startswith(b'HTTP/1.1 200')
+        assert not json.loads(result.split(b'\r\n\r\n')[1])['result']['isError']
+        before = len(self.calls)
+        body['params']['arguments']['body'] = '😀' * 21000
+        assert request(body).startswith(b'HTTP/1.1 400')
+        body['params']['name'] = 'reply_to_rook_request'
+        body['params']['arguments']['body'] = '😀' * 20000
+        assert request(body).startswith(b'HTTP/1.1 400')
+        assert len(self.calls) == before
+
+    def test_scope_and_rbac_discovery(self):
+        m = self.m
+        assert m.required_scopes('tools/call', {'name': 'github_pr_comment'}) == {m.CHANNEL_WRITE}
+        tool = next(t for t in m.COMMUNICATION_TOOLS if t['name'] == 'github_pr_comment')
+        assert tool['securitySchemes'] == [{'type': 'oauth2', 'scopes': [m.CHANNEL_WRITE]}]
+        assert tool['_meta']['rook/requiredRbacPermissions'] == [m.CHANNEL_WRITE]
+        key = jwt.PyJWK.from_json(jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key()), algorithm='RS256')
+        class Keys:
+            def get_signing_key_from_jwt(_, token): return key
+        self.app.auth = m.Authenticator(self.app.config, Keys())
+        for scope, permissions in [('rook.replies.write', [m.CHANNEL_WRITE]), (m.CHANNEL_WRITE, [])]:
+            claims = {'iss': self.app.config.issuer, 'aud': self.app.config.audience,
+                'sub': self.app.config.subject, 'iat': int(time.time()), 'exp': int(time.time()) + 600,
+                'scope': scope, 'permissions': permissions}
+            status, _, _ = self.app.handle('POST', '/mcp',
+                {'Authorization': 'Bearer ' + jwt.encode(claims, self.key, algorithm='RS256'),
+                 'MCP-Protocol-Version': m.VERSION},
+                rpc(m, 'tools/call', {'name': 'github_pr_comment', 'arguments': self.args()}))
+            assert status == 403
+        assert not self.calls
+
+
 class TestDiscordAPI:
     @pytest.fixture(autouse=True)
     def setup(self, tmp_path, monkeypatch):

@@ -16,6 +16,7 @@
 /tests/*
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
+!/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
@@ -338,6 +339,20 @@
 !/scripts/root_custody/single_unit.py
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
+
+# GLP75/76 minimal Sunday workweek source admission
+!/systems/
+/systems/*
+!/systems/seo-blog-machine/
+/systems/seo-blog-machine/*
+!/systems/seo-blog-machine/scripts/
+/systems/seo-blog-machine/scripts/*
+!/systems/seo-blog-machine/tests/
+/systems/seo-blog-machine/tests/*
+!/systems/seo-blog-machine/scripts/learning_loop_actions.py
+!/systems/seo-blog-machine/scripts/r2_update_carrier.py
+!/systems/seo-blog-machine/tests/test_learning_loop_actions.py
+!/systems/seo-blog-machine/tests/test_workweek_boundary.py
 !/.codex-task/
 /.codex-task/*
 !/.codex-task/RESULT.md

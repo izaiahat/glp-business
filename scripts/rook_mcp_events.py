@@ -33,6 +33,8 @@ import time
 from urllib.parse import urlsplit, quote, unquote, parse_qs, parse_qsl, urlencode
 
 import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from standardwebhooks.webhooks import Webhook
 from receive_one_discord_message import create_client, load_token
 
@@ -150,6 +152,109 @@ COMMUNICATION_TOOLS.append(DISCORD_API_TOOL)
 PROTECTED_CHANNELS = {CHANNEL, '1487300132054765629'}
 PROTECTED_MEMBERS = {OPERATOR, BOT}
 
+GITHUB_REPOS = ('izaiahat/glp-business', 'izaiahat/glp-site-candidate')
+GITHUB_APP_KEY_PATH = Path('/home/ubuntu/.hermes/secrets/dot-bots/rook-github-app.pem')
+GITHUB_APP_CONFIG_PATH = Path('/home/ubuntu/.hermes/secrets/dot-bots/rook-github-app.json')
+GITHUB_SHA = r'^[a-fA-F0-9]{40}$'
+GITHUB_HEADER = '**Rook advisory review** (automated; not operator approval or a formal review)'
+GITHUB_PR_COMMENT_TOOL = communication_tool('github_pr_comment', {
+    'repo': {'type': 'string', 'enum': list(GITHUB_REPOS)},
+    'pr_number': {'type': 'integer', 'minimum': 1},
+    'body': {'type': 'string', 'minLength': 1, 'maxLength': 20000},
+    'inspected_head_sha': {'type': 'string', 'pattern': GITHUB_SHA},
+    'operation_id': OPERATION_ID,
+}, ['repo', 'pr_number', 'body', 'inspected_head_sha', 'operation_id'])
+GITHUB_PR_COMMENT_TOOL['description'] = (
+    f'Post an advisory PR issue-comment as the host-configured Rook GitHub App. Requires JWT scope '
+    f'AND RBAC permission {CHANNEL_WRITE}. Only the two enumerated repositories; verifies the PR '
+    'and records inspected/current heads, visibly marks stale inspection, and neutralizes @-mentions. '
+    'No formal review, approval, merge, push, close, label, edit or delete. Stable operation_id replays '
+    'only metadata; uncertain effects cannot be resent even with a new ID. No credentials are returned.'
+)
+COMMUNICATION_TOOLS.append(GITHUB_PR_COMMENT_TOOL)
+_github_token_cache = None
+_github_token_lock = threading.Lock()
+
+
+def load_github_identity():
+    """Read only the operator-provisioned files; validate everything before network I/O."""
+    try:
+        def read_owned(path, maximum, private=False):
+            with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as source:
+                info = os.fstat(source.fileno())
+                if (info.st_uid != os.getuid() or not stat.S_ISREG(info.st_mode)
+                        or (private and stat.S_IMODE(info.st_mode) != 0o600)):
+                    raise ValueError('invalid identity file')
+                value = source.read(maximum + 1)
+                if len(value) > maximum:
+                    raise ValueError('oversized identity file')
+                return value
+        config = json.loads(read_owned(GITHUB_APP_CONFIG_PATH, 4096))
+        if (not isinstance(config, dict) or set(config) != {'app_id', 'installation_id'}
+                or any(type(config[k]) is not int or config[k] <= 0 for k in config)):
+            raise ValueError('invalid identity config')
+        pem = read_owned(GITHUB_APP_KEY_PATH, 32768, private=True)
+        key = serialization.load_pem_private_key(pem, password=None)
+        if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
+            raise ValueError('RSA private key required')
+        return config, key, hashlib.sha256(pem).hexdigest()
+    except Exception:
+        raise RpcError(-32602, 'GitHubIdentityNotConfigured') from None
+
+
+def github_request(method, path, bearer, payload=None):
+    """Exact routes, pinned TLS, no redirects/retries, bounded JSON, suppressed remote errors."""
+    repo = '(?:' + '|'.join(re.escape(r) for r in GITHUB_REPOS) + ')'
+    if not ((method == 'GET' and re.fullmatch(rf'/repos/{repo}/pulls/[1-9][0-9]*', path))
+            or (method == 'POST' and re.fullmatch(rf'/repos/{repo}/issues/[1-9][0-9]*/comments', path))
+            or (method == 'POST' and re.fullmatch(r'/app/installations/[1-9][0-9]*/access_tokens', path))):
+        raise RpcError(-32602, 'GitHubRouteDenied')
+    host, address, _ = callback_target('https://api.github.com/')
+    conn = PinnedHTTPSConnection(host, address)
+    try:
+        conn.request(method, path, body=canonical(payload).encode() if payload is not None else None,
+                     headers={'Authorization': 'Bearer ' + bearer, 'Accept': 'application/vnd.github+json',
+                              'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json',
+                              'User-Agent': 'RookGitHubApp/1.0'})
+        response = conn.getresponse()
+        data = response.read(1048577)
+        if len(data) > 1048576:
+            raise RpcError(-32030, 'GitHubResponseRefused')
+        if not 200 <= response.status < 300:
+            raise RpcError(-32030, 'GitHubRequestRejected', {'status': response.status})
+        value = json.loads(data)
+        if not isinstance(value, dict):
+            raise RpcError(-32030, 'GitHubResponseRefused')
+        return response.status, value
+    finally:
+        conn.close()
+
+
+def github_installation_token(identity):
+    global _github_token_cache
+    config, key, fingerprint = identity
+    cache_key = (config['app_id'], config['installation_id'], fingerprint)
+    with _github_token_lock:
+        now = time.time()
+        if _github_token_cache and _github_token_cache[0] == cache_key and now < _github_token_cache[2] - 300:
+            return _github_token_cache[1]
+        app_jwt = jwt.encode({'iat': int(now) - 60, 'exp': int(now) + 540, 'iss': str(config['app_id'])},
+                             key, algorithm='RS256')
+        _, value = github_request('POST', f"/app/installations/{config['installation_id']}/access_tokens", app_jwt,
+                                  {'repositories': [r.split('/')[1] for r in GITHUB_REPOS],
+                                   'permissions': {'pull_requests': 'write'}})
+        token = value.get('token')
+        try:
+            expires = datetime.fromisoformat(value['expires_at'].replace('Z', '+00:00'))
+            if expires.tzinfo is None or expires.timestamp() <= now + 300:
+                raise ValueError('invalid expiration')
+            if not isinstance(token, str) or not token or any(c.isspace() for c in token):
+                raise ValueError('invalid token')
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise RpcError(-32030, 'GitHubResponseRefused') from None
+        _github_token_cache = (cache_key, token, expires.timestamp())
+        return token
+
 
 def required_scopes(method, params):
     if method != 'tools/call':
@@ -159,7 +264,7 @@ def required_scopes(method, params):
         return {'rook.replies.write'}
     if name in {'read_rook_messages', 'read_rook_file'}:
         return {CHANNEL_READ}
-    if name in {'send_rook_message', 'create_rook_thread', 'set_rook_reaction', 'discord_api'}:
+    if name in {'send_rook_message', 'create_rook_thread', 'set_rook_reaction', 'discord_api', 'github_pr_comment'}:
         return {CHANNEL_WRITE}
     return {'rook.replies.write'}
 
@@ -567,6 +672,12 @@ def discord_api_request(body):
     params = body.get('params') if isinstance(body, dict) else None
     return (body.get('method') == 'tools/call' and isinstance(params, dict)
             and params.get('name') == 'discord_api' and isinstance(params.get('arguments'), dict)) if isinstance(body, dict) else False
+
+
+def github_comment_request(body):
+    params = body.get('params') if isinstance(body, dict) else None
+    return (isinstance(params, dict) and body.get('method') == 'tools/call'
+            and params.get('name') == 'github_pr_comment' and isinstance(params.get('arguments'), dict))
 
 
 def file_send_request(body):
@@ -1159,10 +1270,72 @@ class Application:
                 return self.thread(principal, params['arguments'])
             if params['name'] == 'set_rook_reaction':
                 return self.reaction(principal, params['arguments'])
+            if params['name'] == 'github_pr_comment':
+                return self.github_pr_comment(principal, params['arguments'])
             if params['name'] == 'discord_api':
                 return self.discord_api(principal, params['arguments'])
             raise RpcError(-32602, 'InvalidParams')
         raise RpcError(-32601, 'MethodNotFound')
+
+    def github_pr_comment(self, principal, arguments):
+        try:
+            if (not isinstance(arguments, dict)
+                    or set(arguments) != {'repo', 'pr_number', 'body', 'inspected_head_sha', 'operation_id'}
+                    or not isinstance(arguments['repo'], str) or arguments['repo'] not in GITHUB_REPOS
+                    or type(arguments['pr_number']) is not int or arguments['pr_number'] <= 0
+                    or not isinstance(arguments['body'], str) or not 1 <= len(arguments['body']) <= 20000
+                    or not isinstance(arguments['inspected_head_sha'], str)
+                    or not re.fullmatch(GITHUB_SHA, arguments['inspected_head_sha'])
+                    or not isinstance(arguments['operation_id'], str)
+                    or not re.fullmatch(OPERATION_ID['pattern'], arguments['operation_id'])):
+                raise RpcError(-32602, 'InvalidParams')
+            repo, number = arguments['repo'], arguments['pr_number']
+            inspected = arguments['inspected_head_sha'].lower()
+            body = arguments['body'].replace('@', '@\u200d')
+            # Generated operation metadata and live head must not let a changed ID bypass uncertainty.
+            digest = hashlib.sha256(canonical([repo, number, body, inspected]).encode()).hexdigest()
+            metadata = {'repo': repo, 'pr_number': number, 'inspected_head_sha': inspected,
+                        'current_head_sha': None, 'comment_id': None, 'html_url': None, 'status': None}
+            def action(row):
+                value = dict(metadata)
+                try:
+                    token = github_installation_token(load_github_identity())
+                    _, pull = github_request('GET', f'/repos/{repo}/pulls/{number}', token)
+                    current = pull.get('head', {}).get('sha') if isinstance(pull.get('head'), dict) else None
+                    if (type(pull.get('number')) is not int or pull['number'] != number
+                            or not isinstance(current, str) or not re.fullmatch(GITHUB_SHA, current)):
+                        raise RpcError(-32602, 'NotPullRequest')
+                    current = current.lower()
+                    value['current_head_sha'] = current
+                    row['current_head_sha'] = current
+                    self.store.put('operations', row['id'], row)
+                    stale = '\nstale: inspected head differs from current head\n' if inspected != current else ''
+                    # Caller Markdown may open an HTML comment or fence; keep metadata before it.
+                    comment = (GITHUB_HEADER + '\n\n' + stale
+                               + f'-- inspected head: {inspected} · PR head at posting: {current} · op {arguments["operation_id"]}'
+                               + '\n\n' + body)
+                    # Reservation is already durable; recheck caller lifetime immediately before effect.
+                    if principal.expires <= time.time():
+                        raise RpcError(-32602, 'Unauthorized')
+                    status, response = github_request('POST', f'/repos/{repo}/issues/{number}/comments', token,
+                                                      {'body': comment})
+                    identity, url = response.get('id'), response.get('html_url')
+                    if (type(identity) is not int or identity <= 0
+                            or url != f'https://github.com/{repo}/pull/{number}#issuecomment-{identity}'):
+                        raise RpcError(-32030, 'GitHubResponseRefused')
+                    value.update(comment_id=identity, html_url=url, status=status)
+                except RpcError as exc:
+                    status = exc.data.get('status') if isinstance(exc.data, dict) else None
+                    if exc.code != -32602 and not (type(status) is int and 400 <= status < 500):
+                        raise
+                    # Fixed local errors only, never remote error bodies or authentication material.
+                    value.update(status=status, error='NotPullRequest' if status == 404 and value['current_head_sha'] is None else exc.message)
+                row.update({k: v for k, v in value.items() if k != 'error'})
+                return value
+            return self.operation(principal, arguments['operation_id'], 'rook.github_pr_comment', digest, action,
+                                  receipt={**metadata, 'reply_author': 'rook-glp[bot]'}, result_builder=discord_api_result)
+        except RpcError as exc:
+            return discord_api_result({'error': exc.message})
 
     def discord_api(self, principal, arguments):
         try:
@@ -1620,7 +1793,8 @@ def make_handler(application, allowed_hosts):
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})
                             return
                         body = json.loads(self.rfile.read(length))
-                        if length > 32768 and not (file_send_request(body) or discord_api_request(body)):
+                        if length > 32768 and not (file_send_request(body) or discord_api_request(body)
+                                                   or (length <= 250000 and github_comment_request(body))):
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})
                             return
                 self.respond(*application.handle(self.command, self.path, dict(self.headers.items()), body))
