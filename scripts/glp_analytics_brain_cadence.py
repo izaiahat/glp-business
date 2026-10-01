@@ -345,6 +345,25 @@ def run_ads_approval_loop(*, fixture: Path | None = None,
 def run(phase: str, *, fixture: Path | None = None, alert_sink: Path | None = None,
         output_dir: Path | None = None, database: Path | None = None,
         runner: Any = subprocess.run) -> tuple[dict[str, Any], int]:
+    """Hold the existing reader fence for CLI and imported-call entry alike.
+
+    This fences cadence work only, not standalone collector/library imports or
+    unrelated source writers. It is not whole-cohort installation admission.
+    """
+    READER_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with READER_LOCK.open("a") as reader_lock:
+        try:
+            fcntl.flock(reader_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"status": "REFUSED_READER_EXCLUSION", "phase": phase,
+                    "output_count": 0}, 75
+        return _run_admitted(phase, fixture=fixture, alert_sink=alert_sink,
+                             output_dir=output_dir, database=database, runner=runner)
+
+
+def _run_admitted(phase: str, *, fixture: Path | None = None, alert_sink: Path | None = None,
+                  output_dir: Path | None = None, database: Path | None = None,
+                  runner: Any = subprocess.run) -> tuple[dict[str, Any], int]:
     if phase == "ads":
         return run_ads(fixture=fixture, alert_sink=alert_sink, output_dir=output_dir)
     if phase == "ads_approval_loop":
@@ -467,19 +486,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--database", type=Path)
     args = parser.parse_args(argv)
-    # The bridge /run invokes this CLI directly, bypassing cron_bridge_action.
-    # Acquire before deploy-trigger or collector reads/writes, and keep the
-    # descriptor open through every child and receipt/alert completion.
-    READER_LOCK.parent.mkdir(parents=True, exist_ok=True)
-    with READER_LOCK.open("a") as reader_lock:
-        try:
-            fcntl.flock(reader_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print(json.dumps({"status": "REFUSED_READER_EXCLUSION", "phase": args.phase,
-                              "output_count": 0}, sort_keys=True))
-            return 75
-        receipt, code = run(args.phase, fixture=args.fixture, alert_sink=args.alert_sink,
-                            output_dir=args.output_dir, database=args.database)
+    # The public callable owns the same fence for bridge CLI and imported work.
+    # Do not acquire twice: independent flock descriptors conflict even in one PID.
+    receipt, code = run(args.phase, fixture=args.fixture, alert_sink=args.alert_sink,
+                        output_dir=args.output_dir, database=args.database)
     print(json.dumps({
         "status": receipt["status"], "phase": receipt["phase"],
         "output_count": receipt["output_count"], "receipt": receipt.get("receipt_path"),

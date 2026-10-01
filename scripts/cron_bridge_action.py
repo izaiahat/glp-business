@@ -313,7 +313,7 @@ def decisions_host_sol(prompt, receipt_path, run_id, state, state_path):
     save(state_path, state)
     # Cron's minimal PATH does not include ~/.local/bin; bind the installed CLI.
     command = ["/home/ubuntu/.local/bin/hermes", "chat", "--quiet", "--cli", "--source", "tool",
-               "--provider", "openai-codex", "--model", "gpt-6-sol",
+               "--provider", "openai-codex", "--model", "gpt-6.1-sol",
                "--reasoning", "xhigh", "--max-turns", "60", "--toolsets",
                "web,file,terminal,firecrawl", "--query-file", str(prompt_path)]
     try:

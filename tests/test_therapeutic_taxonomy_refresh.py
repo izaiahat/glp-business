@@ -59,6 +59,13 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
     for pid in set(ids) - rows.keys():
         rows[pid] = copy.deepcopy(SNAPSHOT['programs'][pid])
     before = {'therapeutic_taxonomy': {'programs': rows, 'authorities': {}}}
+    # This minimal fixture represents an already-corrected Care successor.
+    # The exact predecessor/CAS path is covered separately by GLP-80 controls.
+    care = 'care-bare-rx-glp1-review'
+    if care in rows:
+        before['programs'] = [{'program_id': care, 'research_dynamic_profile':
+                               {'taxonomy': {'brand_name_tags': []}}}]
+        before['provider_dynamic_profiles'] = {'profiles': {care: {'taxonomy': {'brand_name_tags': []}}}}
     registry.write_bytes(producer.encoded(before))
     captures = []
     def fake_capture(url, dest):
@@ -111,7 +118,7 @@ def test_multi_source_success_and_unsupported_breeze_is_review_required(producer
 
 
 def test_explicit_policy_review_never_refreshes_or_fetches(producer, monkeypatch, tmp_path):
-    held, good = 'care-bare-rx-glp1-review', 'breeze-meds-review'
+    held, good = 'jrnys-review', 'breeze-meds-review'
     code, result, before, after, calls = run_fixture(producer, monkeypatch, tmp_path, [held, good])
     assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
     assert result['findings'][0]['condition'].startswith('policy_review_required:')
@@ -209,7 +216,13 @@ def test_all_58_rows_accounted_for_and_all_48_near_expiry_selected(producer):
         assert all(s['url'] in rows[pid]['source_urls'] for s in sources)
         for field in producer.FIELDS:
             tags = [tag for s in sources for tag in s['quotes'].get(field, {})]
-            assert sorted(tags) == rows[pid][field], (pid, field)
+            expected = rows[pid][field]
+            if pid == 'care-bare-rx-glp1-review' and field == 'brand_name_tags':
+                # Preserve the retained snapshot; its sole accepted successor is
+                # the exact PR18 removal, not a general equality relaxation.
+                assert expected == producer.CARE_BARE_CORRECTION['brand_name_tags_before']
+                expected = producer.CARE_BARE_CORRECTION['brand_name_tags_after']
+            assert sorted(tags) == expected, (pid, field)
             assert all(q.strip() for s in sources for q in s['quotes'].get(field, {}).values())
 
 

@@ -1,0 +1,22 @@
+{
+  "monitor": {
+    "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
+    "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+  },
+  "economics": {
+    "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-G/offline_extension.py",
+    "sha256": "669e1c35e881c8a5e340e455079c5327d11b53f89cffe075b6b04b897411d227"
+  },
+  "formatter": {
+    "path": "/home/ubuntu/business/ops/discord_fmt.py",
+    "sha256": "e6e0ed7231282b2f222a435d8879ca22cfe2317900f6cbb122f48a83e9263acc"
+  },
+  "microsoft": {
+    "path": "/home/ubuntu/business/scripts/microsoft_ads_api.py",
+    "sha256": "5cb798bb9c1416cad6a05aaf378599517629289f099335e66ea082ac2840970e"
+  },
+  "posthog": {
+    "path": "/home/ubuntu/business/ops/glp/seo_data_rails.py",
+    "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
+  }
+}

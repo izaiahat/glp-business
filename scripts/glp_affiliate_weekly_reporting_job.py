@@ -23,6 +23,7 @@ def main(argv=None):
     parser.add_argument('--max-requests',type=int,default=32)
     parser.add_argument('--budget-seconds',type=int,default=240)
     parser.add_argument('--live-cj-readonly',action='store_true')
+    parser.add_argument('--live-network-readonly',action='store_true')
     args=parser.parse_args(argv)
     data=args.source_manifest.read_bytes()
     if hashlib.sha256(data).hexdigest()!=args.manifest_sha256:
@@ -43,6 +44,8 @@ def main(argv=None):
         '--budget-seconds',str(args.budget_seconds)]
     if args.live_cj_readonly:
         command.append('--live-cj-readonly')
+    if args.live_network_readonly:
+        command.append('--live-network-readonly')
     return report(command)
 
 
