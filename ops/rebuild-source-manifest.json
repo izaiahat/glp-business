@@ -279,7 +279,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "ca71a553d87a7b195ee43d5ef602847b65212ea0d0276509c8ab809f4720438d"
+      "sha256": "ee80c755fc6ce7c058472867f4c7e030adc0f828c63d7d94d030946ca0f82cc3"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -897,7 +897,7 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "e194f495f75c0df56d2f1ee6eea6b1faa22cc91ced7fcffcdcc6d57f31979308"
+      "sha256": "23ea06844cebe4feee9e7f8ab0df9c37203f541442bb2089b86fe4a2a01bdb88"
     },
     "scripts/affiliate_best_terms_machine.py": {
       "callers": [
@@ -905,7 +905,7 @@
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "472badeb3241a0a19b42bcc45d2b363d1e412654cfcac3b6aef6bf15bbd978aa"
+      "sha256": "7c13ca288f82ae061888e5a7b5773f10ea09284102f65471de2959fb4b5c2aef"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [
@@ -947,7 +947,7 @@
         "scripts/affiliate_niche_geo_filter.py"
       ],
       "kind": "script",
-      "sha256": "3a12a48152126a86cd521e30d8d9644080e70c8dc6de157c57bbb7ec8e5d6bc2"
+      "sha256": "50ba84eb61d8241fcb62461b5b3ab1359277c4f28452a0fbc7ea08c8082d106f"
     },
     "scripts/affiliate_program_relevance.py": {
       "callers": [
@@ -989,7 +989,7 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "56c9a61e25e8b8ab52893e1a685cf02ae64c300aab282d21b5da0a113f1d283d"
+      "sha256": "8f882b3fc6ae1d6fc81590c94c84b1e28c1f094e273b7b0643c013366682ca7f"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
@@ -1010,7 +1010,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "script",
-      "sha256": "d0a82e523b5d0fc64a015123d217e16fc50445ec8c72da72e6437432e610e8c4"
+      "sha256": "03d39919b559e3860082a9ef9a5b2567cd31238c859a7657a31eb8ab05b4975d"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
@@ -1271,14 +1271,14 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "411d100b6f6b2f2434f91b089c30f84efdb70037254051fdb96a8f061f6e3b83"
+      "sha256": "214e5340ebce5a51d02dbcfcdcba8255fdcefff8e6a3967ff24b650a42d27015"
     },
     "scripts/glp_application_machine.py": {
       "callers": [
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "a1cc86e86561b83cf50f6ab4e6408135d78947f5d0cf750d804f95099c14305c"
+      "sha256": "8a7f4e4db4923befcccc3f9f5526234d71fe79f6af75a9dcd7abfc858dbf0f29"
     },
     "scripts/glp_application_submit_child.py": {
       "callers": [
@@ -1684,7 +1684,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9109dd1a94b66efe4f90f0378e08ec8a36ab30e6a25a865b2672283d0e7ea8b0"
+      "sha256": "49310b17cf1dce708a29dc48c0ea7326080a593d5b486b3665e3df725f1d2187"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2053,7 +2053,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "a65c0f1e8e3dbf6755d5e36908116d957ad2ce89b87cf9fdea7835a13be7ffdc"
+      "sha256": "c9e64a1d6e827d701c08522f8f687220233c4d36e7a9cd0c32f2503d90c8a751"
     },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
@@ -2074,14 +2074,14 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "5e97985ebb6f9e4ca7a1d736fae284ed8face3e254bb8b4e785952fe95a06561"
+      "sha256": "692ac5139edf2167c4d75159f3e84a7071d87a79fcc14bb65e5ec6aa8b7e0a22"
     },
     "tests/test_affiliate_discovery_resume.py": {
       "callers": [
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "14a30096c3fef1a2c52572a9437b6d10ecd0821847975f8a5709cf55d18be669"
+      "sha256": "209ed443acfdf30899dd2c8744d2d99e0fd9fe0e91756b3dfbc39d1f43b1677e"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
@@ -2139,12 +2139,17 @@
       "kind": "test",
       "sha256": "3bb1eca401ca8e08b82e7686df48ba539bed6433fca7d096b10d6e210476053e"
     },
+    "tests/test_pro_opaque_program_identity.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "00051f70530d45ae3f4e5cb15055988e354a7b2c43aeb9a316c7eb16c8e2d9be"
+    },
     "tests/test_affiliate_terms_fanout.py": {
       "callers": [
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c079111400deb56a43930ea34989d515503a757e2c36e84723c6fdd4c3fed55a"
+      "sha256": "b52b83e1da23459f041f039bf65cca8122e24c0b1b5b452105ae61c95d168ffc"
     },
     "tests/test_audit_20260916_gates.py": {
       "callers": [

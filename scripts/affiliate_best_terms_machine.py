@@ -627,7 +627,7 @@ def xentraffic_offers(path: Path) -> list[dict[str, Any]]:
                 or (f"{payout_model}: ${amount:g}" if amount is not None else "")
             ),
             "payout_parse_basis": "authenticated_xentraffic_offer_detail",
-            "currency": str(raw.get("currency") or "USD").upper(),
+            "currency": str(raw.get("currency") or "").strip().upper() or None,
             "relationship": relationship if relationship in {"active", "approved"} else "active",
             "wire_in_ready": runnable,
             "wired_live": False,
@@ -685,7 +685,7 @@ def application_ledger_offers() -> list[dict[str, Any]]:
             "payout_model": "unknown",
             "payout_display": "",
             "payout_parse_basis": "application_ledger_has_no_payout",
-            "currency": "USD",
+            "currency": str(raw.get('currency') or '').strip().upper() or None,
             "relationship": relationship,
             # Ledger holds are independent of commercial/source precedence.
             # Preserve them before a stale Sheet alias of this exact rail merges.
@@ -742,7 +742,7 @@ def inventory_programs(census_dir: Path | None) -> list[dict[str, Any]]:
                 "payout_parse_basis": payout["payout_parse_basis"],
                 "paid_event": payout.get("paid_event") or "",
                 "paid_event_basis": payout.get("paid_event_basis") or "",
-                "currency": str(raw.get("currency") or "USD").upper(),
+                "currency": str(raw.get("currency") or "").strip().upper() or None,
                 "relationship": str(raw.get("relationship") or "unknown"),
                 "held": raw.get("held"),
                 "suppressed": raw.get("suppressed"),
@@ -1335,9 +1335,9 @@ def changed_winners(previous: dict[str, Any], current: dict[str, Any], scope: se
         if old_key != ("", ""):
             if not bool(old_winner.get("wired_live")):
                 continue
-            same_currency = (
-                str(old_winner.get("currency") or "USD").upper()
-                == str(new_winner.get("currency") or "USD").upper()
+            same_currency = bool(str(old_winner.get('currency') or '').strip()) and (
+                str(old_winner.get("currency") or "").strip().upper()
+                == str(new_winner.get("currency") or "").strip().upper()
             )
             cross_event = (
                 policy.comparison_event(old_winner) != policy.comparison_event(new_winner)
