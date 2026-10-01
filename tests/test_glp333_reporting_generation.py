@@ -190,7 +190,9 @@ def acceptance(proposal):
     return {**copy.deepcopy(proposal), 'schema': 'glp44-scoped-adoption-review-v1',
             'approved_source': pair.PR119_SOURCE, 'decision': 'ACCEPT_EXACT_BYTES',
             'prepared_by': 'fixture preparer', 'reviewer': 'fixture independent source reviewer',
+            'receipt': 'fixture source review; not runtime authority',
             'runtime_review': {'schema': 'glp333-reporting-runtime-review-v1',
+                               'receipt': 'fixture receiving review; not runtime authority',
                                'decision': 'ACCEPT_EXACT_BYTES', 'reviewer': 'fixture receiving reviewer',
                                'proposal_sha256': sha(json.dumps(proposal, sort_keys=True).encode())}}
 
@@ -278,7 +280,7 @@ def test_supported_preview_accept_apply_readback_and_no_replay(tmp_path, monkeyp
             print('NATIVE_EXACT_COHORT_PREVIEW_ACCEPT_APPLY_READBACK_NO_REPLAY=PASS')
             receipt = {
                 'fixture_only': True,
-                'head': proposal['producer_commit'],
+                'head': proposal['producer_head'],
                 'proposal': proposal,
                 'fixture_review': review,
                 'result': result,
@@ -327,6 +329,25 @@ def test_exact_review_and_prerequisite_refusals_before_payload_writes(tmp_path, 
             apply(f, review)
         assert not f.saves and payloads(f) == before
         assert not (f.root / 'reports/ops/pin-archive').exists()
+    finally:
+        f.window.release_locks()
+
+
+def test_exact_target_and_producer_manifest_binding(tmp_path, monkeypatch):
+    f = generation_fixture(tmp_path, monkeypatch)
+    try:
+        proposal = preview(f)
+        assert proposal.get('target') == {
+            'root': str(f.root.resolve()), 'hermes': str(f.hermes.resolve()),
+            'registry': str(f.registry.resolve()), 'journal': str(f.journal.resolve()),
+        }
+        assert proposal.get('producer_source_manifest_sha256') == sha((ROOT / syncer.MANIFEST).read_bytes())
+        review = acceptance(proposal)
+        review['target']['registry'] = str(f.root / 'different-store.json')
+        before = payloads(f)
+        with pytest.raises(RuntimeError, match='reviewed_preimage_or_candidate_moved:target'):
+            apply(f, review)
+        assert payloads(f) == before and not f.saves
     finally:
         f.window.release_locks()
 
