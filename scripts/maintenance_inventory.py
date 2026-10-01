@@ -64,8 +64,12 @@ class Tracer:
         self.root, self.hermes = root.resolve(), hermes.resolve()
         self.affected = affected if affected is not None else affected_paths(self.root, self.hermes)
         self.cache = {}
+        # Cache only complete entrypoint closures within this discovery, never
+        # partial nested results that depend on which ancestors were cut out.
+        self.failures = {}
 
-    def command(self, command: str, cwd: Path | None = None):
+    def command(self, command: str, cwd: Path | None = None, visiting=None):
+        visiting = set() if visiting is None else visiting
         _safe_command(command)
         cwd = cwd or self.root
         if any(str(p) in command or str(p.relative_to(self.root)) in command
@@ -88,9 +92,9 @@ class Tracer:
             raise InventoryError(['assignment_without_command'])
         executable = Path(words[0]).name
         if executable == 'env':
-            return self.command(shlex.join(words[1:]), cwd)
+            return self.command(shlex.join(words[1:]), cwd, visiting)
         if executable in {'bash', 'sh', 'dash'} and len(words) > 2 and words[1] == '-c':
-            return self.command(words[2], cwd)
+            return self.command(words[2], cwd, visiting)
         if executable.startswith('python'):
             args = words[1:]
             while args and args[0] in ('-u', '-B', '-I', '-s', '-E'):
@@ -102,16 +106,16 @@ class Tracer:
                 # -m package executes __main__ after its initializer; an import
                 # of that package alone does not execute the entrypoint.
                 name = args[1] + '.__main__' if source.name == '__init__.py' else args[1]
-                return self.module_trace(name, cwd, set())
+                return self.module_trace(name, cwd, visiting)
             if not args or args[0].startswith('-'):
                 raise InventoryError(['dynamic_python_command'])
-            return self.file(self.resolve(args[0], cwd), set())
+            return self.file(self.resolve(args[0], cwd), visiting)
         if executable in {'bash', 'sh', 'dash', 'exec'}:
             if len(words) < 2 or words[1].startswith('-'):
                 raise InventoryError(['unsupported_shell_invocation'])
-            return self.file(self.resolve(words[1], cwd), set())
+            return self.file(self.resolve(words[1], cwd), visiting)
         if words[0].endswith(('.py', '.sh')):
-            return self.file(self.resolve(words[0], cwd), set())
+            return self.file(self.resolve(words[0], cwd), visiting)
         if executable in {'true', 'false', 'echo', 'printf', 'date'} and not re.search(r'[|&;<>]', command):
             return False, []
         raise InventoryError(['unclassified_executable:' + (executable if re.fullmatch(r'[A-Za-z0-9_.+-]{1,80}', executable) else '<opaque>')])
@@ -159,7 +163,7 @@ class Tracer:
             errors.extend(exc.errors)
         if errors and not reached:
             raise InventoryError(sorted(set(errors)))
-        return reached, sorted(set(trace))
+        return reached, sorted(set(trace) | {str(source) for source in visiting})
 
     def import_files(self, node, path):
         """Yield every Python file executed by a supported static import.
@@ -196,6 +200,11 @@ class Tracer:
             return self.cache[path]
         if path in visiting:
             return False, [str(path)]
+        if path in self.failures:
+            raise InventoryError(self.failures[path])
+        entrypoint = not visiting
+        # Siblings share this set; only successfully read, allowed sources are
+        # added below, so complete entrypoint custody can retain every read.
         if _secret_path(path):
             raise InventoryError(['secret_file_reference_not_read'])
         if not path.is_relative_to(self.root) and not path.is_relative_to(self.hermes / 'scripts'):
@@ -204,6 +213,7 @@ class Tracer:
             body = path.read_text()
         except (OSError, UnicodeError):
             raise InventoryError(['unreadable_source:' + str(path)]) from None
+        visiting.add(path)
         trace, errors = [str(path)], []
         reached = False
         # Literal affected references catch hash readers and writers as well as imports.
@@ -226,7 +236,7 @@ class Tracer:
                     try:
                         for child in self.import_files(node, path):
                             try:
-                                hit, children = self.file(child, visiting | {path})
+                                hit, children = self.file(child, visiting)
                                 reached |= hit
                                 trace.extend(children)
                             except InventoryError as exc:
@@ -239,7 +249,7 @@ class Tracer:
                     if fn.endswith(('import_module', '__import__')):
                         if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                             try:
-                                hit, children = self.module_trace(node.args[0].value, path.parent, visiting | {path})
+                                hit, children = self.module_trace(node.args[0].value, path.parent, visiting)
                                 reached |= hit
                                 trace.extend(children)
                             except InventoryError as exc:
@@ -251,7 +261,7 @@ class Tracer:
                             argv = ast.literal_eval(node.args[0]) if node.args else None
                             if not isinstance(argv, list) or not all(isinstance(v, str) for v in argv):
                                 raise ValueError()
-                            hit, children = self.command(shlex.join(argv), self.root)
+                            hit, children = self.command(shlex.join(argv), self.root, visiting)
                             reached |= hit
                             trace.extend(children)
                         except (ValueError, TypeError, InventoryError):
@@ -274,7 +284,7 @@ class Tracer:
                 if not line or line.startswith('#') or line in ('set -e', 'set -eu', 'set -euo pipefail'):
                     continue
                 try:
-                    hit, children = self.command(line, path.parent)
+                    hit, children = self.command(line, path.parent, visiting)
                     reached |= hit
                     trace.extend(children)
                 except InventoryError as exc:
@@ -282,9 +292,17 @@ class Tracer:
         else:
             errors.append('unsupported_source_type:' + str(path))
         if errors and not reached:
-            raise InventoryError(sorted(set(errors)))
+            errors = sorted(set(errors))
+            if entrypoint:
+                self.failures[path] = errors
+            raise InventoryError(errors)
+        if entrypoint:
+            # A failed branch may have been shared with a later affected one.
+            # Keep all read sources rather than losing its custody on dedupe.
+            trace.extend(str(source) for source in visiting)
         result = reached, sorted(set(trace))
-        self.cache[path] = result
+        if entrypoint:
+            self.cache[path] = result
         return result
 
 
