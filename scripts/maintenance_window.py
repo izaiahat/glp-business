@@ -1212,10 +1212,12 @@ def main(argv=None):
                     time.sleep(0.25)
         else:
             review = json.loads(args.outcome_review.read_text()) if args.outcome_review else None
-            data = read_journal(args.journal) if args.journal.exists() else None
-            if data and locks_verified(data) and data['keeper'] != identity():
-                with operation_lock(args.journal, timeout=OPERATION_ADMISSION_SECONDS):
-                    data = read_journal(args.journal)
+            keeper_exit_requested = False
+            # Route from a fresh journal under admission, not a stale dead-owner
+            # sample taken before a concurrent keeper resume. Never retry effects.
+            with operation_lock(args.journal, timeout=OPERATION_ADMISSION_SECONDS):
+                data = read_journal(args.journal) if args.journal.exists() else None
+                if data and locks_verified(data) and data['keeper'] != identity():
                     if review is not None:
                         # Review refers to the pre-request journal. Verify it
                         # before adding the durable keeper handoff fields.
@@ -1223,6 +1225,14 @@ def main(argv=None):
                         data['outcome_review'] = review
                     data['exit_requested'] = True
                     atomic_json(args.journal, data)
+                    keeper_exit_requested = True
+                elif data is not None:
+                    if review is not None:
+                        window.reconcile_outcome(data, review)
+                    result = window._exit(data)
+                else:
+                    result = window.status()
+            if keeper_exit_requested:
                 deadline = time.monotonic() + 120
                 while True:
                     result = window.status()
@@ -1233,8 +1243,6 @@ def main(argv=None):
                         break
                     require(time.monotonic() < deadline, 'keeper_exit_timeout_reconcile_journal')
                     time.sleep(0.25)
-            else:
-                result = window.exit(review)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0 if args.command != 'status' or result['state'] in {'absent', 'closed'} or result['verified'] else 2
     except Exception as exc:
