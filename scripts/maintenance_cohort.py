@@ -58,6 +58,18 @@ def switch_files(journal, stage, before, drain):
     status = Path('/proc/self/status').read_text()
     caps = int(next(line.split()[1] for line in status.splitlines() if line.startswith('CapEff:')), 16)
     require(not caps & ((1 << 1) | (1 << 2)), 'cohort_dac_override_refused')
+    data = read_journal(journal)
+    previous = data.get('source_switch', {})
+    files = previous.get('files', {})
+    sources = {Path(name): item for name, item in files.items() if not item.get('cache')}
+    if (previous.get('state') == 'published' and set(stage) == set(sources)
+            and all(digest(stage[path]) == item['before']
+                    and digest(before[path][0]) == item['after']
+                    and before[path][1] == item['mode'] for path, item in sources.items())):
+        # An exact inverse is a rollback of this publication, not a new switch.
+        # Reuse its authenticated sources AND removed caches; never replace custody.
+        proposal = _recovery_proposal(journal, {'published'})
+        return _restore_preimages(journal, proposal, drain, states={'published'})
     # Stale bytecode is another first-read path. Keep exact cache custody for
     # rollback, remove it only after its corresponding new source is complete.
     caches = {}
@@ -194,13 +206,17 @@ def switch_files(journal, stage, before, drain):
 
 def recovery_proposal(journal):
     """Inspect sealed inode identities and authenticated custody without opening sources."""
+    return _recovery_proposal(journal, {'prepared', 'sealing', 'switching', 'sealed',
+                                       'recovery_required', 'recovering'})
+
+
+def _recovery_proposal(journal, states):
     from maintenance_window import json_sha, read_journal, require
     from maxbounty_pin_release import read_regular
     raw = read_regular(Path(journal))[0]
     data = read_journal(journal)
     switch = data.get('source_switch', {})
-    require(switch.get('state') in {'prepared', 'sealing', 'switching', 'sealed',
-                                  'recovery_required', 'recovering'}, 'cohort_recovery_not_required')
+    require(switch.get('state') in states, 'cohort_recovery_not_required')
     require(isinstance(switch.get('files'), dict) and switch['files'], 'cohort_recovery_files_missing')
     files = {}
     for name, item in switch['files'].items():
@@ -234,9 +250,7 @@ def recovery_proposal(journal):
 
 def recover(journal, review, drain):
     """Restore a reviewed preimage while the caller retains paused task admission."""
-    import json
-    from maintenance_window import atomic_json, read_journal, require
-    from maxbounty_pin_release import read_regular
+    from maintenance_window import require
     require(isinstance(review, dict)
             and review.get('schema') == 'glp-maintenance-cohort-recovery-review-v1'
             and review.get('decision') == 'RESTORE_EXACT_COHORT_PREIMAGE'
@@ -245,6 +259,14 @@ def recover(journal, review, drain):
             and review['prepared_by'].strip() != review['reviewer'].strip(), 'cohort_recovery_review_required')
     proposal = recovery_proposal(journal)
     require(review.get('proposal') == proposal, 'cohort_recovery_review_moved')
+    return _restore_preimages(journal, proposal, drain, review=review)
+
+
+def _restore_preimages(journal, proposal, drain, *, states=None, review=None):
+    """Use the original custody and DAC fence for rollback or reviewed recovery."""
+    import json
+    from maintenance_window import atomic_json, read_journal, require
+    from maxbounty_pin_release import read_regular
     require(os.geteuid() != 0, 'cohort_privileged_controller_refused')
     caps = int(next(line.split()[1] for line in Path('/proc/self/status').read_text().splitlines()
                     if line.startswith('CapEff:')), 16)
@@ -269,8 +291,11 @@ def recover(journal, review, drain):
             os.fsync(fd)
             staged[name] = (fd, temporary)
             switch['files'][name]['recovery_metadata'] = metadata(os.fstat(fd))
-        require(recovery_proposal(journal) == proposal, 'cohort_recovery_preimage_moved')
-        switch.update(state='recovering', recovery_review_sha256=digest(json.dumps(review, sort_keys=True).encode()))
+        current = _recovery_proposal(journal, states) if states is not None else recovery_proposal(journal)
+        require(current == proposal, 'cohort_recovery_preimage_moved')
+        switch['state'] = 'recovering'
+        if review is not None:
+            switch['recovery_review_sha256'] = digest(json.dumps(review, sort_keys=True).encode())
         atomic_json(journal, data)  # Stage identities survive a second process/power loss.
         for name, item in proposal['files'].items():
             path = Path(name)
@@ -300,6 +325,9 @@ def recover(journal, review, drain):
             os.fchmod(fd, proposal['files'][name]['mode'])
             os.fsync(fd)
         switch['state'] = 'rolled_back'
-        switch['recovery'] = {'proposal': proposal, 'review_sha256': switch['recovery_review_sha256']}
+        if review is not None:
+            switch['recovery'] = {'proposal': proposal, 'review_sha256': switch['recovery_review_sha256']}
+        else:
+            switch['rollback'] = {'proposal': proposal}
         atomic_json(journal, data)
         return switch

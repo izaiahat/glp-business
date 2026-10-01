@@ -79,7 +79,7 @@ def fixture(tmp_path, monkeypatch):
             if not journal.exists():
                 journal.write_text(json.dumps({'schema': 'glp44-glp73-maintenance-window-v1'}))
             receipt = switch_files(journal, stage, before, lambda: [])
-            assert receipt['state'] == 'published'
+            assert receipt['state'] in {'published', 'rolled_back'}
             return receipt
         def accept_job_update(self, jid, before, after):
             assert self.current_job(jid) == before

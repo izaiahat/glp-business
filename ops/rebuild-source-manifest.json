@@ -49,7 +49,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f9a71f849e7f4d92d423155c9f6d9973237ef33867c63e384ccc754c320ddba6"
+      "sha256": "c5d1b18254e110d1e54a3e5af1fd90201c91972a6251c7bb549cd3eae65f2d47"
     },
     ".hermes.md": {
       "callers": [],
@@ -1693,7 +1693,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "eb48f77dcb2930174c0c8cac184e4c664547aa0be564aae8bd36bd9aebb0b921"
+      "sha256": "702487131d1e63af18896e51784d3bf6209ef7cea00c76777f4ca6866bda2218"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2429,7 +2429,7 @@
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3020c8b827d78f13cb0f28683ae68fb617dafee01dbe2b409bbcb2bdd9e45ad9"
+      "sha256": "ecd35d5833d9c5e3f6a4d2678482e24c08ae0dcc63ae61c4cde3e88e80797689"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
@@ -2464,7 +2464,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "d5b99d1c458fc4d5022cbb3481a5338551a9a61cf7969664839e5089a9efe96e"
+      "sha256": "35d596de77734176af215332d175b779c4c2a27131b6e3603816cd465ac3a8df"
     },
     "tests/test_glp73_retention_prepared_consumer.py": {
       "callers": [
@@ -3032,7 +3032,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "script",
-      "sha256": "e434e24910c1ffdcf93d8a6098c9f3294f944f7d0b30e0ef5bf7889ce7a5ed38"
+      "sha256": "8e572e2fc52644903653f4ef25ff5ab544becbc54a6e3f14bd5edd956dd52cd6"
     },
     "tests/test_glp73_sync_rebaseline.py": {
       "callers": [
@@ -3068,6 +3068,13 @@
       ],
       "kind": "test",
       "sha256": "e72784de32b4c9bbc125a9a463674e13fbfbc9ae6e2b0dd9cdb69869af1530ff"
+    },
+    "tests/test_adoption_cache_restore.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "639fdc504d6a620bf03f0f0626cb5695476dd07a7166390947a825f1846162a5"
     }
   },
   "omitted_runtime_inputs": [

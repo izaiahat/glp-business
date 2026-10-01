@@ -16,6 +16,7 @@ suites+=(tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_a
 suites+=(tests/test_glp44_reader_exclusion.py)
 suites+=(tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_adoptions.py)
 suites+=(tests/test_maintenance_restoration_review.py tests/test_maintenance_admission_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py tests/test_glp73_sync_rebaseline.py)
+suites+=(tests/test_adoption_cache_restore.py)
 suites+=(tests/test_candidate_freshness_horizon.py)
 suites+=(tests/test_glp_landed_uncertain_deployment_reconcile.py)
 suites+=(tests/test_glp193_capture_source_binding.py)
