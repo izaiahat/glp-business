@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """GLP-44 reviewed source/wrapper adoption; no job execution or schedule change.
 
-Apply needs an independently accepted exact-preimage receipt and external
-source-writer/direct-reader exclusion. The scheduler lock alone is not that
-exclusion. A preview is read-only and is not an apply authorization.
+Apply needs an independently accepted exact-preimage receipt and a verified
+active maintenance window. A preview is read-only, not an apply authorization.
 """
 import argparse
 import copy
@@ -47,7 +46,7 @@ def job_record(registry):
     return hits[0], document['jobs']
 
 
-def plan(checkout, root, hermes, review=None):
+def plan(checkout, root, hermes, review=None, *, window=None):
     checkout = checkout.resolve(strict=True)
     root = root.resolve(strict=True)
     hermes = hermes.resolve(strict=True)
@@ -70,11 +69,17 @@ def plan(checkout, root, hermes, review=None):
     if wrapper_before[0] != before[SNAPSHOT][0]:
         raise RuntimeError('installed_wrapper_not_curated_predecessor')
     registry = hermes / 'cron' / 'jobs.json'
-    job, _ = job_record(registry)
+    current_job, _ = job_record(registry)
+    job = window.original_job(JOB) if window is not None else current_job
+    if window is not None:
+        if (current_job != window.current_job(JOB)
+                or current_job.get('enabled') is not False or current_job.get('state') != 'paused'
+                or current_job.get('fire_claim') or current_job.get('run_claim') or current_job.get('running')):
+            raise RuntimeError('maintenance_reporting_job_moved_or_not_drained')
     if (job.get('enabled') is not True or job.get('state') != 'scheduled'
             or job.get('script') not in (WRAPPER, str(wrapper))
             or job.get('script_sha256') != digest(wrapper_before[0])
-            or job.get('fire_claim') or job.get('run_claim') or job.get('running')):
+            or current_job.get('fire_claim') or current_job.get('run_claim') or current_job.get('running')):
         raise RuntimeError('reporting_job_not_idle_or_preimage_moved')
     pins = json.loads((checkout / 'ops/glp/reporting-v2/source-manifest.json').read_text())['files']
     for absolute, expected in pins.items():
@@ -91,7 +96,7 @@ def plan(checkout, root, hermes, review=None):
             raise RuntimeError('reporting_pin_closure_refused:' + str(path))
     proposal = {'source_sha256': {p: digest((checkout / p).read_bytes()) for p in PATHS},
                 'wrapper_sha256': digest(snapshot), 'job_id': JOB,
-                'job_before': job, 'source_before_sha256': {
+                'job_before': job, 'job_window_before': current_job, 'source_before_sha256': {
                     p: digest(value[0]) if value[0] is not None else None for p, value in before.items()},
                 'wrapper_before_sha256': digest(wrapper_before[0]),
                 'state_before_sha256': digest(state[0]) if state[0] is not None else None}
@@ -102,14 +107,21 @@ def plan(checkout, root, hermes, review=None):
         if (review.get('schema') != 'glp44-scoped-adoption-review-v1'
                 or review.get('approved_source') != APPROVED
                 or review.get('decision') != 'ACCEPT_EXACT_BYTES'
-                or not review.get('reviewer') or not review.get('writer_and_reader_exclusion')):
+                or not review.get('reviewer')):
             raise RuntimeError('independent_review_required')
     return proposal, adopted, before, state, wrapper_before, registry
 
 
-def adopt(checkout, root, hermes, review, *, scheduler):
-    """Caller must hold external source-writer AND direct-reader exclusion."""
-    proposal, adopted, before, state, wrapper_before, registry = plan(checkout, root, hermes, review)
+def adopt(checkout, root, hermes, review, *, scheduler, window=None):
+    if window is None:
+        raise RuntimeError('active_maintenance_window_required')
+    from maintenance_window import require_active_window
+    with require_active_window(window, root, hermes) as active:
+        return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler, window=active)
+
+
+def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window):
+    proposal, adopted, before, state, wrapper_before, registry = plan(checkout, root, hermes, review, window=window)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
     wrapper = hermes / 'scripts' / WRAPPER
@@ -123,7 +135,7 @@ def adopt(checkout, root, hermes, review, *, scheduler):
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             # Revalidate every source, baseline, wrapper and full job under the lock.
-            fresh, _, _, _, _, _ = plan(checkout, root, hermes, review)
+            fresh, _, _, _, _, _ = plan(checkout, root, hermes, review, window=window)
             if fresh != proposal:
                 raise RuntimeError('preimage_moved_under_lock')
             registry_before = registry.read_bytes()
@@ -139,6 +151,10 @@ def adopt(checkout, root, hermes, review, *, scheduler):
             # Custody is not an exclusion lock; reject late edits before first source write.
             if any(observed(path) != value for path, value in original.items()) or registry.read_bytes() != registry_before:
                 raise RuntimeError('preimage_moved_after_custody')
+            window.accept_file_updates(
+                {str(path.resolve()): digest(original[path][0]) for path in stage},
+                {str(path.resolve()): digest(body) for path, body in stage.items()},
+            )
             source_written = False
             try:
                 source_written = True  # sync may partially write before raising
@@ -148,10 +164,11 @@ def adopt(checkout, root, hermes, review, *, scheduler):
                     raise RuntimeError('wrapper_moved_before_replace')
                 atomic_write(wrapper, (checkout / SNAPSHOT).read_bytes(), wrapper_before[1])
                 current, jobs = job_record(registry)
-                if current != proposal['job_before']:
+                if current != proposal['job_window_before']:
                     raise RuntimeError('job_moved_before_hash_update')
                 next_jobs = copy.deepcopy(jobs)
                 next(j for j in next_jobs if j['id'] == JOB)['script_sha256'] = proposal['wrapper_sha256']
+                window.accept_job_update(JOB, current, next(j for j in next_jobs if j['id'] == JOB))
                 scheduler._record_load_stamp(None)
                 scheduler._save_jobs_unlocked(next_jobs)
                 actual, actual_jobs = job_record(registry)
@@ -179,18 +196,25 @@ def main():
     parser.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
     parser.add_argument('--review', type=Path)
+    parser.add_argument('--window', type=Path, help='active maintenance journal; required for apply')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     try:
         review = json.loads(args.review.read_text()) if args.review else None
         if args.apply:
+            if args.window is None:
+                raise RuntimeError('active_maintenance_window_required')
             if review is None:
                 raise RuntimeError('independent_review_required')
             sys.path.insert(0, str(args.hermes / 'hermes-agent'))
             from cron import jobs as scheduler
-            result = adopt(args.checkout, args.root, args.hermes, review, scheduler=scheduler)
+            result = adopt(args.checkout, args.root, args.hermes, review, scheduler=scheduler, window=args.window)
         else:
-            result = {'applied': False, 'proposal': plan(args.checkout, args.root, args.hermes, review)[0]}
+            from contextlib import nullcontext
+            from maintenance_window import require_active_window
+            context = require_active_window(args.window, args.root, args.hermes) if args.window else nullcontext(None)
+            with context as active:
+                result = {'applied': False, 'proposal': plan(args.checkout, args.root, args.hermes, review, window=active)[0]}
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (RuntimeError, ValueError, OSError, subprocess.CalledProcessError) as exc:

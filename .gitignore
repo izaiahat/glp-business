@@ -320,3 +320,12 @@
 !/scripts/root_custody/single_unit.py
 !/tests/test_glp320_readonly_grouping.py
 !/ops/glp320-source-only.md
+!/.codex-task/
+/.codex-task/*
+!/.codex-task/RESULT.md
+!/scripts/maintenance_inventory.py
+!/scripts/maintenance_window.py
+!/scripts/glp73_sync_rebaseline.py
+!/tests/test_maintenance_inventory.py
+!/tests/test_maintenance_window.py
+!/tests/test_maintenance_adoptions.py
