@@ -3291,7 +3291,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "48a03300251b19504b09dc3a5eb9c6ab69f9b826812f48ff34679841ee2f6a41"
+      "sha256": "ff238691b508fdfefe8d546fd4d5c2dc7f7ceaa396aca14b72eec563374490d7"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3319,7 +3319,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "6b5d8d3fe1bde351a550ef30f33052bd7e4d3a51518e3ebd0b36e5bdbb2c3e35"
+      "sha256": "d750a8b270c65735d30e84b30454c649ba00a90169c48deaa8ac245fd9f68115"
     },
     "ops/unreviewed-local-edits/maxbounty-20261001/README.md": {
       "callers": [
@@ -3507,7 +3507,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7093bb391ad90b5c23cdfaab59f983a72cf123c62866ce6843b762618019f987"
+      "sha256": "0d909b1396803cf16b07d62f47305acbd73c3656d59126e6f8ca6a6c3bb24b4a"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [

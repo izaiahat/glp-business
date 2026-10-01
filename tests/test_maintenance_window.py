@@ -1054,6 +1054,16 @@ def release(self):
  original_release(self)
  if closing:
   # Closed is durable and fences are free, but the keeper still owns operation.
+  for fd in Path('/proc/self/fd').iterdir():
+   try:
+    if os.readlink(fd) != str(base / 'window.json.operation.lock'):
+     continue
+    info = (Path('/proc/self/fdinfo') / fd.name).read_text()
+    assert 'FLOCK' in info and 'WRITE' in info
+    proof = {'pid': os.getpid(), 'device': fd.stat().st_dev, 'inode': fd.stat().st_ino, 'fdinfo': info}
+    (base / 'operation-owner.json').write_text(json.dumps(proof))
+   except FileNotFoundError:
+    continue
   mark('keeper-released')
   wait('recovery-contended')
 mw.MaintenanceWindow.release_locks = release
@@ -1100,6 +1110,9 @@ Backend.pause, Backend.restore = pause, restore
     contention = json.loads((tmp_path / 'contended-lock.json').read_text())
     lock = tmp_path / 'window.json.operation.lock'
     assert contention == {'path': str(lock), 'device': lock.stat().st_dev, 'inode': lock.stat().st_ino}
+    owner = json.loads((tmp_path / 'operation-owner.json').read_text())
+    assert owner['pid'] == closed['keeper']['pid']
+    assert (owner['device'], owner['inode']) == (contention['device'], contention['inode'])
     for row in closed['locks']:
         with Path(row['path']).open('a+') as handle:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
