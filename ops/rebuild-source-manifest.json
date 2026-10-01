@@ -726,7 +726,7 @@
     "ops/protected-oracles.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "9f7d68ee3d79f6cb1cabe739f68628c31b7b566a626d82adf04838b18e02775d"
+      "sha256": "fdd270ebc7d2ddb3ff2958815f65c7995e0f114a3d05908f7a31f224675312c6"
     },
     "ops/registered-producers.json": {
       "callers": [],
