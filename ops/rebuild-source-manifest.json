@@ -38,7 +38,7 @@
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
       "callers": ["GLP331 exact-head native acceptance fixtures"],
-      "sha256": "4afc935a60c42c754b9abbadc7e6f257bf43d582140b3fe83cc46a6a0240de20"
+      "sha256": "4700d33b6af121073ab8b3af911e278da86ececc4bb7fb37862d1a89b943bab2"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
