@@ -119,8 +119,9 @@ class TestGitHubPRComment:
             ('GET', '/repos/izaiahat/glp-business/pulls/7'),
             ('POST', '/repos/izaiahat/glp-business/issues/7/comments')]
         assert self.calls[-1][2]['body'] == (
-            '**Rook advisory review** (automated; not operator approval or a formal review)\n\nReview text\n\n'
-            '-- inspected head: ' + 'a' * 40 + ' · PR head at posting: ' + 'a' * 40 + ' · op rook_github_test_001')
+            '**Rook advisory review** (automated; not operator approval or a formal review)\n\n'
+            '-- inspected head: ' + 'a' * 40 + ' · PR head at posting: ' + 'a' * 40
+            + ' · op rook_github_test_001\n\nReview text')
         assert result['structuredContent']['comment_id'] == 99
 
     def test_second_enumerated_repo(self):
@@ -152,6 +153,30 @@ class TestGitHubPRComment:
         body = self.calls[-1][2]['body']
         assert '\nstale: inspected head differs from current head\n' in body
         assert 'PR head at posting: ' + 'b' * 40 in body
+
+    def test_caller_html_comment_cannot_hide_rendered_head_metadata(self):
+        from html.parser import HTMLParser
+        from markdown_it import MarkdownIt
+
+        class VisibleText(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.parts = []
+
+            def handle_data(self, data):
+                self.parts.append(data)
+
+        self.pull_value['head']['sha'] = 'b' * 40
+        assert not self.call(body='<!--')['isError']
+        parser = VisibleText()
+        # Offline GFM-like rendering; raw HTML enabled, URL autolinking irrelevant here.
+        parser.feed(MarkdownIt('gfm-like', {'html': True, 'linkify': False}).render(self.calls[-1][2]['body']))
+        parser.close()
+        visible = ''.join(parser.parts)
+        assert 'Rook advisory review' in visible
+        assert 'stale: inspected head differs from current head' in visible
+        assert 'inspected head: ' + 'a' * 40 in visible
+        assert 'PR head at posting: ' + 'b' * 40 in visible
 
     def test_mentions_neutralized(self):
         assert not self.call(body='@izaiahat @izaiahat/team @everyone <@user>')['isError']

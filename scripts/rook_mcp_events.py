@@ -1292,7 +1292,7 @@ class Application:
             repo, number = arguments['repo'], arguments['pr_number']
             inspected = arguments['inspected_head_sha'].lower()
             body = arguments['body'].replace('@', '@\u200d')
-            # The operation footer and live head must not let a changed ID bypass uncertainty.
+            # Generated operation metadata and live head must not let a changed ID bypass uncertainty.
             digest = hashlib.sha256(canonical([repo, number, body, inspected]).encode()).hexdigest()
             metadata = {'repo': repo, 'pr_number': number, 'inspected_head_sha': inspected,
                         'current_head_sha': None, 'comment_id': None, 'html_url': None, 'status': None}
@@ -1310,8 +1310,10 @@ class Application:
                     row['current_head_sha'] = current
                     self.store.put('operations', row['id'], row)
                     stale = '\nstale: inspected head differs from current head\n' if inspected != current else ''
-                    comment = (GITHUB_HEADER + '\n\n' + body + '\n\n' + stale
-                               + f'-- inspected head: {inspected} · PR head at posting: {current} · op {arguments["operation_id"]}')
+                    # Caller Markdown may open an HTML comment or fence; keep metadata before it.
+                    comment = (GITHUB_HEADER + '\n\n' + stale
+                               + f'-- inspected head: {inspected} · PR head at posting: {current} · op {arguments["operation_id"]}'
+                               + '\n\n' + body)
                     # Reservation is already durable; recheck caller lifetime immediately before effect.
                     if principal.expires <= time.time():
                         raise RpcError(-32602, 'Unauthorized')
