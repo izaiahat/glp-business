@@ -43,6 +43,7 @@ sys.path.insert(0, str(BUSINESS / "ops" / "operator-console"))
 import pushover_client  # noqa: F401,E402 - operator RED-alert wiring/readiness
 import red_alert_hook  # noqa: E402
 import monitor_heartbeats  # noqa: E402
+import n8n_execution_budget  # noqa: E402
 JOBS_PATH = HOME / ".hermes" / "cron" / "jobs.json"
 OUTPUT_ROOT = HOME / ".hermes" / "cron" / "output"
 REGISTRY_PATH = BUSINESS / "ops" / "kael-mission-registry.yaml"
@@ -265,6 +266,7 @@ class Issue:
     output_paths: list[str] = field(default_factory=list)
     incident_key: str = ""
     alert_min_interval_minutes: int | None = None
+    alert_once: bool = False
 
 
 def pattern_issues(job: dict[str, Any], side_class: str, text: str, paths: list[str], policy: dict[str, Any]) -> list[Issue]:
@@ -432,6 +434,8 @@ def side_effect_class(job: dict[str, Any], regmap: dict[str, dict[str, Any]]) ->
 
 def fill_incident_keys(issues: list[Issue]) -> None:
     for issue in issues:
+        if issue.incident_key:
+            continue  # producer-owned stable episode key, not changing evidence
         fp_src = "|".join([issue.job_id, issue.classification, issue.reason, issue.evidence[:160]])
         fp = hashlib.sha1(fp_src.encode("utf-8", errors="replace")).hexdigest()[:16]
         issue.incident_key = f"{issue.job_id}:{issue.classification}:{fp}"
@@ -487,6 +491,13 @@ def should_alert(issue: Issue, state: dict[str, Any], policy: dict[str, Any], fo
     if force or dry_run:
         return True
     incident = state.setdefault("incidents", {}).setdefault(issue.incident_key, {})
+    if issue.alert_once:
+        # A yellow threshold report is not a delivered CAP_RISK escalation.
+        # Track RED separately from last-seen severity (which can change on
+        # deduped ticks); recovery still uses the producer's warning episode.
+        if issue.classification == 'n8n_execution_budget_70_percent' and issue.severity == 'red':
+            return not incident.get('red_alert_at')
+        return not incident.get('last_alert_at')
     first = incident.get("first_seen_at")
     if not first:
         return True
@@ -515,6 +526,8 @@ def update_incident_state(issue: Issue, state: dict[str, Any], alerted: bool) ->
     inc["operator_fix"] = issue.operator_fix
     if alerted:
         inc["last_alert_at"] = now_s
+        if issue.classification == 'n8n_execution_budget_70_percent' and issue.severity == 'red':
+            inc['red_alert_at'] = now_s
 
 
 def raise_red_alert_for_issue(issue: Issue, *, live: bool = True) -> dict[str, Any]:
@@ -976,6 +989,20 @@ def run(dry_run: bool, force_report: bool, verbose: bool) -> int:
             can_auto_fix=False,
             safe_to_rerun=False,
         ))
+    budget = n8n_execution_budget.health_check(now=now, dry_run=dry_run)
+    if budget.get('daily_line'):
+        print(budget['daily_line'])
+    for fault in budget.get('issues', [budget['issue']] if budget.get('issue') else []):
+        issues.append(Issue(
+            job_id=fault.get('job_id', 'n8n-execution-budget'), job_name='n8n monthly execution budget / invariant guard',
+            schedule='hourly cached check / daily usage line',
+            side_effect_class='read_report_monitor',
+            classification=fault['classification'], severity=fault['severity'],
+            reason=fault['reason'], evidence=fault['evidence'],
+            operator_fix=fault['operator_fix'], can_auto_fix=False, safe_to_rerun=False,
+            incident_key=fault.get('incident_key', ''), alert_once=fault.get('alert_once', False),
+        ))
+    state['last_n8n_execution_budget'] = budget['snapshot']
     issues = primary_issue_per_job(issues)
     # De-dupe by job + primary classification fingerprint.
     unique: dict[str, Issue] = {}
