@@ -1621,9 +1621,17 @@ def build_entry(
         head = (f"Network cancelled the program on {when}. Evidence event {event_id} "
                 f"saved at {path}. Wire-In Ready and Wired Live claims retracted; "
                 f"tracking link retained as historical evidence, not deployable.")
-        note = _note(queue_row, head)
         previous = str(writer.pad(sheet_row_values or [])[23] or "")
-        note = previous if note in previous else "\n".join(filter(None, (previous, note)))
+        proof_marker = f"Withdrawal proof for event {event_id}: "
+        proof_hash = evidence['provider_verification']['sha256']
+        prior_proofs = re.findall(re.escape(proof_marker) + r'([a-f0-9]{64})', previous)
+        if prior_proofs and prior_proofs != [proof_hash]:
+            raise ValueError('network_cancelled_replayed_notice_proof_conflict')
+        head += f" {proof_marker}{proof_hash}."
+        note = _note(queue_row, head)
+        note = previous if prior_proofs or note in previous else "\n".join(filter(None, (previous, note)))
+        if prior_proofs:
+            when = str(writer.pad(sheet_row_values or [])[24])
         return {"row": row_num, "program": program, "evidence": evidence, "cells": {
             "10": "cancelled_by_network", "19": "FALSE", "20": "FALSE",
             "21": "link_retired_network_program_cancelled", "23": note,

@@ -231,3 +231,22 @@ def test_cancelled_and_terminated_share_narrow_withdrawal_mode(withdrawal):
     run_fanout(f, result)
     history = json.loads(f.registry.read_text())['programs'][0]['affiliate_program_history']
     assert history[-1]['decision_class'] == 'cancelled'
+
+
+def test_replayed_notice_with_refreshed_provider_capture_refuses_before_duplicate_write(withdrawal):
+    f = withdrawal
+    first = f.lane.run(promote(f))['results'][0]
+    assert first['status'] == 'applied'
+    run_fanout(f, first)
+    after = copy.deepcopy(f.lane.service.rows)
+    writes = len(f.lane.service.writes)
+    proof = json.loads(f.capture.read_text())
+    proof['observed_at_utc'] = '2026-10-01T02:01:00Z'
+    refreshed = f.root / 'provider-recheck.json'
+    refreshed.write_text(json.dumps(proof))
+    f.verification = {'path': str(refreshed), 'sha256': digest(refreshed)}
+    replay = f.lane.run(promote(f))['results'][0]
+    assert replay['status'] in {'refused', 'escalated'}, replay
+    assert 'replayed_notice_proof_conflict' in replay['reason']
+    assert f.lane.service.rows == after
+    assert len(f.lane.service.writes) == writes

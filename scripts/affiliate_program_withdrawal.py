@@ -105,7 +105,16 @@ def verify_writer_entry(entry: dict, row: list | None = None, *, root: Path = BU
     evidence = entry.get('evidence', {})
     capture = verify({'network': evidence.get('network'), 'program_id': evidence.get('network_program_id'),
                       'program_name': entry.get('program'), 'evidence': evidence}, root=root)
+    marker = f"Withdrawal proof for event {evidence['event_id']}: "
+    proof_hash = evidence['provider_verification']['sha256']
+    if entry.get('cells') and marker + proof_hash not in str(entry['cells'].get('23', '')):
+        raise ValueError('withdrawal_notes_proof_binding_required')
     if row is not None:
+        recorded = re.findall(re.escape(marker) + r'([a-f0-9]{64})', str(row[23]))
+        if recorded and recorded != [proof_hash]:
+            raise ValueError('withdrawal_replayed_notice_proof_conflict')
+        if not entry.get('cells') and recorded != [proof_hash]:
+            raise ValueError('withdrawal_sheet_readback_proof_binding_required')
         if (str(row[4]).casefold() != capture['network'].casefold()
                 or str(row[2]).casefold() != capture['program_name'].casefold()):
             raise ValueError('withdrawal_sheet_identity_mismatch')

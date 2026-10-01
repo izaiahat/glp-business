@@ -3,10 +3,10 @@
   "files": {
     ".github/workflows/glp331-program-withdrawal.yml": {"kind": "repository_control", "callers": ["GLP-331 exact-head offline acceptance"], "sha256": "a32cb4f403f0b9df46ccbbed45d91391f0971948068b24e39016a78097de0328"},
     "ops/glp331-program-withdrawal.md": {"kind": "documentation", "callers": ["GLP-331 source trace and authority contract"], "sha256": "d12278a2e28439de6eb273c88b9a1002110c25e42245498f64db180bef56d365"},
-    "scripts/affiliate_program_withdrawal.py": {"kind": "script", "callers": ["scripts/glp_sheet_sync_drain.py", "scripts/affiliate_sheet_batch_writer.py", "scripts/affiliate_terms_fanout.py", "scripts/affiliate_approval_auto_reconciler.py"], "sha256": "b819d045f903cf29489893fb2b7664191cfbc0c801c50882238dcead3a249e0f"},
+    "scripts/affiliate_program_withdrawal.py": {"kind": "script", "callers": ["scripts/glp_sheet_sync_drain.py", "scripts/affiliate_sheet_batch_writer.py", "scripts/affiliate_terms_fanout.py", "scripts/affiliate_approval_auto_reconciler.py"], "sha256": "5e0478cb77fd3b76f1d54705d9e56b8039280895e6019d0ae96e155717384273"},
     "scripts/affiliate_withdrawal_candidate.py": {"kind": "script", "callers": ["scripts/affiliate_terms_fanout.py --build-candidate"], "sha256": "fa39dce69e424a23b5514b1781c7644d39338764d65204580ba2bb4e667029d7"},
     "scripts/capture_glp331_surface_fixture.py": {"kind": "script", "callers": ["GLP-331 read-only native source fixture capture"], "sha256": "328794679d75024c0db5d8847f1fe41e1d8132061a12ddbccfe203842ecf427b"},
-    "tests/test_glp331_program_withdrawal.py": {"kind": "test", "callers": [".github/workflows/glp331-program-withdrawal.yml"], "sha256": "cd39e5cca4becd7df4d970e39187352e576e801b682744f00b97e9e697d0d3f4"},
+    "tests/test_glp331_program_withdrawal.py": {"kind": "test", "callers": [".github/workflows/glp331-program-withdrawal.yml"], "sha256": "6d5882c42b4a11a353997bdb87818c020f9793f9fcf53de3db62a8a80377e241"},
     "tests/test_glp331_withdrawal_candidate.py": {"kind": "test", "callers": [".github/workflows/glp331-program-withdrawal.yml"], "sha256": "dc344b3b63de5282e4bd257655e37fa8d12cf19bdf75be5299d751dc0056ef64"},
     "tests/fixtures/glp331_provider_identity.mjs": {"kind": "retained_offline_fixture_not_runtime_authority", "callers": ["tests/fixtures/glp331_native_surface_build.mjs"], "sha256": "8b8690c7ad834745620fa561c4b5074005a5ec58ebafcf3b2d0cc304171946fd"},
     "tests/fixtures/glp331_native_surface_build.mjs": {"kind": "retained_offline_fixture_not_runtime_authority", "callers": ["tests/test_glp331_program_withdrawal.py"], "sha256": "8c05385acaa2bf19e922502f08d943b3fb8d556558665e2f720aef93e2877420"},
@@ -1537,7 +1537,7 @@
         "sheet_update_queue single-writer carrier"
       ],
       "kind": "script",
-      "sha256": "95c015ad316fa470f832e1d44e13573a566b7b58cc91182f578d90a0efca66d9"
+      "sha256": "aa12fc53f878bb8c0505fca4681cd116eae1a81bacf99969b1b8ffab48a76abd"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
