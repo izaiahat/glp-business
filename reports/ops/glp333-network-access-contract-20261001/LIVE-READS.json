@@ -1,0 +1,949 @@
+[
+  {
+    "network": "awin",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://api.awin.com/publishers/2979387/transactions/",
+    "fetched_at": "2026-10-01T07:29:44.565464+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 0,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "ACCOUNT_ROWS_ONLY_TEST_REAL_ATTRIBUTION_AND_CURRENCY_UNKNOWN",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/transactions/",
+        "http_status": 200,
+        "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "start_inclusive": "2026-09-21T00:00:00+00:00",
+        "end_exclusive": "2026-09-28T00:00:00+00:00"
+      }
+    ],
+    "account_binding": "request:publisher:2979387",
+    "report_complete_period": true,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "impact",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://api.impact.com/Mediapartners/<sid>/Actions",
+    "fetched_at": "2026-10-01T07:29:44.722980+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 0,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.impact.com/Mediapartners/<sid>/Actions",
+        "http_status": 200,
+        "response_sha256": "27b0cc7f314ab0fb2da5da8dbb6672753e3c75c64d645e8154c55677decd3059",
+        "fetched_at": "2026-10-01T07:29:44.722858+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "cj",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://commissions.api.cj.com/query",
+    "fetched_at": "2026-10-01T07:29:45.427308+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 0,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+    "receipts": [
+      {
+        "method": "POST",
+        "endpoint": "https://commissions.api.cj.com/query",
+        "http_status": 200,
+        "response_sha256": "78c3f418a4c3f61f047e622ef1bc7c39e29f7bbd1e28442f7a5458c6e7c00381",
+        "fetched_at": "2026-10-01T07:29:45.427192+00:00"
+      }
+    ],
+    "account_binding": "request:publisher:8010186",
+    "report_complete_period": true,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "affiliati",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://login.affiliatinetwork.com/affiliates/api/Reports/Conversions",
+    "fetched_at": "2026-10-01T07:29:46.115134+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 0,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Reports/Conversions",
+        "http_status": 200,
+        "response_sha256": "7250202e433bd7b8b1e6ea1d005f56f09cf98666923de9122d4360c14ac6e016",
+        "fetched_at": "2026-10-01T07:29:46.114786+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "katalys",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://api.katalys.com/v1/report/conversions",
+    "fetched_at": "2026-10-01T07:29:46.428953+00:00",
+    "coverage": "PARTIAL",
+    "record_count": null,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE",
+    "receipts": [
+      {
+        "method": "POST",
+        "endpoint": "https://api.katalys.com/v1/report/conversions",
+        "http_status": 200,
+        "response_sha256": "d44dd8301b914fce5b2076ca9e5123da9396f60c71f5e128bcd1b622b1992048",
+        "fetched_at": "2026-10-01T07:29:46.428788+00:00"
+      }
+    ],
+    "account_binding": "request:profile:098e5455-ca72-4099-9ff9-a9dd014148e7;aff_id:13031;retained_profile_binding",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "partnerize",
+    "capability": "conversions_earnings",
+    "status": "SUPPORTED",
+    "source": "https://api.partnerize.com/reporting/report_publisher/publisher/1100l432092/conversion.json",
+    "fetched_at": "2026-10-01T07:29:47.005021+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 0,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/reporting/report_publisher/publisher/1100l432092/conversion.json",
+        "http_status": 200,
+        "response_sha256": "71d9d41a9f72b30d50e2ebe91a651ab70f79ff53858cfd8bfc00a5cf9263c3e8",
+        "fetched_at": "2026-10-01T07:29:47.004956+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "awin",
+    "capability": "program_status",
+    "status": "SUPPORTED",
+    "source": "https://api.awin.com/publishers/2979387/programmes",
+    "fetched_at": "2026-10-01T07:29:51.447081+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmes",
+        "http_status": 200,
+        "response_sha256": "a1564cbed3d2735baf5642610b098ebbfb7f4c3266b68fb7773fb60a8316d1c8",
+        "fetched_at": "2026-10-01T07:29:48.237399+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmes",
+        "http_status": 200,
+        "response_sha256": "9620f4ed9302fb28746bd9852d0118705594eb67850958f934c06d9cf6152937",
+        "fetched_at": "2026-10-01T07:29:48.527142+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmes",
+        "http_status": 200,
+        "response_sha256": "70320803081e60ee4168aa6d3f0901d55c6e9cabad03105ee6d3986769a98651",
+        "fetched_at": "2026-10-01T07:29:50.732351+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmes",
+        "http_status": 200,
+        "response_sha256": "a9afb4ed343936e226d8ab40b5486f78c8acff1039e8d204f98623c74cd65269",
+        "fetched_at": "2026-10-01T07:29:51.265850+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmes",
+        "http_status": 200,
+        "response_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "fetched_at": "2026-10-01T07:29:51.443671+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "80963"
+    ],
+    "record_projection_sha256": "586ca06d6a0a8a20a4a92cec2d8300d7351310544c323003e866360cf0f267ec"
+  },
+  {
+    "network": "awin",
+    "capability": "terms_commission",
+    "status": "SUPPORTED",
+    "source": "https://api.awin.com/publishers/2979387/programmedetails",
+    "fetched_at": "2026-10-01T07:29:51.826742+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.awin.com/publishers/2979387/programmedetails",
+        "http_status": 200,
+        "response_sha256": "3b7b88a29128a93173040e52dfc47280d1cb00cfcd1adf3804c4e9614b1715cd",
+        "fetched_at": "2026-10-01T07:29:51.826667+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "80963"
+    ],
+    "record_projection_sha256": "fed6c7572edae3878bd9c1c22b669f24e71fcb63d3728d1ba64a4aa7ba6ef16c"
+  },
+  {
+    "network": "awin",
+    "capability": "issued_tracking_link",
+    "status": "UNKNOWN",
+    "source": "https://api.awin.com/publishers/2979387/programmedetails",
+    "fetched_at": "2026-10-01T07:29:51.828067+00:00",
+    "coverage": "UNKNOWN",
+    "record_count": null,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "DETERMINISTIC_GRAMMAR_IS_NOT_PROVIDER_ISSUED_LINK_READ_NO_GENERATION",
+    "receipts": [],
+    "account_binding": "UNKNOWN",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "impact",
+    "capability": "program_status",
+    "status": "SUPPORTED",
+    "source": "https://api.impact.com/Mediapartners/<sid>/Campaigns/{program_id}.json",
+    "fetched_at": "2026-10-01T07:29:52.197418+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_LEGAL_TERMS_OR_ELIGIBILITY_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.impact.com/Mediapartners/<sid>/Campaigns/13292.json",
+        "http_status": 200,
+        "response_sha256": "18420b72b188cb03c168297b0118adc8517b353c20b86ce59691c0c945f68795",
+        "fetched_at": "2026-10-01T07:29:52.197349+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PARTNER_API_CREDENTIAL",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "13292"
+    ],
+    "record_projection_sha256": "eaa3fd0c4f35bf0b0d3c6278bf160dc16a6593b996211d016aaec9f187571d5d"
+  },
+  {
+    "network": "impact",
+    "capability": "terms_commission",
+    "status": "SUPPORTED",
+    "source": "https://api.impact.com/Mediapartners/<sid>/Campaigns/{program_id}.json",
+    "fetched_at": "2026-10-01T07:29:52.382633+00:00",
+    "coverage": "PARTIAL",
+    "record_count": null,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_OR_CAPABILITY_FIELD_UNPROVEN",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.impact.com/Mediapartners/<sid>/Campaigns/13292.json",
+        "http_status": 200,
+        "response_sha256": "18420b72b188cb03c168297b0118adc8517b353c20b86ce59691c0c945f68795",
+        "fetched_at": "2026-10-01T07:29:52.382571+00:00"
+      }
+    ],
+    "account_binding": "UNKNOWN",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "network": "impact",
+    "capability": "issued_tracking_link",
+    "status": "SUPPORTED",
+    "source": "https://api.impact.com/Mediapartners/<sid>/Campaigns/{program_id}.json",
+    "fetched_at": "2026-10-01T07:29:52.567231+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_LEGAL_TERMS_OR_ELIGIBILITY_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.impact.com/Mediapartners/<sid>/Campaigns/13292.json",
+        "http_status": 200,
+        "response_sha256": "18420b72b188cb03c168297b0118adc8517b353c20b86ce59691c0c945f68795",
+        "fetched_at": "2026-10-01T07:29:52.567172+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PARTNER_API_CREDENTIAL",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "13292"
+    ],
+    "record_projection_sha256": "5aa72e33045b8508ba71788f08b56eeae63ad5b0cdb9482ffda625ff892540f8"
+  },
+  {
+    "network": "cj",
+    "capability": "program_status",
+    "status": "SUPPORTED",
+    "source": "https://advertiser-lookup.api.cj.com/v2/advertiser-lookup",
+    "fetched_at": "2026-10-01T07:29:52.906353+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://advertiser-lookup.api.cj.com/v2/advertiser-lookup",
+        "http_status": 200,
+        "response_sha256": "275644d91eb569d27255e79ae9f3c367ee108adeeaa256c9f2c041b209804583",
+        "fetched_at": "2026-10-01T07:29:52.906194+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "7538517"
+    ],
+    "record_projection_sha256": "21419fcaa40784adec061401ece1e575ea7fa2e27fa870bcdbd82a575730e444"
+  },
+  {
+    "network": "cj",
+    "capability": "terms_commission",
+    "status": "SUPPORTED",
+    "source": "https://advertiser-lookup.api.cj.com/v2/advertiser-lookup",
+    "fetched_at": "2026-10-01T07:29:53.147144+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://advertiser-lookup.api.cj.com/v2/advertiser-lookup",
+        "http_status": 200,
+        "response_sha256": "275644d91eb569d27255e79ae9f3c367ee108adeeaa256c9f2c041b209804583",
+        "fetched_at": "2026-10-01T07:29:53.146979+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "7538517"
+    ],
+    "record_projection_sha256": "f4a9bd18c7961e39805ef1c8b368c9688ab9eae1d5392f6828721d932a9f0a1f"
+  },
+  {
+    "network": "cj",
+    "capability": "issued_tracking_link",
+    "status": "SUPPORTED",
+    "source": "https://link-search.api.cj.com/v2/link-search",
+    "fetched_at": "2026-10-01T07:29:54.117682+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://link-search.api.cj.com/v2/link-search",
+        "http_status": 200,
+        "response_sha256": "b053df39c47a648a82da82d311e04c0af41be84d1ef70106fb0fab1ae237006c",
+        "fetched_at": "2026-10-01T07:29:54.116930+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "7538517"
+    ],
+    "record_projection_sha256": "3c4e1b0a631dbe289308636967f376934f75d98b36fa3fa5e82304791fa6d700"
+  },
+  {
+    "network": "affiliati",
+    "capability": "program_status",
+    "status": "SUPPORTED",
+    "source": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+    "fetched_at": "2026-10-01T07:32:01.662957+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "da91be22c6cf2454437451052a3d76cb548f2570226ce4288a63100d220162b1",
+        "fetched_at": "2026-10-01T07:31:02.160449+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "051df50a08be86fe434d623506c9cc3cfd69f2fca89007b8c2a4633dc0ac7c22",
+        "fetched_at": "2026-10-01T07:31:07.404160+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "0ce93588e4612bd9db6d1bc20783af2b33cb84d1f4daf6fba00ca423a9d5a6fe",
+        "fetched_at": "2026-10-01T07:31:11.019809+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "895debbf139a1d8acf0c25cd32b714683a084a027ddd215d0f7c6734f3d2c984",
+        "fetched_at": "2026-10-01T07:31:14.207109+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "6e92d0da15c6fabc86bef02e261bba7f8d2e685d66d72949a60ab86ec874985f",
+        "fetched_at": "2026-10-01T07:31:17.244807+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "ff6214ad9cc7590d29af031d66a2a48b65c525f8732d19c4428f736b738cdd19",
+        "fetched_at": "2026-10-01T07:31:20.409739+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c9992d99c77336fcdee980bf99a5fa065e034434ad615396029b771b729a93a1",
+        "fetched_at": "2026-10-01T07:31:24.780744+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "f9d240a90a317ff6d50484561c53cd20dc0145f2ab891766ec7d0311a8c0ba41",
+        "fetched_at": "2026-10-01T07:31:27.852982+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "72faf9ece181c43aabeb766a09422cff762fddd5079a85f8e230b1d9233c05c5",
+        "fetched_at": "2026-10-01T07:31:31.697352+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2d04cc24eda5fee04a64423dcfba20e2d44c008e11cfb75a1ee51b7724b0f44b",
+        "fetched_at": "2026-10-01T07:31:35.806964+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "260162fd99a892f0c6cf924d0ffa31a0ee0c3052109a28307e5e57252e31ee5e",
+        "fetched_at": "2026-10-01T07:31:39.033122+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "e2dacb386250a035a63d0916ad42b58c1c4dbcdd2292fdbabe5dd914e292afc6",
+        "fetched_at": "2026-10-01T07:31:42.171402+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d7ef3b8c06cc94d695915147f3d0358ab8b5fb22989a4755ad29736e2055cabe",
+        "fetched_at": "2026-10-01T07:31:45.656848+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "5a7206a914be10ef24c7f6b1f4b9519b94deb87b480232abd1482e1c53d2760f",
+        "fetched_at": "2026-10-01T07:31:48.893860+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c7058e209d02be2f3f0204e88aa6b408330d8102f1cb481b3752ac5a538a0dfa",
+        "fetched_at": "2026-10-01T07:31:51.908599+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d73e2295678a361c3a122bf779b982493f5f8eb0c8ec6dc0e45ab37fa8d08e0d",
+        "fetched_at": "2026-10-01T07:31:54.980153+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2326ac8b1930bb3bcb852a620e416183fa1bce80d2e0c593e0e26251916e2e7b",
+        "fetched_at": "2026-10-01T07:31:58.393064+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "4a97cc673ba97b37c1b618a5229d8b0f1948922f04b76945e5af37dd75705ad1",
+        "fetched_at": "2026-10-01T07:32:01.654617+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "42896"
+    ],
+    "record_projection_sha256": "53280016419bafcfa91ab3024f2139e3f1633fada588364f115606b05f9f0459"
+  },
+  {
+    "network": "affiliati",
+    "capability": "terms_commission",
+    "status": "SUPPORTED",
+    "source": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+    "fetched_at": "2026-10-01T07:33:03.183703+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "da91be22c6cf2454437451052a3d76cb548f2570226ce4288a63100d220162b1",
+        "fetched_at": "2026-10-01T07:32:05.412335+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "051df50a08be86fe434d623506c9cc3cfd69f2fca89007b8c2a4633dc0ac7c22",
+        "fetched_at": "2026-10-01T07:32:09.037138+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "0ce93588e4612bd9db6d1bc20783af2b33cb84d1f4daf6fba00ca423a9d5a6fe",
+        "fetched_at": "2026-10-01T07:32:12.019288+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "895debbf139a1d8acf0c25cd32b714683a084a027ddd215d0f7c6734f3d2c984",
+        "fetched_at": "2026-10-01T07:32:15.364592+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "6e92d0da15c6fabc86bef02e261bba7f8d2e685d66d72949a60ab86ec874985f",
+        "fetched_at": "2026-10-01T07:32:18.688383+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "ff6214ad9cc7590d29af031d66a2a48b65c525f8732d19c4428f736b738cdd19",
+        "fetched_at": "2026-10-01T07:32:21.792114+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c9992d99c77336fcdee980bf99a5fa065e034434ad615396029b771b729a93a1",
+        "fetched_at": "2026-10-01T07:32:25.779311+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "f9d240a90a317ff6d50484561c53cd20dc0145f2ab891766ec7d0311a8c0ba41",
+        "fetched_at": "2026-10-01T07:32:28.907518+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "72faf9ece181c43aabeb766a09422cff762fddd5079a85f8e230b1d9233c05c5",
+        "fetched_at": "2026-10-01T07:32:32.974267+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2d04cc24eda5fee04a64423dcfba20e2d44c008e11cfb75a1ee51b7724b0f44b",
+        "fetched_at": "2026-10-01T07:32:36.105447+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "260162fd99a892f0c6cf924d0ffa31a0ee0c3052109a28307e5e57252e31ee5e",
+        "fetched_at": "2026-10-01T07:32:39.580960+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "e2dacb386250a035a63d0916ad42b58c1c4dbcdd2292fdbabe5dd914e292afc6",
+        "fetched_at": "2026-10-01T07:32:42.739804+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d7ef3b8c06cc94d695915147f3d0358ab8b5fb22989a4755ad29736e2055cabe",
+        "fetched_at": "2026-10-01T07:32:46.054851+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "5a7206a914be10ef24c7f6b1f4b9519b94deb87b480232abd1482e1c53d2760f",
+        "fetched_at": "2026-10-01T07:32:49.092283+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c7058e209d02be2f3f0204e88aa6b408330d8102f1cb481b3752ac5a538a0dfa",
+        "fetched_at": "2026-10-01T07:32:52.369100+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d73e2295678a361c3a122bf779b982493f5f8eb0c8ec6dc0e45ab37fa8d08e0d",
+        "fetched_at": "2026-10-01T07:32:56.658275+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2326ac8b1930bb3bcb852a620e416183fa1bce80d2e0c593e0e26251916e2e7b",
+        "fetched_at": "2026-10-01T07:32:59.963249+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "4a97cc673ba97b37c1b618a5229d8b0f1948922f04b76945e5af37dd75705ad1",
+        "fetched_at": "2026-10-01T07:33:03.176907+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "42896"
+    ],
+    "record_projection_sha256": "380565346a3b9eef3455398c5b30dd145315eeb56127dcb7af9d63b8bf33a4d2"
+  },
+  {
+    "network": "affiliati",
+    "capability": "issued_tracking_link",
+    "status": "SUPPORTED",
+    "source": "https://login.affiliatinetwork.com/affiliates/api/Offers/Campaign",
+    "fetched_at": "2026-10-01T07:34:05.777356+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "da91be22c6cf2454437451052a3d76cb548f2570226ce4288a63100d220162b1",
+        "fetched_at": "2026-10-01T07:33:06.781090+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "051df50a08be86fe434d623506c9cc3cfd69f2fca89007b8c2a4633dc0ac7c22",
+        "fetched_at": "2026-10-01T07:33:10.055527+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "0ce93588e4612bd9db6d1bc20783af2b33cb84d1f4daf6fba00ca423a9d5a6fe",
+        "fetched_at": "2026-10-01T07:33:13.140283+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "895debbf139a1d8acf0c25cd32b714683a084a027ddd215d0f7c6734f3d2c984",
+        "fetched_at": "2026-10-01T07:33:16.259089+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "6e92d0da15c6fabc86bef02e261bba7f8d2e685d66d72949a60ab86ec874985f",
+        "fetched_at": "2026-10-01T07:33:19.853455+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "ff6214ad9cc7590d29af031d66a2a48b65c525f8732d19c4428f736b738cdd19",
+        "fetched_at": "2026-10-01T07:33:23.188279+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c9992d99c77336fcdee980bf99a5fa065e034434ad615396029b771b729a93a1",
+        "fetched_at": "2026-10-01T07:33:26.367791+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "f9d240a90a317ff6d50484561c53cd20dc0145f2ab891766ec7d0311a8c0ba41",
+        "fetched_at": "2026-10-01T07:33:29.539208+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "72faf9ece181c43aabeb766a09422cff762fddd5079a85f8e230b1d9233c05c5",
+        "fetched_at": "2026-10-01T07:33:33.235738+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2d04cc24eda5fee04a64423dcfba20e2d44c008e11cfb75a1ee51b7724b0f44b",
+        "fetched_at": "2026-10-01T07:33:37.692765+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "260162fd99a892f0c6cf924d0ffa31a0ee0c3052109a28307e5e57252e31ee5e",
+        "fetched_at": "2026-10-01T07:33:41.174838+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "e2dacb386250a035a63d0916ad42b58c1c4dbcdd2292fdbabe5dd914e292afc6",
+        "fetched_at": "2026-10-01T07:33:44.354224+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d7ef3b8c06cc94d695915147f3d0358ab8b5fb22989a4755ad29736e2055cabe",
+        "fetched_at": "2026-10-01T07:33:47.890244+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "5a7206a914be10ef24c7f6b1f4b9519b94deb87b480232abd1482e1c53d2760f",
+        "fetched_at": "2026-10-01T07:33:51.549966+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "c7058e209d02be2f3f0204e88aa6b408330d8102f1cb481b3752ac5a538a0dfa",
+        "fetched_at": "2026-10-01T07:33:55.150922+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "d73e2295678a361c3a122bf779b982493f5f8eb0c8ec6dc0e45ab37fa8d08e0d",
+        "fetched_at": "2026-10-01T07:33:58.384210+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "2326ac8b1930bb3bcb852a620e416183fa1bce80d2e0c593e0e26251916e2e7b",
+        "fetched_at": "2026-10-01T07:34:01.560385+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Feed",
+        "http_status": 200,
+        "response_sha256": "4a97cc673ba97b37c1b618a5229d8b0f1948922f04b76945e5af37dd75705ad1",
+        "fetched_at": "2026-10-01T07:34:05.290693+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://login.affiliatinetwork.com/affiliates/api/Offers/Campaign",
+        "http_status": 200,
+        "response_sha256": "b82255d1a401e6a6e4fb2b6e0dd78fd908c49f93d3d520b06a8f8e7c6ba16f6f",
+        "fetched_at": "2026-10-01T07:34:05.776816+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "42896"
+    ],
+    "record_projection_sha256": "6a4719263177d2f9975678d5f9610a4203d334b02ae620e135e79ae1961c1b92"
+  },
+  {
+    "network": "partnerize",
+    "capability": "program_status",
+    "status": "SUPPORTED",
+    "source": "https://api.partnerize.com/user/publisher/1100l432092/campaign/<status>",
+    "fetched_at": "2026-10-01T07:34:43.268101+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/user/publisher/1100l432092/campaign/approved",
+        "http_status": 200,
+        "response_sha256": "e3b2c669c2c211037efcb6d8e0d39729e7b516ccd35f5c029a23cc934c3f58b5",
+        "fetched_at": "2026-10-01T07:34:11.004351+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/user/publisher/1100l432092/campaign/pending",
+        "http_status": 200,
+        "response_sha256": "efb290513cf7e59542c6fa42949f7321427c3efd3ab72a49eda6ccb8a0950e62",
+        "fetched_at": "2026-10-01T07:34:14.454602+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/user/publisher/1100l432092/campaign/rejected",
+        "http_status": 200,
+        "response_sha256": "2d646abd4aad4f12215e895948f420ab7101fd297ca186af919c07659dd466f3",
+        "fetched_at": "2026-10-01T07:34:42.257605+00:00"
+      },
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/user/publisher/1100l432092/campaign/t",
+        "http_status": 200,
+        "response_sha256": "603e87fd57d3a61e70c1dfa7d9697a11009e71ff7adb7d4c9536fe631a20d19e",
+        "fetched_at": "2026-10-01T07:34:43.259649+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "1011l6645"
+    ],
+    "record_projection_sha256": "07e9d3bbbbe9a4392e4e454f3de9d5b62084b0829bd5f155676484fa18ba08c6"
+  },
+  {
+    "network": "partnerize",
+    "capability": "terms_commission",
+    "status": "SUPPORTED",
+    "source": "https://api.partnerize.com/v2/publishers/1100l432092/campaigns/terms",
+    "fetched_at": "2026-10-01T07:34:44.155224+00:00",
+    "coverage": "COMPLETE",
+    "record_count": 1,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+    "receipts": [
+      {
+        "method": "GET",
+        "endpoint": "https://api.partnerize.com/v2/publishers/1100l432092/campaigns/terms",
+        "http_status": 200,
+        "response_sha256": "b887c54f831d35df415e05a1865af3dc0e654631d3eedeb1c7f417bfd4bd97ce",
+        "fetched_at": "2026-10-01T07:34:44.153945+00:00"
+      }
+    ],
+    "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+    "report_complete_period": false,
+    "record_program_ids": [
+      "1011l6645"
+    ],
+    "record_projection_sha256": "426ea42c833d7fd412f0db1eeb786f860efe8278e1b5d0af9229ec551014970e"
+  },
+  {
+    "network": "partnerize",
+    "capability": "issued_tracking_link",
+    "status": "UNKNOWN",
+    "source": "https://api.partnerize.com/user/publisher/1100l432092/campaign/<status>",
+    "fetched_at": "2026-10-01T07:34:44.157231+00:00",
+    "coverage": "UNKNOWN",
+    "record_count": null,
+    "commission_minor": null,
+    "cash_minor": null,
+    "reason": "DETERMINISTIC_GRAMMAR_IS_NOT_PROVIDER_ISSUED_LINK_READ_NO_GENERATION",
+    "receipts": [],
+    "account_binding": "UNKNOWN",
+    "report_complete_period": false,
+    "record_program_ids": [],
+    "record_projection_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  }
+]
