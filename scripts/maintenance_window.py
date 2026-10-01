@@ -896,7 +896,7 @@ class ActiveWindow:
                                       'adopter': identity(), 'job_ids': []}
         atomic_json(self.journal, data)
 
-    def switch_files(self, stage, before):
+    def switch_files(self, stage, before, *, commit=None):
         from maintenance_cohort import switch_files
         data = read_journal(self.journal)
         transaction = data.get('source_transaction')
@@ -911,7 +911,7 @@ class ActiveWindow:
             require(all(self.backend.paused(row['entry'], row['prior']) for row in current['entries']),
                     'cohort_pause_ownership_changed')
             return self.backend.inflight([row['entry'] for row in current['entries']])
-        receipt = switch_files(self.journal, stage, before, drain)
+        receipt = switch_files(self.journal, stage, before, drain, commit=commit)
         data = read_journal(self.journal)
         data['source_transaction']['switch_verified'] = True
         atomic_json(self.journal, data)
@@ -923,6 +923,13 @@ class ActiveWindow:
         if not transaction or transaction['adopter'] != identity() or transaction['outcome'] != 'pending':
             return
         side = 'after' if success else 'before'
+        switch = data.get('source_switch', {})
+        if switch.get('commit_started') and switch.get('state') == 'commit_uncertain':
+            # The maintained switch left sealed inodes: never reopen/hash them
+            # or certify rollback after an external commit may have landed.
+            transaction['outcome'] = 'uncertain'
+            atomic_json(self.journal, data)
+            require(False, 'adoption_outcome_uncertain_reconcile_before_exit')
         matched = all(hashlib.sha256(Path(path).read_bytes()).hexdigest() == digest
                       for path, digest in transaction[side].items())
         matched = matched and all(json_sha(self.backend.job(jid)) == data['job_updates'][jid][side + '_sha256']

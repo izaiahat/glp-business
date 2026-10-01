@@ -43,6 +43,8 @@
 !/scripts/hermes_state_archive/tests/
 /scripts/hermes_state_archive/tests/*
 !/.github/workflows/business-source-ci.yml
+!/.github/workflows/glp333-reporting-generation.yml
+!/tests/test_glp333_reporting_generation.py
 !/.gitignore
 !/.hermes.md
 !/AGENTS.md

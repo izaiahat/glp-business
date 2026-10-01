@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 521,
+  "tracked_count": 523,
   "files": {
     "scripts/fleet_pin_release.py": {
       "kind": "script",
@@ -320,7 +320,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1d479195d992d38b591d4db90401047d554d3e062d8962a1993ff5e2e9511707"
+      "sha256": "9293b646cb712373626f81b7aeb6b1adbb7ddada66c3839dd3c9a71c7d7b18c0"
     },
     ".hermes.md": {
       "callers": [],
@@ -1493,7 +1493,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a5138ae71848f9d4d0dab089ec172010fd0ce690e4c49b8e2201e9d97f4b81fc"
+      "sha256": "ed980beaaea985179e6ddd59e79e962a5c8b0eb098b629a60215140037633578"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -1986,7 +1986,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c23315a630bf5de477e11eb62c25e2684ba4522ebbf587aa06d34da4a000957f"
+      "sha256": "4ae15e0aa64c03ac9062928a6ae1fdd8230158b65762af6ab8b3b291232d4eee"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3233,7 +3233,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "63a6ab1018ddf4ec6fbcce91974cdcae6bd5b1e812883ede98d30e6b0a563f0f"
+      "sha256": "6dd3cc8217d911282799fa5569c8691b5f9b9d25b23a7658a145fab54f1f189f"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3241,7 +3241,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "d61aa27a59e1720c85e28dacda406fb049896647006450faf9f4cfe531e9e075"
+      "sha256": "c48e107016999e8edbea02f66d4113f9206e6f510d6bdf8366a5e91b0deffecd"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3453,6 +3453,18 @@
       ],
       "kind": "test",
       "sha256": "f971e9ab54c7b84db24580a4dc8045b3d2907f0270db9ce841496e5d01624543"
+    },
+    ".github/workflows/glp333-reporting-generation.yml": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "0d909b1396803cf16b07d62f47305acbd73c3656d59126e6f8ca6a6c3bb24b4a"
+    },
+    "tests/test_glp333_reporting_generation.py": {
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "kind": "test",
+      "sha256": "a2effc51f0816682e13af8c7d405c0b8e6bdcc859ac2752d558ff5604bd517e2"
     }
   }
 }
