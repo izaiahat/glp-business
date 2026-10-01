@@ -142,7 +142,7 @@
       "callers": [
         "GLP331 exact-head native acceptance fixtures"
       ],
-      "sha256": "813c23abbf89e1e30957d7e38e57291cd97fce54f68dd885d2093318676a26d0"
+      "sha256": "238eca8bda75e7a43bb443d11269f5557ae23531366a401bd67f60531599cf3a"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -1602,7 +1602,7 @@
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f869aba6c445604b863aab54a522303cae96bb6d97f15d675d1632da4eed2726"
+      "sha256": "bf8e88588ff8e67fd5bfe52d525bfe0e265df140d8f4c8a63ead8f253967b32e"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -3645,7 +3645,7 @@
       "callers": [
         ".github/workflows/glp331-carrier-closure.yml"
       ],
-      "sha256": "e199ec998ebfbb149d07b0d757364f03610a82e4863e52924092aff5c6225b05"
+      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
     }
   }
 }

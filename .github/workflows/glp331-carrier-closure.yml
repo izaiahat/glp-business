@@ -48,6 +48,6 @@ jobs:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          for case in test_narrow_preview_reproduces_and_avoids_wrong_cohort test_exact_two_job_native_install_readback test_stale_source_refuses_without_save test_stale_full_job_record_refuses_without_save test_stale_state_refuses_without_save test_precommit_failure_rolls_back_source_and_bytecode 'test_postcommit_uncertainty_seals_and_refuses_replay[save_refused]' 'test_postcommit_uncertainty_seals_and_refuses_replay[lost_save_ack]' 'test_postcommit_uncertainty_seals_and_refuses_replay[bad_readback]' 'test_postcommit_uncertainty_seals_and_refuses_replay[lost_switch_ack]'; do
+          for case in test_narrow_preview_reproduces_and_avoids_wrong_cohort test_exact_two_job_native_install_readback test_stale_source_refuses_without_save test_stale_full_job_record_refuses_without_save test_stale_state_refuses_without_save test_precommit_failure_rolls_back_source_and_bytecode 'test_postcommit_uncertainty_seals_and_refuses_replay[save_refused]' 'test_postcommit_uncertainty_seals_and_refuses_replay[lost_save_ack]' 'test_postcommit_uncertainty_seals_and_refuses_replay[bad_readback]' 'test_postcommit_uncertainty_seals_and_refuses_replay[lost_switch_ack]' test_outer_switch_ack_seals_new_ordinary_bytecode; do
             .venv/bin/python -B -m pytest -q -p no:cacheprovider "tests/test_glp73_retention_adoption.py::$case"
           done

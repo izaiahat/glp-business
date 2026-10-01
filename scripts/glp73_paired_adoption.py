@@ -277,8 +277,9 @@ def _retain_retention_seals(journal, root, hermes):
     identities. Never recover sources or decide/replay the external outcome.
     """
     from contextlib import ExitStack
-    from maintenance_cohort import metadata, read_all
+    from maintenance_cohort import metadata, read_all, sync_dir
     from maintenance_window import atomic_json, identity, read_journal, require
+    import stat
     data = read_journal(journal)
     transaction, switch = data.get('source_transaction', {}), data.get('source_switch', {})
     if (transaction.get('outcome') not in {'pending', 'uncertain'}
@@ -314,6 +315,65 @@ def _retain_retention_seals(journal, root, hermes):
             os.fchmod(fd, 0)
             os.fsync(fd)
             require(metadata(path.lstat()) == metadata(os.fstat(fd)), 'retention_commit_fence_inode_moved')
+        # Publication can let an ordinary first-reader emit new bytecode before
+        # the outer acknowledgement. Once sources are sealed, capture/fence only
+        # their finite conventional disk aliases, never a reports-tree sweep.
+        # Original preimage/cache custody is immutable; these are postcommit
+        # evidence bytes, not approved code or rollback preimages.
+        def cache_paths():
+            paths = set()
+            for name in expected:
+                path = Path(name)
+                if path.suffix != '.py':
+                    continue
+                legacy = path.with_suffix('.pyc')
+                if legacy.exists() or legacy.is_symlink():
+                    paths.add(legacy)
+                directory = path.parent / '__pycache__'
+                if directory.exists() or directory.is_symlink():
+                    st = directory.lstat()
+                    require(stat.S_ISDIR(st.st_mode) and st.st_uid == os.geteuid(),
+                            'retention_commit_cache_directory_moved')
+                    paths.update(directory.glob(path.stem + '.*.pyc'))
+            return paths
+        caches, held = cache_paths(), {}
+        custody = Path(switch['custody'])
+        for path in sorted(caches):
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            handles.callback(os.close, fd)
+            st = os.fstat(fd)
+            require(stat.S_ISREG(st.st_mode) and st.st_uid == os.geteuid()
+                    and st.st_nlink == 1 and metadata(path.lstat()) == metadata(st),
+                    'retention_commit_cache_inode_moved')
+            body = read_all(fd)
+            require(metadata(os.fstat(fd)) == metadata(st), 'retention_commit_cache_bytes_moved')
+            evidence = custody / ('ack-' + sha(str(path).encode()) + '.pyc')
+            with evidence.open('xb') as out:
+                os.fchmod(out.fileno(), 0o600)
+                out.write(body)
+                out.flush()
+                os.fsync(out.fileno())
+            held[str(path)] = {'sha256': sha(body), 'metadata': metadata(st),
+                               'mode': stat.S_IMODE(st.st_mode), 'custody': str(evidence), 'sealed': False}
+            handles.callback(sync_dir, path.parent)
+            held[str(path)]['fd'] = fd
+        sync_dir(custody)
+        # Persist evidence and identities BEFORE the renewed cache fence, so an
+        # interruption cannot lose custody or invite source-only rollback/replay.
+        switch['retention_ack_caches'] = {name: {k: v for k, v in item.items() if k != 'fd'}
+                                          for name, item in held.items()}
+        atomic_json(journal, data)
+        for name, item in held.items():
+            path, fd = Path(name), item['fd']
+            require(metadata(path.lstat()) == item['metadata'] == metadata(os.fstat(fd))
+                    and sha(read_all(fd)) == item['sha256'], 'retention_commit_cache_moved_before_fence')
+            os.fchmod(fd, 0)
+            os.fsync(fd)
+            require(metadata(path.lstat()) == metadata(os.fstat(fd))
+                    and stat.S_IMODE(path.lstat().st_mode) == 0, 'retention_commit_cache_fence_moved')
+            switch['retention_ack_caches'][name]['sealed'] = True
+        require(cache_paths() == caches, 'retention_commit_cache_set_moved')
+        atomic_json(journal, data)
 
 
 def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):

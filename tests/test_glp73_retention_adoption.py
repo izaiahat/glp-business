@@ -248,6 +248,73 @@ def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
         f.window.release_locks()
 
 
+def test_outer_switch_ack_seals_new_ordinary_bytecode(tmp_path, monkeypatch):
+    """R1: discard ordinary first-reader code, then challenge disk aliases anew."""
+    import importlib.machinery
+    import importlib.util
+    import maintenance_cohort as cohort
+    f = fixture(tmp_path, monkeypatch)
+    try:
+        receipt = review(f)
+        source = f.root / ARCHIVER
+        cache = Path(importlib.util.cache_from_source(str(source)))
+        sibling = cache.parent / 'unselected.cpython-311.pyc'
+        put(sibling, b'unselected cache stays exact', 0o640)
+        sibling_before = exact(sibling)
+        real_switch = mw.ActiveWindow.switch_files
+        original_files = []
+        emitted = []
+        def lost(active, stage, before, **kwargs):
+            real_switch(active, stage, before, **kwargs)
+            original_files.append(copy.deepcopy(mw.read_journal(f.journal)['source_switch']['files']))
+            prior = sys.dont_write_bytecode
+            try:
+                sys.dont_write_bytecode = False
+                code = importlib.machinery.SourceFileLoader('disposable_archiver', str(source)).get_code('disposable_archiver')
+                assert code is not None and cache.is_file()
+                del code  # no execution or retained-memory consumer
+                emitted.append((cache.read_bytes(), cohort.metadata(cache.stat()), cache.stat().st_mode & 0o777))
+            finally:
+                sys.dont_write_bytecode = prior
+            raise OSError('independent outer switch acknowledgement lost')
+        monkeypatch.setattr(mw.ActiveWindow, 'switch_files', lost)
+        with pytest.raises(mw.WindowError, match='adoption_outcome_uncertain'):
+            apply(f, receipt)
+        data = mw.read_journal(f.journal)
+        assert data['source_transaction']['outcome'] == 'uncertain'
+        assert data['source_switch']['state'] == 'commit_uncertain'
+        assert len(f.saves) == 1
+        assert data['source_switch']['files'] == original_files[0]
+        assert str(cache) not in original_files[0]
+        for name in data['source_transaction']['after']:
+            assert Path(name).stat().st_mode & 0o777 == 0
+            with pytest.raises(PermissionError): Path(name).read_bytes()
+        # The same fresh-loader first-read oracle: denial is success, not an
+        # unhandled PermissionError in the original diagnostic observation.
+        with pytest.raises(PermissionError):
+            importlib.machinery.SourceFileLoader('disposable_archiver', str(source)).get_code('disposable_archiver')
+        with pytest.raises(PermissionError): cache.read_bytes()
+        assert cache.stat().st_mode & 0o777 == 0
+        held = data['source_switch']['retention_ack_caches']
+        assert set(held) == {str(cache)}
+        item = held[str(cache)]
+        assert item['sealed'] is True
+        assert item['sha256'] == pair.sha(emitted[0][0])
+        assert item['metadata'] == emitted[0][1] == cohort.metadata(cache.stat())
+        assert item['mode'] == emitted[0][2]
+        assert Path(item['custody']).parent == Path(data['source_switch']['custody'])
+        assert Path(item['custody']).read_bytes() == emitted[0][0]
+        assert exact(sibling) == sibling_before
+        before_replay = f.journal.read_bytes(), cache.stat(), Path(item['custody']).read_bytes()
+        with pytest.raises(RuntimeError): apply(f, receipt)
+        assert len(f.saves) == 1
+        assert before_replay == (f.journal.read_bytes(), cache.stat(), Path(item['custody']).read_bytes())
+        with pytest.raises(mw.WindowError, match='restore_refused_source_or_adoption_outcome'):
+            f.window.exit()
+    finally:
+        f.window.release_locks()
+
+
 def test_stale_source_refuses_without_save(tmp_path, monkeypatch):
     f = fixture(tmp_path, monkeypatch)
     try:
