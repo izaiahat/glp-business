@@ -34,7 +34,7 @@ def affected_paths(root: Path, hermes: Path) -> set[Path]:
                 continue
             names = {n.id for n in node.targets if isinstance(n, ast.Name)}
             if ('PATHS' in names or
-                    (filename == 'glp44_scoped_adoption.py' and 'PR119_PATHS' in names)):
+                    (filename == 'glp44_scoped_adoption.py' and names & {'PR119_PATHS', 'GLP331_PATHS'})):
                 paths.update(root / p for p in ast.literal_eval(node.value))
             if 'WRAPPER' in names:
                 paths.add(hermes / 'scripts' / ast.literal_eval(node.value))

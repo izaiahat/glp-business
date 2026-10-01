@@ -13,6 +13,7 @@ suites+=(tests/test_glp44_weekly_gsc_aggregate.py tests/test_glp44_gsc_only_cons
 suites+=(tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py)
 suites+=(tests/test_glp44_weekly_pin_adoption.py)
 suites+=(tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_adoption.py tests/test_glp333_reporting_generation.py)
+suites+=(tests/test_glp331_dependency_generation.py)
 suites+=(tests/test_glp44_reader_exclusion.py)
 suites+=(tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_window_lock_contention.py tests/test_maintenance_keeper_contention.py tests/test_maintenance_adoptions.py)
 suites+=(tests/test_maintenance_restoration_review.py tests/test_maintenance_admission_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py tests/test_glp73_sync_rebaseline.py)

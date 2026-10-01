@@ -290,7 +290,7 @@ def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
         f.window.release_locks()
 
 
-def test_literal_inventory_adds_only_three_paths_and_old_guard_counterexample(tmp_path, monkeypatch):
+def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexample(tmp_path, monkeypatch):
     root, hermes = tmp_path / 'root', tmp_path / 'hermes'
     root.mkdir(); hermes.mkdir()
     supported = inventory.affected_paths(root, hermes)
@@ -300,7 +300,8 @@ def test_literal_inventory_adds_only_three_paths_and_old_guard_counterexample(tm
     put(directory / 'glp73_paired_adoption.py', (ROOT / 'scripts/glp73_paired_adoption.py').read_bytes())
     monkeypatch.setattr(inventory, '__file__', str(directory / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
-    assert supported - previous == {root / p for p in EXTRA}
+    dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')
+    assert supported - previous == {root / p for p in (*EXTRA, *dependencies)}
     journal = tmp_path / 'journal.json'
     put(journal, json.dumps({'schema': window_module.SCHEMA}).encode())
     active = window_module.ActiveWindow(journal, SimpleNamespace(root=root, hermes=hermes))

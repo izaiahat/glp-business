@@ -8,8 +8,13 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 526,
+  "tracked_count": 527,
   "files": {
+    "tests/test_glp331_dependency_generation.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "75dcb905100ef6c56e62d1c9a7c02c667d3ae2bc566084c2b0623edacf631832"
+    },
     "tests/test_maintenance_keeper_contention.py": {
       "callers": ["scripts/run_tests.sh"],
       "kind": "test",
@@ -350,7 +355,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "01c51881fe511182e001e432e213e25e6bbf0493af65d9883bda7f1c124951d6"
+      "sha256": "8bdeff1c6726ca401d9d399285deda180bf1a940414cbf7821e3dddf39afbebd"
     },
     ".hermes.md": {
       "callers": [],
@@ -370,7 +375,7 @@
     "README.md": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f043c24fe9dd9a48dfa29076904b87121d7766d160d9c338757bf7ea14af2b9e"
+      "sha256": "e12d8acada0f3ae65df136d3c9d7af0e9a89fdd3d5b56fd55210c71310208c57"
     },
     "config/affiliate-sites/best-terms-selection.json": {
       "callers": [
@@ -1523,7 +1528,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "325f58a25c3c450401e3a33d29c60be8abaf281e5ac6b79e61f0bd56e5c63fed"
+      "sha256": "2db9cb4d29ca1c33a8131ca99348ad5f721c05f3c435b9ba93f33c16cf3bea76"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2016,7 +2021,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2b2815deafe8a58ec7e8be2aebff0190abd11688711be72ef90b07a6437073ba"
+      "sha256": "884795e852c5dd0ede79eb2aeb02eeff884cd646d25d1cf4a1c56c1e4d8aa6cf"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3263,7 +3268,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "20c7fd308c6d4f36fdab3e5223dd17cb15965a20a54cefaa5dd31c29039f3876"
+      "sha256": "d70ae6e053089e9a120e9fe7eac3dfd07f25dbb277b89f395d6ea4f9567235b5"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3494,7 +3499,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "00f3753f0167724eb0a54d044ae5ba8edbd2a99a3142e5d9aa7d12418cbf4df4"
+      "sha256": "1f480d7792ac5fb99558cdd6340586053fa8bae3ec762882c16cabd77b633436"
     }
   }
 }
