@@ -49,7 +49,13 @@ def metadata(st):
     return {k: getattr(st, 'st_' + k) for k in ('dev', 'ino', 'uid', 'gid', 'size', 'mtime_ns')}
 
 
-def switch_files(journal, stage, before, drain):
+def switch_files(journal, stage, before, drain, *, commit=None):
+    """Optionally commit an external pin while sources/caches remain sealed.
+
+    Once commit is entered, ANY failure retains the seal and custody, without
+    rollback or replay. The external owner must reconcile its durable outcome;
+    ordinary source-only cohort recovery cannot decide a native registry save.
+    """
     from maintenance_window import WindowError, atomic_json, read_journal, require
     stage = {Path(p).absolute(): body for p, body in stage.items()}
     before = {Path(p).absolute(): value for p, value in before.items()}
@@ -72,14 +78,16 @@ def switch_files(journal, stage, before, drain):
         return _restore_preimages(journal, proposal, drain, states={'published'})
     # Stale bytecode is another first-read path. Keep exact cache custody for
     # rollback, remove it only after its corresponding new source is complete.
-    caches = {}
-    for path in list(stage):
-        if path.suffix == '.py':
-            candidates = [path.with_suffix('.pyc')]
-            candidates += list((path.parent / '__pycache__').glob(path.stem + '.*.pyc'))
-            for cache in candidates:
-                if cache.exists():
-                    caches[cache] = (cache.read_bytes(), stat.S_IMODE(cache.stat().st_mode))
+    def cache_paths():
+        paths = set()
+        for path in stage:
+            if path.suffix == '.py':
+                candidates = [path.with_suffix('.pyc')]
+                candidates += list((path.parent / '__pycache__').glob(path.stem + '.*.pyc'))
+                paths.update(p for p in candidates if p.exists())
+        return paths
+
+    caches = {p: (p.read_bytes(), stat.S_IMODE(p.stat().st_mode)) for p in cache_paths()}
     all_before = {**before, **caches}
     data = read_journal(journal)
     custody = Path(tempfile.mkdtemp(prefix='.cohort-', dir=Path(journal).parent))
@@ -136,6 +144,7 @@ def switch_files(journal, stage, before, drain):
                 os.fchmod(fd, 0)
                 os.fsync(fd)
             require(not drain(), 'cohort_source_reader_not_drained')
+            require(cache_paths() == set(caches), 'cohort_cache_set_changed')
             receipt['state'] = 'switching'
             atomic_json(journal, data)
             for path, (fd, name) in staged.items():
@@ -149,18 +158,40 @@ def switch_files(journal, stage, before, drain):
                         and metadata(path.stat()) == metadata(os.fstat(fd))
                         and stat.S_IMODE(path.stat().st_mode) == 0, 'cohort_readback_failed')
             require(not drain(), 'cohort_source_reader_not_drained')
+            require(cache_paths() == set(caches), 'cohort_cache_set_changed')
             receipt['state'] = 'sealed'
             atomic_json(journal, data)
             for cache in caches:
                 os.unlink(cache)
                 sync_dir(cache.parent)
+            if commit is not None:
+                receipt['commit_started'] = True
+                receipt['state'] = 'commit_uncertain'
+                atomic_json(journal, data)  # Durable intent BEFORE native saver.
+                commit()
+                for path, (fd, _) in staged.items():
+                    require(read_all(fd) == stage[path]
+                            and metadata(path.stat()) == metadata(os.fstat(fd))
+                            and stat.S_IMODE(path.stat().st_mode) == 0,
+                            'cohort_postcommit_readback_failed')
+                receipt['commit_verified'] = True
+                atomic_json(journal, data)
             for path, (fd, _) in staged.items():
                 os.fchmod(fd, before[path][1])
                 os.fsync(fd)
             receipt['state'] = 'published'
             atomic_json(journal, data)
             return receipt
-        except Exception:
+        except BaseException:
+            if receipt.get('commit_started'):
+                # A saver can raise after its rename. Do not infer rollback from
+                # an unchanged/readable registry, or expose an uncertain carrier.
+                for path, (fd, _) in staged.items():
+                    os.fchmod(fd, 0)
+                    os.fsync(fd)
+                receipt['state'] = 'commit_uncertain'
+                atomic_json(journal, data)
+                raise
             # Never expose a partially rolled-back cohort. An unknown inode or
             # content/metadata change stays sealed for independent recovery.
             try:
@@ -216,6 +247,7 @@ def _recovery_proposal(journal, states):
     raw = read_regular(Path(journal))[0]
     data = read_journal(journal)
     switch = data.get('source_switch', {})
+    require(not switch.get('commit_started'), 'cohort_external_commit_requires_owner_reconciliation')
     require(switch.get('state') in states, 'cohort_recovery_not_required')
     require(isinstance(switch.get('files'), dict) and switch['files'], 'cohort_recovery_files_missing')
     files = {}
