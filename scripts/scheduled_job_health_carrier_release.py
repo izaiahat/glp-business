@@ -35,7 +35,8 @@ SNAPSHOT = 'ops/hermes-cron-scripts/' + CARRIER
 PRODUCER = 'scripts/scheduled_job_health_carrier_release.py'
 CODE = frozenset((PRODUCER, 'scripts/maxbounty_pin_release.py'))
 SOURCES = frozenset((SNAPSHOT, 'scripts/scheduled_source_drift.py',
-                     'ops/scheduled-source-drift-manifest.json'))
+                     'ops/scheduled-source-drift-manifest.json',
+                     'ops/n8n_execution_budget.py', 'ops/n8n_dt.py'))
 # Exact installed predecessor also preserved in main's ancestry before PR #103.
 PREDECESSOR_SHA256 = 'd652c1d7bd3b6968af117d36ebbdd39ce119aa6c9b0fcadb0f0fd79191370dc9'
 
@@ -73,8 +74,13 @@ def checked_plan(review_path, repo, business, hermes):
                    for row in registration['artifacts']):
             raise RuntimeError('producer_not_registered:' + target)
     source_hashes = review.get('source_sha256', {})
-    if set(source_hashes) != SOURCES:
+    if not isinstance(source_hashes, dict) or set(source_hashes) != SOURCES:
         raise RuntimeError('exact_source_set_required')
+    source_modes = review.get('source_mode', {})
+    if (not isinstance(source_modes, dict) or set(source_modes) != SOURCES
+            or any(type(mode) is not int or not 0 <= mode <= 0o777
+                   for mode in source_modes.values())):
+        raise RuntimeError('exact_source_modes_required')
     observed = {review_path: review_preimage}
     for name in SOURCES:
         body = git(repo, 'show', review['source_head']+':'+name)
@@ -83,6 +89,8 @@ def checked_plan(review_path, repo, business, hermes):
         observed[business/name] = read_regular(business/name)
         if observed[business/name][0] != body:
             raise RuntimeError('installed_source_moved:' + name)
+        if observed[business/name][1] != source_modes[name]:
+            raise RuntimeError('installed_source_mode_moved:' + name)
     carrier = hermes/'scripts'/CARRIER
     observed[carrier] = read_regular(carrier)
     if (sha_bytes(observed[carrier][0]) != PREDECESSOR_SHA256
