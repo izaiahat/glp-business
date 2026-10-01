@@ -383,6 +383,12 @@
 !/tests/test_affiliate_terms_fanout.py
 !/tests/fixtures/
 /tests/fixtures/*
+!/tests/test_glp76_carrier_calendar.py
+!/tests/fixtures/
+/tests/fixtures/*
+!/tests/fixtures/glp76-carrier-material/
+/tests/fixtures/glp76-carrier-material/*
+!/tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs
 !/tests/fixtures/best_terms/
 /tests/fixtures/best_terms/*
 !/tests/fixtures/best_terms/held_xentraffic_failure.json
