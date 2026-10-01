@@ -1,5 +1,70 @@
 # Rook guild-scoped adapter — source, not rollout
 
+## First Research dot (source only; minimum reply/read pilot)
+
+Rook remains the default (`--profile rook`, or omit the flag): existing IDs, Kael observation,
+Rook sending, tool inventory, OAuth/RBAC names, legacy `Rook:` trigger and reply receipts remain unchanged.
+Research is opt-in, fixed to the same Kael HQ guild, with a **distinct configured channel and bot**.
+Unknown Research IDs remain owner-supplied inputs; nothing here provisions or launches a service.
+
+Research advertises and dispatches **only** `reply_to_research_request` and `read_research_messages`.
+Required scope **and** RBAC permissions are `research.replies.write` and `research.channel.read`,
+respectively; discovery/subscriptions require `research.requests.read`. Metadata additionally lists
+`offline_access`. No generic API, GitHub comment, uncorrelated send, file download/upload, threads or
+reactions are enabled for this first pilot. `discord_api` and `github_pr_comment` are refused on the
+server even if the bearer has Rook or Research write scopes. Additional communication tools require
+a separately reviewed source change, not a launcher flag. No admin/GitHub/Linear/host-filesystem tool.
+
+Both observation and REST sending use Research's own token reference. Request senders must be exactly
+Izaiah `392067741500309517`, Kael `1486880423568211968`, and Rook `1554962007059472445`, provided as three
+`--allowed-request-sender` flags (no extra/duplicate identities). Only literal `<@BOT_ID>` / `<@!BOT_ID>`
+in fresh exact-channel messages triggers Research; reply-ping metadata alone does not. Self, webhooks,
+other senders, empty mention-only bodies, acknowledgments starting `ack`/`acknowledged`/`received` or
+`Research handoff`/`Research reply`, and the legacy `Rook:` prefix do not create assignments.
+Any admitted external text, including Rook's, is untrusted data and never approval.
+
+Research needs a separate private state directory. A durable identity binding pins guild/channel,
+bot/observer, token **path** (not its value), exact sender set, two-tool profile and OAuth policy;
+repointing any field or reusing Rook state is refused. Existing Rook receipt policy hashes stay
+unchanged; a small profile marker prevents a Rook directory being adopted by Research. Do not copy
+state between dots. The existing lock, stable `discord-<message-id>` IDs, pre-effect reservation,
+exact-author/content readback and no resend after restart uncertainty remain authoritative.
+The footer is `research.reply · discord-<id>`; the receiver independently pins the same identity and
+OAuth policy and reads confirmed private custody. Same Unix owner is not compromise-resistant isolation.
+
+### Owner-only future configuration (not executed or authorized by this PR)
+
+Select and log into the intended ChatGPT account; verify connector eligibility/quota and OAuth consent.
+Separately authorize and provision a distinct Research bot/channel, connector/tunnel/API audience,
+verified OAuth subject, narrow scopes/RBAC, private state, port/cursor and supervised runtime paths.
+Discord permissions: View Channel, Read Message History and Send Messages on its channel only; enable
+Message Content intent for observation. Never Administrator. Verify host/Auth0/tunnel/Discord limits
+and costs before reuse. Do not use Rook's DB, tunnel credential, service or mutable launcher paths.
+No host launcher/services, Auth0/Discord config or existing token helper are changed here.
+
+After that separate authorization, append these identity flags to the existing bounded adapter CLI
+alongside its required issuer/audience/subject/metadata/state/port/fresh-cursor/lifespan arguments:
+
+```sh
+--profile research --research-channel "$RESEARCH_CHANNEL_ID" --research-bot "$RESEARCH_BOT_ID" \
+  --research-token-path "$RESEARCH_TOKEN_PATH" \
+  --allowed-request-sender 392067741500309517 \
+  --allowed-request-sender 1486880423568211968 \
+  --allowed-request-sender 1554962007059472445
+```
+
+The token path must reference an owner-stored private token file; never supply a token value in CLI,
+chat, PR or logs. The separately verified owner helper remains untouched. Receiver: use the **same**
+identity flags plus `--guild 1486887661099815126 --channel "$RESEARCH_CHANNEL_ID"`,
+`--allowed-author "$RESEARCH_BOT_ID" --reply-kind research.reply`, fresh correlation/cursor/bounded wait,
+and all four existing `--mcp-state-dir`, `--mcp-issuer`, `--mcp-audience`, `--mcp-subject` custody inputs.
+It observes through Research's bot and admits only the exact authenticated confirmed Research reply.
+The parent retains the result artifact and owns separate review and authorized board updates.
+
+Offline acceptance: `tests/test_rook_communication.py::TestResearchCommunication`; existing exact-head
+CI already runs this file, plus the Rook/receiver regressions. Synthetic credentials/transport only;
+passing tests do not prove live login, provisioning, OAuth compatibility or the round trip.
+
 ## GitHub identity (operator setup; not performed by this source change)
 
 `github_pr_comment` posts advisory PR **issue-comments**, not reviews or approvals, through a host-held GitHub App identity. It requires the existing JWT scope **and** RBAC permission `rook.channel.write`; no new OAuth scope. Arguments are `repo` (exactly `izaiahat/glp-business` or `izaiahat/glp-site-candidate`), positive integer `pr_number`, `body` (1–20,000 characters), required 40-hex `inspected_head_sha`, and the existing safe 16–64 character `operation_id`.
