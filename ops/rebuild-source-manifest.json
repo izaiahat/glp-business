@@ -4,7 +4,12 @@
     "ops/n8n_execution_budget.py": {
       "callers": ["hermes:b86ec8937c20", "ops/hermes-cron-scripts/scheduled_job_health_manager.py"],
       "kind": "script",
-      "sha256": "b81d8043edabd7eb1425feed2274f806d117c426387370f8664592e7a35780a3"
+      "sha256": "0eadc1cc627606875b05f50e6c0d6e92852f04e20ed38211f1ba7657c792ca39"
+    },
+    "tests/test_n8n_execution_budget_review.py": {
+      "callers": ["scripts/run_tests.sh"],
+      "kind": "test",
+      "sha256": "c1730eebc6add9953c4c55014b73afcb53a14b1a598ec9e39a5c9711a7814dcb"
     },
     "tests/test_n8n_execution_budget.py": {
       "callers": ["scripts/run_tests.sh"],
@@ -577,7 +582,7 @@
         "hermes:b86ec8937c20"
       ],
       "kind": "script",
-      "sha256": "da9e273c7236737bcc6c6079fbc2a8a7c5e3b8174fab58abf757f5cd3b7db1e0"
+      "sha256": "399c73c5d4ce0e668bbff962b4a6c05434019c9c0911d8aaef9b4413d69831e5"
     },
     "ops/hermes-cron-scripts/session_bloat_watchdog.py": {
       "callers": [
@@ -1620,7 +1625,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "31a330ae97085825e3afea2a69b85d1e2cc657c42f667e300b7068f0ac34fad9"
+      "sha256": "a58f97fb1f2379229a209eb2bfcdfb5bbb89ee5027e7ae1fef24d51762f2e00c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2807,5 +2812,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 428
+  "tracked_count": 429
 }

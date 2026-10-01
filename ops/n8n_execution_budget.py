@@ -14,6 +14,7 @@ from urllib.parse import urlencode
 from pathlib import Path
 from zoneinfo import ZoneInfo
 import fcntl
+import hashlib
 import json
 import os
 import tempfile
@@ -38,8 +39,10 @@ def atomic_json(path, value):
 def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False, audit=None):
     """Cached monitor on the existing health runner, no scheduler or sender.
 
-    Refresh at most hourly. Daily line follows Pacific day, accounting UTC
-    month is explicit. The existing incident ledger owns alert deduplication.
+    Refresh at most hourly, including failed reads. Daily line follows Pacific
+    day; the UTC calendar-month boundary is an explicit, unverified billing
+    assumption (public API/MCP do not expose this account's billing boundary).
+    Stable threshold episodes are delivered by the existing incident ledger.
     Dry-run does not consume the live daily line or advance monthly state.
     """
     now = now or datetime.now(timezone.utc)
@@ -55,20 +58,29 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
             if not isinstance(state, dict):
                 raise ValueError('state_shape')
             if state.get('snapshot'):
-                parse_time(state['snapshot']['generated_at_utc'])
-            if not isinstance(state.get('month_high_water', 0), int):
-                raise ValueError('state_count')
-        except (ValueError, KeyError, TypeError, OSError):
-            return {'snapshot': {'status': 'UNKNOWN', 'month_executions_observed': None,
-                    'projected_month_end': None, 'cap': CAP, 'generated_at_utc': now.isoformat()},
-                    'daily_line': 'n8n execution budget: UNKNOWN/10000; monthly ledger unreadable; not reset',
-                    'issue': {'classification': 'n8n_execution_budget_unknown', 'severity': 'yellow',
-                              'reason': 'budget_state_unreadable', 'evidence': 'Monthly observation ledger not reset.',
-                              'operator_fix': 'Reconcile retained ledger and vendor usage before repairing state.'}}
+                saved = state['snapshot']
+                parse_time(saved['generated_at_utc'])
+                if saved['status'] not in ('PASS', 'DRIFT', 'WARN_70_PERCENT', 'CAP_RISK', 'UNKNOWN'):
+                    raise ValueError('state_status')
+                if saved['status'] != 'UNKNOWN':
+                    for key in ('month_execution_high_water', 'projected_month_end'):
+                        if type(saved[key]) is not int or saved[key] < 0:
+                            raise ValueError('state_snapshot_count')
+            for key in ('month_high_water', 'warning_episode'):
+                if type(state.get(key, 0)) is not int or state.get(key, 0) < 0:
+                    raise ValueError('state_count')
+            if not isinstance(state.get('observed_execution_ids', []), list):
+                raise ValueError('state_ids')
+            if type(state.get('warning_active', False)) is not bool:
+                raise ValueError('state_warning')
+        except (ValueError, KeyError, TypeError, OSError, AttributeError):
+            return corrupt_state_health(path, now, dry_run)
         month = now.astimezone(timezone.utc).strftime('%Y-%m')
         snapshot = state.get('snapshot')
         age = (now - parse_time(snapshot['generated_at_utc'])).total_seconds() if snapshot else None
-        if snapshot is None or snapshot.get('month_utc') != month or age is None or age < 0 or age >= 3600 or snapshot['status'] == 'UNKNOWN':
+        # UNKNOWN is cached too: outages must not bypass the hourly read bound.
+        month_changed = snapshot and snapshot.get('month_utc') != month and snapshot['status'] != 'UNKNOWN'
+        if snapshot is None or month_changed or age is None or age < 0 or age >= 3600:
             try:
                 rows, proof = collect(get, now)
                 same_month = state.get('month_utc') == month
@@ -90,27 +102,104 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
                     'error_class': type(exc).__name__}
             state['snapshot'] = snapshot
         day = now.astimezone(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
+        reporting_path, reporting = reporting_state(path, state)
         line = None
-        if state.get('daily_line_day') != day:
+        if reporting.get('daily_line_day') != day:
             count = snapshot.get('month_execution_high_water')
             projected = snapshot.get('projected_month_end')
             line = (f"n8n execution budget: {count if count is not None else 'UNKNOWN'}/{CAP} observed high-water; "
                     f"projected month-end {projected if projected is not None else 'UNKNOWN'}/{CAP}; "
-                    f"month={month} UTC; alert=70%; status={snapshot['status']}; billing counter separate")
-            state['daily_line_day'] = day
+                    f"month={month} UTC (billing boundary assumed); alert=70%; status={snapshot['status']}; billing counter separate")
+            reporting['daily_line_day'] = day
+        state['daily_line_day'] = reporting.get('daily_line_day')
         status = snapshot['status']
         issue = None
-        if status != 'PASS':
+        if status != 'UNKNOWN':
+            above = max(snapshot['month_execution_high_water'], snapshot['projected_month_end']) >= CAP * .7
+            if above and not state.get('warning_active', False):
+                state['warning_episode'] = state.get('warning_episode', 0) + 1
+            state['warning_active'] = above
+        # UNKNOWN cannot prove recovery; neither unknown reads nor elapsed time
+        # re-arm a threshold episode. Keep changing counts in evidence, not keys.
+        if status == 'UNKNOWN' or state.get('warning_active', False):
             issue = {'classification': ('n8n_execution_budget_unknown' if status == 'UNKNOWN' else
-                                        'n8n_execution_budget_schedule_drift' if status == 'DRIFT' else
                                         'n8n_execution_budget_70_percent'),
                      'severity': 'red' if status == 'CAP_RISK' else 'yellow',
                      'reason': status,
                      'evidence': f"month={month}; observed={snapshot.get('month_execution_high_water')}; projected={snapshot.get('projected_month_end')}; cap={CAP}",
                      'operator_fix': 'Reconcile the vendor usage counter and event callers; keep migrated polling on the direct host bridge. Do not disable postbacks or replay pending effects.'}
+            if status != 'UNKNOWN':
+                issue.update(incident_key=f"n8n-execution-budget:warning:{state['warning_episode']}", alert_once=True)
         if not dry_run:
             atomic_json(path, state)
-        return {'snapshot': snapshot, 'daily_line': line, 'issue': issue}
+            atomic_json(reporting_path, reporting)
+        issues = []
+        if issue:
+            issues.append(issue)
+        invariants = snapshot.get('invariants') or {}
+        if invariants.get('article_inactive') is False:
+            issues.append({'job_id': 'n8n-article-carrier-hold',
+                          'classification': 'n8n_article_carrier_active', 'severity': 'red',
+                          'reason': 'article_carrier_active',
+                          'evidence': f'workflow={ARTICLE}; active=true; host cron owns publishing',
+                          'operator_fix': 'Investigate unauthorized article-carrier activation under the existing release gate; do not execute or replay it.'})
+        if invariants.get('enabled_schedule_nodes') or invariants.get('error_handler_recursion_findings'):
+            issues.append({'job_id': 'n8n-published-invariants',
+                          'classification': 'n8n_execution_budget_schedule_drift', 'severity': 'yellow',
+                          'reason': 'published_schedule_or_error_handler_drift',
+                          'evidence': json.dumps({k: invariants.get(k) for k in ('enabled_schedule_nodes', 'error_handler_recursion_findings')}, sort_keys=True),
+                          'operator_fix': 'Reconcile published schedules and error-handler recursion without disabling event ingress or replaying effects.'})
+        return {'snapshot': snapshot, 'daily_line': line, 'issue': issue, 'issues': issues}
+
+
+def reporting_state(path, accounting=None):
+    """Daily output custody is independent of the accounting ledger's health."""
+    reporting_path = path.with_name(path.name + '.health.json')
+    try:
+        reporting = json.loads(reporting_path.read_text()) if reporting_path.exists() else {}
+        if not isinstance(reporting, dict):
+            raise ValueError('reporting_state_shape')
+    except (ValueError, OSError):
+        reporting = {}
+    if not reporting.get('daily_line_day') and accounting:
+        reporting['daily_line_day'] = accounting.get('daily_line_day')
+    return reporting_path, reporting
+
+
+def corrupt_state_health(path, now, dry_run):
+    """Quarantine exact bytes, never repair accounting to suppress reporting.
+
+    A separate reporting-only sidecar survives an unreadable monthly ledger.
+    The original stays in place (fail closed) until an authorized repair.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        raw = None
+    digest = hashlib.sha256(raw).hexdigest() if raw is not None else 'unreadable'
+    quarantine = path.with_name(path.name + '.quarantine.' + digest)
+    reporting_path, reporting = reporting_state(path)
+    day = now.astimezone(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
+    line = None
+    if reporting.get('daily_line_day') != day:
+        line = 'n8n execution budget: UNKNOWN/10000; monthly ledger unreadable; quarantined; not reset'
+        reporting['daily_line_day'] = day
+    if not dry_run:
+        if raw is not None and not quarantine.exists():
+            fd = os.open(quarantine, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, 'wb') as handle:
+                handle.write(raw)
+                handle.flush()
+                os.fsync(handle.fileno())
+        reporting['quarantine_sha256'] = digest
+        atomic_json(reporting_path, reporting)
+    issue = {'classification': 'n8n_execution_budget_unknown', 'severity': 'yellow',
+             'reason': 'budget_state_unreadable', 'evidence': f'Monthly observation ledger not reset; quarantine_sha256={digest}',
+             'operator_fix': 'Reconcile quarantined ledger and vendor usage before repairing state.',
+             'incident_key': f'n8n-execution-budget:corrupt:{digest}', 'alert_once': True}
+    return {'snapshot': {'status': 'UNKNOWN', 'month_executions_observed': None,
+                         'projected_month_end': None, 'cap': CAP, 'generated_at_utc': now.isoformat()},
+            'daily_line': line, 'issue': issue, 'issues': [issue]}
 
 
 def collect(get, now, max_pages=250):
@@ -210,5 +299,6 @@ def summarize(executions, now, previous_count=0):
             'daily_rate': daily_rate, 'projected_month_end': projected,
             'projection_method': 'max(month-to-date, last24h, last7d) rate for remaining UTC month',
             'status': status, 'billed_usage': None,
+            'billing_boundary': 'UTC calendar month assumed; account billing timezone/period not exposed by public API/MCP',
             'usage_semantics': 'retained execution lower bound; all modes conservatively counted; monotonic monthly high-water',
             'by_workflow': dict(Counter(r['workflowId'] for r in current))}
