@@ -250,3 +250,84 @@ def test_replayed_notice_with_refreshed_provider_capture_refuses_before_duplicat
     assert 'replayed_notice_proof_conflict' in replay['reason']
     assert f.lane.service.rows == after
     assert len(f.lane.service.writes) == writes
+
+
+# PR117 independent review R1/R2 reproductions, retained in exact-head CI.
+@pytest.mark.parametrize('shape', ['capture_list', 'direct_missing_file'])
+def test_independent_malformed_withdrawal_is_row_local(withdrawal, shape):
+    f = withdrawal
+    bad = copy.deepcopy(f.notice)
+    bad['update_id'] = 'malformed-withdrawal'
+    if shape == 'capture_list':
+        malformed = f.root / 'malformed-capture.json'
+        malformed.write_text('[]')
+        bad['evidence']['provider_verification'] = {'path': str(malformed), 'sha256': digest(malformed)}
+    else:
+        bad = promote(f)
+        bad['update_id'] = 'malformed-withdrawal'
+        bad['evidence']['provider_verification']['path'] = str(f.root / 'missing-capture.json')
+    good = promote(f)
+    batch = [copy.deepcopy(f.notice), bad, good]
+    result = f.lane.drain.drain(batch, f.root / ('independent-batch-' + shape), apply=True)
+    assert len(result['results']) == 3
+    assert result['results'][1]['status'] in ('refused', 'escalated')
+    assert result['results'][1]['reason']
+    assert result['results'][1]['cells_written'] == 0
+    assert result['results'][2]['status'] == 'applied'
+    assert len(f.lane.service.writes) == 1
+    receipt = json.loads((f.root / result['results'][2]['receipt']).read_text())
+    assert receipt['collateral_changes'] == [] and receipt['idempotent_rerun'] is True
+
+
+def test_independent_conflicting_program_id_in_history_does_not_bind_row(withdrawal):
+    f = withdrawal
+    row = f.lane.service.rows[758]
+    row[5] = 'https://ui.awin.com/merchant-profile/3278'
+    row[23] += '\nHistorical sibling program 3277 was discussed, not this offer.'
+    before = copy.deepcopy(f.lane.service.rows)
+    q = promote(f)
+    q['sheet_row'] = 759
+    result = f.lane.run(q)['results'][0]
+    assert f.lane.service.rows == before and not f.lane.service.writes
+    assert result['status'] in ('refused', 'escalated')
+    assert 'withdrawal_sheet_program_id' in result['reason']
+
+
+@pytest.mark.parametrize('apply_url', [
+    'https://ui.awin.com/merchant-profile/3278',
+    'https://ui.awin.com/merchant-profile/32770',
+    'https://ui.awin.com/merchant-profile/3277?program_id=3278',
+    'https://ui.awin.com/merchant-profile/3278?program_id=3277',
+    'https://ui.awin.com/merchant-profile/3277?program_id=3277&program_id=3278',
+    'https://ui.awin.com/merchant-profile?historical_sibling=3277',
+    '',
+])
+def test_direct_writer_rejects_conflicting_or_missing_authoritative_id(withdrawal, apply_url):
+    f = withdrawal
+    q = promote(f)
+    row = f.lane.service.rows[758]
+    entry = f.lane.drain.build_entry(q['kind'], q, q['evidence'], 759, row)
+    row[5] = apply_url
+    row[14] = 'https://example.test/3277'
+    row[23] += '\nHistorical sibling program 3277.'
+    before = copy.deepcopy(f.lane.service.rows)
+    with pytest.raises(ValueError, match='withdrawal_sheet_program_id'):
+        f.lane.writer.require_sheet_sync_preconditions('network_cancelled', f.lane.service.rows, [entry])
+    assert f.lane.service.rows == before and not f.lane.service.writes
+
+
+@pytest.mark.parametrize('promoted', [False, True])
+@pytest.mark.parametrize('fault', ['list', 'null', 'invalid_json', 'missing_file'])
+def test_proof_faults_refuse_row_locally_in_both_paths(withdrawal, promoted, fault):
+    f = withdrawal
+    bad = promote(f) if promoted else copy.deepcopy(f.notice)
+    bad['update_id'] = 'bad-proof'
+    path = f.root / 'bad-proof.json'
+    if fault != 'missing_file':
+        path.write_text({'list': '[]', 'null': 'null', 'invalid_json': '{'}[fault])
+    bad['evidence']['provider_verification'] = {'path': str(path), 'sha256': digest(path) if path.exists() else '0' * 64}
+    result = f.lane.drain.drain([f.notice, bad, promote(f)], f.root / 'mixed-proof-batch', apply=True)
+    rejected, tail = result['results'][1:]
+    assert rejected['status'] in ('refused', 'escalated') and rejected['reason']
+    assert rejected['cells_written'] == 0
+    assert tail['status'] == 'applied' and len(f.lane.service.writes) == 1

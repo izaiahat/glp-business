@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 BUSINESS = Path('/home/ubuntu/business')
 SCHEMA = 'affiliate-program-status-readback-v1'
@@ -33,16 +34,22 @@ def timestamp(value: str) -> datetime:
 
 
 def capture_bytes(ref: dict, root: Path) -> tuple[Path, bytes]:
-    if not isinstance(ref, dict) or not ref.get('path') or not ref.get('sha256'):
+    if (not isinstance(ref, dict) or not isinstance(ref.get('path'), str)
+            or not ref['path'] or not isinstance(ref.get('sha256'), str) or not ref['sha256']):
         raise ValueError('withdrawal_provider_verification_required')
     path = Path(ref['path'])
     path = path if path.is_absolute() else root / path
     if path.is_symlink():
         raise ValueError('withdrawal_capture_symlink_forbidden')
-    path = path.resolve(strict=True)
-    if not path.is_relative_to(root.resolve()):
-        raise ValueError('withdrawal_capture_outside_custody_root')
-    raw = path.read_bytes()
+    try:
+        path = path.resolve(strict=True)
+        if not path.is_relative_to(root.resolve()):
+            raise ValueError('withdrawal_capture_outside_custody_root')
+        raw = path.read_bytes()
+    except (OSError, RuntimeError) as exc:
+        # The same typed refusal reaches promotion and already-promoted entries;
+        # an unreadable proof must never abort the unrelated valid batch tail.
+        raise ValueError(f'withdrawal_capture_unreadable:{type(exc).__name__}') from exc
     if hashlib.sha256(raw).hexdigest() != ref['sha256']:
         raise ValueError('withdrawal_provider_verification_hash_drift')
     return path, raw
@@ -56,6 +63,8 @@ def verify(queue: dict, *, root: Path = BUSINESS) -> dict:
     if decision not in DECISIONS:
         raise ValueError('withdrawal_not_cancellation')
     capture = json.loads(raw)
+    if not isinstance(capture, dict):
+        raise ValueError('withdrawal_provider_verification_object_required')
     if (capture.get('schema') != SCHEMA
             or capture.get('source_kind') != 'authenticated_provider_api'
             or capture.get('relationship_status') not in DECISIONS):
@@ -118,9 +127,24 @@ def verify_writer_entry(entry: dict, row: list | None = None, *, root: Path = BU
         if (str(row[4]).casefold() != capture['network'].casefold()
                 or str(row[2]).casefold() != capture['program_name'].casefold()):
             raise ValueError('withdrawal_sheet_identity_mismatch')
-        identity = ' '.join(str(row[index]) for index in (5, 14, 23))
-        if not re.search(r'(?<![A-Za-z0-9])' + re.escape(str(capture['program_id'])) + r'(?![A-Za-z0-9])', identity):
+        # The Sheet has no separate network-program-ID column. Only declared
+        # program components in its Apply URL establish that axis. Historical
+        # Notes and issued trackers may refer to siblings; neither is authority.
+        url = urlsplit(str(row[5]))
+        if url.scheme not in {'http', 'https'} or not url.hostname:
             raise ValueError('withdrawal_sheet_program_id_binding_missing')
+        program_ids = set(re.findall(
+            r'/(?:merchant-profile|programs|explore|offers|campaigns)/([^/]+)(?=/|$)',
+            unquote(url.path)))
+        for key, value in parse_qsl(url.query, keep_blank_values=True):
+            if key.casefold() in {'program_id', 'network_program_id', 'merchantid',
+                                 'mid', 'advertiserid', 'campaignid', 'campaign_id',
+                                 'offerid', 'offer_id'}:
+                program_ids.add(value)
+        if not program_ids:
+            raise ValueError('withdrawal_sheet_program_id_binding_missing')
+        if program_ids != {str(capture['program_id'])}:
+            raise ValueError('withdrawal_sheet_program_id_identity_conflict')
         if str(row[10]).casefold().startswith(('hold', 'excluded')):
             raise ValueError('withdrawal_existing_provider_hold_preserved')
     if any(name in capture['program_name'].casefold() for name in ('fella', 'telos', 'healthrx', 'health rx', 'xentraffic')):
