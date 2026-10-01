@@ -252,9 +252,10 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
                 {str(path.resolve()): digest(body) for path, body in stage.items()},
             )
             source_written = False
-            try:
-                source_written = True  # the switch can publish before acknowledgement fails
-                window.switch_files(stage, original)
+            commit_entered = False
+            def commit():
+                nonlocal commit_entered
+                commit_entered = True
                 current, jobs = job_record(registry)
                 if current != proposal['job_window_before']:
                     raise RuntimeError('job_moved_before_hash_update')
@@ -269,7 +270,20 @@ def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, gener
                 actual, actual_jobs = job_record(registry)
                 if actual_jobs != next_jobs or actual['script_sha256'] != proposal['wrapper_sha256']:
                     raise RuntimeError('scheduler_readback_mismatch_no_retry')
+            try:
+                source_written = True  # the switch can publish before acknowledgement fails
+                if successor:
+                    # Reuse the maintained F09 seal/intent/save/readback boundary.
+                    window.switch_files(stage, original, commit=commit)
+                else:
+                    # Preserve the original PR71 source-only switch contract.
+                    window.switch_files(stage, original)
+                    commit()
             except Exception:
+                if successor and commit_entered:
+                    # Durable intent already exists: keep seals/custody even if
+                    # registry bytes look unchanged. No automatic inverse/replay.
+                    raise
                 # A possibly landed scheduler write is held for reconciliation, never
                 # blindly reversed or replayed. Only restore files while registry is unchanged.
                 current, _ = job_record(registry)

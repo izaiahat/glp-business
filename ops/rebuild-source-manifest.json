@@ -1397,7 +1397,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3915324e93d9b26cf1b16ae3118cf6cd0aeb8d8c0b9eb75412abf6fbc0d7cf65"
+      "sha256": "ae6845a83d413a45a85ed8d7855d4ac52fc9877f0e2e56bd53806fbdf7202213"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -3145,7 +3145,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "d61aa27a59e1720c85e28dacda406fb049896647006450faf9f4cfe531e9e075"
+      "sha256": "c48e107016999e8edbea02f66d4113f9206e6f510d6bdf8366a5e91b0deffecd"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3368,7 +3368,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "171ff3dad23a912a9a7bb3c1482818ba9b5afc360433f34aa188942a6e031623"
+      "sha256": "a2effc51f0816682e13af8c7d405c0b8e6bdcc859ac2752d558ff5604bd517e2"
     }
   }
 }

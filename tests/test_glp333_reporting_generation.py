@@ -372,6 +372,72 @@ def test_unknown_generation_and_unknown_window_path_refuse(tmp_path, monkeypatch
         f.window.release_locks()
 
 
+@pytest.mark.parametrize('lost_ack', [False, True], ids=['healthy', 'lost-ack'])
+def test_reporting_commit_keeps_seal_and_intent_through_save_readback(tmp_path, monkeypatch, lost_ack):
+    f = generation_fixture(tmp_path, monkeypatch)
+    try:
+        review = acceptance(preview(f))
+        selected = [f.root / p for p in pair.PR119_PATHS] + [
+            f.root / syncer.STATE, f.hermes / 'scripts' / pair.WRAPPER]
+        old_modes = {p: p.stat().st_mode & 0o777 for p in selected}
+        old_jobs = json.loads(f.registry.read_text())['jobs']
+        expected_jobs = copy.deepcopy(old_jobs)
+        expected_jobs[0]['script_sha256'] = pair.PR119_HASHES[pair.SNAPSHOT]
+        observations = []
+        saver = f.scheduler._save_jobs_unlocked
+        def observe():
+            data = window_module.read_journal(f.journal)
+            observations.append({
+                'modes': [p.stat().st_mode & 0o777 for p in selected],
+                'switch': copy.deepcopy(data['source_switch']),
+            })
+        def observed_save(jobs, **kwargs):
+            observe()
+            saver(jobs, **kwargs)  # unchanged native saver when selected on host
+            observe()
+            if lost_ack:
+                raise RuntimeError('fixture save landed acknowledgement lost')
+        monkeypatch.setattr(f.scheduler, '_save_jobs_unlocked', observed_save)
+        if lost_ack:
+            with pytest.raises(RuntimeError, match='adoption_outcome_uncertain_reconcile_before_exit'):
+                apply(f, review)
+        else:
+            assert apply(f, review)['applied']
+        assert len(f.saves) == 1 and len(observations) == 2
+        for observation in observations:
+            assert observation['modes'] == [0] * len(selected)
+            assert observation['switch']['state'] == 'commit_uncertain'
+            assert observation['switch']['commit_started'] is True
+            assert not observation['switch'].get('commit_verified')
+        data = window_module.read_journal(f.journal)
+        assert json.loads(f.registry.read_text())['jobs'] == expected_jobs
+        if lost_ack:
+            assert data['source_switch']['state'] == 'commit_uncertain'
+            assert data['source_switch']['commit_started'] is True
+            assert not data['source_switch'].get('commit_verified')
+            assert data['source_transaction']['outcome'] == 'uncertain'
+            assert all(p.stat().st_mode & 0o777 == 0 for p in selected)
+            # Authenticate sealed bytes via custody, never chmod/open to peek.
+            for rel, expected in pair.PR119_HASHES.items():
+                item = data['source_switch']['files'][str(f.root / rel)]
+                assert sha(Path(item['candidate']).read_bytes()) == expected
+            unchanged = f.journal.read_bytes(), f.registry.read_bytes(), [p.stat() for p in selected]
+            with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
+                apply(f, review)
+            assert (f.journal.read_bytes(), f.registry.read_bytes(), [p.stat() for p in selected]) == unchanged
+        else:
+            assert data['source_switch']['state'] == 'published'
+            assert data['source_switch']['commit_started'] is True
+            assert data['source_switch']['commit_verified'] is True
+            assert data['source_transaction']['outcome'] == 'applied'
+            assert {p: p.stat().st_mode & 0o777 for p in selected} == old_modes
+            with pytest.raises(RuntimeError, match='reporting_generation_predecessor_refused'):
+                apply(f, review)
+        assert len(f.saves) == 1
+    finally:
+        f.window.release_locks()
+
+
 def test_uncertain_native_save_is_not_rolled_back_or_replayed(tmp_path, monkeypatch):
     f = generation_fixture(tmp_path, monkeypatch)
     try:
@@ -385,11 +451,13 @@ def test_uncertain_native_save_is_not_rolled_back_or_replayed(tmp_path, monkeypa
             apply(f, review)
         assert 'acknowledgement lost' in str(refused.value.__context__)
         assert len(f.saves) == 1
-        assert window_module.read_journal(f.journal)['source_transaction']['outcome'] == 'uncertain'
-        after = payloads(f)
+        data = window_module.read_journal(f.journal)
+        assert data['source_transaction']['outcome'] == 'uncertain'
+        after = f.journal.read_bytes(), f.registry.read_bytes()
         with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
             apply(f, review)
-        assert payloads(f) == after and len(f.saves) == 1
-        assert all(sha((f.root / p).read_bytes()) == h for p, h in pair.PR119_HASHES.items())
+        assert (f.journal.read_bytes(), f.registry.read_bytes()) == after and len(f.saves) == 1
+        assert all(sha(Path(data['source_switch']['files'][str(f.root / p)]['candidate']).read_bytes()) == h
+                   for p, h in pair.PR119_HASHES.items())
     finally:
         f.window.release_locks()
