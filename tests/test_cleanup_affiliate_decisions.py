@@ -339,6 +339,7 @@ def test_until_instruction_is_not_an_account_approval(inbox, monkeypatch):
     ('Publisher notes', 'Please write "Your application has been approved." in the email.'),
     ('Publisher notes', 'Imagine your application has been approved.'),
     ('Publisher notes', 'The application has been approved.'),
+    ('Publisher notes', 'Highlights:\nYour application has been approved.'),
 ])
 def test_approval_requires_a_body_assertion_outside_displayed_copy(inbox, subject, body):
     cp, q, ledger, mailbox = inbox

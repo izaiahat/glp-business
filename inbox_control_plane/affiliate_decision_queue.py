@@ -51,7 +51,7 @@ def _approval_statements(text: str) -> list[str]:
         # scope rule, not a list of training/marketing keywords.
         lines = paragraph.splitlines()
         while lines and re.fullmatch(
-                r'\s*(?:dear [^:!,]+[:,]?|(?:hello|hi)[^:!,]*[:,]?|'
+                r'\s*(?:dear [^:!,]+[:,]?|(?:hello|hi)\b[^:!,]*[:,]?|'
                 r'(?:your )?(?:application|membership|account|program) (?:status|decision):)\s*',
                 lines[0], re.I):
             lines.pop(0)
