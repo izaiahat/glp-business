@@ -64,6 +64,32 @@ PR119_PREREQUISITES = {
 }
 
 
+# Supported publication successor for the reviewed hourly collector (PR142 +
+# PR146, merged at COLLECTOR_SOURCE). PR71 stays the immutable old-collector
+# cohort; this generation publishes the same PR71 members plus the PR119
+# reporting members from one committed tree, so the staged wrapper/manifest
+# and the reporting pin closure all bind the new collector generation. The
+# union is already declared above (PATHS/PR119_PATHS) for the static inventory.
+COLLECTOR_GENERATION = 'glp44-collector-successor-20261002'
+COLLECTOR_SOURCE = '488eeffd8a01f2fdb2fb19abf95636ad33829851'
+COLLECTOR_HASHES = {
+    'ops/glp/analytics-brain-control.json': '68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815',
+    'ops/glp/reporting-v2/source-manifest.json': 'be4047627a84dd80efbff33b271a945c4a8e04da133bcfe8dc36bb69c200802f',
+    SNAPSHOT: 'efe1cc68c12206a2df832148e468c5418edafec473b45d2e60df18aa180aa25d',
+    'systems/analytics-brain/analytics_brain.py': '19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa',
+    'systems/analytics-brain/collector.py': 'af1d8f9187384f025bcd042a17710581fabb1870fd5bf05c8dcff174f2a4203e',
+    'ops/glp/reporting-v2/identity-registry.json': '93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271',
+    'scripts/glp_affiliate_weekly_reporting.py': 'd3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795',
+    'scripts/glp_affiliate_weekly_reporting_job.py': '79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18',
+}
+COLLECTOR_PATHS = PATHS + tuple(p for p in PR119_PATHS if p not in PATHS)
+# Reporting generations that rebind the job hash inside the maintained switch.
+SUCCESSORS = {
+    PR119_GENERATION: (PR119_HASHES, 'glp333-reporting-runtime-review-v1'),
+    COLLECTOR_GENERATION: (COLLECTOR_HASHES, 'glp44-collector-successor-runtime-review-v1'),
+}
+
+
 # Dependency installation only: no carrier or job-pin authority. Apply before
 # producing the PR71 preview in the same window (the full state preimage moves).
 GLP331_GENERATION = 'glp331-dependencies-20261001'
@@ -114,6 +140,8 @@ def generation_contract(generation):
         return APPROVED, PATHS
     if generation == PR119_GENERATION:
         return PR119_SOURCE, PR119_PATHS
+    if generation == COLLECTOR_GENERATION:
+        return COLLECTOR_SOURCE, COLLECTOR_PATHS
     raise RuntimeError('unknown_reporting_generation')
 
 
@@ -319,14 +347,15 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _plan_dependencies(checkout, root, hermes, review, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation == PR119_GENERATION
+    successor = generation in SUCCESSORS
+    successor_hashes, runtime_schema = SUCCESSORS.get(generation, (None, None))
     checkout = checkout.resolve(strict=True)
     root = root.resolve(strict=True)
     hermes = hermes.resolve(strict=True)
     subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', approved, 'HEAD'], check=True)
     for rel in paths:
         committed = subprocess.check_output(['git', '-C', str(checkout), 'show', f'{approved}:{rel}'])
-        if (checkout / rel).read_bytes() != committed or (successor and digest(committed) != PR119_HASHES[rel]):
+        if (checkout / rel).read_bytes() != committed or (successor and digest(committed) != successor_hashes[rel]):
             raise RuntimeError('approved_source_moved:' + rel)
     if successor:
         producer_head = subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip()
@@ -334,6 +363,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
         committed = subprocess.check_output(['git', '-C', str(checkout), 'show', 'HEAD:' + producer])
         if read_regular(checkout / producer)[0] != committed or Path(__file__).read_bytes() != committed:
             raise RuntimeError('producer_bytes_not_reviewed_head')
+    if generation == PR119_GENERATION:
         baselines = json.loads((root / syncer.STATE).read_text()).get('hashes', {})
         for rel, expected in PR119_PREREQUISITES.items():
             if digest(read_regular(root / rel)[0]) != expected or baselines.get(rel) != expected:
@@ -368,7 +398,8 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
             or current_job.get('fire_claim') or current_job.get('run_claim') or current_job.get('running')):
         raise RuntimeError('reporting_job_not_idle_or_preimage_moved')
     pins = json.loads((checkout / 'ops/glp/reporting-v2/source-manifest.json').read_text())['files']
-    retained = {rel: read_regular(root / rel) for rel in PR119_PREREQUISITES} if successor else {}
+    retained = ({rel: read_regular(root / rel) for rel in PR119_PREREQUISITES}
+                if generation == PR119_GENERATION else {})
     for absolute, expected in pins.items():
         path = Path(absolute)
         try:
@@ -422,7 +453,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
             preparer = str(review.get('prepared_by') or '').strip()
             if (not preparer or not str(review['reviewer']).strip()
                     or str(review['reviewer']).strip() == preparer
-                    or runtime.get('schema') != 'glp333-reporting-runtime-review-v1'
+                    or runtime.get('schema') != runtime_schema
                     or runtime.get('decision') != 'ACCEPT_EXACT_BYTES'
                     or not str(runtime.get('reviewer') or '').strip()
                     or str(runtime['reviewer']).strip() == preparer
@@ -449,7 +480,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _adopt_dependencies(checkout, root, hermes, review, scheduler, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation == PR119_GENERATION
+    successor = generation in SUCCESSORS
     proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
@@ -546,8 +577,11 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, GLP331_GENERATION, GLP337_GENERATION), default='pr71',
-                        help='exact approved cohort; GLP331/GLP337 source-only installs invalidate earlier previews; PR119 requires completed GLP44 adoption')
+    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, COLLECTOR_GENERATION, GLP331_GENERATION, GLP337_GENERATION),
+                        default='pr71',
+                        help='exact approved cohort; GLP331/GLP337 source-only installs invalidate earlier previews; '
+                             'PR119 requires completed GLP44 adoption; the collector successor publishes the '
+                             'PR71 and PR119 members with the reviewed hourly collector')
     parser.add_argument('--checkout', type=Path, required=True)
     parser.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))

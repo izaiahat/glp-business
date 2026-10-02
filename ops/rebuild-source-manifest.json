@@ -430,7 +430,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "666618273c1eb93ad02cddfa4b7d2fe1f52476bf0bb667e7a008cc9f5cd66fc6"
+      "sha256": "65c8291b6068a89b5151fe435446f100417bc85e01875b00402957c988bcb1c4"
     },
     ".hermes.md": {
       "callers": [],
@@ -450,7 +450,7 @@
     "README.md": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3422c63324780d8105c71bd41500cf7ae386ab0320cff47e89a9ec0ad6ff022f"
+      "sha256": "568423248c8a5f563775f6b1fe8810a2ce277146f69f00d67a9dda49fffc6f63"
     },
     "config/affiliate-sites/best-terms-selection.json": {
       "callers": [
@@ -1603,7 +1603,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
+      "sha256": "07c8279f180c54bae281a7e1007000b7773a9a149a84af21d7a0bb6488d723f6"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2096,7 +2096,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3b80be0ed166c25365bf996a1a7bb88687584a3b34ef3e0c110a193fcb20d09"
+      "sha256": "4170628e8d77377cb94c8d668e63db2538ae44a6fc5ccabd66b1a15ccfc99271"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3574,7 +3574,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "aba7d4f0b3b4bbd7be00dab8c30cba9eea7dd7776c77072c8f0215012c1f6668"
+      "sha256": "ac63b72185835835621d852130b4a6b0309b19fbfd7e13f049e41f4bb118f01f"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3955,7 +3955,14 @@
       ],
       "kind": "test",
       "sha256": "3e0001a742ff76f7f09ee11fc8a456a070844d01913c7c8931eb976bf46c3eb7"
+    },
+    "tests/test_glp44_collector_successor.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "797365254430a98957e71a1f8de3413f38acd292378dc3a15b832284bff05204"
     }
   },
-  "tracked_count": 590
+  "tracked_count": 591
 }
