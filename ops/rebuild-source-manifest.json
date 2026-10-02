@@ -36,7 +36,7 @@
         ".github/workflows/business-source-ci.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "9aa78ac2ca431518094f006cd5a61cc733c1954a78806c74a18f8d9637e000ae"
+      "sha256": "48fa31c7b4dd04d683a375529ac6420eae1767e73de3cc88e6717390885e18c4"
     },
     "ops/glp337-shared-bridge-custody.md": {
       "callers": [],
@@ -84,7 +84,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "43de7b9d2081d08800b0ca3210901b29b4ad7c09624cd09695dfcbbe3f7b66ff"
+      "sha256": "eb37cb3c73b4d1c2d0a3a9dc14070945ef417747cce90dadf92881b75fb7daa2"
     },
     "tests/test_maintenance_keeper_contention.py": {
       "callers": [
@@ -444,7 +444,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dd3ed0f07163a6be3ee13153089ecd534e2370111732b76d01e713449ff201f1"
+      "sha256": "98edc4ee02d47941f71beccf4922c1a5daef508c64b7a0ef1f408eff30d28120"
     },
     ".hermes.md": {
       "callers": [],
@@ -1617,7 +1617,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "07c8279f180c54bae281a7e1007000b7773a9a149a84af21d7a0bb6488d723f6"
+      "sha256": "4a5249511527127478dfb4a09eb0d804abeb7bb313721e20cd4704904bdf0ff1"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2110,7 +2110,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "fbd1578f5e60cf56b8958f7b641e48f5a4200646576f8dbcbfc9fb11a3ffad49"
+      "sha256": "8d35e1f0c72ac8d6347d7da7e1f82391bfbb6700af2c1dde9e59089a1b3f5772"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3357,7 +3357,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "52b539fe61e02507dbcec7f7d493c814157fc48da8352cb48d0324968c2668e9"
+      "sha256": "4b37c5ca9d7a6b657d41734ba43399b74650ed971cc63c191dfd1de073857111"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3581,14 +3581,14 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "495184a4c5cf7581332e4b5ba2f0f54916f8700da4a9b5321e251850870e9051"
+      "sha256": "1217935b0ac2aeac5b1319d4badaa22ecbf9e3ad00f7d05701c120848540d317"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "ac63b72185835835621d852130b4a6b0309b19fbfd7e13f049e41f4bb118f01f"
+      "sha256": "3976dc7570858861d1439522e03a77bab82abb0777c3d913160641e80951e64c"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3991,7 +3991,22 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "sha256": "c902ecc877f9a76f0257079be6159473101fd32898fe14f01c8365e2637a9f75"
+    },
+    "tests/test_glp333_glp44_current_generation.py": {
+      "kind": "repository_control",
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml",
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "75a45dcd0a0078d82579d4249a57aa6426b1b9242984a8f35ebcb0883d886a59"
+    },
+    "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
+      "kind": "documentation",
+      "callers": [
+        "manual scoped adoption"
+      ],
+      "sha256": "2b23ace442c655d03f2cbf04399e771319c39f5d02000b0b0ce3bd266d0c99f8"
     }
   },
-  "tracked_count": 595
+  "tracked_count": 597
 }

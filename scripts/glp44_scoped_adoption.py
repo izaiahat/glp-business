@@ -83,8 +83,45 @@ COLLECTOR_HASHES = {
     'scripts/glp_affiliate_weekly_reporting_job.py': '79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18',
 }
 COLLECTOR_PATHS = PATHS + tuple(p for p in PR119_PATHS if p not in PATHS)
+# One combined reporting/collector successor after PR151 and PR153. Earlier
+# generations are immutable. Include changed pinned leaves in publication rather
+# than presuming they are already installed. Missing predecessors still require
+# separate custody before apply; a preview alone grants no install authority.
+REPORTING_SUCCESSOR_GENERATION = 'glp333-glp44-reporting-successor-20261002'
+REPORTING_SUCCESSOR_SOURCE = '9e01dde818016c089df4c6ee4dd667b03fe37a28'
+# Literal additional members for the unchanged static inventory parser pattern.
+REPORTING_SUCCESSOR_EXTRA_PATHS = (
+    'scripts/affiliate_network_access.py',
+    'scripts/marketplace_adapters/katalys.py',
+    'scripts/affiliate_reporting_admitad.py',
+    'scripts/affiliate_reporting_clickbank.py',
+    'scripts/affiliate_reporting_everflow.py',
+    'scripts/affiliate_reporting_healthtrader.py',
+    'scripts/affiliate_reporting_partnerstack.py',
+    'scripts/affiliate_reporting_refersion.py',
+)
+REPORTING_SUCCESSOR_PATHS = COLLECTOR_PATHS + REPORTING_SUCCESSOR_EXTRA_PATHS
+REPORTING_SUCCESSOR_HASHES = {
+    'ops/glp/analytics-brain-control.json': '68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815',
+    'ops/glp/reporting-v2/source-manifest.json': 'a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530',
+    SNAPSHOT: '8a14b56aa15f7003adbe2db20b480f766f8109621a74417af0e9a264154e55b9',
+    'systems/analytics-brain/analytics_brain.py': '19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa',
+    'systems/analytics-brain/collector.py': 'af1d8f9187384f025bcd042a17710581fabb1870fd5bf05c8dcff174f2a4203e',
+    'ops/glp/reporting-v2/identity-registry.json': '0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513',
+    'scripts/glp_affiliate_weekly_reporting.py': 'efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1',
+    'scripts/glp_affiliate_weekly_reporting_job.py': '79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18',
+    'scripts/affiliate_network_access.py': '719adeef4a6fbda84082f3762b502e40dfe37335c5f70d95f98c19b0d9ea5e22',
+    'scripts/marketplace_adapters/katalys.py': 'd3e9e6270407d0704f7341a88f9f2f89baaa71d1a984cc295a9cc5e951df0e66',
+    'scripts/affiliate_reporting_admitad.py': 'af037fa009eac0b59566a06a8fdff33dc158eb0e49131a4707fa38bd04de5154',
+    'scripts/affiliate_reporting_clickbank.py': '2bee89360d643781df5afa877bb88f9053c036cf7ce09716cfb83099c93211c8',
+    'scripts/affiliate_reporting_everflow.py': 'd141413f872603d738583a8fed483b3424f7c18e6d66a62c1d193c340fccfff3',
+    'scripts/affiliate_reporting_healthtrader.py': '7a06aa6092833cf7530a4d2ca4782b6c3366f0583fc3765a0e8f8615c331467d',
+    'scripts/affiliate_reporting_partnerstack.py': '4240277a9115278da04c976c0f2b26899684ac44d83982ce8d907fec8dc7e7fa',
+    'scripts/affiliate_reporting_refersion.py': '21e277d6bf41ca8484bc8ad91486dfd85900a5f6f4123e30b1440c139d3a3bee',
+}
 # Reporting generations that rebind the job hash inside the maintained switch.
 SUCCESSORS = {
+    REPORTING_SUCCESSOR_GENERATION: (REPORTING_SUCCESSOR_HASHES, 'glp333-glp44-reporting-successor-runtime-review-v1'),
     PR119_GENERATION: (PR119_HASHES, 'glp333-reporting-runtime-review-v1'),
     COLLECTOR_GENERATION: (COLLECTOR_HASHES, 'glp44-collector-successor-runtime-review-v1'),
 }
@@ -132,6 +169,8 @@ GLP337_CONTEXT = (
 
 
 def generation_contract(generation):
+    if generation == REPORTING_SUCCESSOR_GENERATION:
+        return REPORTING_SUCCESSOR_SOURCE, REPORTING_SUCCESSOR_PATHS
     if generation == GLP337_GENERATION:
         return GLP337_SOURCE, GLP337_PATHS
     if generation == GLP331_GENERATION:
@@ -577,7 +616,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, COLLECTOR_GENERATION, GLP331_GENERATION, GLP337_GENERATION),
+    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, COLLECTOR_GENERATION, REPORTING_SUCCESSOR_GENERATION, GLP331_GENERATION, GLP337_GENERATION),
                         default='pr71',
                         help='exact approved cohort; GLP331/GLP337 source-only installs invalidate earlier previews; '
                              'PR119 requires completed GLP44 adoption; the collector successor publishes the '
