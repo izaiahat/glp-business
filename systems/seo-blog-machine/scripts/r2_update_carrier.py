@@ -375,14 +375,16 @@ def validate_r2_packet_contract(authority: dict[str, Any], article: dict[str, An
         raise RuntimeError("r2_packet_article_identity_mismatch")
 
 
-def current_input_specs(resolution: dict[str, Any], update_authority: Path) -> dict[str, Any]:
-    strategy = json.loads(STRATEGY_QUEUE.read_text(encoding="utf-8"))
-    strategy_map = Path(str(strategy.get("map_path") or "")).resolve(strict=True)
+def current_input_specs(resolution: dict[str, Any], update_authority: Path,
+                        strategy_paths: tuple[Path, Path] | None = None) -> dict[str, Any]:
+    strategy_queue = strategy_paths[0] if strategy_paths else STRATEGY_QUEUE
+    strategy = json.loads(strategy_queue.read_text(encoding="utf-8"))
+    strategy_map = (strategy_paths[1] if strategy_paths else Path(str(strategy.get("map_path") or ""))).resolve(strict=True)
     release_root = Path(resolution["pointer"]["release_root"])
     sitemap = release_root / "public/sitemap.xml"
     return {
         "topic_queue": spec(TOPIC_QUEUE),
-        "strategy_queue": spec(STRATEGY_QUEUE),
+        "strategy_queue": spec(strategy_queue),
         "strategy_map": spec(strategy_map),
         "published_ledger": spec(PUBLISHED_LEDGER),
         "hold_ledger": spec(HOLD_LEDGER),
@@ -407,6 +409,7 @@ def mint_candidate(
     striking_routes: set[str],
     as_of: dt.date,
     slot: int,
+    strategy_paths: tuple[Path, Path] | None = None,
 ) -> dict[str, Any]:
     route = canonical_route(candidate["route"])
     article_id = str(candidate.get("article_id") or "")
@@ -508,7 +511,7 @@ def mint_candidate(
             "deep_loss_routes_become_p5_spokes": True,
             "r3_non_executable": True,
         },
-        "inputs": current_input_specs(resolution, authority_path),
+        "inputs": current_input_specs(resolution, authority_path, strategy_paths),
     }
     selection_path = write_immutable_receipt(
         output_dir / f"{slot:02d}-{operation_topic_id}-selection.json",
@@ -937,6 +940,116 @@ def execute_generation_bound_authority_plan(
     }
 
 
+def load_continuation_candidate(plan_path: Path, operation: str, *, as_of: dt.date,
+                                update_day_index: int) -> dict[str, Any]:
+    """Keep an existing operation's sealed selection; never rerank/substitute it."""
+    def sealed(path, field, expected=None):
+        path = Path(path)
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o222:
+            raise RuntimeError('r2_continuation_not_immutable')
+        if expected is not None and sha(path) != expected:
+            raise RuntimeError('r2_continuation_input_drift')
+        value = read_object(path, 'r2_continuation')
+        if value.get(field) != payload_hash(value, field):
+            raise RuntimeError('r2_continuation_self_hash')
+        return value
+
+    plan = sealed(plan_path, 'plan_sha256')
+    if (plan.get('schema') != 'glp-seo-r2-daily-authority-plan-v1'
+            or plan.get('as_of') != as_of.isoformat()
+            or plan.get('update_day_index') != update_day_index or plan.get('quota') != 1):
+        raise RuntimeError('r2_continuation_day_or_quota_mismatch')
+    matches = [row for row in [*plan.get('authorities', []), *plan.get('substitute_authorities', [])]
+               if f"r2-refresh:{row.get('topic_id')}:{row.get('target_route')}" == operation]
+    if len(matches) != 1:
+        raise RuntimeError('r2_continuation_operation_mismatch')
+    row = matches[0]
+    authority = sealed(row['authority']['path'], 'authority_sha256', row['authority']['sha256'])
+    selection = sealed(row['selection']['path'], 'receipt_sha256', row['selection']['sha256'])
+    if (authority.get('schema') != 'glp-seo-r2-update-authority-v1'
+            or authority.get('status') != 'AUTHORIZED_R2_REFRESH'
+            or authority.get('operation') != 'r2_refresh'
+            or authority.get('as_of') != as_of.isoformat()
+            or selection.get('operation') != 'r2_refresh'
+            or selection.get('inputs', {}).get('update_authority') != row['authority']
+            or len(selection.get('selected', [])) != 1):
+        raise RuntimeError('r2_continuation_authority_contract')
+    for key in ('topic_id', 'article_id', 'target_route', 'target_query', 'priority'):
+        if row.get(key) != authority.get(key) or selection['selected'][0].get(key) != authority.get(key):
+            raise RuntimeError('r2_continuation_identity_mismatch:' + key)
+    weekly_spec = authority['inputs']['weekly_gsc_selection']
+    weekly_path = Path(weekly_spec['path'])
+    weekly = sealed(weekly_path, 'receipt_sha256', weekly_spec['sha256'])
+    candidate = selected_weekly_row(weekly, row['target_route'], row['article_id'])
+    # selected_weekly_row adds the normalized target_query; do not change the
+    # original P1-P4 identity, source selection or original plan day.
+    if (candidate != authority.get('selected_r2')
+            or object_hash(candidate) != authority.get('selected_r2_sha256')
+            or topic_id(candidate, as_of) != row['topic_id']):
+        raise RuntimeError('r2_continuation_selection_mismatch')
+    return {'candidate': candidate, 'weekly_selection': weekly_path,
+            'operation_id': operation, 'plan': plan, 'row': row,
+            'strategy_inputs': {key: selection['inputs'][key] for key in ('strategy_queue', 'strategy_map')}}
+
+
+def run_continuation(*, plan_path: Path, operation: str, config_path: Path,
+                     database: Path, output_root: Path, as_of: dt.date,
+                     update_day_index: int, strategy_paths: tuple[Path, Path] | None = None) -> dict[str, Any]:
+    """No apply: mint one current-generation continuation via mint_candidate.
+
+    The immutable producer AUTHORIZED status is selection authority, not public
+    release approval. The original pending journal/claim is never modified.
+    """
+    retained = load_continuation_candidate(plan_path, operation, as_of=as_of,
+                                           update_day_index=update_day_index)
+    claim_path = DEFAULT_CLAIM_ROOT / (hashlib.sha256(operation.encode()).hexdigest() + '.json')
+    claim = read_object(claim_path, 'r2_continuation_claim')
+    if (claim.get('claim_sha256') != compact_payload_hash(claim, 'claim_sha256')
+            or claim.get('operation_id') != operation or claim.get('status') != 'FAILED_RETRYABLE'
+            or claim.get('quota_consumed') is not False):
+        raise RuntimeError('r2_continuation_claim_not_retryable')
+    paths = strategy_paths or tuple(Path(retained['strategy_inputs'][key]['path'])
+                                    for key in ('strategy_queue', 'strategy_map'))
+    for key, path in zip(('strategy_queue', 'strategy_map'), paths):
+        if path.is_symlink() or spec(path)['sha256'] != retained['strategy_inputs'][key]['sha256']:
+            raise RuntimeError('r2_continuation_strategy_drift:' + key)
+    config = load_config(config_path)
+    resolution = config['_current_content_base_resolution']
+    verify_resolution(resolution)
+    articles, _ = load_release_articles(Path(resolution['pointer']['release_root']))
+    routes = {canonical_route(row['canonical_path']) for row in articles}
+    generation = current_release_generation(resolution)
+    day_dir = output_root.resolve()/as_of.isoformat()/f"day-{update_day_index}-{generation['generation_id']}-continuation-{sha(plan_path)[:12]}"
+    # The original source selection is retained byte-for-byte. All publication
+    # identity/catalog/registry/page bindings are freshly verified by the usual
+    # authority producer, not hand-authored by this continuation path.
+    old_authority = read_object(Path(retained['row']['authority']['path']), 'r2_continuation_authority')
+    row = mint_candidate(retained['candidate'], output_dir=day_dir, config=config,
+                         config_path=config_path.resolve(strict=True), database=database.resolve(strict=True),
+                         weekly_selection=retained['weekly_selection'], resolution=resolution,
+                         current_routes=routes,
+                         striking_routes=set(old_authority['r2_contract']['striking_distance_routes']),
+                         as_of=as_of, slot=1, strategy_paths=paths)
+    row['authority_role'] = 'primary'
+    payload = {
+        'schema':'glp-seo-r2-daily-authority-plan-v1', 'status':'PASS_R2_DAILY_AUTHORITIES',
+        'strategy_version':'glp-content-mix-v1', 'as_of':as_of.isoformat(),
+        'update_day_index':update_day_index, 'release_generation':generation,
+        'supersedes_plans':[spec(plan_path)], 'quota':1, 'carried_completed_authorities':[],
+        'carried_completed':0, 'remaining_quota':1, 'authorized':1, 'substitute_authorized':0,
+        'total_authorized':1, 'total_capacity':1, 'capacity_deficit':0,
+        'weekly_gsc_selection':spec(retained['weekly_selection']),
+        'authorities':[row], 'substitute_authorities':[], 'failures':[],
+        'continuation':{'operation_id':operation, 'original_plan':spec(plan_path),
+                        'claim_read_only':spec(claim_path), 'public_release_authorized':False},
+        'execution_contract':{'stop_after_completed':1,'primary_then_substitute':False,
+                              'all_checks_required':True,'gate_bypass_permitted':False},
+        'effects':{'page_mutations':0,'deployments':0,'redirects':0},
+    }
+    receipt = write_sealed(day_dir/'daily-plan.json', payload, 'plan_sha256')
+    return {**payload, 'receipt':spec(receipt)}
+
+
 def run(
     *,
     database: Path,
@@ -945,7 +1058,18 @@ def run(
     as_of: dt.date,
     update_day_index: int,
     weekly_actions: Path | None = None,
+    continuation_plan: Path | None = None,
+    continuation_operation: str | None = None,
+    strategy_paths: tuple[Path, Path] | None = None,
 ) -> dict[str, Any]:
+    if continuation_plan is not None or continuation_operation is not None:
+        if continuation_plan is None or not continuation_operation:
+            raise RuntimeError('r2_continuation_pair_required')
+        return run_continuation(plan_path=continuation_plan, operation=continuation_operation,
+                                config_path=config_path, database=database, output_root=output_root,
+                                as_of=as_of, update_day_index=update_day_index, strategy_paths=strategy_paths)
+    if strategy_paths is not None:
+        raise RuntimeError('r2_strategy_relocation_requires_continuation')
     if not 0 <= update_day_index < len(DAILY_UPDATE_QUOTAS):
         raise RuntimeError("update_day_index_invalid")
     config = load_config(config_path)
@@ -1104,7 +1228,13 @@ def main() -> int:
     parser.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
     parser.add_argument("--update-day-index", type=int, required=True)
     parser.add_argument("--weekly-actions", type=Path, default=DEFAULT_WEEKLY_ACTIONS)
+    parser.add_argument("--continuation-plan", type=Path)
+    parser.add_argument("--continuation-operation")
+    parser.add_argument("--retained-strategy-queue", type=Path)
+    parser.add_argument("--retained-strategy-map", type=Path)
     args = parser.parse_args()
+    if bool(args.retained_strategy_queue) != bool(args.retained_strategy_map):
+        parser.error('retained strategy queue and map must be supplied together')
     result = run(
         database=args.database,
         config_path=args.config,
@@ -1112,6 +1242,9 @@ def main() -> int:
         as_of=args.as_of,
         update_day_index=args.update_day_index,
         weekly_actions=args.weekly_actions,
+        continuation_plan=args.continuation_plan,
+        continuation_operation=args.continuation_operation,
+        strategy_paths=(args.retained_strategy_queue, args.retained_strategy_map) if args.retained_strategy_queue else None,
     )
     print(json.dumps({
         "status": result["status"],
