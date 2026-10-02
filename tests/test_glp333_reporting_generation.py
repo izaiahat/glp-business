@@ -26,8 +26,8 @@ import maintenance_inventory as inventory
 import maintenance_window as window_module
 import sync_from_repo as syncer
 
-# Reviewed PR150 producer, retaining the immutable PR119 reporting cohort.
-PR119_PRODUCER_SOURCE = '1b91813e791bffda226ea86fea15dfa250e16a3e'
+# Current producer with the immutable PR119 reporting cohort, retained in history.
+PR119_PRODUCER_SOURCE = 'b114dee30bf20d1ae983c086b593c839829d7f79'
 
 EXTRA = {
     'ops/glp/reporting-v2/identity-registry.json',
