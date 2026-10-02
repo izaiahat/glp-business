@@ -4871,10 +4871,30 @@ def release_symlink_target_references(
         raise SiteAuthorityError(
             f"release_alias_root_unreadable:{type(exc).__name__}:{exc}"
         ) from exc
-    lane_roots = {
-        (FLAGSHIP / lane).resolve(strict=True)
-        for lane in SITE_LANE_RETENTION_SECONDS
-    }
+    lane_roots: set[Path] = set()
+    for lane in SITE_LANE_RETENTION_SECONDS:
+        lane_root = FLAGSHIP / lane
+        try:
+            lane_info = lane_root.lstat()
+        except FileNotFoundError:
+            # Optional retention lanes need not exist on this host. There is
+            # no tree to protect there; an alias into it still fails strict
+            # target resolution below. Never create a lane during inspection.
+            continue
+        except OSError as exc:
+            raise SiteAuthorityError(
+                f"release_alias_lane_root_unreadable:{lane_root}:{type(exc).__name__}:{exc}"
+            ) from exc
+        if stat.S_ISLNK(lane_info.st_mode) or not stat.S_ISDIR(lane_info.st_mode):
+            raise SiteAuthorityError(
+                f"release_alias_lane_root_directory_required:{lane_root}"
+            )
+        try:
+            lane_roots.add(lane_root.resolve(strict=True))
+        except (OSError, RuntimeError) as exc:
+            raise SiteAuthorityError(
+                f"release_alias_lane_root_unreadable:{lane_root}:{type(exc).__name__}:{exc}"
+            ) from exc
     refs: set[Path] = set()
     for index, entry in enumerate(entries):
         if index % 64 == 0:

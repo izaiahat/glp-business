@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import sys
 import types
+import subprocess
+REAL_SUBPROCESS_RUN = subprocess.run
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +61,13 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
     for pid in set(ids) - rows.keys():
         rows[pid] = copy.deepcopy(SNAPSHOT['programs'][pid])
     before = {'therapeutic_taxonomy': {'programs': rows, 'authorities': {}}}
+    # This minimal fixture represents an already-corrected Care successor.
+    # The exact predecessor/CAS path is covered separately by GLP-80 controls.
+    care = 'care-bare-rx-glp1-review'
+    if care in rows:
+        before['programs'] = [{'program_id': care, 'research_dynamic_profile':
+                               {'taxonomy': {'brand_name_tags': []}}}]
+        before['provider_dynamic_profiles'] = {'profiles': {care: {'taxonomy': {'brand_name_tags': []}}}}
     registry.write_bytes(producer.encoded(before))
     captures = []
     def fake_capture(url, dest):
@@ -85,6 +94,8 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
         return candidate
     monkeypatch.setattr(producer, 'validate', validate)
     def lock(args, **kwargs):
+        if args[0] == 'node':
+            return REAL_SUBPROCESS_RUN(args, **kwargs)  # real consumer gate; no PASS stub
         assert args[2] in ('acquire', 'release')
         return types.SimpleNamespace(returncode=0, stdout=json.dumps({'status': 'ACQUIRED'}))
     monkeypatch.setattr(producer.subprocess, 'run', lock)
@@ -111,7 +122,7 @@ def test_multi_source_success_and_unsupported_breeze_is_review_required(producer
 
 
 def test_explicit_policy_review_never_refreshes_or_fetches(producer, monkeypatch, tmp_path):
-    held, good = 'care-bare-rx-glp1-review', 'breeze-meds-review'
+    held, good = 'jrnys-review', 'breeze-meds-review'
     code, result, before, after, calls = run_fixture(producer, monkeypatch, tmp_path, [held, good])
     assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
     assert result['findings'][0]['condition'].startswith('policy_review_required:')
@@ -206,10 +217,19 @@ def test_all_58_rows_accounted_for_and_all_48_near_expiry_selected(producer):
             assert policy['review_required'].strip()
             continue
         sources = policy.get('sources', [policy])
-        assert all(s['url'] in rows[pid]['source_urls'] for s in sources)
+        staged = producer.prepare_qualified_source_row(rows[pid], pid)
+        assert all(s['url'] in staged['source_urls'] for s in sources)
+        if pid != 'eden-xentraffic-offer-3051':
+            assert staged == rows[pid]
         for field in producer.FIELDS:
             tags = [tag for s in sources for tag in s['quotes'].get(field, {})]
-            assert sorted(tags) == rows[pid][field], (pid, field)
+            expected = rows[pid][field]
+            if pid == 'care-bare-rx-glp1-review' and field == 'brand_name_tags':
+                # Preserve the retained snapshot; its sole accepted successor is
+                # the exact PR18 removal, not a general equality relaxation.
+                assert expected == producer.CARE_BARE_CORRECTION['brand_name_tags_before']
+                expected = producer.CARE_BARE_CORRECTION['brand_name_tags_after']
+            assert sorted(tags) == expected, (pid, field)
             assert all(q.strip() for s in sources for q in s['quotes'].get(field, {}).values())
 
 
@@ -237,8 +257,9 @@ def test_default_selection_runs_all_policies_without_dropping_review_rows(produc
     ids = list(producer.POLICIES)
     code, result, before, after, _ = run_fixture(producer, monkeypatch, tmp_path, ids, linked=True, default=True)
     assert result['requested'] == ids and len(ids) == 57
-    assert code == 1 and result['status'] == 'REVIEW_REQUIRED'
-    assert 'breeze-meds-review' in [w['program_id'] for w in result['written']]
+    assert code == 1 and result['status'] == 'BLOCKED'
+    assert result['written'] == [] and after == before
+    assert 'qualified_source_renderer_refused' in result['condition']
     held = {pid for pid, p in producer.POLICIES.items() if p.get('review_required')}
     assert {f['program_id'] for f in result['findings'] if f['status'] == 'REVIEW_REQUIRED'} == held
     for pid in held:
@@ -365,13 +386,9 @@ R2_SEMANTIC_CASES = [
     # it tests that rule while every independent brand/molecule card remains.
     ('found-health', 'delivery_form_tags', 'injectable', 'Wegovy® pens, and Wegovy® pills',
      'Medication reference: Wegovy® pens, and Wegovy® pills.'),
-    *[('eden-xentraffic-offer-3051', 'brand_name_tags', tag,
-       f'[{name}® ᴿˣ](https://www.eden.health/treatment/{tag})',
-       f'Medication reference: [{name}® ᴿˣ](https://www.eden.health/treatment/{tag})')
-      for tag, name in [('mounjaro', 'Mounjaro'), ('wegovy', 'Wegovy'), ('zepbound', 'Zepbound')]],
-    ('eden-xentraffic-offer-3051', 'delivery_form_tags', 'injectable',
-     'The compounded medications come in various forms, from injectables to liquids.',
-     'The compounded medications come in various forms, from injectables to liquids.'),
+    # Eden's obsolete two-page counterexamples are superseded by the full,
+    # hash-bound four-page semantic controls in test_glp80_eden_policy.py.
+    # The maintained policy remains REVIEW_REQUIRED pending public qualification.
 ]
 
 

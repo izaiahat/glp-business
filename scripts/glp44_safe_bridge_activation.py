@@ -52,7 +52,7 @@ def gate_commands():
         {'create': {'table': {'family': 'inet', 'name': TABLE}}},
         {'create': {'chain': {'family': 'inet', 'table': TABLE, 'name': 'output',
                              'type': 'filter', 'hook': 'output', 'prio': 0, 'policy': 'accept'}}},
-        {'create': {'rule': {'family': 'inet', 'table': TABLE, 'chain': 'output', 'expr': expr}}},
+        {'add': {'rule': {'family': 'inet', 'table': TABLE, 'chain': 'output', 'expr': expr}}},
     ]
 
 
@@ -80,7 +80,7 @@ class LinuxHost:
             require(len(row) == 1, 'ingress_rule_drift')
             kind, value = next(iter(row.items()))
             observed.append({kind: {k: v for k, v in value.items() if k != 'handle'}})
-        require(observed == [r['create'] for r in gate_commands()], 'ingress_rule_drift')
+        require(observed == [next(iter(r.values())) for r in gate_commands()], 'ingress_rule_drift')
 
     def open_ingress(self):
         self.verify_ingress()
@@ -174,9 +174,35 @@ class LinuxHost:
         if any(row[3] not in {'0A', '06'} for row in rows):
             return False
         pid = identity[0]
-        sockets = {target for p in (PROC / str(pid) / 'fd').iterdir()
-                   if (target := os.readlink(p)).startswith('socket:[')}
+        descriptors = {p.name: os.readlink(p) for p in (PROC / str(pid) / 'fd').iterdir()}
+        sockets = {target for target in descriptors.values() if target.startswith('socket:[')}
         listener = {'socket:[' + row[9] + ']' for row in rows if row[3] == '0A'}
+        # systemd supplies one connected journal stream shared by stdout/stderr.
+        # FD numbers or /proc/net/unix membership alone do not identify its peer.
+        # Exempt only this exact pair (no additional alias), after reciprocal ss
+        # evidence identifies a connected AF_UNIX stream to journald's stdout.
+        stdio = descriptors.get('1', '')
+        if (re.fullmatch(r'socket:\[[0-9]+\]', stdio)
+                and descriptors.get('2') == stdio
+                and {fd for fd, target in descriptors.items() if target == stdio} == {'1', '2'}):
+            unix = [line.split() for line in self.command(
+                ['/usr/bin/ss', '--unix', '--all', '--numeric', '--no-header']).splitlines()]
+            # Parse the census before endpoint selection: dropping malformed
+            # rows first can hide a second observation of either journal inode.
+            # Unknown row shapes (including shifted/trailing fields) stay busy.
+            if any(len(row) != 8 or not all(row[i].isdigit() for i in (2, 3, 5, 7))
+                   for row in unix):
+                return False
+            inode = stdio[8:-1]
+            local = [row for row in unix if row[5] == inode]
+            if (len(local) == 1 and local[0][:2] == ['u_str', 'ESTAB']
+                    and local[0][4] == '*' and local[0][6] == '*'
+                    and local[0][7].isdigit()):
+                peer = [row for row in unix if row[5] == local[0][7]]
+                if (len(peer) == 1 and peer[0][:2] == ['u_str', 'ESTAB']
+                        and peer[0][4] == '/run/systemd/journal/stdout'
+                        and peer[0][6:8] == ['*', inode]):
+                    sockets.remove(stdio)
         # A reset accepted socket may leave /proc/net/tcp while retaining a
         # buffered POST and a live descriptor before its handler thread starts.
         if sockets != listener or len(listener) != 1:

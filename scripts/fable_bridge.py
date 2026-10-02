@@ -319,8 +319,13 @@ def _design_review(kind: str, text: str) -> bool:
     )
 
 
-def select_backend(*, claude_exhausted: bool = False, design_review: bool = False) -> tuple[str, str, str]:
-    """Re-evaluate policy and usage for every request; never latch a fallback."""
+def select_backend(*, claude_exhausted: bool = False, design_review: bool = False,
+                   request_text: str = "", source_message_id: str | None = None) -> tuple[str, str, str]:
+    """Re-evaluate authority/policy per request; never latch a fallback."""
+    if "reviewer_designation:" in request_text:
+        _authority_guard().validate_scoped_review_request(
+            request_message_id=source_message_id, request_text=request_text)
+        return "astra-glp42", "gpt-6-astra-900k", "xhigh"
     routing = _routing_policy()
     if not design_review and (claude_exhausted or _usage_exhausted(routing.get("threshold_percent", 95))):
         return "astra-standin", routing["hermes_model"], "xhigh"
@@ -622,6 +627,9 @@ def review_action(
             f"source message: `{source_message_id}`",
             "action: inspect this exact request in the persistent Fable/Opus thread, then reply here with the independent decision.",
         ]), identity)
+    if "reviewer_designation:" in text:
+        receipt = receipt if receipt is not None else {}
+        receipt["source_message_id"] = source_message_id
     if receipt is None:
         return "model", ask_fable(kind, text)
     return "model", ask_fable(kind, text, receipt=receipt,
@@ -634,7 +642,8 @@ def _invoke_reviewer(
     before_invoke: Callable[[], None] | None = None,
 ) -> tuple[str, bool]:
     name, model, effort = backend
-    identity = "fable-xhigh" if name == "fable" else "astra-standin (claude_exhausted)"
+    identity = ("astra-glp42 (designated; Standard)" if name == "astra-glp42" else
+                "fable-xhigh" if name == "fable" else "astra-standin (claude_exhausted)")
     receipt.update(reviewer_identity=identity, backend=name, model=model, effort=effort)
     attempt: dict[str, Any] = {"backend": name, "model": model, "effort": effort, "invoked": False}
     receipt.setdefault("attempts", []).append(attempt)
@@ -669,13 +678,24 @@ def _invoke_reviewer(
                     "--provider", "openai-codex",
                     "--skills", "agent-evaluation-review,site-design,cloudflare-release-operations,discord-delivery",
                 ]
+                if name == "astra-glp42":
+                    # Reuse the existing native read-only entry, with process-local
+                    # Standard configuration. Never change the user's saved profile.
+                    command[:2] = [str(HERMES_PYTHON), str(Path(__file__).resolve()), "--native-reviewer", "chat"]
+                    command += ["--toolsets", "fable-review-readonly", "--no-restore-cwd"]
+                    command[command.index("--skills") + 1] = "offline-guarded-verifier-review,cloudflare-release-operations"
+                    attempt.update(provider="openai-codex", speed="Standard",
+                                   service_tier_config="default", session_mode="fresh_scoped_review_then_continue")
+                    receipt.update(provider="openai-codex", speed="Standard", service_tier_config="default")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(command, 0)
             log(f"reviewer_cli_start backend={name} model={model} effort={effort}")
-            attempt["invoked"] = True
+            if name != "astra-glp42":
+                attempt["invoked"] = True
             if before_invoke is not None:
                 before_invoke()  # Durable claim before an uncertain external inference.
+            attempt["invoked"] = True
             result = subprocess.run(
                 command, capture_output=True, text=True, timeout=remaining,
                 cwd="/home/ubuntu/business",
@@ -717,7 +737,27 @@ def ask_fable(kind: str, text: str, *, receipt: dict[str, Any] | None = None,
     prompt = _model_prompt(kind, text)
     try:
         design = _design_review(kind, text)
-        backend = select_backend(design_review=design)
+        backend = select_backend(design_review=design, request_text=text if kind == "review_request" else "",
+                                 source_message_id=record.get("source_message_id"))
+        if backend[0] == "astra-glp42":
+            record.update(reviewer_designation="glp42-pr8-astra-20260926",
+                          request_text_sha256=hashlib.sha256(text.encode()).hexdigest())
+            prompt = ("You are the designated non-author Astra release reviewer, not a quota fallback. "
+                      "If you authored any change in this release, issue no acceptance. Inspect the exact "
+                      "PR8 head, sealed public tree and package manifest, full gate receipt, renders, "
+                      "consent/analytics (default-on and GA4 disclosures), and rollback target in the packet. "
+                      "The existing TRUE-BRIDGE protocol is transport identity, not a claim to be Fable.\n\n" + prompt)
+            prior_claim = before_invoke
+
+            def scoped_claim() -> None:
+                # Recheck the same authenticated issue, packet and retained authority
+                # before each inference, including same-session compact follow-up.
+                if select_backend(request_text=text, source_message_id=record.get("source_message_id")) != backend:
+                    raise RuntimeError("reviewer_model_changed")
+                if prior_claim is not None:
+                    prior_claim()
+
+            before_invoke = scoped_claim
         if required_backend is not None and backend != required_backend:
             raise RuntimeError("reviewer_model_changed")
         output, exhausted = _invoke_reviewer(backend, prompt, record, deadline,
@@ -1394,6 +1434,13 @@ if __name__ == "__main__":
         # Process-local native Hermes toolset: no write/terminal/browser/delegation tools.
         from toolsets import create_custom_toolset
         from hermes_cli.main import main as hermes_main
+        if "--provider" in sys.argv and sys.argv[sys.argv.index("--provider") + 1] == "openai-codex":
+            # chat --oneshot uses cli.CLI_CONFIG; default parses to normal (no
+            # priority override). Disable cross-model/provider fallback locally.
+            from cli import CLI_CONFIG
+            CLI_CONFIG.setdefault("agent", {})["service_tier"] = "default"
+            CLI_CONFIG["fallback_providers"] = []
+            CLI_CONFIG.pop("fallback_model", None)
         create_custom_toolset("fable-review-readonly", "Read-only independent review", [
             "read_file", "search_files", "web_search", "web_extract", "vision_analyze",
         ])

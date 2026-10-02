@@ -1605,6 +1605,12 @@ def build_entry(
         }}
 
     if kind == "network_cancelled":
+        import affiliate_program_withdrawal as withdrawal
+        capture = withdrawal.verify(queue_row, root=BUSINESS)
+        evidence = {**evidence, "network": capture["network"],
+                    "network_program_id": str(capture["program_id"]),
+                    "path": str((Path(evidence["path"]) if Path(evidence["path"]).is_absolute()
+                                 else BUSINESS / evidence["path"]).resolve().relative_to(BUSINESS.resolve()))}
         if row_num is None:
             raise ValueError("network_cancelled_requires_existing_row")
         event_id = str(evidence.get("event_id") or "").strip()
@@ -1615,9 +1621,17 @@ def build_entry(
         head = (f"Network cancelled the program on {when}. Evidence event {event_id} "
                 f"saved at {path}. Wire-In Ready and Wired Live claims retracted; "
                 f"tracking link retained as historical evidence, not deployable.")
-        note = _note(queue_row, head)
         previous = str(writer.pad(sheet_row_values or [])[23] or "")
-        note = previous if note in previous else "\n".join(filter(None, (previous, note)))
+        proof_marker = f"Withdrawal proof for event {event_id}: "
+        proof_hash = evidence['provider_verification']['sha256']
+        prior_proofs = re.findall(re.escape(proof_marker) + r'([a-f0-9]{64})', previous)
+        if prior_proofs and prior_proofs != [proof_hash]:
+            raise ValueError('network_cancelled_replayed_notice_proof_conflict')
+        head += f" {proof_marker}{proof_hash}."
+        note = _note(queue_row, head)
+        note = previous if prior_proofs or note in previous else "\n".join(filter(None, (previous, note)))
+        if prior_proofs:
+            when = str(writer.pad(sheet_row_values or [])[24])
         return {"row": row_num, "program": program, "evidence": evidence, "cells": {
             "10": "cancelled_by_network", "19": "FALSE", "20": "FALSE",
             "21": "link_retired_network_program_cancelled", "23": note,
@@ -2538,6 +2552,38 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
         base = result_base(queue_row, index)
         update_id = base["update_id"]
         kind = base["kind"]
+        if kind == "affiliate_decision_notice":
+            # Canonical mail is a wake signal, not program/terms authority.
+            # Keep a typed, visible queue receipt for provider reconciliation;
+            # never turn free text or an unbound identity into Sheet cells.
+            try:
+                evidence = parse_evidence(queue_row)
+            except ValueError as exc:
+                base["status"] = RESULT_REFUSED
+                base["reason"] = str(exc)
+                results.append(base)
+                continue
+            decision = str(evidence.get("decision_class") or "")
+            if decision in {"cancelled", "terminated"} and evidence.get("provider_verification"):
+                import affiliate_program_withdrawal as withdrawal
+                try:
+                    queue_row = withdrawal.promote_verified_notice(
+                        queue_row, evidence["provider_verification"], root=BUSINESS)
+                except (ValueError, OSError, KeyError, TypeError) as exc:
+                    base.update(status=RESULT_REFUSED, reason=str(exc))
+                    results.append(base)
+                    continue
+                kind = queue_row["kind"]
+                base["kind"] = kind
+                base.update({key: queue_row[key] for key in ("network", "program_id", "program_name")})
+                base["source_notice_update_id"] = update_id
+            else:
+                base["status"] = RESULT_ESCALATED
+                base["reason"] = f"affiliate_decision_requires_provider_verification:{decision}"
+                base["decision_class"] = decision
+                base["intended_writer_kind"] = str(evidence.get("intended_writer_kind") or "")
+                results.append(base)
+                continue
         mode = writer.SHEET_SYNC_KIND_MODE.get(kind)
         if not mode:
             base["reason"] = f"unknown_kind:{kind or '(blank)'}"
@@ -2685,6 +2731,26 @@ def drain(queue_rows: list[dict[str, Any]], run_dir: Path, apply: bool,
             base["status"] = RESULT_APPLIED
         if apply and base["status"] in (RESULT_APPLIED, RESULT_NOOP):
             values = read_sheet(svc, sleep=sleep)  # later rows must see earlier writes
+            # Receipt capture remains available while the candidate/site fan-out
+            # is OFF. A terminal Sheet update can therefore be replayed without
+            # another Sheet write. Fan-out failure never changes Sheet truth.
+            import affiliate_terms_fanout as terms_fanout
+            if kind in terms_fanout.KINDS:
+                try:
+                    event_path = run_dir / f"{index + 1:02d}-{slug}-fanout.json"
+                    base["terms_fanout_event"] = terms_fanout.capture_readback(
+                        queue_row, base, plan_path, receipt_path, values, event_path)
+                    if os.environ.get("GLP_AFFILIATE_TERMS_FANOUT_ENABLE") == "1":
+                        base["terms_fanout"] = terms_fanout.consume(
+                            event_path,
+                            Path(os.environ["GLP_AFFILIATE_TERMS_REGISTRY"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_IDENTITY_MAP"]),
+                            Path(os.environ["GLP_AFFILIATE_TERMS_STATE_DIR"]),
+                            enabled=True, apply=True)
+                    else:
+                        base["terms_fanout"] = {"status": "DISABLED"}
+                except (ValueError, OSError, KeyError, TypeError, IndexError) as exc:
+                    base["terms_fanout"] = {"status": "REFUSED", "reason": str(exc)}
         results.append(base)
 
     counts = {status: sum(1 for r in results if r["status"] == status)

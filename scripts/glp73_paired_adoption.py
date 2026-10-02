@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fixed GLP73 14-source / three-wrapper / three-paused-job adoption.
+"""Fixed GLP73 cohorts, including the PR136 archiver / two-paused-job successor.
 
-Apply is not launch exclusion: an authorized caller must separately exclude source
-writers and *all* direct readers/launchers for the whole operation. The scheduler
-locks only its own registry. No multi-file atomic transaction is claimed.
+Apply requires a verified active maintenance window and exact independent review.
+Complete source cohorts switch through the window admission barrier; exact
+preimages and uncertain scheduler outcomes remain guarded.
 """
 import argparse
 import copy
@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 import sync_from_repo as syncer
-from maxbounty_pin_release import atomic_write, preserve_custody, read_regular
+from maxbounty_pin_release import preserve_custody, read_regular
 
 SOURCE = '209c3beea6e2045dcb81367d5339a23a225eda40'
 PATHS = (
@@ -84,6 +84,19 @@ JOBS = (
     ('69a28f878ce3', 'f13_growth_retention.py', '5f4ca02cc33d2d547ca22e46b897db3fb832a6a075ddbc66efc26226c61ef797', '811c5c89c50845d09a4a619eb3da7b215a1fe04ad4ad8b25f8a389d143ed78cb', 0o755),
 )
 
+# The historical SOURCE/PATHS/preconditions above remain immutable. This one
+# successor consumes PR136 only; schema and all other wrapper pins are retained.
+RETENTION_GENERATION = 'pr136-retention-20261001'
+RETENTION_SOURCE = '95660fd8b8f9ec07e46d90c92a77846776c11c88'
+RETENTION_PATHS = ('scripts/reports_archiver.py',)
+RETENTION_BEFORE = 'e305cd57898e49b2dc57e3486aade3dc22c361b81844cf667c492c725a730020'
+RETENTION_HASH = 'd4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124'
+RETENTION_SCHEMA = 'e1c2c57c90f08503742a1d0ad7256c10f89473e39f1feb7c717764e749bbc479'
+RETENTION_JOBS = (
+    ('f3d2db07d83f', 'f12_generator_archiver.py', '720a1aece6827b150d4f833df058897cfaf705fefe2bbddd05bea5fbb569ad07', 'dc4a4171478b6610fa293259238a423f6677771aaae62ac6366abf55f2571a68', 0o755),
+    ('69a28f878ce3', 'f13_growth_retention.py', '811c5c89c50845d09a4a619eb3da7b215a1fe04ad4ad8b25f8a389d143ed78cb', '9f9021ef4e147970042792307c211fde2f3c53b2f5ef8ca3ba552467b821f3ee', 0o755),
+)
+
 
 def sha(body):
     return hashlib.sha256(body).hexdigest()
@@ -106,7 +119,13 @@ def replace_lines(body, updates):
     return b''.join(lines)
 
 
-def plan(checkout, root, hermes):
+def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical'):
+    if generation == RETENTION_GENERATION:
+        if state_rebaseline is not None:
+            raise RuntimeError('retention_generation_does_not_rebaseline')
+        return _retention_plan(checkout, root, hermes)
+    if generation != 'historical':
+        raise RuntimeError('unknown_glp73_generation')
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', SOURCE, 'HEAD'], check=True)
     producer = checkout / 'scripts/glp73_paired_adoption.py'
@@ -114,7 +133,11 @@ def plan(checkout, root, hermes):
         raise RuntimeError('producer_not_committed_head')
     before = {root / p: exact(root / p, *SOURCE_BEFORE[i]) for i, p in enumerate(PATHS)}
     state = root / syncer.STATE
-    before[state] = exact(state, STATE_BEFORE)
+    expected_state = STATE_BEFORE
+    if state_rebaseline is not None:
+        from glp73_sync_rebaseline import validate
+        expected_state = validate(root, state_rebaseline)
+    before[state] = exact(state, expected_state)
     sources = {}
     for p in PATHS:
         body = subprocess.check_output(['git', '-C', str(checkout), 'show', SOURCE + ':' + p])
@@ -170,12 +193,299 @@ def plan(checkout, root, hermes):
     return before, stages, sources, records
 
 
-def adopt(checkout, root, hermes, review, *, scheduler):
-    """External writer/direct-reader exclusion must already be independently held."""
-    before, stages, sources, records = plan(checkout, root, hermes)
+def _retention_plan(checkout, root, hermes):
+    checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
+    subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', RETENTION_SOURCE, 'HEAD'], check=True)
+    manifest = json.loads((checkout / syncer.MANIFEST).read_bytes())
+    # Authenticate the executing producer and its real inventory, as well as
+    # the approved payload. No approved source hash is derived from HEAD.
+    for name in ('glp73_paired_adoption.py', 'maintenance_inventory.py'):
+        rel = 'scripts/' + name
+        committed = subprocess.check_output(['git', '-C', str(checkout), 'show', 'HEAD:' + rel])
+        if ((checkout / rel).read_bytes() != committed
+                or (Path(__file__).parent / name).read_bytes() != committed
+                or manifest['files'][rel]['sha256'] != sha(committed)):
+            raise RuntimeError('retention_producer_not_committed_head:' + name)
+    rel = RETENTION_PATHS[0]
+    approved = subprocess.check_output(['git', '-C', str(checkout), 'show', RETENTION_SOURCE + ':' + rel])
+    if sha(approved) != RETENTION_HASH or (checkout / rel).read_bytes() != approved:
+        raise RuntimeError('retention_approved_source_moved')
+    before = {root / rel: exact(root / rel, RETENTION_BEFORE, 0o600)}
+    # This dependency is already installed and already co-pinned; do not stage,
+    # import, change its baseline, or repin the separate weekly job.
+    schema = root / 'scripts/glp_current_content_base_schema.py'
+    before[schema] = exact(schema, RETENTION_SCHEMA, 0o644)
+    state = root / syncer.STATE
+    before[state] = read_regular(state)
+    state_doc = json.loads(before[state][0])
+    if state_doc.get('hashes', {}).get(rel) != RETENTION_BEFORE:
+        raise RuntimeError('retention_source_baseline_moved')
+    from contextlib import redirect_stdout
+    from io import StringIO
+    with redirect_stdout(StringIO()):
+        if syncer.sync(root, checkout, False, (), RETENTION_PATHS) != 0:
+            raise RuntimeError('scoped_source_preflight_refused')
+    stages = {}
+    for jid, name, old, new, mode in RETENTION_JOBS:
+        target = hermes / 'scripts' / name
+        before[target] = exact(target, old, mode)
+        number = 16 if name.startswith('f12_') else 19
+        stages[target] = replace_lines(before[target][0], {number: (RETENTION_BEFORE, RETENTION_HASH)})
+        if sha(stages[target]) != new:
+            raise RuntimeError('candidate_wrapper_mismatch:' + name)
+    registry = hermes / 'cron/jobs.json'
+    before[registry] = read_regular(registry)
+    jobs = json.loads(before[registry][0])['jobs']
+    records = {}
+    for jid, name, old, new, mode in RETENTION_JOBS:
+        hits = [j for j in jobs if j.get('id') == jid]
+        if len(hits) != 1 or hits[0].get('script') != name or hits[0].get('script_sha256') != old:
+            raise RuntimeError('paused_job_identity_moved:' + jid)
+        job = hits[0]
+        if (job.get('enabled') is not False or job.get('state') != 'paused'
+                or job.get('run_claim') is not None or job.get('fire_claim') is not None or job.get('running')):
+            raise RuntimeError('paused_job_claim_or_state:' + jid)
+        records[jid] = copy.deepcopy(job)
+    return before, stages, {rel: RETENTION_HASH}, records
+
+
+def retention_proposal(checkout, root, hermes, planned):
+    checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
+    before, stages, sources, records = planned
+    rel = RETENTION_PATHS[0]
+    return {'generation': RETENTION_GENERATION, 'source': RETENTION_SOURCE,
+            'producer_head': subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip(),
+            'producer_sha256': sha((checkout / 'scripts/glp73_paired_adoption.py').read_bytes()),
+            'inventory_sha256': sha((checkout / 'scripts/maintenance_inventory.py').read_bytes()),
+            'producer_manifest_sha256': sha((checkout / syncer.MANIFEST).read_bytes()),
+            'target': {'root': str(root.resolve()), 'hermes': str(hermes.resolve())},
+            'source_sha256': sources, 'source_before_sha256': {rel: sha(before[root / rel][0])},
+            'source_before_mode': before[root / rel][1],
+            'retained_schema': {'sha256': RETENTION_SCHEMA, 'mode': before[root / 'scripts/glp_current_content_base_schema.py'][1]},
+            'wrapper_sha256': {p.name: sha(body) for p, body in stages.items()},
+            'wrapper_before': {name: {'sha256': sha(before[hermes / 'scripts' / name][0]), 'mode': mode}
+                               for _, name, _, _, mode in RETENTION_JOBS},
+            'state_before_sha256': sha(before[root / syncer.STATE][0]),
+            'state_before_mode': before[root / syncer.STATE][1],
+            'registry_before_mode': before[hermes / 'cron/jobs.json'][1], 'job_before': records}
+
+
+def _retain_retention_seals(journal, root, hermes):
+    """Re-seal a verified publication whose caller acknowledgement was lost.
+
+    Use the existing receipt, authenticated candidates and committed inode
+    identities. Never recover sources or decide/replay the external outcome.
+    """
+    from contextlib import ExitStack
+    from maintenance_cohort import metadata, read_all, sync_dir
+    from maintenance_window import atomic_json, identity, read_journal, require
+    import stat
+    data = read_journal(journal)
+    transaction, switch = data.get('source_transaction', {}), data.get('source_switch', {})
+    if (transaction.get('outcome') not in {'pending', 'uncertain'}
+            or transaction.get('adopter') != identity()
+            or not switch.get('commit_started') or switch.get('state') != 'published'):
+        return
+    expected = {str(root / RETENTION_PATHS[0]), str(root / syncer.STATE),
+                *(str(hermes / 'scripts' / name) for _, name, *_ in RETENTION_JOBS)}
+    require(set(transaction['after']) == expected
+            and {name for name, item in switch['files'].items() if not item['cache']} == expected
+            and set(transaction['job_ids']) == {jid for jid, *_ in RETENTION_JOBS},
+            'retention_commit_receipt_scope_moved')
+    # Durable uncertainty precedes any renewed fence, so a second interruption
+    # cannot certify the readable publication or admit automatic replay.
+    switch['state'] = 'commit_uncertain'
+    atomic_json(journal, data)
+    with ExitStack() as handles:
+        for name in sorted(expected):
+            path, item = Path(name), switch['files'][name]
+            require(item['after'] == transaction['after'][name]
+                    and sha(read_regular(Path(item['candidate']))[0]) == item['after'],
+                    'retention_commit_candidate_custody_moved')
+            require(metadata(path.lstat()) == item['after_metadata'] and not path.is_symlink(),
+                    'retention_committed_inode_moved')
+            if path.stat().st_mode & 0o777 == 0:
+                continue  # Never reopen or chmod a sealed source to inspect it.
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            handles.callback(os.close, fd)
+            st = os.fstat(fd)
+            require(metadata(st) == item['after_metadata'] and st.st_nlink == 1
+                    and st.st_uid == os.geteuid() and sha(read_all(fd)) == item['after'],
+                    'retention_committed_source_moved')
+            os.fchmod(fd, 0)
+            os.fsync(fd)
+            require(metadata(path.lstat()) == metadata(os.fstat(fd)), 'retention_commit_fence_inode_moved')
+        # Publication can let an ordinary first-reader emit new bytecode before
+        # the outer acknowledgement. Once sources are sealed, capture/fence only
+        # their finite conventional disk aliases, never a reports-tree sweep.
+        # Original preimage/cache custody is immutable; these are postcommit
+        # evidence bytes, not approved code or rollback preimages.
+        def cache_paths():
+            paths = set()
+            for name in expected:
+                path = Path(name)
+                if path.suffix != '.py':
+                    continue
+                legacy = path.with_suffix('.pyc')
+                if legacy.exists() or legacy.is_symlink():
+                    paths.add(legacy)
+                directory = path.parent / '__pycache__'
+                if directory.exists() or directory.is_symlink():
+                    st = directory.lstat()
+                    require(stat.S_ISDIR(st.st_mode) and st.st_uid == os.geteuid(),
+                            'retention_commit_cache_directory_moved')
+                    paths.update(directory.glob(path.stem + '.*.pyc'))
+            return paths
+        caches, held = cache_paths(), {}
+        custody = Path(switch['custody'])
+        for path in sorted(caches):
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            handles.callback(os.close, fd)
+            st = os.fstat(fd)
+            require(stat.S_ISREG(st.st_mode) and st.st_uid == os.geteuid()
+                    and st.st_nlink == 1 and metadata(path.lstat()) == metadata(st),
+                    'retention_commit_cache_inode_moved')
+            body = read_all(fd)
+            require(metadata(os.fstat(fd)) == metadata(st), 'retention_commit_cache_bytes_moved')
+            evidence = custody / ('ack-' + sha(str(path).encode()) + '.pyc')
+            with evidence.open('xb') as out:
+                os.fchmod(out.fileno(), 0o600)
+                out.write(body)
+                out.flush()
+                os.fsync(out.fileno())
+            held[str(path)] = {'sha256': sha(body), 'metadata': metadata(st),
+                               'mode': stat.S_IMODE(st.st_mode), 'custody': str(evidence), 'sealed': False}
+            handles.callback(sync_dir, path.parent)
+            held[str(path)]['fd'] = fd
+        sync_dir(custody)
+        # Persist evidence and identities BEFORE the renewed cache fence, so an
+        # interruption cannot lose custody or invite source-only rollback/replay.
+        switch['retention_ack_caches'] = {name: {k: v for k, v in item.items() if k != 'fd'}
+                                          for name, item in held.items()}
+        atomic_json(journal, data)
+        for name, item in held.items():
+            path, fd = Path(name), item['fd']
+            require(metadata(path.lstat()) == item['metadata'] == metadata(os.fstat(fd))
+                    and sha(read_all(fd)) == item['sha256'], 'retention_commit_cache_moved_before_fence')
+            os.fchmod(fd, 0)
+            os.fsync(fd)
+            require(metadata(path.lstat()) == metadata(os.fstat(fd))
+                    and stat.S_IMODE(path.lstat().st_mode) == 0, 'retention_commit_cache_fence_moved')
+            switch['retention_ack_caches'][name]['sealed'] = True
+        require(cache_paths() == caches, 'retention_commit_cache_set_moved')
+        atomic_json(journal, data)
+
+
+def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
+    from contextlib import ExitStack
+    checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
+    planned = plan(checkout, root, hermes, generation=RETENTION_GENERATION)
+    proposal = retention_proposal(checkout, root, hermes, planned)
+    runtime = review.get('runtime_review', {})
+    preparer = str(review.get('prepared_by') or '').strip()
+    if (review.get('schema') != 'glp73-retention-adoption-review-v1'
+            or review.get('decision') != 'ACCEPT_EXACT_BYTES' or review.get('proposal') != proposal
+            or not preparer or not str(review.get('reviewer') or '').strip() or str(review['reviewer']).strip() == preparer
+            or runtime.get('schema') != 'glp73-retention-runtime-review-v1'
+            or runtime.get('decision') != 'ACCEPT_EXACT_BYTES'
+            or not str(runtime.get('reviewer') or '').strip() or str(runtime['reviewer']).strip() == preparer
+            or runtime.get('proposal_sha256') != sha(json.dumps(proposal, sort_keys=True).encode())):
+        raise RuntimeError('independent_exact_source_and_runtime_review_required_or_moved')
+    registry = hermes / 'cron/jobs.json'
+    if (scheduler._current_cron_store().jobs_file != registry
+            or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock'):
+        raise RuntimeError('wrong_scheduler_store')
+    with ExitStack() as fences:
+        for jid in sorted(proposal['job_before']):
+            if not fences.enter_context(scheduler._fire_job_lock(jid)):
+                raise RuntimeError('fire_fence_unavailable:' + jid)
+        fences.enter_context(scheduler._jobs_file_lock)
+        fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, 'a+') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fresh = plan(checkout, root, hermes, generation=RETENTION_GENERATION)
+            if retention_proposal(checkout, root, hermes, fresh) != proposal:
+                raise RuntimeError('preimage_moved_under_lock')
+            # Snapshot unrelated records at the locked boundary, rather than
+            # freezing them in a two-target review. Preserve them in native save.
+            before, stages, sources, records = fresh
+            state = json.loads(before[root / syncer.STATE][0])
+            state['hashes'].update(sources)
+            stage = {root / RETENTION_PATHS[0]: subprocess.check_output(
+                        ['git', '-C', str(checkout), 'show', RETENTION_SOURCE + ':' + RETENTION_PATHS[0]]),
+                     root / syncer.STATE: (json.dumps(state, indent=2, sort_keys=True) + '\n').encode(), **stages}
+            original = {path: before[path] for path in stage}
+            custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(review, sort_keys=True).encode())
+            preserve_custody(custody, before, stage)
+            if any(read_regular(path) != value for path, value in before.items()):
+                raise RuntimeError('preimage_moved_after_custody')
+            window.accept_file_updates({str(p): sha(v[0]) for p, v in original.items()},
+                                       {str(p): sha(v) for p, v in stage.items()})
+            jobs = json.loads(before[registry][0])['jobs']
+            next_jobs = copy.deepcopy(jobs)
+            for jid, name, old, new, mode in RETENTION_JOBS:
+                after = next(j for j in next_jobs if j['id'] == jid)
+                after['script_sha256'] = new
+                # Durable job intent precedes the cohort's journal capture.
+                window.accept_job_update(jid, records[jid], after)
+            def commit():
+                if read_regular(registry) != before[registry]:
+                    raise RuntimeError('registry_moved_before_saver')
+                schema = root / 'scripts/glp_current_content_base_schema.py'
+                if read_regular(schema) != before[schema]:
+                    raise RuntimeError('retained_schema_moved_before_saver')
+                scheduler._record_load_stamp(None)
+                try:
+                    scheduler._save_jobs_unlocked(next_jobs)
+                finally:
+                    scheduler._record_load_stamp(None)
+                if json.loads(read_regular(registry)[0])['jobs'] != next_jobs:
+                    raise RuntimeError('scheduler_readback_mismatch_no_retry')
+            # The maintained cohort owns rollback before durable external
+            # intent, and keeps custody/seals for every possibly-landed save.
+            try:
+                window.switch_files(stage, original, commit=commit)
+            except BaseException:
+                # ActiveWindow's own acknowledgement can fail after the native
+                # cohort returns. Keep this repair within the new generation.
+                _retain_retention_seals(window.journal, root, hermes)
+                raise
+    return {'applied': True, 'source': RETENTION_SOURCE, 'proposal': proposal, 'custody': str(custody)}
+
+
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebaseline=None, generation='historical'):
+    if window is None:
+        raise RuntimeError('active_maintenance_window_required')
+    from maintenance_window import require_active_window
+    if generation == RETENTION_GENERATION:
+        if state_rebaseline is not None:
+            raise RuntimeError('retention_generation_does_not_rebaseline')
+        result = None
+        try:
+            with require_active_window(window, root, hermes) as active:
+                result = _adopt_retention(checkout, root, hermes, review, scheduler=scheduler, window=active)
+            return result
+        except BaseException:
+            if result is not None:
+                # Post-yield admission/readback acknowledgement is also part
+                # of this operation. Re-enter its existing journal lock only.
+                from maintenance_window import operation_lock, OPERATION_ADMISSION_SECONDS
+                with operation_lock(window, timeout=OPERATION_ADMISSION_SECONDS):
+                    _retain_retention_seals(window, root.resolve(), hermes.resolve())
+            raise
+    with require_active_window(window, root, hermes) as active:
+        if generation != 'historical':
+            raise RuntimeError('unknown_glp73_generation')
+        return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler,
+                                window=active, state_rebaseline=state_rebaseline)
+
+
+def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, state_rebaseline):
+    before, stages, sources, records = plan(checkout, root, hermes, state_rebaseline=state_rebaseline)
     proposal = {'source_sha256': sources, 'wrapper_sha256': {name: sha(stages[hermes / 'scripts' / name]) for _, name, *_ in JOBS},
                 'source_before_sha256': {p: SOURCE_BEFORE[i][0] for i, p in enumerate(PATHS)},
-                'state_before_sha256': STATE_BEFORE, 'job_before': records,
+                'state_before_sha256': sha(before[root / syncer.STATE][0]), 'job_before': records,
+                'state_rebaseline_sha256': sha(json.dumps(state_rebaseline, sort_keys=True).encode()) if state_rebaseline else None,
                 'registry_before_sha256': sha(before[hermes / 'cron/jobs.json'][0])}
     if (review.get('schema') != 'glp73-paired-adoption-review-v1'
             or review.get('decision') != 'ACCEPT_EXACT_BYTES'
@@ -195,7 +505,7 @@ def adopt(checkout, root, hermes, review, *, scheduler):
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fresh = plan(checkout, root, hermes)
+            fresh = plan(checkout, root, hermes, state_rebaseline=state_rebaseline)
             if fresh != (before, stages, sources, records):
                 raise RuntimeError('preimage_moved_under_lock')
             if any(read_regular(path) != value for path, value in before.items()):
@@ -207,20 +517,21 @@ def adopt(checkout, root, hermes, review, *, scheduler):
             stage = {root / p: (checkout / p).read_bytes() for p in PATHS}
             stage[state_path] = state_bytes
             stage.update(stages)
+            if any(sha(stage[root / p]) != sources[p] for p in PATHS):
+                raise RuntimeError('reviewed_candidate_moved_before_switch')
             custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(review, sort_keys=True).encode())
             preserve_custody(custody, before, stage)
             if any(read_regular(path) != value for path, value in before.items()):
                 raise RuntimeError('preimage_moved_after_custody')
             registry_before = before[registry]
+            window.accept_file_updates(
+                {str(path.resolve()): sha(before[path][0]) for path in stage},
+                {str(path.resolve()): sha(body) for path, body in stage.items()},
+            )
             source_written = False
             try:
                 source_written = True
-                if syncer.sync(root, checkout, True, ADOPT, PATHS) != 0:
-                    raise RuntimeError('source_apply_refused')
-                for path, body in stages.items():
-                    if read_regular(path) != before[path]:
-                        raise RuntimeError('wrapper_moved_before_replace')
-                    atomic_write(path, body, before[path][1])
+                window.switch_files(stage, {path: before[path] for path in stage})
                 if read_regular(registry) != registry_before:
                     raise RuntimeError('registry_moved_before_saver')
                 jobs = json.loads(registry_before[0])['jobs']
@@ -229,7 +540,9 @@ def adopt(checkout, root, hermes, review, *, scheduler):
                     hit = next(j for j in next_jobs if j.get('id') == jid)
                     if hit != records[jid]:
                         raise RuntimeError('job_moved_before_saver')
+                    previous = copy.deepcopy(hit)
                     hit['script_sha256'] = new
+                    window.accept_job_update(jid, previous, hit)
                 scheduler._record_load_stamp(None)
                 try:
                     scheduler._save_jobs_unlocked(next_jobs)
@@ -242,39 +555,55 @@ def adopt(checkout, root, hermes, review, *, scheduler):
                 # never rolled back or retried. Inspect every path, including a
                 # rename that landed before its call raised.
                 if read_regular(registry) == registry_before and source_written:
-                    for path, (body, mode) in before.items():
-                        if path == registry or path not in stage:
-                            continue
-                        now = read_regular(path)
-                        if now == (body, mode):
-                            continue
-                        if now != (stage[path], mode):
-                            raise RuntimeError('rollback_conflict_no_overwrite:' + str(path))
-                        atomic_write(path, body, mode)
+                    original_files = {path: before[path] for path in stage}
+                    current_files = {path: read_regular(path) for path in stage}
+                    staged_files = {path: (body, before[path][1]) for path, body in stage.items()}
+                    if current_files != original_files:
+                        if current_files != staged_files:
+                            raise RuntimeError('rollback_conflict_no_overwrite:source_cohort')
+                        window.switch_files({path: value[0] for path, value in original_files.items()}, staged_files)
                 raise
     return {'applied': True, 'source': SOURCE, 'proposal': proposal, 'custody': str(custody)}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--generation', choices=('historical', RETENTION_GENERATION), default='historical',
+                        help='immutable historical cohort or PR136 archiver with only F12/F13 co-pins')
     parser.add_argument('--checkout', required=True, type=Path)
     parser.add_argument('--root', type=Path, default=syncer.DEFAULT_ROOT)
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
     parser.add_argument('--review', type=Path)
+    parser.add_argument('--window', type=Path, help='active maintenance journal; required for apply')
+    parser.add_argument('--state-rebaseline', type=Path, help='independent exact explained-diff review')
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args()
     try:
+        state_rebaseline = json.loads(args.state_rebaseline.read_text()) if args.state_rebaseline else None
         if args.apply:
+            if args.window is None:
+                raise RuntimeError('active_maintenance_window_required')
             if args.review is None:
                 raise RuntimeError('independent_review_required')
             sys.path.insert(0, str(args.hermes / 'hermes-agent'))
             from cron import jobs as scheduler
-            result = adopt(args.checkout, args.root, args.hermes, json.loads(args.review.read_text()), scheduler=scheduler)
+            result = adopt(args.checkout, args.root, args.hermes, json.loads(args.review.read_text()), scheduler=scheduler, window=args.window, state_rebaseline=state_rebaseline, generation=args.generation)
         else:
-            before, staged, sources, records = plan(args.checkout, args.root, args.hermes)
-            result = {'applied': False, 'source_sha256': sources,
+            from contextlib import nullcontext
+            from maintenance_window import require_active_window
+            context = require_active_window(args.window, args.root, args.hermes) if args.window else nullcontext(None)
+            with context:
+                planned = plan(args.checkout, args.root, args.hermes, state_rebaseline=state_rebaseline, generation=args.generation)
+                before, staged, sources, records = planned
+            if args.generation == RETENTION_GENERATION:
+                result = {'applied': False, 'proposal': retention_proposal(args.checkout, args.root, args.hermes, planned)}
+            else:
+                result = {'applied': False, 'source_sha256': sources,
                       'wrapper_sha256': {p.name: sha(b) for p, b in staged.items()},
-                      'job_before': records, 'registry_before_sha256': sha(before[args.hermes / 'cron/jobs.json'][0])}
+                      'job_before': records, 'registry_before_sha256': sha(before[args.hermes / 'cron/jobs.json'][0]),
+                      'source_before_sha256': {p: SOURCE_BEFORE[i][0] for i, p in enumerate(PATHS)},
+                      'state_before_sha256': sha(before[args.root / syncer.STATE][0]),
+                      'state_rebaseline_sha256': sha(json.dumps(state_rebaseline, sort_keys=True).encode()) if state_rebaseline else None}
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (RuntimeError, ValueError, OSError, subprocess.CalledProcessError) as exc:

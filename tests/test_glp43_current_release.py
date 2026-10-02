@@ -224,6 +224,90 @@ class CurrentReleaseTests(unittest.TestCase):
         self.assertFalse((self.prepared / "deploy-public/_routes.json").exists())
         self.assertIn(b"// r13-canonical-functions-routes.mjs", (self.prepared / "deploy-public/_worker.js").read_bytes())
 
+    def test_current_manifest_is_consumable_by_exact_accepted_failure_producer(self):
+        # Synthetic approvals remain confined to this temporary fixture home.
+        self.prepare()
+        path = ROOT / "systems/seo-blog-machine/scripts/accepted_failure_contract.py"
+        spec = importlib.util.spec_from_file_location("current_fixture_acceptance", path)
+        contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(contract)
+        run_dir = self.root / "fixture-terminal"
+        intent = c.current_pointer_intent(self.prepared, self.prepared_data, NEW_ID, run_dir)
+        for artifact in intent["artifacts"]:
+            destination = Path(artifact["path"])
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(c.base64.b64decode(artifact["bytes_base64"]))
+        pointer = json.loads(c.base64.b64decode(intent["successor_bytes_base64"]))
+        manifest_path = Path(pointer["manifest"]["path"])
+        original_manifest = json.loads(manifest_path.read_text())
+        evidence = self.root / "SYNTHETIC-review-not-authority"
+        evidence.mkdir()
+        sealed = evidence / "SEALED-FILES.json"
+        # Existing independent-review seal uses bytes, even when current carrier
+        # deployment rows use size. Bind identical values, not a schema alias.
+        sealed.write_bytes(c.json_bytes([
+            {"path": row["path"], "sha256": row["sha256"], "bytes": row["size"]}
+            for row in original_manifest["release_rows"]]))
+        disclosure = evidence / "SAFE-SUITE-DISCLOSURES.json"
+        disclosure.write_bytes(c.json_bytes({
+            "status": "SYNTHETIC_ZERO_FAILURES", "same_named_failures": [],
+            "retained_failure_count": 0, "counts": {"tests": 1, "fail": 0, "cancelled": 0},
+            "new_failure_count": 0, "newly_reported_failures": []}))
+        subject = {"sealed_root": pointer["release_root"], "subject_id": "SYNTHETIC-current",
+                   "sealed_manifest_sha256": c.sha_file(sealed), "inputs": [
+                       {"source_path": str(item), "snapshot_path": str(item), "sha256": c.sha_file(item)}
+                       for item in (sealed, disclosure)]}
+        digest = c.sha_bytes(json.dumps(subject, sort_keys=True, separators=(",", ":")).encode())
+        review = evidence / "REVIEW-MANIFEST.json"
+        review.write_bytes(c.json_bytes({"tuple": subject, "tuple_sha256": digest}))
+        acceptance = evidence / "ACCEPTANCE.json"
+        acceptance.write_bytes(c.json_bytes({
+            "status": "ACCEPT_VALIDATED", "acceptance_message_id": "SYNTHETIC-message",
+            "evidence": {"authority_class": "bridge",
+                         "authority_origin": "guard_owned_authenticated_discord_readback",
+                         "request_author_id": "SYNTHETIC-requester", "acceptance_author_id": "SYNTHETIC-reviewer",
+                         "acceptance_message_id": "SYNTHETIC-message", "tuple_sha256": digest,
+                         "subject_id": subject["subject_id"]}}))
+        with mock.patch.object(contract, "RUNTIME_ROOT", self.root / "fixture-runtime"):
+            binding = contract.build_binding(pointer, acceptance, review)
+            self.assertEqual(binding["accepted_names"], [])
+            self.assertFalse(contract.runtime_binding_path(pointer).exists())
+            # Legacy bytes manifests continue through the unchanged review gate.
+            legacy = {"release_root": pointer["release_root"],
+                      "release_tree_sha256": pointer["release_tree_sha256"],
+                      "release_rows": json.loads(sealed.read_text())}
+            manifest_path.write_bytes(c.json_bytes(legacy))
+            legacy_pointer = {**pointer, "manifest": contract.descriptor(manifest_path)}
+            self.assertEqual(contract.build_binding(legacy_pointer, acceptance, review)["accepted_names"], [])
+            manifest_path.write_bytes(c.json_bytes(original_manifest))
+            # No acceptance is inferred from the production terminal status.
+            acceptance_bytes = acceptance.read_bytes()
+            acceptance.unlink()
+            with self.assertRaises(FileNotFoundError):
+                contract.build_binding(pointer, acceptance, review)
+            acceptance.write_bytes(acceptance_bytes)
+            # Revalidation must reject size/hash drift, duplicate rows, and an
+            # ambiguous bytes+size row. Never repair a generated manifest.
+            for mutation in ("size", "sha256", "duplicate", "ambiguous", "bool-size", "unknown-shape"):
+                changed = copy.deepcopy(original_manifest)
+                row = changed["release_rows"][0]
+                if mutation == "size": row["size"] += 1
+                elif mutation == "sha256": row["sha256"] = "0" * 64
+                elif mutation == "duplicate": changed["release_rows"].append(copy.deepcopy(row))
+                elif mutation == "ambiguous": row["bytes"] = row["size"]
+                elif mutation == "bool-size": row["size"] = True
+                else: changed["unexpected"] = True
+                manifest_path.write_bytes(c.json_bytes(changed))
+                changed_pointer = {**pointer, "manifest": contract.descriptor(manifest_path)}
+                changed_binding = {**binding, "release_manifest": changed_pointer["manifest"]}
+                with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                    contract.validate_binding(changed_binding, changed_pointer)
+            self.assertFalse(contract.runtime_binding_path(pointer).exists())
+            manifest_path.write_bytes(c.json_bytes(original_manifest))
+            contract.install_binding(binding, pointer)
+            self.assertEqual(contract.load_binding(pointer)[0], binding)
+        self.assertEqual(self.deploy_calls, [])
+
     def approve_fixture(self):
         p = self.prepared_data
         self.review = {"schema": "glp42-designated-astra-release-review-v1", "verdict": "APPROVE", "release_accepted": True,
