@@ -1615,7 +1615,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "d8819560fe95a7c7386a590a508677016aca2641e2b5ecfa445debf41e40c01c"
+      "sha256": "6926f96fa62a011819ee7923729fd88d0e82ad109de9045a6d9bcd417fc8f55e"
     },
     "scripts/fable_bridge.py": {
       "callers": [

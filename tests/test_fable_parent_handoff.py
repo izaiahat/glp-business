@@ -216,7 +216,7 @@ class ParentHandoffTests(unittest.TestCase):
         self.receipt.pop("parent_handoff")
         self.state_path.write_text(json.dumps(self.initial))
         actual = self.transport
-        def ambiguous(method, path, body=None):
+        def ambiguous(method, path, body=None, **kwargs):
             if method == "POST":
                 raise TimeoutError("EXPLICITLY SYNTHETIC uncertain post")
             return actual(method, path, body)
