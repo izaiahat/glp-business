@@ -59,6 +59,8 @@ def test_dependency_generation_journals_exact_cohort_and_restores_window(tmp_pat
             put(old_dir / name, blob('d6c193eeff4489c2605fded809cb54e4ba09b22d', 'scripts/' + name))
         put(old_dir / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
         put(old_dir / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
+        # Hold the unrelated F08 declaration constant in this dependency comparison.
+        put(old_dir / 'glp345_a4_adoption.py', (ROOT / 'scripts/glp345_a4_adoption.py').read_bytes())
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)

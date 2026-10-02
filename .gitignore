@@ -473,3 +473,12 @@
 !/ops/glp/reporting-v2/API-COLLECTORS.md
 !/scripts/affiliate_reporting_everflow.py
 !/tests/test_api_collectors_everflow.py
+
+# GLP345 fixed actual-live A4 predecessor and guarded installation chain
+!/scripts/glp345_a4_adoption.py
+!/tests/test_glp345_a4_adoption.py
+!/ops/glp345-a4/
+/ops/glp345-a4/*
+!/ops/glp345-a4/SOURCE-PINS.predecessor.json
+!/ops/glp345-a4/wrapper.predecessor.py
+!/ops/glp345-a4/README.md
