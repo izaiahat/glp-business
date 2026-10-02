@@ -107,6 +107,28 @@ def _positive(value) -> bool:
     return type(value) is int and value > 0
 
 
+def _associated(row, pr: dict, head: str, corroborated) -> bool:
+    """Bind a workflow run to the exact PR, treating omitted association as unknown.
+
+    GitHub can return ``pull_requests: []`` for a same-repository PR run (seen on
+    PR166 run 36973008150). Empty never grants association by itself: it binds
+    only when the run's own canonical head identity matches the PR and native
+    commit->PR evidence names exactly this PR; otherwise it refuses, never skips.
+    """
+    links = row['pull_requests']
+    if not isinstance(links, list):
+        raise RuntimeError('ship_ci_association_invalid')
+    if links:
+        return any(link['number'] == pr['number'] and link['head']['sha'] == head
+                   for link in links)
+    if (row['head_sha'] != head or row['event'] != 'pull_request'
+            or row['repository']['full_name'] != REPOSITORY
+            or row['head_repository']['full_name'] != REPOSITORY
+            or row['head_branch'] != pr['head']['ref'] or not corroborated()):
+        raise RuntimeError('ship_ci_association_uncorroborated')
+    return True
+
+
 def verify_merge(checkout: Path, merge_sha: str, api=github_json) -> dict:
     """Prove merged main ancestry and the latest exact PR-head CI success.
 
@@ -133,6 +155,24 @@ def verify_merge(checkout: Path, merge_sha: str, api=github_json) -> dict:
             raise RuntimeError('ship_exact_merged_pr_required')
         pr = candidates[0]
         head = pr['head']['sha']
+        proof = []
+
+        def corroborated() -> bool:
+            # Read once, only when a run omits association: the exact head must
+            # natively belong to exactly this merged canonical PR and no other.
+            if not proof:
+                rows = _pages(api, PREFIX + f'commits/{head}/pulls')
+                proof.append(
+                    len(rows) == 1 and rows[0]['number'] == pr['number']
+                    and rows[0]['head']['sha'] == head
+                    and rows[0]['head']['ref'] == pr['head']['ref']
+                    and rows[0]['head']['repo']['full_name'] == REPOSITORY
+                    and pr['head']['repo']['full_name'] == REPOSITORY
+                    and rows[0]['base']['ref'] == 'main'
+                    and rows[0]['base']['repo']['full_name'] == REPOSITORY
+                    and rows[0]['merge_commit_sha'] == merge_sha
+                    and bool(rows[0]['merged_at']) and rows[0]['merged_at'] == pr['merged_at'])
+            return proof[0]
         runs = _pages(api, PREFIX + 'actions/workflows/business-source-ci.yml/runs'
                       f'?head_sha={head}&event=pull_request', 'workflow_runs')
         if not runs or any(not _positive(row['id']) or not _positive(row['run_number'])
@@ -145,8 +185,7 @@ def verify_merge(checkout: Path, merge_sha: str, api=github_json) -> dict:
                 or run['event'] != 'pull_request' or run['status'] != 'completed'
                 or run['conclusion'] != 'success' or run['path'] != WORKFLOW
                 or run['repository']['full_name'] != REPOSITORY
-                or not any(row['number'] == pr['number'] and row['head']['sha'] == head
-                           for row in run['pull_requests'])):
+                or not _associated(run, pr, head, corroborated)):
             raise RuntimeError('ship_exact_head_ci_success_required')
         # A passing main workflow cannot hide another failing/pending workflow
         # on this same PR head. Group reruns by workflow, preserving latest only.
@@ -154,8 +193,7 @@ def verify_merge(checkout: Path, merge_sha: str, api=github_json) -> dict:
                           f'?head_sha={head}&event=pull_request', 'workflow_runs')
         grouped = {}
         for candidate in all_runs:
-            if not any(row['number'] == pr['number'] and row['head']['sha'] == head
-                       for row in candidate['pull_requests']):
+            if not _associated(candidate, pr, head, corroborated):
                 continue
             if any(not _positive(candidate[field]) for field in
                    ('workflow_id', 'id', 'run_number', 'run_attempt')):
@@ -176,8 +214,7 @@ def verify_merge(checkout: Path, merge_sha: str, api=github_json) -> dict:
                     or current['head_sha'] != head or current['event'] != 'pull_request'
                     or current['repository']['full_name'] != REPOSITORY
                     or current['status'] != 'completed' or current['conclusion'] != 'success'
-                    or not any(row['number'] == pr['number'] and row['head']['sha'] == head
-                               for row in current['pull_requests'])):
+                    or not _associated(current, pr, head, corroborated)):
                 raise RuntimeError('ship_all_exact_head_ci_success_required')
             if current['workflow_id'] == run['workflow_id']:
                 if (current['path'] != WORKFLOW
