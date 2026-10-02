@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 594,
+  "tracked_count": 595,
   "files": {
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -149,7 +149,7 @@
       "callers": [
         "GLP331 exact-head native acceptance fixtures"
       ],
-      "sha256": "238eca8bda75e7a43bb443d11269f5557ae23531366a401bd67f60531599cf3a"
+      "sha256": "937a6885718ac13f649f7025d900ca3dab0f5ce3d600c0792121515cd96d2fc3"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -1132,7 +1132,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "48fc8fd44182743adc0c0955a6076b5358767f506bbb77193587dce82a4f0be4"
+      "sha256": "e0f72b9f02837d6de8a7a075fbff37c507c139e23f11cc7dfbe1f90bb454d087"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -1609,7 +1609,7 @@
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bf8e88588ff8e67fd5bfe52d525bfe0e265df140d8f4c8a63ead8f253967b32e"
+      "sha256": "1040baa9d1da03fad90a29db7e215a26ac04e138625cef9d6f04799e6d92793c"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -2062,7 +2062,7 @@
         "scripts/rook_mcp_events.py"
       ],
       "kind": "script",
-      "sha256": "9eee0d6e01f6c259809cf36b9cac0edf6ddcc0ae6379343b71a8be5c0ec6973c"
+      "sha256": "acebe71514ea317d8f2e7bcff3afeb2b1b62850afd02477ba0323f9775e4ddc8"
     },
     "scripts/reports_archiver.py": {
       "callers": [
@@ -2070,7 +2070,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "d4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124"
+      "sha256": "ee6eab73a99a9cb35741cd5ec75f3d39ea588e986a7ddd9bc3ab2f52733680d1"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2082,7 +2082,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "00a370f399a8f0d36088db7dc61bd18ed3fd5015a5a46cb8f26eb44402830d4d"
+      "sha256": "fc33d2a5b2728e4088a0e796f2cbad3e357245de6dd2faa74d541e181134ab32"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -2097,7 +2097,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "82d34eedfaf712d318e57eda4854ac944ec8827beb91371ca8b9698b69c8c494"
+      "sha256": "3e16d127afe9cb26884eb7007d412893e9e6bee9b4079f04d9ac774a522e2aa8"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3266,7 +3266,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "7919d791dfa853f21a4ff3fa8829f4399c947ad28dc7da171888126796eb357e"
+      "sha256": "a67fdec17b806c9607b9046d6a22fe9bda29cbded66c14dfb8e525b0f37179c7"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -3789,7 +3789,7 @@
       "callers": [
         ".github/workflows/glp331-carrier-closure.yml"
       ],
-      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
+      "sha256": "4d29b4cc275aea2248d9cf7d34f39227909d353b0998d0366cf5305022869c72"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
@@ -3986,6 +3986,13 @@
       ],
       "kind": "test",
       "sha256": "3e0001a742ff76f7f09ee11fc8a456a070844d01913c7c8931eb976bf46c3eb7"
+    },
+    "tests/test_glp73_archive_hardlink_manifest.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5ef6511d8422a7dcb0696cb690367ebd8354e004493965bc1d13e690ccef790d"
     }
   }
 }

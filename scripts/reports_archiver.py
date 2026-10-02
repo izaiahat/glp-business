@@ -7092,10 +7092,13 @@ def _verify_source_tar(
     seen: set[str] = set()
     member_count = 0
     with tarfile.open(archive, mode="r:gz") as tf:
+        # Hardlink extraction may load the remaining headers into tf.members.
+        # The iterator visits those cached members; tf.next() alone skips them.
+        members = iter(tf)
         while True:
             _check_deadline(deadline, "verify_source_tar:next_member")
             _worker_test_hook("source_verify_before_member", member_count)
-            info = tf.next()
+            info = next(members, None)
             if info is None:
                 break
             member_count += 1
