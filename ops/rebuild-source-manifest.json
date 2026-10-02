@@ -195,7 +195,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "cb6320da7b6862fd20828da185096854e93e1f86ca073a9f678b8bc3460026e0"
+      "sha256": "62bafd3adae11c82b67115365b455fe07892a9b2c91ccb6442661c7b1188393e"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -356,7 +356,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "bc11194bd952c4346d3b3933db2d4706035e2d67ba6d4e8dbba680830cf56a2a"
+      "sha256": "8e8c6c4989c72816a692d0df3a415d8ec845342bc8dc775ad9fc90e1c8dee0d9"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1584,7 +1584,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "abb7d0068e4496286d8df98183e3ecc6d724f153d2705a12af7ed0b11593a503"
+      "sha256": "a4c5016d0d55f352a769d317448b28c240fb537fc1b233709700648d75dc4a4c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2943,7 +2943,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "b066ebd07882617ed975009407b6c2eca58ca0339058ae976ca6e4216cbbd125"
+      "sha256": "5c32f316e609f97fd336295a8b4e695fd0b594a1ce4a9cb55c6d1ed8eba559ea"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -3580,7 +3580,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e3d532e22792235e06c581a6a30555c6801ab8af491356509ff019c62a0be810"
+      "sha256": "0bd1c62299f5c65ffa71010fbfdcfcbc3498343486ecc8a79bdf737385d5648d"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [
@@ -3833,21 +3833,21 @@
       "callers": [
         "scripts/affiliate_network_access.py"
       ],
-      "sha256": "4603fb190259682572ab91c4812fce12a55917b96f7c42c81591d7298a3c6433"
+      "sha256": "af037fa009eac0b59566a06a8fdff33dc158eb0e49131a4707fa38bd04de5154"
     },
     "scripts/affiliate_reporting_clickbank.py": {
       "kind": "script",
       "callers": [
         "scripts/affiliate_network_access.py"
       ],
-      "sha256": "d78f95bddced26a7b7e4c2afdc109d0b251cee36b965621a6502a13f16e54b0b"
+      "sha256": "2bee89360d643781df5afa877bb88f9053c036cf7ce09716cfb83099c93211c8"
     },
     "scripts/affiliate_reporting_healthtrader.py": {
       "kind": "script",
       "callers": [
         "scripts/affiliate_network_access.py"
       ],
-      "sha256": "f640dbcb244e5168c7e59aa8259310f890eeab89436c87e9b20cb3ffacd1e037"
+      "sha256": "7a06aa6092833cf7530a4d2ca4782b6c3366f0583fc3765a0e8f8615c331467d"
     },
     "scripts/affiliate_reporting_partnerstack.py": {
       "kind": "script",
@@ -3868,7 +3868,7 @@
       "callers": [
         "manual read-only reporting"
       ],
-      "sha256": "bfe57d37e950dcbcec0504ce013b69fa0f58ed6b05ef3aa8e2850d1762267ea4"
+      "sha256": "978533716a109d198af4d5859c990fbdaa4b466de65d5885fde0ea4773b3a5d8"
     },
     "tests/test_api_collectors_clickbank_healthtrader.py": {
       "kind": "test",
@@ -3876,7 +3876,7 @@
         "scripts/run_tests.sh",
         ".github/workflows/glp333-reporting-generation.yml"
       ],
-      "sha256": "1a374b49ad1f7a3a604dac161db08c5622cea1edcf24855325a7dd631286515c"
+      "sha256": "3f252110449784fed779216b8082b8c3a93a175c0a5d69e5427f9d3af0902545"
     },
     "tests/test_api_collectors_partnerstack_admitad.py": {
       "kind": "test",
@@ -3915,7 +3915,7 @@
       "callers": [
         "manual read-only reporting"
       ],
-      "sha256": "7746c6a089603d21dad0903607bf74b7a74bae2160fe1e6fe1a153b7005995c4"
+      "sha256": "8dcdd41aeda3b0d76a3db318edef51511fc7d52e87735eccc4bcafcfc9974a08"
     },
     ".github/workflows/glp93-current-base-consumer.yml": {
       "kind": "repository_control",
@@ -3933,6 +3933,13 @@
         ".github/workflows/glp93-current-base-consumer.yml"
       ],
       "sha256": "a3f4cb73f5070c92a1cdc7f33e174e1aa3be1e32f201557500863b37a6f590c8"
+    },
+    "tests/test_pr148_reporting_followups.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "45d54ca4b582a6f7d5fe0b05d57bbd622f975263adda82c7648b2a4f4e3e6875"
     }
   },
   "omitted_runtime_inputs": [
@@ -3943,5 +3950,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 588
+  "tracked_count": 589
 }
