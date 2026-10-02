@@ -23,7 +23,7 @@
         ".github/workflows/business-source-ci.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "9aa78ac2ca431518094f006cd5a61cc733c1954a78806c74a18f8d9637e000ae"
+      "sha256": "48fa31c7b4dd04d683a375529ac6420eae1767e73de3cc88e6717390885e18c4"
     },
     "ops/glp337-shared-bridge-custody.md": {
       "callers": [],
@@ -71,7 +71,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "43de7b9d2081d08800b0ca3210901b29b4ad7c09624cd09695dfcbbe3f7b66ff"
+      "sha256": "eb37cb3c73b4d1c2d0a3a9dc14070945ef417747cce90dadf92881b75fb7daa2"
     },
     "tests/test_maintenance_keeper_contention.py": {
       "callers": [
