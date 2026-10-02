@@ -20,6 +20,7 @@
 !/scripts/shared_bridge_predecessor_migration.py
 !/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
+!/tests/test_glp44_collector_successor.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
 !/ops/glp331-carrier-generation.md
@@ -70,6 +71,7 @@
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
+!/tests/test_glp333_impact_subwindows.py
 !/.gitignore
 !/tools/
 /tools/*

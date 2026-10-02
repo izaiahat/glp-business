@@ -4,6 +4,7 @@ Portable CI tests the real unchanged normalizer and configuration. Retained
 host evidence hashes are independently authenticated in the GLP-85 receipt;
 the normalizer itself does not authenticate evidence hashes.
 """
+import ast
 import copy
 import hashlib
 import json
@@ -18,6 +19,18 @@ PREDECESSOR_SHA = '0f46cfb248f1d20a7c976ed7baec0c6d816a3371da95bdbc0bca8e21c96cf
 OLD_FRESHNESS = 'DATED_S2_SNAPSHOT; full identities intentionally unresolved; not a replacement live registry'
 TUPLE = {'network': 'cj', 'account_id': '8010186',
          'tenant_id': 'not_applicable', 'program_id': '7538517'}
+CJ_PARENT_EVIDENCE = '/home/ubuntu/business/reports/ops/resume-20260929/reporting-denominator/RESULT.json'
+CJ_PARENT_EVIDENCE_SHA = 'c5160f826dfc3055778a0f359e940242b595ff9bcd52b9bc087b4329ab628a9e'
+CURRENT_PARENT_SHA = '93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271'
+OLD_CJ_ACCOUNT_EVIDENCE = '/home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/api/cj-readback.json'
+OLD_CJ_ACCOUNT_EVIDENCE_SHA = 'f1a52c653386a9dbb4f9a1e7b3b841c840a46b92afae393776470cc56c2b92a5'
+
+
+def restore_cj_account_evidence(document):
+    """Historical inverse only; no installed registry or wrapper update."""
+    document['accounts'][0]['evidence_ref'] = OLD_CJ_ACCOUNT_EVIDENCE
+    document['accounts'][0]['evidence_sha256'] = OLD_CJ_ACCOUNT_EVIDENCE_SHA
+    return document
 
 
 class IdentityResolved(BaseException):
@@ -34,6 +47,39 @@ def registry():
     document = json.loads(CONFIG.read_text())
     assert document['schema'] == 'reporting-identity-registry-v1'
     return document
+
+
+def test_cj_parent_resolution_maps_only_existing_account_evidence():
+    document = registry()
+    account = document['accounts'][0]
+    assert account['evidence_ref'] == CJ_PARENT_EVIDENCE
+    assert account['evidence_sha256'] == CJ_PARENT_EVIDENCE_SHA
+    assert set(account) == {'account_id', 'evidence_ref', 'evidence_sha256', 'network',
+                            'scope', 'status', 'tenant_id', 'tenant_kind'}
+    assert account['scope'] == 'publisher_account_only_not_current_financial_or_program_coverage'
+    assert len(document['accounts']) == 2 and len(document['identities']) == 2
+    assert len(document['gaps']) == document['typed_identity_gap_count'] == 800
+    gap = document['gaps'][326]
+    assert (gap['sheet_row'], gap['source_pointer'], gap['status']) == (
+        778, '/marketplaces/11/programs/56', 'UNRESOLVED_TYPED_IDENTITY')
+    assert gap['account_id'] is None and gap['program_id'] is None
+    # Execute the registered runner's existing account selector, without main,
+    # credential access, transport, database, event or collector execution.
+    tree = ast.parse((ROOT / 'scripts/glp_affiliate_weekly_reporting.py').read_text())
+    main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main')
+    selector = next(n.value for n in ast.walk(main) if isinstance(n, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == 'accounts' for t in n.targets))
+    selected = eval(compile(ast.Expression(selector), '<registered-account-selector>', 'eval'),
+                    {'registry': document, 'account': '8010186'})
+    assert selected == [account]
+    # Promotional-property ID is never a new advertiser/program authority.
+    with pytest.raises(ValueError, match='^identity_unresolved_or_ambiguous$'):
+        revenue.normalize(NoFinancialEvent(), dict(TUPLE, program_id='101822575'), document['identities'])
+    # Reverse exactly the two evidence values; every other byte must match main,
+    # including accepted Ro/current CJ tuples and all 800 dated gap entries.
+    restored_bytes = CONFIG.read_bytes().replace(CJ_PARENT_EVIDENCE.encode(), OLD_CJ_ACCOUNT_EVIDENCE.encode())
+    restored_bytes = restored_bytes.replace(CJ_PARENT_EVIDENCE_SHA.encode(), OLD_CJ_ACCOUNT_EVIDENCE_SHA.encode())
+    assert hashlib.sha256(restored_bytes).hexdigest() == CURRENT_PARENT_SHA
 
 
 def test_persisted_exact_tuple_resolves_without_financial_event():
@@ -89,7 +135,8 @@ def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     lines = [line for line in wrapper.splitlines() if line.startswith(prefix)]
     assert len(lines) == 1
     pin = lines[0][len(prefix):]
-    assert pin.decode() == hashlib.sha256(CONFIG.read_bytes()).hexdigest()
+    # This successor is source-only. Runtime pin adoption needs separate authority.
+    assert pin.decode() == CURRENT_PARENT_SHA
     restored = wrapper.replace(lines[0], prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638')
     assert hashlib.sha256(restored).hexdigest() == '197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83'
     prior = restored.replace(prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638',
@@ -104,7 +151,7 @@ def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
 
 
 def test_only_identity_and_freshness_changed_from_exact_predecessor():
-    document = registry()
+    document = restore_cj_account_evidence(registry())
     assert '2026-09-26/27' in document['freshness']
     assert len(document['gaps']) == document['typed_identity_gap_count'] == 800
     document['identities'] = [row for row in document['identities'] if row['network'] == 'cj']

@@ -37,6 +37,8 @@ class AccessResult:
     receipts: tuple[dict, ...] = ()
     account_binding: str = 'UNKNOWN'
     report_complete_period: bool = False
+    declared_row_count: int | None = None  # provider envelope claim; diagnostic only, never coverage
+    returned_row_count: int | None = None
 
     def __post_init__(self):
         if self.status not in {'SUPPORTED','PORTAL_ONLY','UNSUPPORTED','UNKNOWN'}:
@@ -409,7 +411,7 @@ class ReadTransport:
             'link-search.api.cj.com': r'/v2/link-search',
             'login.affiliatinetwork.com': r'/affiliates/api/(Offers/(Feed|Campaign|Event)|Creatives/GetCode|Reports/Conversions)',
             'api.partnerize.com': r'/(user/publisher/1100l432092/campaign/(approved|pending|rejected|t)|v2/publishers/1100l432092/campaigns/terms|reference/publisher/camref/1100l432092|reporting/report_publisher/publisher/1100l432092/conversion.json)',
-            'api.healthtrader.com': r'/affiliates/v1/offers/list',
+            'api.healthtrader.com': r'/affiliates/v1/(offers/list|conversions/search)',
             'api.partnerstack.com': r'/api/v2/(rewards|transactions|payouts)',
             'api.admitad.com': r'/statistics/actions/',
             'api.clickbank.com': r'/rest/1\.3/quickstats/list',
@@ -452,6 +454,72 @@ class ReadTransport:
         return Response(response.status, response.body, response.headers)  # drop credentialed response.url
 
 
+IMPACT_MAX_WINDOW_DAYS = 45
+
+
+def _impact_windows(a, b):
+    """Contiguous half-open sub-windows of at most 45 days covering [a, b)."""
+    from datetime import timedelta
+    out, cursor = [], a
+    while cursor < b:
+        right = min(cursor + timedelta(days=IMPACT_MAX_WINDOW_DAYS), b)
+        out.append((cursor, right))
+        cursor = right
+    return out
+
+
+def _impact_actions(t, a, b):
+    """Read Actions per sub-window; None unless every sub-window reconciles.
+
+    StartDate/EndDate keep the provider's own filter axis (not EventDate), so an
+    action updated inside two sub-windows can repeat; its latest read is kept once.
+    Page and count reconciliation restart for each sub-window.
+    """
+    from datetime import timedelta
+    from marketplace_adapters import impact
+    sid, key = impact.credentials()
+    merged = {}
+    for left, right in _impact_windows(a, b):
+        page, expected, count, seen = 1, None, 0, set()
+        while True:
+            before = len(t.receipts)
+            try:
+                r = t.request('GET', impact.API+'/Mediapartners/'+sid+'/Actions', auth=(sid,key),
+                    headers={'Accept':'application/json'}, params={'StartDate':left.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'EndDate':(right-timedelta(seconds=1)).strftime('%Y-%m-%dT%H:%M:%SZ'), 'PageSize':100, 'Page':page})
+            finally:
+                for receipt in t.receipts[before:]:
+                    receipt.update(start_inclusive=left.isoformat(), end_exclusive=right.isoformat(), page=page)
+            doc = r.json()
+            rows, total = doc.get('Actions'), int(doc['@total'])
+            empty_terminal = total == 0 and rows == [] and page == 1 and int(doc['@numpages']) == 0
+            terminal = empty_terminal or page == int(doc['@numpages'])
+            if int(doc['@page']) != page or (page > int(doc['@numpages']) and not empty_terminal):
+                raise ValueError('page_mismatch')
+            if total < 0 or not isinstance(rows,list):
+                raise ValueError('count_schema')
+            if expected is not None and total != expected:
+                raise ValueError('count_changed')
+            expected = total
+            for row in rows:
+                raw = row if isinstance(row,dict) else {}
+                identity = raw.get('Id')
+                if not isinstance(identity,(str,int)) or isinstance(identity,bool) or str(identity) in seen:
+                    raise ValueError('missing_or_duplicate_event')
+                seen.add(str(identity))
+                merged.pop(str(identity), None)
+                merged[str(identity)] = _projection('impact',[raw])
+            count += len(rows)
+            if terminal:
+                if count != total:
+                    return None
+                break
+            if not rows or count >= total:
+                return None
+            page += 1
+    return len(merged), [p for kept in merged.values() for p in kept]
+
+
 def _other_earnings(network, transport, *, start, end, deadline=None, max_requests=32,
                     profile_id=None, limiter=None):
     from datetime import timedelta
@@ -463,7 +531,7 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
     t = ReadTransport(transport, deadline=deadline, max_requests=max_requests)
     a, b = _window(start, end)
     count, complete, period = 0, False, False
-    projected = []
+    projected, mismatch = [], {}
     binding = 'CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY'
     try:
         if network == 'cj':
@@ -490,26 +558,19 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
             complete = (got['completeness'] == 'COMPLETE' and bool(declared) and
                         all(type(n) is int and n == got['row_count'] for n in declared))
             count = got['row_count']
+            if got.get('reason') == 'katalys_rowcount_rows_mismatch':
+                mismatch = {k: got[k] for k in ('reason','declared_row_count','returned_row_count')}
             projected = _projection(network,got['rows'])
             period = complete and got['period_state'] == 'CLOSED'
             binding = 'request:profile:' + profile_id + ';aff_id:13031;retained_profile_binding'
+        elif network == 'impact':
+            merged = _impact_actions(t, a, b)
+            complete = merged is not None
+            count, projected = merged if complete else (0, [])
         else:
             page, expected, seen = 1, None, set()
             while True:
-                if network == 'impact':
-                    from marketplace_adapters import impact
-                    sid, key = impact.credentials()
-                    r = t.request('GET', impact.API+'/Mediapartners/'+sid+'/Actions', auth=(sid,key),
-                        headers={'Accept':'application/json'}, params={'StartDate':a.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                        'EndDate':(b-timedelta(seconds=1)).strftime('%Y-%m-%dT%H:%M:%SZ'), 'PageSize':100, 'Page':page})
-                    doc = r.json()
-                    rows, total = doc.get('Actions'), int(doc['@total'])
-                    empty_terminal = total == 0 and rows == [] and page == 1 and int(doc['@numpages']) == 0
-                    terminal = empty_terminal or page == int(doc['@numpages'])
-                    if int(doc['@page']) != page or (page > int(doc['@numpages']) and not empty_terminal):
-                        raise ValueError('page_mismatch')
-                    id_key = 'Id'
-                elif network == 'affiliati':
+                if network == 'affiliati':
                     from marketplace_adapters import affiliati
                     r = affiliati._request(t, 'GET', '/Reports/Conversions', params={
                         'start_date':a.strftime('%Y-%m-%dT%H:%M:%S'), 'end_date':b.strftime('%Y-%m-%dT%H:%M:%S'),
@@ -553,12 +614,17 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
                     break  # do not guess Partnerize cursor or trust arbitrary next URL
                 page += 1
         return AccessResult(network, 'conversions_earnings', 'SUPPORTED', source,
-            coverage='COMPLETE' if complete else 'PARTIAL', record_count=count if complete else None,
+            coverage='COMPLETE' if complete else 'UNKNOWN' if network == 'impact' else 'PARTIAL',
+            record_count=count if complete else None,
             receipts=tuple(t.receipts), records=tuple(projected) if complete else (),
             account_binding=binding, report_complete_period=period,
-            reason='ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN'
-                if complete else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE')
+            declared_row_count=mismatch.get('declared_row_count'),
+            returned_row_count=mismatch.get('returned_row_count'),
+            reason=mismatch.get('reason') or ('ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN'
+                if complete else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE'))
     except Exception as error:
+        # A failed Impact sub-window leaves the requested window unproven as a whole.
         return AccessResult(network, 'conversions_earnings', 'SUPPORTED', source,
-            coverage=_failure_coverage(t, error), receipts=tuple(t.receipts),
+            coverage='UNKNOWN' if network == 'impact' else _failure_coverage(t, error),
+            receipts=tuple(t.receipts),
             reason='READ_FAILED_OR_INCOMPLETE_NO_AUTOMATIC_RETRY', account_binding=binding)
