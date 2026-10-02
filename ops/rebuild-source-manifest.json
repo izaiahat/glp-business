@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 625,
+  "tracked_count": 626,
   "files": {
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -630,7 +630,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "f712333395d5eb18e7a946e8da161462e43757e3c1730d7564e5c07ed67a99ec"
+      "sha256": "30bf9bdf04ea4c448f1859e614dbdcec0197ac1a66e1a2a911e4d94e204238e7"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
       "callers": [
@@ -2234,7 +2234,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "77a59290209080a432b02fbd73a7587f85887a8d1eb8126ca7ac211d7a8b71fd"
+      "sha256": "947e47e1f8b0a85fe9ffd8c6051afa6b7f0406e9049eb2a5bc48edce428badd4"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -3837,6 +3837,13 @@
         ".github/workflows/glp331-carrier-closure.yml"
       ],
       "sha256": "032157a276f12ec819f524d09ec2ecf145a3130a84794ecd0abffbb9bbefe56c"
+    },
+    "tests/test_glp44_listing_contract.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "2b5e7ac2f2fd806495fc00eef0b87350c61aec3e004277fc27e02ebb150219dc"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",

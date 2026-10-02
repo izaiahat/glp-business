@@ -12,10 +12,12 @@ import concurrent.futures
 import datetime as dt
 import hashlib
 from html import unescape
+from html.parser import HTMLParser
 import importlib.util
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -281,6 +283,7 @@ def inspect_route(route: str, control: dict[str, Any]) -> dict[str, Any]:
         "consent_default_denied_present": consent_default_denied,
         "sponsored_anchor_count": sponsored,
         "sponsored_anchor_targets": sponsored_targets,
+        "listing_contract": _listing_contract(html),
         "client_marker_count": client_markers,
         "first_party_redirect_count": first_party_redirects,
         "sponsor_slot_ids": _slot_ids(html),
@@ -1252,6 +1255,187 @@ def _approved_directory_target(target: dict[str, Any], path: str, authority: dic
     return False
 
 
+def _listing_contract(html: str) -> dict[str, Any]:
+    """Read the native duration listing's actual cohorts and controls, not an empty flag."""
+    if "data-listing-archetype" not in html:
+        return {}
+    hooks = ("data-filter-result", "data-provider-filters", "data-phase3-provider-grid",
+             "data-filter-empty", "data-unpublished-provider-section", "data-provider-card-payloads",
+             "data-phase3-dose-selection")
+
+    class Listing(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack = []
+            self.parts = {key: [] for key in hooks}
+            self.active = []
+            self.cards = 0
+            self.route = []
+            self.scripts = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            blocked = any(self.stack) or "hidden" in attrs or "inert" in attrs or attrs.get("aria-hidden") == "true"
+            if tag == "main" and attrs.get("data-listing-archetype") == "A":
+                self.route.append([attrs.get("data-phase3-route"), blocked])
+            if "data-phase3-provider" in attrs or "data-unpublished-price-card" in attrs:
+                self.cards += 1
+            if tag == "script" and urlsplit(attrs.get("src") or "").path == "/assets/site.js":
+                self.scripts.append([list(item) for item in sorted(attrs.items())])
+            token = ["start", tag, [list(item) for item in sorted(attrs.items())], blocked]
+            for _, tokens, _ in self.active:
+                tokens.append(token)
+            for key in hooks:
+                if key in attrs:
+                    tokens = [token]
+                    self.parts[key].append(tokens)
+                    self.active.append((key, tokens, len(self.stack)))
+            if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+                self.stack.append(blocked)
+
+        def handle_endtag(self, tag):
+            if self.stack:
+                self.stack.pop()
+            for _, tokens, _ in self.active:
+                tokens.append(["end", tag])
+            self.active = [part for part in self.active if part[2] < len(self.stack)]
+
+        def handle_data(self, text):
+            text = " ".join(text.split())
+            if text:
+                for _, tokens, _ in self.active:
+                    tokens.append(["text", text])
+
+    parsed = Listing()
+    parsed.feed(html)
+    parts = parsed.parts
+    counts = parts["data-filter-result"]
+    text = " ".join(token[1] for tokens in counts for token in tokens if token[0] == "text")
+    match = re.fullmatch(r"(\d+) comparable price results", text) if len(counts) == 1 else None
+    numeric = int(match[1]) if match else None
+    empty_tokens = parts["data-filter-empty"]
+    empty_text = " ".join(token[1] for tokens in empty_tokens for token in tokens if token[0] == "text")
+    reset = sum(token[0] == "start" and token[1] == "button"
+                and dict(token[2]).get("type") == "button" and "data-filter-reset" in dict(token[2])
+                for tokens in empty_tokens for token in tokens)
+    blocked = any(tokens[0][3] for key in hooks[:4] for tokens in parts[key])
+    empty = (len(parsed.route) == 1 and not parsed.route[0][1] and numeric == 0
+             and all(len(parts[key]) == 1 for key in hooks[:4]) and not blocked
+             and parsed.cards == 0 and not parts[hooks[4]] and not parts[hooks[5]] and reset == 1
+             and empty_text == "No source-backed record matches those filters. An empty result is not a medical or availability conclusion. Active filters: none. Reset filters"
+             and len(parsed.scripts) == 1)
+    return {"route": parsed.route, "numeric_count": numeric,
+            "unpublished_count": len(parts[hooks[4]]), "card_count": parsed.cards,
+            "parts": parts, "runtime_scripts": parsed.scripts, "empty": empty}
+
+
+def _listing_obligation(expected: dict[str, Any] | None, observed: dict[str, Any] | None) -> str:
+    if (not expected or observed != expected or type(expected.get("numeric_count")) is not int
+            or expected["numeric_count"] < 0 or len(expected.get("route") or []) != 1):
+        return "unknown"
+    # Empty is a prohibition on commercial anchors, NOT a shell/privacy exemption.
+    return "forbidden" if expected.get("empty") is True else "required"
+
+
+def _bound_listing_contracts(release: Path, control: dict[str, Any],
+                             covered: set[str]) -> dict[str, dict[str, Any]]:
+    """Exercise the existing exported producer on accepted, sealed inputs only."""
+    policy = control["affiliate_obligations"].get("duration_listing_contract")
+    if policy is None:
+        return {}
+    decision = (BUSINESS / policy["authority_path"]).read_bytes()
+    if hashlib.sha256(decision).hexdigest() != policy["authority_sha256"]:
+        raise RuntimeError("affiliate_listing_authority_drift")
+    pointer = read_json(BUSINESS / control["affiliate_obligations"]["release_pointer"])
+    if Path(pointer["release_root"]).resolve(strict=True) != release:
+        raise RuntimeError("affiliate_listing_release_changed")
+    rows = read_json(Path(pointer["manifest"]["path"]))["release_rows"]
+    seals = {row["path"]: row["sha256"] for row in rows}
+    # Imports execute code: validate sealed native modules BEFORE importing them.
+    # Data and capture reads are separately hash-checked at the real read boundary.
+    for source in (release / "src").rglob("*"):
+        if source.is_file():
+            name = source.relative_to(release).as_posix()
+            if (source.is_symlink() or not seals.get(name)
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != seals[name]):
+                raise RuntimeError(f"affiliate_listing_producer_drift:{name}")
+    script = r'''
+import fs from 'node:fs';
+import cp from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
+import {createHash} from 'node:crypto';
+import {pathToFileURL, fileURLToPath} from 'node:url';
+import path from 'node:path';
+const input=JSON.parse(fs.readFileSync(0,'utf8'));
+const root=process.argv[1];
+const read=fs.readFileSync, exists=fs.existsSync, failures=[];
+const fail=name=>{failures.push(name);throw new Error('affiliate_listing_input_invalid:'+name);};
+const deny=()=>{throw new Error('affiliate_listing_effect_denied');};
+fs.readFileSync=(file,...args)=>{
+  const resolved=path.resolve(file instanceof URL?fileURLToPath(file):file);
+  const name=path.relative(root,resolved);
+  if(!input.seals[name]) return fail('unbound:'+name);
+  let bytes;
+  try { bytes=read(resolved); } catch { return fail('missing:'+name); }
+  if(createHash('sha256').update(bytes).digest('hex')!==input.seals[name]) return fail('drift:'+name);
+  if(name.endsWith('.json')) { try { JSON.parse(bytes); } catch { return fail('json:'+name); } }
+  return args[0]?bytes.toString(typeof args[0]==='string'?args[0]:args[0].encoding):bytes;
+};
+fs.existsSync=file=>{
+  const resolved=path.resolve(file instanceof URL?fileURLToPath(file):file), name=path.relative(root,resolved);
+  if(input.seals[name]&&!exists(resolved)) return fail('missing:'+name);
+  return exists(resolved);
+};
+for(const key of ['writeFileSync','appendFileSync','renameSync','unlinkSync','rmSync','mkdirSync','copyFileSync','createWriteStream']) fs[key]=deny;
+for(const key of ['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork']) cp[key]=deny;
+globalThis.fetch=deny;
+syncBuiltinESMExports();
+const json=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
+const load=name=>import(pathToFileURL(path.join(root,'src',name)));
+const phase=await load('phase3-page-graph.mjs');
+const {publicProviderNames}=await load('public-provider-names.mjs');
+const graph=json('data/phase3-page-graph.json'), pricingMatrix=publicProviderNames(json('data/provider-pricing-matrix.json'));
+// Native provenance validation: unknown/missing pricing cannot become a zero cohort.
+(await load('cost-calculator.mjs')).attachPricingMatrix(Object.keys(pricingMatrix.providers||{}).map(program_id=>({program_id})),pricingMatrix);
+const specs=json('data/money-page-specs.json'), affiliateMap=(await load('affiliate-link-map.mjs')).loadAffiliateLinkMap('compare');
+if(!Array.isArray(specs.pages)||specs.pages.some(page=>!Array.isArray(page.rows)||page.rows.some(row=>row.program_id&&!Object.hasOwn(affiliateMap,row.program_id)))) throw new Error('affiliate_listing_link_map_unknown');
+const context={graph,pricingMatrix,
+  registry:phase.phase3Registry(graph,publicProviderNames(json('data/program-registry.json'))),
+  coupons:(await load('coupon-offers.mjs')).activeCouponMap(json('data/coupon-offers.json')),
+  doseCapture:phase.loadPass2DoseCapture(),
+  logoManifest:{...json('assets/provider-logos/manifest.json'),atlas:json('assets/provider-logos/pass2-lp-atlas.json')},
+  articles:[],goAuthority:(await load('go-runtime-selection.mjs')).loadGoPromotionAuthority()};
+const result={};
+for(const page of graph.bulk_pages.filter(p=>input.covered.includes(p.route))) {
+  if(!Number.isFinite(page.duration_months)||page.duration_months<=0) throw new Error('affiliate_listing_duration_invalid');
+  result[page.route]={native:phase.renderConfiguredListing('A',page,context),
+    published:fs.readFileSync(path.join(root,'public',page.route.slice(1),'index.html'),'utf8')};
+}
+if(failures.length) throw new Error('affiliate_listing_swallowed_input_failure:'+failures.join(','));
+console.log(JSON.stringify(result));
+'''
+    result = subprocess.run(["node", "--input-type=module", "-e", script, str(release)],
+                            input=json.dumps({"seals": seals, "covered": sorted(covered)}),
+                            text=True, capture_output=True, timeout=45, check=True)
+    contracts = {}
+    for route, html in json.loads(result.stdout).items():
+        # The shell finalizer installs site.js; bind its actual sealed loader and
+        # runtime bytes, while cohorts/filter/reset markup comes from the producer.
+        published = _listing_contract(html["published"])
+        scripts = published["runtime_scripts"]
+        if len(scripts) != 1:
+            raise RuntimeError(f"affiliate_listing_runtime_missing:{route}")
+        src = dict(scripts[0])["src"]
+        name = "public" + urlsplit(src).path
+        if (urlsplit(src).netloc or not seals.get(name)
+                or hashlib.sha256((release / name).read_bytes()).hexdigest() != seals[name]):
+            raise RuntimeError(f"affiliate_listing_runtime_drift:{route}")
+        loader = '<script ' + ' '.join(f'{key}="{value}"' if value is not None else key
+                                     for key, value in scripts[0]) + '></script>'
+        contracts[route] = _listing_contract(html["native"] + loader)
+    return contracts
+
+
 def derive_affiliate_obligations(control: dict[str, Any],
                                  observed_routes: set[str] | None = None,
                                  static_routes: list[dict[str, Any]] | None = None) -> dict[str, str]:
@@ -1286,6 +1470,15 @@ def derive_affiliate_obligations(control: dict[str, Any],
             or not isinstance(approved.get("programs"), list)):
         raise RuntimeError("affiliate_directory_authority_invalid")
     permissions: dict[str, dict[str, Any]] = {}
+    static = {row["path"]: row for row in static_routes or []}
+    listing_policy = control["affiliate_obligations"].get("duration_listing_contract") or {}
+    listing_routes = set(listing_policy.get("routes") or []) & covered
+    try:
+        listings = _bound_listing_contracts(release, control, listing_routes) if listing_routes else {}
+    except Exception as exc:  # noqa: BLE001 - binding failure is unknown, never zero
+        listings = {}
+        for route in listing_routes & set(static):
+            static[route]["listing_contract_error"] = f"{type(exc).__name__}:{str(exc)[:200]}"
     obligations: dict[str, str] = {}
     for route in sorted(covered):
         parts = route.strip("/").split("/")
@@ -1297,7 +1490,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
             if program_id is None:
                 raise RuntimeError(f"affiliate_review_identity_missing:{route}")
         if program_id is None:
-            obligations[route] = "required"
+            obligations[route] = (_listing_obligation(listings.get(route),
+                                                      static.get(route, {}).get("listing_contract"))
+                                  if route in listing_routes else "required")
             continue
         program = programs.get(program_id)
         promotion = (authority.get("programs") or {}).get(program_id)
