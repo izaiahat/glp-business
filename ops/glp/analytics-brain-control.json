@@ -19,7 +19,17 @@
   },
   "affiliate_obligations": {
     "release_pointer": "reports/glp-clinic-scout/seo-machine/current-content-base.json",
-    "deployed_manifest": "https://glpclinicscout.com/go/_manifest"
+    "deployed_manifest": "https://glpclinicscout.com/go/_manifest",
+    "duration_listing_contract": {
+      "routes": ["/3-month/", "/6-month/"],
+      "authority_path": "ops/linear/approvals/KAEL-DECISION-20260923-optionc-governing-mappings.md",
+      "authority_sha256": "9420292d3c7e3bb2f9cff70f62e5b0253d315184344f5a5059609d6d0e18e376"
+    },
+    "current_network_holds": {
+      "networks": ["xentraffic"],
+      "authority_path": "ops/linear/approvals/OPERATOR-DECISION-20261001-all-pipelines-live.md",
+      "authority_sha256": "147069fc66b2f66639321828e723dc2859d37a4b2c205f2239369724ab1b74ad"
+    }
   },
   "source_dark_threshold_hours": {
     "ga4": 48,
