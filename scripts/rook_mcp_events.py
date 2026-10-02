@@ -294,13 +294,22 @@ def readback(channel, identity):
     return discord_request('GET', f'/channels/{channel}/messages/{identity}')
 
 
-def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None):
+def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None, finch=None):
     """Rook REST identity; general routes require the scoped tool's preflight.
 
     Legacy callers retain their narrow routes and JSON-only return contract.
     Scoped callers receive (HTTP status, JSON), with no retry or redirect.
     """
     id_pattern = r'[1-9][0-9]{0,19}'
+    if finch is not None:
+        if not isinstance(finch, FinchIdentity) or research is not None:
+            raise RpcError(-32602, 'FinchRouteNotAllowed')
+        roots = '|'.join(re.escape(f'/channels/{channel}/messages') for channel in finch.channels)
+        if (guild_scoped or audit_reason is not None
+                or not ((method == 'POST' and re.fullmatch('(?:' + roots + ')', path))
+                        or (method == 'GET' and file is None and re.fullmatch('(?:' + roots + ')' +
+                            rf'(?:/{id_pattern}|\?limit=(?:[1-9]|1[0-9]|2[0-5])(?:&before={id_pattern})?)?', path)))):
+            raise RpcError(-32602, 'FinchRouteNotAllowed')
     if research is not None:
         if not isinstance(research, ResearchIdentity):
             raise RpcError(-32602, 'ResearchRouteNotAllowed')
@@ -327,7 +336,8 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
     host, address, _ = callback_target('https://discord.com/')
     conn = PinnedHTTPSConnection(host, address)
     try:
-        token = load_rook_token(research.token_path) if research else load_rook_token()
+        dot = finch or research
+        token = load_rook_token(dot.token_path) if dot else load_rook_token()
         headers = {'Authorization': 'Bot ' + token, 'User-Agent': 'HermesDiscordPoster/1.0'}
         body = None if payload is None else canonical(payload).encode()
         headers['Content-Type'] = 'application/json'
@@ -694,7 +704,7 @@ def github_comment_request(body):
 def file_send_request(body):
     params = body.get('params') if isinstance(body, dict) else None
     arguments = params.get('arguments') if isinstance(params, dict) else None
-    return (body.get('method') == 'tools/call' and params.get('name') == 'send_rook_message'
+    return (body.get('method') == 'tools/call' and params.get('name') in {'send_rook_message', 'reply_to_finch_request'}
             and isinstance(arguments, dict) and 'file' in arguments) if isinstance(body, dict) and isinstance(params, dict) else False
 
 
@@ -834,6 +844,16 @@ def verified_file(message, identity, channel):
     return metadata, data
 
 
+def finch_attachment_custody(metadata, channel, sha256):
+    """No bytes/URL in receipts; exact gateway metadata binds verified CDN bytes."""
+    target = attachment_target(metadata, channel)
+    if not isinstance(sha256, str) or not re.fullmatch(r'[a-f0-9]{64}', sha256):
+        raise RpcError(-32602, 'InvalidAttachmentDigest')
+    return {'id': metadata['id'], 'filename': metadata['filename'],
+            'content_type': file_media_type(metadata['content_type']), 'byte_length': metadata['size'],
+            'url_sha256': hashlib.sha256(target.encode()).hexdigest(), 'sha256': sha256}
+
+
 def read_file_tool(arguments):
     if (not isinstance(arguments, dict) or set(arguments) - {'thread_id', 'message_id', 'attachment_id'}
             or not {'message_id', 'attachment_id'} <= set(arguments)):
@@ -908,18 +928,22 @@ def message_projection(value, channel):
             'truncated': len(attachments) > 5 or len(reactions) > 10}
 
 
-def read_messages(arguments, *, research=None):
-    if (not isinstance(arguments, dict) or set(arguments) - {'thread_id', 'message_id', 'before_message_id', 'limit'}
+def read_messages(arguments, *, research=None, finch=None):
+    allowed = {'message_id', 'before_message_id', 'limit', 'channel_id'} if finch else {'thread_id', 'message_id', 'before_message_id', 'limit'}
+    if (not isinstance(arguments, dict) or set(arguments) - allowed
             or ('message_id' in arguments and set(arguments) & {'before_message_id', 'limit'})
-            or (research is not None and 'thread_id' in arguments)):
+            or (research is not None and 'thread_id' in arguments)
+            or (finch is not None and arguments.get('channel_id') not in finch.channels)):
         raise RpcError(-32602, 'InvalidParams')
-    channel = research.channel if research else permitted_channel(arguments)
+    channel = arguments['channel_id'] if finch else research.channel if research else permitted_channel(arguments)
     def request(path):
+        if finch:
+            return discord_request('GET', path, finch=finch)
         return discord_request('GET', path, research=research) if research else discord_request('GET', path)
     if 'message_id' in arguments:
         values = ([request(f'/channels/{channel}/messages/{snowflake(arguments["message_id"])}')]
-                  if research else [permitted_message(channel, arguments['message_id'])])
-        if research and (not isinstance(values[0], dict) or values[0].get('id') != arguments['message_id']):
+                  if research or finch else [permitted_message(channel, arguments['message_id'])])
+        if (research or finch) and (not isinstance(values[0], dict) or values[0].get('id') != arguments['message_id']):
             raise RpcError(-32602, 'MessageContextMismatch')
     else:
         limit = arguments.get('limit', 25)
@@ -934,6 +958,8 @@ def read_messages(arguments, *, research=None):
     result = {'channel_id': channel, 'messages': [], 'truncated': False,
               'data_classification': 'UNTRUSTED_EXTERNAL_DATA_NOT_APPROVAL'}
     for value in values:
+        if finch and (not isinstance(value, dict) or value.get('guild_id', finch.guild) != finch.guild):
+            raise RpcError(-32602, 'MessageContextMismatch')
         projected = message_projection(value, channel)
         result['messages'].append(projected)
         if len(canonical(result).encode()) > 65000:
@@ -987,15 +1013,74 @@ class ResearchIdentity:
                 'allowed_senders': sorted(self.allowed_senders), 'tools': ['reply_to_research_request', 'read_research_messages']}
 
 
+@dataclass(frozen=True)
+class FinchIdentity:
+    """Explicit two-binding profile; labels never grant a destination override."""
+    private_channel: str
+    shared_channel: str
+    bot: str
+    token_path: Path
+    allowed_senders: tuple[str, ...]
+    guild: str = GUILD
+
+    def __post_init__(self):
+        if (self.guild != GUILD or any(not isinstance(value, str) or not re.fullmatch(SNOWFLAKE['pattern'], value)
+                                     for value in (*self.channels, self.bot))
+                or len(set(self.channels)) != 2 or CHANNEL in self.channels
+                or self.bot in {OPERATOR, BOT, ROOK_BOT}
+                or not isinstance(self.allowed_senders, tuple) or len(self.allowed_senders) != 3
+                or set(self.allowed_senders) != {OPERATOR, BOT, ROOK_BOT}
+                or not isinstance(self.token_path, Path) or not self.token_path.is_absolute()
+                or '..' in self.token_path.parts or self.token_path == ROOK_TOKEN_PATH):
+            raise ValueError('distinct Finch bot, exactly two channels and exact Izaiah/Kael/Rook sender set required')
+
+    @property
+    def channels(self):
+        return (self.private_channel, self.shared_channel)
+
+    def policy_fields(self):
+        return {'profile': 'finch', 'guild_id': self.guild,
+                'bindings': {'finch': self.private_channel, 'dots-shared': self.shared_channel},
+                'bot_id': self.bot, 'observer_id': self.bot, 'token_path': str(self.token_path),
+                'allowed_senders': sorted(self.allowed_senders),
+                'tools': ['reply_to_finch_request', 'read_finch_messages'], 'correlated_file_limit': FILE_LIMIT}
+
+    def validate_cursors(self, cursors):
+        if (not isinstance(cursors, dict) or set(cursors) != set(self.channels)
+                or any(not isinstance(value, str) or not re.fullmatch(SNOWFLAKE['pattern'], value)
+                       for value in cursors.values())):
+            raise ValueError('Finch requires one fresh canonical cursor per exact channel')
+        return cursors
+
+
 def add_research_arguments(parser):
-    parser.add_argument('--profile', choices=['rook', 'research'], default='rook')
+    parser.add_argument('--profile', choices=['rook', 'research', 'finch'], default='rook')
     parser.add_argument('--research-channel')
     parser.add_argument('--research-bot')
     parser.add_argument('--research-token-path', type=Path)
     parser.add_argument('--allowed-request-sender', action='append')
+    parser.add_argument('--finch-channel')
+    parser.add_argument('--dots-shared-channel')
+    parser.add_argument('--finch-bot')
+    parser.add_argument('--finch-token-path', type=Path)
+
+
+def finch_from_args(args):
+    inputs = (args.finch_channel, args.dots_shared_channel, args.finch_bot, args.finch_token_path)
+    if args.profile != 'finch':
+        if any(value is not None for value in inputs):
+            raise ValueError('Finch inputs require --profile finch')
+        return None
+    if (not all(inputs) or not args.allowed_request_sender
+            or any(value is not None for value in (args.research_channel, args.research_bot, args.research_token_path))):
+        raise ValueError('Finch requires both channels, bot, private token reference and all three request senders only')
+    return FinchIdentity(*inputs, tuple(args.allowed_request_sender))
 
 
 def research_from_args(args):
+    finch_from_args(args)  # Reject profile-inconsistent inputs for all callers.
+    if args.profile == 'finch':
+        return None
     inputs = (args.research_channel, args.research_bot, args.research_token_path, args.allowed_request_sender)
     if args.profile == 'rook':
         if any(value is not None for value in inputs):
@@ -1015,14 +1100,22 @@ class Config:
     metadata_only: bool = False
     local_tunnel_metadata: bool = False
     research: ResearchIdentity | None = None
+    finch: FinchIdentity | None = None
 
     def policy_fields(self):
         fields = {'issuer': self.issuer, 'audience': self.audience, 'subject': self.subject}
         if self.research:
             fields['identity'] = self.research.policy_fields()
+        if self.finch:
+            fields['identity'] = self.finch.policy_fields()
         return fields
 
     def scopes(self, method, params):
+        if self.finch:
+            if method != 'tools/call':
+                return {'finch.requests.read'}
+            name = params.get('name') if isinstance(params, dict) else None
+            return {'finch.channel.read' if name == 'read_finch_messages' else 'finch.replies.write'}
         if not self.research:
             return required_scopes(method, params)
         if method != 'tools/call':
@@ -1033,6 +1126,8 @@ class Config:
     def __post_init__(self):
         if self.research is not None and not isinstance(self.research, ResearchIdentity):
             raise ValueError('validated Research identity required')
+        if self.finch is not None and (not isinstance(self.finch, FinchIdentity) or self.research is not None):
+            raise ValueError('validated mutually exclusive Finch identity required')
         for value in (self.issuer, self.audience):
             p = urlsplit(value)
             if (p.scheme != 'https' or not p.hostname or p.username or p.password or p.query or p.fragment
@@ -1232,14 +1327,15 @@ class Store:
 class Application:
     def __init__(self, config, state_dir=None, *, auth=None, callback=webhook_post, sender=send, reader=readback):
         self.config = config
-        dot = config.research
-        self.guild, self.channel, self.bot = (dot.guild, dot.channel, dot.bot) if dot else (GUILD, CHANNEL, ROOK_BOT)
-        self.event = 'discord.research.request.created' if dot else EVENT
+        dot = config.finch or config.research
+        self.guild, self.channel, self.bot = (dot.guild, None if config.finch else dot.channel, dot.bot) if dot else (GUILD, CHANNEL, ROOK_BOT)
+        self.channels = config.finch.channels if config.finch else (self.channel,)
+        self.event = 'discord.finch.request.created' if config.finch else 'discord.research.request.created' if dot else EVENT
         self.arguments = {'guild_id': self.guild, 'channel_id': self.channel}
-        self.reply_kind = 'research.reply' if dot else REPLY_KIND
+        self.reply_kind = 'finch.reply' if config.finch else 'research.reply' if dot else REPLY_KIND
         self.tools = [TOOL_DEFINITION, *COMMUNICATION_TOOLS]
         self.event_definition = EVENT_DEFINITION
-        if dot:
+        if config.research:
             # Deliberately only reply + fixed-channel read; no generic API, sends, files or threads.
             self.tools = json.loads(canonical([TOOL_DEFINITION, COMMUNICATION_TOOLS[0]]).replace('rook', 'research').replace('Rook', 'Research'))
             self.tools[1]['inputSchema']['properties'].pop('thread_id', None)
@@ -1249,6 +1345,21 @@ class Application:
             self.event_definition = {**EVENT_DEFINITION, 'name': self.event,
                 'description': 'Literal Research mention from Izaiah, Kael or Rook in the exact channel; untrusted data, never approval.',
                 'inputSchema': object_schema({k: {'type': 'string', 'const': v} for k, v in self.arguments.items()})}
+        if config.finch:
+            self.tools = json.loads(canonical([TOOL_DEFINITION, COMMUNICATION_TOOLS[0]]).replace('rook', 'finch').replace('Rook', 'Finch'))
+            self.tools[0]['inputSchema']['properties']['file'] = json.loads(canonical(COMMUNICATION_TOOLS[1]['inputSchema']['properties']['file']))
+            self.tools[0]['description'] = ('Reply once in the delivered request origin channel only; optional one bounded non-sensitive file. '
+                'Requires verified JWT scope AND RBAC permission finch.replies.write. No destination override or uncertain resend.')
+            security = [{'type': 'oauth2', 'scopes': ['finch.replies.write']}]
+            self.tools[0].update(securitySchemes=security,
+                _meta={'securitySchemes': security, 'finch/requiredRbacPermissions': ['finch.replies.write']})
+            self.tools[1]['inputSchema']['properties'].pop('thread_id', None)
+            self.tools[1]['inputSchema']['properties']['channel_id'] = {'type': 'string', 'enum': list(self.channels)}
+            self.tools[1]['inputSchema']['required'] = ['channel_id']
+            self.event_definition = {**EVENT_DEFINITION, 'name': self.event,
+                'description': 'Literal Finch mention from Izaiah, Kael or Rook; one exact channel subscription, never cross-forwarded.',
+                'inputSchema': object_schema({'guild_id': {'type': 'string', 'const': self.guild},
+                                             'channel_id': {'type': 'string', 'enum': list(self.channels)}})}
         if config.metadata_only:
             self.auth = self.store = self.callback = self.sender = self.reader = None
             return
@@ -1256,12 +1367,22 @@ class Application:
         self.store = Store(state_dir)
         self.callback = callback
         self.sender, self.reader = sender, reader
-        if dot:
+        if config.research:
             if sender is send:
                 self.sender = lambda channel, wire: discord_request('POST', f'/channels/{channel}/messages',
                     {'content': wire, 'allowed_mentions': {'parse': []}}, research=dot)
             if reader is readback:
                 self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', research=dot)
+        if config.finch:
+            if sender is send:
+                def finch_send(channel, wire, file=None):
+                    payload = {'content': wire, 'allowed_mentions': {'parse': [], 'replied_user': False}, 'flags': 4}
+                    if file is not None:
+                        payload['attachments'] = [{'id': 0, 'filename': file['filename']}]
+                    return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot)
+                self.sender = finch_send
+            if reader is readback:
+                self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', finch=dot)
         self.policy = hashlib.sha256(canonical(config.policy_fields()).encode()).hexdigest()
         try:
             self.store.db.execute('CREATE TABLE IF NOT EXISTS identity_binding (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
@@ -1273,6 +1394,13 @@ class Application:
                 if dot and any(self.store.all(table) for table in ('requests', 'subscriptions', 'deliveries', 'operations')):
                     raise ValueError('state identity requires a separate empty private directory')
                 self.store.put('identity_binding', 'profile', expected_binding)
+            if config.finch:
+                self.store.db.execute('CREATE TABLE IF NOT EXISTS finch_cursors (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
+                self.store.db.commit()
+                for row in self.store.all('requests'):
+                    if row.get('policy') == self.policy and row.get('state') == 'sending':
+                        row.update(state='uncertain', result=self.uncertain_result())
+                        self.store.put('requests', row['id'], row)
         except Exception:
             self.store.close()
             raise
@@ -1287,7 +1415,8 @@ class Application:
             return 403, {}, {'error': 'origin_refused'}
         if method == 'GET' and path == '/.well-known/oauth-protected-resource/mcp':
             return 200, {}, {'resource': self.config.audience, 'authorization_servers': [self.config.issuer],
-                             'scopes_supported': (['research.requests.read', 'research.replies.write', 'research.channel.read', 'offline_access']
+                             'scopes_supported': (['finch.requests.read', 'finch.replies.write', 'finch.channel.read', 'offline_access']
+                                                  if self.config.finch else ['research.requests.read', 'research.replies.write', 'research.channel.read', 'offline_access']
                                                   if self.config.research else ['rook.requests.read', 'rook.replies.write', CHANNEL_READ, CHANNEL_WRITE, 'offline_access']),
                              'bearer_methods_supported': ['header']}
         request_id = body.get('id') if isinstance(body, dict) else None
@@ -1374,6 +1503,12 @@ class Application:
         if method == 'tools/call':
             if set(params) != {'name', 'arguments'}:
                 raise RpcError(-32602, 'InvalidParams')
+            if self.config.finch:
+                if params['name'] == 'reply_to_finch_request':
+                    return self.reply(principal, params['arguments'])
+                if params['name'] == 'read_finch_messages':
+                    return read_messages(params['arguments'], finch=self.config.finch)
+                raise RpcError(-32602, 'ToolNotAllowed')
             if self.config.research:
                 if params['name'] == 'reply_to_research_request':
                     return self.reply(principal, params['arguments'])
@@ -1662,13 +1797,16 @@ class Application:
             raise RpcError(-32001, 'Unauthorized')
         allowed = {'name', 'arguments', 'delivery', 'ttlMs', 'cursor'} if subscribe else {'name', 'arguments', 'delivery'}
         delivery = params.get('delivery')
-        if (set(params) - allowed or params.get('name') != self.event or params.get('arguments') != self.arguments
+        arguments = params.get('arguments')
+        exact_arguments = (isinstance(arguments, dict) and set(arguments) == {'guild_id', 'channel_id'}
+                           and arguments['guild_id'] == self.guild and arguments['channel_id'] in self.channels) if self.config.finch else arguments == self.arguments
+        if (set(params) - allowed or params.get('name') != self.event or not exact_arguments
                 or not isinstance(delivery, dict) or delivery.get('mode') != 'webhook'
                 or set(delivery) != ({'mode', 'url', 'secret'} if subscribe else {'mode', 'url'})):
             raise RpcError(-32602, 'InvalidParams')
         url = delivery.get('url')
         callback_url(url)
-        identity = 'sub_' + hashlib.sha256(canonical([self.policy, principal.subject, self.event, self.arguments, url]).encode()).hexdigest()[:32]
+        identity = 'sub_' + hashlib.sha256(canonical([self.policy, principal.subject, self.event, arguments, url]).encode()).hexdigest()[:32]
         with self.store.lock:
             self.expire_subscriptions()
             old = self.store.get('subscriptions', identity)
@@ -1693,6 +1831,8 @@ class Application:
             active = old and old['expires'] > time.time()
             sub = {'id': identity, 'subject': principal.subject, 'policy': self.policy, 'url': url,
                    'secret': secret, 'expires': expires}
+            if self.config.finch:
+                sub.update(guild_id=self.guild, channel_id=arguments['channel_id'])
             if not old and len(self.store.all('subscriptions')) >= 4:
                 raise RpcError(-32602, 'NarrowSubscriptionLimit')
             if not active or not hmac.compare_digest(old['secret'], secret):
@@ -1728,12 +1868,16 @@ class Application:
         GUILD, CHANNEL, ROOK_BOT, REPLY_KIND = self.guild, self.channel, self.bot, self.reply_kind
         if self.config.metadata_only or self.store is None or self.sender is None or self.reader is None:
             raise RpcError(-32001, 'Unauthorized')
-        if (not isinstance(arguments, dict) or set(arguments) != {'request_id', 'text'}
+        if (not isinstance(arguments, dict) or not {'request_id', 'text'} <= set(arguments)
+                or set(arguments) - ({'request_id', 'text', 'file'} if self.config.finch else {'request_id', 'text'})
                 or not isinstance(arguments['request_id'], str) or not isinstance(arguments['text'], str)
                 or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', arguments['request_id'])
                 or not arguments['text'].strip() or len(arguments['text']) > 1850):
             raise RpcError(-32602, 'InvalidParams')
         request_id, text = arguments['request_id'], arguments['text']
+        file = upload_file(arguments['file']) if self.config.finch and 'file' in arguments else None
+        file_binding = ({'filename': file['filename'], 'content_type': file['content_type'], 'byte_length': len(file['data']),
+                         'sha256': hashlib.sha256(file['data']).hexdigest()} if file else None)
         wire = f'{text}\n-# {REPLY_KIND} · {request_id}'
         if len(wire.encode('utf-16-le')) // 2 > 2000:
             raise RpcError(-32602, 'ReplyTooLarge')
@@ -1742,7 +1886,17 @@ class Application:
             row = self.store.get('requests', request_id)
             if not row or row['subject'] != principal.subject or row['policy'] != self.policy:
                 raise RpcError(-32602, 'UnknownOrUnownedRequest')
+            if self.config.finch:
+                CHANNEL = row.get('channel_id')
+                if (CHANNEL not in self.channels or row.get('guild_id') != GUILD
+                        or request_id != 'discord-' + str(row.get('message_id'))):
+                    raise RpcError(-32602, 'RequestOriginMismatch')
+                effect_digest = hashlib.sha256(canonical([GUILD, CHANNEL, digest, file_binding]).encode()).hexdigest()
             if row['state'] != 'ready':
+                if self.config.finch:
+                    if row.get('reply_effect_sha256') != effect_digest:
+                        raise RpcError(-32602, 'ReplyConflict')
+                    return row.get('result', self.uncertain_result())
                 # Old-format custody is immutable: return its cached outcome,
                 # never rewrite its digest or resend merely to change rendering.
                 legacy_wire = json.dumps({'kind': REPLY_KIND, 'correlation': request_id, 'text': text},
@@ -1752,14 +1906,18 @@ class Application:
                     raise RpcError(-32602, 'ReplyConflict')
                 return row.get('result', self.uncertain_result())
             if row['expires'] <= time.time() or not any(
-                    d['request_id'] == request_id for d in self.store.all('deliveries')):
+                    d['request_id'] == request_id and (not self.config.finch or (
+                        d.get('state') == 'acknowledged' and d.get('guild_id') == GUILD and d.get('channel_id') == CHANNEL))
+                    for d in self.store.all('deliveries')):
                 raise RpcError(-32602, 'RequestExpiredOrUndelivered')
             row.update(state='sending', reply_sha256=digest, auth_method='RS256-authenticated-tools/call',
                        auth_subject=principal.subject, auth_expires=principal.expires)
+            if self.config.finch:
+                row.update(reply_effect_sha256=effect_digest, attachment=None)
             # Durable before any Discord POST; crashes/unknown outcomes never auto-resend.
             self.store.put('requests', request_id, row)
             try:
-                posted = self.sender(CHANNEL, wire)
+                posted = self.sender(CHANNEL, wire, file) if self.config.finch else self.sender(CHANNEL, wire)
                 reply_id = posted.get('id') if isinstance(posted, dict) else None
                 if not isinstance(reply_id, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', reply_id):
                     raise ValueError()
@@ -1771,12 +1929,32 @@ class Application:
                             or value.get('content') != wire or value.get('author', {}).get('id') != ROOK_BOT
                             or value.get('webhook_id') is not None):
                         raise ValueError()
+                    if self.config.finch and value.get('guild_id', GUILD) != GUILD:
+                        raise ValueError('reply guild mismatch')
+                if self.config.finch:
+                    attachments = []
+                    for value in (posted, fetched):
+                        items = value.get('attachments')
+                        if not isinstance(items, list) or len(items) != (1 if file else 0):
+                            raise ValueError('attachment count mismatch')
+                        if file:
+                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL)
+                            custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest())
+                            if any(custody[key] != expected for key, expected in file_binding.items()):
+                                raise ValueError('attachment bytes or metadata mismatch')
+                            attachments.append(custody)
+                    if file:
+                        if attachments[0] != attachments[1]:
+                            raise ValueError('attachment readback mismatch')
+                        row['attachment'] = attachments[0]
                 row.update(state='confirmed', confirmed_at=time.time(), reply_author=ROOK_BOT,
                            guild_id=GUILD, channel_id=CHANNEL, reply_kind=REPLY_KIND)
                 result = {'isError': False, 'structuredContent': {'request_id': request_id, 'message_id': reply_id,
                           'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{reply_id}'},
                           'content': [{'type': 'text', 'text': canonical({'request_id': request_id, 'message_id': reply_id,
                           'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{reply_id}'})}]}
+                if self.config.finch:
+                    result['structuredContent']['attachment'] = row['attachment']
             except Exception:
                 row['state'] = 'uncertain'
                 result = self.uncertain_result()
@@ -1790,12 +1968,19 @@ class Application:
 
     def ingest(self, event, after_message):
         GUILD, CHANNEL, ROOK_BOT, EVENT = self.guild, self.channel, self.bot, self.event
-        allowed_senders = self.config.research.allowed_senders if self.config.research else {OPERATOR, BOT}
+        dot = self.config.finch or self.config.research
+        allowed_senders = dot.allowed_senders if dot else {OPERATOR, BOT}
         if self.config.metadata_only or self.store is None:
             return 0
         if not isinstance(event, dict) or event.get('t') != 'MESSAGE_CREATE' or not isinstance(event.get('d'), dict):
             return 0
         data = event['d']
+        if self.config.finch:
+            self.config.finch.validate_cursors(after_message)
+            CHANNEL = data.get('channel_id')
+            if CHANNEL not in self.channels:
+                return 0
+            after_message = after_message[CHANNEL]
         author = data.get('author')
         message = data.get('id')
         content = data.get('content')
@@ -1806,7 +1991,9 @@ class Application:
                 or not isinstance(content, str)
                 or len(content) > 2000):
             return 0
-        if not self.config.research and content.startswith('Rook:'):
+        if self.config.finch and re.search(r'(?:rook|research|finch)\.reply\s*·\s*discord-[1-9][0-9]{0,19}', content):
+            return 0  # Another dot's correlated output is never a new assignment.
+        if not dot and content.startswith('Rook:'):
             text = content[5:].strip()  # Preserve existing automation's extraction.
         else:
             mention_pattern = rf'<@!?{ROOK_BOT}>'
@@ -1814,8 +2001,9 @@ class Application:
             # A literal body token is mandatory: reply pings can add Rook to
             # mentions metadata without an explicit mention in the content.
             # Notification-only senders suppress Discord pings (mentions=[]).
-            # An explicit Rook body tag still requests work; implicit replies do not.
-            suppressed_rook_tag = not self.config.research and mentions == []
+            # Only Rook accepts that explicit body tag; Research/Finch retain
+            # their metadata-present mention gate. Implicit replies never trigger.
+            suppressed_rook_tag = not dot and mentions == []
             mentioned = (re.search(mention_pattern, content) is not None and
                 ('mentions' not in data or suppressed_rook_tag or (isinstance(mentions, list) and any(
                     isinstance(user, dict) and user.get('id') == ROOK_BOT for user in mentions))))
@@ -1824,11 +2012,16 @@ class Application:
             text = re.sub(mention_pattern, '', content).strip()
         if not text:
             return 0
-        if self.config.research and re.match(r'(?i)^(?:ack(?:nowledged)?|received|research\s+(?:handoff|reply))\b', text):
-            return 0  # Acknowledgments are never new Research assignments.
+        if dot and re.match(r'(?i)^(?:ack(?:nowledged)?|received|reply|handoff|(?:rook|research|finch)\s+(?:handoff|reply))\b' if self.config.finch
+                           else r'(?i)^(?:ack(?:nowledged)?|received|research\s+(?:handoff|reply))\b', text):
+            return 0  # Acknowledgments are never new dot assignments.
         request_id = 'discord-' + message
         with self.store.lock:
             self.expire_subscriptions()
+            if self.config.finch:
+                cursor = self.store.get('finch_cursors', CHANNEL)
+                if cursor and int(message) <= int(cursor['after_message']):
+                    return 0
             if self.store.get('requests', request_id) or any(r.get('reply_id') == message for r in self.store.all('requests')):
                 return 0
             if author.get('id') == BOT and any(
@@ -1838,7 +2031,8 @@ class Application:
                     for row in self.store.all('operations')):
                 return 0  # Separate communication never becomes a correlated request/reply.
             subscriptions = [s for s in self.store.all('subscriptions') if s['expires'] > time.time()
-                             and s['subject'] == self.config.subject and s['policy'] == self.policy]
+                             and s['subject'] == self.config.subject and s['policy'] == self.policy
+                             and (not self.config.finch or (s.get('guild_id') == GUILD and s.get('channel_id') == CHANNEL))]
             if not subscriptions:
                 return 0
             payload = {'request_id': request_id, 'guild_id': GUILD, 'channel_id': CHANNEL, 'message_id': message,
@@ -1846,24 +2040,30 @@ class Application:
                        'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{message}'}
             request = {'id': request_id, 'message_id': message, 'subject': self.config.subject, 'policy': self.policy,
                        'created': time.time(), 'expires': min(s['expires'] for s in subscriptions), 'state': 'ready'}
+            if self.config.finch:
+                request.update(guild_id=GUILD, channel_id=CHANNEL)
             # Durable reservation BEFORE delivery prevents echo/restart duplicates.
             self.store.put('requests', request_id, request)
+            if self.config.finch:
+                self.store.put('finch_cursors', CHANNEL, {'after_message': message})
             value = {'subscriptionId': subscriptions[0]['id'], 'eventId': request_id, 'name': EVENT,
                      'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'), 'data': payload, 'cursor': None}
             delivered = 0
             for sub in subscriptions:
                 value['subscriptionId'] = sub['id']
                 delivery_id = sub['id'] + ':' + request_id
-                self.store.put('deliveries', delivery_id, {'id': delivery_id, 'request_id': request_id,
-                                                         'subscription_id': sub['id'], 'state': 'attempted'})
+                receipt = {'id': delivery_id, 'request_id': request_id, 'subscription_id': sub['id'], 'state': 'attempted'}
+                if self.config.finch:
+                    receipt.update(guild_id=GUILD, channel_id=CHANNEL)
+                self.store.put('deliveries', delivery_id, receipt)
                 for attempt in range(3):
                     if sub['expires'] <= time.time():
                         break
                     try:
                         status, _ = signed_post(self.callback, sub, value, request_id)
                         if 200 <= status < 300:
-                            self.store.put('deliveries', delivery_id, {'id': delivery_id, 'request_id': request_id,
-                                                                    'subscription_id': sub['id'], 'state': 'acknowledged'})
+                            receipt['state'] = 'acknowledged'
+                            self.store.put('deliveries', delivery_id, receipt)
                             delivered += 1
                             break
                         if status == 410:
@@ -1942,7 +2142,9 @@ def make_handler(application, allowed_hosts):
 async def run_adapter(application, http_server, after_message, max_run_seconds, *, client_factory=create_client, token_loader=None):
     """One foreground adapter lifespan; no cron, restart, autonomous loop or replay."""
     queue = asyncio.Queue(maxsize=16)
-    dot = application.config.research
+    dot = application.config.finch or application.config.research
+    if application.config.finch and not application.config.metadata_only:
+        application.config.finch.validate_cursors(after_message)
     expected_observer = dot.bot if dot else BOT
     if token_loader is None:
         token_loader = (lambda: load_rook_token(dot.token_path)) if dot else load_token
@@ -1953,7 +2155,7 @@ async def run_adapter(application, http_server, after_message, max_run_seconds, 
             return
         data = event.get('d')
         if (not isinstance(data, dict) or data.get('guild_id') != application.guild
-                or data.get('channel_id') != application.channel):
+                or data.get('channel_id') not in application.channels):
             return
         if self_id != expected_observer:
             if not failed.done():
@@ -2029,6 +2231,8 @@ def main(argv=None):
     parser.add_argument('--state-dir')
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--after-message')
+    parser.add_argument('--finch-after-message')
+    parser.add_argument('--dots-shared-after-message')
     parser.add_argument('--max-run-seconds', type=int, required=True)
     parser.add_argument('--overnight-pilot', action='store_true', help='allow up to 57600s (16h) in full mode only; no auth or subscription extension')
     parser.add_argument('--allowed-host', action='append', default=[])
@@ -2036,6 +2240,15 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         research = research_from_args(args)
+        finch = finch_from_args(args)
+        if finch:
+            if args.after_message is not None:
+                raise ValueError('Finch takes exactly two separate channel cursors, not --after-message')
+            cursors = {finch.private_channel: args.finch_after_message, finch.shared_channel: args.dots_shared_after_message}
+            if not args.metadata_only:
+                finch.validate_cursors(cursors)
+        elif any(value is not None for value in (args.finch_after_message, args.dots_shared_after_message)):
+            raise ValueError('Finch cursors require --profile finch')
     except ValueError as exc:
         parser.error(str(exc))
     logging.disable(logging.CRITICAL)
@@ -2043,10 +2256,11 @@ def main(argv=None):
     if not 1024 <= args.port <= 65535 or not 1 <= args.max_run_seconds <= max_lifespan:
         parser.error(f'nonprivileged port and 1..{max_lifespan}s lifespan required')
     if args.metadata_only:
-        if any(value is not None for value in (args.operator_subject, args.state_dir, args.after_message)):
+        if any(value is not None for value in (args.operator_subject, args.state_dir, args.after_message,
+                                               args.finch_after_message, args.dots_shared_after_message)):
             parser.error('metadata-only mode takes no subject, state directory or Discord cursor')
-    elif (not args.operator_subject or not args.state_dir or not args.after_message
-          or not re.fullmatch(r'[1-9][0-9]{0,19}', args.after_message)):
+    elif (not args.operator_subject or not args.state_dir or (not finch and (not args.after_message
+          or not re.fullmatch(r'[1-9][0-9]{0,19}', args.after_message)))):
         parser.error('full mode requires exact operator subject, private state directory and fresh Discord cursor')
     if args.local_tunnel_metadata:
         local = f'http://127.0.0.1:{args.port}/.well-known/oauth-protected-resource/mcp'
@@ -2060,12 +2274,12 @@ def main(argv=None):
         os.umask(0o077)
         application = Application(Config(args.issuer, args.audience, args.operator_subject,
                                          args.protected_resource_metadata_url, args.metadata_only,
-                                         args.local_tunnel_metadata, research), args.state_dir)
+                                         args.local_tunnel_metadata, research, finch), args.state_dir)
         hosts = {'127.0.0.1:' + str(args.port), 'localhost:' + str(args.port), *args.allowed_host}
         server = HTTPServer(('127.0.0.1', args.port), make_handler(application, hosts))
         print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION,
                          'mode': 'metadata-only' if args.metadata_only else 'full'}), flush=True)
-        return asyncio.run(run_adapter(application, server, args.after_message, args.max_run_seconds))
+        return asyncio.run(run_adapter(application, server, cursors if finch else args.after_message, args.max_run_seconds))
     except Exception:
         print(canonical({'status': 'error', 'reason': 'adapter_failed_details_suppressed'}), flush=True)
         return 2

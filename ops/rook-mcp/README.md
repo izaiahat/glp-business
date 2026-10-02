@@ -65,6 +65,69 @@ Offline acceptance: `tests/test_rook_communication.py::TestResearchCommunication
 CI already runs this file, plus the Rook/receiver regressions. Synthetic credentials/transport only;
 passing tests do not prove live login, provisioning, OAuth compatibility or the round trip.
 
+## Finch dual-channel correlated artifact profile (source only)
+
+`--profile finch` is a separate explicit profile, not a Research rename or a Rook clone.
+It requires `--finch-channel`, `--dots-shared-channel`, `--finch-bot`,
+`--finch-token-path` and the same three `--allowed-request-sender` IDs listed above.
+Both channels must be distinct canonical numeric IDs; labels/names grant no access.
+The bot is distinct, uses its own token for gateway observation and REST, and is not an admitted sender.
+Rook and Research defaults, policy hashes and immutable historical receipts are unchanged.
+This two-tool MCP **transport** inventory does not constrain Finch as a full execution
+peer using native browser/web/delegation/files or existing GitHub/Linear connections.
+Rook reports those native read connections are already available; their grants/write
+capability are unverified here. Do not duplicate account setup or infer read-only
+worker policy from this PR. GitHub/Linear tools, admin capabilities and any later
+Linear cutover/update ownership are outside this transport change.
+
+Full mode requires `--finch-after-message` and `--dots-shared-after-message`, one fresh
+cursor for each exact binding (not `--after-message`). State pins both labeled bindings,
+bot/observer, token reference, sender set, two tools/artifact capability and OAuth policy;
+changing any binding requires separate empty private state. Each subscription selects
+one guild/channel pair; IDs and saved rows include it. Requests reserve their original
+guild/channel/message before callbacks. Durable per-channel cursors and request dedup
+prevent restart replay. There is **no automatic private/shared forwarding**, crosspost or
+thread route; each reply stays in its request origin. Both channel audiences/permissions
+must be checked separately before any later live launch.
+
+Only `reply_to_finch_request` and `read_finch_messages` are exposed and dispatched.
+Reads require explicit allowlisted `channel_id`, retain 25-message/65KB bounds and never
+create assignments. Finch ingress requires a literal mention from Izaiah/Kael/Rook.
+When Discord's `mentions` field is present, it must contain Finch's bot ID; absent
+metadata permits exact content-token fallback, but `mentions=[]` is refused in both
+Finch channels. Rook's suppressed-notification explicit-tag exception is Rook-only,
+not a Finch or Research policy expansion. Self, webhooks, acknowledgments, handoffs,
+reply markers and metadata-only reply pings are refused. OAuth requires Finch scope **and RBAC**: `finch.requests.read`,
+`finch.replies.write`, or `finch.channel.read` as applicable. Rook/Research grants alone
+cannot authorize Finch tools. No arbitrary send, file-read tool, generic Discord API,
+GitHub comments or GitHub/Linear read tools are added.
+
+Correlated reply arguments are `request_id`, bounded `text` and optionally **one**
+`file` with `filename`, `content_type`, `content_base64`; no destination or operation ID.
+Existing upload filters, MIME/extension pairs, 1MiB decoded limit, 1.5MB file-envelope
+limit, multipart encoding and pinned no-redirect verified CDN bytes are reused.
+Ordinary HTTP JSON retains 32KiB. Use a genuine safe `.txt` report; HTML, `.md`, DOCX,
+ZIP and executable/sensitive bytes remain denied. Marker filters are not a complete
+malware/PHI safety guarantee. Mentions and embeds are suppressed on Finch replies.
+
+The pre-effect digest binds origin, exact text/footer and normalized file metadata/bytes.
+POST and GET author/context/content plus attachment ID/name/type/size/URL and downloaded
+byte digest must agree before confirmation. Private receipts retain only hashes and
+metadata, not bytes/base64/attachment URLs. Changed text/files conflict; uncertain or
+interrupted effects never resend after restart. Receive-one uses the same Finch identity
+flags plus `--channel <exact-origin>`, `--reply-kind finch.reply`, fixed author and complete
+MCP custody inputs. It requires confirmed exact-origin content/file custody; it does not
+download files or treat attachment metadata alone as proof of bytes.
+
+Offline acceptance lives in `TestFinchCommunication` alongside unchanged Rook/Research
+regressions, using synthetic JWTs, signed subscriptions, real HTTP/REST/multipart/CDN
+code with only transport peers mocked. The existing exact-head workflow runs these
+acceptance tests; no runtime workflow is enabled or broadened.
+Passing tests do not prove live Discord permissions/intent, real IDs/token identity,
+connector/OAuth compatibility or either live artifact round trip. The Rook-only host
+launcher is unchanged and must not be repointed. No merge, provisioning, live send,
+Auth0/tunnel/service/credential/board change or deployment is authorized by this source PR.
+
 ## GitHub identity (operator setup; not performed by this source change)
 
 `github_pr_comment` posts advisory PR **issue-comments**, not reviews or approvals, through a host-held GitHub App identity. It requires the existing JWT scope **and** RBAC permission `rook.channel.write`; no new OAuth scope. Arguments are `repo` (exactly `izaiahat/glp-business` or `izaiahat/glp-site-candidate`), positive integer `pr_number`, `body` (1–20,000 characters), required 40-hex `inspected_head_sha`, and the existing safe 16–64 character `operation_id`.
