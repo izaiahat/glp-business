@@ -3,6 +3,11 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'scripts/glp345_a4_adoption.py'
+      - 'scripts/maintenance_inventory.py'
+      - 'tests/test_glp341_weekly_adoption.py'
+      - 'ops/glp345-a4/**'
+      - 'ops/registered-producers.json'
       - 'ops/hermes-cron-scripts/glp_weekly_ads_analytics.py'
       - 'reports/ops/orchestration-restore-20260907/PLAN/A4/**'
       - 'tests/test_glp341_weekly_ads_compatibility.py'
@@ -26,3 +31,8 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m unittest discover -s tests -p test_glp341_weekly_ads_compatibility.py -v
+      - name: Scoped adopter regressions (no providers or live state)
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp341_weekly_adoption.py tests/test_glp345_a4_adoption.py

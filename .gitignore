@@ -483,3 +483,5 @@
 !/ops/glp345-a4/SOURCE-PINS.predecessor.json
 !/ops/glp345-a4/wrapper.predecessor.py
 !/ops/glp345-a4/README.md
+!/ops/glp345-a4/weekly.predecessor.py
+!/tests/test_glp341_weekly_adoption.py
