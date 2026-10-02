@@ -326,6 +326,28 @@ def test_f09_reviewed_active_native_inventory_matches_exact_source(job_id, filen
     assert row['payloads'] == []
 
 
+def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
+    import subprocess
+    path = 'ops/scheduled-source-drift-manifest.json'
+    expected = json.loads(subprocess.check_output([
+        'git', '-C', str(ROOT), 'show',
+        '898b45e903dffcce4046aa5548fc3e6f23b60b78:' + path]))
+    allowed = {
+        '3c79a0b5f7b2': '7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc',
+        '58202b06bdc0': 'ee80c755fc6ce7c058472867f4c7e030adc0f828c63d7d94d030946ca0f82cc3',
+        'dc3649d3c84c': 'f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7',
+    }
+    seen = []
+    for row in expected['jobs']:
+        if row['id'] in allowed:
+            row['reviewed_sha256'] = allowed[row['id']]
+            seen.append(row['id'])
+    assert sorted(seen) == sorted(allowed)
+    # Retains full-document equality: held rows, payloads and shared pair pins
+    # cannot drift just because the original migration is now a frozen fixture.
+    assert json.loads((ROOT/path).read_text()) == expected
+
+
 def test_report_is_hash_only_and_not_job_payload_text(tmp_path):
     root, hermes, installed, *_ = fixture(tmp_path)
     installed.write_bytes(b'password="do-not-print-this-value"\n')
