@@ -18,9 +18,9 @@ def test_reporting_source_pin_pair_is_coherent():
     host_only = {
         'scripts/glp_network_revenue_import_v2.py': '0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c',
     }
-    assert len(manifest['files']) == 21
+    assert len(manifest['files']) == 22
     assert {str(LIVE / ('scripts/affiliate_reporting_'+name+'.py')) for name in (
-        'partnerstack','admitad','clickbank','refersion','healthtrader')} <= manifest['files'].keys()
+        'partnerstack','admitad','clickbank','refersion','healthtrader','sovrn')} <= manifest['files'].keys()
     assert str(LIVE/'scripts/affiliate_network_access.py') in manifest['files']
     for absolute, expected in manifest['files'].items():
         rel = Path(absolute).relative_to(LIVE)

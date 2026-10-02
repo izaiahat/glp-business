@@ -5,6 +5,11 @@ budget, deadline and private page receipts as the six existing API readers.
 The CLI requires all new collector modules in the reporting source pins.
 The scheduler wrapper carries the corresponding successor manifest digest.
 
+The separate [Sovrn weekly candidate](SOVRN.md) adds daily commission-day
+observations and explicit no-read month/lookback results. Its seven-call budget
+cannot fit the unchanged 240-second scheduler; scheduled Sovrn remains UNKNOWN
+before I/O. It is excluded from this document's one-request smoke cohort.
+
 The runner supplies the last closed UTC week, last closed month and 90-day
 lookback as half-open intervals. Each reader preserves its source time axis:
 

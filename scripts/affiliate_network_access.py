@@ -13,9 +13,10 @@ Support = Literal['SUPPORTED', 'PORTAL_ONLY', 'UNSUPPORTED', 'UNKNOWN']
 Coverage = Literal['COMPLETE', 'PARTIAL', 'UNKNOWN']
 
 # The scheduler roster selects accounts; this tuple identifies reviewed readers.
+# Sovrn requires seven spaced calls and is outside this one-call smoke cohort.
 ADDITIONAL_REPORTING_NETWORKS = ('partnerstack', 'admitad', 'clickbank', 'refersion', 'healthtrader')
 REPORTING_TIMEZONES = {'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
-                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN'}
+                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN', 'sovrn':'UNKNOWN'}
 
 
 @dataclass(frozen=True)
@@ -123,7 +124,7 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
     import time
     from datetime import timedelta
     a, b = _window(start, end)
-    if network in ADDITIONAL_REPORTING_NETWORKS:
+    if network in ADDITIONAL_REPORTING_NETWORKS or network == 'sovrn':
         from importlib import import_module
         return import_module('affiliate_reporting_' + network).collect(
             transport, start=start, end=end, deadline=deadline, max_requests=max_requests)
@@ -342,6 +343,9 @@ def weekly_collectors(names, transport):
                 if network == 'shareasale':
                     result = AccessResult(network,'conversions_earnings',source='canonical:awin',
                         reason='LEGACY_IDENTITY_RETAINED_NO_DUPLICATE_AWIN_READ_OR_APPLICATION')
+                elif network == 'sovrn' and label != 'closed_week':
+                    result = AccessResult(network,'conversions_earnings','SUPPORTED',
+                        'https://viglink.io/v1/reports/transactions', reason='WEEKLY_ONLY_RATE_LIMITED')
                 else:
                     result = conversions_earnings(network,transport,start=start,end=end,deadline=deadline,
                         max_requests=remaining,
@@ -352,11 +356,11 @@ def weekly_collectors(names, transport):
                     start_inclusive=start,end_exclusive=end,payload_complete=result.coverage == 'COMPLETE',
                     account_scope_complete=False,financial_classification='UNKNOWN',
                     profile_binding_source='retained S2 Katalys account read 2026-09-08' if network == 'katalys' else None)
-                if network in ADDITIONAL_REPORTING_NETWORKS:
+                if network in REPORTING_TIMEZONES:
                     page['reporting_timezone'] = REPORTING_TIMEZONES[network]
                 sink(page)
                 observations.append(page)
-                if any(r['http_status'] in (401,403,429) for r in result.receipts):
+                if network != 'sovrn' and any(r['http_status'] in (401,403,429) for r in result.receipts):
                     break
             return observations
         return collect
@@ -404,6 +408,7 @@ class ReadTransport:
             'api.partnerstack.com': r'/api/v2/(rewards|transactions|payouts)',
             'api.admitad.com': r'/statistics/actions/',
             'api.clickbank.com': r'/rest/1\.3/quickstats/list',
+            'viglink.io': r'/v1/reports/transactions',
         }
         post = {'https://commissions.api.cj.com/query', 'https://api.katalys.com/v1/report/conversions',
                 'https://graphql.refersion.com'}
