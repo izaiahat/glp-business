@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 640,
+  "tracked_count": 642,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c86d202e81137f41e66958cee8361d8f022f97a2e851e1900de67aab7d6a92b3"
+      "sha256": "afb5141315b8c418fa36b7e6e09f19c629e1f212b37e3603dd146a29f62b479a"
     },
     ".hermes.md": {
       "callers": [],
@@ -884,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "b2df922f57363ddd2a6e15a1c927d59539cd7155a2b01db15eb61d143a6ae19d"
+      "sha256": "b763e3f3c89dd4b751f3477c42062fba071f388fe476b41b64747712dc4d6a94"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2215,7 +2215,7 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "798e7064e7f39a8281af285c74e6383227832bd5c74238121c60f3420c7e1fd3"
+      "sha256": "2bb423519ae22ad226e54dae3eb679b31395f7458f9905a604fb9063fcfb6ff6"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
@@ -3370,7 +3370,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "5d1979876d0e72666bdd8e3a88f6fad6ea197a7ce91104b9628bd11f7abad4a8"
+      "sha256": "868cf39b452baed7b68d3203d97b7adca70990c7c4bdfe5b5b880fdabb190379"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -3791,33 +3791,33 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "script",
-      "sha256": "ae64133e8a9ddcb3a6efff7274454aa9ec75a4b01744474caaf2cd0572077dc9"
+      "sha256": "b130c0071156fbe54397ea6aee9d7edbcf8020799a4e913b9b6e65a5abab5022"
     },
     "ops/glp/evidence-refresh-k3/review_evidence.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "script",
-      "sha256": "b09e35b546459235da30cb9a7a2922e34e4ef0d39d1c1927d48fa6eac79238a6"
+      "sha256": "5ae7911e00b33c96650e0cba182fa0e3eda474c0f95973cd5fc85310fef40d06"
     },
     "ops/glp/evidence-refresh-k3/SOURCE-PINS.json": {
       "callers": [
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "12e726467dc6ace0816d8b26347cece8f8e1bbbec0e2a2a9d08dfa4c879f19b8"
+      "sha256": "9f4ca471589c2a320ea1c2e93ab80ab84750d6483574820db8ba3e23906f5f37"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "6913b4eeae3a3d4c74bbd2e2c55c13536a3da44670a495b10e316fb2a7edfac0"
+      "sha256": "dd82f3885007de1d9f1fb01e4ddda49ca0253e23c3229ef6245bb1acca7f29e1"
     },
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "cd4808e04b10aa327b478b07f843dabf9b3006bef1b82520062b35e7474cc5cb"
+      "sha256": "3fdff4a2ebb53f4f86ecee1976bcb182f4d1e7876be223ab3a0eaad76759b515"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
@@ -3843,7 +3843,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "repository_control",
-      "sha256": "0656677017b9ee058fe2b8159b67dcea6e29122aa090fa549992ca3b6140243f"
+      "sha256": "b674edb4bbd9a8d21d5e0eb31868804c7d7a8afa579af245439e6127310cec72"
     },
     "tests/test_glp73_retention_adoption.py": {
       "kind": "test",
@@ -4297,6 +4297,20 @@
         "registered topic_supply_mint producer"
       ],
       "sha256": "6e99a1c76196fba4477d306b2938b8696c0f212388b458cdcfa5c28eb694872a"
+    },
+    "ops/glp/evidence-refresh-k3/compose_current_base.py": {
+      "kind": "source_control",
+      "callers": [
+        "GLP80 daily evidence review"
+      ],
+      "sha256": "2e744ebad931afd09809854752fc31d9f3ca975a823b9819bfe3220b0cfd2a20"
+    },
+    "tests/test_glp80_daily_progress.py": {
+      "kind": "test",
+      "callers": [
+        "GLP80 daily evidence review"
+      ],
+      "sha256": "92d145603d8fce44bb917f1d88e297182612e8bb34ee780ddf057491d9ab8ae1"
     }
   }
 }

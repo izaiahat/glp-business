@@ -13,10 +13,11 @@ import sys
 BASE = Path('/home/ubuntu/business/ops/glp/evidence-refresh-k3')
 PYTHON = '/home/ubuntu/.hermes/hermes-agent/venv/bin/python'
 PINS = {
-    'daily_evidence_refresh.py': 'ae64133e8a9ddcb3a6efff7274454aa9ec75a4b01744474caaf2cd0572077dc9',
-    'review_evidence.py': 'b09e35b546459235da30cb9a7a2922e34e4ef0d39d1c1927d48fa6eac79238a6',
-    'SOURCE-PINS.json': '12e726467dc6ace0816d8b26347cece8f8e1bbbec0e2a2a9d08dfa4c879f19b8',
-    'ASTRA-LOW-PROMPT.md': '6913b4eeae3a3d4c74bbd2e2c55c13536a3da44670a495b10e316fb2a7edfac0',
+    'daily_evidence_refresh.py': 'b130c0071156fbe54397ea6aee9d7edbcf8020799a4e913b9b6e65a5abab5022',
+    'review_evidence.py': '5ae7911e00b33c96650e0cba182fa0e3eda474c0f95973cd5fc85310fef40d06',
+    'SOURCE-PINS.json': '9f4ca471589c2a320ea1c2e93ab80ab84750d6483574820db8ba3e23906f5f37',
+    'ASTRA-LOW-PROMPT.md': 'dd82f3885007de1d9f1fb01e4ddda49ca0253e23c3229ef6245bb1acca7f29e1',
+    'compose_current_base.py': '2e744ebad931afd09809854752fc31d9f3ca975a823b9819bfe3220b0cfd2a20',
 }
 
 
@@ -29,7 +30,7 @@ def main():
         print(json.dumps({'status': 'BLOCKED', 'reason': str(exc)}))
         return 2
     os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
-    os.execv(PYTHON, [PYTHON, '-B', str(BASE / 'daily_evidence_refresh.py'), *sys.argv[1:]])
+    os.execv(PYTHON, [PYTHON, '-B', str(BASE / 'daily_evidence_refresh.py'), '--continue-day', *sys.argv[1:]])
 
 
 if __name__ == '__main__':
