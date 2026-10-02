@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 592,
+  "tracked_count": 594,
   "files": {
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -431,7 +431,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dd3ed0f07163a6be3ee13153089ecd534e2370111732b76d01e713449ff201f1"
+      "sha256": "98edc4ee02d47941f71beccf4922c1a5daef508c64b7a0ef1f408eff30d28120"
     },
     ".hermes.md": {
       "callers": [],
@@ -598,14 +598,14 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513"
+      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530"
+      "sha256": "be4047627a84dd80efbff33b271a945c4a8e04da133bcfe8dc36bb69c200802f"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -781,7 +781,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "8a14b56aa15f7003adbe2db20b480f766f8109621a74417af0e9a264154e55b9"
+      "sha256": "efe1cc68c12206a2df832148e468c5418edafec473b45d2e60df18aa180aa25d"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1604,7 +1604,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "07c8279f180c54bae281a7e1007000b7773a9a149a84af21d7a0bb6488d723f6"
+      "sha256": "4a5249511527127478dfb4a09eb0d804abeb7bb313721e20cd4704904bdf0ff1"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -1644,7 +1644,7 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1"
+      "sha256": "d3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -2097,7 +2097,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f572d54f9b8346d0ef938fb7009b25faed9119205d5c81d7ef61e50c35e86eda"
+      "sha256": "82d34eedfaf712d318e57eda4854ac944ec8827beb91371ca8b9698b69c8c494"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3344,7 +3344,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "52b539fe61e02507dbcec7f7d493c814157fc48da8352cb48d0324968c2668e9"
+      "sha256": "4b37c5ca9d7a6b657d41734ba43399b74650ed971cc63c191dfd1de073857111"
     },
     "scripts/maintenance_window.py": {
       "callers": [
@@ -3568,7 +3568,22 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "495184a4c5cf7581332e4b5ba2f0f54916f8700da4a9b5321e251850870e9051"
+      "sha256": "1217935b0ac2aeac5b1319d4badaa22ecbf9e3ad00f7d05701c120848540d317"
+    },
+    "tests/test_glp333_glp44_current_generation.py": {
+      "kind": "repository_control",
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml",
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "75a45dcd0a0078d82579d4249a57aa6426b1b9242984a8f35ebcb0883d886a59"
+    },
+    "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
+      "kind": "documentation",
+      "callers": [
+        "manual scoped adoption"
+      ],
+      "sha256": "2b23ace442c655d03f2cbf04399e771319c39f5d02000b0b0ce3bd266d0c99f8"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [

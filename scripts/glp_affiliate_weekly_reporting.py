@@ -252,9 +252,6 @@ def main(argv=None):
         if args.live_cj_readonly:
             raise ValueError('choose_one_live_mode')
         required += [here/'affiliate_network_access.py', here/'impact_api_credentials.py']
-        required += [here/('affiliate_reporting_'+name+'.py') for name in (
-            'partnerstack','admitad','clickbank','refersion','healthtrader')]
-        required += [here/'affiliate_reporting_everflow.py']
         required += [here/'marketplace_adapters'/f for f in (
             '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
     pin_hash=verify_pins(args.source_manifest,required)
