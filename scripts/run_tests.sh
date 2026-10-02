@@ -9,6 +9,7 @@ export SEAT_AUTODISPATCH_TEST_SOURCE="${PWD}/scripts/seat_autodispatch.py"
 suites=(tests/test_awin_paused_registration_release.py tests/test_glp_seo_skill_loader.py tests/test_linear_ordinary_completion.py tests/test_gpt6pro_relay_binding.py tests/test_awin_pin_shell_conventions.py tests/test_awin_application_fit_exclusions.py tests/test_capacity_pacing.py tests/test_glp_program_liveness_check.py tests/test_seat_autodispatch.py tests/test_sync_from_repo.py tests/test_glp316_automated_notices.py tests/test_decisions_router_card.py tests/test_fable_bridge_quota_resume.py tests/test_fable_bridge_oversize.py tests/test_glp319_incomplete_period.py)
 suites+=(tests/test_glp42_package_only.py tests/test_glp43_current_release.py)
 suites+=(tests/test_glp_ship.py tests/test_glp_ship_provenance.py tests/test_glp_ship_retention.py tests/test_glp_ship_runtime.py tests/test_glp_ship_discovery.py tests/test_glp_ship_discovery_install.py tests/test_glp_ship_collector.py)
+suites+=(tests/test_glp_ship_publication.py tests/test_source_lock_owner.py)
 suites+=(tests/test_therapeutic_taxonomy_refresh.py)
 suites+=(tests/test_glp44_weekly_gsc_aggregate.py tests/test_glp44_gsc_only_consumer.py)
 suites+=(tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py)

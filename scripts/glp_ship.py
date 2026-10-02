@@ -79,14 +79,15 @@ def committed_checkout(checkout, source):
         yield candidate, proof
 
 
-def preview(checkout, root, hermes, generation, window=None):
+def preview(checkout, root, hermes, generation, window=None, *, _source_owner=None):
     if generation.kind == 'reporting':
         import glp44_scoped_adoption as adopter
-        return adopter.plan(checkout, root, hermes, window=window, generation=generation)[0]
+        return adopter.plan(checkout, root, hermes, window=window, generation=generation,
+                            _source_owner=_source_owner)[0]
     if generation.kind == 'retention':
         import glp73_paired_adoption as adopter
         plan = adopter.plan(checkout, root, hermes, generation=generation, window=window,
-                            allow_scheduled_preview=window is None)
+                            allow_scheduled_preview=window is None, _source_owner=_source_owner)
         return adopter.retention_proposal(checkout, root, hermes, plan, generation=generation)
     from discovery_predecessor_migration import preview_generation
     return preview_generation(checkout, root, generation)
@@ -141,9 +142,9 @@ def prepare(checkout, root, hermes, spec, source, proof, prepared_by):
     return generation
 
 
-def zero_diff(checkout, root, hermes, generation, spec):
+def zero_diff(checkout, root, hermes, generation, spec, *, _source_owner=None):
     # sync's success alone means conflict-free, not zero differences.
-    if syncer.sync(root, checkout, False, only=generation.paths) != 0:
+    if syncer.sync(root, checkout, False, only=generation.paths, _source_owner=_source_owner) != 0:
         raise RuntimeError('ship_zero_diff_refused')
     state = json.loads(read_regular(root / syncer.STATE)[0])['hashes']
     for rel, expected in generation.hashes.items():
@@ -176,28 +177,35 @@ def apply_generation(checkout, root, hermes, spec, generation, review, output):
 def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler):
     from maintenance_window import MaintenanceWindow, default_locks, require_active_window
     from glp_ship_runtime import run_registered
-    if spec.window:
-        window = MaintenanceWindow(backend, journal, default_locks(root, hermes))
-        window.enter()
-        try:
-            with require_active_window(journal, root, hermes) as active:
-                preview(checkout, root, hermes, generation, active)
-            if spec.kind == 'reporting':
-                import glp44_scoped_adoption as adopter
-            else:
-                import glp73_paired_adoption as adopter
-            result = adopter.adopt(checkout, root, hermes, review, scheduler=scheduler,
-                                   window=journal, generation=generation)
-            zero_diff(checkout, root, hermes, generation, spec)
-        finally:
-            # The existing exit refuses uncertain commits; never override it.
-            window.exit()
-        if window.status()['state'] != 'closed':
-            raise RuntimeError('ship_window_not_restored')
-    else:
-        from glp_ship_discovery import apply
-        result = apply(checkout, root, hermes, generation, review, output, scheduler)
-        zero_diff(checkout, root, hermes, generation, spec)
+    # One maintained root-inode writer lock spans installation, custody, native
+    # commit, exact readback and restoration. Explicit live leases let nested
+    # previews join it without releasing or reacquiring the non-reentrant flock.
+    with syncer.source_lock(root) as owner:
+        if spec.window:
+            window = MaintenanceWindow(backend, journal, default_locks(root, hermes))
+            window.enter()
+            try:
+                with require_active_window(journal, root, hermes) as active:
+                    preview(checkout, root, hermes, generation, active, _source_owner=owner)
+                if spec.kind == 'reporting':
+                    import glp44_scoped_adoption as adopter
+                else:
+                    import glp73_paired_adoption as adopter
+                result = adopter.adopt(checkout, root, hermes, review, scheduler=scheduler,
+                                       window=journal, generation=generation, _source_owner=owner)
+                zero_diff(checkout, root, hermes, generation, spec, _source_owner=owner)
+            finally:
+                # The existing exit refuses uncertain commits; never override it.
+                window.exit()
+            if window.status()['state'] != 'closed':
+                raise RuntimeError('ship_window_not_restored')
+        else:
+            from glp_ship_discovery import apply
+            result = apply(checkout, root, hermes, generation, review, output, scheduler,
+                           _source_owner=owner)
+            zero_diff(checkout, root, hermes, generation, spec, _source_owner=owner)
+    # Release the source lock before registered runtime admission, which takes
+    # its own source fence; native fire fences remain held throughout the run.
     # Consumer locks belong to the maintenance window until exact restoration.
     # Native registered wrappers can acquire them only after that exit.
     if spec.name == 'GLP44':

@@ -29,7 +29,13 @@ def _sha(body):
     return hashlib.sha256(body).hexdigest()
 
 
-def apply(checkout, root, hermes, generation, review, output, scheduler):
+def apply(checkout, root, hermes, generation, review, output, scheduler, *, _source_owner=None):
+    with syncer.source_session(root, _source_owner) as owner:
+        return _apply_locked(checkout, root, hermes, generation, review, output, scheduler,
+                             _source_owner=owner)
+
+
+def _apply_locked(checkout, root, hermes, generation, review, output, scheduler, *, _source_owner):
     checkout, root, hermes, output = map(lambda p: Path(p).resolve(), (checkout, root, hermes, output))
     if generation.kind != 'discovery' or set(generation.paths) != migration.COHORT:
         raise RuntimeError('discovery_fixed_complete_cohort_required')
@@ -98,7 +104,7 @@ def apply(checkout, root, hermes, generation, review, output, scheduler):
                             and (root / path).exists())
             kwargs = dict(only=generation.paths, discovery_review=review_path,
                           discovery_authority=authority_path, ship_generation=generation,
-                          adopt_reviewed_baseline=adopted)
+                          adopt_reviewed_baseline=adopted, _source_owner=_source_owner)
             if syncer.sync(root, checkout, False, **kwargs) != 0:
                 raise RuntimeError('discovery_source_preview_refused')
             atomic_json(journal, {'schema': SCHEMA, 'state': 'source_install_intent',

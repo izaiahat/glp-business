@@ -61,6 +61,22 @@ generation retains its original pins and review requirements. Postapply checks
 require exact source bytes, baselines, and registered wrapper hashes; a
 conflict-free dry run alone is insufficient.
 
+Derived reporting publications address custody by the complete exact ship
+proposal, adopter publication plan and optional review, not by a null Tier B
+review. Sequential legitimate source generations retain separate preimage
+receipts; historical review-addressed receipt paths and collision refusals stay
+unchanged.
+
+The installer continuously holds the maintained workspace directory-inode source
+writer lock through preview, custody, source/state switching, native save, exact
+readback and window restoration. Nested preflights join only with an opaque live
+same-process/thread/root lease; ordinary importers still refuse a busy root. The
+lease expires when its descriptor closes and is not a force/bypass option.
+Previously loaded importers and uncooperative writers still need the existing
+owner exclusion; this cooperative lock does not authenticate reviewer identity
+or replace F01's separate owner attestation. The source lock is released before
+registered runtime admission; native fire fences span restoration and the run.
+
 The maintenance window holds the same consumer locks needed by the registered
 jobs. This command therefore restores/closes it before the registered smoke run,
 within the same invocation. It never runs through a held fence. Failed or

@@ -136,12 +136,12 @@ def replace_lines(body, updates):
 
 
 def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical', window=None,
-         allow_scheduled_preview=False):
+         allow_scheduled_preview=False, _source_owner=None):
     if _git_generation(generation):
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
         return _git_retention_plan(checkout, root, hermes, generation,
-                                   allow_scheduled_preview=allow_scheduled_preview)
+                                   allow_scheduled_preview=allow_scheduled_preview, _source_owner=_source_owner)
     if generation in RETENTION_GENERATIONS:
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
@@ -222,7 +222,7 @@ def _git_generation(generation):
     return isinstance(generation, GitGeneration)
 
 
-def _git_retention_plan(checkout, root, hermes, generation, *, allow_scheduled_preview=False):
+def _git_retention_plan(checkout, root, hermes, generation, *, allow_scheduled_preview=False, _source_owner=None):
     """Authenticate a Git successor without relaxing the historical contracts."""
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     if generation.kind != 'retention' or tuple(generation.paths) != RETENTION_PATHS:
@@ -260,7 +260,7 @@ def _git_retention_plan(checkout, root, hermes, generation, *, allow_scheduled_p
     from contextlib import redirect_stdout
     from io import StringIO
     with redirect_stdout(StringIO()):
-        if syncer.sync(root, checkout, False, (), RETENTION_PATHS) != 0:
+        if syncer.sync(root, checkout, False, (), RETENTION_PATHS, _source_owner=_source_owner) != 0:
             raise RuntimeError('scoped_source_preflight_refused')
     stages = {}
     for jid, name, _, _, mode in RETENTION_JOBS:
@@ -486,7 +486,7 @@ def _retain_retention_seals(journal, root, hermes):
         atomic_json(journal, data)
 
 
-def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, generation=RETENTION_GENERATION):
+def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, generation=RETENTION_GENERATION, _source_owner=None):
     from contextlib import ExitStack
     git = _git_generation(generation)
     if git:
@@ -494,7 +494,7 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, gener
     else:
         source, _, _, retention_jobs = RETENTION_GENERATIONS[generation]
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
-    planned = plan(checkout, root, hermes, generation=generation)
+    planned = plan(checkout, root, hermes, generation=generation, _source_owner=_source_owner)
     proposal = retention_proposal(checkout, root, hermes, planned, generation=generation)
     if git:
         generation.authorize(review, root, hermes, window)
@@ -521,7 +521,7 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, gener
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fresh = plan(checkout, root, hermes, generation=generation)
+            fresh = plan(checkout, root, hermes, generation=generation, _source_owner=_source_owner)
             if git:
                 generation.authorize(review, root, hermes, window)
             if retention_proposal(checkout, root, hermes, fresh, generation=generation) != proposal:
@@ -574,7 +574,19 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, gener
     return {'applied': True, 'source': source, 'proposal': proposal, 'custody': str(custody)}
 
 
-def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebaseline=None, generation='historical'):
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebaseline=None,
+          generation='historical', _source_owner=None):
+    if _git_generation(generation):
+        with syncer.source_session(root, _source_owner) as owner:
+            return _adopt_with_owner(checkout, root, hermes, review, scheduler=scheduler,
+                                     window=window, state_rebaseline=state_rebaseline,
+                                     generation=generation, _source_owner=owner)
+    return _adopt_with_owner(checkout, root, hermes, review, scheduler=scheduler,
+                             window=window, state_rebaseline=state_rebaseline, generation=generation)
+
+
+def _adopt_with_owner(checkout, root, hermes, review, *, scheduler, window=None,
+                      state_rebaseline=None, generation='historical', _source_owner=None):
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import require_active_window
@@ -584,7 +596,7 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebas
         result = None
         try:
             with require_active_window(window, root, hermes) as active:
-                result = _adopt_retention(checkout, root, hermes, review, scheduler=scheduler, window=active, generation=generation)
+                result = _adopt_retention(checkout, root, hermes, review, scheduler=scheduler, window=active, generation=generation, _source_owner=_source_owner)
             return result
         except BaseException:
             if result is not None:

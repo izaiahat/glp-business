@@ -185,8 +185,8 @@ def test_native_fire_fence_spans_window_restore_and_registered_run(tmp_path, mon
     @contextmanager
     def active(*a): yield object()
     monkeypatch.setattr(mw, 'require_active_window', active)
-    monkeypatch.setattr(ship, 'preview', lambda *a: {})
-    monkeypatch.setattr(ship, 'zero_diff', lambda *a: None)
+    monkeypatch.setattr(ship, 'preview', lambda *a, **k: {})
+    monkeypatch.setattr(ship, 'zero_diff', lambda *a, **k: None)
     monkeypatch.setattr(adopter, 'adopt', lambda *a, **k: {'applied': True})
     def run(*a, **k):
         assert held == {'registered'}

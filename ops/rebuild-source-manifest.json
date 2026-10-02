@@ -1603,12 +1603,12 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4fb806649f8d3b3da68ec75d7d141317ba8aee9977d42501778d1374007a98a0"
+      "sha256": "f9b0d96420c2db153bd5711ae68d9bf24517a02307acd535a8ae93e0631701ae"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "82fb9331be805f1b6497b62d5ca8fe7c90f6d6e3f225ee966c1c01549952b415"
+      "sha256": "c63db396520a6cb930ffadf877d93df62d2d1ded628531f6210e89d249b96685"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -2096,7 +2096,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "81def79012e2896122a3064aee15bff4833f157609e8e4014c189943d41f662b"
+      "sha256": "351deac3f4c647daeaa8e9e7ea72a6cf2d2856057407a1326f6fb74505014ddb"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2143,7 +2143,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1c9d151b0ead33c89b3a1c684b7285e49f45995f058a1e499854dfdef884c91d"
+      "sha256": "7acc184d201ed24c6447b2304fc8b1ca2dac98beaedb0bca0786b4dac43b58fc"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -3983,14 +3983,14 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "c206bf7694e4a21b93fb943054f61471947ec3c650e581ad02840aa4741357fc"
+      "sha256": "6add3d72ba1bf7c3d9682776a9a98e4891bd90be53689aee498a6635f74f2e3b"
     },
     "scripts/glp_ship.py": {
       "kind": "source",
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "5cf0ca168ba53ae4ae847cd1af0c37b279def38bd6d1a19e7ce8c6fbd3f6d926"
+      "sha256": "f23aebb8d6a276964c07cf1aefee732cbfac25137c48e491e5113da29fc0c13b"
     },
     "scripts/glp_ship_collector.py": {
       "kind": "source",
@@ -4004,7 +4004,7 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "71fa11e0b4554c4de76716dfa46300a22e2af22592ae71fc080edaa27b29a447"
+      "sha256": "1bf422c23d08af136f5c5c2f4ff90006f95010b6e660aebb6dc009abc89f277b"
     },
     "scripts/glp_ship_generation.py": {
       "kind": "source",
@@ -4039,7 +4039,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "e3e700966709bb486e6fdc4690c85bf067d1b429b2e57e9fe1e1ce29cca16833"
+      "sha256": "968001a90e50fffec9ec086885df591a0f51f0143aecad9ed6295693aba9d60d"
     },
     "tests/test_glp_ship_collector.py": {
       "kind": "test",
@@ -4097,7 +4097,13 @@
         "manual scoped adoption"
       ],
       "sha256": "2b23ace442c655d03f2cbf04399e771319c39f5d02000b0b0ce3bd266d0c99f8"
+    },
+    "tests/test_glp_ship_publication.py": {
+      "sha256": "024ead95c627b281fc84bb954050d2f6423100602946c4299f1bc5c25cf7f390"
+    },
+    "tests/test_source_lock_owner.py": {
+      "sha256": "9137c9486917c670219e08487b0102ab4ab0641476549970fe88b68f5dfa6362"
     }
   },
-  "tracked_count": 610
+  "tracked_count": 612
 }
