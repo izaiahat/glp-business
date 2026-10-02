@@ -47,7 +47,9 @@ def fixture(tmp_path, monkeypatch, *, advanced_reporting=False, host_collector=N
     return generation_fixture(tmp_path, monkeypatch, pr71_predecessor=True)
 
 
-def plan(f, generation=GENERATION, checkout=ROOT):
+def plan(f, generation=GENERATION, checkout=None):
+    # Use the committed producer/cohort pair even when main's reporting advances.
+    checkout = f.checkout if checkout is None else checkout
     with mw.require_active_window(f.journal, f.root, f.hermes) as active:
         return pair.plan(checkout, f.root, f.hermes, window=active, generation=generation)[0]
 
@@ -63,7 +65,7 @@ def acceptance(proposal):
 
 
 def apply(f, review):
-    return pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler,
+    return pair.adopt(f.checkout, f.root, f.hermes, review, scheduler=f.scheduler,
                       window=f.journal, generation=GENERATION)
 
 
@@ -158,8 +160,8 @@ def test_tampered_installed_collector_is_refused(tmp_path, monkeypatch):
 def test_tampered_candidate_collector_and_review_and_pinned_leaf_are_refused(tmp_path, monkeypatch):
     f = fixture(tmp_path, monkeypatch)
     checkout = tmp_path / 'checkout'
-    head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
-    subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
+    head = subprocess.check_output(['git', '-C', str(f.checkout), 'rev-parse', 'HEAD']).decode().strip()
+    subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(f.checkout), str(checkout)], check=True)
     subprocess.run(['git', '-C', str(checkout), 'update-ref', 'HEAD', head], check=True)
     subprocess.run(['git', '-C', str(checkout), 'read-tree', 'HEAD'], check=True)
     subprocess.run(['git', '-C', str(checkout), 'checkout-index', '--all'], check=True)
