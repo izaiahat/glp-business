@@ -90,3 +90,28 @@ tests use the actual reviewed candidate commit, preserving every original
 source, producer, maintenance and tamper check; a separate regression confirms
 that the current F12 checkout cannot reuse that generation. Receiving-side
 publication needs Kael's separately reviewed exact F12 source procedure.
+
+Host follow-through (2026-10-02): the scheduled shell now supplies the existing
+job's optional argument with the immutable, hash-pinned retained D1 allowlist at
+`reports/ops/f12-host-followthrough-20261002/reconciliation-input.json`.
+The host-only artifact SHA256 is
+`5ae5aee441a9dbc6c9cb17dfb66fe0c7f28068f68d267ba6707b3c333deb95f1`.
+It contains the actual 14 receiver rows captured at 09:33:06 UTC (12 selftests,
+2 TEST rows), one exact click join, no financial records and `complete: false`.
+The shell refuses missing/changed input before Python. This is persistent
+consumption of dated evidence, NOT automatic D1 refresh or current coverage;
+new captures require a reviewed pin/path update. No snapshot is Git-curated or
+promoted to verified production data by the reconciler. Receiving review must
+verify the existing host artifact and its D1 readback before shell adoption.
+
+Read both receiver contracts: the generic n8n writer puts incoming offer_id in
+ledger program_id; the deployed Affiliati Pages v3 writer puts owned-click
+program_id (e.g. jrnys-review) there and retains CAKE offer_id (42896) separately.
+Do not directly join these program namespaces or copy network_account_ref into
+verified typed identity. The observed v3 row is TEST; the older v1 numeric-program
+row matches the exact known TEST click ID. Retained network conversions are also
+TEST, and no settlement member or reversal can be manufactured from them.
+The actual retained PartnerStack lookback payout has reported amount '0', unknown
+units/status/attribution, no program or membership; it is not eligible cash.
+GLP334's genuine closed-payout-period acceptance remains unmet. Guarded coherent
+reporting installation, independent review and runtime admission are parent-owned.

@@ -85,16 +85,18 @@ def github(checkout):
     pr = {
         'number': 31, 'merged': True, 'merged_at': '2026-10-02T01:00:00Z',
         'merge_commit_sha': merge, 'base': {'ref': 'main', 'repo': {'full_name': 'izaiahat/glp-business'}},
-        'head': {'sha': pr_head, 'repo': {'full_name': 'izaiahat/glp-business'}},
+        'head': {'sha': pr_head, 'ref': 'fix/fixture', 'repo': {'full_name': 'izaiahat/glp-business'}},
     }
     run = {
         'id': 70, 'workflow_id': 1, 'run_attempt': 1, 'run_number': 100, 'head_sha': pr_head,
         'event': 'pull_request', 'status': 'completed', 'conclusion': 'success',
         'path': '.github/workflows/business-source-ci.yml',
-        'repository': {'full_name': 'izaiahat/glp-business'},
+        'repository': {'full_name': 'izaiahat/glp-business'}, 'head_branch': 'fix/fixture',
+        'head_repository': {'full_name': 'izaiahat/glp-business'},
         'pull_requests': [{'number': 31, 'head': {'sha': pr_head}}],
     }
-    data = {'pr': pr, 'runs': [run], 'run': run, 'calls': []}
+    # Native commit->PR read for the exact head; absent unless a test supplies it.
+    data = {'pr': pr, 'runs': [run], 'run': run, 'calls': [], 'head_pulls': []}
     def api(endpoint):
         data['calls'].append(endpoint)
         base = 'repos/izaiahat/glp-business/'
@@ -104,6 +106,8 @@ def github(checkout):
             return [{'number': 31}]
         if tail == 'pulls/31':
             return data['pr']
+        if tail == f'commits/{pr_head}/pulls':
+            return data['head_pulls']
         if tail == 'actions/workflows/business-source-ci.yml/runs':
             assert f'head_sha={pr_head}' in endpoint
             assert 'event=pull_request' in endpoint
@@ -331,3 +335,150 @@ def test_receipt_binds_current_business_attempt_after_all_checks(checkout, githu
             return dict(github['run'], run_attempt=reads)
         return github['api'](endpoint)
     assert provenance().verify_merge(repo, merge, api=api)['ci_attempt'] == 2
+
+
+# --- Omitted run association (F07 / GLP-44, PR166) ---------------------------
+# Fixture of real observed metadata SHAPES: PR166 head 01a94111..., Actions run
+# 36973008150 (check suite 100147445103) completed/success on the exact head,
+# event pull_request, canonical repository/head_repository, yet BOTH run detail
+# and check-suite returned pull_requests: []. GET commits/<head>/pulls returned
+# exactly PR166 (merged, base main, exact merge_commit_sha). The merge SHA here
+# is the local fixture commit so Git ancestry stays real.
+PR166_HEAD = '01a941118e212de020d3d48798615a6b9496b58d'
+PR166_BRANCH = 'fix/f07-route-coverage-20261002'
+
+
+@pytest.fixture
+def pr166(checkout):
+    _, merge = checkout
+    repo_name = {'full_name': 'izaiahat/glp-business'}
+    pr = {'number': 166, 'merged': True, 'merged_at': '2026-10-02T07:26:33Z',
+          'merge_commit_sha': merge, 'base': {'ref': 'main', 'repo': dict(repo_name)},
+          'head': {'sha': PR166_HEAD, 'ref': PR166_BRANCH, 'repo': dict(repo_name)}}
+    run = {'id': 36973008150, 'check_suite_id': 100147445103, 'workflow_id': 1,
+           'run_attempt': 1, 'run_number': 900, 'head_sha': PR166_HEAD,
+           'head_branch': PR166_BRANCH, 'event': 'pull_request', 'status': 'completed',
+           'conclusion': 'success', 'path': '.github/workflows/business-source-ci.yml',
+           'repository': dict(repo_name), 'head_repository': dict(repo_name),
+           'pull_requests': []}
+    data = {'pr': pr, 'run': run, 'runs': [run], 'all_runs': [run], 'details': {},
+            'head_pulls': [dict(pr)], 'calls': []}
+    def api(endpoint):
+        data['calls'].append(endpoint)
+        base = 'repos/izaiahat/glp-business/'
+        assert endpoint.startswith(base)
+        tail = endpoint[len(base):].split('?')[0]
+        if tail == f'commits/{merge}/pulls':
+            return [{'number': 166}]
+        if tail == 'pulls/166':
+            return data['pr']
+        if tail == f'commits/{PR166_HEAD}/pulls':
+            return data['head_pulls']
+        if tail == 'actions/workflows/business-source-ci.yml/runs':
+            assert f'head_sha={PR166_HEAD}' in endpoint and 'event=pull_request' in endpoint
+            return {'workflow_runs': data['runs']}
+        if tail == 'actions/runs':
+            return {'workflow_runs': data['all_runs']}
+        if tail.startswith('actions/runs/'):
+            run_id = int(tail.rsplit('/', 1)[1])
+            return data['details'].get(run_id, data['run'] if run_id == data['run']['id'] else None)
+        raise AssertionError(endpoint)
+    data['api'] = api
+    return data
+
+
+def test_pr166_omitted_association_binds_only_with_native_corroboration(checkout, pr166):
+    repo, merge = checkout
+    assert provenance().verify_merge(repo, merge, api=pr166['api']) == {
+        'merge_sha': merge, 'pr_number': 166, 'pr_head': PR166_HEAD,
+        'ci_run_id': 36973008150, 'ci_attempt': 1,
+    }
+    head_reads = [c for c in pr166['calls'] if f'commits/{PR166_HEAD}/pulls' in c]
+    assert head_reads and all('per_page=100' in c for c in head_reads)
+
+
+def test_empty_association_without_corroboration_still_refuses(checkout, github):
+    repo, merge = checkout
+    github['run']['pull_requests'] = []
+    with pytest.raises(RuntimeError, match='^ship_ci_association_uncorroborated$'):
+        provenance().verify_merge(repo, merge, api=github['api'])
+
+
+def _pr(pr166, **changes):
+    row = dict(pr166['pr'])
+    for key, value in changes.items():
+        row[key] = value
+    return row
+
+
+@pytest.mark.parametrize('case', [
+    'none', 'ambiguous', 'other_pr', 'wrong_head', 'wrong_merge', 'unmerged',
+    'wrong_base_ref', 'wrong_base_repo', 'fork_head',
+])
+def test_omitted_association_refuses_missing_or_bad_corroboration(checkout, pr166, case):
+    repo, merge = checkout
+    head = pr166['pr']['head']
+    pr166['head_pulls'] = {
+        'none': [],
+        'ambiguous': [pr166['pr'], _pr(pr166, number=167)],
+        'other_pr': [_pr(pr166, number=167)],
+        'wrong_head': [_pr(pr166, head=dict(head, sha='b' * 40))],
+        'wrong_merge': [_pr(pr166, merge_commit_sha='b' * 40)],
+        'unmerged': [_pr(pr166, merged_at=None)],
+        'wrong_base_ref': [_pr(pr166, base={'ref': 'other', 'repo': pr166['pr']['base']['repo']})],
+        'wrong_base_repo': [_pr(pr166, base={'ref': 'main', 'repo': {'full_name': 'other/repo'}})],
+        'fork_head': [_pr(pr166, head=dict(head, repo={'full_name': 'fork/glp-business'}))],
+    }[case]
+    with pytest.raises(RuntimeError):
+        provenance().verify_merge(repo, merge, api=pr166['api'])
+
+
+@pytest.mark.parametrize('field,value', [
+    ('head_branch', 'other-branch'), ('head_repository', {'full_name': 'fork/glp-business'}),
+    ('repository', {'full_name': 'other/repo'}), ('head_sha', 'b' * 40), ('event', 'push'),
+    ('conclusion', 'failure'), ('status', 'in_progress'), ('path', '.github/workflows/other.yml'),
+    ('pull_requests', None), ('pull_requests', [{'number': 167, 'head': {'sha': PR166_HEAD}}]),
+])
+def test_omitted_association_run_counterexamples_refuse(checkout, pr166, field, value):
+    repo, merge = checkout
+    pr166['run'][field] = value
+    with pytest.raises(RuntimeError):
+        provenance().verify_merge(repo, merge, api=pr166['api'])
+
+
+@pytest.mark.parametrize('status,conclusion', [('completed', 'failure'), ('queued', None),
+                                               ('in_progress', None), (None, None)])
+def test_omitted_association_cannot_hide_other_workflow(checkout, pr166, status, conclusion):
+    repo, merge = checkout
+    other = dict(pr166['run'], id=80, workflow_id=2, run_number=1,
+                 path='.github/workflows/other.yml', status=status, conclusion=conclusion)
+    pr166['all_runs'] = [pr166['run'], other]
+    pr166['details'][80] = other
+    with pytest.raises(RuntimeError):
+        provenance().verify_merge(repo, merge, api=pr166['api'])
+
+
+def test_uncorroborated_empty_workflow_is_not_skipped(checkout, github):
+    repo, merge = checkout
+    # The business run is explicitly associated, but another exact-head
+    # workflow omits association and failed: unknown must not read as unrelated.
+    other = dict(github['run'], id=80, workflow_id=2, run_number=1, pull_requests=[],
+                 path='.github/workflows/other.yml', conclusion='failure')
+    github['all_runs'] = [github['run'], other]
+    with pytest.raises(RuntimeError, match='^ship_ci_association_uncorroborated$'):
+        provenance().verify_merge(repo, merge, api=github['api'])
+
+
+def test_omitted_association_latest_rerun_still_governs(checkout, pr166):
+    repo, merge = checkout
+    newer = dict(pr166['run'], id=36973008151, run_number=901, conclusion='failure')
+    pr166['runs'] = [pr166['run'], newer]
+    pr166['all_runs'] = [pr166['run'], newer]
+    pr166['details'][newer['id']] = newer
+    with pytest.raises(RuntimeError):
+        provenance().verify_merge(repo, merge, api=pr166['api'])
+    pr166['details'][pr166['run']['id']] = dict(pr166['run'], run_attempt=2, status='in_progress',
+                                                conclusion=None)
+    pr166['runs'] = pr166['all_runs'] = [pr166['run']]
+    with pytest.raises(RuntimeError):
+        provenance().verify_merge(repo, merge, api=pr166['api'])
