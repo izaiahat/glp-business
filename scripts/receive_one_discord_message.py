@@ -26,7 +26,13 @@ import stat
 import sys
 import time
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from rook_mcp_events import ResearchIdentity
+
 from post_discord_message import load_token
+
+_DEFAULT_TOKEN_LOADER = load_token
 
 GUILD = "1486887661099815126"
 CHANNEL = "1554668115239899196"
@@ -47,8 +53,25 @@ class Scope:
     mcp_issuer: str | None = None
     mcp_audience: str | None = None
     mcp_subject: str | None = None
+    research: ResearchIdentity | None = None
+
+    @property
+    def guild(self):
+        return self.research.guild if self.research else GUILD
+
+    @property
+    def channel(self):
+        return self.research.channel if self.research else CHANNEL
+
+    @property
+    def bot(self):
+        return self.research.bot if self.research else ROOK_BOT
 
     def __post_init__(self):
+        if self.research:
+            from rook_mcp_events import ResearchIdentity
+            if not isinstance(self.research, ResearchIdentity) or not self.mcp_state_dir:
+                raise ValueError('Research receiver requires validated identity and complete private custody')
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", self.correlation):
             raise ValueError("invalid correlation")
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,64}", self.reply_kind):
@@ -62,8 +85,9 @@ class Scope:
             raise ValueError("wait must be 1..600 seconds")
         if any((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject)):
             if (not all((self.mcp_state_dir, self.mcp_issuer, self.mcp_audience, self.mcp_subject))
-                    or self.origin_kind != 'author' or self.origin_id != ROOK_BOT
-                    or self.reply_kind != 'rook.reply' or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', self.correlation)):
+                    or self.origin_kind != 'author' or self.origin_id != self.bot
+                    or self.reply_kind != ('research.reply' if self.research else 'rook.reply')
+                    or not re.fullmatch(r'discord-[1-9][0-9]{0,19}', self.correlation)):
                 raise ValueError('complete fixed MCP binding configuration required')
 
 
@@ -74,6 +98,7 @@ def verified_reply_binding(data, scope, reply_author):
     can forge state. Caller pins issuer/audience/operator subject independently.
     No credential, subscription-secret, Hermes state.db or Discord history read.
     """
+    GUILD, CHANNEL, ROOK_BOT = scope.guild, scope.channel, scope.bot
     if not scope.mcp_state_dir or reply_author != ROOK_BOT:
         return False
     try:
@@ -88,8 +113,10 @@ def verified_reply_binding(data, scope, reply_author):
         if not row:
             return False
         binding = json.loads(row[0])
-        policy = json.dumps({'issuer': scope.mcp_issuer, 'audience': scope.mcp_audience, 'subject': scope.mcp_subject},
-                            ensure_ascii=True, separators=(',', ':'), sort_keys=True)
+        fields = {'issuer': scope.mcp_issuer, 'audience': scope.mcp_audience, 'subject': scope.mcp_subject}
+        if scope.research:
+            fields['identity'] = scope.research.policy_fields()
+        policy = json.dumps(fields, ensure_ascii=True, separators=(',', ':'), sort_keys=True)
         return (binding.get('state') == 'confirmed' and binding.get('policy') == hashlib.sha256(policy.encode()).hexdigest()
                 and binding.get('auth_method') == 'RS256-authenticated-tools/call'
                 and binding.get('subject') == scope.mcp_subject and binding.get('auth_subject') == scope.mcp_subject
@@ -104,7 +131,7 @@ def verified_reply_binding(data, scope, reply_author):
         return False
 
 
-def parse_reply_content(content):
+def parse_reply_content(content, reply_kind='rook.reply'):
     """Decode an exact final footer, or an already-stored legacy JSON reply.
 
     The marker is only correlation data; author and private custody checks remain
@@ -112,7 +139,7 @@ def parse_reply_content(content):
     """
     if not isinstance(content, str) or len(content) > 8000:
         return None
-    match = re.fullmatch(r'(?s)(.+)\n-# (rook\.reply) · (discord-[1-9][0-9]{0,19})', content)
+    match = re.fullmatch(r'(?s)(.+)\n-# (' + re.escape(reply_kind) + r') · (discord-[1-9][0-9]{0,19})', content)
     if match:
         try:
             if not match[1].strip() or len(content.encode('utf-16-le')) // 2 > 2000:
@@ -129,6 +156,9 @@ def parse_reply_content(content):
 
 def match_event(event, scope: Scope, self_id: str | None):
     """Fresh MESSAGE_CREATE; MCP replies and self-echo need private custody."""
+    GUILD, CHANNEL = scope.guild, scope.channel
+    if scope.research and self_id != scope.bot:
+        return None
     if not self_id or not isinstance(event, dict) or event.get("t") != "MESSAGE_CREATE":
         return None
     data = event.get("d")
@@ -151,7 +181,7 @@ def match_event(event, scope: Scope, self_id: str | None):
             return None
     elif data.get("webhook_id") != scope.origin_id:
         return None
-    body = parse_reply_content(data.get("content"))
+    body = parse_reply_content(data.get("content"), scope.reply_kind)
     if (not isinstance(body, dict) or body.get("kind") != scope.reply_kind
             or body.get("correlation") != scope.correlation
             or not isinstance(body.get("text"), str)):
@@ -203,6 +233,11 @@ def create_client(on_event, on_error):
 
 async def receive_one(scope: Scope, *, client_factory=create_client, token_loader=load_token):
     """One result, bounded wait including login, and bounded cleanup on every exit."""
+    GUILD, CHANNEL = scope.guild, scope.channel
+    if scope.research and token_loader is _DEFAULT_TOKEN_LOADER:
+        from rook_mcp_events import load_rook_token
+        dot = scope.research
+        token_loader = lambda: load_rook_token(dot.token_path)
     accepted = asyncio.get_running_loop().create_future()
     binding_waiter = None
 
@@ -227,7 +262,7 @@ async def receive_one(scope: Scope, *, client_factory=create_client, token_loade
             elif scope.mcp_state_dir and (binding_waiter is None or binding_waiter.done()):
                 try:
                     data = event['d']
-                    body = parse_reply_content(data['content'])
+                    body = parse_reply_content(data['content'], scope.reply_kind)
                     if (event.get('t') == 'MESSAGE_CREATE' and self_id and isinstance(body, dict)
                             and data['author']['id'] == scope.origin_id and data.get('webhook_id') is None
                             and data.get('guild_id') == GUILD and data.get('channel_id') == CHANNEL
@@ -279,7 +314,9 @@ async def receive_one(scope: Scope, *, client_factory=create_client, token_loade
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--guild", required=True, choices=[GUILD])
-    parser.add_argument("--channel", required=True, choices=[CHANNEL])
+    parser.add_argument("--channel", required=True)
+    from rook_mcp_events import add_research_arguments, research_from_args
+    add_research_arguments(parser)
     parser.add_argument("--correlation", required=True)
     parser.add_argument("--reply-kind", required=True)
     parser.add_argument("--after-message", required=True)
@@ -293,10 +330,13 @@ def main(argv=None):
     parser.add_argument('--mcp-subject')
     args = parser.parse_args(argv)
     try:
+        research = research_from_args(args)
+        if args.channel != (research.channel if research else CHANNEL):
+            raise ValueError('exact profile channel required')
         scope = Scope(args.correlation, args.reply_kind, args.after_message,
                       "author" if args.allowed_author else "webhook",
                       args.allowed_author or args.allowed_webhook, args.max_wait_seconds,
-                      args.mcp_state_dir, args.mcp_issuer, args.mcp_audience, args.mcp_subject)
+                      args.mcp_state_dir, args.mcp_issuer, args.mcp_audience, args.mcp_subject, research)
     except ValueError as exc:
         parser.error(str(exc))
     try:

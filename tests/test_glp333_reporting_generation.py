@@ -41,6 +41,11 @@ def blob(ref, rel):
     return subprocess.check_output(['git', '-C', str(ROOT), 'show', ref + ':' + rel])
 
 
+def test_reporting_prerequisite_binds_merged_collector():
+    rel = 'systems/analytics-brain/collector.py'
+    assert pair.PR119_PREREQUISITES[rel] == sha(blob('04a875148dbf260e1d91c36452c9f3b3cfcb7aa8', rel))
+
+
 def put(path, body, mode=0o600):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(body)
@@ -89,7 +94,8 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
         assert sha(body) == expected
         put(root / rel, body)
     for rel, expected in pair.PR119_PREREQUISITES.items():
-        body = blob(pair.APPROVED, rel)
+        ref = '04a875148dbf260e1d91c36452c9f3b3cfcb7aa8' if rel == 'systems/analytics-brain/collector.py' else pair.APPROVED
+        body = blob(ref, rel)
         assert sha(body) == expected
         put(root / rel, body)
     for rel, expected in pair.PR119_BEFORE.items():
@@ -284,7 +290,10 @@ def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
             pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler, window=f.journal)
         assert payloads(f) == landed and len(f.saves) == 1
         assert {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS} == checkout_before
-        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == pair.PR119_PREREQUISITES
+        # PR71 remains immutable; only the successor requires PR142's collector.
+        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == {
+            rel: sha(blob(pair.APPROVED, rel)) for rel in pair.PR119_PREREQUISITES
+        }
         assert all(sha((f.root / rel).read_bytes()) == expected for rel, expected in pair.PR119_BEFORE.items())
     finally:
         f.window.release_locks()

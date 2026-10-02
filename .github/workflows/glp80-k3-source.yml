@@ -1,0 +1,35 @@
+name: glp80-k3-source
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ops/glp/evidence-refresh-k3/**
+      - ops/hermes-cron-scripts/glp_evidence_refresh_daily.py
+      - tools/glp/evidence_refresh*
+      - tests/test_glp80_k3_prepared_consumer.py
+      - .github/workflows/glp80-k3-source.yml
+permissions:
+  contents: read
+jobs:
+  k3-prepared-consumer-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install isolated fixture runner
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3'
+      - name: K3 native preparation, authority and exact cohort (no job or adoption)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          printf 'K3_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
+          .venv/bin/python -B -m pytest --collect-only -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py

@@ -83,6 +83,12 @@ jobs:
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
       - name: GLP-76 host transport acceptance (no network or updater execution)
         run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py
+      - name: GLP-76 carrier calendar propagation (authentic base copy, offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
@@ -105,6 +111,10 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
       - name: Article-buffer exact-entry hold regression (isolated fixtures)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_buffer.py -k registered_exact_entry_hold_states
+      - name: Registered held-predecessor successor admission (isolated fixtures)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_article_successor.py
+      - name: Repair rollback and no-replay regressions (isolated fixtures)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_opus_repair_rollback.py
       - name: GLP-73 builder, taxonomy fixture and review transport boundaries (synthetic only)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_builder_fixture_transport_fix.py
       - name: GLP-73 native-only article image boundary (offline fixtures)
