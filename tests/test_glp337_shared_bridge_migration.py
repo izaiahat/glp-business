@@ -171,7 +171,10 @@ def test_private_handoff_cannot_widen_cadence_successor(tmp_path):
 
 def test_curated_inventory_changes_only_known_shared_source_pins():
     module = migration()
-    inventory = json.loads((ROOT / module.CONTEXT[0]).read_bytes())
+    # This fixed migration's inventory belongs to its immutable approved
+    # source, not later independently reviewed native-pin inventory successors.
+    inventory = json.loads(git(ROOT, 'show',
+        '898b45e903dffcce4046aa5548fc3e6f23b60b78:' + module.CONTEXT[0]))
     predecessor = json.loads(git(ROOT, 'show', '375491444eca0dd5f159eaa09f5379a055e12e3d:' + module.CONTEXT[0]))
     launcher_count = cadence_count = 0
     for row in predecessor['jobs']:

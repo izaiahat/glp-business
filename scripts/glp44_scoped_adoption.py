@@ -180,6 +180,12 @@ GLP337_CONTEXT = (
 
 
 def generation_contract(generation):
+    if _git_generation(generation):
+        from glp_ship_registry import REPORTING_PATHS
+        if (generation.kind != 'reporting' or generation.paths != REPORTING_PATHS
+                or set(generation.hashes) != set(REPORTING_PATHS)):
+            raise RuntimeError('wrong_git_generation_cohort')
+        return generation.source, generation.paths
     if generation == F07_GENERATION:
         return F07_SOURCE, F07_PATHS
     if generation == REPORTING_SUCCESSOR_GENERATION:
@@ -195,6 +201,15 @@ def generation_contract(generation):
     if generation == COLLECTOR_GENERATION:
         return COLLECTOR_SOURCE, COLLECTOR_PATHS
     raise RuntimeError('unknown_reporting_generation')
+
+
+def _git_generation(generation):
+    from glp_ship_generation import GitGeneration
+    return isinstance(generation, GitGeneration)
+
+
+def _successor(generation):
+    return _git_generation(generation) or generation in SUCCESSORS
 
 
 def digest(body):
@@ -238,9 +253,10 @@ def candidate_checkout(checkout, generation):
         yield candidate
 
 
-def plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'):
+def plan(checkout, root, hermes, review=None, *, window=None, generation='pr71', _source_owner=None):
     with candidate_checkout(checkout, generation) as candidate:
-        return _plan(candidate, root, hermes, review, window=window, generation=generation)
+        return _plan(candidate, root, hermes, review, window=window, generation=generation,
+                     _source_owner=_source_owner)
 
 
 def _plan_dependencies(checkout, root, hermes, review, window, generation=GLP331_GENERATION):
@@ -395,12 +411,16 @@ def _adopt_dependencies(checkout, root, hermes, review, scheduler, window, gener
     return {'applied': True, 'source': approved, 'proposal': proposal, 'custody': str(custody)}
 
 
-def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'):
+def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71', _source_owner=None):
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _plan_dependencies(checkout, root, hermes, review, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation in SUCCESSORS
-    successor_hashes, runtime_schema = SUCCESSORS.get(generation, (None, None))
+    derived = _git_generation(generation)
+    successor = _successor(generation)
+    successor_hashes, runtime_schema = ((generation.hashes, None) if derived
+                                       else SUCCESSORS.get(generation, (None, None)))
+    if derived:
+        generation.verify(checkout)
     checkout = checkout.resolve(strict=True)
     root = root.resolve(strict=True)
     hermes = hermes.resolve(strict=True)
@@ -427,7 +447,8 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     # An absent destination does not need an adoption flag; reviewed_prior_hashes
     # is only for preexisting, untracked-baseline files.
     adopted = tuple(p for p in adopted if (root / p).exists())
-    if syncer.sync(root, checkout, False, adopted, paths) != 0:
+    source_args = {} if _source_owner is None else {'_source_owner': _source_owner}
+    if syncer.sync(root, checkout, False, adopted, paths, **source_args) != 0:
         raise RuntimeError('scoped_source_preflight_refused')
     before = {p: observed(root / p) for p in paths}
     state = observed(root / syncer.STATE)
@@ -478,7 +499,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     if successor:
         registry_body, registry_mode = read_regular(registry)
         proposal.update({
-            'generation': generation, 'producer_head': producer_head,
+            'generation': generation.name if derived else generation, 'producer_head': producer_head,
             'producer_sha256': digest(committed),
             'producer_source_manifest_sha256': digest((checkout / syncer.MANIFEST).read_bytes()),
             'target': {'root': str(root), 'hermes': str(hermes),
@@ -491,7 +512,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
             'retained_source': {p: {'sha256': digest(value[0]), 'mode': value[1]}
                                 for p, value in retained.items()},
         })
-    if review is not None:
+    if review is not None and not derived:
         for key in proposal:
             if review.get(key) != proposal[key]:
                 raise RuntimeError('reviewed_preimage_or_candidate_moved:' + key)
@@ -514,26 +535,35 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     return proposal, adopted, before, state, wrapper_before, registry
 
 
-def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71'):
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, generation='pr71', _source_owner=None):
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import require_active_window
+    if _git_generation(generation):
+        # Retain one kernel source-writer exclusion through every preflight,
+        # custody, switch, native save and active-window acknowledgement.
+        with syncer.source_session(root, _source_owner) as owner:
+            with require_active_window(window, root, hermes) as active:
+                return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler,
+                                        window=active, generation=generation, _source_owner=owner)
     with require_active_window(window, root, hermes) as active:
         return _adopt_in_window(checkout, root, hermes, review, scheduler=scheduler, window=active, generation=generation)
 
 
-def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71'):
+def _adopt_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71', _source_owner=None):
     with candidate_checkout(checkout, generation) as candidate:
         return _adopt_candidate_in_window(candidate, root, hermes, review, scheduler=scheduler,
-                                          window=window, generation=generation)
+                                          window=window, generation=generation, _source_owner=_source_owner)
 
 
-def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71'):
+def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, window, generation='pr71', _source_owner=None):
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _adopt_dependencies(checkout, root, hermes, review, scheduler, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation in SUCCESSORS
-    proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation)
+    successor = _successor(generation)
+    if _git_generation(generation):
+        generation.authorize(review, root, hermes, window)
+    proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation, _source_owner=_source_owner)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
     wrapper = hermes / 'scripts' / WRAPPER
@@ -547,9 +577,11 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             # Revalidate every source, baseline, wrapper and full job under the lock.
-            fresh, _, _, _, _, _ = _plan(checkout, root, hermes, review, window=window, generation=generation)
+            fresh, _, _, _, _, _ = _plan(checkout, root, hermes, review, window=window, generation=generation, _source_owner=_source_owner)
             if fresh != proposal:
                 raise RuntimeError('preimage_moved_under_lock')
+            if _git_generation(generation):
+                generation.authorize(review, root, hermes, window)
             registry_before = registry.read_bytes()
             if any(body is None for body, _ in original.values()):
                 raise RuntimeError('missing_predecessor_requires_separate_custody')
@@ -561,14 +593,21 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
             if (any(digest(stage[root / p]) != proposal['source_sha256'][p] for p in paths)
                     or digest(stage[wrapper]) != proposal['wrapper_sha256']):
                 raise RuntimeError('reviewed_candidate_moved_before_switch')
-            custody = root / 'reports/ops/pin-archive/glp44' / digest(json.dumps(review, sort_keys=True).encode())
+            # Historical review-addressed receipts are immutable. Derived
+            # publications bind the complete exact generation and adopter plan,
+            # including target/preimages, even when Tier B has no review.
+            custody_identity = ({'schema': 'glp-ship-publication-custody-v1',
+                                 'generation': generation.proposal,
+                                 'publication': proposal, 'review': review}
+                                if _git_generation(generation) else review)
+            custody = root / 'reports/ops/pin-archive/glp44' / digest(json.dumps(custody_identity, sort_keys=True).encode())
             retained = {root / p: read_regular(root / p) for p in proposal.get('retained_source', {})} if successor else {}
             preserve_custody(custody, {**original, **retained, registry: read_regular(registry)}, stage)
             # Custody is not an exclusion lock; reject late edits before first source write.
             if any(observed(path) != value for path, value in original.items()) or registry.read_bytes() != registry_before:
                 raise RuntimeError('preimage_moved_after_custody')
             if successor:
-                _plan(checkout, root, hermes, review, window=window, generation=generation)
+                _plan(checkout, root, hermes, review, window=window, generation=generation, _source_owner=_source_owner)
             window.accept_file_updates(
                 {str(path.resolve()): digest(original[path][0]) for path in stage},
                 {str(path.resolve()): digest(body) for path, body in stage.items()},
