@@ -12,6 +12,11 @@ from typing import Literal
 Support = Literal['SUPPORTED', 'PORTAL_ONLY', 'UNSUPPORTED', 'UNKNOWN']
 Coverage = Literal['COMPLETE', 'PARTIAL', 'UNKNOWN']
 
+# The scheduler roster selects accounts; this tuple identifies reviewed readers.
+ADDITIONAL_REPORTING_NETWORKS = ('partnerstack', 'admitad', 'clickbank', 'refersion', 'healthtrader')
+REPORTING_TIMEZONES = {'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
+                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN'}
+
 
 @dataclass(frozen=True)
 class AccessResult:
@@ -118,6 +123,10 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
     import time
     from datetime import timedelta
     a, b = _window(start, end)
+    if network in ADDITIONAL_REPORTING_NETWORKS:
+        from importlib import import_module
+        return import_module('affiliate_reporting_' + network).collect(
+            transport, start=start, end=end, deadline=deadline, max_requests=max_requests)
     if network != 'awin':
         return _other_earnings(network, transport, start=start, end=end,
                                deadline=deadline, max_requests=max_requests, **kwargs)
@@ -343,6 +352,8 @@ def weekly_collectors(names, transport):
                     start_inclusive=start,end_exclusive=end,payload_complete=result.coverage == 'COMPLETE',
                     account_scope_complete=False,financial_classification='UNKNOWN',
                     profile_binding_source='retained S2 Katalys account read 2026-09-08' if network == 'katalys' else None)
+                if network in ADDITIONAL_REPORTING_NETWORKS:
+                    page['reporting_timezone'] = REPORTING_TIMEZONES[network]
                 sink(page)
                 observations.append(page)
                 if any(r['http_status'] in (401,403,429) for r in result.receipts):
@@ -390,6 +401,9 @@ class ReadTransport:
             'login.affiliatinetwork.com': r'/affiliates/api/(Offers/(Feed|Campaign|Event)|Creatives/GetCode|Reports/Conversions)',
             'api.partnerize.com': r'/(user/publisher/1100l432092/campaign/(approved|pending|rejected|t)|v2/publishers/1100l432092/campaigns/terms|reference/publisher/camref/1100l432092|reporting/report_publisher/publisher/1100l432092/conversion.json)',
             'api.healthtrader.com': r'/affiliates/v1/offers/list',
+            'api.partnerstack.com': r'/api/v2/(rewards|transactions|payouts)',
+            'api.admitad.com': r'/statistics/actions/',
+            'api.clickbank.com': r'/rest/1\.3/quickstats/list',
         }
         post = {'https://commissions.api.cj.com/query', 'https://api.katalys.com/v1/report/conversions',
                 'https://graphql.refersion.com'}
