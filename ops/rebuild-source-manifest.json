@@ -12,22 +12,31 @@
   "files": {
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",
-      "callers": ["hermes:ecbe6fdc0163", "scripts/affiliate_best_terms_machine.py"],
+      "callers": [
+        "hermes:ecbe6fdc0163",
+        "scripts/affiliate_best_terms_machine.py"
+      ],
       "sha256": "442e8d7c31da6dababc34f23972fe6555971953577f02c2328e432770317c8b5"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
-      "callers": ["hermes:58202b06bdc0"],
+      "callers": [
+        "hermes:58202b06bdc0"
+      ],
       "sha256": "f787d4ba8910f2f289bc303eaa318245a6d00f8db929bb3fbcfaca90979cfae5"
     },
     "tests/test_affiliate_catalog_batch.py": {
       "kind": "test",
-      "callers": ["scripts/run_tests.sh"],
-      "sha256": "f1d333368b291744a429882c53fb21c2c79d4bee67638005cff7900ab6fe83f9"
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "b16630a908bb347b7f88476fec8ac510e4894b168fb92c6bd7032c7cf155970f"
     },
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
-      "callers": ["systems/seo-blog-machine/scripts/existing_article_updates.py"],
+      "callers": [
+        "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      ],
       "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
     },
     "scripts/glp345_a4_adoption.py": {
@@ -441,7 +450,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "190f76ed5b07cd401894d2c6f6da5831aae8c72ee2c7cf8d5592792ff70ffb64"
+      "sha256": "890661dc20165bae2555bcd4e69830fe574c0f4df9aa30916a623e729cb6e27d"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -862,7 +871,7 @@
         "hermes:d5d5b954f303"
       ],
       "kind": "script",
-      "sha256": "35d2cef1454f5cb1beef912f6d2a2e9be6dac2f74afde5fbdccebb560d37349a"
+      "sha256": "87cb8b968fa2b8433f4a1105fe4f66e5b4cc0f2581121afc30a6412897afddab"
     },
     "ops/hermes-cron-scripts/glp_cron_error_sensor.py": {
       "callers": [
@@ -1347,7 +1356,7 @@
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "b8d57f8bc11d7eaeb649f30cedb618c0340fc7f7629912dd1e2aa22295cf4da3"
+      "sha256": "3204eabea035bf1fe3d14c2621ebe40b31de89df7d6a802cb3852894cefb5605"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [

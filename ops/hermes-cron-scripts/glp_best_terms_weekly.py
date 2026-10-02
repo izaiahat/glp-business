@@ -15,7 +15,7 @@ MACHINE = BUSINESS / "scripts/affiliate_best_terms_machine.py"
 def main() -> int:
     try:
         proc = subprocess.run(
-            [sys.executable, str(MACHINE), "--stage", "--stdout", "discord"],
+            [sys.executable, str(MACHINE), "--stage", "--resume-census", "--stdout", "discord"],
             capture_output=True,
             text=True,
             timeout=3300,

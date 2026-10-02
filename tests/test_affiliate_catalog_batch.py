@@ -73,3 +73,20 @@ def test_discovery_uses_complete_fresh_catalog_without_dropping_holds(tmp_path):
     document['networks']['awin']['complete'] = False
     batch.save(state, document)
     assert discovery.adapters(core, state=state) == {}
+
+
+def test_registered_duplicate_census_never_repeats_sheet_effects(tmp_path, monkeypatch):
+    from scripts import affiliate_best_terms_machine as terms
+    monkeypatch.setattr(terms, 'RUNS_ROOT', tmp_path)
+    monkeypatch.setattr(terms, 'claim_weekly_window', lambda: {'duplicate': True})
+    monkeypatch.setattr(terms, 'run_supply_census', lambda directory: (directory, {'networks': {}}))
+    monkeypatch.setattr(terms, 'census_contract', lambda summary, xen: {'status': 'PARTIAL'})
+    def forbidden(*args, **kwargs):
+        raise AssertionError('duplicate census reached weekly effects')
+    for name in ['read_live_sheet', 'stage_backlog', 'drain_queue']:
+        monkeypatch.setattr(terms, name, forbidden)
+    result = terms.run_machine(first_run=False, approval_events=False,
+                               stage=True, resume_census=True)
+    assert result['mode'] == 'read_only_census_resume'
+    assert all(value == 0 for value in result['effects'].values())
+    assert (tmp_path / 'latest-census-resume.json').is_file()
