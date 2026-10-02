@@ -56,5 +56,6 @@ if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
 else
   printf 'HOST_ONLY_SKIPPED: ads monitor and bound Reddit capture suites require live /home/ubuntu/business inputs\n'
 fi
+suites+=(tests/test_glp75_topic_supply_inputs.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 python3 -m pytest -q "${suites[@]}"

@@ -487,3 +487,12 @@
 !/ops/glp345-a4/README.md
 !/tests/test_glp334_conversion_reconciliation.py
 !/ops/glp334-conversion-reconciliation.md
+
+# GLP75 active strategy inputs (not retained reports)
+!/tests/test_glp75_topic_supply_inputs.py
+!/systems/seo-blog-machine/scripts/select_opus_content_queue.py
+!/ops/glp/topic-supply-inputs/
+/ops/glp/topic-supply-inputs/*
+!/ops/glp/topic-supply-inputs/README.md
+!/ops/glp/topic-supply-inputs/strategy-queue.json
+!/ops/glp/topic-supply-inputs/cluster-map.json
