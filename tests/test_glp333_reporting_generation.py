@@ -26,8 +26,8 @@ import maintenance_inventory as inventory
 import maintenance_window as window_module
 import sync_from_repo as syncer
 
-# Reviewed PR150 producer, retaining the immutable PR119 reporting cohort.
-PR119_PRODUCER_SOURCE = '1b91813e791bffda226ea86fea15dfa250e16a3e'
+# Current producer with the immutable PR119 reporting cohort, retained in history.
+PR119_PRODUCER_SOURCE = 'b114dee30bf20d1ae983c086b593c839829d7f79'
 
 EXTRA = {
     'ops/glp/reporting-v2/identity-registry.json',
@@ -340,7 +340,13 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
     previous = inventory.affected_paths(root, hermes)
     dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')
     shared_bridge = ('scripts/cron_bridge_action.py', 'scripts/glp_analytics_brain_cadence.py')
-    assert supported - previous == {root / p for p in (*EXTRA, *dependencies, *shared_bridge)}
+    reporting_leaves = (
+        'scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py',
+        'scripts/affiliate_reporting_admitad.py', 'scripts/affiliate_reporting_clickbank.py',
+        'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
+        'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
+    )
+    assert supported - previous == {root / p for p in (*EXTRA, *dependencies, *shared_bridge, *reporting_leaves)}
     journal = tmp_path / 'journal.json'
     put(journal, json.dumps({'schema': window_module.SCHEMA}).encode())
     active = window_module.ActiveWindow(journal, SimpleNamespace(root=root, hermes=hermes))
