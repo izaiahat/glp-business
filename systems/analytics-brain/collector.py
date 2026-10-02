@@ -1113,7 +1113,8 @@ def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, dict[str, A
     sealed_rows = {row["path"]: row["sha256"] for row in manifest["release_rows"]}
     sealed_bytes = {}
     for name in ("functions/go/program-manifest.js",
-                 "data/program-registry.json", "data/go-runtime-promotion-authority.json"):
+                 "data/program-registry.json", "data/go-runtime-promotion-authority.json",
+                 "data/approved-program-registry.json"):
         expected = sealed_rows.get(name)
         try:
             body = (release / name).read_bytes()
@@ -1191,6 +1192,17 @@ def _current_network_holds(control: dict[str, Any]) -> set[str]:
     return set(networks)
 
 
+def _assert_direct_decision(promotion: dict[str, Any]) -> None:
+    decision = promotion.get("operator_approved_live_decision") or {}
+    try:
+        body = Path(decision["path"]).read_bytes()
+        valid = hashlib.sha256(body).hexdigest() == decision["sha256"]
+    except (KeyError, TypeError, OSError):
+        valid = False
+    if not valid:
+        raise RuntimeError("affiliate_direct_decision_invalid")
+
+
 def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) -> str | None:
     """The bound site contract permits this issued direct URL, never its /go candidate."""
     if not (runtime.get("entry_state") == "transparent_direct"
@@ -1201,14 +1213,7 @@ def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) 
             and promotion.get("promotion_authorized") is True
             and promotion.get("status") == "VERIFIED"):
         return None
-    decision = promotion.get("operator_approved_live_decision") or {}
-    try:
-        body = Path(decision["path"]).read_bytes()
-        valid = hashlib.sha256(body).hexdigest() == decision["sha256"]
-    except (KeyError, TypeError, OSError):
-        valid = False
-    if not valid:
-        raise RuntimeError("affiliate_direct_decision_invalid")
+    _assert_direct_decision(promotion)
     tracking = runtime.get("tracking") or {}
     href = tracking.get("base_url")
     if (not isinstance(href, str) or urlsplit(href).scheme != "https"
@@ -1217,6 +1222,34 @@ def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) 
             or runtime.get("network") != promotion.get("network")):
         raise RuntimeError("affiliate_direct_target_invalid")
     return href
+
+
+def _approved_directory_target(target: dict[str, Any], path: str, authority: dict[str, Any],
+                               approved: dict[str, Any], current_holds: set[str]) -> bool:
+    """Accepted directory-only direct rails are not /go registry members."""
+    promotion = authority.get(str(target.get("program_id") or "")) or {}
+    network = str(promotion.get("network") or "").lower()
+    href = target.get("href")
+    if not (path == "/providers/" and target.get("link_mode") == "transparent-direct"
+            and isinstance(href, str) and urlsplit(href).scheme == "https"
+            and promotion.get("promotion_authorized") is True and promotion.get("status") == "VERIFIED"
+            and promotion.get("reason") == "operator_approved_glp_live"
+            and str(target.get("network") or "").lower() == network and network not in current_holds):
+        return False
+    _assert_direct_decision(promotion)
+    if promotion.get("directory_only") is True:
+        return hashlib.sha256(href.encode()).hexdigest() == promotion.get("issued_link_sha256")
+    for row in approved["programs"]:
+        tracking = row.get("tracking") or {}
+        if (row.get("registry_id") == target.get("program_id")
+                and str(row.get("network") or "").lower() == network
+                and row.get("routing_class") == "glp1_weightloss_coverage_candidate"
+                and tracking.get("candidate_registry_wired") is True
+                and tracking.get("public_go_surface") is False
+                and tracking.get("provider_issued_url") == href
+                and tracking.get("tracking_host") == urlsplit(href).hostname):
+            return True
+    return False
 
 
 def derive_affiliate_obligations(control: dict[str, Any],
@@ -1248,6 +1281,10 @@ def derive_affiliate_obligations(control: dict[str, Any],
         if review and (allowed is False or (allowed is True and (published_provider or published_review))):
             covered.add(review)
     current_holds = _current_network_holds(control)
+    approved = read_json(release / "data/approved-program-registry.json")
+    if (approved.get("schema") != "approved-program-successor-registry-v1"
+            or not isinstance(approved.get("programs"), list)):
+        raise RuntimeError("affiliate_directory_authority_invalid")
     permissions: dict[str, dict[str, Any]] = {}
     obligations: dict[str, str] = {}
     for route in sorted(covered):
@@ -1348,7 +1385,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
                             and target.get("href") == permission.get("direct_target")
                             and target.get("link_mode") == "transparent-direct"
                             and str(target.get("network") or "").lower() == permission.get("network"))
-            bad += not (valid_go or valid_direct)
+            valid_directory = (not permission and _approved_directory_target(
+                target, row["path"], authority.get("programs") or {}, approved, current_holds))
+            bad += not (valid_go or valid_direct or valid_directory)
         row["unauthorized_affiliate_anchor_count"] = bad
     return obligations
 
