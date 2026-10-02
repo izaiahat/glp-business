@@ -71,6 +71,8 @@
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
+!/tests/test_glp333_glp44_current_generation.py
+!/ops/glp/reporting-v2/CURRENT-GENERATION.md
 !/tests/test_glp333_impact_subwindows.py
 !/.gitignore
 !/tools/

@@ -63,7 +63,13 @@ def test_dependency_generation_journals_exact_cohort_and_restores_window(tmp_pat
         with mw.require_active_window(f.journal, f.root, f.hermes) as active:
             proposal = pair.plan(ROOT, f.root, f.hermes, window=active, generation=GENERATION)[0]
         shared_bridge = ('scripts/cron_bridge_action.py', 'scripts/glp_analytics_brain_cadence.py')
-        assert inventory.affected_paths(f.root, f.hermes) - old_paths == {f.root / rel for rel in (*PATHS, *shared_bridge)}
+        reporting_leaves = (
+            'scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py',
+            'scripts/affiliate_reporting_admitad.py', 'scripts/affiliate_reporting_clickbank.py',
+            'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
+            'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
+        )
+        assert inventory.affected_paths(f.root, f.hermes) - old_paths == {f.root / rel for rel in (*PATHS, *shared_bridge, *reporting_leaves)}
         assert proposal['source_sha256'] == AFTER
         assert proposal['source_before_sha256'] == BEFORE
         assert proposal['state_delta'] == AFTER
