@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 556,
+  "tracked_count": 573,
   "files": {
     "tests/test_glp333_impact_subwindows.py": {
       "callers": [
@@ -435,7 +435,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89f54fba9bb426003969e9260fcbb80dc1e1f14f5b5055d97e675a6fcbd99691"
+      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -445,7 +445,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4ac151b60740bc2fdb5b6ec0e367f30c845d93e9f12319e5a9efa188267f4ead"
+      "sha256": "e75ab855a96011b66623cfd4b4ae9c177e4a74054163a8da9c58a53f9915be2a"
     },
     ".hermes.md": {
       "callers": [],
@@ -597,7 +597,7 @@
     "ops/fable-mention-recovery.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "1e60c6806310c1c23197562abed2f170c8cced96a65098dfed5d3eb4414b8319"
+      "sha256": "a96b1744f060f5b0990b4734341a274b69fb3406ecd0a19937d92bc0ad5e3fa6"
     },
     "ops/glp/analytics-brain-control.json": {
       "callers": [
@@ -844,7 +844,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "69f22b42cbafb75e4decd50fb02aac67503dea37639e48bb3e30b0881b850d27"
+      "sha256": "b2df922f57363ddd2a6e15a1c927d59539cd7155a2b01db15eb61d143a6ae19d"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1032,7 +1032,7 @@
     "ops/linear/DISPATCH-TEMPLATE.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "115b26f14ff76289b7992bb19b97ebb0d526ebf6d7e981eba47be7ed901d037d"
+      "sha256": "f1b95c2e802f03583d712beb2366ca5df98e835f97221dac4209c106c171a0a3"
     },
     "ops/linear/EXECUTION-STANDARD.md": {
       "callers": [],
@@ -1057,12 +1057,12 @@
     "ops/linear/ORCHESTRATOR-MANUAL.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "7c0c550e7196a919cc07644da35b10ce24c9cb47f8ce1e0ebb59dd7f782156fb"
+      "sha256": "4ab50d14f0ad6531cb370ab30347620d546634f26ee0e4b7dc43fae31246dbe9"
     },
     "ops/linear/PLANNER-BRIEF.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "3bf2342ecd61bd87bb9e3f9e1002453b62fd5a492771c04ae34696375488def9"
+      "sha256": "12a5bfa71637046f4f0b501af75cd2065625a7f430853c80d54d6b92699a946f"
     },
     "ops/linear/REGISTER-WRITER.md": {
       "callers": [],
@@ -1102,7 +1102,7 @@
     "ops/linear/WORKER-STANDARD.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "475a004aeaf672eb0b24d24a882f7418e93fbb4a2e3de46dbbd6ff915a608f42"
+      "sha256": "9d267d63fea6f9f0f3a9e3dbfa6a6bd12f6afa86341775fdad381a32c22ad9b3"
     },
     "ops/maxbounty-fresh-probe.md": {
       "callers": [
@@ -1442,7 +1442,7 @@
     "scripts/awin_pin_release.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "fdacf59a7faf9c45d396da87b15aaed2e2ce83878fe3ec712da80fc725d730c4"
+      "sha256": "c9c3ffeec58b3234b4b29530b5a8ce938ca738eacaa9d5c0da32fde711fd74dd"
     },
     "scripts/brief_model_effort.py": {
       "callers": [
@@ -1582,7 +1582,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "389f18a834984b1830ade51bf934a4fff59b7ab09420caff291f23eef41c8e82"
+      "sha256": "91f689e18d4eacf9804dd99e641e924ed0fa791faa501deaa63c37bf544d8f2f"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -1618,7 +1618,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
+      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2111,7 +2111,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9ce667a56b001a5bfa2b865bf7765ffffe37a7da1fa801547a84841a6259349a"
+      "sha256": "791ef129760a023c1f885eecb3296e964638e732e6b438697c014a9adeaab1df"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2229,14 +2229,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
+      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
+      "sha256": "d27165eed61aa0590e9a37560a4f18fa3350f15cab91983022a0f1319d377dea"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -3344,7 +3344,7 @@
         "scripts/fable_bridge.py"
       ],
       "kind": "script",
-      "sha256": "cf264a1393676dd1d8a5fdbff9088a71d82ee785b3156a278af85529758e710d"
+      "sha256": "3ad7c99968d0d243dd08c4f0ad96351e9d0f33a49d8eda55df535b250bda9266"
     },
     "scripts/glp73_sync_rebaseline.py": {
       "callers": [
@@ -3589,7 +3589,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
+      "sha256": "18d7f494c40bec58ebb351cfd6c4ddf5698d01c85cea91cf12bce4af49807864"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3723,6 +3723,119 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "40ec3ea5c56b65cbe75a272442bc95676fd98f3ec126bf439c1ad4eed3e4196e"
+    },
+    "scripts/agent_exec.py": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "script",
+      "sha256": "298e4009a33f64c58da8be28bbb7e2acac83fd5e4f19c4d6418bf5d1836ad4cc"
+    },
+    "ops/linear/MODEL-ROUTING.md": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "0c752510e36a1b49cdf97fb67d3f4d5b7efdaa86f95a094fc3ee07adc61a1aff"
+    },
+    "tests/test_agent_exec_routing.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d8a50b39757208cdb3c34cfb475ab060e97a1a49300b464807584f965a47f105"
+    },
+    "tests/test_awin_paused_registration_release.py": {
+      "callers": [
+        "awin_pin_release"
+      ],
+      "kind": "test",
+      "sha256": "dfa9095b391212e7d16540c372d729f5cbf258b1697c634f4c701e8ecfa53020"
+    },
+    "systems/seo-blog-machine/scripts/opus_review_loop.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "684a0db94f4cec8e45f4455fbf8f237c38fc1d5dc9cba793a25a77400c045dd0"
+    },
+    "systems/seo-blog-machine/tests/test_article_successor.py": {
+      "callers": [
+        "GLP-7 registered held-predecessor successor admission"
+      ],
+      "kind": "test",
+      "sha256": "1fb3dac161328c953d332cbd655804eb0d1155ce3b430094bf8de8ecfaec90cf"
+    },
+    "systems/seo-blog-machine/tests/test_opus_repair_rollback.py": {
+      "callers": [
+        "GLP-7 packet repair rollback and no-replay regression"
+      ],
+      "kind": "test",
+      "sha256": "af2c0619e033cc8500623b66646890bb4afe91f162ab9a2f25448058a690937e"
+    },
+    "tests/test_glp73_scoped_reviewer_routing.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9126bf67537ba6a6b854baf634b5a7b191eee51fddb1e5235aa1dc2656cb8d5d"
+    },
+    "ops/glp/evidence-refresh-k3/daily_evidence_refresh.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "ae64133e8a9ddcb3a6efff7274454aa9ec75a4b01744474caaf2cd0572077dc9"
+    },
+    "ops/glp/evidence-refresh-k3/review_evidence.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "b09e35b546459235da30cb9a7a2922e34e4ef0d39d1c1927d48fa6eac79238a6"
+    },
+    "ops/glp/evidence-refresh-k3/SOURCE-PINS.json": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "12e726467dc6ace0816d8b26347cece8f8e1bbbec0e2a2a9d08dfa4c879f19b8"
+    },
+    "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "6913b4eeae3a3d4c74bbd2e2c55c13536a3da44670a495b10e316fb2a7edfac0"
+    },
+    ".github/workflows/glp80-k3-source.yml": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "cd4808e04b10aa327b478b07f843dabf9b3006bef1b82520062b35e7474cc5cb"
+    },
+    "tests/test_glp80_k3_prepared_consumer.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "bf69bcd949d0219e2aad3622f05c152b47bee60e3e3aed87420716a1a85fd8ac"
+    },
+    "tools/glp/evidence_refresh.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "f14d0314a96ca27476c2fdd759049b75096052421c4cb3e812496638fdcb398b"
+    },
+    "tools/glp/evidence_refresh_verify.mjs": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "script",
+      "sha256": "27ddf9bec2ceb3f581ed3d9fcc7e68331b6c31926856514939d7f07191794565"
+    },
+    "ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      ],
+      "kind": "repository_control",
+      "sha256": "0656677017b9ee058fe2b8159b67dcea6e29122aa090fa549992ca3b6140243f"
     }
   }
 }

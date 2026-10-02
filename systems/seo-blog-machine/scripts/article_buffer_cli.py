@@ -438,6 +438,7 @@ def hold_cli(args: argparse.Namespace) -> dict[str, Any]:
         current_topic_ids=topics,
         mutable_article_routes=current_article_routes(release),
         dry_run=args.dry_run,
+        allow_stale_claim=args.allow_stale_claim,
     )
 
 
@@ -455,6 +456,7 @@ def admit_cli(args: argparse.Namespace) -> dict[str, Any]:
         current_topic_ids=topics,
         mutable_article_routes=current_article_routes(release),
         admitted_at_utc=timestamp,
+        predecessor_entry_id=args.predecessor_entry_id if args.command == "admit-successor" else None,
     )
     return {"status": "PASS_BUFFER_ADMITTED", "manifest": str(manifest), "pool": status(args.root)["pool"]}
 
@@ -619,7 +621,7 @@ def reconcile_cli(args: argparse.Namespace) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     result = JsonReceiptArgumentParser()
     sub = result.add_subparsers(dest="command", required=True)
-    for name in ("status", "admit", "consume", "recycle", "reconcile", "hold"):
+    for name in ("status", "admit", "admit-successor", "consume", "recycle", "reconcile", "hold"):
         item = sub.add_parser(name)
         item.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     hold_parser = sub.choices["hold"]
@@ -629,10 +631,13 @@ def build_parser() -> argparse.ArgumentParser:
     hold_parser.add_argument("--evidence", type=Path, required=True)
     hold_parser.add_argument("--evidence-sha256", required=True)
     hold_parser.add_argument("--dry-run", action="store_true")
-    admit_parser = sub.choices["admit"]
-    admit_parser.add_argument("--packet", type=Path, required=True)
-    admit_parser.add_argument("--pass-receipt", type=Path, required=True)
-    admit_parser.add_argument("--admitted-at-utc")
+    hold_parser.add_argument("--allow-stale-claim", action="store_true")
+    for name in ("admit", "admit-successor"):
+        admit_parser = sub.choices[name]
+        admit_parser.add_argument("--packet", type=Path, required=True)
+        admit_parser.add_argument("--pass-receipt", type=Path, required=True)
+        admit_parser.add_argument("--admitted-at-utc")
+    sub.choices["admit-successor"].add_argument("--predecessor-entry-id", required=True)
     consume_parser = sub.choices["consume"]
     consume_parser.add_argument("--operation-id", required=True)
     consume_parser.add_argument("--pt-date")
@@ -653,7 +658,7 @@ def main() -> int:
         args = build_parser().parse_args()
         if args.command == "status":
             result = status(args.root)
-        elif args.command == "admit":
+        elif args.command in ("admit", "admit-successor"):
             result = admit_cli(args)
         elif args.command == "hold":
             result = hold_cli(args)
@@ -680,7 +685,7 @@ def main() -> int:
         exception_traceback = traceback.format_exc()
         command = getattr(args, "command", None)
         if command is None and len(sys.argv) > 1 and sys.argv[1] in {
-            "status", "admit", "consume", "recycle", "reconcile", "hold",
+            "status", "admit", "admit-successor", "consume", "recycle", "reconcile", "hold",
         }:
             command = sys.argv[1]
         failure = {

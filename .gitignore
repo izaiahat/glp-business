@@ -11,9 +11,11 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/agent_exec.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/tests/test_agent_exec_routing.py
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
 !/tests/test_glp337_shared_bridge_generation.py
@@ -40,6 +42,14 @@
 !/ops/n8n-bridge/bridge.py
 !/ops/glp/
 /ops/glp/*
+!/ops/glp/evidence-refresh-k3/
+/ops/glp/evidence-refresh-k3/*
+!/ops/glp/evidence-refresh-k3/daily_evidence_refresh.py
+!/ops/glp/evidence-refresh-k3/review_evidence.py
+!/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
+!/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
+!/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md
+!/tests/test_glp80_k3_prepared_consumer.py
 !/ops/glp/reporting-v2/
 /ops/glp/reporting-v2/*
 !/ops/glp/reporting-v2/identity-registry.json
@@ -56,11 +66,18 @@
 /scripts/hermes_state_archive/*
 !/scripts/hermes_state_archive/tests/
 /scripts/hermes_state_archive/tests/*
+!/.github/workflows/glp80-k3-source.yml
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
 !/tests/test_glp333_impact_subwindows.py
 !/.gitignore
+!/tools/
+/tools/*
+!/tools/glp/
+/tools/glp/*
+!/tools/glp/evidence_refresh.py
+!/tools/glp/evidence_refresh_verify.mjs
 !/.hermes.md
 !/AGENTS.md
 !/CLAUDE.md
@@ -122,6 +139,7 @@
 !/ops/linear/CONVENTIONS.md
 !/ops/linear/DISCORD-RELAY.md
 !/ops/linear/DISPATCH-TEMPLATE.md
+!/ops/linear/MODEL-ROUTING.md
 !/ops/linear/EXECUTION-STANDARD.md
 !/ops/linear/HERMES-INSTRUCTIONS.md
 !/ops/linear/MCP-AND-NOTIFICATIONS.md
@@ -231,6 +249,7 @@
 !/tests/test_brief_lint_deep.py
 !/tests/test_brief_lint_short.py
 !/tests/test_awin_pin_shell_conventions.py
+!/tests/test_awin_paused_registration_release.py
 !/tests/test_awin_application_fit_exclusions.py
 !/tests/test_capacity_pacing.py
 !/tests/test_cron_applications_note_reconcile.py
@@ -239,6 +258,7 @@
 !/tests/test_fable_bridge_native_review.py
 !/tests/test_fable_bridge_quota_resume.py
 !/tests/test_fable_bridge_reviewer_routing.py
+!/tests/test_glp73_scoped_reviewer_routing.py
 !/tests/test_fleet_sentinel.py
 !/tests/test_glp_ads_three_platform_monitor.py
 !/tests/test_glp_affiliate_daily_decisions_report.py
