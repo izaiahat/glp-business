@@ -1,0 +1,12 @@
+{
+  "window": {"start_inclusive":"2026-09-21T00:00:00+00:00","end_exclusive":"2026-09-28T00:00:00+00:00"},
+  "count_scope": "SINGLE_RESPONSE_NOT_COMPLETE_PERIOD",
+  "clickbank": {"http_status":200,"row_count":null,"request_count":1,"coverage":"UNKNOWN","reason":"HTTP200_NULL_BODY_NO_POPULATION_PROOF","response_shape":"JSON null","response_sha256":"74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b","classification_verification":"saved null replay and RED-to-GREEN regression, no second read"},
+  "admitad": {"auth_http_status":200,"auth_request_count":1,"http_status":200,"row_count":0,"request_count":1,"coverage":"PARTIAL","reason":"ROWS_RECONCILED_VENDOR_DATE_TIMEZONE_UNPROVEN_TEST_REAL_CASH_UNKNOWN","client_credentials_present":true,"cached_bearer_present":false},
+  "healthtrader": {"http_status":200,"row_count":0,"request_count":1,"auth_request_count":0,"coverage":"PARTIAL","reason":"ROWS_RECONCILED_VENDOR_DATE_TIMEZONE_INCLUSIVITY_UNPROVEN_TEST_REAL_CASH_UNKNOWN","endpoint":"https://api.healthtrader.com/affiliates/v1/conversions/search","official_docs":"https://htaffiliate.docs.apiary.io/reference/conversions/conversions-search/search-all-conversions"},
+  "partnerstack_refersion": "unchanged; no new reads",
+  "report_complete_period": false,
+  "sends_spend_tracking_clicks_sheet_writes": 0,
+  "live_host_installed": false,
+  "operator_blockers": ["ClickBank null population is unproven; operator must confirm Order Read permission and account binding before a separately authorized follow-up read.","Live weekly-reporting installation remains a separate authorized maintenance-window step."]
+}

@@ -82,15 +82,15 @@ def test_clickbank_duplicate_and_outside_window_remain_partial(monkeypatch):
         assert result.coverage == 'PARTIAL'
         assert result.record_count is None
 
-def test_healthtrader_unknown_reporting_contract_never_reads_credentials_or_api(monkeypatch):
-    def forbidden(*args,**kwargs):
-        pytest.fail('unreviewed endpoint or credential read')
-    monkeypatch.setattr(base,'secret_text',forbidden)
-    monkeypatch.setattr(base,'secret_json',forbidden)
+def test_healthtrader_missing_cached_token_never_calls_api(monkeypatch):
+    def absent(*args,**kwargs):
+        raise FileNotFoundError('synthetic missing bearer')
+    monkeypatch.setattr(base,'secret_json',absent)
     transport=Sequence()
     result=access.conversions_earnings('healthtrader',transport,start=START,end=END)
-    assert result.coverage == result.status == 'UNKNOWN'
-    assert result.reason == 'OFFICIAL_REPORTING_ENDPOINT_UNVERIFIED_SKIP'
+    assert result.coverage == 'UNKNOWN'
+    assert result.status == 'SUPPORTED'
+    assert result.reason == 'CACHED_ACCESS_TOKEN_MISSING_NO_TOKEN_MINT'
     assert result.record_count is result.cash_minor is None
     assert not transport.calls
 
