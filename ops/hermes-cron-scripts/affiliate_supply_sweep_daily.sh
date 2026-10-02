@@ -41,10 +41,11 @@ OUTDIR="reports/glp-clinic-scout/affiliate-machine/enumeration-${STAMP}"
 # The affiliate-blitz venv carries playwright + requests; the hermes venv does
 # not (2026-08-06 root cause of the silent CJ readback failure).
 PY=/home/ubuntu/business/.venv-affiliate-blitz/bin/python
+[[ "$(sha256sum scripts/affiliate_catalog_batch.py | cut -d' ' -f1)" == '442e8d7c31da6dababc34f23972fe6555971953577f02c2328e432770317c8b5' ]]
 [[ "${AFFILIATE_CRON_VERIFY_ONLY:-0}" == "1" ]] && exit 0
 
 set +e
-SWEEP=$("$PY" scripts/marketplace_supply_sweep.py --outdir "$OUTDIR" 2>&1)
+SWEEP=$("$PY" scripts/affiliate_catalog_batch.py --outdir "$OUTDIR" 2>&1)
 rc=$?
 set -e
 if [[ $rc -ne 0 ]]; then

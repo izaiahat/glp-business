@@ -876,7 +876,7 @@ def merge_offers(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def run_supply_census(run_dir: Path) -> tuple[Path, dict[str, Any]]:
-    collector = SCRIPTS / "marketplace_supply_sweep.py"
+    collector = SCRIPTS / "affiliate_catalog_batch.py"
     if not collector.is_file():
         raise RuntimeError(f"best_terms_collector_source_missing:{collector}")
     runtime = collector_runtime_preflight()
