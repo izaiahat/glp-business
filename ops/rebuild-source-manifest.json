@@ -1615,7 +1615,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+      "sha256": "7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180"
     },
     "scripts/glp_affiliate_link_rails.py": {
       "callers": [
@@ -2096,7 +2096,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "351deac3f4c647daeaa8e9e7ea72a6cf2d2856057407a1326f6fb74505014ddb"
+      "sha256": "d42aca223cb03a8ae3463e5e00e8328fa632a5c12c02911c55d4a28183a6a910"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2207,7 +2207,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "db287f13d36144e106587bb2c3a74f69a8b6b659c711f63e31bd24e4397ced4a"
+      "sha256": "4e8c94a6f74294d744bce59c301ea4b166193c0d51b6bbbbcc0fb32cc4b2d0ee"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
       "callers": [
@@ -2928,7 +2928,7 @@
         "glp_ads_three_platform_monitor"
       ],
       "kind": "test",
-      "sha256": "a6de2aeca29a1b918e1923ef8d41a69da80712db80a4497cebc8d0be940cc90f"
+      "sha256": "9d7820433b8a60bb328a511c120b4c4f69e250084dd51ca6a84459cf92047f2b"
     },
     "tests/test_glp_affiliate_daily_decisions_report.py": {
       "callers": [
@@ -4103,7 +4103,28 @@
     },
     "tests/test_source_lock_owner.py": {
       "sha256": "9137c9486917c670219e08487b0102ab4ab0641476549970fe88b68f5dfa6362"
+    },
+    ".github/workflows/glp345-bing-report-only-guard.yml": {
+      "callers": [
+        "github-actions"
+      ],
+      "kind": "source_control",
+      "sha256": "e18284296b09ea982af924c9b91cf6e15e791ab4ae54254f6acb31d0ccf6a8f8"
+    },
+    "tests/test_current_release_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "947efb2dfc670b0aee8404986e5e9c17c293230a3d1a41a9f75f6bea5492a79c"
+    },
+    "ops/current-release-acceptance.md": {
+      "kind": "documentation",
+      "callers": [
+        "F06 current-release acceptance owner"
+      ],
+      "sha256": "b9d18c477524f03c1db4c2802a76e2fb3a8d17a0f6d06f3c0031ec1a87096255"
     }
   },
-  "tracked_count": 612
+  "tracked_count": 615
 }
