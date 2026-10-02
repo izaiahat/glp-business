@@ -184,11 +184,12 @@ def test_empty_population_is_never_zero_revenue():
 
 
 def test_offer_terms_and_sensitive_fields_are_not_projected():
-    sensitive = row('c1', revenue=99, sub1='private@example.invalid', email='private@example.invalid',
-                    relationship={'offer': {'network_offer_id': 7, 'payout_amount': 40, 'name': 'Private'}})
+    sensitive = row('c1', revenue=987654, sub1='private@example.invalid', email='private@example.invalid',
+                    relationship={'offer': {'network_offer_id': 7, 'payout_amount': 456789, 'name': 'Private'}})
     result, _ = run(documents=[page([sensitive], 1)])
-    text = json.dumps(result.to_dict())
-    assert 'private@example.invalid' not in text and '99' not in text and '40' not in text
+    assert 'private@example.invalid' not in json.dumps(result.to_dict())
+    projected = json.dumps(result.records)
+    assert '987654' not in projected and '456789' not in projected and 'Private' not in projected
     assert result.records[0]['program_id'] == '7'
     assert result.records[0]['reported_payout'] == '12.5'
 
