@@ -70,6 +70,7 @@ def approved_checkout(tmp_path):
     subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
     subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach',
                     '2265d3539691fa221a49936da23cd206c3fe0bc8'], check=True)
+    assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
     return checkout
 
 
@@ -79,7 +80,7 @@ def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old, appr
     before = snapshot(root, hermes)
     with pytest.raises(RuntimeError, match='approved_source_moved:'):
         pair.plan(ROOT, root, hermes, generation=old)
-    with pytest.raises(RuntimeError, match='approved_source_moved:systems/analytics-brain/collector.py'):
+    with pytest.raises(RuntimeError, match='approved_source_moved:ops/glp/reporting-v2/source-manifest.json'):
         pair.plan(ROOT, root, hermes, generation=GENERATION)
     proposal = pair.plan(approved_checkout, root, hermes, generation=GENERATION)[0]
     assert snapshot(root, hermes) == before
@@ -114,6 +115,16 @@ def test_successor_inventory_includes_new_publication_members():
     import maintenance_inventory
     root, hermes = Path('/fixture/business'), Path('/fixture/hermes')
     assert {root / rel for rel in MEMBERS} <= maintenance_inventory.affected_paths(root, hermes)
+
+
+def test_fixed_successor_collector_drift_still_refuses_without_mutation(tmp_path, approved_checkout):
+    root, hermes = fixture(tmp_path)
+    before = snapshot(root, hermes)
+    collector = approved_checkout / 'systems/analytics-brain/collector.py'
+    collector.write_bytes(collector.read_bytes() + b'\n# tampered\n')
+    with pytest.raises(RuntimeError, match='approved_source_moved:systems/analytics-brain/collector.py'):
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
+    assert snapshot(root, hermes) == before
 
 
 def test_successor_retained_leaf_and_baseline_guards_still_refuse(tmp_path, approved_checkout):
