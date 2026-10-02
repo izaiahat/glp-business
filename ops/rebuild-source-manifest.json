@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 577,
+  "tracked_count": 580,
   "files": {
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -421,7 +421,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89f54fba9bb426003969e9260fcbb80dc1e1f14f5b5055d97e675a6fcbd99691"
+      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2215,14 +2215,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
+      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
+      "sha256": "d27165eed61aa0590e9a37560a4f18fa3350f15cab91983022a0f1319d377dea"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -3871,6 +3871,25 @@
         "manual read-only reporting"
       ],
       "sha256": "7746c6a089603d21dad0903607bf74b7a74bae2160fe1e6fe1a153b7005995c4"
+    },
+    "systems/seo-blog-machine/scripts/opus_review_loop.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "684a0db94f4cec8e45f4455fbf8f237c38fc1d5dc9cba793a25a77400c045dd0"
+    },
+    "systems/seo-blog-machine/tests/test_article_successor.py": {
+      "callers": [
+        "GLP-7 registered held-predecessor successor admission"
+      ],
+      "kind": "test",
+      "sha256": "1fb3dac161328c953d332cbd655804eb0d1155ce3b430094bf8de8ecfaec90cf"
+    },
+    "systems/seo-blog-machine/tests/test_opus_repair_rollback.py": {
+      "callers": [
+        "GLP-7 packet repair rollback and no-replay regression"
+      ],
+      "kind": "test",
+      "sha256": "af2c0619e033cc8500623b66646890bb4afe91f162ab9a2f25448058a690937e"
     }
   }
 }
