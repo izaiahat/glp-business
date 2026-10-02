@@ -548,7 +548,7 @@ GLP331_SOURCE_HEAD = '727ad1f6af8e1000f04b96f1c267e5b0de2a832f'
 GLP331_DEPENDENCY_BINDINGS = {
     'scripts/glp_affiliate_wire_backlog_worker.py': (
         '1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a',
-        '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'),
+        '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'),
     'scripts/glp_go_runtime_manifest_refresh.mjs': (
         'e7588766ac147bccb507da889c818d97b35f25a8e1664253ce653de3ed0dde5c',
         'a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'),

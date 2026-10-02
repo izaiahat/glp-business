@@ -41,7 +41,7 @@ def test_current_base_worker_successor_copin_and_historical_custody():
     name = 'scripts/glp_affiliate_wire_backlog_worker.py'
     legacy = '1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a'
     predecessor = '59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05'
-    successor = '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'
+    successor = '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
     assert release.GLP331_DEPENDENCY_BINDINGS[name] == (legacy, successor)
     assert p.sha_bytes((ROOT/name).read_bytes()) == successor
     manifest = json.loads((ROOT/'ops/rebuild-source-manifest.json').read_text())
@@ -223,7 +223,7 @@ def test_worker_successor_does_not_admit_historical_dependency_or_review(tmp_pat
     predecessor = p.sha_bytes(before)
     row = next(item for item in proposal['dependency_binding_changes']
                if item['path'] == str(business/name))
-    assert row['to_sha256'] == '83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b'
+    assert row['to_sha256'] == '16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
     if boundary == 'installed_predecessor':
         (business/name).write_bytes(before)
         reason = 'in_scope_unreviewed_pin_drift'

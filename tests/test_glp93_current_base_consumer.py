@@ -7,6 +7,7 @@ isolated here; a separate retained-host probe exercises the real native chain.
 import ast
 import base64
 import copy
+from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -39,10 +40,9 @@ def load_consumer(root, pointer):
     path = ROOT / 'scripts/glp_affiliate_wire_backlog_worker.py'
     tree = ast.parse(path.read_text())
     nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))
-             and n.name in {'_registry_by_id', 'B2Error'}]
+             and n.name in {'_registry_by_id', 'B2Error', 'read_json'}]
     scope = {'Path': Path, 'Any': object, 'CURRENT_BASE': pointer,
-             'RELEASES': root / 'site-system/flagship-v2/releases',
-             'read_json': lambda p: json.loads(p.read_bytes())}
+             'RELEASES': root / 'site-system/flagship-v2/releases', 'json': json}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), scope)
     return types.SimpleNamespace(**scope)
 
@@ -188,16 +188,88 @@ class CurrentBaseConsumer(unittest.TestCase):
         with self.assertRaises(self.worker.B2Error):
             self.consume()
 
+    def _post_registry_read(self, effect):
+        original_open = Path.open
+        fired = False
+
+        @contextmanager
+        def observed_open(path, *args, **kwargs):
+            nonlocal fired
+            selected = path == self.registry and len(self.native_calls) == 1 and not fired
+            if selected:
+                fired = True
+            with original_open(path, *args, **kwargs) as stream:
+                yield stream
+            if selected:
+                effect()
+        return patch.object(Path, 'open', observed_open)
+
     def test_post_registry_pointer_change_refused(self):
-        original = self.worker._registry_by_id.__globals__['read_json']
-        def mutate(path):
-            result = original(path)
-            if path == self.registry:
-                self.base.write_bytes(self.base.read_bytes() + b' ')
-            return result
-        with patch.dict(self.worker._registry_by_id.__globals__, {'read_json': mutate}):
+        def mutate():
+            self.base.write_bytes(self.base.read_bytes() + b' ')
+        with self._post_registry_read(mutate):
             with self.assertRaises(self.worker.B2Error):
                 self.consume()
+
+    def test_transient_registry_replacement_restored_before_revalidation_refused(self):
+        self._assert_transient_registry_replacement_refused('offline-transient-marker')
+
+    def test_same_size_transient_registry_replacement_refused(self):
+        self._assert_transient_registry_replacement_refused('99999')
+
+    def _assert_transient_registry_replacement_refused(self, network_program_id):
+        # Schedule a real scratch-file replacement at the consumer's open, not
+        # a fabricated reader return or evidence-validator result. Both path
+        # validations would accept the restored tree on the vulnerable code.
+        authentic = self.registry.read_bytes()
+        replacement = json.loads(authentic)
+        replacement['programs'][0]['network_program_id'] = network_program_id
+        if network_program_id == '99999':
+            self.assertEqual(len(json.dumps(replacement).encode()), len(authentic))
+        validations = []
+        validator = weekly._validate_base_evidence
+        original_open = Path.open
+        fired = False
+
+        def observe_validation(*args):
+            result = validator(*args)
+            validations.append(result)
+            return result
+
+        @contextmanager
+        def scheduled_open(path, *args, **kwargs):
+            nonlocal fired
+            replace = path == self.registry and len(validations) == 1 and not fired
+            if replace:
+                fired = True
+                path.write_text(json.dumps(replacement))
+            try:
+                with original_open(path, *args, **kwargs) as stream:
+                    yield stream
+            finally:
+                if replace:
+                    path.write_bytes(authentic)
+
+        refusal = None
+        returned = None
+        with patch.object(weekly, '_validate_base_evidence', side_effect=observe_validation), \
+             patch.object(Path, 'open', scheduled_open):
+            try:
+                returned = self.consume()
+            except self.worker.B2Error as exc:
+                refusal = exc
+        self.assertTrue(fired)
+        self.assertEqual(self.registry.read_bytes(), authentic)
+        # Independently revalidate the restored tree even when the consumer
+        # correctly refuses before reaching its normal second validation.
+        restored = validator(self.pointer, self.release)
+        self.assertEqual(restored, validations[0])
+        for result in validations:
+            self.assertEqual(result, restored)
+        self.assertIsInstance(refusal, self.worker.B2Error,
+            f'Unauthenticated registry accepted: validations_passed={len(validations)}, '
+            f'validation_results_identical=True, registry_restored=True, returned={returned}')
+        self.assertIn('current_release_registry_bytes_mismatch', str(refusal))
 
     def test_first_batch_step_consumes_full_current_pointer(self):
         path = ROOT / 'scripts/glp_affiliate_wire_backlog_worker.py'
@@ -248,13 +320,9 @@ class CurrentBaseConsumer(unittest.TestCase):
             self.consume()
 
     def test_post_registry_tree_change_refused(self):
-        original = self.worker._registry_by_id.__globals__['read_json']
-        def mutate(path):
-            result = original(path)
-            if path == self.registry:
-                path.write_bytes(path.read_bytes() + b' ')
-            return result
-        with patch.dict(self.worker._registry_by_id.__globals__, {'read_json': mutate}):
+        def mutate():
+            self.registry.write_bytes(self.registry.read_bytes() + b' ')
+        with self._post_registry_read(mutate):
             with self.assertRaises(self.worker.B2Error):
                 self.consume()
 

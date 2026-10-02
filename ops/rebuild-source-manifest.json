@@ -106,7 +106,7 @@
       "callers": [
         "GLP331 scoped carrier closure; independent exact review required"
       ],
-      "sha256": "24952a2bca8a28dbef0d3fc202c7ec84742bff14e380f99bbaa077da1004302b"
+      "sha256": "4ba9a9f146f1adf0beed5f208d9963a54cd839e9d7cf7951ed3677f2e2d44a2a"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
@@ -127,7 +127,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "9461b5f443bc97ce2367beb4846905cb7c15fec8b63d9a99c275770dfb2963ac"
+      "sha256": "5607f66b600de9ce8d955d59ea30379c02bcddac0bb829f12c0efc482bb9d161"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -413,7 +413,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89f54fba9bb426003969e9260fcbb80dc1e1f14f5b5055d97e675a6fcbd99691"
+      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1596,7 +1596,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
+      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -1658,7 +1658,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b"
+      "sha256": "16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108"
     },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": [
@@ -2207,14 +2207,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
+      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
+      "sha256": "d27165eed61aa0590e9a37560a4f18fa3350f15cab91983022a0f1319d377dea"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -3567,7 +3567,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
+      "sha256": "18d7f494c40bec58ebb351cfd6c4ddf5698d01c85cea91cf12bce4af49807864"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3654,7 +3654,7 @@
       "callers": [
         ".github/workflows/glp93-current-base-consumer.yml"
       ],
-      "sha256": "857a87894f6c756e614a87bc9d0243f45145b4ccf1993921583c3c2fec578484"
+      "sha256": "a3f4cb73f5070c92a1cdc7f33e174e1aa3be1e32f201557500863b37a6f590c8"
     },
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -3798,7 +3798,26 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "40ec3ea5c56b65cbe75a272442bc95676fd98f3ec126bf439c1ad4eed3e4196e"
+    },
+    "systems/seo-blog-machine/scripts/opus_review_loop.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "684a0db94f4cec8e45f4455fbf8f237c38fc1d5dc9cba793a25a77400c045dd0"
+    },
+    "systems/seo-blog-machine/tests/test_article_successor.py": {
+      "callers": [
+        "GLP-7 registered held-predecessor successor admission"
+      ],
+      "kind": "test",
+      "sha256": "1fb3dac161328c953d332cbd655804eb0d1155ce3b430094bf8de8ecfaec90cf"
+    },
+    "systems/seo-blog-machine/tests/test_opus_repair_rollback.py": {
+      "callers": [
+        "GLP-7 packet repair rollback and no-replay regression"
+      ],
+      "kind": "test",
+      "sha256": "af2c0619e033cc8500623b66646890bb4afe91f162ab9a2f25448058a690937e"
     }
   },
-  "tracked_count": 568
+  "tracked_count": 571
 }

@@ -2411,7 +2411,29 @@ def _registry_by_id(pointer: dict[str, Any]) -> tuple[Path, dict[str, dict[str, 
     elif not release.is_dir():
         raise B2Error("current_release_scope_invalid")
     registry_path = release / "data/program-registry.json"
-    registry = read_json(registry_path)
+    if prepared_evidence is None:
+        registry = read_json(registry_path)
+    else:
+        try:
+            # Authenticate the manifest's held bytes, then bind the single
+            # registry read to its entry. Revalidating the path cannot detect
+            # a transient replacement restored before the second validation.
+            manifest_bound = current_base._checked_base_evidence(
+                pointer, "manifest", "01-deployment-manifest.json"
+            )
+            manifest = current_base._load_base_document(manifest_bound["bytes"], "manifest")
+            _, manifest_rows = current_base._normalized_manifest_rows(manifest.get("release_rows"))
+            registry_entry = next(
+                (row for row in manifest_rows if row["path"] == "data/program-registry.json"), None
+            )
+            registry_bytes = registry_path.read_bytes()
+            if (registry_entry is None
+                    or registry_entry.get("size") != len(registry_bytes)
+                    or registry_entry["sha256"] != current_base.sha_bytes(registry_bytes)):
+                raise RuntimeError("current_release_registry_bytes_mismatch")
+            registry = json.loads(registry_bytes.decode("utf-8"))
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise B2Error(f"current_release_scope_invalid:{exc}") from exc
     programs = {str(row.get("program_id")): row for row in registry.get("programs") or []}
     if prepared_evidence is not None:
         # Re-authenticate after consumption: pointer, tree, and native retained
