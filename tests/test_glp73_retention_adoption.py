@@ -28,6 +28,9 @@ BEFORE = 'e305cd57898e49b2dc57e3486aade3dc22c361b81844cf667c492c725a730020'
 AFTER = 'd4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124'
 SCHEMA = 'scripts/glp_current_content_base_schema.py'
 SCHEMA_HASH = 'e1c2c57c90f08503742a1d0ad7256c10f89473e39f1feb7c717764e749bbc479'
+SUCCESSOR = 'pr154-retention-20261002'
+SUCCESSOR_SOURCE = 'e0df91e1d5b40faee1966527a677fa788dabae8e'
+SUCCESSOR_HASH = 'ee6eab73a99a9cb35741cd5ec75f3d39ea588e986a7ddd9bc3ab2f52733680d1'
 
 
 def blob(ref, rel):
@@ -45,15 +48,18 @@ def exact(path):
     return path.read_bytes(), stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid
 
 
-def fixture(tmp_path, monkeypatch):
+def fixture(tmp_path, monkeypatch, *, generation=GENERATION):
     root, home, repo = (tmp_path / name for name in ('business', 'hermes', 'checkout'))
     root.mkdir(); home.mkdir()
-    put(root / ARCHIVER, blob(pair.SOURCE, ARCHIVER))
+    successor = generation == SUCCESSOR
+    source = SUCCESSOR_SOURCE if successor else SOURCE
+    predecessor = AFTER if successor else BEFORE
+    put(root / ARCHIVER, blob(SOURCE if successor else pair.SOURCE, ARCHIVER))
     put(root / SCHEMA, blob(SOURCE, SCHEMA), 0o644)
-    assert pair.sha((root / ARCHIVER).read_bytes()) == BEFORE
+    assert pair.sha((root / ARCHIVER).read_bytes()) == predecessor
     assert pair.sha((root / SCHEMA).read_bytes()) == SCHEMA_HASH
     put(root / 'scripts/unselected.py', b'# retained unrelated source\n', 0o640)
-    state = {'schema': 1, 'hashes': {ARCHIVER: BEFORE, SCHEMA: SCHEMA_HASH,
+    state = {'schema': 1, 'hashes': {ARCHIVER: predecessor, SCHEMA: SCHEMA_HASH,
              'scripts/unselected.py': pair.sha(b'# retained unrelated source\n')},
              'receipt': 'disposable fixture only'}
     put(root / pair.syncer.STATE, (json.dumps(state) + '\n').encode())
@@ -69,6 +75,10 @@ def fixture(tmp_path, monkeypatch):
                        20 if i == 1 else 23: (pair.SOURCE_BEFORE[0][0], SCHEMA_HASH)}
         body = pair.replace_lines(body, updates)
         assert pair.sha(body) == new
+        if successor and i != 0:
+            body = pair.replace_lines(body, {16 if i == 1 else 19: (BEFORE, AFTER)})
+            new = pair.RETENTION_JOBS[i - 1][3]
+            assert pair.sha(body) == new
         put(home / 'scripts' / name, body, mode)
         job = {'id': jid, 'script': name, 'script_sha256': new, 'enabled': False,
                'state': 'paused', 'paused_reason': 'fixture hold', 'no_agent': True,
@@ -87,7 +97,10 @@ def fixture(tmp_path, monkeypatch):
     for rel in manifest['files']:
         if not (repo / rel).exists() or (repo / rel).read_bytes() != (ROOT / rel).read_bytes():
             put(repo / rel, (ROOT / rel).read_bytes(), (ROOT / rel).stat().st_mode & 0o777)
-    put(repo / pair.syncer.MANIFEST, (ROOT / pair.syncer.MANIFEST).read_bytes(), 0o644)
+    # Historical success uses authentic PR136 bytes, not the changed worktree.
+    put(repo / ARCHIVER, blob(source, ARCHIVER))
+    manifest['files'][ARCHIVER]['sha256'] = pair.sha(blob(source, ARCHIVER))
+    put(repo / pair.syncer.MANIFEST, (json.dumps(manifest, indent=2) + '\n').encode(), 0o644)
     subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
     subprocess.run(['git', '-C', str(repo), 'add', '-f', 'tests/test_glp73_retention_adoption.py'], check=True)
     # Worktree producers may be newer than the parent's committed manifest.
@@ -172,9 +185,36 @@ def test_narrow_preview_reproduces_and_avoids_wrong_cohort(tmp_path, monkeypatch
         f.window.release_locks()
 
 
-def review(f):
-    planned = pair.plan(f.repo, f.root, f.home, generation=GENERATION)
-    proposal = pair.retention_proposal(f.repo, f.root, f.home, planned)
+def test_successor_accepts_fixed_bytes_but_pr136_and_tampering_refuse(tmp_path, monkeypatch, capsys):
+    f = fixture(tmp_path, monkeypatch, generation=SUCCESSOR)
+    try:
+        before = payloads(f)
+        planned = pair.plan(f.repo, f.root, f.home, generation=SUCCESSOR)
+        assert planned[2] == {ARCHIVER: SUCCESSOR_HASH}
+        assert {p.name: pair.sha(body) for p, body in planned[1].items()} == {
+            'f12_generator_archiver.py': '27153229b42fa7901266166c86b8c0f6f6d0c925572f427f0ae5b21e6cf4a3aa',
+            'f13_growth_retention.py': '4884ad0d2bba772472cc713907f94dc31560267d5850f591dca5a6cc7ebd5cb6'}
+        proposal = pair.retention_proposal(f.repo, f.root, f.home, planned, generation=SUCCESSOR)
+        assert proposal['generation'] == SUCCESSOR and proposal['source'] == SUCCESSOR_SOURCE
+        assert proposal['source_before_sha256'] == {ARCHIVER: AFTER}
+        capsys.readouterr()
+        monkeypatch.setattr(sys, 'argv', ['glp73_paired_adoption.py', '--generation', SUCCESSOR,
+                            '--checkout', str(f.repo), '--root', str(f.root), '--hermes', str(f.home)])
+        assert pair.main() == 0
+        assert json.loads(capsys.readouterr().out) == {'applied': False, 'proposal': proposal}
+        with pytest.raises(RuntimeError, match='retention_approved_source_moved'):
+            pair.plan(f.repo, f.root, f.home, generation=GENERATION)
+        put(f.repo / ARCHIVER, blob(SUCCESSOR_SOURCE, ARCHIVER) + b'# tampered\n')
+        with pytest.raises(RuntimeError, match='retention_approved_source_moved'):
+            pair.plan(f.repo, f.root, f.home, generation=SUCCESSOR)
+        assert payloads(f) == before and not f.saves
+    finally:
+        f.window.release_locks()
+
+
+def review(f, *, generation=GENERATION):
+    planned = pair.plan(f.repo, f.root, f.home, generation=generation)
+    proposal = pair.retention_proposal(f.repo, f.root, f.home, planned, generation=generation)
     return {'schema': 'glp73-retention-adoption-review-v1', 'decision': 'ACCEPT_EXACT_BYTES',
             'prepared_by': 'fixture author', 'reviewer': 'fixture independent reviewer',
             'proposal': proposal,
@@ -183,9 +223,9 @@ def review(f):
                               'proposal_sha256': pair.sha(json.dumps(proposal, sort_keys=True).encode())}}
 
 
-def apply(f, receipt):
+def apply(f, receipt, *, generation=GENERATION):
     return pair.adopt(f.repo, f.root, f.home, receipt, scheduler=f.scheduler,
-                      window=f.journal, generation=GENERATION)
+                      window=f.journal, generation=generation)
 
 
 def payloads(f):
@@ -195,10 +235,54 @@ def payloads(f):
     return {p: exact(p) for p in paths}
 
 
-def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
-    f = fixture(tmp_path, monkeypatch)
+def test_successor_keeps_review_preimage_and_window_guards(tmp_path, monkeypatch):
+    f = fixture(tmp_path, monkeypatch, generation=SUCCESSOR)
     try:
-        receipt = review(f)
+        receipt = review(f, generation=SUCCESSOR)
+        before = payloads(f)
+        for change in ('old_generation', 'self_review', 'stale_runtime'):
+            moved = copy.deepcopy(receipt)
+            if change == 'old_generation': moved['proposal']['generation'] = GENERATION
+            elif change == 'self_review': moved['reviewer'] = moved['prepared_by']
+            else: moved['runtime_review']['proposal_sha256'] = '0' * 64
+            with pytest.raises(RuntimeError, match='independent_exact_source_and_runtime_review_required_or_moved'):
+                apply(f, moved, generation=SUCCESSOR)
+            assert payloads(f) == before and not f.saves
+        with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
+            pair.adopt(f.repo, f.root, f.home, receipt, scheduler=f.scheduler, generation=SUCCESSOR)
+        with pytest.raises(RuntimeError, match='retention_generation_does_not_rebaseline'):
+            pair.plan(f.repo, f.root, f.home, generation=SUCCESSOR, state_rebaseline={})
+        with pytest.raises(RuntimeError, match='retention_generation_does_not_rebaseline'):
+            pair.adopt(f.repo, f.root, f.home, receipt, scheduler=f.scheduler, window=f.journal,
+                       generation=SUCCESSOR, state_rebaseline={})
+        for path in (f.root / ARCHIVER, f.root / SCHEMA, f.root / pair.syncer.STATE,
+                     f.home / 'scripts/f12_generator_archiver.py', f.home / 'scripts/f13_growth_retention.py'):
+            original = exact(path)
+            put(path, original[0] + b'\n', original[1])
+            changed = payloads(f)
+            with pytest.raises(RuntimeError): apply(f, receipt, generation=SUCCESSOR)
+            assert payloads(f) == changed and not f.saves
+            put(path, original[0], original[1])
+        assert payloads(f) == before and not (f.root / 'reports').exists()
+    finally:
+        f.window.release_locks()
+
+
+def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
+    _native_install_readback(tmp_path, monkeypatch, GENERATION)
+
+
+def test_successor_exact_two_job_native_install_readback(tmp_path, monkeypatch):
+    _native_install_readback(tmp_path, monkeypatch, SUCCESSOR)
+
+
+def _native_install_readback(tmp_path, monkeypatch, generation):
+    f = fixture(tmp_path, monkeypatch, generation=generation)
+    source = SUCCESSOR_SOURCE if generation == SUCCESSOR else SOURCE
+    predecessor = AFTER if generation == SUCCESSOR else BEFORE
+    after = SUCCESSOR_HASH if generation == SUCCESSOR else AFTER
+    try:
+        receipt = review(f, generation=generation)
         before = payloads(f)
         state = json.loads(before[f.root / pair.syncer.STATE][0])
         expected_jobs = copy.deepcopy(f.jobs)
@@ -219,11 +303,11 @@ def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
             seen.append(copy.deepcopy(data))
             return original(candidate)
         monkeypatch.setattr(f.scheduler, '_save_jobs_unlocked', sealed_save)
-        result = apply(f, receipt)
-        assert result['applied'] and len(f.saves) == len(seen) == 1
+        result = apply(f, receipt, generation=generation)
+        assert result['applied'] and result['source'] == source and len(f.saves) == len(seen) == 1
         assert f.scheduler.load_jobs() == expected_jobs
-        assert (f.root / ARCHIVER).read_bytes() == blob(SOURCE, ARCHIVER)
-        state['hashes'][ARCHIVER] = AFTER
+        assert (f.root / ARCHIVER).read_bytes() == blob(source, ARCHIVER)
+        state['hashes'][ARCHIVER] = after
         assert json.loads((f.root / pair.syncer.STATE).read_bytes()) == state
         changed = {f.root / ARCHIVER, f.root / pair.syncer.STATE, f.registry,
                    *(f.home / 'scripts' / name for name in expected_wrappers)}
@@ -233,7 +317,7 @@ def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
             path = f.home / 'scripts' / name
             assert pair.sha(path.read_bytes()) == digest
             # Only the archiver digest moves; schema, R2, payload, alert and binary pins remain exact.
-            assert path.read_bytes() == before[path][0].replace(BEFORE.encode(), AFTER.encode(), 1)
+            assert path.read_bytes() == before[path][0].replace(predecessor.encode(), after.encode(), 1)
             assert exact(path)[1:] == before[path][1:]
         admitted = {Path(name) for name in seen[0]['source_transaction']['after']}
         assert admitted == {f.root / ARCHIVER, f.root / pair.syncer.STATE,
@@ -243,7 +327,7 @@ def test_exact_two_job_native_install_readback(tmp_path, monkeypatch):
         assert data['source_transaction']['outcome'] == 'applied'
         assert data['source_switch']['commit_verified'] and data['source_switch']['state'] == 'published'
         assert f.window.status()['verified']
-        with pytest.raises(RuntimeError): apply(f, receipt)
+        with pytest.raises(RuntimeError): apply(f, receipt, generation=generation)
         assert len(f.saves) == 1
     finally:
         f.window.release_locks()

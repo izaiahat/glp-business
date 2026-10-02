@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 607,
+  "tracked_count": 608,
   "files": {
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -149,7 +149,7 @@
       "callers": [
         "GLP331 exact-head native acceptance fixtures"
       ],
-      "sha256": "238eca8bda75e7a43bb443d11269f5557ae23531366a401bd67f60531599cf3a"
+      "sha256": "937a6885718ac13f649f7025d900ca3dab0f5ce3d600c0792121515cd96d2fc3"
     },
     "tests/test_network_access_review_regressions.py": {
       "callers": [
@@ -1609,7 +1609,7 @@
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7aa47ef2c7961ce6f94445619a3182c20047997de67e2a188d62dcef222791f7"
+      "sha256": "8c14dfdbaf1da5cb3431d3c0ee565248a47c3a7fd4bfb31666b66c44db1e5a35"
     },
     "scripts/glp_ads_three_platform_monitor.py": {
       "callers": [
@@ -2070,7 +2070,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "d4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124"
+      "sha256": "ee6eab73a99a9cb35741cd5ec75f3d39ea588e986a7ddd9bc3ab2f52733680d1"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2097,7 +2097,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d1818f76c5c7221404f801abbe305439ec94014fa5b46bde03b442be852287ed"
+      "sha256": "3f5a3260f7d9cdffbd1e359b77e6b1845c98f2c2fd6bd84ef64b7ae9e5443393"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3774,7 +3774,7 @@
       "callers": [
         ".github/workflows/glp331-carrier-closure.yml"
       ],
-      "sha256": "53b68ed6b7efee7226ffc28437afb75b5c44eb024e186e85ec7ab5925c77f844"
+      "sha256": "032157a276f12ec819f524d09ec2ecf145a3130a84794ecd0abffbb9bbefe56c"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
@@ -3998,7 +3998,7 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "c04c655e1bca2ca9559f68dd2584d0503de13681fba73f2ae5ed0dafd7bbc184"
+      "sha256": "71fa11e0b4554c4de76716dfa46300a22e2af22592ae71fc080edaa27b29a447"
     },
     "scripts/glp_ship_generation.py": {
       "kind": "source",
@@ -4054,7 +4054,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "d1582971c9d84b243a26e0898ad72a416e4d2e760fbf6f3059f9bb11fd6e032e"
+      "sha256": "d802c330ebe494160248151163ecc67932772df22fe69ab97f087d151db02bb7"
     },
     "tests/test_glp_ship_provenance.py": {
       "kind": "test",
@@ -4076,6 +4076,13 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "3db27e4ac09a6d2332af2e30022464f2af2e0f3267e9a929aa133ca07dafc064"
+    },
+    "tests/test_glp73_archive_hardlink_manifest.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5ef6511d8422a7dcb0696cb690367ebd8354e004493965bc1d13e690ccef790d"
     }
   }
 }
