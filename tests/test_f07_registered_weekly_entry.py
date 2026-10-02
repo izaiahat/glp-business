@@ -75,6 +75,12 @@ def entry_fixture(tmp_path, wrapper=None):
     roster_rel, roster_pin = roster_match.groups()
     roster = b'{"marketplaces":[{"marketplace":"cj"}]}'
     put(root, roster_rel, roster)
+    # F12 retained-input dependency: synthetic UNKNOWN fixture, not live evidence.
+    retained_rel = 'reports/ops/f12-host-followthrough-20261002/reconciliation-input.json'
+    retained_pin = '5ae5aee441a9dbc6c9cb17dfb66fe0c7f28068f68d267ba6707b3c333deb95f1'
+    retained = b'{"schema":"glp-f12-reconciliation-input-v1","evidence_ref":"fixture:unknown","complete":false,"conversions":[]}'
+    put(root, retained_rel, retained)
+    text = text.replace(retained_pin, sha(retained))
     # Only environment-dependent fixture adaptations; never change identity pin.
     text = text.replace(LIVE, str(root)).replace('/home/ubuntu/.hermes/hermes-agent/venv/bin/python', sys.executable)
     text = text.replace(sha(pins_body), sha(new_manifest)).replace(roster_pin, sha(roster))
@@ -113,7 +119,7 @@ def test_predecessor_identity_pin_refuses_before_python_entry(tmp_path):
 
 def test_all_committed_wrapper_source_pins_match_checkout():
     rows = re.findall(r'^check_source (\S+) ([0-9a-f]{64})$', (ROOT / WRAPPER).read_text(), re.M)
-    assert len(rows) == 4
+    assert len(rows) == 5
     for rel, expected in rows:
         if rel.startswith('reports/'):
             continue  # Private retained roster, independently checked at receiving review.

@@ -17,6 +17,9 @@ if (( $# )); then
   [[ $# == 1 && "$1" == '--dry-run' ]] || exit 64
   args=()
 fi
+# Retained D1 capture, NOT a fresh receiver export or closed-payout proof.
+check_source reports/ops/f12-host-followthrough-20261002/reconciliation-input.json 5ae5aee441a9dbc6c9cb17dfb66fe0c7f28068f68d267ba6707b3c333deb95f1
+args+=(--reconciliation-input /home/ubuntu/business/reports/ops/f12-host-followthrough-20261002/reconciliation-input.json)
 export PYTHONDONTWRITEBYTECODE=1
 exec /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B \
   /home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py \

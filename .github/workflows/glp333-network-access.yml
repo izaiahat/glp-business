@@ -22,4 +22,4 @@ jobs:
           PYTHONPATH: scripts:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -m pytest -q tests/test_network_access_contract.py tests/test_network_access_review_regressions.py tests/test_glp333_impact_subwindows.py tests/test_glp44_reporting_source_pin_pair.py tests/test_glp85_cj_reporting_identity.py tests/test_glp319_incomplete_period.py
+          .venv/bin/python -m pytest -q tests/test_network_access_contract.py tests/test_network_access_review_regressions.py tests/test_glp333_impact_subwindows.py tests/test_glp44_reporting_source_pin_pair.py tests/test_glp85_cj_reporting_identity.py tests/test_glp319_incomplete_period.py tests/test_f12_scheduled_retained_input.py
