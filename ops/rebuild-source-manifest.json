@@ -8,15 +8,8 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 565,
+  "tracked_count": 568,
   "files": {
-    "tests/test_glp73_scoped_reviewer_routing.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "9126bf67537ba6a6b854baf634b5a7b191eee51fddb1e5235aa1dc2656cb8d5d"
-    },
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
       "callers": [
@@ -421,7 +414,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "89f54fba9bb426003969e9260fcbb80dc1e1f14f5b5055d97e675a6fcbd99691"
+      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2215,14 +2208,14 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "7c3083dfce1ac19c0a48e1e507f124ce83c7f18b125bcacb377170c9e977e735"
+      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "68a01c5211f31c4505acbbbc5bc00fc4bf55e0fd1946c72e74cdae31e58b60f8"
+      "sha256": "d27165eed61aa0590e9a37560a4f18fa3350f15cab91983022a0f1319d377dea"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [
@@ -2356,6 +2349,25 @@
       ],
       "kind": "test",
       "sha256": "3c7c92c16175ab7a1b298d74bab4db1e6585611d983aac523a9620fe49e63fe4"
+    },
+    "systems/seo-blog-machine/scripts/opus_review_loop.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "684a0db94f4cec8e45f4455fbf8f237c38fc1d5dc9cba793a25a77400c045dd0"
+    },
+    "systems/seo-blog-machine/tests/test_article_successor.py": {
+      "callers": [
+        "GLP-7 registered held-predecessor successor admission"
+      ],
+      "kind": "test",
+      "sha256": "1fb3dac161328c953d332cbd655804eb0d1155ce3b430094bf8de8ecfaec90cf"
+    },
+    "systems/seo-blog-machine/tests/test_opus_repair_rollback.py": {
+      "callers": [
+        "GLP-7 packet repair rollback and no-replay regression"
+      ],
+      "kind": "test",
+      "sha256": "af2c0619e033cc8500623b66646890bb4afe91f162ab9a2f25448058a690937e"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -3647,13 +3659,6 @@
       "kind": "test",
       "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
     },
-    "tests/test_glp73_retention_adoption.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp331-carrier-closure.yml"
-      ],
-      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
-    },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [
         "GLP75/76 Sunday workweek source admission; consumer/test review context"
@@ -3682,20 +3687,6 @@
       "kind": "test",
       "sha256": "d7b2345287e836d03ab223db88fb9feb9bb434a220afd3e5643399f1a15ae620"
     },
-    "tests/test_maintenance_pause_cursor_race.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/maintenance-pause-cursor-race.yml"
-      ],
-      "sha256": "e6de11619b55903eadb453ac27082e866b7946011ab79bf83ca63e6940f55bd4"
-    },
-    ".github/workflows/maintenance-pause-cursor-race.yml": {
-      "kind": "repository_control",
-      "callers": [
-        "Exact-head native maintenance race acceptance fixtures"
-      ],
-      "sha256": "f4f2aeb9e568a6eca1ffe9eb8b9ac456de08f56dbc007d36ca571a9b7fc345be"
-    },
     "tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs": {
       "callers": [
         "tests/test_glp76_carrier_calendar.py"
@@ -3716,6 +3707,34 @@
       ],
       "kind": "test",
       "sha256": "56a8d490bc66e6353e4c77b8888186aa49500ec2a046116796d4901dc28aed79"
+    },
+    "tests/test_glp73_scoped_reviewer_routing.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9126bf67537ba6a6b854baf634b5a7b191eee51fddb1e5235aa1dc2656cb8d5d"
+    },
+    "tests/test_glp73_retention_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp331-carrier-closure.yml"
+      ],
+      "sha256": "b5f1d4f9d966c44cd24fd892df21eaf428751e45317b1915e6ee128335aae84d"
+    },
+    "tests/test_maintenance_pause_cursor_race.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/maintenance-pause-cursor-race.yml"
+      ],
+      "sha256": "e6de11619b55903eadb453ac27082e866b7946011ab79bf83ca63e6940f55bd4"
+    },
+    ".github/workflows/maintenance-pause-cursor-race.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "Exact-head native maintenance race acceptance fixtures"
+      ],
+      "sha256": "f4f2aeb9e568a6eca1ffe9eb8b9ac456de08f56dbc007d36ca571a9b7fc345be"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
