@@ -3,6 +3,11 @@
  "why": "PERSISTENT PATH ONLY (operator 2026-09-14): every repair lands in the REGISTERED path. Until 2026-09-16 that was prose in three files and a receipt; nothing mechanical distinguished a registered producer from a one-off that appends a well-formed entry. On 2026-09-16 01:06Z a one-off adopted a pinned capture with check_successor disabled, and on the same day four dose_pricing rows were hand-written into the pricing matrix. Both were well-formed bytes. result_lint now refuses a RESULT that changes one of these artifacts without a producer.registered_command whose program is listed here.",
  "artifacts": [
   {
+   "glob": "/home/ubuntu/.hermes/scripts/affiliate_supply_discovery_daily.sh",
+   "producers": ["scripts/glp_ship_discovery.py"],
+   "scope": "Only the exact committed F01 wrapper/source generation under independent proposal-bound review, separate owner exclusion, existing consumer locks, native fire/registry fences and maintained cohort custody. Unknown predecessors refuse. Ambiguous source or native save outcomes retain seals and require reconciliation; no retry or unrelated-job authority."
+  },
+  {
    "glob": "site-system/flagship-v2/candidates/*/functions/go/program-manifest.js",
    "producers": ["scripts/glp_go_runtime_manifest_refresh.mjs"],
    "scope": "Existing backlog caller only, detached authenticated predecessor/batch candidate. Exact protected go-selection code ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e and entire pinned code/selection graph required before import; selected HOLD beats legacy VERIFIED. Current-base custody and full contract-map digest live in rebuild-source-manifest. No historical root override, held-provider clearance, release or live-effect authorization."
@@ -22,8 +27,8 @@
   },
   {
    "glob": "/home/ubuntu/.hermes/cron/jobs.json",
-   "producers": ["scripts/maxbounty_pin_release.py", "scripts/scheduled_job_health_carrier_release.py", "scripts/fleet_pin_release.py", "scripts/glp331_carrier_adoption.py"],
-   "scope": "MaxBounty: only 89cd7b766dba.script_sha256, disabled/paused required. F09: only b86ec8937c20.script_sha256, existing enabled no-agent every-15m registration preserved, native claims absent. GLP331: explicit fleet_pin_release.py --scope glp331 only f0c6a95a371c.script_sha256 with its exact seven-source/one-carrier closure and unchanged enabled/scheduled daily registration. All require full-record CAS and independent exact review; no schedule/lifecycle changes. This listing is not adoption authority. The fixed glp331_carrier_adoption.py in-window generation CASes the complete three admitted paused consumer records under sorted fire fences and the native registry lock, merges only f0 script_sha256 into the current registry, preserves unrelated rows and leaves restoration to the reviewed window journal."
+   "producers": ["scripts/maxbounty_pin_release.py", "scripts/scheduled_job_health_carrier_release.py", "scripts/fleet_pin_release.py", "scripts/glp331_carrier_adoption.py", "scripts/glp_ship_discovery.py", "scripts/glp_ship_runtime.py"],
+   "scope": "glp_ship_discovery: only 58202b06bdc0.script_sha256 via exact source/known-wrapper preimage, owner exclusion, consumer/fire/registry locks and maintained cohort CAS; uncertain commits remain sealed. glp_ship_runtime: only registry-selected reporting, paired retention or discovery job pause/resume after exact registered manual execution; Tier A review binds activation, paired resume requires both successes. Neither grants authority for other IDs. MaxBounty: only 89cd7b766dba.script_sha256, disabled/paused required. F09: only b86ec8937c20.script_sha256, existing enabled no-agent every-15m registration preserved, native claims absent. GLP331: explicit fleet_pin_release.py --scope glp331 only f0c6a95a371c.script_sha256 with its exact seven-source/one-carrier closure and unchanged enabled/scheduled daily registration. All require full-record CAS and independent exact review; no schedule/lifecycle changes. This listing is not adoption authority. The fixed glp331_carrier_adoption.py in-window generation CASes the complete three admitted paused consumer records under sorted fire fences and the native registry lock, merges only f0 script_sha256 into the current registry, preserves unrelated rows and leaves restoration to the reviewed window journal."
   },
   {
    "glob": "/home/ubuntu/.hermes/scripts/scheduled_job_health_manager.py",

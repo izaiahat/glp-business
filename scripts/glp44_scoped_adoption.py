@@ -132,6 +132,12 @@ GLP337_CONTEXT = (
 
 
 def generation_contract(generation):
+    if _git_generation(generation):
+        from glp_ship_registry import REPORTING_PATHS
+        if (generation.kind != 'reporting' or generation.paths != REPORTING_PATHS
+                or set(generation.hashes) != set(REPORTING_PATHS)):
+            raise RuntimeError('wrong_git_generation_cohort')
+        return generation.source, generation.paths
     if generation == GLP337_GENERATION:
         return GLP337_SOURCE, GLP337_PATHS
     if generation == GLP331_GENERATION:
@@ -143,6 +149,15 @@ def generation_contract(generation):
     if generation == COLLECTOR_GENERATION:
         return COLLECTOR_SOURCE, COLLECTOR_PATHS
     raise RuntimeError('unknown_reporting_generation')
+
+
+def _git_generation(generation):
+    from glp_ship_generation import GitGeneration
+    return isinstance(generation, GitGeneration)
+
+
+def _successor(generation):
+    return _git_generation(generation) or generation in SUCCESSORS
 
 
 def digest(body):
@@ -347,8 +362,12 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _plan_dependencies(checkout, root, hermes, review, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation in SUCCESSORS
-    successor_hashes, runtime_schema = SUCCESSORS.get(generation, (None, None))
+    derived = _git_generation(generation)
+    successor = _successor(generation)
+    successor_hashes, runtime_schema = ((generation.hashes, None) if derived
+                                       else SUCCESSORS.get(generation, (None, None)))
+    if derived:
+        generation.verify(checkout)
     checkout = checkout.resolve(strict=True)
     root = root.resolve(strict=True)
     hermes = hermes.resolve(strict=True)
@@ -426,7 +445,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
     if successor:
         registry_body, registry_mode = read_regular(registry)
         proposal.update({
-            'generation': generation, 'producer_head': producer_head,
+            'generation': generation.name if derived else generation, 'producer_head': producer_head,
             'producer_sha256': digest(committed),
             'producer_source_manifest_sha256': digest((checkout / syncer.MANIFEST).read_bytes()),
             'target': {'root': str(root), 'hermes': str(hermes),
@@ -439,7 +458,7 @@ def _plan(checkout, root, hermes, review=None, *, window=None, generation='pr71'
             'retained_source': {p: {'sha256': digest(value[0]), 'mode': value[1]}
                                 for p, value in retained.items()},
         })
-    if review is not None:
+    if review is not None and not derived:
         for key in proposal:
             if review.get(key) != proposal[key]:
                 raise RuntimeError('reviewed_preimage_or_candidate_moved:' + key)
@@ -480,7 +499,9 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     if generation in (GLP331_GENERATION, GLP337_GENERATION):
         return _adopt_dependencies(checkout, root, hermes, review, scheduler, window, generation)
     approved, paths = generation_contract(generation)
-    successor = generation in SUCCESSORS
+    successor = _successor(generation)
+    if _git_generation(generation):
+        generation.authorize(review, root, hermes, window)
     proposal, adopted, before, state, wrapper_before, registry = _plan(checkout, root, hermes, review, window=window, generation=generation)
     if scheduler._current_cron_store().jobs_file != registry or scheduler._jobs_lock_file() != registry.parent / '.jobs.lock':
         raise RuntimeError('wrong_scheduler_store')
@@ -498,6 +519,8 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
             fresh, _, _, _, _, _ = _plan(checkout, root, hermes, review, window=window, generation=generation)
             if fresh != proposal:
                 raise RuntimeError('preimage_moved_under_lock')
+            if _git_generation(generation):
+                generation.authorize(review, root, hermes, window)
             registry_before = registry.read_bytes()
             if any(body is None for body, _ in original.values()):
                 raise RuntimeError('missing_predecessor_requires_separate_custody')

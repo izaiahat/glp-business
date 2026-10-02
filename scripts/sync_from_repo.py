@@ -92,15 +92,17 @@ def source_lock(root):
 
 
 def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
-         discovery_review=None, discovery_authority=None):
+         discovery_review=None, discovery_authority=None, ship_generation=None,
+         _ship_publish=None):
     with source_lock(root):
-        if discovery_review is not None or discovery_authority is not None:
+        if discovery_review is not None or discovery_authority is not None or ship_generation is not None:
             try:
                 from .discovery_predecessor_migration import migrate
             except ImportError:  # direct CLI
                 from discovery_predecessor_migration import migrate
             return migrate(_sync_locked, root, checkout, apply, adopt_reviewed_baseline, only,
-                           discovery_review, discovery_authority)
+                           discovery_review, discovery_authority, generation=ship_generation,
+                           _ship_publish=_ship_publish)
         return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only)
 
 

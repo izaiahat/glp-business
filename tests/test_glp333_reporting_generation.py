@@ -55,6 +55,22 @@ def put(path, body, mode=0o600):
     path.chmod(mode)
 
 
+def commit_fixture_tree(checkout):
+    """Commit fixture bytes with a complete manifest, never alter approved pins."""
+    subprocess.run(['git', '-C', str(checkout), 'add', '.'], check=True)
+    listed = subprocess.check_output(['git', '-C', str(checkout), 'ls-files', '-z']).decode().split('\0')
+    paths = sorted(p for p in listed if p and p != syncer.MANIFEST)
+    manifest = json.loads((checkout / syncer.MANIFEST).read_bytes())
+    manifest['files'] = {rel: {**manifest['files'].get(rel, {'kind': 'fixture-source'}),
+                              'sha256': sha((checkout / rel).read_bytes())} for rel in paths}
+    manifest['tracked_count'] = len(paths) + 1
+    put(checkout / syncer.MANIFEST, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
+    subprocess.run(['git', '-C', str(checkout), 'add', syncer.MANIFEST], check=True)
+    subprocess.run(['git', '-C', str(checkout), '-c', 'user.name=Fixture', '-c',
+                    'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm',
+                    'disposable current producer with immutable historical cohort'], check=True)
+
+
 class PortableScheduler:
     """No normalization: native acceptance is separately run on the host."""
     _jobs_file_lock = threading.RLock()
@@ -90,6 +106,16 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
     checkout = tmp_path / 'reporting-candidate'
     subprocess.run(['git', 'clone', '--shared', '--no-checkout', '--quiet', str(ROOT), str(checkout)], check=True)
     subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', PR119_PRODUCER_SOURCE], check=True)
+    # Publish the maintained producer and its local adoption dependencies in
+    # this disposable Git tree; historical payloads below remain frozen.
+    for name in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py',
+                 'sync_from_repo.py', 'maintenance_inventory.py', 'maintenance_window.py',
+                 'maintenance_cohort.py', 'maxbounty_pin_release.py', 'glp_ship_generation.py',
+                 'glp_ship_provenance.py', 'glp_ship_registry.py'):
+        source = ROOT / 'scripts' / name
+        put(checkout / 'scripts' / name, source.read_bytes(), source.stat().st_mode & 0o777)
+        subprocess.run(['git', '-C', str(checkout), 'add', '-f', 'scripts/' + name], check=True)
+    commit_fixture_tree(checkout)
     assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
     assert {rel: sha((checkout / rel).read_bytes()) for rel in pair.PR119_HASHES} == pair.PR119_HASHES
     root, hermes = tmp_path / 'business', tmp_path / 'hermes'

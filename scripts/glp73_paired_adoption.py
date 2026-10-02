@@ -119,7 +119,11 @@ def replace_lines(body, updates):
     return b''.join(lines)
 
 
-def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical'):
+def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical', window=None):
+    if _git_generation(generation):
+        if state_rebaseline is not None:
+            raise RuntimeError('retention_generation_does_not_rebaseline')
+        return _git_retention_plan(checkout, root, hermes, generation)
     if generation == RETENTION_GENERATION:
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
@@ -193,6 +197,85 @@ def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historica
     return before, stages, sources, records
 
 
+def _git_generation(generation):
+    if isinstance(generation, str):
+        return False
+    from glp_ship_generation import GitGeneration
+    return isinstance(generation, GitGeneration)
+
+
+def _git_retention_plan(checkout, root, hermes, generation):
+    """Authenticate a Git successor without relaxing the historical contracts."""
+    checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
+    if generation.kind != 'retention' or tuple(generation.paths) != RETENTION_PATHS:
+        raise RuntimeError('git_retention_cohort_mismatch')
+    generation.verify(checkout)
+    manifest = json.loads((checkout / syncer.MANIFEST).read_bytes())
+    for name in ('glp73_paired_adoption.py', 'maintenance_inventory.py'):
+        producer = 'scripts/' + name
+        committed = subprocess.check_output(['git', '-C', str(checkout), 'show',
+                                             generation.source + ':' + producer])
+        if ((checkout / producer).read_bytes() != committed
+                or (Path(__file__).parent / name).read_bytes() != committed
+                or manifest['files'][producer]['sha256'] != sha(committed)):
+            raise RuntimeError('retention_producer_not_committed_head:' + name)
+    rel = RETENTION_PATHS[0]
+    before = {root / rel: read_regular(root / rel)}
+    if before[root / rel][1] != 0o600:
+        raise RuntimeError('retention_source_mode_moved')
+    current = sha(before[root / rel][0])
+    history = subprocess.check_output(['git', '-C', str(checkout), 'log', '--full-history',
+                                      '--format=%H', generation.source, '--', rel], text=True).splitlines()
+    known = {sha(subprocess.check_output(['git', '-C', str(checkout), 'show', commit + ':' + rel]))
+             for commit in history}
+    known.add(generation.hashes[rel])
+    if current not in known:
+        raise RuntimeError('retention_source_not_committed_predecessor')
+    state = root / syncer.STATE
+    before[state] = read_regular(state)
+    if json.loads(before[state][0]).get('hashes', {}).get(rel) != current:
+        raise RuntimeError('retention_source_baseline_moved')
+    schema_rel = 'scripts/glp_current_content_base_schema.py'
+    schema_hash = sha(subprocess.check_output(['git', '-C', str(checkout), 'show',
+                                             generation.source + ':' + schema_rel]))
+    before[root / schema_rel] = exact(root / schema_rel, schema_hash, 0o644)
+    from contextlib import redirect_stdout
+    from io import StringIO
+    with redirect_stdout(StringIO()):
+        if syncer.sync(root, checkout, False, (), RETENTION_PATHS) != 0:
+            raise RuntimeError('scoped_source_preflight_refused')
+    stages = {}
+    for jid, name, _, _, mode in RETENTION_JOBS:
+        target = hermes / 'scripts' / name
+        before[target] = read_regular(target)
+        template = subprocess.check_output(['git', '-C', str(checkout), 'show',
+                                           generation.source + ':' + SNAPSHOTS + '/' + name])
+        original_hash = next(row[2] for row in JOBS if row[0] == jid)
+        if sha(template) != original_hash:
+            raise RuntimeError('wrapper_snapshot_moved:' + name)
+        archive_line, schema_line = (16, 20) if name.startswith('f12_') else (19, 23)
+        expected = replace_lines(template, {archive_line: (SOURCE_BEFORE[13][0], current),
+                                            schema_line: (SOURCE_BEFORE[0][0], schema_hash)})
+        if before[target] != (expected, mode):
+            raise RuntimeError('retention_wrapper_not_committed_predecessor:' + name)
+        stages[target] = replace_lines(expected, {archive_line: (current, generation.hashes[rel])})
+    registry = hermes / 'cron/jobs.json'
+    before[registry] = read_regular(registry)
+    jobs = json.loads(before[registry][0])['jobs']
+    records = {}
+    for jid, name, _, _, _ in RETENTION_JOBS:
+        hits = [j for j in jobs if j.get('id') == jid]
+        if (len(hits) != 1 or hits[0].get('script') != name
+                or hits[0].get('script_sha256') != sha(before[hermes / 'scripts' / name][0])):
+            raise RuntimeError('paused_job_identity_moved:' + jid)
+        job = hits[0]
+        if (job.get('enabled') is not False or job.get('state') != 'paused'
+                or job.get('run_claim') is not None or job.get('fire_claim') is not None or job.get('running')):
+            raise RuntimeError('paused_job_claim_or_state:' + jid)
+        records[jid] = copy.deepcopy(job)
+    return before, stages, {rel: generation.hashes[rel]}, records
+
+
 def _retention_plan(checkout, root, hermes):
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     subprocess.run(['git', '-C', str(checkout), 'merge-base', '--is-ancestor', RETENTION_SOURCE, 'HEAD'], check=True)
@@ -249,11 +332,13 @@ def _retention_plan(checkout, root, hermes):
     return before, stages, {rel: RETENTION_HASH}, records
 
 
-def retention_proposal(checkout, root, hermes, planned):
+def retention_proposal(checkout, root, hermes, planned, generation=RETENTION_GENERATION):
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     before, stages, sources, records = planned
     rel = RETENTION_PATHS[0]
-    return {'generation': RETENTION_GENERATION, 'source': RETENTION_SOURCE,
+    git = _git_generation(generation)
+    return {'generation': generation.name if git else RETENTION_GENERATION,
+            'source': generation.source if git else RETENTION_SOURCE,
             'producer_head': subprocess.check_output(['git', '-C', str(checkout), 'rev-parse', 'HEAD']).decode().strip(),
             'producer_sha256': sha((checkout / 'scripts/glp73_paired_adoption.py').read_bytes()),
             'inventory_sha256': sha((checkout / 'scripts/maintenance_inventory.py').read_bytes()),
@@ -261,7 +346,7 @@ def retention_proposal(checkout, root, hermes, planned):
             'target': {'root': str(root.resolve()), 'hermes': str(hermes.resolve())},
             'source_sha256': sources, 'source_before_sha256': {rel: sha(before[root / rel][0])},
             'source_before_mode': before[root / rel][1],
-            'retained_schema': {'sha256': RETENTION_SCHEMA, 'mode': before[root / 'scripts/glp_current_content_base_schema.py'][1]},
+            'retained_schema': {'sha256': sha(before[root / 'scripts/glp_current_content_base_schema.py'][0]) if git else RETENTION_SCHEMA, 'mode': before[root / 'scripts/glp_current_content_base_schema.py'][1]},
             'wrapper_sha256': {p.name: sha(body) for p, body in stages.items()},
             'wrapper_before': {name: {'sha256': sha(before[hermes / 'scripts' / name][0]), 'mode': mode}
                                for _, name, _, _, mode in RETENTION_JOBS},
@@ -376,14 +461,18 @@ def _retain_retention_seals(journal, root, hermes):
         atomic_json(journal, data)
 
 
-def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
+def _adopt_retention(checkout, root, hermes, review, *, scheduler, window, generation=RETENTION_GENERATION):
     from contextlib import ExitStack
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
-    planned = plan(checkout, root, hermes, generation=RETENTION_GENERATION)
-    proposal = retention_proposal(checkout, root, hermes, planned)
+    git = _git_generation(generation)
+    planned = plan(checkout, root, hermes, generation=generation)
+    proposal = retention_proposal(checkout, root, hermes, planned, generation)
+    if git:
+        generation.authorize(review, root, hermes, window)
+    review = review or {}
     runtime = review.get('runtime_review', {})
     preparer = str(review.get('prepared_by') or '').strip()
-    if (review.get('schema') != 'glp73-retention-adoption-review-v1'
+    if not git and (review.get('schema') != 'glp73-retention-adoption-review-v1'
             or review.get('decision') != 'ACCEPT_EXACT_BYTES' or review.get('proposal') != proposal
             or not preparer or not str(review.get('reviewer') or '').strip() or str(review['reviewer']).strip() == preparer
             or runtime.get('schema') != 'glp73-retention-runtime-review-v1'
@@ -403,8 +492,10 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
         fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         with os.fdopen(fd, 'a+') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fresh = plan(checkout, root, hermes, generation=RETENTION_GENERATION)
-            if retention_proposal(checkout, root, hermes, fresh) != proposal:
+            fresh = plan(checkout, root, hermes, generation=generation)
+            if git:
+                generation.authorize(review, root, hermes, window)
+            if retention_proposal(checkout, root, hermes, fresh, generation) != proposal:
                 raise RuntimeError('preimage_moved_under_lock')
             # Snapshot unrelated records at the locked boundary, rather than
             # freezing them in a two-target review. Preserve them in native save.
@@ -412,10 +503,11 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
             state = json.loads(before[root / syncer.STATE][0])
             state['hashes'].update(sources)
             stage = {root / RETENTION_PATHS[0]: subprocess.check_output(
-                        ['git', '-C', str(checkout), 'show', RETENTION_SOURCE + ':' + RETENTION_PATHS[0]]),
+                        ['git', '-C', str(checkout), 'show', proposal['source'] + ':' + RETENTION_PATHS[0]]),
                      root / syncer.STATE: (json.dumps(state, indent=2, sort_keys=True) + '\n').encode(), **stages}
             original = {path: before[path] for path in stage}
-            custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(review, sort_keys=True).encode())
+            custody_record = {'proposal': proposal, 'review': review} if git else review
+            custody = root / 'reports/ops/pin-archive/glp73' / sha(json.dumps(custody_record, sort_keys=True).encode())
             preserve_custody(custody, before, stage)
             if any(read_regular(path) != value for path, value in before.items()):
                 raise RuntimeError('preimage_moved_after_custody')
@@ -425,7 +517,7 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
             next_jobs = copy.deepcopy(jobs)
             for jid, name, old, new, mode in RETENTION_JOBS:
                 after = next(j for j in next_jobs if j['id'] == jid)
-                after['script_sha256'] = new
+                after['script_sha256'] = proposal['wrapper_sha256'][name]
                 # Durable job intent precedes the cohort's journal capture.
                 window.accept_job_update(jid, records[jid], after)
             def commit():
@@ -450,20 +542,20 @@ def _adopt_retention(checkout, root, hermes, review, *, scheduler, window):
                 # cohort returns. Keep this repair within the new generation.
                 _retain_retention_seals(window.journal, root, hermes)
                 raise
-    return {'applied': True, 'source': RETENTION_SOURCE, 'proposal': proposal, 'custody': str(custody)}
+    return {'applied': True, 'source': proposal['source'], 'proposal': proposal, 'custody': str(custody)}
 
 
 def adopt(checkout, root, hermes, review, *, scheduler, window=None, state_rebaseline=None, generation='historical'):
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     from maintenance_window import require_active_window
-    if generation == RETENTION_GENERATION:
+    if generation == RETENTION_GENERATION or _git_generation(generation):
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
         result = None
         try:
             with require_active_window(window, root, hermes) as active:
-                result = _adopt_retention(checkout, root, hermes, review, scheduler=scheduler, window=active)
+                result = _adopt_retention(checkout, root, hermes, review, scheduler=scheduler, window=active, generation=generation)
             return result
         except BaseException:
             if result is not None:
