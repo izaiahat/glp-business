@@ -125,9 +125,15 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
     for p, info in files.items():
         if info["sha256"] != target_hashes[p]:
             raise ValueError("manifest source hash mismatch: " + p)
-    selected = set(only)
-    if len(selected) != len(tuple(only)) or not selected <= set(files):
-        raise ValueError("--only requires unique curated paths (not the global manifest)")
+    selected = set()
+    for p in only:
+        # Name the first offending path; any refusal happens before any write.
+        reason = ("duplicate path" if p in selected else
+                  "cannot select the global manifest" if p == MANIFEST else
+                  "not in source manifest" if p not in files else None)
+        if reason:
+            raise ValueError(f"--only requires unique curated paths; {reason}: {p}")
+        selected.add(p)
     # A partial import must not publish the candidate global manifest as installed.
     # Keep unselected state baselines intact for a later full import.
     target_hashes = ({p: target_hashes[p] for p in selected} if selected else target_hashes)

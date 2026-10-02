@@ -313,3 +313,90 @@ def test_real_committed_source_manifest_passes_sync_preflight(tmp_path, capsys):
     assert mismatches == {}, f"committed source-manifest hash mismatches: {mismatches}"
     assert sync(tmp_path, repo, False) == 0
     assert "conflicts=0" in capsys.readouterr().out
+
+
+def scoped_checkout(tmp_path):
+    """Three curated files, all installed, then all three changed upstream."""
+    repo = tmp_path / "repo"
+    root = tmp_path / "live"
+    repo.mkdir(); root.mkdir(); (repo / "scripts").mkdir(); (repo / "ops").mkdir()
+    names = ("scripts/a.py", "scripts/b.py", "scripts/c.py")
+    mpath = repo / "ops/rebuild-source-manifest.json"
+
+    def publish(version):
+        for rel in names:
+            (repo / rel).write_bytes(f"{rel} {version}\n".encode())
+        mpath.write_text(json.dumps({
+            "schema": "GLP_BUSINESS_SOURCE_V1", "tracked_count": len(names) + 1,
+            "files": {rel: {"sha256": digest((repo / rel).read_bytes())} for rel in names}}))
+
+    publish("v1")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", *names, "ops/rebuild-source-manifest.json"], check=True)
+    assert sync(root, repo, True) == 0
+    publish("v2")
+    return repo, root, names
+
+
+def live_snapshot(root):
+    return {str(p.relative_to(root)): (p.read_bytes(), stat.S_IMODE(p.stat().st_mode))
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def test_scoped_preview_with_two_diffs_lists_exactly_two_files(tmp_path, capsys):
+    repo, root, (a, b, c) = scoped_checkout(tmp_path)
+    capsys.readouterr()
+    before = live_snapshot(root)
+    assert sync(root, repo, False, only=[a, b]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("DRY_RUN diffs=2 conflicts=0")
+    assert out[1] == f"changes: {a}, {b}"
+    assert live_snapshot(root) == before
+    (root / a).chmod(0o700)
+    assert sync(root, repo, True, only=[a, b]) == 0
+    assert (root / a).read_bytes() == f"{a} v2\n".encode()
+    assert stat.S_IMODE((root / a).stat().st_mode) == 0o700
+    assert (root / b).read_bytes() == f"{b} v2\n".encode()
+    assert (root / c).read_bytes() == f"{c} v1\n".encode()
+    state = json.loads((root / sync_from_repo.STATE).read_text())["hashes"]
+    assert state[c] == digest(f"{c} v1\n".encode())
+    assert state[a] == digest(f"{a} v2\n".encode())
+
+
+@pytest.mark.parametrize("only,reason", [
+    (["scripts/not-curated.py"], "not in source manifest: scripts/not-curated.py"),
+    (["scripts/a.py", "scripts/a.py"], "duplicate path: scripts/a.py"),
+    ([sync_from_repo.MANIFEST], "cannot select the global manifest: " + sync_from_repo.MANIFEST),
+])
+def test_scoped_path_outside_manifest_refused_and_changes_nothing(tmp_path, only, reason):
+    repo, root, (a, _, _) = scoped_checkout(tmp_path)
+    before = live_snapshot(root)
+    for apply in (False, True):
+        with pytest.raises(ValueError, match=r"^--only requires unique curated paths; " + reason.replace(".", r"\.") + "$"):
+            sync(root, repo, apply, only=[*only, a] if len(only) == 1 else only)
+    assert live_snapshot(root) == before
+
+
+def test_scoped_hash_mismatch_refused_and_changes_nothing(tmp_path):
+    repo, root, (a, b, _) = scoped_checkout(tmp_path)
+    (repo / a).write_bytes(b"unreviewed bytes\n")
+    before = live_snapshot(root)
+    for apply in (False, True):
+        with pytest.raises(ValueError, match="^manifest source hash mismatch: scripts/a.py$"):
+            sync(root, repo, apply, only=[a, b])
+    assert live_snapshot(root) == before
+
+
+def test_without_only_full_import_output_unchanged(tmp_path, capsys):
+    repo, root, (a, b, c) = scoped_checkout(tmp_path)
+    capsys.readouterr()
+    assert sync(root, repo, False) == 0
+    assert capsys.readouterr().out == (
+        f"DRY_RUN diffs=4 conflicts=0 tracked=4\nchanges: {sync_from_repo.MANIFEST}, {a}, {b}, {c}\n")
+    assert sync(root, repo, True) == 0
+    assert capsys.readouterr().out == (
+        f"APPLY diffs=4 conflicts=0 tracked=4\nchanges: {sync_from_repo.MANIFEST}, {a}, {b}, {c}\n")
+    state = json.loads((root / sync_from_repo.STATE).read_text())["hashes"]
+    assert set(state) == {a, b, c, sync_from_repo.MANIFEST}
+    assert sync(root, repo, False) == 0
+    assert capsys.readouterr().out == "DRY_RUN diffs=0 conflicts=0 tracked=4\n"
