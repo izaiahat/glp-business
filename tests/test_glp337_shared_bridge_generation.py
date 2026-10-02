@@ -100,6 +100,8 @@ def test_fixed_shared_bridge_generation_journals_only_pair_state_and_restores(tm
                      'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
             put(old_dir / name, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + name))
         put(old_dir / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
+        # Hold unrelated F08 paths constant in this historical bridge comparison.
+        put(old_dir / 'glp345_a4_adoption.py', (ROOT / 'scripts/glp345_a4_adoption.py').read_bytes())
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)
@@ -173,6 +175,8 @@ def test_shared_bridge_literal_inventory_adds_exactly_the_pair(tmp_path, monkeyp
     for filename in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
         put(controls / filename, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + filename))
     put(controls / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
+    # Hold unrelated F08 paths constant; retain the exact original delta oracle.
+    put(controls / 'glp345_a4_adoption.py', (ROOT / 'scripts/glp345_a4_adoption.py').read_bytes())
     monkeypatch.setattr(inventory, '__file__', str(controls / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
     assert current - previous == ({root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
