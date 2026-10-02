@@ -24,4 +24,5 @@ jobs:
           PYTHONPATH: scripts:tests:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_api_collectors_partnerstack_admitad.py tests/test_api_collectors_refersion.py tests/test_api_collectors_clickbank_healthtrader.py tests/test_api_collectors_wiring.py tests/test_api_collectors_smoke.py
           .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp333_reporting_generation.py tests/test_glp44_scoped_adoption.py tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py

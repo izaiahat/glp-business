@@ -452,3 +452,17 @@
 !/tests/test_glp331_carrier_closure.py
 !/ops/glp331-carrier-closure.md
 !/.github/workflows/glp331-carrier-closure.yml
+
+# GLP333 read-only API reporting collectors
+!/scripts/affiliate_reporting_admitad.py
+!/scripts/affiliate_reporting_clickbank.py
+!/scripts/affiliate_reporting_healthtrader.py
+!/scripts/affiliate_reporting_partnerstack.py
+!/scripts/affiliate_reporting_refersion.py
+!/scripts/glp_api_collectors_smoke.py
+!/tests/test_api_collectors_clickbank_healthtrader.py
+!/tests/test_api_collectors_partnerstack_admitad.py
+!/tests/test_api_collectors_refersion.py
+!/tests/test_api_collectors_smoke.py
+!/tests/test_api_collectors_wiring.py
+!/ops/glp/reporting-v2/API-COLLECTORS.md
