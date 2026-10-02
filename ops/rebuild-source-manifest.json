@@ -8,8 +8,41 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 598,
+  "tracked_count": 603,
   "files": {
+    "scripts/glp345_a4_adoption.py": {
+      "kind": "source_control",
+      "callers": [
+        "authorized parent install owner"
+      ],
+      "sha256": "442feaf6e34c68bb0ab54ca065450ae91dcb66990ca6cf337d8f91651d74551f"
+    },
+    "tests/test_glp345_a4_adoption.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "1633435feac2c7fd022e08001edca685b7e1bbc46e8d378294e8caa964a0ba0b"
+    },
+    "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
+      "kind": "source_control",
+      "callers": [
+        "scripts/glp345_a4_adoption.py"
+      ],
+      "sha256": "62bfd7a9fffdae836ace33f6148e3225aa5ebe1be6853e4c0e59d717a402c5dc"
+    },
+    "ops/glp345-a4/wrapper.predecessor.py": {
+      "kind": "source_control",
+      "callers": [
+        "scripts/glp345_a4_adoption.py"
+      ],
+      "sha256": "b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d9871"
+    },
+    "ops/glp345-a4/README.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "5761300fed963dcbbb7c5a85a3e447a5fc1c82f7a6924556efacbfbb5e6b1c43"
+    },
     ".github/workflows/glp345-bing-report-only-guard.yml": {
       "callers": [
         "github-actions"
@@ -438,7 +471,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "98edc4ee02d47941f71beccf4922c1a5daef508c64b7a0ef1f408eff30d28120"
+      "sha256": "2e76c4f928d1f682c721f260d90b5acd3ed9eef4a4bfaa5cc7a23e0a02a12446"
     },
     ".hermes.md": {
       "callers": [],
@@ -1132,7 +1165,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "f5453128aa10f148e13f975617a0724346a482dad6ec733d14afb7d49fec1611"
+      "sha256": "aba5c92c25db4948f19c465b464f490f173af685baed17c7412a8e9ec5b7dc8c"
     },
     "ops/rook-mcp/README.md": {
       "callers": [
@@ -2104,7 +2137,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d35e1f0c72ac8d6347d7da7e1f82391bfbb6700af2c1dde9e59089a1b3f5772"
+      "sha256": "d85189db852392d3617eb7e825e658eed096edc00b2fbb3bb02cc11acbc883ad"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3351,7 +3384,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "4b37c5ca9d7a6b657d41734ba43399b74650ed971cc63c191dfd1de073857111"
+      "sha256": "06f18ea0618a1d3e15f1c308477b1b5fd99a1a848a65f7eb6c40f95b8ed96041"
     },
     "scripts/maintenance_window.py": {
       "callers": [
