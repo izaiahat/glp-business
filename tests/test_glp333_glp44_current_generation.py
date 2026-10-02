@@ -80,7 +80,7 @@ def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old, appr
     before = snapshot(root, hermes)
     with pytest.raises(RuntimeError, match='approved_source_moved:'):
         pair.plan(ROOT, root, hermes, generation=old)
-    with pytest.raises(RuntimeError, match='approved_source_moved:ops/glp/reporting-v2/source-manifest.json'):
+    with pytest.raises(RuntimeError, match='approved_source_moved:ops/glp/analytics-brain-control.json'):
         pair.plan(ROOT, root, hermes, generation=GENERATION)
     proposal = pair.plan(approved_checkout, root, hermes, generation=GENERATION)[0]
     assert snapshot(root, hermes) == before

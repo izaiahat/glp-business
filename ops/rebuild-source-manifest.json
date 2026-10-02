@@ -630,7 +630,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815"
+      "sha256": "f712333395d5eb18e7a946e8da161462e43757e3c1730d7564e5c07ed67a99ec"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
       "callers": [
@@ -645,7 +645,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "4bc69d87da3e182572e8c728c428d6beae101bb871fd5afc94ee1a216d1b2e1b"
+      "sha256": "c4770afc0ac7b58aca415363012009add2c1cb672eaccc2dfa0a2afe00e7560e"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -821,7 +821,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "b64c05fa30aa0e15528069a883b7919fdaaed0e338c4da2dd5dd3b689822dba9"
+      "sha256": "823cd6654d83b854255de6af2ec7f1e9a713d100e35a12a9bab8889499ad3443"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2227,14 +2227,14 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa"
+      "sha256": "7042cbb1969f040e9598e1b8de34cbdc60d7dc383bb540b0f525e5b76408d0ec"
     },
     "systems/analytics-brain/collector.py": {
       "callers": [
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "683e0576c29e94fefa099ab6563ed7a23511ef0c0677d06bd64dbe3f60991d61"
+      "sha256": "6a23bb405112304508aaded7c84ca68096d97624fce0d92fda83c19f4be3b463"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -3616,7 +3616,7 @@
         ".github/workflows/glp333-reporting-generation.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "c7a4425ffb54298715f24a9e9876415d3a54d0727957e9b77b5ddd7b210c15d5"
+      "sha256": "0422f8f1b82004b674ea6101a5aaf54181cdc88def421651c193e0e5b06bf0a8"
     },
     "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
       "kind": "documentation",
@@ -3843,7 +3843,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "75b7a055c8168815505d815c880a1e62a194c96f55ac186e54ee33a48580b855"
+      "sha256": "7a73af80f27779f79bbba124b23ffdcaad72c3cdad81ff03ef0c2f8ed40416d0"
     },
     "scripts/affiliate_reporting_admitad.py": {
       "kind": "script",

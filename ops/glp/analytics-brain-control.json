@@ -19,7 +19,12 @@
   },
   "affiliate_obligations": {
     "release_pointer": "reports/glp-clinic-scout/seo-machine/current-content-base.json",
-    "deployed_manifest": "https://glpclinicscout.com/go/_manifest"
+    "deployed_manifest": "https://glpclinicscout.com/go/_manifest",
+    "current_network_holds": {
+      "networks": ["xentraffic"],
+      "authority_path": "ops/linear/approvals/OPERATOR-DECISION-20261001-all-pipelines-live.md",
+      "authority_sha256": "147069fc66b2f66639321828e723dc2859d37a4b2c205f2239369724ab1b74ad"
+    }
   },
   "source_dark_threshold_hours": {
     "ga4": 48,

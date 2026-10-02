@@ -387,6 +387,70 @@ def test_effective_commercial_holds_are_not_required_or_unknown(synthetic_releas
         assert not any(row["static_instrumentation_pass"] for row in brain.route_matrix(packet)["routes"])
 
 
+@pytest.mark.parametrize("case", ["direct", "go-denied", "wrong-href", "wrong-program", "receipt-drift", "current-hold", "hold-drift", "uncollected-href"])
+def test_direct_permission_is_not_redirect_permission(synthetic_release, case):
+    """Synthetic regression: approved direct link, not an approved /go redirect."""
+    fixture = synthetic_release
+    pid = "synthetic-allowed"
+    approval = fixture.release.parent / "direct-decision.md"
+    approval.write_text("synthetic direct-site-link approval; not real authority\n")
+    authority_path = fixture.release / AUTHORITIES[2]
+    authority = json.loads(authority_path.read_text())
+    authority["programs"][pid].update(
+        reason="operator_approved_glp_live", network="synthetic-network",
+        operator_approved_live_decision={"path": str(approval), "sha256": sha(approval.read_bytes())})
+    write_json(authority_path, authority)
+    href = "https://synthetic.invalid/issued-link?publisher=fixture"
+    fixture.local["programs"][pid].update(
+        program_id=pid, commercial_state="live", entry_state="transparent_direct",
+        live_link_allowed=False, promotion_authorized=False, status="candidate_preview_only",
+        link_mode="instrumented_redirect_candidate", candidate_gate="operator_approved_glp_live",
+        network="synthetic-network", tracking={"base_url": href,
+            "allowed_tracking_hosts": ["synthetic.invalid"], "generated_link_readback_verified": True})
+    fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
+    fixture.seal()
+    routes = {f"/providers/{pid}/", f"/reviews/{pid}/"}
+    static = [{"path": route, "sponsored_anchor_count": 1,
+               "sponsored_anchor_targets": [{"program_id": pid, "href": href,
+                  "link_mode": "transparent-direct", "network": "synthetic-network"}]} for route in sorted(routes)]
+    if case == "go-denied":
+        static[0]["sponsored_anchor_targets"][0]["href"] = f"/go/{pid}"
+    elif case == "wrong-href":
+        static[0]["sponsored_anchor_targets"][0]["href"] += "&unapproved=1"
+    elif case == "wrong-program":
+        static[0]["sponsored_anchor_targets"][0]["program_id"] = "synthetic-withheld"
+    elif case == "receipt-drift":
+        approval.write_text("synthetic unauthorized change\n")
+    elif case == "uncollected-href":
+        static[0].pop("sponsored_anchor_targets")
+    if case.startswith("hold") or case == "current-hold":
+        held = fixture.release.parent / "hold-decision.md"
+        held.write_text("synthetic current network hold; not real authority\n")
+        fixture.control["affiliate_obligations"]["current_network_holds"] = {
+            "networks": ["synthetic-network"], "authority_path": str(held), "authority_sha256": sha(held.read_bytes())}
+        if case == "hold-drift":
+            held.write_text("synthetic unauthorized change\n")
+    if case in {"receipt-drift", "hold-drift"}:
+        with pytest.raises(RuntimeError, match="affiliate_(direct_decision|current_hold)_invalid"):
+            collector.derive_affiliate_obligations(fixture.control, observed_routes=routes, static_routes=static)
+        return
+    obligations = collector.derive_affiliate_obligations(fixture.control, observed_routes=routes, static_routes=static)
+    expected = "forbidden" if case == "current-hold" else "required"
+    assert {obligations[route] for route in routes} == {expected}
+    expected_bad = 2 if case == "current-hold" else 0 if case == "direct" else 1
+    expected_unauthorized = 0 if case == "uncollected-href" else expected_bad
+    assert sum(row["unauthorized_affiliate_anchor_count"] for row in static) == expected_unauthorized
+    import analytics_brain as brain
+    for row in static:
+        row.update(http_status=200, ga4_static_present=True, gtm_static_present=True,
+                   posthog_static_present=True, csp_present=True, csp_gtm_allowed=True,
+                   csp_posthog_allowed=True, consent_default_denied_present=True,
+                   client_marker_count=1, first_party_redirect_count=1)
+    matrix = brain.route_matrix({"sitemap_routes": sorted(routes), "affiliate_route_obligations": obligations,
+                                "static_routes": static})
+    assert sum(not row["static_instrumentation_pass"] for row in matrix["routes"]) == expected_bad
+
+
 def test_hourly_synthetic_release_reaches_provider_boundary_only(synthetic_release, monkeypatch):
     fixture = synthetic_release
     monkeypatch.setattr(collector, "_load_cache", lambda _: {})
