@@ -461,7 +461,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b86127eaeabae0cd2b6ff1584fbe813cb539465bf81cb3319ff28a3aeb675ffb"
+      "sha256": "98709adf2c4de3bc00fe94340437339311a5fa30b7e4fa88c19c8ff068ad0d6e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -4095,7 +4095,7 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "379ca538d22a0bf37d8077101dddf29b316345110b146705426bf983cbe25cc4"
+      "sha256": "de8bf9767b872e9c69a296f3fd3bd9f09daded879513a8d3704addfacdbbb8f1"
     },
     "scripts/glp_ship_registry.py": {
       "kind": "source",
@@ -4144,7 +4144,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "f033bb115395a6e2c4044f991fb93d0697364c2544cdc29de6039e2c504f00e5"
+      "sha256": "e472ac18702d9bf50c63c540cba2b312e1fc5a336d6f261a6b0bc726948f78b9"
     },
     "tests/test_glp_ship_retention.py": {
       "kind": "test",

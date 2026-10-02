@@ -51,6 +51,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_discovery_predecessor_migration.py tests/test_sync_from_repo.py
+      - name: F07 ship provenance verifier (offline fixtures, read-only; no install)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_ship_provenance.py
       - name: Affiliate co-pin exact-head regressions (no effectful wrappers)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
