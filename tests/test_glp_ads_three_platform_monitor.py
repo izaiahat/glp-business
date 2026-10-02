@@ -4,7 +4,9 @@ import importlib.util
 import json
 from pathlib import Path
 
-SCRIPT = Path('/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py')
+import pytest
+
+SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/glp_ads_three_platform_monitor.py'
 
 
 def load_module():
@@ -13,6 +15,135 @@ def load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class MicrosoftReportClient:
+    def __init__(self, state=None, blob=None, account='189346863', campaign='571604457', status='Paused'):
+        self.state = state if state is not None else {'Status': 'Success', 'ReportDownloadUrl': None}
+        self.blob = blob
+        self.account = account
+        self.campaign = campaign
+        self.status = status
+        self.downloads = 0
+
+    def get_account(self):
+        return {'Account': {'Id': self.account}}
+
+    def get_campaigns(self):
+        return {'Campaigns': [{'Id': self.campaign, 'Status': self.status, 'CampaignType': 'Search'}]}
+
+    def submit_campaign_performance_report(self, campaign, start, end):
+        assert campaign == self.campaign
+        return {'ReportRequestId': 'fixture-report'}
+
+    def poll_generate_report(self, request_id):
+        return {'ReportRequestStatus': self.state}
+
+    def download_generated_report(self, url, maximum_bytes):
+        self.downloads += 1
+        return self.blob
+
+
+def test_microsoft_provider_nil_download_is_not_numeric_zero(monkeypatch):
+    module = load_module()
+    client = MicrosoftReportClient()
+    monkeypatch.setattr(module, 'microsoft_client', lambda: client)
+    row = module.collect_microsoft()
+    assert row['data_status'] == 'PROVIDER_SUCCESS_NO_DATA'
+    assert row['status'] == 'UNKNOWN'
+    assert row['api_status'] == 'OK'
+    assert row['today_spend_usd'] is None
+    assert row['spend_readback_available'] is False
+    assert row['report_receipts'][0]['download_url_present'] is False
+    assert client.downloads == 0
+    assert module.paused_state('microsoft', row) is True
+    assert module.expected_empty_spend('microsoft', row) is False
+    assert module.spend_label('microsoft', row) == 'UNKNOWN · spend unreadable'
+    report = healthy_report(module)
+    report['platforms']['microsoft_advertising'] = row
+    assert 'MICROSOFT_REPORT_STATE_UNREADABLE' in {item['code'] for item in module.build_alerts(report)}
+    guard = module.build_stop_loss(report)
+    assert guard['status'] == 'ARMED_WITH_SOURCE_BLOCKERS'
+    assert guard['spend_readback_complete_all_platforms'] is False
+    assert guard['platform_breakdown']['microsoft']['spend_usd'] is None
+    assert guard['budget_or_bid_mutations_allowed'] is False
+
+
+@pytest.mark.parametrize('state,blob,data_status', [
+    ({'Status': 'Success', 'ReportDownloadUrl': 'https://example.invalid/report'},
+     b'AccountId,CampaignId,Spend,Clicks,Impressions\n', 'EMPTY_CSV'),
+    ({'Status': 'Success'}, None, 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Success', 'ReportDownloadUrl': ''}, None, 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Success', 'ReportDownloadUrl': False}, None, 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Pending'}, None, 'UNKNOWN_PARTIAL_OR_PENDING'),
+    ({'Status': 'Error'}, None, 'UNKNOWN_PARTIAL_OR_PENDING'),
+    ({'ReportDownloadUrl': None}, None, 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Success', 'ReportDownloadUrl': 'https://example.invalid/report'},
+     b'AccountId,CampaignId,Clicks,Impressions\n189346863,571604457,0,0\n', 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Success', 'ReportDownloadUrl': 'https://example.invalid/report'},
+     b'AccountId,CampaignId,Spend,Clicks,Impressions\n189346863,571604457,,0,0\n', 'UNKNOWN_READ_FAILED'),
+    ({'Status': 'Success', 'ReportDownloadUrl': 'https://example.invalid/report'},
+     b'AccountId,CampaignId,Spend,Clicks,Impressions\nother,571604457,0,0,0\n', 'UNKNOWN_READ_FAILED'),
+])
+def test_microsoft_absent_or_unproven_report_metrics_remain_unknown(monkeypatch, state, blob, data_status):
+    module = load_module()
+    monkeypatch.setattr(module, 'microsoft_client', lambda: MicrosoftReportClient(state, blob))
+    monkeypatch.setattr(module.time, 'sleep', lambda _: None)
+    row = module.collect_microsoft()
+    assert row['status'] == 'UNKNOWN'
+    assert row['data_status'] == data_status
+    assert row['today_spend_usd'] is None
+    assert row['spend_readback_available'] is False
+    assert module.expected_empty_spend('microsoft', row) is False
+
+
+@pytest.mark.parametrize('account,campaign', [('other', '571604457'), ('189346863', 'other')])
+def test_microsoft_rejects_wrong_target_before_reporting(monkeypatch, account, campaign):
+    module = load_module()
+    client = MicrosoftReportClient(account=account, campaign=campaign)
+    monkeypatch.setattr(client, 'submit_campaign_performance_report',
+                        lambda campaign, start, end: pytest.fail('wrong identity report submitted'))
+    monkeypatch.setattr(module, 'microsoft_client', lambda: client)
+    row = module.collect_microsoft()
+    assert row['status'] == 'UNKNOWN'
+    assert row['today_spend_usd'] is None
+    assert module.paused_state('microsoft', row) is False
+
+
+@pytest.mark.parametrize('spend', ['0', '5.25'])
+def test_microsoft_real_numeric_rows_are_the_only_spend_proof(monkeypatch, spend):
+    module = load_module()
+    blob = f'AccountId,CampaignId,Spend,Clicks,Impressions\n189346863,571604457,{spend},0,0\n'.encode()
+    monkeypatch.setattr(module, 'microsoft_client', lambda: MicrosoftReportClient(
+        {'Status': 'Success', 'ReportDownloadUrl': 'https://example.invalid/report'}, blob))
+    row = module.collect_microsoft()
+    assert row['status'] == 'PASS'
+    assert row['today_spend_usd'] == float(spend)
+    assert row['spend_readback_available'] is True
+    assert row['data_status'] == 'ROWS'
+
+
+def test_microsoft_active_campaign_does_not_inherit_pause_proof(monkeypatch):
+    module = load_module()
+    monkeypatch.setattr(module, 'microsoft_client', lambda: MicrosoftReportClient(status='Active'))
+    row = module.collect_microsoft()
+    assert row['status'] == 'UNKNOWN'
+    assert row['configured_enabled_campaigns'] == 1
+    assert module.paused_state('microsoft', row) is False
+    assert module.expected_empty_spend('microsoft', row) is False
+
+
+def test_microsoft_auth_failure_is_blocked_and_never_zero(monkeypatch):
+    module = load_module()
+    def failure():
+        raise RuntimeError('private auth failure not to be serialized')
+    monkeypatch.setattr(module, 'microsoft_client', failure)
+    row = module.collect_microsoft()
+    assert row['status'] == 'BLOCKED'
+    assert row['api_status'] == 'BLOCKED'
+    assert row['today_spend_usd'] is None
+    assert module.paused_state('microsoft', row) is False
+    assert 'private auth failure' not in json.dumps(row)
 
 
 def test_provider_exception_tail_never_serializes_untrusted_details():

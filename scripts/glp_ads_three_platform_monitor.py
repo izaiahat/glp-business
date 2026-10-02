@@ -517,6 +517,8 @@ def collect_microsoft() -> dict[str, Any]:
         campaigns = client.get_campaigns()['Campaigns']
         if not campaigns or len(campaigns) > 20:
             raise ValueError('microsoft_campaign_denominator_unproven')
+        if not any(str(row.get('Id')) == MICROSOFT_CAMPAIGN for row in campaigns):
+            raise ValueError('microsoft_expected_campaign_missing')
         result.update({
             'campaign_readback_available': True,
             'api_status': 'OK',
@@ -538,7 +540,14 @@ def collect_microsoft() -> dict[str, Any]:
             receipts.append(receipt)
             for attempt in range(4):
                 state = client.poll_generate_report(request_id)['ReportRequestStatus']
-                receipt['status'] = state.get('Status')
+                receipt['status'] = state['Status']
+                if receipt['status'] == 'Success':
+                    if 'ReportDownloadUrl' not in state:
+                        raise ValueError('microsoft_report_download_field_missing')
+                    url = state['ReportDownloadUrl']
+                    if url is not None and (not isinstance(url, str) or not url.strip()):
+                        raise ValueError('microsoft_report_download_field_invalid')
+                receipt['download_url_present'] = bool(state.get('ReportDownloadUrl'))
                 if state.get('Status') != 'Pending':
                     break
                 if attempt < 3:
@@ -551,12 +560,16 @@ def collect_microsoft() -> dict[str, Any]:
         result['status'] = 'PASS' if all(row['status'] == 'Success' for row in receipts) else 'UNKNOWN'
         result['api_status'] = 'OK'
         result['data_status'] = 'ROWS' if all(row['metrics'] is not None for row in receipts) else (
-            'NO_ROWS' if all(row['status'] == 'Success' and row['metrics'] is None for row in receipts)
+            # Microsoft documents Success + nil URL as no data for the parameters.
+            # https://learn.microsoft.com/en-us/advertising/reporting-service/reportrequeststatus?view=bingads-13
+            'PROVIDER_SUCCESS_NO_DATA' if all(row['status'] == 'Success' and not row['download_url_present'] for row in receipts)
+            else 'EMPTY_CSV' if all(row['status'] == 'Success' and row['download_url_present'] and row['metrics'] is None for row in receipts)
             else 'UNKNOWN_PARTIAL_OR_PENDING'
         )
         if not all(row['metrics'] is not None for row in receipts):
-            result['reason'] = 'SUCCESS_NO_SPEND_ROWS' if result['data_status'] == 'NO_ROWS' else 'UNKNOWN_MICROSOFT_REPORT_PARTIAL_OR_PENDING'
-            result['required_artifact'] = 'Explicit numeric CampaignPerformance rows or supported provider no-data semantics for account 189346863, complete campaign denominator and the dated report request IDs in report_receipts; credentials/account/campaign reads already succeeded'
+            result['status'] = 'UNKNOWN'
+            result['reason'] = 'UNKNOWN_MICROSOFT_SPEND_' + result['data_status']
+            result['required_artifact'] = 'Explicit numeric CampaignPerformance rows for account 189346863 and the dated report request IDs in report_receipts; provider no-data and empty CSV preserve null spend, never numeric zero'
             return result
         result.update({
             'status': 'PASS', 'reason': None, 'spend_readback_available': True,
@@ -1122,7 +1135,13 @@ def build_stop_loss(report: dict[str, Any]) -> dict[str, Any]:
 
 def paused_state(platform: str, row: dict[str, Any]) -> bool:
     """Require explicit inactive object state; an ENABLED account is not an ad."""
-    if row.get('status') != 'PASS':
+    if platform == 'microsoft':
+        # Campaign pause observation is independent of numeric spend observation.
+        if (row.get('campaign_readback_available') is not True
+                or row.get('account_id') != MICROSOFT_ACCOUNT
+                or row.get('known_campaign_present') is not True):
+            return False
+    elif row.get('status') != 'PASS':
         return False
     if platform == 'meta':
         return (
@@ -1163,10 +1182,9 @@ def expected_empty_spend(platform: str, row: dict[str, Any]) -> bool:
         return row.get('today', {}).get('report_status') == 'SUCCESS' and row.get('today', {}).get('rows') == 0
     if platform == 'meta':
         return row.get('http_statuses', {}).get('insights') == 200 and row.get('today', {}).get('insight_rows') == 0
-    return row.get('data_status') == 'NO_ROWS' and bool(row.get('report_receipts')) and all(
-        receipt.get('status') == 'Success' and receipt.get('metrics') is None
-        for receipt in row['report_receipts']
-    )
+    # A successful Microsoft report without numeric rows is still unknown spend,
+    # including documented nil-download no-data and a downloaded empty CSV.
+    return False
 
 
 def spend_label(platform: str, row: dict[str, Any]) -> str:
