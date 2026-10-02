@@ -1,0 +1,8 @@
+{
+  "provenance": "Sanitized scalar fields from host BEST-TERMS-MACHINE-20260825/state/approval-trigger-failure.json and latest-run.json, inspected 2026-10-01. Not a replay of the full September 25 census.",
+  "first_seen_utc": "2026-09-25T20:46:01Z",
+  "status": "ACTIVE",
+  "signature": "xentraffic_stale_or_foreign_singleton_lock",
+  "error_class": "RuntimeError",
+  "error": "xentraffic_stale_or_foreign_singleton_lock"
+}

@@ -86,7 +86,7 @@ def compose(seat: str, rows: list[str]) -> str:
     result = f"/home/ubuntu/business/reports/ops/glp38-20260915/continuation/{seat}/RESULT.json"
     clause = issue_clause("GLP-38")
     return f"""LINEAR: GLP-38 — Perform Fable's full emulation fidelity and operator-note closeout. Read the issue first. Standard: ops/linear/WORKER-STANDARD.md.
-MODEL: gpt-6-sol
+MODEL: gpt-6.1-sol
 PROVIDER: openai-codex
 REASONING: high
 GOAL

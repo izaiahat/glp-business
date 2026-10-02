@@ -994,7 +994,7 @@ class DecisionsGraphTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(popen.call_count, 1)
         argv = popen.call_args.args[0]
-        for flag, expected in (('--provider', 'openai-codex'), ('--model', 'gpt-6-sol'),
+        for flag, expected in (('--provider', 'openai-codex'), ('--model', 'gpt-6.1-sol'),
                                ('--reasoning', 'xhigh'), ('--toolsets', 'web,file,terminal,firecrawl')):
             self.assertEqual(argv[argv.index(flag) + 1], expected)
         self.assertNotIn('bounded prompt', argv)

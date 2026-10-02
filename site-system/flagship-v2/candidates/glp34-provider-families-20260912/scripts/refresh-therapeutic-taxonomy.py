@@ -25,6 +25,22 @@ from affiliate_direct_evidence_capture import _firecrawl_key
 REPORTS = BUSINESS / 'reports/ops/glp38-20260915/taxonomy-refresh'
 REGISTRY = ROOT / 'data/program-registry.json'
 FIELDS = ('molecule_tags', 'brand_name_tags', 'delivery_form_tags', 'treatment_type_tags')
+# GLP-80: the independently accepted PR18 negative-claim correction, not a
+# generic tag editor. Full target-projection preimages bind the installed
+# predecessor; a changed projection requires review rather than inferred tags.
+CARE_BARE_CORRECTION = {
+    'program_id': 'care-bare-rx-glp1-review',
+    'reviewed_head': '18dd240a9caaa341d44290c60dd2e604779f3f68',
+    'merged_head': '7455455d8e000a49aad192cdc91138de1be071e7',
+    'brand_name_tags_before': ['mounjaro'],
+    'brand_name_tags_after': [],
+    'positive_binding_sha256': '68baad60813dacfd9096bd4c5adf49da9fd6d6432d0d2405733af032a890793d',
+    'preimages': {
+        'taxonomy_row': 'd5ae86f33e413f2962f590694ca3765947649fe24f02e33feeca908101e537f0',
+        'dynamic_profile': '8b11a7b47d7024add49beff9bc5436ade953a7b3c8f2352d69f33621cb0a8c75',
+        'research_dynamic_profile': 'fe343435204151bd664d9f76fc0aaaa5f32384e6992dad1d02672ac92a6b9006',
+    },
+}
 # Exact affirmative excerpts reviewed against each program's own live pages.
 # Empty fields mean no assertion, not proof of absence. Added tags need review.
 POLICIES = {
@@ -126,6 +142,76 @@ def support(row, policy, text):
     return found
 
 
+def correction_projections(registry):
+    pid = CARE_BARE_CORRECTION['program_id']
+    programs = [p for p in registry['programs'] if p['program_id'] == pid]
+    if len(programs) != 1:
+        raise ValueError('reviewed_correction_program_identity_changed')
+    return {
+        'taxonomy_row': registry['therapeutic_taxonomy']['programs'][pid],
+        'dynamic_profile': registry['provider_dynamic_profiles']['profiles'][pid],
+        'research_dynamic_profile': programs[0]['research_dynamic_profile'],
+    }
+
+
+def prepare_reviewed_correction(registry, pid):
+    """Return a capture-only view; do not mutate evidence or dates on staging."""
+    row = registry['therapeutic_taxonomy']['programs'][pid]
+    if pid != CARE_BARE_CORRECTION['program_id']:
+        return copy.deepcopy(row), None
+    projections = correction_projections(registry)
+    tags = [row['brand_name_tags'], projections['dynamic_profile']['taxonomy']['brand_name_tags'],
+            projections['research_dynamic_profile']['taxonomy']['brand_name_tags']]
+    if tags == [[], [], []]:
+        # Already-adopted successors use ordinary exact-policy re-verification.
+        if any(b.get('evidence_sha256') == CARE_BARE_CORRECTION['positive_binding_sha256']
+               for b in row['evidence_bindings']):
+            raise ValueError('reviewed_correction_positive_binding_remains')
+        return copy.deepcopy(row), None
+    for name, projection in projections.items():
+        digest = sha(json.dumps(projection, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode())
+        if digest != CARE_BARE_CORRECTION['preimages'][name]:
+            raise ValueError('reviewed_correction_preimage_changed:' + name)
+    staged = copy.deepcopy(row)
+    staged['brand_name_tags'] = []
+    staged['evidence_bindings'] = [b for b in staged['evidence_bindings']
+                                 if b['evidence_sha256'] != CARE_BARE_CORRECTION['positive_binding_sha256']]
+    return staged, copy.deepcopy(CARE_BARE_CORRECTION)
+
+
+def apply_reviewed_correction(registry, pid, receipt):
+    """Guard the capture-to-commit interval before changing the three projections."""
+    if pid != CARE_BARE_CORRECTION['program_id'] or receipt != CARE_BARE_CORRECTION:
+        raise ValueError('reviewed_correction_receipt_changed')
+    row, expected_receipt = prepare_reviewed_correction(registry, pid)
+    if expected_receipt != receipt:
+        raise ValueError('reviewed_correction_preimage_changed:already_adopted')
+    projections = correction_projections(registry)
+    projections['taxonomy_row']['brand_name_tags'] = row['brand_name_tags']
+    projections['taxonomy_row']['evidence_bindings'] = row['evidence_bindings']
+    projections['dynamic_profile']['taxonomy']['brand_name_tags'] = []
+    projections['research_dynamic_profile']['taxonomy']['brand_name_tags'] = []
+    # Preserve mandatory empty-brand assessment coverage and historical prices.
+    # Native digest/count derivation follows, without renewing profile clocks.
+
+
+def derive_reviewed_metadata(registry):
+    """Derive only Care's profile digest and facet counts, at unchanged clocks."""
+    code = '''import fs from 'node:fs';
+import {normalizedProfileSha256,deriveDynamicFacetCounts} from './src/provider-dynamic-profiles.mjs';
+const registry=JSON.parse(fs.readFileSync(0,'utf8'));
+const document=registry.provider_dynamic_profiles;
+const profile=document.profiles['care-bare-rx-glp1-review'];
+profile.normalized_sha256=normalizedProfileSha256(profile);
+document.expected_counts=deriveDynamicFacetCounts(document.profiles);
+process.stdout.write(JSON.stringify(registry));'''
+    result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
+                            input=json.dumps(registry), text=True, capture_output=True)
+    if result.returncode:
+        raise ValueError('reviewed_correction_native_metadata_refused:' + result.stderr[-2400:])
+    return json.loads(result.stdout)
+
+
 def check_previous_row(current, previous):
     if current != previous:
         raise ValueError('program_changed_during_capture')
@@ -201,7 +287,60 @@ def verify_sources(pid, row, policy, run):
     return {'program_id': pid, 'sources': captures, 'assertions': assertions,
             'verified_as_of': min(c['verified_as_of'] for c in captures),
             'finding': policy.get('finding'), 'previous_row': row,
-            'tags_unchanged': {field: row[field] for field in FIELDS}}
+            'tags_unchanged': {field: row[field] for field in FIELDS},
+            **({'claim_qualification': row['claim_qualification']}
+               if row.get('claim_qualification') else {})}
+
+
+def prepare_qualified_source_row(row, pid):
+    """Stage only Eden's exact reviewed closure; retain clocks/tags/bindings."""
+    staged = copy.deepcopy(row)
+    if pid != 'eden-xentraffic-offer-3051':
+        return staged
+    policy = POLICIES[pid]
+    expected = sorted(source['url'] for source in policy['sources'])
+    if row['source_urls'] not in (policy['previous_source_urls'], expected):
+        raise ValueError('qualified_source_membership_changed')
+    qualification = policy['claim_qualification']
+    if 'claim_qualification' in row and row['claim_qualification'] != qualification:
+        raise ValueError('qualified_source_note_changed')
+    for field in FIELDS:
+        tags = sorted(tag for source in policy['sources'] for tag in source['quotes'].get(field, {}))
+        if row[field] != tags:
+            raise ValueError('qualified_source_tags_changed:' + field)
+    staged['source_urls'] = expected
+    staged['claim_qualification'] = qualification
+    return staged
+
+
+def apply_qualified_source_row(row, pid, manifest):
+    """Consume the successful four-source manifest inside the existing CAS writer."""
+    if pid != 'eden-xentraffic-offer-3051':
+        return
+    staged = prepare_qualified_source_row(row, pid)
+    if (manifest.get('claim_qualification') != staged['claim_qualification'] or
+            sorted(s['source_url'] for s in manifest.get('sources', [])) != staged['source_urls'] or
+            manifest.get('tags_unchanged') != {field: row[field] for field in FIELDS}):
+        raise ValueError('qualified_source_manifest_changed')
+    row['source_urls'] = staged['source_urls']
+    row['claim_qualification'] = staged['claim_qualification']
+
+
+def validate_qualified_renderer(registry, ids):
+    """Refuse source adoption until the paired authenticated consumer is present."""
+    if not any(registry['therapeutic_taxonomy']['programs'][pid].get('claim_qualification') for pid in ids):
+        return
+    code = '''import fs from 'node:fs';
+import {taxonomyDigestBasis} from './src/therapeutic-taxonomy.mjs';
+const x=JSON.parse(fs.readFileSync(0,'utf8'));
+for(const id of x.ids) {
+ const row=x.registry.therapeutic_taxonomy.programs[id];
+ if(row.claim_qualification && taxonomyDigestBasis(row).claim_qualification!==row.claim_qualification) throw new Error('qualified_source_renderer_not_installed');
+}'''
+    result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
+        input=json.dumps({'registry':registry,'ids':ids}), text=True, capture_output=True)
+    if result.returncode:
+        raise ValueError('qualified_source_renderer_refused:' + result.stderr[-2400:])
 
 
 def main():
@@ -216,7 +355,8 @@ def main():
     for pid in ids:
         policy = POLICIES[pid]
         try:
-            row = before['therapeutic_taxonomy']['programs'][pid]
+            row, correction = prepare_reviewed_correction(before, pid)
+            row = prepare_qualified_source_row(row, pid)
             if policy.get('review_required'):
                 raise ValueError('policy_review_required:' + policy['review_required'])
             if 'sources' in policy:
@@ -237,6 +377,12 @@ def main():
                     'capture_sha256': sha(encoded(selected)), 'capture_path': str((run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))).relative_to(BUSINESS)),
                     'finding': policy.get('finding'), 'previous_row': row,
                     'tags_unchanged': {field: row[field] for field in FIELDS}}
+            # CAS uses the actual pre-capture row, not the corrected view.
+            # The immutable receipt records the sole reviewed tag-set exception.
+            manifest['previous_row'] = before['therapeutic_taxonomy']['programs'][pid]
+            if correction is not None:
+                manifest['reviewed_correction'] = correction
+                manifest['verified_tags'] = manifest.pop('tags_unchanged')
             manifest_path = run / (pid + '-verification.json')
             manifest_path.write_bytes(encoded(manifest))
             proposals[pid] = (manifest, manifest_path)
@@ -264,10 +410,13 @@ def main():
         for pid, (manifest, manifest_path) in proposals.items():
             row = candidate['therapeutic_taxonomy']['programs'][pid]
             check_previous_row(row, manifest['previous_row'])
+            if manifest.get('reviewed_correction') is not None:
+                apply_reviewed_correction(candidate, pid, manifest['reviewed_correction'])
             authority = 'taxonomy_refresh_' + pid.replace('-', '_') + '_' + run.name
             candidate['therapeutic_taxonomy']['authorities'][authority] = {
                 'path': str(manifest_path.relative_to(BUSINESS)), 'sha256': sha(manifest_path.read_bytes())}
             sources = manifest.get('sources', [manifest])
+            apply_qualified_source_row(row, pid, manifest)
             row['source_urls'] = sorted(set(row['source_urls'] + [s['source_url'] for s in sources]))
             row['verified_as_of'] = manifest['verified_as_of']
             # The prior active bindings remain in the immutable verification
@@ -275,6 +424,9 @@ def main():
             row['evidence_bindings'] = [{'authority': authority,
                 'authority_sha256': sha(manifest_path.read_bytes()), 'source_url': s['source_url'],
                 'verified_as_of': s['verified_as_of'], 'evidence_sha256': s['capture_sha256']} for s in sources]
+        if any(manifest.get('reviewed_correction') is not None for manifest, _ in proposals.values()):
+            candidate = derive_reviewed_metadata(candidate)
+        validate_qualified_renderer(candidate, list(proposals))
         candidate = validate(candidate, list(proposals))
         if REGISTRY.read_bytes() != original:
             raise ValueError('registry_changed_during_validation')

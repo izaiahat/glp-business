@@ -12,13 +12,18 @@ suites+=(tests/test_therapeutic_taxonomy_refresh.py)
 suites+=(tests/test_glp44_weekly_gsc_aggregate.py tests/test_glp44_gsc_only_consumer.py)
 suites+=(tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py)
 suites+=(tests/test_glp44_weekly_pin_adoption.py)
-suites+=(tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_adoption.py)
+suites+=(tests/test_glp44_reporting_source_pin_pair.py tests/test_glp44_scoped_adoption.py tests/test_glp333_reporting_generation.py)
+suites+=(tests/test_glp331_dependency_generation.py tests/test_glp331_carrier_generation.py tests/test_glp337_shared_bridge_generation.py)
 suites+=(tests/test_glp44_reader_exclusion.py)
+suites+=(tests/test_glp44_collector_release.py)
+suites+=(tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_window_lock_contention.py tests/test_maintenance_keeper_contention.py tests/test_maintenance_adoptions.py)
+suites+=(tests/test_maintenance_restoration_review.py tests/test_maintenance_admission_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py tests/test_glp73_sync_rebaseline.py)
+suites+=(tests/test_adoption_cache_restore.py)
 suites+=(tests/test_candidate_freshness_horizon.py)
 suites+=(tests/test_glp_landed_uncertain_deployment_reconcile.py)
 suites+=(tests/test_glp193_capture_source_binding.py)
 suites+=(tests/test_glp196_price_index_contract.py)
-suites+=(tests/test_fable_mention_recovery.py)
+suites+=(tests/test_fable_mention_recovery.py tests/test_glp73_scoped_reviewer_routing.py)
 suites+=(tests/test_glp324_unassigned_commission_preflight.py)
 suites+=(tests/test_glp186_binding_diagnostics.py)
 suites+=(tests/test_glp183_builder_checked_as_of.py)
@@ -33,6 +38,9 @@ suites+=(tests/test_glp96_research_only_contract.py)
 suites+=(tests/test_glp329_add_approved_row_full_grid_dry_run.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 suites+=(tests/test_glp320_readonly_grouping.py)
+suites+=(systems/seo-blog-machine/tests/test_workweek_boundary.py)
+suites+=(tests/test_affiliate_discovery_resume.py tests/test_affiliate_discovery_admission.py tests/test_affiliate_best_terms_recovery.py tests/test_affiliate_terms_fanout.py tests/test_pro_opaque_program_identity.py)
+suites+=(tests/test_receive_one_discord_message.py tests/test_rook_mcp_events.py tests/test_rook_communication.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \
       -f /home/ubuntu/business/reports/glp-clinic-scout/growth/build-3/reddit-firecrawl-search-captures-20260811-r5.json ]]; then
@@ -40,4 +48,5 @@ if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
 else
   printf 'HOST_ONLY_SKIPPED: ads monitor and bound Reddit capture suites require live /home/ubuntu/business inputs\n'
 fi
+suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 python3 -m pytest -q "${suites[@]}"

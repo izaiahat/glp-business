@@ -1,0 +1,27 @@
+name: glp333-reporting-generation
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  reporting-generation-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - run: |
+          python3 -m venv .venv
+          .venv/bin/pip install pytest==8.3.5
+      - name: Maintained window, exact reporting cohort and original PR71 regressions (offline fixtures)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONPATH: scripts:tests:.
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp333_reporting_generation.py tests/test_glp44_scoped_adoption.py tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py

@@ -600,6 +600,8 @@ def collectible_eligibility(record: dict[str, Any]) -> dict[str, Any]:
         reasons.append("not_wire_in_ready")
     if not traffic_ok:
         reasons.append(traffic_reason)
+    if not str(record.get('currency') or '').strip():
+        reasons.append('currency_unavailable')
     if conversion_event(record) == "unknown":
         reasons.append("payout_model_unclassified")
     try:
@@ -737,7 +739,7 @@ def select_best_collectible(
 
         by_event: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
         for row in ready:
-            by_event[(comparison_event(row), str(row.get("currency") or "USD").upper())].append(row)
+            by_event[(comparison_event(row), str(row.get("currency") or "").strip().upper())].append(row)
         winners_by_event = []
         for (event, currency), peers in sorted(by_event.items()):
             # Same paid event: payout is the deciding economic fact. Postback and
@@ -852,9 +854,9 @@ def select_best_collectible(
             for right in approved_rows[index + 1:]:
                 if left["network"] == right["network"]:
                     continue
-                same_currency = (
-                    str(left.get("currency") or "USD").upper()
-                    == str(right.get("currency") or "USD").upper()
+                same_currency = bool(str(left.get('currency') or '').strip()) and (
+                    str(left.get("currency") or "").strip().upper()
+                    == str(right.get("currency") or "").strip().upper()
                 )
                 same_event = comparison_event(left) == comparison_event(right)
                 left_expected = right_expected = None
@@ -918,8 +920,9 @@ def select_best_collectible(
 def _comparable(incumbent: dict[str, Any], challenger: dict[str, Any]) -> bool:
     return (
         comparison_event(incumbent) == comparison_event(challenger)
-        and str(incumbent.get("currency") or "USD").upper()
-        == str(challenger.get("currency") or "USD").upper()
+        and bool(str(incumbent.get('currency') or '').strip())
+        and str(incumbent.get("currency") or "").strip().upper()
+        == str(challenger.get("currency") or "").strip().upper()
     )
 
 
