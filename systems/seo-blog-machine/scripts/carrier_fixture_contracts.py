@@ -15,6 +15,58 @@ def once(source, old, new, label):
     return source.replace(old, new, 1)
 
 
+def current_render_custody(base, inputs):
+    """Read accepted output of the registered comparison producer, not a fixture.
+
+    This is retention authority only. The caller still validates the entire
+    accepted base and the calendar/runtime gates still govern the successor.
+    Bases without this producer retain the historical fixture contract;
+    unrecognized producer bytes refuse rather than acquiring authority.
+    """
+    producer = 'scripts/build-lastmod-provenance.mjs'
+    producer_sha = '28813a11a72fd88370c222527d2c57765e0cee745157174684082f4cadb0218f'
+    if not (base / producer).is_file():
+        return None
+    digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+    if digest(base / producer) != producer_sha:
+        raise RuntimeError('accepted_material_producer_unknown')
+    pointer_path = BUSINESS / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+    try:
+        pointer_bytes = pointer_path.read_bytes()
+        pointer = json.loads(pointer_bytes)
+        if (pointer.get('schema') != 'glp-opus-current-content-base-v1'
+                or pointer.get('status') != 'PASS'
+                or Path(pointer['release_root']).resolve() != base.resolve()):
+            raise RuntimeError('accepted_material_current_base_mismatch')
+        documents = {}
+        for key in ('manifest', 'final_receipt'):
+            descriptor = pointer[key]
+            path = Path(descriptor['path'])
+            raw = path.read_bytes()
+            if path.is_symlink() or hashlib.sha256(raw).hexdigest() != descriptor['sha256']:
+                raise RuntimeError('accepted_material_' + key + '_drift')
+            documents[key] = json.loads(raw)
+            inputs[str(path)] = descriptor['sha256']
+        manifest, receipt = documents['manifest'], documents['final_receipt']
+        if (Path(manifest['release_root']).resolve() != base.resolve()
+                or receipt.get('status') != 'PASS_PRODUCTION_TERMINAL'
+                or receipt.get('deployment', {}).get('deployment_id') != pointer['deployment_id']):
+            raise RuntimeError('accepted_material_release_identity')
+        rows = manifest['release_rows']
+        inventory = {row['path']: row['sha256'] for row in rows}
+        if len(inventory) != len(rows):
+            raise RuntimeError('accepted_material_manifest_duplicate')
+        inputs[producer] = producer_sha
+        inputs['package.json'] = digest(base / 'package.json')
+        command = json.loads((base / 'package.json').read_text())['scripts']['build:validated']
+        if 'node scripts/build-lastmod-provenance.mjs' not in [part.strip() for part in command.split('&&')]:
+            raise RuntimeError('accepted_material_producer_not_registered')
+        inputs[str(pointer_path)] = hashlib.sha256(pointer_bytes).hexdigest()
+        return inventory
+    except (KeyError, OSError, ValueError, TypeError) as error:
+        raise RuntimeError('accepted_material_custody_invalid') from error
+
+
 def material_binding(base):
     base=Path(base)
     files=['tests/fixtures/d2j-material-lastmod.json','data/page-content-provenance.json',
@@ -25,7 +77,9 @@ def material_binding(base):
         raise RuntimeError('accepted_material_fixture_schema')
     rows={r['route']:r for r in declared['rows']}
     if len(rows)!=len(declared['rows']): raise RuntimeError('accepted_material_duplicate')
-    provenance=json.loads((base/files[1]).read_text())['pages']
+    provenance_document=json.loads((base/files[1]).read_text())
+    provenance=provenance_document['pages']
+    inventory=current_render_custody(base, inputs)
     material={}; seen=set(); dates=[]
     for file in files[2:]:
         for article in json.loads((base/file).read_text())['articles']:
@@ -41,13 +95,26 @@ def material_binding(base):
             rendered=max(found)
             if rendered==editorial: continue
             row=rows.get(route,{}); recorded=provenance.get(route,{})
-            if row.get('required_date')!=rendered or row.get('old_date')!=editorial or recorded.get('lastmod')!=rendered:
+            legacy = (row.get('required_date')==rendered and row.get('old_date')==editorial
+                      and recorded.get('lastmod')==rendered)
+            current = (inventory is not None and len(set(found))==1
+                       and provenance_document.get('schema')=='glp-page-content-provenance-v1'
+                       and provenance_document.get('generated_for_release')==rendered
+                       and recorded.get('lastmod')==rendered and rendered > editorial)
+            if not legacy and not current:
                 raise RuntimeError('accepted_material_unexplained:'+route)
             material[route]=rendered; dates.append(rendered)
             inputs['public/'+route.lstrip('/')+'index.html']=hashlib.sha256(page.read_bytes()).hexdigest()
     dates.extend(p['lastmod'] for p in provenance.values())
     for date in dates: dt.date.fromisoformat(date)
-    return {'material_dates':material,'input_sha256':inputs,'fixture_baseline':max(dates)}
+    if inventory is not None:
+        for relative, expected in inputs.items():
+            path = Path(relative) if Path(relative).is_absolute() else base / relative
+            if (path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected
+                    or (not Path(relative).is_absolute() and inventory.get(relative)!=expected)):
+                raise RuntimeError('accepted_material_manifest_member_drift:'+relative)
+    return {'material_dates':material,'input_sha256':inputs,'fixture_baseline':max(dates),
+            'custody_mode':'accepted_registered_render_comparison' if inventory is not None else 'legacy_fixture'}
 
 
 def material_resolver_call_satisfied(source):
@@ -110,6 +177,19 @@ def patch_material_date_resolver(source, binding=None):
             '    const ownedDate = resolveCatalogDate(route, articles.get(route), declaredDateModified(html), resolved);\n    const { lastmod, action } = resolveMaterialDate(route, materialDates.get(route), ownedDate, releaseDate);',
             '    const materialDate = materialDates.get(route) || CARRIER_ACCEPTED_MATERIAL_DATES[route] || null;\n    const ownedDate = resolveCatalogDate(route, articles.get(route), declaredDateModified(html), resolved, materialDate, releaseDate);\n    const { lastmod, action } = resolveMaterialDate(route, materialDate, ownedDate, releaseDate);',
             'material_resolver_call')
+    if binding.get('custody_mode') == 'accepted_registered_render_comparison':
+        # Carry authenticated retained dates into the candidate's already-present
+        # constant. The old fixture-backed constant is not current provenance.
+        pattern = r'^const CARRIER_ACCEPTED_MATERIAL_DATES = Object\.freeze\(\{[^\n]*\}\);$'
+        if len(re.findall(pattern, source, re.M)) != 1:
+            raise RuntimeError('material_current_binding_anchor_invalid')
+        replacement = 'const CARRIER_ACCEPTED_MATERIAL_DATES = Object.freeze(' + json.dumps(binding['material_dates'], sort_keys=True) + ');'
+        source = re.sub(pattern, lambda match: replacement, source, flags=re.M)
+        if 'inheritedDisclosureDates(route, articles.get(route))?.lastmod' in source:
+            source = once(source,
+                'const materialDate = materialDates.get(route) || inheritedDisclosureDates(route, articles.get(route))?.lastmod || CARRIER_ACCEPTED_MATERIAL_DATES[route] || null;',
+                'const materialDate = materialDates.get(route) || CARRIER_ACCEPTED_MATERIAL_DATES[route] || inheritedDisclosureDates(route, articles.get(route))?.lastmod || null;',
+                'material_current_inherited_precedence')
     return source
 
 
