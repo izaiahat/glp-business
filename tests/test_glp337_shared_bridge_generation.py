@@ -11,6 +11,7 @@ import glp44_scoped_adoption as pair
 import maintenance_inventory as inventory
 import maintenance_window as mw
 import sync_from_repo as syncer
+from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
 
 GENERATION = 'glp337-shared-bridge-20261001'
 SOURCE = '898b45e903dffcce4046aa5548fc3e6f23b60b78'
@@ -98,10 +99,13 @@ def test_fixed_shared_bridge_generation_journals_only_pair_state_and_restores(tm
         for name in ('maintenance_inventory.py', 'glp44_scoped_adoption.py',
                      'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
             put(old_dir / name, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + name))
+        put(old_dir / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)
-        assert inventory.affected_paths(f.root, f.hermes) - old_paths == {f.root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+        assert inventory.affected_paths(f.root, f.hermes) - old_paths == (
+            {f.root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+            | ({f.root / rel for rel in SHIP_REPORTING_PATHS} - old_paths))
         with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
             pair.plan(ROOT, f.root, f.hermes, generation=GENERATION)
         with mw.require_active_window(f.journal, f.root, f.hermes) as active:
@@ -168,9 +172,11 @@ def test_shared_bridge_literal_inventory_adds_exactly_the_pair(tmp_path, monkeyp
     controls = tmp_path / 'controls'
     for filename in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
         put(controls / filename, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + filename))
+    put(controls / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
     monkeypatch.setattr(inventory, '__file__', str(controls / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
-    assert current - previous == {root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+    assert current - previous == ({root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+                                  | ({root / rel for rel in SHIP_REPORTING_PATHS} - previous))
     assert previous - current == set()
     prior = (controls / 'glp44_scoped_adoption.py').read_bytes()
     put(controls / 'glp44_scoped_adoption.py', prior + b'\nGLP337_PATHS = tuple(GLP337_HASHES)\n')

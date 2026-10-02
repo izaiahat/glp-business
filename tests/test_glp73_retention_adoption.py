@@ -103,9 +103,10 @@ def fixture(tmp_path, monkeypatch, *, generation=GENERATION):
     put(repo / pair.syncer.MANIFEST, (json.dumps(manifest, indent=2) + '\n').encode(), 0o644)
     subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
     subprocess.run(['git', '-C', str(repo), 'add', '-f', 'tests/test_glp73_retention_adoption.py'], check=True)
-    subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c',
-                    'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm',
-                    'disposable committed producer'], check=True)
+    # Worktree producers may be newer than the parent's committed manifest.
+    # Rebuild the manifest against this fixture's real index before committing.
+    from test_glp333_reporting_generation import commit_fixture_tree
+    commit_fixture_tree(repo)
     native = Path(os.environ.get('GLP73_NATIVE_CRON_SOURCE', '/home/ubuntu/.hermes/hermes-agent'))
     assert (native / 'cron/jobs.py').is_file(), 'real native fixture dependency required'
     assert not any(k == 'cron' or k.startswith('cron.') for k in sys.modules)
