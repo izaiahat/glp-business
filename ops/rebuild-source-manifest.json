@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 622,
+  "tracked_count": 624,
   "files": {
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -471,7 +471,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f0aecf328800ca96167fcc9969f7da5c651ebc2aa04601dbac892cb422e2e0a3"
+      "sha256": "596e4f582a852d2d3779297369c555b9ebb0e49b852784b54debdc437b961df5"
     },
     ".hermes.md": {
       "callers": [],
@@ -645,7 +645,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530"
+      "sha256": "4bc69d87da3e182572e8c728c428d6beae101bb871fd5afc94ee1a216d1b2e1b"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -821,7 +821,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "58653a04c0c331bee1f1a6f43b5da865b02a22593a9edb762914bc2c326a316f"
+      "sha256": "72fa7247b306f1a6530141b6d6122a3644ee6a90efed731695797d6c132c43db"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1684,14 +1684,14 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1"
+      "sha256": "ddfabbe7f1a53b65257a803a5a48b460699b4b712548d83731526c1ba1f550e0"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "script",
-      "sha256": "79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18"
+      "sha256": "8888f3d1c342267abbdffd70e08bf490eb3c2e4c83199e909d0ba9723d685949"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
       "callers": [
@@ -2137,7 +2137,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "fc7cd6ec70ea9803171c7867439f57773cb7549c2cea866a11e60ea1377678a6"
+      "sha256": "0b196ae714845adab6a7c6a10f8da84f9208095fb843948e50a127c66fe0599e"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3616,7 +3616,7 @@
         ".github/workflows/glp333-reporting-generation.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "b9b5e1ee1359e67bf0d711f43820a76964f43ea6cc81bcb5dbf8c728b4143a94"
+      "sha256": "c7a4425ffb54298715f24a9e9876415d3a54d0727957e9b77b5ddd7b210c15d5"
     },
     "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
       "kind": "documentation",
@@ -4173,6 +4173,18 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "sha256": "5f0d815953d8cbe1195d2fe99864a677f8a179e910eeea8a834f574245da32fe"
+    },
+    "ops/glp334-conversion-reconciliation.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "a10effde8cee352cb4c19f60216dd6a6538c2682a7b57d8a69657a56aab787a5"
+    },
+    "tests/test_glp334_conversion_reconciliation.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "8c7b49fddf7065269d8e594c9a839c7be69d6f5a8ef5a27d5fcd757c3532b8cc"
     }
   }
 }

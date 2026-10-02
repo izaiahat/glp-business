@@ -22,6 +22,7 @@ def main(argv=None):
     parser.add_argument('--lookback-days',type=int,default=90)
     parser.add_argument('--max-requests',type=int,default=32)
     parser.add_argument('--budget-seconds',type=int,default=240)
+    parser.add_argument('--reconciliation-input',type=Path)
     parser.add_argument('--live-cj-readonly',action='store_true')
     parser.add_argument('--live-network-readonly',action='store_true')
     args=parser.parse_args(argv)
@@ -42,6 +43,8 @@ def main(argv=None):
         '--identity-registry',str(args.identity_registry),'--output',str(args.report_root/run_id),
         '--lookback-days',str(args.lookback_days),'--max-requests',str(args.max_requests),
         '--budget-seconds',str(args.budget_seconds)]
+    if args.reconciliation_input:
+        command += ['--reconciliation-input', str(args.reconciliation_input)]
     if args.live_cj_readonly:
         command.append('--live-cj-readonly')
     if args.live_network_readonly:
