@@ -365,6 +365,8 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
     put(directory / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
     # This historical control set predates all Git shipping declarations.
     put(directory / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
+    # Hold the unrelated F08 declaration constant; test only reporting evolution.
+    put(directory / 'glp345_a4_adoption.py', (ROOT / 'scripts/glp345_a4_adoption.py').read_bytes())
     monkeypatch.setattr(inventory, '__file__', str(directory / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
     dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')
