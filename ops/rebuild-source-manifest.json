@@ -371,7 +371,7 @@
         "GLP-341 exact-head offline source acceptance"
       ],
       "kind": "repository_control",
-      "sha256": "0f0278e970a6aac1bbc2b785c0fe0912c9386efd25ef80bed723e4910ca99750"
+      "sha256": "78443a6e3b44d3c3f964365afe3cf0d0daf815e35a2f32a45dfcf0a9dd1f3d0e"
     },
     "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py": {
       "callers": [
