@@ -62,22 +62,35 @@ def fixture(tmp_path):
     return root, hermes
 
 
+@pytest.fixture
+def approved_checkout(tmp_path):
+    # This generation is immutable. Exercise its genuine installed PR164 tree,
+    # not future HEAD bytes (which must fail its fixed source-digest admission).
+    checkout = tmp_path / 'approved-pr164'
+    subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
+    subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach',
+                    '2265d3539691fa221a49936da23cd206c3fe0bc8'], check=True)
+    return checkout
+
+
 @pytest.mark.parametrize('old', [pair.COLLECTOR_GENERATION, pair.PR119_GENERATION, pair.REPORTING_SUCCESSOR_GENERATION])
-def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old):
+def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old, approved_checkout):
     root, hermes = fixture(tmp_path)
     before = snapshot(root, hermes)
     with pytest.raises(RuntimeError, match='approved_source_moved:'):
         pair.plan(ROOT, root, hermes, generation=old)
-    proposal = pair.plan(ROOT, root, hermes, generation=GENERATION)[0]
+    with pytest.raises(RuntimeError, match='approved_source_moved:systems/analytics-brain/collector.py'):
+        pair.plan(ROOT, root, hermes, generation=GENERATION)
+    proposal = pair.plan(approved_checkout, root, hermes, generation=GENERATION)[0]
     assert snapshot(root, hermes) == before
     assert proposal['generation'] == GENERATION
     assert proposal['source_sha256'] == {rel: sha(blob(SOURCE, rel)) for rel in MEMBERS}
-    assert proposal['producer_head'] == subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
+    assert proposal['producer_head'] == '2265d3539691fa221a49936da23cd206c3fe0bc8'
     assert {rel for rel, value in proposal['source_before_sha256'].items() if value is None} == set(NEW_LEAVES)
     assert proposal['target']['journal'] is None
     # No-apply preview is not authority to bypass maintenance or predecessor custody.
     with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
-        pair.adopt(ROOT, root, hermes, None, scheduler=None, generation=GENERATION)
+        pair.adopt(approved_checkout, root, hermes, None, scheduler=None, generation=GENERATION)
     assert snapshot(root, hermes) == before
 
 
@@ -103,16 +116,16 @@ def test_successor_inventory_includes_new_publication_members():
     assert {root / rel for rel in MEMBERS} <= maintenance_inventory.affected_paths(root, hermes)
 
 
-def test_successor_retained_leaf_and_baseline_guards_still_refuse(tmp_path):
+def test_successor_retained_leaf_and_baseline_guards_still_refuse(tmp_path, approved_checkout):
     root, hermes = fixture(tmp_path)
-    pair.plan(ROOT, root, hermes, generation=GENERATION)
+    pair.plan(approved_checkout, root, hermes, generation=GENERATION)
     leaf = root / 'scripts/marketplace_adapters/impact.py'
     original = leaf.read_bytes()
     leaf.write_bytes(original + b'\n# tampered\n')
     with pytest.raises(RuntimeError, match='reporting_pin_closure_refused:'):
-        pair.plan(ROOT, root, hermes, generation=GENERATION)
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
     leaf.write_bytes(original)
     selected = root / 'scripts/affiliate_network_access.py'
     selected.write_bytes(selected.read_bytes() + b'\n# tampered\n')
     with pytest.raises(RuntimeError, match='scoped_source_preflight_refused'):
-        pair.plan(ROOT, root, hermes, generation=GENERATION)
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
