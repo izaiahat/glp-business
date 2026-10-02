@@ -1,5 +1,5 @@
 1. Read your assigned outcome, scope, acceptance checks and current authority; own it end to end.
-2. Inspect relevant source and load the skills named up front in the assignment (lookup: ops/linear/SKILL-INDEX.md); do not read unrelated history or invent requirements.
+2. Inspect relevant source and load named skills (ops/linear/SKILL-INDEX.md); explicitly resolve model/provider/effort/speed: Sol6.1 / openai-codex / task-selected effort / Fast; Astra / Standard only by justified exception or designated review. Use low for mechanical checks, medium ordinary work, high complex/substantive review, xhigh/max unusually difficult/unresolved/high-stakes work; validate support, preserve authorized overrides and verify effective routing under ops/linear/MODEL-ROUTING.md. Ultra is official Codex only, not Max. Do not invent requirements.
 3. Use an isolated authorized branch/worktree; keep one writer per shared resource and preserve others' work.
 4. Reproduce a defect when applicable; fix maintained source or its producer, never fake outputs or weaken checks to pass.
 5. Run real tests/builds; record collected results and bind evidence to the exact commit and artifact.

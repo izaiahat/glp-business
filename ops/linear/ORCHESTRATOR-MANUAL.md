@@ -9,6 +9,7 @@ One issue owner reads the eligible assigned issue and named sources, establishes
 
 ## Reference index
 
+- Default-profile routing: `ops/linear/MODEL-ROUTING.md`; explicitly select model/provider/effort/speed for every worker. Sol6.1 / openai-codex / Fast is normal execution; Astra / Standard is an exception. Task-based effort selection and supported-client validation are mandatory; official Codex Ultra is not Max.
 - Queue shape, active-root/direct-child scope, native priority/dependencies and saved views: `ops/linear/CONVENTIONS.md`.
 - Role-scoped writer, closure endpoint, authenticated exact-step approval, tier definitions, standing-grant boundaries, independent acceptance and queue/CAS ownership: `ops/linear/SOP.md`.
 - Brief and result formats: `ops/linear/DISPATCH-TEMPLATE.md`, `ops/linear/RESULT-SCHEMA.json`; existing validators: `scripts/brief_lint.py`, `scripts/result_lint.py`.

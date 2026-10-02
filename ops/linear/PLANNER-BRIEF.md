@@ -68,7 +68,7 @@ Fix what it reports. It is the same linter that will refuse the dispatch.
 
 Step budget **14** (8 for the machine map, 6 for the brief). Overrun → post one
 `BLOCKER cause:brief | <what> | <who can clear it>` comment and stop, like any worker.
-`/reasoning medium` for the brief, `low` for collection and readbacks; children `low`.
+Declare model/provider/effort/speed for every dispatch under `ops/linear/MODEL-ROUTING.md`: Sol6.1 / openai-codex / Fast by default; Astra / Standard only for demonstrated need or designated independent review. Select low for mechanical checks, medium for ordinary planning/research, high for complex implementation or substantive review, and xhigh/max for unusually difficult, unresolved or high-stakes reasoning. Preserve authorized overrides and required reviewer identities/efforts; validate support and verify effective settings. Ultra is distinct from Max and uses only the verified official Codex path. Leaf workers never delegate.
 
 ## How you are graded
 
