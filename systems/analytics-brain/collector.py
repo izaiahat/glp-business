@@ -1074,7 +1074,7 @@ def _search_refresh_due(source: dict[str, Any], now: dt.datetime | None = None) 
         return True
     return age < 0 or age >= 24
 
-def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, set[str]]:
+def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, dict[str, Any]]:
     """Bind governed program authority to the manifest actually deployed at /go."""
     policy = control["affiliate_obligations"]
     url = f"https://{PRODUCTION_HOST}/go/_manifest"
@@ -1158,12 +1158,14 @@ def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, set[str]]:
             or len(live["program_ids"]) != len(set(live["program_ids"]))
             or set(live["program_ids"]) != set(local["programs"])):
         raise RuntimeError("affiliate_deployed_release_manifest_mismatch")
-    return release, set(local["programs"])
+    return release, local["programs"]
+
 
 def derive_affiliate_obligations(control: dict[str, Any],
                                  observed_routes: set[str] | None = None) -> dict[str, str]:
-    """Keep the covered routes, but derive each program's anchor duty from live authority."""
-    release, public_ids = _bound_affiliate_release(control)
+    """Keep covered routes and bind duties to effective sealed commercial authority."""
+    release, runtime_programs = _bound_affiliate_release(control)
+    public_ids = set(runtime_programs)
     registry = read_json(release / "data/program-registry.json")
     authority = read_json(release / "data/go-runtime-promotion-authority.json")
     programs = {row["program_id"]: row for row in registry["programs"]}
@@ -1203,24 +1205,18 @@ def derive_affiliate_obligations(control: dict[str, Any],
         promotion = (authority.get("programs") or {}).get(program_id)
         if program is None:
             raise RuntimeError(f"affiliate_program_authority_missing:{route}")
-        if promotion is None:
-            obligations[route] = "unknown"
-            continue
-        if not isinstance(promotion, dict):
+        if promotion is not None and not isinstance(promotion, dict):
             raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
-        allowed = promotion.get("promotion_authorized")
-        status = promotion.get("status")
-        if (allowed is True and status != "VERIFIED") or (allowed is False and status != "WITHHELD"):
-            raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
-        if type(allowed) is not bool:
-            raise RuntimeError(f"affiliate_program_authority_unknown:{program_id}")
         if program.get("commercial_state") == "held":
+            # Some deliberately excluded programs have no promotion-map row.
+            # Their authenticated registry-bound denial is not unknown authority.
             meta = (((program.get("profiles") or {}).get("glp-clinic-scout") or {})
                     .get("exceptions") or {}).get("go") or {}
             receipt_path = release / meta.get("authority_path", "")
             receipt_bytes = receipt_path.read_bytes() if receipt_path.is_file() else b""
             receipt = json.loads(receipt_bytes) if receipt_bytes else {}
-            if (allowed is not False or meta.get("enabled") is not True
+            if ((promotion is not None and promotion.get("promotion_authorized") is not False)
+                    or meta.get("enabled") is not True
                     or hashlib.sha256(receipt_bytes).hexdigest() != meta.get("authority_sha256")
                     or receipt.get("schema") != "glp-receipted-research-hold-v1"
                     or receipt.get("program_id") != program_id
@@ -1228,6 +1224,32 @@ def derive_affiliate_obligations(control: dict[str, Any],
                     or receipt.get("promotion_authorized") is not False
                     or receipt.get("live_link_allowed") is not False):
                 raise RuntimeError(f"affiliate_operator_hold_invalid:{program_id}")
+            if promotion is None:
+                promotion = {"promotion_authorized": False, "status": "WITHHELD"}
+        if promotion is None:
+            obligations[route] = "unknown"
+            continue
+        allowed = promotion.get("promotion_authorized")
+        status = promotion.get("status")
+        if (allowed is True and status != "VERIFIED") or (allowed is False and status != "WITHHELD"):
+            raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
+        if type(allowed) is not bool:
+            raise RuntimeError(f"affiliate_program_authority_unknown:{program_id}")
+        # The sealed generated runtime incorporates selection/current holds after
+        # the historical promotion map. Membership alone is NOT a live grant.
+        runtime = runtime_programs.get(program_id)
+        if runtime is None and program.get("review_path"):
+            runtime = runtime_programs.get(program["review_path"].strip("/").split("/")[-1])
+        if runtime is not None:
+            if (not isinstance(runtime, dict)
+                    or type(runtime.get("promotion_authorized")) is not bool
+                    or type(runtime.get("live_link_allowed")) is not bool
+                    or runtime["promotion_authorized"] != runtime["live_link_allowed"]
+                    or (allowed is False and runtime["promotion_authorized"] is True)):
+                raise RuntimeError(f"affiliate_runtime_authority_invalid:{program_id}")
+            allowed = allowed and runtime["promotion_authorized"]
+        elif allowed:
+            raise RuntimeError(f"affiliate_runtime_authority_invalid:{program_id}")
         obligations[route] = "required" if allowed else "forbidden"
     return obligations
 
