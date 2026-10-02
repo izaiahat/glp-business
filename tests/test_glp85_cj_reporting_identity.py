@@ -122,6 +122,12 @@ def test_ro_public_offer_reporting_identity_resolves_without_financial_event():
 
 def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     wrapper = (ROOT / 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh').read_bytes()
+    # F12 adds only a pinned retained snapshot argument, never current coverage.
+    retained = (b'# Retained D1 capture, NOT a fresh receiver export or closed-payout proof.\n'
+        b'check_source reports/ops/f12-host-followthrough-20261002/reconciliation-input.json 5ae5aee441a9dbc6c9cb17dfb66fe0c7f28068f68d267ba6707b3c333deb95f1\n'
+        b'args+=(--reconciliation-input /home/ubuntu/business/reports/ops/f12-host-followthrough-20261002/reconciliation-input.json)\n')
+    assert wrapper.count(retained) == 1
+    wrapper = wrapper.replace(retained, b'')
     # GLP333 successor: authenticate the three source/mode changes, then undo
     # only those changes before the unchanged GLP85 historical inverse oracle.
     source_pin = hashlib.sha256((ROOT/'ops/glp/reporting-v2/source-manifest.json').read_bytes()).hexdigest().encode()

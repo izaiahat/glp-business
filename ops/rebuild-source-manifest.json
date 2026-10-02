@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 624,
+  "tracked_count": 625,
   "files": {
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -210,7 +210,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "repository_control",
-      "sha256": "e90673a77e9647345f14cd61d7ddcb4ef905e097bd53975f9bae0fb1c8322858"
+      "sha256": "1457eceeba33003ce7d029537c1ef8728c1e681c5c07106316cbe5445a2c3cf0"
     },
     "ops/glp331-program-withdrawal.md": {
       "kind": "documentation",
@@ -821,7 +821,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "72fa7247b306f1a6530141b6d6122a3644ee6a90efed731695797d6c132c43db"
+      "sha256": "b64c05fa30aa0e15528069a883b7919fdaaed0e338c4da2dd5dd3b689822dba9"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2955,7 +2955,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "10d5b1af4713dfbd75bc3ae84c5e4606d892a06872c6fb30f6655ea4cc11b86e"
+      "sha256": "92f7610986809e3cc5414e8dc57fbd9f76c32fc2770b3737c602db433c012f31"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
@@ -4172,12 +4172,19 @@
         "scripts/run_tests.sh",
         ".github/workflows/glp333-reporting-generation.yml"
       ],
-      "sha256": "5f0d815953d8cbe1195d2fe99864a677f8a179e910eeea8a834f574245da32fe"
+      "sha256": "1467cdab871844f6d933759b65c3250cb2e58881d617c6d8780d4c19dee5f0d0"
     },
     "ops/glp334-conversion-reconciliation.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "a10effde8cee352cb4c19f60216dd6a6538c2682a7b57d8a69657a56aab787a5"
+      "sha256": "0689b06ca3e975e87fa7d5056466b1f8bd74995e90846ff67efe7110e9bdc748"
+    },
+    "tests/test_f12_scheduled_retained_input.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp333-network-access.yml"
+      ],
+      "sha256": "4c0059490b3e3dbf171cba773bc1cc75e201ba85b53900f93a00106a81e545de"
     },
     "tests/test_glp334_conversion_reconciliation.py": {
       "kind": "test",
