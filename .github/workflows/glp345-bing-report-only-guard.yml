@@ -1,0 +1,32 @@
+name: glp345-bing-report-only-guard
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/glp_ads_three_platform_monitor.py
+      - tests/test_glp_ads_three_platform_monitor.py
+      - .github/workflows/glp345-bing-report-only-guard.yml
+permissions:
+  contents: read
+jobs:
+  bing-report-only-guard-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Isolated fixture runner
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5'
+      - name: Unknown spend, exact binding and isolated pause readback
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          printf 'GLP345_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp_ads_three_platform_monitor.py -k microsoft

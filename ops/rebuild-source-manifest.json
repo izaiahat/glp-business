@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 595,
+  "tracked_count": 596,
   "files": {
+    ".github/workflows/glp345-bing-report-only-guard.yml": {
+      "callers": [
+        "github-actions"
+      ],
+      "kind": "source_control",
+      "sha256": "e18284296b09ea982af924c9b91cf6e15e791ab4ae54254f6acb31d0ccf6a8f8"
+    },
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -1616,7 +1623,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+      "sha256": "7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180"
     },
     "scripts/glp_affiliate_link_rails.py": {
       "callers": [
@@ -2929,7 +2936,7 @@
         "glp_ads_three_platform_monitor"
       ],
       "kind": "test",
-      "sha256": "a6de2aeca29a1b918e1923ef8d41a69da80712db80a4497cebc8d0be940cc90f"
+      "sha256": "9d7820433b8a60bb328a511c120b4c4f69e250084dd51ca6a84459cf92047f2b"
     },
     "tests/test_glp_affiliate_daily_decisions_report.py": {
       "callers": [
