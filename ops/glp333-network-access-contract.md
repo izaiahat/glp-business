@@ -16,8 +16,13 @@ REAL classification, or attributable GLP earnings.
   CJ retains its existing bounded posting-window collector; Katalys retains its
   client and shared rate limiter. New orchestration uses existing credential
   helpers and demonstrated read routes, not another secret store.
-- Awin uses contiguous <=30-day windows. Impact and Affiliati use bounded pages,
-  stable counts and unique event IDs. Partnerize stops PARTIAL at a next page
+- Awin uses contiguous <=30-day windows. Impact splits longer ranges into
+  contiguous half-open <=45-day sub-windows (inclusive `EndDate` one second
+  before each exclusive end), resets pagination and count reconciliation per
+  sub-window, keeps one latest read per repeated action ID, and stays UNKNOWN
+  for the whole range unless every sub-window completes. Its StartDate/EndDate
+  axis is unchanged; EventDate is not used as a filter. Impact and Affiliati use
+  bounded pages, stable counts and unique event IDs. Partnerize stops PARTIAL at a next page
   rather than guessing a cursor or following an arbitrary URL. Katalys requires
   a count that reconciles; a bare `rows: []` is not measured zero.
 - Only source reported accounting fields are projected. Fleet commission and
@@ -53,7 +58,7 @@ acceptance and wider F01/F12 caller migration remain separate.
 ## Verification
 
 Run `PYTHONPATH=scripts:. python3 -m pytest -q tests/test_network_access_contract.py
- tests/test_glp44_reporting_source_pin_pair.py tests/test_glp85_cj_reporting_identity.py
+ tests/test_glp333_impact_subwindows.py tests/test_glp44_reporting_source_pin_pair.py tests/test_glp85_cj_reporting_identity.py
  tests/test_glp319_incomplete_period.py` on one line. Fixtures deny provider calls
 and secret reads. Dedicated CI checks out and asserts the exact PR head.
 Historical identity inverse hashes are preserved by undoing only the three
