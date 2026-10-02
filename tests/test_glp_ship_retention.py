@@ -149,3 +149,30 @@ def test_git_retention_reuses_transaction_and_rechecks_authority(tmp_path, monke
         assert job['script_sha256'] == pair.sha((f.hermes / 'scripts' / job['script']).read_bytes())
         assert job['enabled'] is False and job['state'] == 'paused'
     assert syncer.sync(f.root, f.checkout, False, (), pair.RETENTION_PATHS) == 0
+
+
+def test_readonly_preview_accepts_scheduled_retention_but_apply_still_requires_pause(tmp_path, monkeypatch):
+    import glp_ship
+    f = fixture(tmp_path, monkeypatch)
+    registry = f.hermes / 'cron/jobs.json'
+    document = json.loads(registry.read_bytes())
+    for job in document['jobs']:
+        job.update(enabled=True, state='scheduled')
+    registry.write_text(json.dumps(document))
+    before = registry.read_bytes()
+    planned = pair.plan(f.checkout, f.root, f.hermes, generation=f.generation,
+                        allow_scheduled_preview=True)
+    assert all(job['enabled'] and job['state'] == 'scheduled' for job in planned[3].values())
+    assert registry.read_bytes() == before
+    assert glp_ship.preview(f.checkout, f.root, f.hermes, f.generation)['job_before'] == planned[3]
+    with pytest.raises(RuntimeError, match='paused_job_claim_or_state'):
+        pair.plan(f.checkout, f.root, f.hermes, generation=f.generation)
+    # The effectful transaction never inherits preview-only admission.
+    with pytest.raises(RuntimeError, match='paused_job_claim_or_state'):
+        pair._adopt_retention(f.checkout, f.root, f.hermes, None, scheduler=object(),
+                              window=object(), generation=f.generation)
+    assert registry.read_bytes() == before
+    document['jobs'][0]['fire_claim'] = {'fixture': 'busy'}
+    registry.write_text(json.dumps(document))
+    with pytest.raises(RuntimeError, match='paused_job_claim_or_state'):
+        pair.plan(f.checkout, f.root, f.hermes, generation=f.generation, allow_scheduled_preview=True)

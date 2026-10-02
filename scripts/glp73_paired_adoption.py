@@ -135,11 +135,13 @@ def replace_lines(body, updates):
     return b''.join(lines)
 
 
-def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical', window=None):
+def plan(checkout, root, hermes, *, state_rebaseline=None, generation='historical', window=None,
+         allow_scheduled_preview=False):
     if _git_generation(generation):
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
-        return _git_retention_plan(checkout, root, hermes, generation)
+        return _git_retention_plan(checkout, root, hermes, generation,
+                                   allow_scheduled_preview=allow_scheduled_preview)
     if generation in RETENTION_GENERATIONS:
         if state_rebaseline is not None:
             raise RuntimeError('retention_generation_does_not_rebaseline')
@@ -220,7 +222,7 @@ def _git_generation(generation):
     return isinstance(generation, GitGeneration)
 
 
-def _git_retention_plan(checkout, root, hermes, generation):
+def _git_retention_plan(checkout, root, hermes, generation, *, allow_scheduled_preview=False):
     """Authenticate a Git successor without relaxing the historical contracts."""
     checkout, root, hermes = (p.resolve(strict=True) for p in (checkout, root, hermes))
     if generation.kind != 'retention' or tuple(generation.paths) != RETENTION_PATHS:
@@ -285,8 +287,11 @@ def _git_retention_plan(checkout, root, hermes, generation):
                 or hits[0].get('script_sha256') != sha(before[hermes / 'scripts' / name][0])):
             raise RuntimeError('paused_job_identity_moved:' + jid)
         job = hits[0]
-        if (job.get('enabled') is not False or job.get('state') != 'paused'
-                or job.get('run_claim') is not None or job.get('fire_claim') is not None or job.get('running')):
+        paused = job.get('enabled') is False and job.get('state') == 'paused'
+        scheduled_preview = (allow_scheduled_preview and job.get('enabled') is True
+                             and job.get('state') == 'scheduled')
+        if (not (paused or scheduled_preview) or job.get('run_claim') is not None
+                or job.get('fire_claim') is not None or job.get('running')):
             raise RuntimeError('paused_job_claim_or_state:' + jid)
         records[jid] = copy.deepcopy(job)
     return before, stages, {rel: generation.hashes[rel]}, records

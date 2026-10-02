@@ -85,7 +85,8 @@ def preview(checkout, root, hermes, generation, window=None):
         return adopter.plan(checkout, root, hermes, window=window, generation=generation)[0]
     if generation.kind == 'retention':
         import glp73_paired_adoption as adopter
-        plan = adopter.plan(checkout, root, hermes, generation=generation, window=window)
+        plan = adopter.plan(checkout, root, hermes, generation=generation, window=window,
+                            allow_scheduled_preview=window is None)
         return adopter.retention_proposal(checkout, root, hermes, plan, generation=generation)
     from discovery_predecessor_migration import preview_generation
     return preview_generation(checkout, root, generation)

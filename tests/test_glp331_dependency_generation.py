@@ -13,6 +13,7 @@ import glp44_scoped_adoption as pair
 import maintenance_inventory as inventory
 import maintenance_window as mw
 import sync_from_repo as syncer
+from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
 
 GENERATION = 'glp331-dependencies-20261001'
 SOURCE = '0b61c25a7177896369f4fa76b4e84192de6bee70'
@@ -57,13 +58,22 @@ def test_dependency_generation_journals_exact_cohort_and_restores_window(tmp_pat
         for name in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py'):
             put(old_dir / name, blob('d6c193eeff4489c2605fded809cb54e4ba09b22d', 'scripts/' + name))
         put(old_dir / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
+        put(old_dir / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)
         with mw.require_active_window(f.journal, f.root, f.hermes) as active:
             proposal = pair.plan(ROOT, f.root, f.hermes, window=active, generation=GENERATION)[0]
         shared_bridge = ('scripts/cron_bridge_action.py', 'scripts/glp_analytics_brain_cadence.py')
-        assert inventory.affected_paths(f.root, f.hermes) - old_paths == {f.root / rel for rel in (*PATHS, *shared_bridge)}
+        reporting_leaves = (
+            'scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py',
+            'scripts/affiliate_reporting_admitad.py', 'scripts/affiliate_reporting_clickbank.py',
+            'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
+            'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
+        )
+        assert inventory.affected_paths(f.root, f.hermes) - old_paths == (
+            {f.root / rel for rel in (*PATHS, *shared_bridge, *reporting_leaves)}
+            | ({f.root / rel for rel in SHIP_REPORTING_PATHS} - old_paths))
         assert proposal['source_sha256'] == AFTER
         assert proposal['source_before_sha256'] == BEFORE
         assert proposal['state_delta'] == AFTER

@@ -11,10 +11,19 @@ import glp44_scoped_adoption as pair
 import maintenance_inventory as inventory
 import maintenance_window as mw
 import sync_from_repo as syncer
+from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
 
 GENERATION = 'glp337-shared-bridge-20261001'
 SOURCE = '898b45e903dffcce4046aa5548fc3e6f23b60b78'
 PATHS = ('scripts/cron_bridge_action.py', 'scripts/glp_analytics_brain_cadence.py')
+# Later reporting publication members also enter the shared inventory; the
+# GLP337 generation's own PATHS, transaction delta and hashes remain unchanged.
+REPORTING_INVENTORY_SUCCESSOR = (
+    'scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py',
+    'scripts/affiliate_reporting_admitad.py', 'scripts/affiliate_reporting_clickbank.py',
+    'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
+    'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
+)
 BASELINE = '4e8da708900178d32b2f165e1d18067750b45dabb5a115d3487b4d1a9d2d6bcb'
 BEFORE = {PATHS[0]: 'f00f66759a9bdc3a0f3a4156c5fbe8a6acc73597f5b83732e818b9cc7dc1ec55',
           PATHS[1]: '61ca597689080f6f3e5de9b00c733009df258850f58bce7f592843e527f17c53'}
@@ -90,10 +99,13 @@ def test_fixed_shared_bridge_generation_journals_only_pair_state_and_restores(tm
         for name in ('maintenance_inventory.py', 'glp44_scoped_adoption.py',
                      'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
             put(old_dir / name, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + name))
+        put(old_dir / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
         with monkeypatch.context() as m:
             m.setattr(inventory, '__file__', str(old_dir / 'maintenance_inventory.py'))
             old_paths = inventory.affected_paths(f.root, f.hermes)
-        assert inventory.affected_paths(f.root, f.hermes) - old_paths == {f.root / rel for rel in PATHS}
+        assert inventory.affected_paths(f.root, f.hermes) - old_paths == (
+            {f.root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+            | ({f.root / rel for rel in SHIP_REPORTING_PATHS} - old_paths))
         with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
             pair.plan(ROOT, f.root, f.hermes, generation=GENERATION)
         with mw.require_active_window(f.journal, f.root, f.hermes) as active:
@@ -160,9 +172,11 @@ def test_shared_bridge_literal_inventory_adds_exactly_the_pair(tmp_path, monkeyp
     controls = tmp_path / 'controls'
     for filename in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py', 'glp331_carrier_adoption.py'):
         put(controls / filename, blob('afd40c64005a52cd14dd82d59aa46f265ba3265a', 'scripts/' + filename))
+    put(controls / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
     monkeypatch.setattr(inventory, '__file__', str(controls / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
-    assert current - previous == {root / rel for rel in PATHS}
+    assert current - previous == ({root / rel for rel in (*PATHS, *REPORTING_INVENTORY_SUCCESSOR)}
+                                  | ({root / rel for rel in SHIP_REPORTING_PATHS} - previous))
     assert previous - current == set()
     prior = (controls / 'glp44_scoped_adoption.py').read_bytes()
     put(controls / 'glp44_scoped_adoption.py', prior + b'\nGLP337_PATHS = tuple(GLP337_HASHES)\n')
