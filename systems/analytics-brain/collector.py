@@ -11,10 +11,13 @@ import argparse
 import concurrent.futures
 import datetime as dt
 import hashlib
+from html import unescape
+from html.parser import HTMLParser
 import importlib.util
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -218,6 +221,16 @@ def inspect_route(route: str, control: dict[str, Any]) -> dict[str, Any]:
         r"<a\b[^>]*\brel\s*=\s*['\"][^'\"]*\bsponsored\b[^'\"]*['\"][^>]*>", html, re.I
     )
     sponsored = len(sponsored_tags)
+    # Retain hrefs as data only. Permission for a direct issued link does not
+    # authorize /go, another program's target, or an arbitrary tracking URL.
+    sponsored_targets = []
+    for tag in sponsored_tags:
+        attrs = {name.lower(): unescape(value) for name, _quote, value in
+                 re.findall(r"([\w:-]+)\s*=\s*(['\"])(.*?)\2", tag, re.S)}
+        sponsored_targets.append({"program_id": attrs.get("data-program"),
+                                  "href": attrs.get("href"),
+                                  "link_mode": attrs.get("data-link-mode"),
+                                  "network": attrs.get("data-network")})
     # 2026-08-27 launch as-built grammar: sponsored anchors carry the CR-5
     # marker set (data-analytics-event="affiliate_click" + data-program +
     # data-network + element/rank/page-type + baked sub slots) and link
@@ -269,6 +282,8 @@ def inspect_route(route: str, control: dict[str, Any]) -> dict[str, Any]:
         "csp_posthog_allowed": "us.i.posthog.com" in csp and "us-assets.i.posthog.com" in csp,
         "consent_default_denied_present": consent_default_denied,
         "sponsored_anchor_count": sponsored,
+        "sponsored_anchor_targets": sponsored_targets,
+        "listing_contract": _listing_contract(html),
         "client_marker_count": client_markers,
         "first_party_redirect_count": first_party_redirects,
         "sponsor_slot_ids": _slot_ids(html),
@@ -1101,7 +1116,8 @@ def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, dict[str, A
     sealed_rows = {row["path"]: row["sha256"] for row in manifest["release_rows"]}
     sealed_bytes = {}
     for name in ("functions/go/program-manifest.js",
-                 "data/program-registry.json", "data/go-runtime-promotion-authority.json"):
+                 "data/program-registry.json", "data/go-runtime-promotion-authority.json",
+                 "data/approved-program-registry.json"):
         expected = sealed_rows.get(name)
         try:
             body = (release / name).read_bytes()
@@ -1161,8 +1177,299 @@ def _bound_affiliate_release(control: dict[str, Any]) -> tuple[Path, dict[str, A
     return release, local["programs"]
 
 
+def _current_network_holds(control: dict[str, Any]) -> set[str]:
+    hold = control["affiliate_obligations"].get("current_network_holds")
+    if hold is None:
+        return set()
+    networks = []
+    try:
+        networks = hold["networks"]
+        body = (BUSINESS / hold["authority_path"]).read_bytes()
+        valid = (isinstance(networks, list) and bool(networks)
+                 and all(isinstance(value, str) and value == value.lower() for value in networks)
+                 and hashlib.sha256(body).hexdigest() == hold["authority_sha256"])
+    except (KeyError, TypeError, OSError):
+        valid = False
+    if not valid:
+        raise RuntimeError("affiliate_current_hold_invalid")
+    return set(networks)
+
+
+def _assert_direct_decision(promotion: dict[str, Any]) -> None:
+    decision = promotion.get("operator_approved_live_decision") or {}
+    try:
+        body = Path(decision["path"]).read_bytes()
+        valid = hashlib.sha256(body).hexdigest() == decision["sha256"]
+    except (KeyError, TypeError, OSError):
+        valid = False
+    if not valid:
+        raise RuntimeError("affiliate_direct_decision_invalid")
+
+
+def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) -> str | None:
+    """The bound site contract permits this issued direct URL, never its /go candidate."""
+    if not (runtime.get("entry_state") == "transparent_direct"
+            and runtime.get("status") == "candidate_preview_only"
+            and runtime.get("link_mode") == "instrumented_redirect_candidate"
+            and runtime.get("candidate_gate") == "operator_approved_glp_live"
+            and promotion.get("reason") == "operator_approved_glp_live"
+            and promotion.get("promotion_authorized") is True
+            and promotion.get("status") == "VERIFIED"):
+        return None
+    _assert_direct_decision(promotion)
+    tracking = runtime.get("tracking") or {}
+    href = tracking.get("base_url")
+    if (not isinstance(href, str) or urlsplit(href).scheme != "https"
+            or urlsplit(href).hostname not in (tracking.get("allowed_tracking_hosts") or [])
+            or tracking.get("generated_link_readback_verified") is not True
+            or runtime.get("network") != promotion.get("network")):
+        raise RuntimeError("affiliate_direct_target_invalid")
+    return href
+
+
+def _approved_directory_target(target: dict[str, Any], path: str, authority: dict[str, Any],
+                               approved: dict[str, Any], current_holds: set[str]) -> bool:
+    """Accepted directory-only direct rails are not /go registry members."""
+    promotion = authority.get(str(target.get("program_id") or "")) or {}
+    network = str(promotion.get("network") or "").lower()
+    href = target.get("href")
+    if not (path == "/providers/" and target.get("link_mode") == "transparent-direct"
+            and isinstance(href, str) and urlsplit(href).scheme == "https"
+            and promotion.get("promotion_authorized") is True and promotion.get("status") == "VERIFIED"
+            and promotion.get("reason") == "operator_approved_glp_live"
+            and str(target.get("network") or "").lower() == network and network not in current_holds):
+        return False
+    _assert_direct_decision(promotion)
+    if promotion.get("directory_only") is True:
+        return hashlib.sha256(href.encode()).hexdigest() == promotion.get("issued_link_sha256")
+    for row in approved["programs"]:
+        tracking = row.get("tracking") or {}
+        if (row.get("registry_id") == target.get("program_id")
+                and str(row.get("network") or "").lower() == network
+                and row.get("routing_class") == "glp1_weightloss_coverage_candidate"
+                and tracking.get("candidate_registry_wired") is True
+                and tracking.get("public_go_surface") is False
+                and tracking.get("provider_issued_url") == href
+                and tracking.get("tracking_host") == urlsplit(href).hostname):
+            return True
+    return False
+
+
+def _listing_contract(html: str) -> dict[str, Any]:
+    """Read the native duration listing's actual cohorts and controls, not an empty flag."""
+    if "data-listing-archetype" not in html:
+        return {}
+    hooks = ("data-filter-result", "data-provider-filters", "data-phase3-provider-grid",
+             "data-filter-empty", "data-unpublished-provider-section", "data-provider-card-payloads",
+             "data-phase3-dose-selection")
+
+    class Listing(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack = []
+            self.parts = {key: [] for key in hooks}
+            self.active = []
+            self.cards = 0
+            self.route = []
+            self.scripts = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            blocked = any(self.stack) or "hidden" in attrs or "inert" in attrs or attrs.get("aria-hidden") == "true"
+            if tag == "main" and attrs.get("data-listing-archetype") == "A":
+                self.route.append([attrs.get("data-phase3-route"), blocked])
+            if "data-phase3-provider" in attrs or "data-unpublished-price-card" in attrs:
+                self.cards += 1
+            if tag == "script" and urlsplit(attrs.get("src") or "").path == "/assets/site.js":
+                self.scripts.append([list(item) for item in sorted(attrs.items())])
+            token = ["start", tag, [list(item) for item in sorted(attrs.items())], blocked]
+            for _, tokens, _ in self.active:
+                tokens.append(token)
+            for key in hooks:
+                if key in attrs:
+                    tokens = [token]
+                    self.parts[key].append(tokens)
+                    self.active.append((key, tokens, len(self.stack)))
+            if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
+                self.stack.append(blocked)
+
+        def handle_endtag(self, tag):
+            if self.stack:
+                self.stack.pop()
+            for _, tokens, _ in self.active:
+                tokens.append(["end", tag])
+            self.active = [part for part in self.active if part[2] < len(self.stack)]
+
+        def handle_data(self, text):
+            text = " ".join(text.split())
+            if text:
+                for _, tokens, _ in self.active:
+                    tokens.append(["text", text])
+
+    parsed = Listing()
+    parsed.feed(html)
+    parts = parsed.parts
+    counts = parts["data-filter-result"]
+    text = " ".join(token[1] for tokens in counts for token in tokens if token[0] == "text")
+    match = re.fullmatch(r"(\d+) comparable price results", text) if len(counts) == 1 else None
+    numeric = int(match[1]) if match else None
+    empty_tokens = parts["data-filter-empty"]
+    empty_text = " ".join(token[1] for tokens in empty_tokens for token in tokens if token[0] == "text")
+    reset = sum(token[0] == "start" and token[1] == "button"
+                and dict(token[2]).get("type") == "button" and "data-filter-reset" in dict(token[2])
+                for tokens in empty_tokens for token in tokens)
+    blocked = any(tokens[0][3] for key in hooks[:4] for tokens in parts[key])
+    empty = (len(parsed.route) == 1 and not parsed.route[0][1] and numeric == 0
+             and all(len(parts[key]) == 1 for key in hooks[:4]) and not blocked
+             and parsed.cards == 0 and not parts[hooks[4]] and not parts[hooks[5]] and reset == 1
+             and empty_text == "No source-backed record matches those filters. An empty result is not a medical or availability conclusion. Active filters: none. Reset filters"
+             and len(parsed.scripts) == 1)
+    return {"route": parsed.route, "numeric_count": numeric,
+            "unpublished_count": len(parts[hooks[4]]), "card_count": parsed.cards,
+            "parts": parts, "runtime_scripts": parsed.scripts, "empty": empty}
+
+
+def _listing_obligation(expected: dict[str, Any] | None, observed: dict[str, Any] | None) -> str:
+    if (not expected or observed != expected or type(expected.get("numeric_count")) is not int
+            or expected["numeric_count"] < 0 or len(expected.get("route") or []) != 1):
+        return "unknown"
+    # Empty is a prohibition on commercial anchors, NOT a shell/privacy exemption.
+    return "forbidden" if expected.get("empty") is True else "required"
+
+
+def _bound_listing_contracts(release: Path, control: dict[str, Any],
+                             covered: set[str]) -> dict[str, dict[str, Any]]:
+    """Exercise the existing exported producer on accepted, sealed inputs only."""
+    policy = control["affiliate_obligations"].get("duration_listing_contract")
+    if policy is None:
+        return {}
+    decision = (BUSINESS / policy["authority_path"]).read_bytes()
+    if hashlib.sha256(decision).hexdigest() != policy["authority_sha256"]:
+        raise RuntimeError("affiliate_listing_authority_drift")
+    pointer = read_json(BUSINESS / control["affiliate_obligations"]["release_pointer"])
+    if Path(pointer["release_root"]).resolve(strict=True) != release:
+        raise RuntimeError("affiliate_listing_release_changed")
+    rows = read_json(Path(pointer["manifest"]["path"]))["release_rows"]
+    seals = {row["path"]: row["sha256"] for row in rows}
+    # Retain the source preflight, but it is not the module-consumption boundary.
+    # Node's synchronous load hook below authenticates the actual evaluated bytes.
+    for source in (release / "src").rglob("*"):
+        if source.is_file():
+            name = source.relative_to(release).as_posix()
+            if (source.is_symlink() or not seals.get(name)
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != seals[name]):
+                raise RuntimeError(f"affiliate_listing_producer_drift:{name}")
+    script = r'''
+import fs from 'node:fs';
+import cp from 'node:child_process';
+import {syncBuiltinESMExports, registerHooks, isBuiltin} from 'node:module';
+import {createHash} from 'node:crypto';
+import {pathToFileURL, fileURLToPath} from 'node:url';
+import path from 'node:path';
+const input=JSON.parse(fs.readFileSync(0,'utf8'));
+const root=process.argv[1];
+const read=fs.readFileSync, exists=fs.existsSync, failures=[];
+const fail=name=>{failures.push(name);throw new Error('affiliate_listing_input_invalid:'+name);};
+const deny=()=>{throw new Error('affiliate_listing_effect_denied');};
+fs.readFileSync=(file,...args)=>{
+  const resolved=path.resolve(file instanceof URL?fileURLToPath(file):file);
+  const name=path.relative(root,resolved);
+  if(!input.seals[name]) return fail('unbound:'+name);
+  let bytes;
+  try { bytes=read(resolved); } catch { return fail('missing:'+name); }
+  if(createHash('sha256').update(bytes).digest('hex')!==input.seals[name]) return fail('drift:'+name);
+  if(name.endsWith('.json')) { try { JSON.parse(bytes); } catch { return fail('json:'+name); } }
+  return args[0]?bytes.toString(typeof args[0]==='string'?args[0]:args[0].encoding):bytes;
+};
+fs.existsSync=file=>{
+  const resolved=path.resolve(file instanceof URL?fileURLToPath(file):file), name=path.relative(root,resolved);
+  if(input.seals[name]&&!exists(resolved)) return fail('missing:'+name);
+  return exists(resolved);
+};
+for(const key of ['writeFileSync','appendFileSync','renameSync','unlinkSync','rmSync','mkdirSync','copyFileSync','createWriteStream']) fs[key]=deny;
+for(const key of ['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork']) cp[key]=deny;
+globalThis.fetch=deny;
+syncBuiltinESMExports();
+// Node >=22.15 registerHooks runs in-thread, so caught import failures share
+// the data-read failure latch. Check nextLoad's source, not a second path read:
+// this is the exact buffer Node will evaluate, including dependency imports.
+const moduleName=url=>{
+  if(url.startsWith('node:')&&isBuiltin(url)) return null;
+  if(!url.startsWith('file:')) return fail('module-url:'+url);
+  const name=path.relative(root,fileURLToPath(url));
+  if(path.isAbsolute(name)||name==='..'||name.startsWith('..'+path.sep)||!input.seals[name]) return fail('module-unbound:'+name);
+  return name;
+};
+registerHooks({
+  resolve(specifier,context,nextResolve){
+    let result;
+    try { result=nextResolve(specifier,context); } catch { return fail('module-resolve:'+specifier); }
+    moduleName(result.url);
+    return result;
+  },
+  load(url,context,nextLoad){
+    const name=moduleName(url);
+    let result;
+    try { result=nextLoad(url,context); } catch { return fail('module-load:'+url); }
+    if(name!==null){
+      if(!['module','json'].includes(result.format)||!(typeof result.source==='string'||ArrayBuffer.isView(result.source)||result.source instanceof ArrayBuffer)) return fail('module-source:'+name);
+      const bytes=result.source instanceof ArrayBuffer?new Uint8Array(result.source):result.source;
+      if(createHash('sha256').update(bytes).digest('hex')!==input.seals[name]) return fail('module-drift:'+name);
+      if(result.format==='json') { try { JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return fail('module-json:'+name); } }
+    }
+    return result;
+  }
+});
+const json=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
+const load=name=>import(pathToFileURL(path.join(root,'src',name)));
+const phase=await load('phase3-page-graph.mjs');
+const {publicProviderNames}=await load('public-provider-names.mjs');
+const graph=json('data/phase3-page-graph.json'), pricingMatrix=publicProviderNames(json('data/provider-pricing-matrix.json'));
+// Native provenance validation: unknown/missing pricing cannot become a zero cohort.
+(await load('cost-calculator.mjs')).attachPricingMatrix(Object.keys(pricingMatrix.providers||{}).map(program_id=>({program_id})),pricingMatrix);
+const specs=json('data/money-page-specs.json'), affiliateMap=(await load('affiliate-link-map.mjs')).loadAffiliateLinkMap('compare');
+if(!Array.isArray(specs.pages)||specs.pages.some(page=>!Array.isArray(page.rows)||page.rows.some(row=>row.program_id&&!Object.hasOwn(affiliateMap,row.program_id)))) throw new Error('affiliate_listing_link_map_unknown');
+const context={graph,pricingMatrix,
+  registry:phase.phase3Registry(graph,publicProviderNames(json('data/program-registry.json'))),
+  coupons:(await load('coupon-offers.mjs')).activeCouponMap(json('data/coupon-offers.json')),
+  doseCapture:phase.loadPass2DoseCapture(),
+  logoManifest:{...json('assets/provider-logos/manifest.json'),atlas:json('assets/provider-logos/pass2-lp-atlas.json')},
+  articles:[],goAuthority:(await load('go-runtime-selection.mjs')).loadGoPromotionAuthority()};
+const result={};
+for(const page of graph.bulk_pages.filter(p=>input.covered.includes(p.route))) {
+  if(!Number.isFinite(page.duration_months)||page.duration_months<=0) throw new Error('affiliate_listing_duration_invalid');
+  result[page.route]={native:phase.renderConfiguredListing('A',page,context),
+    published:fs.readFileSync(path.join(root,'public',page.route.slice(1),'index.html'),'utf8')};
+}
+if(failures.length) throw new Error('affiliate_listing_swallowed_input_failure:'+failures.join(','));
+console.log(JSON.stringify(result));
+'''
+    result = subprocess.run(["node", "--input-type=module", "-e", script, str(release)],
+                            input=json.dumps({"seals": seals, "covered": sorted(covered)}),
+                            text=True, capture_output=True, timeout=45, check=False)
+    result.check_returncode()  # Retain refusal; the genuine process result is observable first.
+    contracts = {}
+    for route, html in json.loads(result.stdout).items():
+        # The shell finalizer installs site.js; bind its actual sealed loader and
+        # runtime bytes, while cohorts/filter/reset markup comes from the producer.
+        published = _listing_contract(html["published"])
+        scripts = published["runtime_scripts"]
+        if len(scripts) != 1:
+            raise RuntimeError(f"affiliate_listing_runtime_missing:{route}")
+        src = dict(scripts[0])["src"]
+        name = "public" + urlsplit(src).path
+        if (urlsplit(src).netloc or not seals.get(name)
+                or hashlib.sha256((release / name).read_bytes()).hexdigest() != seals[name]):
+            raise RuntimeError(f"affiliate_listing_runtime_drift:{route}")
+        loader = '<script ' + ' '.join(f'{key}="{value}"' if value is not None else key
+                                     for key, value in scripts[0]) + '></script>'
+        contracts[route] = _listing_contract(html["native"] + loader)
+    return contracts
+
+
 def derive_affiliate_obligations(control: dict[str, Any],
-                                 observed_routes: set[str] | None = None) -> dict[str, str]:
+                                 observed_routes: set[str] | None = None,
+                                 static_routes: list[dict[str, Any]] | None = None) -> dict[str, str]:
     """Keep covered routes and bind duties to effective sealed commercial authority."""
     release, runtime_programs = _bound_affiliate_release(control)
     public_ids = set(runtime_programs)
@@ -1188,6 +1495,21 @@ def derive_affiliate_obligations(control: dict[str, Any],
             covered.add(f"/providers/{program_id}/")
         if review and (allowed is False or (allowed is True and (published_provider or published_review))):
             covered.add(review)
+    current_holds = _current_network_holds(control)
+    approved = read_json(release / "data/approved-program-registry.json")
+    if (approved.get("schema") != "approved-program-successor-registry-v1"
+            or not isinstance(approved.get("programs"), list)):
+        raise RuntimeError("affiliate_directory_authority_invalid")
+    permissions: dict[str, dict[str, Any]] = {}
+    static = {row["path"]: row for row in static_routes or []}
+    listing_policy = control["affiliate_obligations"].get("duration_listing_contract") or {}
+    listing_routes = set(listing_policy.get("routes") or []) & covered
+    try:
+        listings = _bound_listing_contracts(release, control, listing_routes) if listing_routes else {}
+    except Exception as exc:  # noqa: BLE001 - binding failure is unknown, never zero
+        listings = {}
+        for route in listing_routes & set(static):
+            static[route]["listing_contract_error"] = f"{type(exc).__name__}:{str(exc)[:200]}"
     obligations: dict[str, str] = {}
     for route in sorted(covered):
         parts = route.strip("/").split("/")
@@ -1199,7 +1521,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
             if program_id is None:
                 raise RuntimeError(f"affiliate_review_identity_missing:{route}")
         if program_id is None:
-            obligations[route] = "required"
+            obligations[route] = (_listing_obligation(listings.get(route),
+                                                      static.get(route, {}).get("listing_contract"))
+                                  if route in listing_routes else "required")
             continue
         program = programs.get(program_id)
         promotion = (authority.get("programs") or {}).get(program_id)
@@ -1240,6 +1564,8 @@ def derive_affiliate_obligations(control: dict[str, Any],
         runtime = runtime_programs.get(program_id)
         if runtime is None and program.get("review_path"):
             runtime = runtime_programs.get(program["review_path"].strip("/").split("/")[-1])
+        direct_target = None
+        go_allowed = False
         if runtime is not None:
             if (not isinstance(runtime, dict)
                     or type(runtime.get("promotion_authorized")) is not bool
@@ -1247,10 +1573,48 @@ def derive_affiliate_obligations(control: dict[str, Any],
                     or runtime["promotion_authorized"] != runtime["live_link_allowed"]
                     or (allowed is False and runtime["promotion_authorized"] is True)):
                 raise RuntimeError(f"affiliate_runtime_authority_invalid:{program_id}")
-            allowed = allowed and runtime["promotion_authorized"]
+            go_allowed = allowed and runtime["promotion_authorized"]
+            # Runtime flags govern the instrumented redirect. The explicitly
+            # receipted site-direct branch has a separate exact issued target.
+            if allowed and not go_allowed:
+                direct_target = _approved_direct_target(runtime, promotion)
+            elif go_allowed:
+                direct_target = (runtime.get("tracking") or {}).get("base_url")
+            allowed = go_allowed or direct_target is not None
         elif allowed:
             raise RuntimeError(f"affiliate_runtime_authority_invalid:{program_id}")
+        network = (runtime or {}).get("network") or promotion.get("network")
+        if str(network or "").lower() in current_holds:
+            allowed = False
+        permission = {"allowed": allowed, "go_allowed": go_allowed and allowed,
+                      "go_route": (runtime or {}).get("route"), "direct_target": direct_target,
+                      "network": str(network or "").lower()}
+        permissions[program_id] = permission
+        if program.get("review_path"):
+            permissions[program["review_path"].strip("/").split("/")[-1]] = permission
         obligations[route] = "required" if allowed else "forbidden"
+    for row in static_routes or []:
+        targets = row.get("sponsored_anchor_targets")
+        row["affiliate_permission_check_complete"] = (
+            isinstance(targets, list) and len(targets) == row.get("sponsored_anchor_count", 0))
+        if targets is None and row.get("sponsored_anchor_count", 0) == 0:
+            row["affiliate_permission_check_complete"] = True
+        bad = 0
+        for target in targets or []:
+            permission = permissions.get(target.get("program_id")) or {}
+            parsed = urlsplit(target.get("href") or "")
+            valid_go = (permission.get("go_allowed") is True
+                        and parsed.path == permission.get("go_route")
+                        and parsed.hostname in (None, PRODUCTION_HOST)
+                        and parsed.scheme in ("", "https"))
+            valid_direct = (permission.get("allowed") is True
+                            and target.get("href") == permission.get("direct_target")
+                            and target.get("link_mode") == "transparent-direct"
+                            and str(target.get("network") or "").lower() == permission.get("network"))
+            valid_directory = (not permission and _approved_directory_target(
+                target, row["path"], authority.get("programs") or {}, approved, current_holds))
+            bad += not (valid_go or valid_direct or valid_directory)
+        row["unauthorized_affiliate_anchor_count"] = bad
     return obligations
 
 
@@ -1272,7 +1636,7 @@ def collect_live(control: dict[str, Any], phase: str, cache_path: Path | None = 
     observed = set(data.get("sitemap_routes") or []) | {
         row["path"] for row in data.get("static_routes") or []}
     data["affiliate_route_obligations"] = derive_affiliate_obligations(
-        control, observed_routes=observed)
+        control, observed_routes=observed, static_routes=data.get("static_routes"))
 
     rails = _rail_module()
     high_frequency = phase in {"deploy", "hourly", "daily"}
