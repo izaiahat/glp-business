@@ -347,6 +347,8 @@ def route_matrix(data: dict[str, Any],
             "csp_posthog_allowed": static.get("csp_posthog_allowed") is True,
             "consent_default_denied_present": static.get("consent_default_denied_present") is True,
             "sponsored_anchor_count": anchors,
+            "affiliate_permission_check_complete": static.get("affiliate_permission_check_complete", True) is True,
+            "unauthorized_affiliate_anchor_count": int(static.get("unauthorized_affiliate_anchor_count", 0)),
             "client_marker_count": client_markers,
             "first_party_redirect_count": redirects,
             "sponsor_slot_ids": slot_ids,
@@ -368,7 +370,9 @@ def route_matrix(data: dict[str, Any],
         # A DECLARED exemption (control.static_exempt_routes — the byte-pinned
         # legacy article) beats the contract; it is recorded on the row, never
         # silently passed.
-        if not path_in_sitemap_contract(row) or (row["static_contract_exempt"] and obligation not in {"forbidden", "unknown"}):
+        permission_pass = (row["affiliate_permission_check_complete"]
+                           and row["unauthorized_affiliate_anchor_count"] == 0)
+        if permission_pass and (not path_in_sitemap_contract(row) or (row["static_contract_exempt"] and obligation not in {"forbidden", "unknown"})):
             row["static_instrumentation_pass"] = True
             row["probe_pass"] = True
             routes.append(row)
@@ -386,6 +390,7 @@ def route_matrix(data: dict[str, Any],
             and row["consent_default_denied_present"]
             and row["client_marker_coverage"]
             and row["first_party_redirect_coverage"]
+            and permission_pass
             and obligation != "unknown"
             and (obligation != "required" or anchors > 0)
             and (obligation != "forbidden" or anchors == 0)
