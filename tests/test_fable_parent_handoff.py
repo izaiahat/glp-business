@@ -104,7 +104,7 @@ class ParentHandoffTests(unittest.TestCase):
         self.assertEqual(channel, DECISIONS)
         return {QUESTION: self.question, INTENT: self.intent}[message_id]
 
-    def transport(self, method, path, body=None):
+    def transport(self, method, path, body=None, **kwargs):
         if method == "GET" and path.endswith("/" + REQUEST):
             return self.message
         if method == "GET" and path.endswith("/" + DEFERRED):
@@ -305,6 +305,35 @@ class ParentHandoffTests(unittest.TestCase):
         self.assertIn("fallback_model", ambient)
         self.assertEqual(create.call_args.args[2],
                          ["read_file", "search_files", "web_search", "web_extract", "vision_analyze"])
+        # Same owned entry's manual path pins BEFORE toolsets/main/cli imports.
+        import builtins
+        import os
+        native_resume = lambda session_db, resume: None
+        package.oneshot = SimpleNamespace(_load_resume_target=native_resume)
+        imported = []
+        actual_import = builtins.__import__
+        def observe_import(name, *args, **kwargs):
+            if name in ("toolsets", "hermes_cli.main", "cli"):
+                imported.append(name)
+                self.assertEqual(os.environ["HERMES_HOME"], str(Path.home() / ".hermes"))
+                self.assertEqual(sys.argv[1:3], ["--profile", "default"])
+            return actual_import(name, *args, **kwargs)
+        def manual_main():
+            native_main()
+            self.assertIsNot(package.oneshot._load_resume_target, native_resume)
+        with patch.dict(sys.modules, {"hermes_cli": package, "hermes_cli.config": config,
+                "hermes_cli.main": SimpleNamespace(main=manual_main),
+                "cli": SimpleNamespace(CLI_CONFIG=local),
+                "toolsets": SimpleNamespace(create_custom_toolset=create)}), \
+             patch.dict(os.environ, {"HERMES_HOME": "/synthetic/profiles/other"}), \
+             patch("builtins.__import__", side_effect=observe_import), \
+             patch.object(sys, "argv", ["fable_bridge.py", "--native-parent-reviewer", "chat", "--oneshot",
+                "--provider", "claude-subscription-directsdk-experimental", "-m", "claude-fable-5-1",
+                "--reasoning", "xhigh", "--resume", "20260922_214459_3be4d1", "--toolsets", "fable-review-readonly"]):
+            runpy.run_path(str(ROOT / "scripts/fable_bridge.py"), run_name="__main__")
+        self.assertEqual(imported, ["toolsets", "hermes_cli.main", "cli"])
+        self.assertIs(config.load_config, original)
+        self.assertIs(package.oneshot._load_resume_target, native_resume)
 
     def test_installed_host_admission_api_is_reserved_and_released(self):
         self.dispatch()
@@ -337,6 +366,121 @@ class ParentHandoffTests(unittest.TestCase):
         self.assertFalse(self.host_events)
         self.assertFalse(self.posts)
         self.assertEqual(bridge.load_state(), self.initial)
+
+    def test_native_consumed_store_and_resolved_import_are_fenced(self):
+        """Real installed SQLite/resumer; only provider/agent I/O is denied."""
+        import os
+        native = Path.home() / ".hermes/hermes-agent"
+        if not (native / "hermes_cli/oneshot.py").is_file():
+            self.skipTest("installed native API required (host-only)")
+        sys.path.insert(0, str(native))
+        self.addCleanup(lambda: sys.path.remove(str(native)))
+        from hermes_state import SessionDB
+        from hermes_cli import oneshot
+        from types import ModuleType
+        spec = importlib.util.spec_from_file_location("fenced_parent_handoff", ROOT / "scripts/fable_parent_handoff.py")
+        assert spec is not None and spec.loader is not None
+        self.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.module)
+        transcript = self.root / "claude/projects/synthetic" / (self.module.LEGACY_SESSION_ID + ".jsonl")
+        transcript.parent.mkdir(parents=True)
+        transcript.write_text("SYNTHETIC presence only\n")
+        default = self.root / "default/state.db"
+        other = self.root / "profiles/other/state.db"
+        origin = {"imported_from": {"tool": "claude-code",
+            "foreign_session_id": self.module.LEGACY_SESSION_ID, "path": str(transcript)}}
+        for path, imported in ((default, True), (other, False)):
+            db = SessionDB(db_path=path)
+            db.create_session(self.module.NATIVE_SESSION_ID, "claude-code" if imported else "cli",
+                origin_json=json.dumps(origin if imported else {}))
+            db.close()
+        # Valid closed imports may be reopened by the real resumer; lifecycle
+        # fields are not provenance. Return actual history without inventing it.
+        db = SessionDB(db_path=default)
+        db.end_session(self.module.NATIVE_SESSION_ID, "SYNTHETIC closed import")
+        try:
+            with self.module.native_resume_guard(default, transcript):
+                sid, history, meta = oneshot._load_resume_target(db, self.module.NATIVE_SESSION_ID)
+            self.assertEqual(sid, self.module.NATIVE_SESSION_ID)
+            self.assertEqual(history, [])
+            self.assertEqual(meta["source"], "claude-code")
+        finally:
+            db.close()
+        provider = Mock(side_effect=denied)
+        agent = Mock(side_effect=denied)
+        runtime = ModuleType("hermes_cli.runtime_provider")
+        runtime.resolve_runtime_with_fallback = provider
+        run_agent = ModuleType("run_agent")
+        run_agent.AIAgent = agent
+        def native_run(command, **kwargs):
+            # Exercise actual _run_agent ordering, not a fabricated native callback.
+            from contextlib import nullcontext
+            guard = (self.module.native_resume_guard(default, transcript)
+                     if "--native-parent-reviewer" in command else nullcontext())
+            with guard:
+                oneshot._run_agent("SYNTHETIC", model="claude-fable-5-1", resume=self.module.NATIVE_SESSION_ID)
+            return SimpleNamespace(returncode=0, stdout="SYNTHETIC wrongly accepted", stderr="")
+        self.inferences.side_effect = native_run
+        with patch.dict(sys.modules, {"hermes_cli.runtime_provider": runtime, "run_agent": run_agent}), \
+             patch("hermes_cli.config.load_config", return_value={}), \
+             patch.object(oneshot, "_resolve_model_and_provider", return_value=oneshot._ModelChoice("claude-fable-5-1", "fable")), \
+             patch.object(bridge, "HERMES_STATE", default):
+            for case in ("wrong_store", "redirect"):
+                with self.subTest(case=case):
+                    self.state_path.write_text(json.dumps(self.initial))
+                    provider.reset_mock()
+                    if case == "redirect":
+                        db = SessionDB(db_path=default)
+                        db.create_session("20261002_120000_abcdef", "cli", parent_session_id=self.module.NATIVE_SESSION_ID)
+                        db.append_message("20261002_120000_abcdef", "user", "SYNTHETIC continuation")
+                        db.close()
+                    home = other.parent if case == "wrong_store" else default.parent
+                    with patch.dict(os.environ, {"HERMES_HOME": str(home)}):
+                        with self.assertRaisesRegex(RuntimeError, "no_safe_inference"):
+                            self.dispatch()
+                    self.assertEqual(len(self.posts), 0)
+                    provider.assert_not_called()
+                    agent.assert_not_called()
+                    claim = bridge.load_state()["reviewer_receipts"][REQUEST]["parent_handoff"]
+                    self.assertEqual(claim["status"], "no_safe_inference")
+
+    def test_handoff_rate_limit_is_terminal_without_stale_intent_retry(self):
+        actual_api = bridge.api
+        # setUp replaces api at the network seam; load the real owned transport.
+        spec = importlib.util.spec_from_file_location("real_handoff_transport", ROOT / "scripts/fable_bridge.py")
+        transport_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(transport_module)
+        actual_api = transport_module.api
+        calls = []
+        def http(method, url, **kwargs):
+            path = url.removeprefix(bridge.BASE)
+            if method == "POST":
+                calls.append(self.intent["edited_timestamp"] is not None)
+                if len(calls) == 1:
+                    self.intent["edited_timestamp"] = "2026-10-02T11:21:00+00:00"
+                    return SimpleNamespace(status_code=429, json=lambda: {"retry_after": 0})
+                return SimpleNamespace(status_code=200, json=lambda: self.transport(method, path, kwargs["json"]))
+            return SimpleNamespace(status_code=200, json=lambda: self.transport(method, path))
+        # The extracted real api owns transport_module's globals, so bind only HTTP/log.
+        with patch.object(transport_module, "HTTP", SimpleNamespace(request=http)), \
+             patch.object(transport_module, "log", Mock()), \
+             patch.object(bridge, "api", actual_api), \
+             patch.object(bridge.time, "sleep", return_value=None) as sleep:
+            with self.assertRaisesRegex(RuntimeError, "post_failed_or_ambiguous"):
+                self.dispatch()
+            self.assertEqual(calls, [False])
+            sleep.assert_not_called()
+            self.assertEqual(bridge.load_state()["reviewer_receipts"][REQUEST]["parent_handoff"]["status"],
+                             "post_failed_or_ambiguous")
+            with self.assertRaisesRegex(RuntimeError, "receipt_not_eligible"):
+                self.dispatch()
+            self.inferences.assert_called_once()
+            # Unrelated ordinary short transport retains its existing 429 retry.
+            calls.clear()
+            self.intent["edited_timestamp"] = None
+            bridge.post("SYNTHETIC ordinary control", reply_to_message_id=REQUEST)
+            self.assertEqual(calls, [False, True])
+            sleep.assert_called_once_with(0.5)
 
     def test_automatic_top_stakes_still_defers_without_intent(self):
         with patch.object(bridge, "ask_fable", side_effect=denied):

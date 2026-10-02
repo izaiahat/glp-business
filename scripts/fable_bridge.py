@@ -374,11 +374,12 @@ def _oversize_reply(reply: str, kind: str) -> tuple[str, bytes, str] | None:
     return wrapper, raw, digest
 
 
-def api(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+def api(method: str, path: str, body: dict[str, Any] | None = None, *,
+        single_attempt: bool = False) -> Any:
     if HTTP is None:
         raise RuntimeError("dedicated_fable_http_session_not_initialized")
     method = method.upper()
-    for attempt in range(4):
+    for attempt in range(1 if single_attempt else 4):
         try:
             response = HTTP.request(method, BASE + path, json=body, timeout=30)
         except requests.RequestException as error:
@@ -390,6 +391,10 @@ def api(method: str, path: str, body: dict[str, Any] | None = None) -> Any:
                 continue
             return None
         if response.status_code == 429:
+            if single_attempt:
+                # Manual handoff authority was checked once, immediately before
+                # this owned POST. Never sleep/retry behind that boundary.
+                return None
             try:
                 retry_after = float(response.json().get("retry_after", 2.0))
             except Exception:
@@ -428,7 +433,8 @@ def validate_startup_identity() -> str:
 
 
 def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
-         kind: str = "review_request", original_stdout: str | None = None) -> str:
+         kind: str = "review_request", original_stdout: str | None = None,
+         single_attempt: bool = False) -> str:
     oversize = _oversize_reply(content, kind)
     if original_stdout is not None and oversize is not None:
         raise RuntimeError("compact_followup_exceeds_short_limit")
@@ -461,7 +467,8 @@ def post(content: str, *, reply_to_message_id: str, nonce: str | None = None,
         except (requests.RequestException, ValueError) as error:
             raise RuntimeError("dedicated_fable_message_post_failed_or_ambiguous") from error
     else:
-        result = api("POST", f"/channels/{CHANNEL}/messages", body)
+        result = api("POST", f"/channels/{CHANNEL}/messages", body,
+                     **({"single_attempt": True} if single_attempt else {}))
     if not isinstance(result, dict) or not str(result.get("id") or "").isdigit():
         raise RuntimeError("dedicated_fable_message_post_failed_or_ambiguous")
     return str(result["id"])
@@ -640,6 +647,7 @@ def _invoke_reviewer(
     backend: tuple[str, str, str], prompt: str, receipt: dict[str, Any], deadline: float,
     *, capacity_snapshot: dict[str, Any] | None = None,
     before_invoke: Callable[[], None] | None = None,
+    parent_handoff: bool = False,
 ) -> tuple[str, bool]:
     name, model, effort = backend
     identity = ("astra-glp42 (designated; Standard)" if name == "astra-glp42" else
@@ -659,7 +667,8 @@ def _invoke_reviewer(
                 prompt_path = Path(directory) / "prompt.txt"
                 prompt_path.write_text(prompt, encoding="utf-8")
                 command = [
-                    str(HERMES_PYTHON), str(Path(__file__).resolve()), "--native-reviewer",
+                    str(HERMES_PYTHON), str(Path(__file__).resolve()),
+                    "--native-parent-reviewer" if parent_handoff else "--native-reviewer",
                     "chat", "--query-file", str(prompt_path), "-Q", "--oneshot",
                     "--resume", native_id, "--no-restore-cwd", "--provider", "claude-subscription-directsdk-experimental",
                     "-m", model, "--reasoning", effort, "--toolsets", "fable-review-readonly",
@@ -1430,7 +1439,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["--native-reviewer"]:
+    if sys.argv[1:2] in (["--native-reviewer"], ["--native-parent-reviewer"]):
+        manual_native = sys.argv[1] == "--native-parent-reviewer"
+        if manual_native:
+            spec = importlib.util.spec_from_file_location("fable_parent_handoff_native",
+                Path(__file__).with_name("fable_parent_handoff.py"))
+            if spec is None or spec.loader is None:
+                raise RuntimeError("parent_handoff_native_entry_unavailable")
+            parent_native = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(parent_native)
+            parent_native.pin_native_profile()  # BEFORE toolsets/main/cli import.
         # Process-local native Hermes toolset: no write/terminal/browser/delegation tools.
         from toolsets import create_custom_toolset
         from hermes_cli.main import main as hermes_main
@@ -1444,7 +1462,8 @@ if __name__ == "__main__":
         create_custom_toolset("fable-review-readonly", "Read-only independent review", [
             "read_file", "search_files", "web_search", "web_extract", "vision_analyze",
         ])
-        sys.argv = ["hermes", *sys.argv[2:]]
+        if not manual_native:
+            sys.argv = ["hermes", *sys.argv[2:]]
         if "--provider" in sys.argv and sys.argv[sys.argv.index("--provider") + 1] == "claude-subscription-directsdk-experimental":
             # Installed oneshot._run_agent reloads config; CLI_CONFIG alone
             # cannot disable resolution-time or mid-turn fallback on this route.
@@ -1458,7 +1477,12 @@ if __name__ == "__main__":
                 return value
             native_config.load_config = readonly_fable_config
             try:
-                hermes_main()
+                if manual_native:
+                    with parent_native.native_resume_guard(HERMES_STATE,
+                            _session_transcript(parent_native.LEGACY_SESSION_ID)):
+                        hermes_main()
+                else:
+                    hermes_main()
             finally:
                 native_config.load_config = original_load_config
         else:

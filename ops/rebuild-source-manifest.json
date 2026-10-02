@@ -1608,21 +1608,21 @@
         "scripts/fable_bridge.py --parent-review-handoff"
       ],
       "kind": "script",
-      "sha256": "0b4d81caa00224f856f1e96b6ccceaa538845d6ba2604ee0472aef29b649900e"
+      "sha256": "a0ee261b1268ca4e413a5db4ddbf18ea8bca46f32d30cc2d79f7f2cd1f6f9855"
     },
     "tests/test_fable_parent_handoff.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "5f7e118c311374773e3108eec87ec9e3628a41e80eb65ed4cd388563f5f3b0d2"
+      "sha256": "d8819560fe95a7c7386a590a508677016aca2641e2b5ecfa445debf41e40c01c"
     },
     "scripts/fable_bridge.py": {
       "callers": [
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "10e4a4ef7f6aa6efdebf1ef723253b318b661243d8c85ce8bbb058b3dcb6ab47"
+      "sha256": "ad13c6ddf4ba17f34495b28bad1327a0e7cb8f8e82892de68b26ed1b5a50f14f"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [

@@ -24,6 +24,84 @@ NATIVE_SESSION_ID = "20260922_214459_3be4d1"
 BACKEND = ("fable", "claude-fable-5-1", "xhigh")
 
 
+def pin_native_profile():
+    """Manual child only: fix home AND explicit profile before any Hermes import."""
+    import os
+    args = sys.argv[2:]
+    required = {"--provider": "claude-subscription-directsdk-experimental",
+                "-m": BACKEND[1], "--reasoning": BACKEND[2],
+                "--resume": NATIVE_SESSION_ID, "--toolsets": "fable-review-readonly"}
+    if (args[:1] != ["chat"] or "--oneshot" not in args
+            or any(flag in args for flag in ("--profile", "-p", "--continue", "-c"))
+            or any(args.count(flag) != 1 or args.index(flag) + 1 >= len(args)
+                   or args[args.index(flag) + 1] != value for flag, value in required.items())):
+        raise RuntimeError("parent_handoff_native_route_changed")
+    os.environ["HERMES_HOME"] = str(Path.home() / ".hermes")
+    # main.py's import-time profile pre-parser must not follow active_profile.
+    sys.argv = ["hermes", "--profile", "default", *args]
+
+
+@contextmanager
+def native_resume_guard(expected_db, transcript):
+    """Adapt the traced installed oneshot resume boundary, in this child only.
+
+    _run_agent calls _load_resume_target with its acquired SessionDB and uses the
+    returned final ID/meta before provider resolution or AIAgent construction.
+    Delegate resolution/safe-resume/history to that real API; never reconstruct it.
+    This is an explicit process-local adapter, not a saved profile or fork edit.
+    """
+    import inspect
+    import json
+    from hermes_cli import oneshot
+    original = getattr(oneshot, "_load_resume_target", None)
+    if not callable(original):
+        raise RuntimeError("parent_handoff_native_resume_api_unavailable")
+    try:
+        parameters = tuple(inspect.signature(original).parameters)
+    except (TypeError, ValueError):
+        parameters = ()
+    if parameters != ("session_db", "resume"):
+        raise RuntimeError("parent_handoff_native_resume_api_unavailable")
+
+    def bound_resume(session_db, resume):
+        try:
+            if (session_db is None or resume != NATIVE_SESSION_ID
+                    or Path(session_db.db_path).resolve() != Path(expected_db).resolve()):
+                raise RuntimeError("parent_handoff_native_store_mismatch")
+            # Read the actual SQLite connection used by SessionDB reads, not an
+            # environment value or the caller's claimed requested session.
+            with session_db._read_ctx() as db:
+                opened = [row[2] for row in db.execute("PRAGMA database_list") if row[1] == "main"]
+            if len(opened) != 1 or Path(opened[0]).resolve() != Path(expected_db).resolve():
+                raise RuntimeError("parent_handoff_native_store_mismatch")
+            resolved, history, meta = original(session_db, resume)
+            if (resolved != NATIVE_SESSION_ID or not isinstance(meta, dict)
+                    or meta.get("id") != NATIVE_SESSION_ID):
+                raise RuntimeError("parent_handoff_native_session_redirected")
+            origin = json.loads(meta.get("origin_json") or "{}")
+            imported = origin.get("imported_from", {}) if isinstance(origin, dict) else {}
+            current = session_db.get_session(resolved) or {}
+            if (transcript is None or not Path(transcript).is_file()
+                    or not isinstance(imported, dict) or meta.get("source") != "claude-code"
+                    or imported.get("tool") != "claude-code"
+                    or imported.get("foreign_session_id") != LEGACY_SESSION_ID
+                    or Path(imported.get("path", "")).resolve() != Path(transcript).resolve()
+                    or any(current.get(key) != meta.get(key) for key in ("id", "source", "origin_json"))):
+                raise RuntimeError("parent_handoff_native_import_mismatch")
+            return resolved, history, meta
+        except BaseException:
+            # Native _run_agent's cleanup try starts after this boundary.
+            if session_db is not None:
+                session_db.close()
+            raise
+
+    oneshot._load_resume_target = bound_resume
+    try:
+        yield
+    finally:
+        oneshot._load_resume_target = original
+
+
 @contextmanager
 def _host_admission():
     # Installed API, shared with native children and CLIs. No new store/queue.
@@ -160,7 +238,8 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
                 bridge.save_state(state)
 
             output, exhausted = bridge._invoke_reviewer(BACKEND, bridge._model_prompt(kind, issue["request_content"]),
-                review_receipt, time.monotonic() + 1200, capacity_snapshot=snapshot, before_invoke=before_invoke)
+                review_receipt, time.monotonic() + 1200, capacity_snapshot=snapshot,
+                before_invoke=before_invoke, parent_handoff=True)
             claim["attempts"] = review_receipt.get("attempts", [])
             if (exhausted or len(claim["attempts"]) != 1
                     or claim["attempts"][0].get("status") != "ok"
@@ -186,7 +265,7 @@ def dispatch(bridge, source_id, issue_id, tuple_sha256, operator_intent_message_
             raise
         try:
             posted = bridge.post(reply, reply_to_message_id=source_id, nonce=claim["nonce"],
-                                 kind=kind, original_stdout=original_stdout)
+                                 kind=kind, original_stdout=original_stdout, single_attempt=True)
         except Exception:
             claim.update(status="post_failed_or_ambiguous", posting="failed_or_ambiguous")
             bridge.save_state(state)
