@@ -1286,7 +1286,7 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "23ea06844cebe4feee9e7f8ab0df9c37203f541442bb2089b86fe4a2a01bdb88"
+      "sha256": "10b276852fe65504525c49bf3e1f4c064c23c0e7400c3f024ed1eff3b9a18a63"
     },
     "scripts/affiliate_best_terms_machine.py": {
       "callers": [
@@ -2494,7 +2494,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "692ac5139edf2167c4d75159f3e84a7071d87a79fcc14bb65e5ec6aa8b7e0a22"
+      "sha256": "a9716c2a0322c84437bbdcbd83be54b27e959282d11d680ed868ed2c1d19c4f5"
     },
     "tests/test_affiliate_discovery_resume.py": {
       "callers": [
