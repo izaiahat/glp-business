@@ -9,6 +9,83 @@ import pytest
 from scripts import affiliate_auto_apply as admission
 
 
+@pytest.mark.parametrize('label,canonical', [
+    ('CJ Affiliate', 'cj'), ('Rakuten Advertising', 'rakuten'),
+    ('Katalys / Revoffers', 'katalys'), ('Impact.com', 'impact'),
+    ('UpPromote Marketplace', 'uppromote'),
+])
+def test_published_inventory_label_is_exact_existing_rail(setup, label, canonical):
+    setup.path.write_text(json.dumps({'network': label, 'programs': [setup.candidate]}))
+    result = setup.run(apply=True)
+    assert result['outcomes'][0]['status'] == 'admitted'
+    assert setup.queue.data[0]['network'] == canonical
+    assert setup.queue.data[0]['program_id'] == '123'
+    setup.path.write_text(json.dumps({'network': canonical, 'programs': [setup.candidate]}))
+    assert setup.run(apply=True)['outcomes'][0]['status'] == 'already_admitted'
+    assert setup.queue.inserts == 1
+
+
+def test_alias_does_not_hide_hold_from_same_exact_rail(setup):
+    setup.inventory()
+    adverse = setup.root / 'alias.json'
+    adverse.write_text(json.dumps({'network': 'Impact.com', 'programs': [
+        {**setup.candidate, 'network_status': 'paused'}]}))
+    result = admission.admit_discovery([setup.path, adverse], queue_client=setup.queue,
+        dedupe_index=setup.dedupe, journal_dir=setup.root / 'journal',
+        lock_path=setup.root / 'lock', apply=True)
+    assert all(row['status'] == 'refused' for row in result['outcomes'])
+    assert all('network_paused' in row['reason'] for row in result['outcomes'])
+    assert setup.queue.inserts == 0
+
+
+def test_unknown_display_label_is_not_guessed_into_a_network(setup):
+    setup.path.write_text(json.dumps({'network': 'Unrecognized Marketplace',
+                                     'programs': [setup.candidate]}))
+    assert setup.run(apply=True)['outcomes'][0]['reason'] == 'missing_exact_network_program_identity'
+    assert setup.queue.inserts == 0
+
+
+def test_inventory_selection_preserves_all_retained_label_documents(tmp_path):
+    import os
+    paths = []
+    for index, label in enumerate(('Katalys / Revoffers', 'katalys', 'Unrecognized Marketplace')):
+        path = tmp_path / f'backrun-{index}/marketplace/catalog.json'
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({'network': label, 'programs': []}))
+        os.utime(path, ns=(index + 1, index + 1))
+        paths.append(path)
+    # Do not turn canonicalization into a catalog-denominator reduction: all
+    # supplied observations (including adverse older-label duplicates) still
+    # reach the existing complete-rail refusal preflight.
+    assert set(admission.freshest_inventories(tmp_path)) == set(paths)
+
+
+@pytest.mark.parametrize('label,canonical', [('CJ Affiliate', 'cj'), ('Impact.com', 'impact')])
+def test_existing_display_label_queue_row_blocks_duplicate(setup, label, canonical):
+    setup.queue.data.append({'network': label, 'program_id': '123'})
+    setup.path.write_text(json.dumps({'network': canonical, 'programs': [setup.candidate]}))
+    assert setup.run(apply=True)['outcomes'][0]['status'] == 'already_queued'
+    assert setup.queue.inserts == 0
+
+
+@pytest.mark.parametrize('label,canonical', [
+    ('CJ Affiliate', 'cj'), ('Rakuten Advertising', 'rakuten'),
+    ('Katalys / Revoffers', 'katalys'), ('Impact.com', 'impact'),
+    ('UpPromote Marketplace', 'uppromote'),
+])
+def test_canonical_intake_keeps_display_label_pair_suppression_and_opaque_id(setup, label, canonical):
+    from scripts import glp_application_dedupe as dedupe
+    index = dedupe.DedupeIndex()
+    index.add(dedupe.LEG_SUPPRESSED, {}, {(dedupe.norm(label), '001Ab'): 'fixture hold'}, {})
+    candidate = admission.normalize_program({**setup.candidate, 'program_id': '001Ab'}, canonical, {})
+    assert candidate['program_id'] == '001Ab'
+    assert admission.candidate_gate(candidate, index).startswith('suppressed_or_engaged:')
+    # Opaque IDs remain case-sensitive and network-scoped, not brand keys.
+    assert admission.candidate_gate({**candidate, 'program_id': '001ab'}, index) == ''
+    other = 'awin' if canonical != 'awin' else 'impact'
+    assert admission.candidate_gate({**candidate, 'network': other}, index) == ''
+
+
 class Queue:
     last_read_truncated = False
 

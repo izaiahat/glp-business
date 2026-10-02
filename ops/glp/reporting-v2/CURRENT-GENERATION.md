@@ -1,50 +1,55 @@
-# Combined GLP-333 / GLP-44 reporting successor
+# Combined F07 / GLP-333 / GLP-44 identity publication
 
-`glp333-glp44-reporting-successor-20261002` is one fixed cohort for both
-hourly-collector and weekly-reporting publication. It binds main
-`9e01dde818016c089df4c6ee4dd667b03fe37a28`, including PR151 and PR153.
-The previous PR71, PR119 and collector generations remain immutable; their
-old generation names are intentionally not aliases for this one.
+`f07-identity-publication-20261002` is the corrected fixed 16-member cohort for
+hourly collector and weekly reporting publication. It binds committed source
+`87f681fa7e011a3f6af132ee7a4e27d6778ebbdf`, including PR151/153 and the exact
+weekly identity-pin repair. All earlier generation contracts remain immutable.
 
-The 16 publication members comprise the eight collector/reporting members,
-network-access dispatch, the Katalys parser and six new collector modules.
-All other reporting pins remain retained inputs and are checked against the
-host. Maintenance inventory additionally discovers every new publication member.
-No guards, baseline adoption rules, independent review, window checks or
-publication/custody behavior are changed.
+The receiving review refused PR157 because its wrapper checked identity digest
+`93aa4fa8…` while publishing registry `0dc42e33…`. The corrected wrapper digest is
+`58653a04c0c331bee1f1a6f43b5da865b02a22593a9edb762914bc2c326a316f`.
+Its only payload difference from PR157 is that identity-pin literal. The fixed
+adopter publishes all 16 members, out-of-tree wrapper and weekly job hash in
+one maintained transaction. No guard, inventory scope, review requirement or
+scheduler behavior is changed; no generic ship tool is required.
 
-## Read-only preview
+## Supported receiving path
 
-Use a fresh, clean checkout of the reviewed PR head. Both former preview
-requests now select the same combined cohort (one publication, not two applies):
+From the final reviewed clean checkout:
 
 ```bash
 python3 -B "$CHECKOUT/scripts/glp44_scoped_adoption.py" \
-  --generation glp333-glp44-reporting-successor-20261002 \
+  --generation f07-identity-publication-20261002 \
   --checkout "$CHECKOUT" --root /home/ubuntu/business \
   --hermes /home/ubuntu/.hermes
 ```
 
-The CLI supports a no-window preview. For the next authorized maintenance
-window add `--window "$ACTIVE_JOURNAL"`; its proposal must be freshly reviewed.
-An outside-window proposal is diagnostic evidence, not runtime acceptance.
-Use runtime review schema `glp333-glp44-reporting-successor-runtime-review-v1`.
+Outside-window preview is diagnostic only. After source review, coordinate the
+serialized install turn and direct-reader/writer exclusion, enter a fresh
+maintained maintenance window, and add `--window "$ACTIVE_JOURNAL"` to preview.
+Obtain a fresh independent exact-proposal review (outer schema unchanged,
+`approved_source` as above; runtime schema
+`f07-identity-publication-runtime-review-v1`). Then the same CLI with
+`--review "$REVIEW" --apply` publishes exactly once. Preserve custody and native
+registry readback, restore via maintained exit and verify complete closure
+before the registered hourly and weekly runs. An uncertain save is a
+reconciliation hold, not replay permission. Never reuse the refused PR157 receipt.
 
-## Missing predecessor prerequisite — do not skip
+The six new leaf modules were separately installed by the maintained scoped
+importer before the refused window, which was subsequently closed. Authenticate
+fresh preimages; do not repeat that import. Any genuinely absent member still
+requires separate custody: the unchanged missing-predecessor guard remains.
 
-The receiving host census found all six `scripts/affiliate_reporting_*.py`
-publication members absent. A dry proposal represents them with null preimages.
-The unchanged apply guard **will refuse** `missing_predecessor_requires_separate_custody`
-until those exact committed leaf files have been separately installed with the
-maintained importer/custody procedure. This PR does not authorize, perform or
-invent that prerequisite. The coordinator must resolve this before apply,
-then regenerate and independently review the exact window-bound proposal.
-Do not bypass the refusal or reuse a pre-stage proposal.
+## Regression boundaries
 
-## Historical fixtures
+`test_f07_registered_weekly_entry.py` executes shell → unchanged pinned Python
+job → unchanged pinned reporter → real `weekly_collectors` function entry,
+stopping there before credentials/transport/report effects. Portable CI only
+relocates absolute roots and rehashes the relocated manifest/synthetic roster;
+identity bytes and the identity pin are never substituted. The predecessor-pin
+control exits 66 before Python. Fixture bytes/mtimes remain unchanged. Receiving
+review separately authenticates all four shell pins including the private roster.
 
-PR119 tests keep real committed historical reporting bytes and exact producer
-byte equality. An intermediate fixture commit holds the new adopter with the
-unchanged historical cohort; the final commit restores every reporting payload
-to the main source above. The fixture is test context, not a deployment candidate.
-Only the final reviewed head may be used for this new generation.
+PR119 fixture history retains the current producer with historical payloads so
+its exact-byte/adoption/rollback controls continue to run. Intermediate fixture
+commits are not deployment candidates; use only the final reviewed head.

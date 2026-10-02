@@ -112,6 +112,12 @@ jobs:
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
+      - name: GLP44 sealed commercial obligations (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp44_collector_release.py
       - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)
         run: .venv/bin/python -m pytest -q systems/analytics-brain/tests/test_expectations.py
       - name: Publication-date binding regression (no deployment)

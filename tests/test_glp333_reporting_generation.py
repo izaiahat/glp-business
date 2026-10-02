@@ -25,9 +25,10 @@ import glp44_scoped_adoption as pair
 import maintenance_inventory as inventory
 import maintenance_window as window_module
 import sync_from_repo as syncer
+from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
 
 # Current producer with the immutable PR119 reporting cohort, retained in history.
-PR119_PRODUCER_SOURCE = 'b114dee30bf20d1ae983c086b593c839829d7f79'
+PR119_PRODUCER_SOURCE = '6b20392d2d30978a7c89aa4a31c89d740d615b6c'
 
 EXTRA = {
     'ops/glp/reporting-v2/identity-registry.json',
@@ -53,6 +54,22 @@ def put(path, body, mode=0o600):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(body)
     path.chmod(mode)
+
+
+def commit_fixture_tree(checkout):
+    """Commit fixture bytes with a complete manifest, never alter approved pins."""
+    subprocess.run(['git', '-C', str(checkout), 'add', '.'], check=True)
+    listed = subprocess.check_output(['git', '-C', str(checkout), 'ls-files', '-z']).decode().split('\0')
+    paths = sorted(p for p in listed if p and p != syncer.MANIFEST)
+    manifest = json.loads((checkout / syncer.MANIFEST).read_bytes())
+    manifest['files'] = {rel: {**manifest['files'].get(rel, {'kind': 'fixture-source'}),
+                              'sha256': sha((checkout / rel).read_bytes())} for rel in paths}
+    manifest['tracked_count'] = len(paths) + 1
+    put(checkout / syncer.MANIFEST, (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode(), 0o644)
+    subprocess.run(['git', '-C', str(checkout), 'add', syncer.MANIFEST], check=True)
+    subprocess.run(['git', '-C', str(checkout), '-c', 'user.name=Fixture', '-c',
+                    'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm',
+                    'disposable current producer with immutable historical cohort'], check=True)
 
 
 class PortableScheduler:
@@ -90,6 +107,16 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
     checkout = tmp_path / 'reporting-candidate'
     subprocess.run(['git', 'clone', '--shared', '--no-checkout', '--quiet', str(ROOT), str(checkout)], check=True)
     subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', PR119_PRODUCER_SOURCE], check=True)
+    # Publish the maintained producer and its local adoption dependencies in
+    # this disposable Git tree; historical payloads below remain frozen.
+    for name in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py',
+                 'sync_from_repo.py', 'maintenance_inventory.py', 'maintenance_window.py',
+                 'maintenance_cohort.py', 'maxbounty_pin_release.py', 'glp_ship_generation.py',
+                 'glp_ship_provenance.py', 'glp_ship_registry.py'):
+        source = ROOT / 'scripts' / name
+        put(checkout / 'scripts' / name, source.read_bytes(), source.stat().st_mode & 0o777)
+        subprocess.run(['git', '-C', str(checkout), 'add', '-f', 'scripts/' + name], check=True)
+    commit_fixture_tree(checkout)
     assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
     assert {rel: sha((checkout / rel).read_bytes()) for rel in pair.PR119_HASHES} == pair.PR119_HASHES
     root, hermes = tmp_path / 'business', tmp_path / 'hermes'
@@ -336,6 +363,10 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
     put(directory / 'glp44_scoped_adoption.py', old.encode())
     put(directory / 'glp73_paired_adoption.py', (ROOT / 'scripts/glp73_paired_adoption.py').read_bytes())
     put(directory / 'glp331_carrier_adoption.py', (ROOT / 'scripts/glp331_carrier_adoption.py').read_bytes())
+    # This historical control set predates all Git shipping declarations.
+    put(directory / 'glp_ship_registry.py', b'# No historical ship declarations.\n')
+    # Hold the unrelated F08 declaration constant; test only reporting evolution.
+    put(directory / 'glp345_a4_adoption.py', (ROOT / 'scripts/glp345_a4_adoption.py').read_bytes())
     monkeypatch.setattr(inventory, '__file__', str(directory / 'maintenance_inventory.py'))
     previous = inventory.affected_paths(root, hermes)
     dependencies = ('scripts/glp_affiliate_wire_backlog_worker.py', 'scripts/glp_go_runtime_manifest_refresh.mjs')
@@ -346,7 +377,8 @@ def test_literal_inventory_adds_only_registered_paths_and_old_guard_counterexamp
         'scripts/affiliate_reporting_everflow.py', 'scripts/affiliate_reporting_healthtrader.py',
         'scripts/affiliate_reporting_partnerstack.py', 'scripts/affiliate_reporting_refersion.py',
     )
-    assert supported - previous == {root / p for p in (*EXTRA, *dependencies, *shared_bridge, *reporting_leaves)}
+    assert supported - previous == ({root / p for p in (*EXTRA, *dependencies, *shared_bridge, *reporting_leaves)}
+                                    | ({root / p for p in SHIP_REPORTING_PATHS} - previous))
     journal = tmp_path / 'journal.json'
     put(journal, json.dumps({'schema': window_module.SCHEMA}).encode())
     active = window_module.ActiveWindow(journal, SimpleNamespace(root=root, hermes=hermes))

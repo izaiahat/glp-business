@@ -21,6 +21,7 @@
 !/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
 !/tests/test_glp44_collector_successor.py
+!/tests/test_f07_registered_weekly_entry.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
 !/ops/glp331-carrier-generation.md
@@ -35,6 +36,7 @@
 /.github/workflows/*
 !/.github/workflows/maintenance-pause-cursor-race.yml
 !/tests/test_maintenance_pause_cursor_race.py
+!/tests/test_maintenance_post_pause_completion.py
 !/tests/test_glp85_cj_reporting_identity.py
 !/tests/test_glp44_bridge_source_admission.py
 !/tests/test_glp44_bridge_fence_successor.py
@@ -472,5 +474,14 @@
 !/ops/glp/reporting-v2/API-COLLECTORS.md
 !/scripts/affiliate_reporting_everflow.py
 !/tests/test_api_collectors_everflow.py
+
+# GLP345 fixed actual-live A4 predecessor and guarded installation chain
+!/scripts/glp345_a4_adoption.py
+!/tests/test_glp345_a4_adoption.py
+!/ops/glp345-a4/
+/ops/glp345-a4/*
+!/ops/glp345-a4/SOURCE-PINS.predecessor.json
+!/ops/glp345-a4/wrapper.predecessor.py
+!/ops/glp345-a4/README.md
 !/tests/test_glp334_conversion_reconciliation.py
 !/ops/glp334-conversion-reconciliation.md

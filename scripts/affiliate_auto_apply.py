@@ -35,6 +35,15 @@ APPLICATION_QUEUE_TABLE = 'wuDGU2Xg1LvwXuk6'
 ADMISSION_SCHEMA = 'glp.discovery-application-admission.v1'
 AUTHORITY = 'operator-approved:2026-10-01:weekly-discovery-to-existing-queue'
 FRESH_RELATIONSHIPS = {'available', 'notjoined', 'not_joined', 'not_related', 'apply_needed'}
+# Exact display labels emitted by the retained marketplace inventory producers.
+# Never punctuation-slug unknown labels or alter opaque program IDs.
+INVENTORY_NETWORK_ALIASES = {
+    'cj affiliate': 'cj',
+    'rakuten advertising': 'rakuten',
+    'katalys / revoffers': 'katalys',
+    'impact.com': 'impact',
+    'uppromote marketplace': 'uppromote',
+}
 HELD = re.compile(r'\b(fella(?:\s+health)?|telos|xen\s*traffic|health\s*rx)\b', re.I)
 NEGATIVE_US = re.compile(
     r'\b(?:not\s+(?:available|offered|serving|accepting)|unavailable|do\s+not\s+(?:serve|accept))'
@@ -75,8 +84,13 @@ def write_bytes(path, raw):
             os.unlink(temporary)
 
 
+def inventory_network(value):
+    label = str(value).strip().lower()
+    return INVENTORY_NETWORK_ALIASES.get(label, label)
+
+
 def stable_key(network, program_id):
-    network, program_id = str(network).strip().lower(), str(program_id).strip()
+    network, program_id = inventory_network(network), str(program_id).strip()
     if not re.fullmatch(r'[a-z0-9_-]+', network) or not program_id:
         raise ValueError('missing_exact_network_program_identity')
     return 'discovery-' + digest([network, program_id])
@@ -84,6 +98,7 @@ def stable_key(network, program_id):
 
 def normalize_program(prog, network, doc):
     """Keep network IDs, relationship and unknown economics; never infer US."""
+    network = inventory_network(network)
     region = prog.get('region') or (prog.get('primaryRegion') or {}).get('countryCode') or ''
     candidate = {
         'network': network.lower(),
@@ -184,9 +199,16 @@ def candidate_gate(candidate, dedupe_index):
                                   operation='weekly_discovery_admission', persist=False)
     if not gate['operational']:
         return 'candidate_gate:' + ';'.join(gate.get('reason_codes') or [])
-    verdict = dedupe_index.verdict(candidate['name'], candidate['network'], candidate['program_id'],
-                                   urls=(candidate['official_url'], candidate['application_url']))
-    return ('suppressed_or_engaged:' + str(verdict.reason)) if verdict is not None else ''
+    # Historical dedupe legs retain display labels. Ask each exact spelling of
+    # this rail; canonicalizing intake must not lose an existing suppression.
+    labels = [candidate['network'], *(label for label, canonical in
+        INVENTORY_NETWORK_ALIASES.items() if canonical == candidate['network'])]
+    for label in labels:
+        verdict = dedupe_index.verdict(candidate['name'], label, candidate['program_id'],
+                                       urls=(candidate['official_url'], candidate['application_url']))
+        if verdict is not None:
+            return 'suppressed_or_engaged:' + str(verdict.reason)
+    return ''
 
 
 class DiscoveryAdmissionPending(ValueError):
@@ -346,7 +368,7 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     if record is None:
                         # The existing operator queue is also an idempotency leg.
                         matches = [r for r in _queue_rows(client, 'program_id', c['program_id'], deadline=deadline)
-                                   if str(r.get('network') or '').lower() == c['network']]
+                                   if inventory_network(r.get('network') or '') == c['network']]
                         if matches:
                             result.update(status='already_queued', reason='existing_network_program')
                             continue

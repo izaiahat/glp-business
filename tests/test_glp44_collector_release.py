@@ -43,7 +43,11 @@ def synthetic_release(tmp_path, monkeypatch):
         "site_profile": "glp-clinic-scout",
         "internal_fallback": "https://glpclinicscout.com/providers/",
         "manifest_sha256": sha(b"synthetic staging input, not retained release bytes"),
-        "programs": {name: {} for name in ("synthetic-allowed", "synthetic-withheld", "synthetic-unknown")},
+        "programs": {
+            name: {"promotion_authorized": name == "synthetic-allowed",
+                   "live_link_allowed": name == "synthetic-allowed"}
+            for name in ("synthetic-allowed", "synthetic-withheld", "synthetic-unknown")
+        },
     }
     module.write_bytes(PREFIX + json.dumps(local).encode() + b");\n")
     write_json(release / AUTHORITIES[1], {"programs": [
@@ -85,7 +89,7 @@ def test_sealed_generated_module_binds_embedded_hash_and_exact_membership(synthe
     assert not (fixture.release / "artifacts/ops/worker-manifest.staging.json").exists()
     assert sha(fixture.module.read_bytes()) != fixture.local["manifest_sha256"]
     assert collector._bound_affiliate_release(fixture.control) == (
-        fixture.release, set(fixture.local["programs"]))
+        fixture.release, fixture.local["programs"])
     fixture.http.assert_called_once_with("https://glpclinicscout.com/go/_manifest")
 
 
@@ -170,7 +174,7 @@ def test_wrapper_parses_strict_json_without_executing_js(synthetic_release, dama
     elif damage == "duplicate-key":
         body = PREFIX + b'{"schema":"wrong",' + body[len(PREFIX) + 1:]
     elif damage == "nested-duplicate-key":
-        body = body.replace(b'"synthetic-allowed": {}', b'"synthetic-allowed": {"x":1,"x":2}')
+        body = body.replace(b'"synthetic-allowed": {', b'"synthetic-allowed": {"x":1,"x":2,')
     elif damage in {"nan", "infinity"}:
         body = PREFIX + b'{"invalid":' + (b"NaN" if damage == "nan" else b"Infinity") + b"," + body[len(PREFIX) + 1:]
     elif damage == "invalid-utf8":
@@ -307,6 +311,80 @@ def test_operator_hold_receipt_remains_required(synthetic_release):
     fixture.seal()
     with pytest.raises(RuntimeError, match="affiliate_operator_hold_invalid:synthetic-withheld"):
         collector.derive_affiliate_obligations(fixture.control)
+
+
+@pytest.mark.parametrize("case", [
+    "runtime-hold", "receipt-only-hold", "receipt-drift", "receipt-wrong-program",
+    "receipt-grants-link", "receipt-conflicts-with-approval", "runtime-flag-conflict",
+    "runtime-flags-absent", "runtime-grant-conflicts-with-hold",
+])
+def test_effective_commercial_holds_are_not_required_or_unknown(synthetic_release, case):
+    """One regression for the sealed effective-hold seam, with denial controls."""
+    fixture = synthetic_release
+    pid = "synthetic-allowed" if case.startswith("runtime") else "synthetic-unknown"
+    registry_path = fixture.release / AUTHORITIES[1]
+    registry = json.loads(registry_path.read_text())
+    program = next(row for row in registry["programs"] if row["program_id"] == pid)
+    if case.startswith("receipt"):
+        # The excluded held program is absent from the published runtime map.
+        fixture.local["programs"].pop(pid)
+        fixture.served["program_ids"] = sorted(fixture.local["programs"])
+        fixture.http.return_value = (200, json.dumps(fixture.served))
+        fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
+        receipt = {"schema": "glp-receipted-research-hold-v1", "program_id": pid,
+                   "disposition": "HOLD", "promotion_authorized": False, "live_link_allowed": False}
+        if case == "receipt-wrong-program":
+            receipt["program_id"] = "someone-else"
+        if case == "receipt-grants-link":
+            receipt["live_link_allowed"] = True
+        hold_path = fixture.release / "data/hold.json"
+        write_json(hold_path, receipt)
+        program.update(commercial_state="held", profiles={"glp-clinic-scout": {"exceptions": {"go": {
+            "enabled": True, "authority_path": "data/hold.json", "authority_sha256": sha(hold_path.read_bytes()),
+        }}}})
+        write_json(registry_path, registry)
+        if case == "receipt-drift":
+            hold_path.write_bytes(b"{}")
+        if case == "receipt-conflicts-with-approval":
+            authority = json.loads((fixture.release / AUTHORITIES[2]).read_text())
+            authority["programs"][pid] = {"promotion_authorized": True, "status": "VERIFIED"}
+            write_json(fixture.release / AUTHORITIES[2], authority)
+    else:
+        for key in fixture.local["programs"]:
+            fixture.local["programs"][key] = {
+                "promotion_authorized": key == "synthetic-allowed",
+                "live_link_allowed": key == "synthetic-allowed",
+            }
+        fixture.local["programs"][pid] = {"promotion_authorized": False, "live_link_allowed": False}
+        if case == "runtime-flag-conflict":
+            fixture.local["programs"][pid]["live_link_allowed"] = True
+        if case == "runtime-flags-absent":
+            fixture.local["programs"][pid] = {}
+        if case == "runtime-grant-conflicts-with-hold":
+            fixture.local["programs"]["synthetic-withheld"] = {
+                "promotion_authorized": True, "live_link_allowed": True,
+            }
+        fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
+    fixture.seal()
+    routes = {f"/providers/{pid}/", f"/reviews/{pid}/"}
+    fixture.control["affiliate_routes"].extend(sorted(routes))
+    if case not in {"runtime-hold", "receipt-only-hold"}:
+        with pytest.raises(RuntimeError, match="affiliate_(operator_hold|runtime_authority)_invalid"):
+            collector.derive_affiliate_obligations(fixture.control, observed_routes=routes)
+    else:
+        obligations = collector.derive_affiliate_obligations(fixture.control, observed_routes=routes)
+        assert {route: obligations[route] for route in routes} == {route: "forbidden" for route in routes}
+        # The unchanged matrix must still reject a held anchor, not merely rename its duty.
+        import analytics_brain as brain
+        static = {"http_status": 200, "ga4_static_present": True, "gtm_static_present": True,
+                  "posthog_static_present": True, "csp_present": True, "csp_gtm_allowed": True,
+                  "csp_posthog_allowed": True, "consent_default_denied_present": True}
+        packet = {"sitemap_routes": sorted(routes), "affiliate_route_obligations": obligations,
+                  "static_routes": [dict(static, path=route) for route in sorted(routes)]}
+        assert all(row["static_instrumentation_pass"] for row in brain.route_matrix(packet)["routes"])
+        for row in packet["static_routes"]:
+            row.update(sponsored_anchor_count=1, client_marker_count=1, first_party_redirect_count=1)
+        assert not any(row["static_instrumentation_pass"] for row in brain.route_matrix(packet)["routes"])
 
 
 def test_hourly_synthetic_release_reaches_provider_boundary_only(synthetic_release, monkeypatch):

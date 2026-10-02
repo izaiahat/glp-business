@@ -16,6 +16,10 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
+
+# Opaque process-local leases are registered only while a kernel flock is live.
+_SOURCE_OWNERS = {}
 
 REMOTE = "git@github.com:izaiahat/glp-business.git"
 DEFAULT_ROOT = Path("/home/ubuntu/business")
@@ -86,21 +90,50 @@ def source_lock(root):
         held, current = os.fstat(fd), root.stat()
         if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
             raise ValueError('source_import_root_moved')
-        yield
+        owner = object()
+        _SOURCE_OWNERS[owner] = (root, fd, os.getpid(), threading.get_ident())
+        try:
+            yield owner
+        finally:
+            del _SOURCE_OWNERS[owner]
     finally:
         os.close(fd)
 
 
+@contextmanager
+def source_session(root, owner=None):
+    """Join only an explicitly supplied, live same-thread/root lock lease.
+
+    Nested read-only preflights retain the outer descriptor instead of dropping
+    exclusion or reacquiring a non-reentrant flock. Ordinary callers still open
+    independent descriptors and refuse busy roots. Not a hostile-code boundary.
+    """
+    if owner is None:
+        with source_lock(root) as acquired:
+            yield acquired
+        return
+    held = _SOURCE_OWNERS.get(owner)
+    root = Path(root).resolve(strict=True)
+    if held is None or held[0] != root or held[2:] != (os.getpid(), threading.get_ident()):
+        raise ValueError('source_import_owner_invalid')
+    previous, current = os.fstat(held[1]), root.stat()
+    if (previous.st_dev, previous.st_ino) != (current.st_dev, current.st_ino):
+        raise ValueError('source_import_root_moved')
+    yield owner
+
+
 def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
-         discovery_review=None, discovery_authority=None):
-    with source_lock(root):
-        if discovery_review is not None or discovery_authority is not None:
+         discovery_review=None, discovery_authority=None, ship_generation=None,
+         _ship_publish=None, _source_owner=None):
+    with source_session(root, _source_owner):
+        if discovery_review is not None or discovery_authority is not None or ship_generation is not None:
             try:
                 from .discovery_predecessor_migration import migrate
             except ImportError:  # direct CLI
                 from discovery_predecessor_migration import migrate
             return migrate(_sync_locked, root, checkout, apply, adopt_reviewed_baseline, only,
-                           discovery_review, discovery_authority)
+                           discovery_review, discovery_authority, generation=ship_generation,
+                           _ship_publish=_ship_publish)
         return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only)
 
 

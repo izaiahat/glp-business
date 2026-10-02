@@ -1,4 +1,4 @@
-"""Immutable reporting/collector cohort; offline no-apply previews only."""
+"""One current reporting/collector cohort; offline no-apply previews only."""
 import copy
 import hashlib
 import json
@@ -13,10 +13,8 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import glp44_scoped_adoption as pair
 import sync_from_repo as syncer
 
-GENERATION = 'glp333-glp44-reporting-successor-20261002'
-SOURCE = '9e01dde818016c089df4c6ee4dd667b03fe37a28'
-# Reviewed successor producer with that exact payload, before later F12 bytes.
-CANDIDATE_SOURCE = 'fb6b248293818ec02985c5a4431315c1768f6acf'
+GENERATION = 'f07-identity-publication-20261002'
+SOURCE = '87f681fa7e011a3f6af132ee7a4e27d6778ebbdf'
 NEW_LEAVES = tuple('scripts/affiliate_reporting_' + name + '.py' for name in (
     'admitad', 'clickbank', 'everflow', 'healthtrader', 'partnerstack', 'refersion'))
 EXTRA = ('scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py', *NEW_LEAVES)
@@ -43,11 +41,6 @@ def snapshot(root, hermes):
 
 
 def fixture(tmp_path):
-    candidate = tmp_path / 'reviewed-candidate'
-    subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(candidate)], check=True)
-    subprocess.run(['git', '-C', str(candidate), 'checkout', '--quiet', '--detach', CANDIDATE_SOURCE], check=True)
-    assert (candidate / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
-    assert {rel: sha((candidate / rel).read_bytes()) for rel in MEMBERS} == pair.REPORTING_SUCCESSOR_HASHES
     root, hermes = tmp_path / 'business', tmp_path / 'hermes'
     root.mkdir(); hermes.mkdir()
     old_pins = json.loads(blob(pair.COLLECTOR_SOURCE, 'ops/glp/reporting-v2/source-manifest.json'))['files']
@@ -56,7 +49,7 @@ def fixture(tmp_path):
         put(root / rel, blob(pair.COLLECTOR_SOURCE, rel))
     for rel in pair.COLLECTOR_PATHS:
         put(root / rel, blob(pair.COLLECTOR_SOURCE, rel))
-    put(root / syncer.MANIFEST, (candidate / syncer.MANIFEST).read_bytes())
+    put(root / syncer.MANIFEST, (ROOT / syncer.MANIFEST).read_bytes())
     hashes = {str(p.relative_to(root)): sha(p.read_bytes()) for p in root.rglob('*') if p.is_file()}
     put(root / syncer.STATE, (json.dumps({'hashes': hashes}) + '\n').encode())
     wrapper = blob(pair.COLLECTOR_SOURCE, pair.SNAPSHOT)
@@ -66,34 +59,48 @@ def fixture(tmp_path):
            'schedule': {'kind': 'cron', 'expr': '0 4 * * 1'},
            'fire_claim': None, 'run_claim': None}
     put(hermes / 'cron/jobs.json', json.dumps({'jobs': [job]}).encode(), 0o600)
-    return root, hermes, candidate
+    return root, hermes
 
 
-@pytest.mark.parametrize('old', [pair.COLLECTOR_GENERATION, pair.PR119_GENERATION])
-def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old):
-    root, hermes, candidate = fixture(tmp_path)
+@pytest.fixture
+def approved_checkout(tmp_path):
+    # This generation is immutable. Exercise its genuine installed PR164 tree,
+    # not future HEAD bytes (which must fail its fixed source-digest admission).
+    checkout = tmp_path / 'approved-pr164'
+    subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
+    subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach',
+                    '2265d3539691fa221a49936da23cd206c3fe0bc8'], check=True)
+    assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
+    return checkout
+
+
+@pytest.mark.parametrize('old', [pair.COLLECTOR_GENERATION, pair.PR119_GENERATION, pair.REPORTING_SUCCESSOR_GENERATION])
+def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old, approved_checkout):
+    root, hermes = fixture(tmp_path)
     before = snapshot(root, hermes)
     with pytest.raises(RuntimeError, match='approved_source_moved:'):
-        pair.plan(candidate, root, hermes, generation=old)
-    proposal = pair.plan(candidate, root, hermes, generation=GENERATION)[0]
+        pair.plan(ROOT, root, hermes, generation=old)
+    with pytest.raises(RuntimeError, match='approved_source_moved:ops/glp/reporting-v2/source-manifest.json'):
+        pair.plan(ROOT, root, hermes, generation=GENERATION)
+    proposal = pair.plan(approved_checkout, root, hermes, generation=GENERATION)[0]
     assert snapshot(root, hermes) == before
     assert proposal['generation'] == GENERATION
     assert proposal['source_sha256'] == {rel: sha(blob(SOURCE, rel)) for rel in MEMBERS}
-    assert proposal['producer_head'] == CANDIDATE_SOURCE
-    assert proposal['producer_head'] == subprocess.check_output(['git', '-C', str(candidate), 'rev-parse', 'HEAD']).decode().strip()
+    assert proposal['producer_head'] == '2265d3539691fa221a49936da23cd206c3fe0bc8'
     assert {rel for rel, value in proposal['source_before_sha256'].items() if value is None} == set(NEW_LEAVES)
     assert proposal['target']['journal'] is None
     # No-apply preview is not authority to bypass maintenance or predecessor custody.
     with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
-        pair.adopt(candidate, root, hermes, None, scheduler=None, generation=GENERATION)
+        pair.adopt(approved_checkout, root, hermes, None, scheduler=None, generation=GENERATION)
     assert snapshot(root, hermes) == before
 
 
 def test_fixed_successor_closes_all_reporting_pins_and_keeps_old_contracts():
     approved, members = pair.generation_contract(GENERATION)
     assert approved == SOURCE and tuple(members) == MEMBERS
-    assert {rel: sha(blob(SOURCE, rel)) for rel in members} == pair.REPORTING_SUCCESSOR_HASHES
+    assert {rel: sha(blob(SOURCE, rel)) for rel in members} == pair.F07_HASHES
     for generation, source, paths, hashes in (
+        (pair.REPORTING_SUCCESSOR_GENERATION, pair.REPORTING_SUCCESSOR_SOURCE, pair.REPORTING_SUCCESSOR_PATHS, pair.REPORTING_SUCCESSOR_HASHES),
         (pair.PR119_GENERATION, pair.PR119_SOURCE, pair.PR119_PATHS, pair.PR119_HASHES),
         (pair.COLLECTOR_GENERATION, pair.COLLECTOR_SOURCE, pair.COLLECTOR_PATHS, pair.COLLECTOR_HASHES),
     ):
@@ -101,7 +108,7 @@ def test_fixed_successor_closes_all_reporting_pins_and_keeps_old_contracts():
         assert {rel: sha(blob(source, rel)) for rel in paths} == hashes
     pins = json.loads(blob(SOURCE, 'ops/glp/reporting-v2/source-manifest.json'))['files']
     for rel in EXTRA:
-        assert pins[str(syncer.DEFAULT_ROOT / rel)] == pair.REPORTING_SUCCESSOR_HASHES[rel]
+        assert pins[str(syncer.DEFAULT_ROOT / rel)] == pair.F07_HASHES[rel]
 
 
 def test_successor_inventory_includes_new_publication_members():
@@ -110,24 +117,26 @@ def test_successor_inventory_includes_new_publication_members():
     assert {root / rel for rel in MEMBERS} <= maintenance_inventory.affected_paths(root, hermes)
 
 
-def test_successor_retained_leaf_and_baseline_guards_still_refuse(tmp_path):
-    root, hermes, candidate = fixture(tmp_path)
-    pair.plan(candidate, root, hermes, generation=GENERATION)
+def test_fixed_successor_collector_drift_still_refuses_without_mutation(tmp_path, approved_checkout):
+    root, hermes = fixture(tmp_path)
+    before = snapshot(root, hermes)
+    collector = approved_checkout / 'systems/analytics-brain/collector.py'
+    collector.write_bytes(collector.read_bytes() + b'\n# tampered\n')
+    with pytest.raises(RuntimeError, match='approved_source_moved:systems/analytics-brain/collector.py'):
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
+    assert snapshot(root, hermes) == before
+
+
+def test_successor_retained_leaf_and_baseline_guards_still_refuse(tmp_path, approved_checkout):
+    root, hermes = fixture(tmp_path)
+    pair.plan(approved_checkout, root, hermes, generation=GENERATION)
     leaf = root / 'scripts/marketplace_adapters/impact.py'
     original = leaf.read_bytes()
     leaf.write_bytes(original + b'\n# tampered\n')
     with pytest.raises(RuntimeError, match='reporting_pin_closure_refused:'):
-        pair.plan(candidate, root, hermes, generation=GENERATION)
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
     leaf.write_bytes(original)
     selected = root / 'scripts/affiliate_network_access.py'
     selected.write_bytes(selected.read_bytes() + b'\n# tampered\n')
     with pytest.raises(RuntimeError, match='scoped_source_preflight_refused'):
-        pair.plan(candidate, root, hermes, generation=GENERATION)
-
-
-def test_later_f12_payload_cannot_reuse_immutable_publication_generation(tmp_path):
-    root, hermes, _ = fixture(tmp_path)
-    before = snapshot(root, hermes)
-    with pytest.raises(RuntimeError, match='approved_source_moved:ops/glp/reporting-v2/source-manifest.json'):
-        pair.plan(ROOT, root, hermes, generation=GENERATION)
-    assert snapshot(root, hermes) == before
+        pair.plan(approved_checkout, root, hermes, generation=GENERATION)
