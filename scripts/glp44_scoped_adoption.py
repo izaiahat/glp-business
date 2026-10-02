@@ -119,8 +119,19 @@ REPORTING_SUCCESSOR_HASHES = {
     'scripts/affiliate_reporting_partnerstack.py': '4240277a9115278da04c976c0f2b26899684ac44d83982ce8d907fec8dc7e7fa',
     'scripts/affiliate_reporting_refersion.py': '21e277d6bf41ca8484bc8ad91486dfd85900a5f6f4123e30b1440c139d3a3bee',
 }
+# Receiving review refused the PR157 wrapper's stale identity pin. Publish the
+# corrected wrapper and the same complete cohort as a NEW immutable generation;
+# never mutate an old reviewed contract or install a wrapper-only hand repin.
+F07_GENERATION = 'f07-identity-publication-20261002'
+F07_SOURCE = '87f681fa7e011a3f6af132ee7a4e27d6778ebbdf'
+F07_PATHS = REPORTING_SUCCESSOR_PATHS
+F07_HASHES = {
+    **REPORTING_SUCCESSOR_HASHES,
+    SNAPSHOT: '58653a04c0c331bee1f1a6f43b5da865b02a22593a9edb762914bc2c326a316f',
+}
 # Reporting generations that rebind the job hash inside the maintained switch.
 SUCCESSORS = {
+    F07_GENERATION: (F07_HASHES, 'f07-identity-publication-runtime-review-v1'),
     REPORTING_SUCCESSOR_GENERATION: (REPORTING_SUCCESSOR_HASHES, 'glp333-glp44-reporting-successor-runtime-review-v1'),
     PR119_GENERATION: (PR119_HASHES, 'glp333-reporting-runtime-review-v1'),
     COLLECTOR_GENERATION: (COLLECTOR_HASHES, 'glp44-collector-successor-runtime-review-v1'),
@@ -169,6 +180,8 @@ GLP337_CONTEXT = (
 
 
 def generation_contract(generation):
+    if generation == F07_GENERATION:
+        return F07_SOURCE, F07_PATHS
     if generation == REPORTING_SUCCESSOR_GENERATION:
         return REPORTING_SUCCESSOR_SOURCE, REPORTING_SUCCESSOR_PATHS
     if generation == GLP337_GENERATION:
@@ -616,7 +629,7 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, COLLECTOR_GENERATION, REPORTING_SUCCESSOR_GENERATION, GLP331_GENERATION, GLP337_GENERATION),
+    parser.add_argument('--generation', choices=('pr71', PR119_GENERATION, COLLECTOR_GENERATION, REPORTING_SUCCESSOR_GENERATION, F07_GENERATION, GLP331_GENERATION, GLP337_GENERATION),
                         default='pr71',
                         help='exact approved cohort; GLP331/GLP337 source-only installs invalidate earlier previews; '
                              'PR119 requires completed GLP44 adoption; the collector successor publishes the '

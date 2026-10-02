@@ -438,7 +438,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "98edc4ee02d47941f71beccf4922c1a5daef508c64b7a0ef1f408eff30d28120"
+      "sha256": "52662869a6cc2e5b067abdfba5df4d2b68fb68d639ae24e57ea6897c7e40ece6"
     },
     ".hermes.md": {
       "callers": [],
@@ -1611,7 +1611,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4a5249511527127478dfb4a09eb0d804abeb7bb313721e20cd4704904bdf0ff1"
+      "sha256": "8cf098639d0bb2dcdf3606da7982ca386cfd330d8b42268f111675c8854530a8"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2104,7 +2104,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d35e1f0c72ac8d6347d7da7e1f82391bfbb6700af2c1dde9e59089a1b3f5772"
+      "sha256": "5c6d6aa3f22153a2441680b02b437bf55c25ff7bc398a3c7f12a316cf3bde970"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2835,7 +2835,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "13408d78458c897619c09131f71db1e231d159d105702515394161ebbe98a27a"
+      "sha256": "271b11882983558b9f10c9a6491a31ef91402d2462852fb9effc736a88ad35fa"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
       "callers": [
@@ -3575,7 +3575,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1217935b0ac2aeac5b1319d4badaa22ecbf9e3ad00f7d05701c120848540d317"
+      "sha256": "7f8da050cb2e8f7213ce20a9ac9ebf391f7c27c9f5810dc0b170938a7abe443a"
     },
     "tests/test_glp333_glp44_current_generation.py": {
       "kind": "repository_control",
@@ -3583,14 +3583,14 @@
         ".github/workflows/glp333-reporting-generation.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "75a45dcd0a0078d82579d4249a57aa6426b1b9242984a8f35ebcb0883d886a59"
+      "sha256": "54b6471bff71862b67b9cd684d964bfb26b9bac16061636235b18a166448259a"
     },
     "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
       "kind": "documentation",
       "callers": [
         "manual scoped adoption"
       ],
-      "sha256": "2b23ace442c655d03f2cbf04399e771319c39f5d02000b0b0ce3bd266d0c99f8"
+      "sha256": "b9e83527e0366de8f2c05f7e356a39ba7670ffbe117a7973e964f1405a66af62"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [
