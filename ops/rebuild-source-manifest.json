@@ -2082,7 +2082,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "8c22f9149eeba2aeee26301a699c004caa5095ee50c5acdac003a79e638e2ea1"
+      "sha256": "00a370f399a8f0d36088db7dc61bd18ed3fd5015a5a46cb8f26eb44402830d4d"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3273,7 +3273,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "75e325bed33366e27ceac9115eb6646dee6fd04e972298cf954ed34adea92617"
+      "sha256": "86bd8a1fd88094bc495ef30fea11703563505810ac4114f8a242bd501094c7e9"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
