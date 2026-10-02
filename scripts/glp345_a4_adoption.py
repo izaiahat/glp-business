@@ -31,6 +31,27 @@ AFTER = '7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180'
 MAP_BEFORE = '62bfd7a9fffdae836ace33f6148e3225aa5ebe1be6853e4c0e59d717a402c5dc'
 WRAPPER_BEFORE = 'b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d9871'
 
+# Explicit continuation only: PR115's reviewed report reader after PR165's
+# installed monitor closure. No dependency/module rollback or arbitrary repin.
+WEEKLY_GENERATION = 'glp341-weekly-pr115-after-pr165-20261002'
+WEEKLY_SOURCE = 'b951f2abb6d2c258269e3b8012ec3cfbaacb05ee'
+WEEKLY_PREDECESSOR_SOURCE = 'efe3067b460427b42cc7b796cdfe84009c3abf33'
+WEEKLY = 'reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py'
+WEEKLY_PATHS = (
+    'reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py',
+    'reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json',
+)
+WEEKLY_SNAPSHOT = 'ops/glp345-a4/weekly.predecessor.py'
+WEEKLY_BEFORE = 'd51b9ea03eddfd72641a4cd79e04d6b76e114e80c645ba6f866a7ca29705d1d1'
+WEEKLY_AFTER = '05bda1aa7f23fc2dca94d35bbcf65276b8bd1e743a9c0e4eb21445867f306653'
+WEEKLY_MAP_BEFORE = '9f74f31d94a93bf89c7f2f1405f907095a527262761a5c26f51fdf323e69ef00'
+WEEKLY_WRAPPER_BEFORE = '3a702ed55ab6e619d7f133463c039c8e954a9e5e762ea40b0349bcc621b72f8d'
+RAILS = 'ops/glp/seo_data_rails.py'
+RAILS_BEFORE = 'aa0be353d3bd08d592a99193117d76d69ea80f828ce0d459d6844d1600506fc4'
+RAILS_AFTER = 'e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333'
+A3 = 'reports/ops/orchestration-restore-20260907/PLAN/A3/RESULT.json'
+A3_HASH = '257339ab71e99ebbf845b56b6e1414d2baef8ec9ee7eb014eaf555f5cff8ce94'
+
 
 def sha(body):
     return hashlib.sha256(body).hexdigest()
@@ -59,8 +80,30 @@ def stage_pins(before, wrapper):
     return emitted, carrier
 
 
-def authenticate(checkout):
-    """Bind executing producer/helpers, snapshots and PR161 to committed bytes."""
+def stage_weekly_pins(before, wrapper):
+    """Replace only obsolete consumed edges, preserving actual PR165 wrapper."""
+    if sha(before) != WEEKLY_MAP_BEFORE or sha(wrapper) != WEEKLY_WRAPPER_BEFORE:
+        raise RuntimeError('unknown_weekly_artifact_preimage')
+    if before.count(RAILS_BEFORE.encode()) != 1:
+        raise RuntimeError('exact_posthog_pin_site_count')
+    emitted = before.replace(RAILS_BEFORE.encode(), RAILS_AFTER.encode(), 1)
+    pins = wrapper_pins(wrapper)
+    pins[str(BUSINESS / WEEKLY)] = WEEKLY_AFTER
+    pins[str(BUSINESS / MAP)] = sha(emitted)
+    # PR115 removes today's closeout/authoring-brief validator from collect();
+    # replace those unused edges with the actual frozen historical observation.
+    del pins[str(BUSINESS / 'scripts/result_contract.py')]
+    del pins[str(BUSINESS / 'reports/ops/orchestration-restore-20260907/briefs/plan/A3-CAMPAIGNS-THREE-PLATFORMS.md')]
+    pins[str(BUSINESS / A3)] = A3_HASH
+    node = next(n for n in ast.parse(wrapper).body if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == 'PINS' for t in n.targets))
+    rows = wrapper.splitlines(keepends=True)
+    carrier = b''.join(rows[:node.lineno-1] + [('PINS = ' + repr(pins) + '\n').encode()] + rows[node.end_lineno:])
+    return emitted, carrier
+
+
+def authenticate(checkout, generation=GENERATION):
+    """Bind executing producer/helpers, snapshots and reviewed source bytes."""
     import maxbounty_pin_release as p
     import maintenance_inventory as inventory
     import maintenance_window as mw
@@ -95,29 +138,76 @@ def authenticate(checkout):
     if (sha(body) != AFTER or (checkout / MONITOR).read_bytes() != body
             or sha(p.git(checkout, 'show', SOURCE + '^:' + MONITOR)) != BEFORE):
         raise RuntimeError('approved_monitor_source_moved')
+    if generation == WEEKLY_GENERATION:
+        p.git(checkout, 'merge-base', '--is-ancestor', WEEKLY_SOURCE, head)
+        p.git(checkout, 'merge-base', '--is-ancestor', WEEKLY_PREDECESSOR_SOURCE, head)
+        snap = p.git(checkout, 'show', head + ':' + WEEKLY_SNAPSHOT)
+        if sha(snap) != WEEKLY_BEFORE or p.read_regular(checkout / WEEKLY_SNAPSHOT)[0] != snap:
+            raise RuntimeError('weekly_predecessor_binding_moved')
+        # Genuine prior installed map/carrier are the accepted PR165 derivation,
+        # not the older incompatible curated wrapper.
+        prior = stage_pins(p.git(checkout, 'show', WEEKLY_PREDECESSOR_SOURCE + ':' + MAP_SNAPSHOT),
+                           p.git(checkout, 'show', WEEKLY_PREDECESSOR_SOURCE + ':' + WRAPPER_SNAPSHOT))
+        if tuple(map(sha, prior)) != (WEEKLY_MAP_BEFORE, WEEKLY_WRAPPER_BEFORE):
+            raise RuntimeError('accepted_pr165_outputs_moved')
+        emitted = stage_weekly_pins(*prior)
+        for rel, body in zip((MAP, 'ops/hermes-cron-scripts/' + WRAPPER), emitted):
+            if (p.git(checkout, 'show', head + ':' + rel) != body
+                    or p.read_regular(checkout / rel)[0] != body
+                    or manifest['files'][rel]['sha256'] != sha(body)):
+                raise RuntimeError('weekly_co_pin_source_moved:' + rel)
+        for rel, digest in ((WEEKLY, WEEKLY_AFTER), (RAILS, RAILS_AFTER)):
+            approved = p.git(checkout, 'show', WEEKLY_SOURCE + ':' + rel)
+            if (sha(approved) != digest or p.git(checkout, 'show', head + ':' + rel) != approved
+                    or p.read_regular(checkout / rel)[0] != approved
+                    or manifest['files'][rel]['sha256'] != digest):
+                raise RuntimeError('approved_weekly_input_moved:' + rel)
+        if sha(p.git(checkout, 'show', head + ':tests/fixtures/glp341-a3-result.json')) != A3_HASH:
+            raise RuntimeError('historical_a3_source_moved')
+        if not any(row['glob'] == WEEKLY and 'scripts/glp345_a4_adoption.py' in row['producers']
+                   for row in registry['artifacts']):
+            raise RuntimeError('weekly_producer_not_registered')
+        body = p.git(checkout, 'show', WEEKLY_SOURCE + ':' + WEEKLY)
+    elif generation != GENERATION:
+        raise RuntimeError('unknown_a4_generation')
     return head, body
 
 
-def plan(checkout, root, hermes, prepared_by, *, window=None):
+def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERATION):
     import copy
     import maxbounty_pin_release as p
     import sync_from_repo as syncer
     root, hermes = root.resolve(strict=True), hermes.resolve(strict=True)
     if not isinstance(prepared_by, str) or not prepared_by.strip():
         raise RuntimeError('preparer_required')
-    head, monitor = authenticate(checkout)
-    observed = {root / MONITOR: p.read_regular(root / MONITOR),
+    if generation not in (GENERATION, WEEKLY_GENERATION):
+        raise RuntimeError('unknown_a4_generation')
+    weekly = generation == WEEKLY_GENERATION
+    head, source = authenticate(checkout, generation=generation) if weekly else authenticate(checkout)
+    subject = WEEKLY if weekly else MONITOR
+    before = WEEKLY_BEFORE if weekly else BEFORE
+    after = WEEKLY_AFTER if weekly else AFTER
+    wrapper_before = WEEKLY_WRAPPER_BEFORE if weekly else WRAPPER_BEFORE
+    observed = {root / subject: p.read_regular(root / subject),
                 root / MAP: p.read_regular(root / MAP),
                 hermes / 'scripts' / WRAPPER: p.read_regular(hermes / 'scripts' / WRAPPER),
                 root / syncer.STATE: p.read_regular(root / syncer.STATE)}
-    if sha(observed[root / MONITOR][0]) != BEFORE:
-        raise RuntimeError('monitor_preimage_moved')
+    if sha(observed[root / subject][0]) != before:
+        raise RuntimeError('source_preimage_moved')
     state = p.strict_json(observed[root / syncer.STATE][0])
-    if state.get('schema') != 1 or state.get('hashes', {}).get(MONITOR) != BEFORE:
-        raise RuntimeError('monitor_import_baseline_moved')
-    emitted, carrier = stage_pins(observed[root / MAP][0], observed[hermes / 'scripts' / WRAPPER][0])
-    state['hashes'][MONITOR] = AFTER
-    staged = {root / MONITOR: monitor, root / MAP: emitted,
+    # These retained A4 paths had no imported baseline. Bind both exact live
+    # preimages before admitting only absence or their authenticated predecessor.
+    expected_baseline = (None, before) if weekly else (before,)
+    if state.get('schema') != 1 or state.get('hashes', {}).get(subject) not in expected_baseline:
+        raise RuntimeError('source_import_baseline_moved')
+    if weekly and state['hashes'].get(MAP) not in (None, WEEKLY_MAP_BEFORE):
+        raise RuntimeError('map_import_baseline_moved')
+    emitted, carrier = (stage_weekly_pins if weekly else stage_pins)(
+        observed[root / MAP][0], observed[hermes / 'scripts' / WRAPPER][0])
+    state['hashes'][subject] = after
+    if weekly:
+        state['hashes'][MAP] = sha(emitted)
+    staged = {root / subject: source, root / MAP: emitted,
               hermes / 'scripts' / WRAPPER: carrier, root / syncer.STATE: p.json_bytes(state)}
     # Retain all actual weekly dependencies. Existing drift is explicit review
     # context, never "fixed" by dropping a pin or accepting arbitrary live bytes.
@@ -130,6 +220,8 @@ def plan(checkout, root, hermes, prepared_by, *, window=None):
         actual = sha(staged.get(path, observed[path][0]))
         if actual != digest:
             drift.append({'path': str(path), 'expected': digest, 'actual': actual})
+    if weekly and drift:
+        raise RuntimeError('weekly_dependency_drift:' + ','.join(item['path'] for item in drift))
     registry = hermes / 'cron/jobs.json'
     observed[registry] = p.read_regular(registry)
     jobs = p.strict_json(observed[registry][0])['jobs']
@@ -142,7 +234,7 @@ def plan(checkout, root, hermes, prepared_by, *, window=None):
     if len(hits) != 1:
         raise RuntimeError('weekly_registration_count')
     job = hits[0]
-    if (job.get('script') != WRAPPER or job.get('script_sha256') != WRAPPER_BEFORE
+    if (job.get('script') != WRAPPER or job.get('script_sha256') != wrapper_before
             or job.get('no_agent') is not True or job.get('run_claim') is not None
             or job.get('fire_claim') is not None or job.get('running')
             or job.get('schedule', {}).get('kind') != 'cron'
@@ -153,8 +245,8 @@ def plan(checkout, root, hermes, prepared_by, *, window=None):
         raise RuntimeError('weekly_original_schedule_moved')
     if window is not None and (job.get('enabled') is not False or job.get('state') != 'paused'):
         raise RuntimeError('weekly_not_held_by_window')
-    proposal = {'schema': 'glp345-a4-proposal-v1', 'generation': GENERATION,
-                'producer_head': head, 'source_head': SOURCE, 'prepared_by': prepared_by.strip(),
+    proposal = {'schema': 'glp345-a4-proposal-v1', 'generation': generation,
+                'producer_head': head, 'source_head': WEEKLY_SOURCE if weekly else SOURCE, 'prepared_by': prepared_by.strip(),
                 'root': str(root), 'hermes': str(hermes),
                 'journal': str(Path(window.journal).resolve()) if window else None,
                 'window_preimage_sha256': sha(p.json_bytes({k: v for k, v in
@@ -197,7 +289,10 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None):
         raise RuntimeError('active_maintenance_window_required')
     if not isinstance(review, dict) or not isinstance(review.get('proposal'), dict):
         raise RuntimeError('independent_review_required')
-    custody = root / 'reports/ops/pin-archive/glp345-a4' / GENERATION
+    generation = review['proposal'].get('generation')
+    if generation not in (GENERATION, WEEKLY_GENERATION):
+        raise RuntimeError('unknown_a4_generation')
+    custody = root / 'reports/ops/pin-archive/glp345-a4' / generation
     intent = custody / 'cutover.json'
     # A lost acknowledgement is not permission to reopen sealed sources, undo
     # the monitor alone, or call the scheduler saver for a second time.
@@ -225,7 +320,8 @@ def _adopt(checkout, root, hermes, review, scheduler, active, custody, intent):
         if intent.exists():
             raise RuntimeError('cutover_already_attempted_reconcile_no_replay')
         proposal, observed, staged = plan(checkout, root, hermes,
-            review['proposal'].get('prepared_by'), window=active)
+            review['proposal'].get('prepared_by'), window=active,
+            generation=review['proposal']['generation'])
         validate_review(review, proposal)
         def current_jobs():
             body, mode = p.read_regular(registry)
@@ -262,7 +358,7 @@ def _adopt(checkout, root, hermes, review, scheduler, active, custody, intent):
         # Real maintained DAC cohort holds every source/cache sealed through
         # native save/readback. It owns pre-commit rollback and uncertain seals.
         active.switch_files(staged, original, commit=commit)
-        return {'applied': True, 'generation': GENERATION, 'proposal': proposal,
+        return {'applied': True, 'generation': proposal['generation'], 'proposal': proposal,
                 'custody': str(custody), 'registration_delta': [JOB + '.script_sha256'],
                 'weekly_ready': not proposal['weekly_residual_drift'], 'jobs_executed': 0}
 
@@ -280,6 +376,7 @@ def main(argv=None):
     parser.add_argument('--root', type=Path, default=BUSINESS)
     parser.add_argument('--hermes', type=Path, default=HERMES)
     parser.add_argument('--prepared-by', default='F08 source owner')
+    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION), default=GENERATION)
     parser.add_argument('--window', type=Path)
     parser.add_argument('--review', type=Path)
     parser.add_argument('--apply', action='store_true')
@@ -293,12 +390,16 @@ def main(argv=None):
             os.environ['HERMES_HOME'] = str(args.hermes.resolve())
             sys.path.insert(0, str(args.hermes / 'hermes-agent'))
             from cron import jobs as scheduler
-            result = adopt(args.checkout, args.root, args.hermes, p.strict_json(args.review.read_bytes()),
+            review = p.strict_json(args.review.read_bytes())
+            if review.get('proposal', {}).get('generation') != args.generation:
+                raise RuntimeError('review_generation_mismatch')
+            result = adopt(args.checkout, args.root, args.hermes, review,
                            scheduler=scheduler, window=args.window)
         else:
             ctx = mw.require_active_window(args.window, args.root, args.hermes) if args.window else nullcontext(None)
             with ctx as active:
-                proposal, _, _ = plan(args.checkout, args.root, args.hermes, args.prepared_by, window=active)
+                proposal, _, _ = plan(args.checkout, args.root, args.hermes, args.prepared_by,
+                                       window=active, generation=args.generation)
             result = {'applied': False, 'proposal': proposal}
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0

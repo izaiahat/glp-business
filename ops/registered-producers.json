@@ -10,12 +10,17 @@
   {
    "glob": "reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json",
    "producers": ["scripts/glp345_a4_adoption.py"],
-   "scope": "Fixed PR161 monitor hash substitution only, coupled with monitor source/import baseline, the actual live weekly wrapper and ea5bad730e53.script_sha256 inside a verified maintenance window. All other dependency pins/bytes and delivery controls retained; pre-existing weekly drift explicitly reported, not healed. Independent exact source and runtime review required."
+   "scope": "Fixed PR161 monitor closure remains supported. Explicit glp341-weekly-pr115-after-pr165-20261002 additionally publishes PR115's unchanged historical report reader with the exact PR165 monitor pin and reviewed PR115 PostHog dependency pin; paired source/map baselines, derived actual wrapper and ea5bad730e53.script_sha256 share one maintained cohort. Refuse residual dependency drift; never roll back newer source, change schedule, spend or execute. Independent exact source and runtime review required."
+  },
+  {
+   "glob": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+   "producers": ["scripts/glp345_a4_adoption.py"],
+   "scope": "Only the exact retained Q25 reader to reviewed PR115 bytes, coupled to the accepted PR165 map/carrier predecessor, explicit weekly generation and full scoped input authentication. No collector/window/reservation changes, direct sends, campaign writes or natural acceptance claim."
   },
   {
    "glob": "/home/ubuntu/.hermes/scripts/glp_weekly_ads_analytics.py",
    "producers": ["scripts/glp345_a4_adoption.py"],
-   "scope": "Only the A4 JSON-map hash in the exact live Q25 predecessor; result_contract, A3 brief, controller and entry pins preserved. No substitution of the incompatible curated reduced wrapper. Native target pin hash-only CAS; no schedule or execution authority."
+   "scope": "PR161 map substitution preserves old dependencies. Explicit reviewed PR115-after-PR165 weekly continuation replaces only the consumed reader/map edges and removes the now-unused modern result_contract/A3 authoring-brief pins in favor of the authenticated frozen A3 observation; remaining wrapper bytes stay identical. Native target pin hash-only CAS; no schedule or execution authority."
   },
   {
    "glob": "site-system/flagship-v2/candidates/*/functions/go/program-manifest.js",
