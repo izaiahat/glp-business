@@ -763,6 +763,113 @@ class LinuxBackend:
         require(cursor == fields.get('next_run_at'), 'native_cursor_next_unproven')
         return {'from': before['next_run_at'], 'to': cursor, 'executions': [r['id'] for r in rows]}
 
+    def post_pause_cursor_progress(self, entry, prior, job, data, scheduler):
+        """Authenticate one already-running interval completion, for exit only.
+
+        The retained snapshot has a native fire claim and its advanced dispatch
+        cursor. Completion may advance that cursor again *after* our pause.
+        Never admit ACTIVE, a new occurrence, replay, or configuration drift.
+        """
+        before, paused = prior['fields'], prior.get('paused_fields', {})
+        row = next(r for r in data['entries'] if entry_key(r['entry']) == entry_key(entry))
+        require(row.get('intent') is True and row.get('paused') is True
+                and data.get('error') == 'active_window_verification_failed'
+                and not data.get('source_transaction') and not data.get('job_updates')
+                and before.get('enabled') is True and before.get('state') == 'scheduled'
+                and paused.get('enabled') is False and paused.get('state') == 'paused'
+                and paused.get('paused_reason') == self.pause_reason(),
+                'post_pause_owned_lifecycle_required')
+        controls = {k: job[k] for k in CONTROL_FIELDS if k in job}
+        restored = copy.deepcopy(before)
+        restored['next_run_at'] = controls.get('next_run_at')
+        receipt = prior.get('post_pause_cursor_progress')
+        require(({k: v for k, v in controls.items() if k != 'next_run_at'} ==
+                 {k: v for k, v in paused.items() if k != 'next_run_at'})
+                or (receipt is not None and controls == restored),
+                'post_pause_controls_changed')
+        require(job.get('script_sha256') == prior['script_sha256']
+                and job_configuration(job) == prior['configuration_sha256']
+                and all(not job.get(k) for k in ('fire_claim', 'run_claim', 'running', 'pending_slot'))
+                and job.get('last_status') == 'ok' and job.get('last_error') is None,
+                'post_pause_configuration_pin_or_claim_changed')
+        repeat, current_repeat = prior.get('repeat'), job.get('repeat')
+        require(isinstance(repeat, dict) and isinstance(current_repeat, dict)
+                and type(repeat.get('completed')) is int
+                and type(current_repeat.get('completed')) is int
+                and current_repeat == dict(repeat, completed=repeat['completed'] + 1)
+                and repeat.get('times') is None, 'post_pause_repeat_unproven')
+        schedule = job.get('schedule', {})
+        require(schedule.get('kind') == 'interval'
+                and type(schedule.get('minutes')) is int and schedule['minutes'] > 0,
+                'post_pause_interval_required')
+
+        def instant(value):
+            try:
+                parsed = dt.datetime.fromisoformat(value)
+                require(parsed.tzinfo is not None, 'post_pause_timestamp_unproven')
+                return parsed.astimezone(dt.timezone.utc)
+            except (TypeError, ValueError):
+                raise WindowError('post_pause_timestamp_unproven') from None
+
+        captured = dt.datetime.fromtimestamp(prior['captured_at'], dt.timezone.utc)
+        pause_at = instant(paused.get('paused_at'))
+        claim = entry.get('prior', {}).get('fire_claim')
+        require(isinstance(claim, dict) and isinstance(claim.get('by'), str),
+                'post_pause_snapshot_claim_required')
+        database = scheduler._current_cron_store().cron_dir / 'executions.db'
+        require(database.is_file(), 'post_pause_ledger_missing')
+        try:
+            with sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True) as db:
+                db.execute('PRAGMA query_only=ON')
+                db.row_factory = sqlite3.Row
+                rows = db.execute('SELECT * FROM executions WHERE job_id=? LIMIT 10001',
+                                  (entry['id'],)).fetchall()
+        except sqlite3.Error:
+            raise WindowError('post_pause_ledger_unreadable') from None
+        require(len(rows) < 10001, 'post_pause_ledger_bound_exceeded')
+        # Account for every attempt touching or following the snapshot. A second
+        # attempt, missing terminal time, handoff or malformed row is uncertain.
+        relevant = [r for r in rows if r['finished_at'] is None
+                    or instant(r['finished_at']) >= captured or instant(r['claimed_at']) >= captured]
+        require(len(relevant) == 1, 'post_pause_single_execution_required')
+        execution = relevant[0]
+        slot, claimed, started, finished = (instant(execution[k]) for k in
+            ('scheduled_instant', 'claimed_at', 'started_at', 'finished_at'))
+        marked, heartbeat = instant(job.get('last_run_at')), instant(claim.get('at'))
+        dispatch = instant(before.get('next_run_at')) - dt.timedelta(minutes=schedule['minutes'])
+        require(execution['source'] == 'builtin' and execution['status'] == 'completed'
+                and execution['error'] is None and execution['handoff_pending'] == 0
+                and execution['delivery_outcome'] == 'suppressed'
+                and len(claim['by'].split(':')) == 3
+                and claim['by'].split(':')[1].isdigit() and claim['by'].split(':')[2]
+                # Dispatcher owns the claim; an isolated execution may have a
+                # different PID. Bind by job/occurrence/time, not PID equality.
+                and type(execution['pid']) is int and execution['pid'] > 0
+                and isinstance(execution['process_id'], str) and execution['process_id']
+                and slot - dt.timedelta(seconds=scheduler.FIRE_CLAIM_SKEW_SECONDS) <= claimed
+                and claimed <= dispatch <= started <= min(captured, pause_at)
+                and dispatch <= heartbeat <= captured
+                and max(captured, pause_at) <= marked <= finished <= scheduler._hermes_now()
+                and finished > max(captured, pause_at)
+                and slot < instant(before['next_run_at']) < instant(controls.get('next_run_at'))
+                and scheduler.compute_next_run(schedule, job['last_run_at']) == controls.get('next_run_at'),
+                'post_pause_execution_unproven')
+        paused_record = copy.deepcopy(job)
+        for key in CONTROL_FIELDS:
+            paused_record.pop(key, None)
+        paused_record.update(copy.deepcopy(paused))
+        paused_record['next_run_at'] = controls['next_run_at']
+        restored_record = copy.deepcopy(paused_record)
+        for key in CONTROL_FIELDS:
+            restored_record.pop(key, None)
+        restored_record.update(restored)
+        progress = {'from': before['next_run_at'], 'to': controls['next_run_at'],
+                    'executions': [execution['id']], 'execution_sha256': json_sha(dict(execution)),
+                    'paused_record_sha256': json_sha(paused_record),
+                    'restored_record_sha256': json_sha(restored_record)}
+        require(receipt is None or receipt == progress, 'post_pause_receipt_changed')
+        return progress
+
     def legacy_pause_not_started(self, data, row):
         """Authenticate the old pre-save refusal, not merely paused=False.
 
@@ -903,7 +1010,17 @@ class LinuxBackend:
                 if self.legacy_pause_not_started(data, row):
                     self.completed_cursor_progress(entry, prior, current, data, scheduler)
                     return
-                require(self.paused(entry, prior), 'restore_pause_ownership_changed')
+                restore_fields = copy.deepcopy(prior['fields'])
+                if not self.paused(entry, prior):
+                    progress = self.post_pause_cursor_progress(entry, prior, current, data, scheduler)
+                    restore_fields['next_run_at'] = progress['to']
+                    if controls == restore_fields:
+                        return  # Authenticated lost acknowledgement; no second save.
+                    # Persist attribution BEFORE native save, without rewriting
+                    # the original preimage, tool approvals, or runtime fields.
+                    prior['post_pause_cursor_progress'] = progress
+                    row['prior'] = copy.deepcopy(prior)
+                    atomic_json(self.journal, data)
                 # Restoration is an exact CAS, not a new scheduling request.
                 # resume() rejects expired once jobs before saving and can
                 # normalize legacy fields; use the native atomic saver under
@@ -913,8 +1030,8 @@ class LinuxBackend:
                 require(len(found) == 1 and found[0] == current, 'restore_record_changed')
                 target = found[0]
                 for key in CONTROL_FIELDS:
-                    if key in prior['fields']:
-                        target[key] = copy.deepcopy(prior['fields'][key])
+                    if key in restore_fields:
+                        target[key] = copy.deepcopy(restore_fields[key])
                     else:
                         target.pop(key, None)
                 expected = copy.deepcopy(target)

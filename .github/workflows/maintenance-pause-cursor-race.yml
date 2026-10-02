@@ -34,4 +34,4 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git -C native-scheduler rev-parse HEAD)" = 07bf28d6446025d3b3b16c758ca4a300ed6db9ba
           test "$(id -u)" != 0
-          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_maintenance_pause_cursor_race.py tests/test_maintenance_window.py tests/test_maintenance_restoration_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_admission_review.py
+          .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_maintenance_pause_cursor_race.py tests/test_maintenance_post_pause_completion.py tests/test_maintenance_window.py tests/test_maintenance_restoration_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_admission_review.py
