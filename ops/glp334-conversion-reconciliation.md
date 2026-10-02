@@ -79,3 +79,10 @@ and source settlement transaction membership / payout ID evidence. Kael must
 provide these before the corresponding production edges can be supported.
 Nothing in this source change resolves those missing inputs or authorizes a
 live collector run, replay, mutation or installation.
+
+The existing GLP333/GLP44 publication generation remains immutable at its prior
+source. It correctly refuses the changed F12 payload. Its historical preview
+tests use the actual reviewed candidate commit, preserving every original
+source, producer, maintenance and tamper check; a separate regression confirms
+that the current F12 checkout cannot reuse that generation. Receiving-side
+publication needs Kael's separately reviewed exact F12 source procedure.
