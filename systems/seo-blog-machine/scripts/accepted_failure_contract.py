@@ -105,6 +105,10 @@ def validate_binding(binding, pointer, *, planned_manifest=None):
                 if binding[key] != parent[key]:
                     raise RuntimeError('accepted_failures_descendant_allowance_drift')
             return binding
+        if binding.get('acceptance_route') == 'designated-astra-current-v1':
+            return validate_current_binding(binding, pointer)
+        if 'acceptance_route' in binding:
+            raise RuntimeError('accepted_failures_unknown_acceptance_route')
         acceptance, review, data = (read_bound(binding[key]) for key in ('acceptance', 'review', 'disclosure'))
         evidence, subject = acceptance['evidence'], review['tuple']
         digest = hashlib.sha256(json.dumps(subject, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
@@ -168,6 +172,155 @@ def validate_binding(binding, pointer, *, planned_manifest=None):
         return binding
     except (KeyError, TypeError, ValueError, OSError) as exc:
         raise RuntimeError('accepted_failures_binding_invalid:' + str(exc)) from exc
+
+
+# Authentication anchor for the actual combined release, not a generic model-name
+# bypass of bridge authority. Changing this anchor is a reviewed source successor.
+CURRENT_ASTRA_REVIEW = {
+    'path': '/home/ubuntu/business/reports/ops/glp42-final-combined-release-review-20260927/INDEPENDENT-REVIEW.json',
+    'sha256': 'e316c8253f3d7fbab38c4e39fc007e0a646a3c11ea8b13b4a7d719dec47511ab'}
+CURRENT_ASTRA_AUTHORITIES = {
+    '/home/ubuntu/business/ops/linear/approvals/OPERATOR-DECISION-20260926-release-review-astra.md':
+        '7d0d49def4254a19e088d4d6586c9963325311da17cfbd6054dd175876240fb0'}
+
+
+def current_release_evidence(pointer):
+    """Authenticate retained Astra approval and its exact prepared release seal."""
+    for path, digest in CURRENT_ASTRA_AUTHORITIES.items():
+        if descriptor(path) != {'path': path, 'sha256': digest}:
+            raise RuntimeError('current_acceptance_operator_authority_drift')
+    review = read_bound(CURRENT_ASTRA_REVIEW)
+    reviewer = review['reviewer']
+    if (review.get('schema') != 'glp42-designated-astra-release-review-v1'
+        or review.get('verdict') != 'APPROVE' or review.get('release_accepted') is not True
+        or review.get('full_combined_deployment_accepted') is not True
+        or review.get('blocking_findings') != []
+        or reviewer.get('model') != 'gpt-6-astra-900k'
+        or reviewer.get('provider') != 'openai-codex'
+        or 'not an author' not in reviewer.get('role', '')):
+        raise RuntimeError('current_acceptance_designated_review_invalid')
+    subject = review['subject']
+    prepared_spec = {'path': str(Path(subject['prepared_dir']) / 'PREPARED.json'),
+                     'sha256': subject['prepared_manifest_sha256']}
+    prepared = read_bound(prepared_spec)
+    required = {'repository': prepared['site_repository'], 'head': prepared['site_head'],
+                'git_tree': prepared['source']['git_tree'],
+                'public_tree_sha256': prepared['public_tree_sha256'],
+                'package_manifest_sha256': prepared['package_manifest_sha256'],
+                'deploy_directory_sha256': prepared['deploy_directory']['tree_sha256'],
+                'compiled_worker_sha256': prepared['compiled']['worker_sha256'],
+                'project': prepared['project']}
+    if (any(subject.get(k) != v for k, v in required.items())
+        or prepared['schema'] != 'glp43-current-prepared-v1'
+        or prepared['site_repository'] != 'izaiahat/glp-site-candidate'
+        or prepared['project'] != 'glp-clinic-scout'
+        or prepared['prepared_dir'] != subject['prepared_dir']
+        or review['reused_technical_acceptance']['gate_sha256'] != prepared['build_receipt']['sha256']):
+        raise RuntimeError('current_acceptance_review_subject_drift')
+    manifest = read_bound(pointer['manifest'])
+    if (set(manifest) != {'schema', 'release_root', 'release_tree_sha256', 'release_rows', 'site_head', 'deploy_directory'}
+        or manifest['schema'] != 'glp-opus-release-deployment-manifest-v1'
+        or any(manifest[k] != pointer[k] for k in ('release_root', 'release_tree_sha256'))
+        or manifest['release_root'] != str(Path(subject['prepared_dir']) / 'release')
+        or manifest['site_head'] != subject['head']
+        or manifest['deploy_directory'] != prepared['deploy_directory']):
+        raise RuntimeError('current_acceptance_manifest_identity_drift')
+    rows = manifest['release_rows']
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError('current_acceptance_release_rows_invalid')
+    for row in rows:
+        if (set(row) != {'path', 'sha256', 'size'} or type(row['size']) is not int or row['size'] < 0
+            or not isinstance(row['path'], str) or not row['path'] or Path(row['path']).is_absolute()
+            or any(part in ('', '.', '..') for part in row['path'].split('/'))
+            or not re.fullmatch('[a-f0-9]{64}', row['sha256'])):
+            raise RuntimeError('current_acceptance_release_rows_invalid')
+    # Match the native current carrier's file_closure, not legacy row_closure.
+    digest = hashlib.sha256()
+    for row in sorted(rows, key=lambda r: r['path'].encode()):
+        digest.update(f"{row['path']}\0{row['size']}\0{row['sha256']}\n".encode())
+    if (len({r['path'] for r in rows}) != len(rows)
+        or len(rows) != prepared['release']['file_count']
+        or sum(r['size'] for r in rows) != prepared['release']['total_bytes']
+        or digest.hexdigest() != pointer['release_tree_sha256']
+        or pointer['release_tree_sha256'] != prepared['release']['tree_sha256']):
+        raise RuntimeError('current_acceptance_release_not_reviewed_seal')
+    return dict(CURRENT_ASTRA_REVIEW), prepared_spec
+
+
+def prepare_current_binding(pointer, suite_stdout, suite_exit_code, *, minimum_tests,
+                            preparer_id, suite_result_path):
+    """Produce an honest review input, never infer full-suite acceptance from GLP42."""
+    if (type(minimum_tests) is not int or minimum_tests <= 0
+        or type(suite_exit_code) is not int or not isinstance(preparer_id, str) or not preparer_id.strip()):
+        raise RuntimeError('current_acceptance_proposal_arguments_invalid')
+    review, prepared = current_release_evidence(pointer)
+    stdout_spec, result_spec = descriptor(suite_stdout), descriptor(suite_result_path)
+    stdout = Path(stdout_spec['path']).read_text()
+    classification = classify_suite(stdout, suite_exit_code, [], minimum_tests=minimum_tests)
+    if classification['status'] == 'FAIL_SUITE_INTEGRITY':
+        raise RuntimeError('current_acceptance_full_suite_integrity:' + json.dumps(classification['errors']))
+    result = read_bound(result_spec)
+    if (result.get('command') != 'npm test' or result.get('invocations') != 1
+        or result.get('exit_code') != suite_exit_code or result.get('counts') != classification['counts']
+        or result.get('custody', {}).get('source_sha256') != pointer['release_tree_sha256']
+        or result.get('custody', {}).get('source_unchanged') is not True):
+        raise RuntimeError('current_acceptance_suite_source_custody_drift')
+    # Re-read the log pin after parsing; a proposal binds the bytes actually read.
+    if descriptor(suite_stdout) != stdout_spec:
+        raise RuntimeError('current_acceptance_suite_log_drift')
+    return {'schema': 'glp-current-release-suite-proposal-v1',
+            'status': 'REQUIRES_INDEPENDENT_SUITE_ACCEPTANCE',
+            'base': {k: pointer[k] for k in ('release_root', 'release_tree_sha256', 'manifest')},
+            'review': review, 'prepared': prepared, 'suite_stdout': stdout_spec,
+            'suite_result': result_spec, 'suite_exit_code': suite_exit_code,
+            'classification': classification, 'minimum_tests': classification['counts']['tests'],
+            'preparer_id': preparer_id, 'publication_allowance_only': True}
+
+
+def current_binding_from_evidence(proposal_spec, acceptance_spec):
+    proposal, acceptance = read_bound(proposal_spec), read_bound(acceptance_spec)
+    expected = prepare_current_binding(proposal['base'], proposal['suite_stdout']['path'],
+        proposal['suite_exit_code'], minimum_tests=proposal['minimum_tests'],
+        preparer_id=proposal['preparer_id'], suite_result_path=proposal['suite_result']['path'])
+    if proposal != expected:
+        raise RuntimeError('current_acceptance_proposal_drift')
+    reviewer = acceptance.get('reviewer', {})
+    if (acceptance.get('schema') != 'glp-current-release-suite-acceptance-v1'
+        or acceptance.get('verdict') != 'APPROVE' or acceptance.get('blocking_findings') != []
+        or acceptance.get('proposal') != proposal_spec
+        or acceptance.get('publication_allowance_only') is not True
+        or acceptance.get('accepted_names') != proposal['classification']['new_failures']
+        or reviewer.get('model') != 'gpt-6-astra-900k' or reviewer.get('provider') != 'openai-codex'
+        or reviewer.get('independent') is not True or not isinstance(reviewer.get('id'), str)
+        or not reviewer['id'].strip() or reviewer['id'].strip() == proposal['preparer_id'].strip()
+        or acceptance.get('authority') not in [dict(path=p, sha256=h) for p, h in CURRENT_ASTRA_AUTHORITIES.items()]):
+        raise RuntimeError('current_acceptance_independent_suite_acceptance_required')
+    return {'schema': 'glp-accepted-failures-binding-v1', 'publication_allowance_only': True,
+            'acceptance_route': 'designated-astra-current-v1',
+            'release_root': proposal['base']['release_root'],
+            'release_tree_sha256': proposal['base']['release_tree_sha256'],
+            'release_manifest': proposal['base']['manifest'], 'acceptance': acceptance_spec,
+            'review': proposal['review'], 'disclosure': proposal_spec,
+            'accepted_names': acceptance['accepted_names'], 'minimum_tests': proposal['minimum_tests'],
+            'raw_disclosure_status': proposal['classification']['status']}
+
+
+def build_current_binding(proposal_path, suite_acceptance_path, expected_suite_acceptance_sha256):
+    """The expected review hash must come from the coordinator's accepted review,
+    not be recomputed from an untrusted file. Same trust boundary as current_approval.
+    """
+    proposal_spec = descriptor(proposal_path)
+    acceptance_spec = {'path': str(Path(suite_acceptance_path).resolve(strict=True)),
+                       'sha256': expected_suite_acceptance_sha256}
+    return current_binding_from_evidence(proposal_spec, acceptance_spec)
+
+
+def validate_current_binding(binding, pointer):
+    expected = current_binding_from_evidence(binding['disclosure'], binding['acceptance'])
+    if (binding != expected or any(binding[k] != pointer[k] for k in ('release_root', 'release_tree_sha256'))
+        or ('manifest' in pointer and binding['release_manifest'] != pointer['manifest'])):
+        raise RuntimeError('current_acceptance_binding_drift')
+    return binding
 
 
 PRICE_INDEX_INHERITED_KEYS = ('acceptance', 'review', 'disclosure', 'accepted_names',
@@ -550,3 +703,49 @@ def classify_suite(stdout, exit_code, accepted_names, *, minimum_tests):
             'counts': counts, 'suite_exit_code': exit_code,
             'suite_stdout_sha256': hashlib.sha256(stdout.encode()).hexdigest(),
             'accepted_inherited_count': len(accepted), 'new_failure_count': len(new)}
+
+
+def current_binding_cli(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description='Current Astra release acceptance producer; no publication effects')
+    sub = parser.add_subparsers(dest='action', required=True)
+    prepare = sub.add_parser('prepare-current')
+    prepare.add_argument('--pointer', type=Path, required=True)
+    prepare.add_argument('--suite-stdout', type=Path, required=True)
+    prepare.add_argument('--suite-result', type=Path, required=True)
+    prepare.add_argument('--suite-exit-code', type=int, required=True)
+    prepare.add_argument('--minimum-tests', type=int, required=True)
+    prepare.add_argument('--preparer-id', required=True)
+    prepare.add_argument('--out', type=Path, required=True)
+    install = sub.add_parser('install-current')
+    install.add_argument('--pointer', type=Path, required=True)
+    install.add_argument('--proposal', type=Path, required=True)
+    install.add_argument('--suite-acceptance', type=Path, required=True)
+    install.add_argument('--expected-suite-acceptance-sha256', required=True)
+    args = parser.parse_args(argv)
+    pointer_spec = descriptor(args.pointer)
+    pointer = read_bound(pointer_spec)
+    if args.action == 'prepare-current':
+        proposal = prepare_current_binding(pointer, args.suite_stdout, args.suite_exit_code,
+            minimum_tests=args.minimum_tests, preparer_id=args.preparer_id,
+            suite_result_path=args.suite_result)
+        # A reviewed proposal is immutable: never overwrite it on rerun.
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        with args.out.open('x') as handle:
+            handle.write(json.dumps(proposal, sort_keys=True, indent=2) + '\n')
+        print(json.dumps({'status': proposal['status'], 'proposal': descriptor(args.out),
+                          'counts': proposal['classification']['counts']}))
+    else:
+        binding = build_current_binding(args.proposal, args.suite_acceptance,
+                                         args.expected_suite_acceptance_sha256)
+        if descriptor(args.pointer) != pointer_spec:
+            raise RuntimeError('current_acceptance_pointer_changed')
+        print(json.dumps({'binding': install_binding(binding, pointer)}))
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(current_binding_cli())
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+        raise SystemExit('BLOCKED: ' + str(exc)) from exc

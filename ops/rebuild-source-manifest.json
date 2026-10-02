@@ -9,6 +9,20 @@
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
   "files": {
+    "tests/test_current_release_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "947efb2dfc670b0aee8404986e5e9c17c293230a3d1a41a9f75f6bea5492a79c"
+    },
+    "ops/current-release-acceptance.md": {
+      "kind": "documentation",
+      "callers": [
+        "F06 current-release acceptance owner"
+      ],
+      "sha256": "b9d18c477524f03c1db4c2802a76e2fb3a8d17a0f6d06f3c0031ec1a87096255"
+    },
     "tests/test_glp73_archive_hardlink_manifest.py": {
       "kind": "test",
       "callers": [
@@ -2096,7 +2110,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ff087c13258cb53eef78fad8a695943a7cca528e9b6af5a2d7ed2c33f63d3b43"
+      "sha256": "fbd1578f5e60cf56b8958f7b641e48f5a4200646576f8dbcbfc9fb11a3ffad49"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2207,7 +2221,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "db287f13d36144e106587bb2c3a74f69a8b6b659c711f63e31bd24e4397ced4a"
+      "sha256": "4e8c94a6f74294d744bce59c301ea4b166193c0d51b6bbbbcc0fb32cc4b2d0ee"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
       "callers": [
@@ -3979,5 +3993,5 @@
       "sha256": "c902ecc877f9a76f0257079be6159473101fd32898fe14f01c8365e2637a9f75"
     }
   },
-  "tracked_count": 593
+  "tracked_count": 595
 }
