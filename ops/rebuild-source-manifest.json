@@ -2922,7 +2922,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "1f77f1f7ee54f7ce974ebe29af99798a8d358c0011d4d2cb8481542add9341e0"
+      "sha256": "10d5b1af4713dfbd75bc3ae84c5e4606d892a06872c6fb30f6655ea4cc11b86e"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [

@@ -135,8 +135,9 @@ def test_weekly_wrapper_config_pin_and_all_other_bytes_preserved():
     lines = [line for line in wrapper.splitlines() if line.startswith(prefix)]
     assert len(lines) == 1
     pin = lines[0][len(prefix):]
-    # This successor is source-only. Runtime pin adoption needs separate authority.
-    assert pin.decode() == CURRENT_PARENT_SHA
+    # F07 publishes the persisted registry pin; retain the exact historical
+    # inverse below rather than blessing the formerly stale literal.
+    assert pin.decode() == hashlib.sha256(CONFIG.read_bytes()).hexdigest()
     restored = wrapper.replace(lines[0], prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638')
     assert hashlib.sha256(restored).hexdigest() == '197d2f094203bb1f464ac558aac14376093b9311b816245fbf47d0a97b895d83'
     prior = restored.replace(prefix + b'70f8139656cca7bcf834e447e142aa69bb2f8add7b5f28fd0d23a2f393688638',
