@@ -99,6 +99,7 @@ jobs:
       - name: GLP-76 carrier calendar propagation (authentic base copy, offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONPATH: systems/analytics-brain:scripts
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py
