@@ -169,7 +169,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "repository_control",
-      "sha256": "acd1d005e59c832a20b16612a0f01e2ee79b6447cce3d5c8648a1d6949eaaebf"
+      "sha256": "e90673a77e9647345f14cd61d7ddcb4ef905e097bd53975f9bae0fb1c8322858"
     },
     "ops/glp331-program-withdrawal.md": {
       "kind": "documentation",
@@ -183,7 +183,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "documentation",
-      "sha256": "2bf22b391c3b61984851b1ef656899c36b13272a373ab2ce5bc87d253a46c270"
+      "sha256": "d5aae063c90e258af72b4e03ccd1e98084dc53f10e0c3e6e29cbc98819de5236"
     },
     "reports/ops/glp333-network-access-contract-20261001/LIVE-READS-predecessor.json": {
       "callers": [
@@ -211,7 +211,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "5c32f316e609f97fd336295a8b4e695fd0b594a1ce4a9cb55c6d1ed8eba559ea"
+      "sha256": "6dd8497fd0f2af66fc3e6b6d2071546a9efd46312996b0b869fc1e6cfd6b6b54"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -430,7 +430,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "66f267c1b96c3013ee7c553fa7df5204458c08cd76028ed66a6d2c0e399926d8"
+      "sha256": "666618273c1eb93ad02cddfa4b7d2fe1f52476bf0bb667e7a008cc9f5cd66fc6"
     },
     ".hermes.md": {
       "callers": [],
@@ -604,7 +604,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "62bafd3adae11c82b67115365b455fe07892a9b2c91ccb6442661c7b1188393e"
+      "sha256": "d90ad7cb3d1413ba55079da94410dcd0e797c3f4fbba8d3705e2adaafaba478c"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -780,7 +780,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "8e8c6c4989c72816a692d0df3a415d8ec845342bc8dc775ad9fc90e1c8dee0d9"
+      "sha256": "b1eb8ee77e0fcf35d34742d957f71f316ac89643e4c03f397936d8dfd6ba3fcb"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -3948,7 +3948,14 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "sha256": "45d54ca4b582a6f7d5fe0b05d57bbd622f975263adda82c7648b2a4f4e3e6875"
+    },
+    "tests/test_glp333_impact_subwindows.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "test",
+      "sha256": "3e0001a742ff76f7f09ee11fc8a456a070844d01913c7c8931eb976bf46c3eb7"
     }
   },
-  "tracked_count": 589
+  "tracked_count": 590
 }
