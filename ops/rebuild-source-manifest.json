@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 628,
+  "tracked_count": 633,
   "files": {
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -471,7 +471,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a45651f27051627c433265b1ee87f14aa3384dca489b6fcfb1f974e1f070e00e"
+      "sha256": "389a9b8c74b8a6a5055b41f5f2fe81d9486fc092da4674af552ce3405ae4a1a7"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3c0a3a6cde15d32c59c5d4084bf89eb4bee6249d51699563b84039c04744d332"
+      "sha256": "b95e956095837ee12eefd76e9ed42ffa6322865f06d9f0b99efecb256fa6a7e3"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4213,6 +4213,41 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
+    },
+    "ops/glp/topic-supply-inputs/README.md": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "d3fecaaa047534ce2f5271eecdd658a6a033967d869cc7c2945a6bf87419815b"
+    },
+    "ops/glp/topic-supply-inputs/cluster-map.json": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "05d215c1bd3a8656f4bc5f5534a1ad5e13934b94a649492743fd975533f2818b"
+    },
+    "ops/glp/topic-supply-inputs/strategy-queue.json": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "59627aee4ddb6a2a1eb1f2b3a0129c2b2ab184c38426194db63e404a78fd3ea6"
+    },
+    "systems/seo-blog-machine/scripts/select_opus_content_queue.py": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "e223db1b64cf7c272e0f019fdf05b682134ac93b2a14d73b856263af0eb7e2e2"
+    },
+    "tests/test_glp75_topic_supply_inputs.py": {
+      "kind": "test",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "6e99a1c76196fba4477d306b2938b8696c0f212388b458cdcfa5c28eb694872a"
     }
   }
 }

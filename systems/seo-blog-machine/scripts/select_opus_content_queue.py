@@ -31,7 +31,8 @@ from decision_policy import (  # noqa: E402
 BUSINESS = Path("/home/ubuntu/business")
 DEFAULT_CONFIG = BUSINESS / "systems/seo-blog-machine/config/verticals/glp-clinic-scout.json"
 DEFAULT_QUEUE = BUSINESS / "reports/glp-clinic-scout/seo-blog-machine-20260730/topic-queues/latest.json"
-DEFAULT_STRATEGY_QUEUE = BUSINESS / "reports/glp-clinic-scout/seo-blog-machine-20260804/topic-queues/20260804T120000Z-cluster-rotation.json"
+# Active strategy inputs are maintained source, not age-retained report output.
+DEFAULT_STRATEGY_QUEUE = BUSINESS / "ops/glp/topic-supply-inputs/strategy-queue.json"
 DEFAULT_RUNS = BUSINESS / "reports/glp-clinic-scout/seo-machine"
 DEFAULT_LEDGER = DEFAULT_RUNS / "published-topic-ledger.json"
 DEFAULT_HOLD_LEDGER = DEFAULT_RUNS / "article-hold-ledger.json"

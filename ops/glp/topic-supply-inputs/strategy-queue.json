@@ -10,7 +10,7 @@
     "rounds": 6,
     "queue_items": 60
   },
-  "map_path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-blog-machine-20260804/G12-cluster-map-20260804.json",
+  "map_path": "/home/ubuntu/business/ops/glp/topic-supply-inputs/cluster-map.json",
   "queue": [
     {
       "queue_position": 1,
