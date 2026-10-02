@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 631,
+  "tracked_count": 633,
   "files": {
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
@@ -476,7 +476,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "596e4f582a852d2d3779297369c555b9ebb0e49b852784b54debdc437b961df5"
+      "sha256": "a45651f27051627c433265b1ee87f14aa3384dca489b6fcfb1f974e1f070e00e"
     },
     ".hermes.md": {
       "callers": [],
@@ -1608,12 +1608,26 @@
       "kind": "script",
       "sha256": "470ea1dd5c90b471ef7a6f09c9846329b48369171f1c345c3c367e9ba5006330"
     },
+    "scripts/fable_parent_handoff.py": {
+      "callers": [
+        "scripts/fable_bridge.py --parent-review-handoff"
+      ],
+      "kind": "script",
+      "sha256": "a0ee261b1268ca4e413a5db4ddbf18ea8bca46f32d30cc2d79f7f2cd1f6f9855"
+    },
+    "tests/test_fable_parent_handoff.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "6926f96fa62a011819ee7923729fd88d0e82ad109de9045a6d9bcd417fc8f55e"
+    },
     "scripts/fable_bridge.py": {
       "callers": [
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "91f689e18d4eacf9804dd99e641e924ed0fa791faa501deaa63c37bf544d8f2f"
+      "sha256": "ad13c6ddf4ba17f34495b28bad1327a0e7cb8f8e82892de68b26ed1b5a50f14f"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -2142,7 +2156,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0b196ae714845adab6a7c6a10f8da84f9208095fb843948e50a127c66fe0599e"
+      "sha256": "3c0a3a6cde15d32c59c5d4084bf89eb4bee6249d51699563b84039c04744d332"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3871,13 +3885,6 @@
       ],
       "sha256": "032157a276f12ec819f524d09ec2ecf145a3130a84794ecd0abffbb9bbefe56c"
     },
-    "tests/test_glp44_listing_contract.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
-    },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
       "callers": [
@@ -4232,6 +4239,13 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "8c7b49fddf7065269d8e594c9a839c7be69d6f5a8ef5a27d5fcd757c3532b8cc"
+    },
+    "tests/test_glp44_listing_contract.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
     }
   }
 }
