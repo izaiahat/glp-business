@@ -9,6 +9,13 @@
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
   "files": {
+    "tests/test_glp73_archive_hardlink_manifest.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5ef6511d8422a7dcb0696cb690367ebd8354e004493965bc1d13e690ccef790d"
+    },
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
       "callers": [
@@ -2062,7 +2069,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "d4c2a0bfd0bf4944e3d23da77f047ac09d3abb21c4ad7f188f819a1a66317124"
+      "sha256": "ee6eab73a99a9cb35741cd5ec75f3d39ea588e986a7ddd9bc3ab2f52733680d1"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2089,7 +2096,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "be65909d945445e4d6ac24565151cf62d25fe76e565fd02f4587322ae0d6f204"
+      "sha256": "bac3f79ddf06f94a3702e10baf140f7e12c016254f83a6d10f4a850f849f0b2d"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3936,5 +3943,5 @@
       "sha256": "d8a50b39757208cdb3c34cfb475ab060e97a1a49300b464807584f965a47f105"
     }
   },
-  "tracked_count": 587
+  "tracked_count": 588
 }
