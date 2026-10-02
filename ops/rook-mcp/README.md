@@ -92,9 +92,12 @@ must be checked separately before any later live launch.
 
 Only `reply_to_finch_request` and `read_finch_messages` are exposed and dispatched.
 Reads require explicit allowlisted `channel_id`, retain 25-message/65KB bounds and never
-create assignments. Finch ingress requires a literal mention from Izaiah/Kael/Rook;
-self, webhooks, acknowledgments, handoffs, reply markers and metadata-only reply pings
-are refused. OAuth requires Finch scope **and RBAC**: `finch.requests.read`,
+create assignments. Finch ingress requires a literal mention from Izaiah/Kael/Rook.
+When Discord's `mentions` field is present, it must contain Finch's bot ID; absent
+metadata permits exact content-token fallback, but `mentions=[]` is refused in both
+Finch channels. Rook's suppressed-notification explicit-tag exception is Rook-only,
+not a Finch or Research policy expansion. Self, webhooks, acknowledgments, handoffs,
+reply markers and metadata-only reply pings are refused. OAuth requires Finch scope **and RBAC**: `finch.requests.read`,
 `finch.replies.write`, or `finch.channel.read` as applicable. Rook/Research grants alone
 cannot authorize Finch tools. No arbitrary send, file-read tool, generic Discord API,
 GitHub comments or GitHub/Linear read tools are added.

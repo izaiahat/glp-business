@@ -2001,8 +2001,9 @@ class Application:
             # A literal body token is mandatory: reply pings can add Rook to
             # mentions metadata without an explicit mention in the content.
             # Notification-only senders suppress Discord pings (mentions=[]).
-            # An explicit Rook body tag still requests work; implicit replies do not.
-            suppressed_rook_tag = not self.config.research and mentions == []
+            # Only Rook accepts that explicit body tag; Research/Finch retain
+            # their metadata-present mention gate. Implicit replies never trigger.
+            suppressed_rook_tag = not dot and mentions == []
             mentioned = (re.search(mention_pattern, content) is not None and
                 ('mentions' not in data or suppressed_rook_tag or (isinstance(mentions, list) and any(
                     isinstance(user, dict) and user.get('id') == ROOK_BOT for user in mentions))))

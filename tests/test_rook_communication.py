@@ -1420,6 +1420,18 @@ class TestFinchCommunication:
         assert len(self.app.store.all('requests')) == 3
 
     @pytest.mark.parametrize('channel', ['901', '902'])
+    @pytest.mark.parametrize('mentions, admitted', [
+        (None, True), ([{'id': '903'}], True), ([], False),
+        ([{'id': '999'}], False), ('malformed', False),
+    ])
+    def test_suppressed_rook_tag_exception_does_not_expand_finch(self, channel, mentions, admitted):
+        self.subscribe(channel)
+        extra = {} if mentions is None else {'mentions': mentions}
+        event = self.event(channel=channel, content='<@903> assignment', **extra)
+        assert self.app.ingest(event, self.cursors) == int(admitted)
+        assert len(self.app.store.all('requests')) == int(admitted)
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
     def test_bounded_history_real_rest_own_token_exact_selected_channel(self, channel):
         status, result = self.call('read_finch_messages', {'channel_id': channel, 'message_id': '701'})
         assert status == 200 and result['result']['structuredContent']['channel_id'] == channel
