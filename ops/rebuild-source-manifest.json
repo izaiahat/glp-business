@@ -605,14 +605,14 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
+      "sha256": "0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "be4047627a84dd80efbff33b271a945c4a8e04da133bcfe8dc36bb69c200802f"
+      "sha256": "a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -788,7 +788,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "efe1cc68c12206a2df832148e468c5418edafec473b45d2e60df18aa180aa25d"
+      "sha256": "58653a04c0c331bee1f1a6f43b5da865b02a22593a9edb762914bc2c326a316f"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1651,7 +1651,7 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "d3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795"
+      "sha256": "efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -3605,7 +3605,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "cb3b327f0e96aaac0e21b9c8ead16e150acd00233a9bf5c8f8f24f84efd84402"
+      "sha256": "bb316a423c5dee48f1459cd44fdcbb7d94a53837c76f76505bfab7b4a4d5815d"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
