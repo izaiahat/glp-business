@@ -65,6 +65,8 @@ The maintenance window holds the same consumer locks needed by the registered
 jobs. This command therefore restores/closes it before the registered smoke run,
 within the same invocation. It never runs through a held fence. Failed or
 uncertain runs are not retried; the selected schedule is paused with a reason.
+A durable attempt record prevents repeating the same job/merge SHA, including
+with a different output directory; reconcile an existing attempt before proceeding.
 Native paired schedules are enabled only after both runs succeed. A collector
 failure retains an exact single-entry crontab pause journal; unrelated controls
 are restored by the original window. Ambiguous adoption commits retain the

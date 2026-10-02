@@ -89,18 +89,20 @@ def checked(checkout, root, review_path, authority_path, only, *, generation=Non
         raise RuntimeError('discovery_retained_predecessor_moved')
     local = retain(root / REL)
     state = retain(root / 'ops/.rebuild-sync-state.json')
-    baseline = strict_json(state).get('hashes', {}).get(REL)
-    retained_mode = baseline is None
-    if baseline is not None:
+    baselines = strict_json(state).get('hashes', {})
+    retained_mode = REL not in baselines
+    if not retained_mode:
         if generation is None:
             raise RuntimeError('discovery_baseline_already_present')
+        baseline = baselines[REL]
         from sync_from_repo import reviewed_prior_hashes
         if baseline != digest(local) or baseline not in reviewed_prior_hashes(checkout, REL) | {successor}:
             raise RuntimeError('discovery_known_git_baseline_required')
     elif local != retained or digest(local) != BEFORE:
         raise RuntimeError('discovery_exact_predecessor_required')
     if digest(observed[checkout / REL][0]) != successor:
-        raise RuntimeError('discovery_exact_successor_required')
+        raise RuntimeError('discovery_exact_predecessor_required' if generation is None
+                           else 'discovery_exact_successor_required')
     if (root / manifest).exists():
         retain(root / manifest)
     proposal = {'installer_head': head, 'source_head': source, 'root': str(root),

@@ -214,3 +214,43 @@ def test_committed_wrapper_must_pin_its_selected_source(install_fixture):
     with pytest.raises(RuntimeError, match='wrapper_dependency_pin'):
         installer().apply(candidate, root, hermes, generation, review, output, scheduler)
     assert sha((root / REL).read_bytes()) == BEFORE
+
+
+@pytest.mark.parametrize('known_predecessor', [True, False])
+def test_existing_sibling_without_baseline_requires_git_history(install_fixture, known_predecessor):
+    from dataclasses import replace
+    candidate, root, hermes, generation, review, output, scheduler = install_fixture
+    sibling = 'scripts/affiliate_monday_discovery_card.py'
+    old_hash = generation.hashes[sibling]
+    (candidate / sibling).write_bytes((candidate / sibling).read_bytes() + b'\n# Reviewed sibling successor\n')
+    new_hash = sha((candidate / sibling).read_bytes())
+    (candidate / SNAPSHOT).write_bytes((candidate / SNAPSHOT).read_bytes().replace(old_hash.encode(), new_hash.encode()))
+    manifest = json.loads((candidate / syncer.MANIFEST).read_text())
+    for rel in (sibling, SNAPSHOT):
+        manifest['files'][rel]['sha256'] = sha((candidate / rel).read_bytes())
+    dump(candidate / syncer.MANIFEST, manifest)
+    subprocess.run(['git', '-C', str(candidate), '-c', 'user.name=Fixture', '-c',
+                    'user.email=fixture@example.invalid', 'commit', '-qam', 'Sibling successor'], check=True)
+    source = subprocess.check_output(['git', '-C', str(candidate), 'rev-parse', 'HEAD'], text=True).strip()
+    state = json.loads((root / syncer.STATE).read_text())
+    del state['hashes'][sibling]
+    dump(root / syncer.STATE, state)
+    if not known_predecessor:
+        (root / sibling).write_bytes(b'unknown local sibling edit\n')
+    pins = {path: sha((candidate / path).read_bytes()) for path in generation.paths}
+    proof = {'merge_sha': source}
+    generation = replace(generation, source=source, hashes=pins, proof=proof)
+    generation.proposal.update(source=source, hashes=pins, merge_proof=proof)
+    generation.proposal['before'] = {name: fingerprint(name) for name in generation.proposal['before']}
+    generation.proposal['discovery_plan'] = migration.preview_generation(candidate, root, generation)
+    review['proposal_sha256'] = json_sha(generation.proposal)
+    review['adoption_authority']['proposal_sha256'] = review['proposal_sha256']
+    if known_predecessor:
+        assert installer().apply(candidate, root, hermes, generation, review, output, scheduler)['status'] == 'applied'
+        assert (root / sibling).read_bytes() == (candidate / sibling).read_bytes()
+        assert json.loads((root / syncer.STATE).read_text())['hashes'][sibling] == new_hash
+    else:
+        with pytest.raises(RuntimeError, match='source_preview_refused'):
+            installer().apply(candidate, root, hermes, generation, review, output, scheduler)
+        assert (root / sibling).read_bytes() == b'unknown local sibling edit\n'
+        assert sha((root / REL).read_bytes()) == BEFORE

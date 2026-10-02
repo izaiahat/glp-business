@@ -89,8 +89,16 @@ def apply(checkout, root, hermes, generation, review, output, scheduler):
             current_job()
             if read_regular(wrapper) != previous or drain():
                 raise RuntimeError('discovery_wrapper_or_readers_moved')
+            baselines = json.loads(read_regular(root / syncer.STATE)[0])['hashes']
+            # The retained discovery predecessor has its separate fixed exception.
+            # Existing siblings without a baseline must still pass the ordinary
+            # importer's committed-history admission; a review cannot bless edits.
+            adopted = tuple(path for path in sorted(generation.paths)
+                            if path != migration.REL and path not in baselines
+                            and (root / path).exists())
             kwargs = dict(only=generation.paths, discovery_review=review_path,
-                          discovery_authority=authority_path, ship_generation=generation)
+                          discovery_authority=authority_path, ship_generation=generation,
+                          adopt_reviewed_baseline=adopted)
             if syncer.sync(root, checkout, False, **kwargs) != 0:
                 raise RuntimeError('discovery_source_preview_refused')
             atomic_json(journal, {'schema': SCHEMA, 'state': 'source_install_intent',

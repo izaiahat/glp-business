@@ -154,3 +154,37 @@ def test_later_git_successor_uses_existing_verified_baseline(successor, inputs):
     assert migration.migrate(syncer._sync_locked, root, candidate, True, (), (REL,),
                              review_path, authority_path, generation=generation) == 0
     assert (root / REL).read_bytes() == (candidate / REL).read_bytes()
+
+
+def test_legacy_null_baseline_refuses_before_writes(repo, inputs):
+    root, review_path, authority_path, _ = inputs
+    state = json.loads((root / syncer.STATE).read_text())
+    state['hashes'][REL] = None
+    dump(root / syncer.STATE, state)
+    review = json.loads(review_path.read_text())
+    review['proposal']['state_before_sha256'] = sha((root / syncer.STATE).read_bytes())
+    dump(review_path, review)
+    authority = json.loads(authority_path.read_text())
+    authority['proposal'] = review['proposal']
+    authority['review_sha256'] = sha(review_path.read_bytes())
+    dump(authority_path, authority)
+    before_state = (root / syncer.STATE).read_bytes()
+    with pytest.raises(RuntimeError, match='^discovery_baseline_already_present$'):
+        migration.checked(repo, root, review_path, authority_path, [REL])
+    assert sha((root / REL).read_bytes()) == BEFORE
+    assert (root / syncer.STATE).read_bytes() == before_state
+    assert not (root / 'reports/ops/pin-archive').exists()
+
+
+def test_git_generation_null_baseline_is_not_absence(successor, inputs):
+    candidate, generation = successor
+    root, _, _, _ = inputs
+    state = json.loads((root / syncer.STATE).read_text())
+    state['hashes'][REL] = None
+    dump(root / syncer.STATE, state)
+    before_state = (root / syncer.STATE).read_bytes()
+    with pytest.raises(RuntimeError, match='^discovery_known_git_baseline_required$'):
+        migration.preview_generation(candidate, root, generation)
+    assert sha((root / REL).read_bytes()) == BEFORE
+    assert (root / syncer.STATE).read_bytes() == before_state
+    assert not (root / 'reports/ops/pin-archive').exists()
