@@ -154,3 +154,46 @@ def test_retention_descriptor_cannot_downgrade_its_tier(tmp_path):
     generation = ship.GitGeneration('a' * 40, 'retention', (), {}, {}, proposal)
     with pytest.raises(RuntimeError, match='ship_registered_tier_moved'):
         generation.authorize(None, tmp_path, tmp_path, None)
+
+
+def test_native_fire_fence_spans_window_restore_and_registered_run(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    import glp_ship as ship
+    import glp_ship_runtime as runtime
+    import glp44_scoped_adoption as adopter
+    import maintenance_window as mw
+    held, events = set(), []
+    class Scheduler:
+        @contextmanager
+        def _fire_job_lock(self, jid):
+            held.add(jid)
+            try:
+                yield True
+            finally:
+                held.remove(jid)
+    scheduler = Scheduler()
+    monkeypatch.setattr(mw, 'LinuxBackend', lambda *a: SimpleNamespace(scheduler=lambda: scheduler))
+    class Window:
+        def __init__(self, *a): pass
+        def enter(self): events.append('enter')
+        def exit(self):
+            assert held == {'registered'}, 'restoration admitted a scheduled run before smoke run'
+            events.append('restore')
+        def status(self): return {'state': 'closed'}
+    monkeypatch.setattr(mw, 'MaintenanceWindow', Window)
+    @contextmanager
+    def active(*a): yield object()
+    monkeypatch.setattr(mw, 'require_active_window', active)
+    monkeypatch.setattr(ship, 'preview', lambda *a: {})
+    monkeypatch.setattr(ship, 'zero_diff', lambda *a: None)
+    monkeypatch.setattr(adopter, 'adopt', lambda *a, **k: {'applied': True})
+    def run(*a, **k):
+        assert held == {'registered'}
+        events.append('run')
+        return {'success': True, 'runs': []}
+    monkeypatch.setattr(runtime, 'run_registered', run)
+    generation = SimpleNamespace(proposal={'tier': 'B'}, source='a' * 40, authorize=lambda *a: None)
+    spec = SimpleNamespace(window=True, kind='reporting', name='GLP333', jobs=('registered',))
+    result = ship.apply_generation(tmp_path, tmp_path, tmp_path, spec, generation, None, tmp_path)
+    assert result['success'] and events == ['enter', 'restore', 'run'] and not held

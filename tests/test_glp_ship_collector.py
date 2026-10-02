@@ -205,3 +205,27 @@ def test_registration_with_maintained_four_surface_inventory(tmp_path):
     assert record['job_id'] == f.job_id
     assert record['entry']['source_sha256'][str(f.root / 'scripts/cron_bridge_action.py')]
     assert not f.backend.writes
+
+
+@pytest.mark.parametrize('exit_code', [0, 7])
+def test_transcript_write_failure_still_pauses_without_rerun(tmp_path, monkeypatch, exit_code):
+    f = fixture(tmp_path)
+    record = collector.registration(f.root, f.hermes, backend=f.backend)
+    original_write = collector.atomic_json
+    def fail_transcript(path, data):
+        if Path(path).name == 'execution.json':
+            raise OSError('fixture transcript persistence failed')
+        return original_write(path, data)
+    monkeypatch.setattr(collector, 'atomic_json', fail_transcript)
+    calls = []
+    def run(command, **kwargs):
+        calls.append(command)
+        return subprocess.CompletedProcess(command, exit_code, stdout='fixture output')
+    result = collector.run_registered(f.root, f.hermes, record, f.output,
+                                      backend=f.backend, runner=run)
+    assert not result['success'] and result['paused']
+    assert calls == [f.command] and len(f.backend.writes) == 1
+    assert result['runs'][0]['exit_code'] == exit_code
+    assert result['runs'][0]['transcript_status'] == 'unverified'
+    assert result['transcript_error'] == 'collector_transcript_write_failed:OSError'
+    assert mw.read_journal(result['pause_journal'])['entries'][0]['paused']

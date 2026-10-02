@@ -3984,14 +3984,14 @@
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "3189251461e5fd60a8e9e6a60980e0f62aa9db72718a04e4645939630c4a73ad"
+      "sha256": "a907e3030c588a4c762dd94ef34da57ba1f67531e495b4e9febdab1a2e20fd1f"
     },
     "scripts/glp_ship_collector.py": {
       "kind": "source",
       "callers": [
         "scripts/glp_ship.py"
       ],
-      "sha256": "f3751ec8c275a18d9bf36771261b4e9ec42086f5c3030e1da48306b7a234c75b"
+      "sha256": "904d6c03578dce95a67fd5b4bde0255ad1bdefd7c4dce73b648575f5a8e88baa"
     },
     "scripts/glp_ship_discovery.py": {
       "kind": "source",
@@ -4033,14 +4033,14 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "ca95f3b3f37f5ab97032c79ad2b81ba5b5c15770fcf14d630305bd5757824da1"
+      "sha256": "e3e700966709bb486e6fdc4690c85bf067d1b429b2e57e9fe1e1ce29cca16833"
     },
     "tests/test_glp_ship_collector.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "fea8c38d40d3b3f985e8d464eae2057f0966bb6d7a9094e795ff1b8c943ea19e"
+      "sha256": "01394481bf6a1ed81d677baef9512c6ab028203e3b18ff66a865c5e590a44233"
     },
     "tests/test_glp_ship_discovery.py": {
       "kind": "test",

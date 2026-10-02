@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare or install one registered Git generation. See ops/glp-ship.md."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 import getpass
 import json
 import os
@@ -158,11 +158,23 @@ def zero_diff(checkout, root, hermes, generation, spec):
 def apply_generation(checkout, root, hermes, spec, generation, review, output):
     validate_review(generation.proposal, review)  # Before windows or scheduler effects.
     generation.authorize(review, root, hermes, None)
-    from maintenance_window import LinuxBackend, MaintenanceWindow, default_locks, require_active_window
-    from glp_ship_runtime import run_registered
+    from maintenance_window import LinuxBackend
     journal = output / 'window.json'
     backend = LinuxBackend(root, hermes, journal)
     scheduler = backend.scheduler()
+    # Native fire fences are reentrant. Keep them through restoration and the
+    # manual run so a due occurrence cannot slip into the restore/run gap.
+    with ExitStack() as fences:
+        for jid in sorted(spec.jobs):
+            if not fences.enter_context(scheduler._fire_job_lock(jid)):
+                raise RuntimeError('ship_native_fire_fence_unavailable:' + jid)
+        return _apply_and_run(checkout, root, hermes, spec, generation, review, output,
+                              journal, backend, scheduler)
+
+
+def _apply_and_run(checkout, root, hermes, spec, generation, review, output, journal, backend, scheduler):
+    from maintenance_window import MaintenanceWindow, default_locks, require_active_window
+    from glp_ship_runtime import run_registered
     if spec.window:
         window = MaintenanceWindow(backend, journal, default_locks(root, hermes))
         window.enter()

@@ -200,8 +200,19 @@ def run_registered(root, hermes, record, output, backend=None, runner=None):
            'run_type': 'manual_registered', 'output_path': record['registered_log_path'],
            'transcript_path': str(transcript), 'output_scope': 'registered_shared_log_not_attributed',
            'started_at': started, 'finished_at': time.time()}
-    atomic_json(transcript, {**run, 'captured_process_output': captured, 'error': error})
+    transcript_error = None
+    try:
+        atomic_json(transcript, {**run, 'captured_process_output': captured, 'error': error})
+        run['transcript_status'] = 'saved'
+    except Exception as exc:
+        # A lost receipt is not successful acceptance, even if execution exited
+        # zero. Persistence failure must not bypass the independent hold path.
+        transcript_error = 'collector_transcript_write_failed:' + type(exc).__name__
+        run['transcript_status'] = 'unverified'
+        error = (error + '; ' if error else '') + transcript_error
     result = {'success': error is None and code == 0, 'runs': [run], 'run_type': 'manual_registered'}
+    if transcript_error:
+        result['transcript_error'] = transcript_error
     if not result['success']:
         journal = attempt / 'failure-hold.json'
         result.update(error=error, pause_journal=str(journal))
