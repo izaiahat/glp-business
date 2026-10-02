@@ -21,6 +21,7 @@
 !/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
 !/tests/test_glp44_collector_successor.py
+!/tests/test_f07_registered_weekly_entry.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
 !/ops/glp331-carrier-generation.md

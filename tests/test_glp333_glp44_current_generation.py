@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import glp44_scoped_adoption as pair
 import sync_from_repo as syncer
 
-GENERATION = 'glp333-glp44-reporting-successor-20261002'
-SOURCE = '9e01dde818016c089df4c6ee4dd667b03fe37a28'
+GENERATION = 'f07-identity-publication-20261002'
+SOURCE = '87f681fa7e011a3f6af132ee7a4e27d6778ebbdf'
 NEW_LEAVES = tuple('scripts/affiliate_reporting_' + name + '.py' for name in (
     'admitad', 'clickbank', 'everflow', 'healthtrader', 'partnerstack', 'refersion'))
 EXTRA = ('scripts/affiliate_network_access.py', 'scripts/marketplace_adapters/katalys.py', *NEW_LEAVES)
@@ -62,7 +62,7 @@ def fixture(tmp_path):
     return root, hermes
 
 
-@pytest.mark.parametrize('old', [pair.COLLECTOR_GENERATION, pair.PR119_GENERATION])
+@pytest.mark.parametrize('old', [pair.COLLECTOR_GENERATION, pair.PR119_GENERATION, pair.REPORTING_SUCCESSOR_GENERATION])
 def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old):
     root, hermes = fixture(tmp_path)
     before = snapshot(root, hermes)
@@ -84,8 +84,9 @@ def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old):
 def test_fixed_successor_closes_all_reporting_pins_and_keeps_old_contracts():
     approved, members = pair.generation_contract(GENERATION)
     assert approved == SOURCE and tuple(members) == MEMBERS
-    assert {rel: sha(blob(SOURCE, rel)) for rel in members} == pair.REPORTING_SUCCESSOR_HASHES
+    assert {rel: sha(blob(SOURCE, rel)) for rel in members} == pair.F07_HASHES
     for generation, source, paths, hashes in (
+        (pair.REPORTING_SUCCESSOR_GENERATION, pair.REPORTING_SUCCESSOR_SOURCE, pair.REPORTING_SUCCESSOR_PATHS, pair.REPORTING_SUCCESSOR_HASHES),
         (pair.PR119_GENERATION, pair.PR119_SOURCE, pair.PR119_PATHS, pair.PR119_HASHES),
         (pair.COLLECTOR_GENERATION, pair.COLLECTOR_SOURCE, pair.COLLECTOR_PATHS, pair.COLLECTOR_HASHES),
     ):
@@ -93,7 +94,7 @@ def test_fixed_successor_closes_all_reporting_pins_and_keeps_old_contracts():
         assert {rel: sha(blob(source, rel)) for rel in paths} == hashes
     pins = json.loads(blob(SOURCE, 'ops/glp/reporting-v2/source-manifest.json'))['files']
     for rel in EXTRA:
-        assert pins[str(syncer.DEFAULT_ROOT / rel)] == pair.REPORTING_SUCCESSOR_HASHES[rel]
+        assert pins[str(syncer.DEFAULT_ROOT / rel)] == pair.F07_HASHES[rel]
 
 
 def test_successor_inventory_includes_new_publication_members():
