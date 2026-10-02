@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 627,
+  "tracked_count": 630,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0845cdd0b833b6ff4d628941132befb99af8219d4a83875afa2294041e864503"
+      "sha256": "a75ad3cf36b7507a50412126917f156c39e0c790cdd1c8c1c7e213ede105186e"
     },
     ".hermes.md": {
       "callers": [],
@@ -644,7 +644,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "68f8146b37f8c27f38f2822e8778972d4499cf0ec66acda1b816db21bb4ed815"
+      "sha256": "30bf9bdf04ea4c448f1859e614dbdcec0197ac1a66e1a2a911e4d94e204238e7"
     },
     "ops/glp/reporting-v2/identity-registry.json": {
       "callers": [
@@ -659,7 +659,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "4bc69d87da3e182572e8c728c428d6beae101bb871fd5afc94ee1a216d1b2e1b"
+      "sha256": "c4770afc0ac7b58aca415363012009add2c1cb672eaccc2dfa0a2afe00e7560e"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -835,7 +835,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "b64c05fa30aa0e15528069a883b7919fdaaed0e338c4da2dd5dd3b689822dba9"
+      "sha256": "823cd6654d83b854255de6af2ec7f1e9a713d100e35a12a9bab8889499ad3443"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1622,7 +1622,7 @@
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "91f689e18d4eacf9804dd99e641e924ed0fa791faa501deaa63c37bf544d8f2f"
+      "sha256": "ad13c6ddf4ba17f34495b28bad1327a0e7cb8f8e82892de68b26ed1b5a50f14f"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0b196ae714845adab6a7c6a10f8da84f9208095fb843948e50a127c66fe0599e"
+      "sha256": "3c0a3a6cde15d32c59c5d4084bf89eb4bee6249d51699563b84039c04744d332"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2241,14 +2241,14 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "19ffa95c62340280cdf6f3d02f45ac5933392a52e66a59532b6e09ba7015bdaa"
+      "sha256": "7042cbb1969f040e9598e1b8de34cbdc60d7dc383bb540b0f525e5b76408d0ec"
     },
     "systems/analytics-brain/collector.py": {
       "callers": [
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "683e0576c29e94fefa099ab6563ed7a23511ef0c0677d06bd64dbe3f60991d61"
+      "sha256": "c66e5d45fd08b4c73262c9234edfb34a82fa0725d7b46a1351cca6375d705c66"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -3630,7 +3630,7 @@
         ".github/workflows/glp333-reporting-generation.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "c7a4425ffb54298715f24a9e9876415d3a54d0727957e9b77b5ddd7b210c15d5"
+      "sha256": "0422f8f1b82004b674ea6101a5aaf54181cdc88def421651c193e0e5b06bf0a8"
     },
     "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
       "kind": "documentation",
@@ -3857,7 +3857,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "75b7a055c8168815505d815c880a1e62a194c96f55ac186e54ee33a48580b855"
+      "sha256": "9569ba50f9c078606af25c87b14dbe8f95ee4ef33ef43bb21dfccb10271c3dfc"
     },
     "scripts/affiliate_reporting_admitad.py": {
       "kind": "script",
@@ -4206,6 +4206,27 @@
         ".github/workflows/glp333-network-access.yml"
       ],
       "sha256": "4c0059490b3e3dbf171cba773bc1cc75e201ba85b53900f93a00106a81e545de"
+    },
+    "scripts/fable_parent_handoff.py": {
+      "callers": [
+        "scripts/fable_bridge.py --parent-review-handoff"
+      ],
+      "kind": "script",
+      "sha256": "a0ee261b1268ca4e413a5db4ddbf18ea8bca46f32d30cc2d79f7f2cd1f6f9855"
+    },
+    "tests/test_fable_parent_handoff.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "6926f96fa62a011819ee7923729fd88d0e82ad109de9045a6d9bcd417fc8f55e"
+    },
+    "tests/test_glp44_listing_contract.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
     }
   }
 }
