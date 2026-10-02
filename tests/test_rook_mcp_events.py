@@ -1370,7 +1370,7 @@ class TestSubscriptionsDelivery:
 
     @pytest.mark.parametrize('token', ['<@1554962007059472445>', '<@!1554962007059472445>'])
     @pytest.mark.parametrize('sender_id', ['392067741500309517', '1486880423568211968'])
-    @pytest.mark.parametrize('with_mentions', [True, False])
+    @pytest.mark.parametrize('with_mentions', [True, False, 'suppressed'])
     @pytest.mark.parametrize('message_type', [0, 19])
     def test_rook_user_mention_creates_stripped_request(self, signed_subscription, token, sender_id, with_mentions, message_type):
         m, app, principal, params, deliveries = signed_subscription
@@ -1379,7 +1379,7 @@ class TestSubscriptionsDelivery:
                  'author': {'id': sender_id}, 'type': message_type,
                  'content': f' \t explain this {token} \n<@!{m.ROOK_BOT}>\t'}}
         if with_mentions:
-            event['d']['mentions'] = [{'id': m.ROOK_BOT}]
+            event['d']['mentions'] = [] if with_mentions == 'suppressed' else [{'id': m.ROOK_BOT}]
         assert app.ingest(event, '100') == 1
         assert deliveries[-1][0]['data']['text'] == 'explain this'
         assert deliveries[-1][0]['data']['sender_id'] == sender_id
@@ -1408,7 +1408,6 @@ class TestSubscriptionsDelivery:
         {'content': 'explain this', 'mentions': []},
         {'content': 'explain this'},
         {'content': '<@1554962007059472445>' + 'x' * 2000},
-        {'mentions': []},
         {'mentions': [{'id': '777'}]},
         {'mentions': None},
         {'mentions': {'id': '1554962007059472445'}},

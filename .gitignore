@@ -11,13 +11,16 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/agent_exec.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/tests/test_agent_exec_routing.py
 # GLP337 fixed shared-bridge custody (source only)
 !/scripts/shared_bridge_predecessor_migration.py
 !/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
+!/tests/test_glp44_collector_successor.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
 !/ops/glp331-carrier-generation.md
@@ -68,6 +71,7 @@
 !/.github/workflows/business-source-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
+!/tests/test_glp333_impact_subwindows.py
 !/.gitignore
 !/tools/
 /tools/*
@@ -136,6 +140,7 @@
 !/ops/linear/CONVENTIONS.md
 !/ops/linear/DISCORD-RELAY.md
 !/ops/linear/DISPATCH-TEMPLATE.md
+!/ops/linear/MODEL-ROUTING.md
 !/ops/linear/EXECUTION-STANDARD.md
 !/ops/linear/HERMES-INSTRUCTIONS.md
 !/ops/linear/MCP-AND-NOTIFICATIONS.md
@@ -449,3 +454,17 @@
 !/tests/test_glp331_carrier_closure.py
 !/ops/glp331-carrier-closure.md
 !/.github/workflows/glp331-carrier-closure.yml
+
+# GLP333 read-only API reporting collectors
+!/scripts/affiliate_reporting_admitad.py
+!/scripts/affiliate_reporting_clickbank.py
+!/scripts/affiliate_reporting_healthtrader.py
+!/scripts/affiliate_reporting_partnerstack.py
+!/scripts/affiliate_reporting_refersion.py
+!/scripts/glp_api_collectors_smoke.py
+!/tests/test_api_collectors_clickbank_healthtrader.py
+!/tests/test_api_collectors_partnerstack_admitad.py
+!/tests/test_api_collectors_refersion.py
+!/tests/test_api_collectors_smoke.py
+!/tests/test_api_collectors_wiring.py
+!/ops/glp/reporting-v2/API-COLLECTORS.md

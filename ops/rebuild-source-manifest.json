@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 569,
+  "tracked_count": 590,
   "files": {
     "tests/test_glp337_shared_bridge_generation.py": {
       "kind": "test",
@@ -107,7 +107,7 @@
       "callers": [
         "GLP331 scoped carrier closure; independent exact review required"
       ],
-      "sha256": "d27a06f5e663909cca73463c9bb66988b20995844d02e08e66307244ec841ad8"
+      "sha256": "4ba9a9f146f1adf0beed5f208d9963a54cd839e9d7cf7951ed3677f2e2d44a2a"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
@@ -128,14 +128,14 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "e3cbfd36b92d7f76d5fe94f1731cdc02f913fb7eb9498c023643988e686c00e5"
+      "sha256": "5607f66b600de9ce8d955d59ea30379c02bcddac0bb829f12c0efc482bb9d161"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
       "callers": [
         "GLP331 exact proposal and independent review contract"
       ],
-      "sha256": "9dc515ac2e97a581afb435ea1c9df15718b5d16d4905523b84366cd230159190"
+      "sha256": "c51e904d6e1832a901012eff73b3fc8db96f06c104fd0508f1e483f968b643dc"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
@@ -163,7 +163,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "repository_control",
-      "sha256": "acd1d005e59c832a20b16612a0f01e2ee79b6447cce3d5c8648a1d6949eaaebf"
+      "sha256": "e90673a77e9647345f14cd61d7ddcb4ef905e097bd53975f9bae0fb1c8322858"
     },
     "ops/glp331-program-withdrawal.md": {
       "kind": "documentation",
@@ -177,7 +177,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "documentation",
-      "sha256": "2bf22b391c3b61984851b1ef656899c36b13272a373ab2ce5bc87d253a46c270"
+      "sha256": "d5aae063c90e258af72b4e03ccd1e98084dc53f10e0c3e6e29cbc98819de5236"
     },
     "reports/ops/glp333-network-access-contract-20261001/LIVE-READS-predecessor.json": {
       "callers": [
@@ -205,7 +205,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "c11f19b995c7b71e19d1a43ec78d567128e2616332de87121604e2edef775440"
+      "sha256": "0cd28e9d9ef17ac975218fa13c9d0e60196da270b5a5a36bcbe297873d2fc5f1"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -414,7 +414,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ac107c2e30a5ea690695ea438e3c9d97acf79082a2b6d7df8bf7f403d7bd96d1"
+      "sha256": "bf48efa8ca6cd2f16376fd0b2583f2a3fb629d138e2450ac505a645cedf55db6"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -424,7 +424,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bdf38b5da99c3b4d1a3e029751f718ad242179c55cf779ac0841dd98025cfc6c"
+      "sha256": "65c8291b6068a89b5151fe435446f100417bc85e01875b00402957c988bcb1c4"
     },
     ".hermes.md": {
       "callers": [],
@@ -444,7 +444,7 @@
     "README.md": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3422c63324780d8105c71bd41500cf7ae386ab0320cff47e89a9ec0ad6ff022f"
+      "sha256": "568423248c8a5f563775f6b1fe8810a2ce277146f69f00d67a9dda49fffc6f63"
     },
     "config/affiliate-sites/best-terms-selection.json": {
       "callers": [
@@ -591,14 +591,14 @@
         "scripts/glp_network_revenue_import_v2.py"
       ],
       "kind": "reporting_identity_configuration",
-      "sha256": "93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271"
+      "sha256": "0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "372d3f398223ab6407c46f6808aab932393573357be6f71db3a14961eda99972"
+      "sha256": "dbcd3d3cd3dc9de4d2ddd799fd54527d93d2959aa0a08e3c7adec52734d2acbc"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -774,7 +774,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "27615441a1bb43c0bd258bbd8c55581cf4281d135fa6e765fd943398acaae0ae"
+      "sha256": "55f0fa1c13e607d84b1f91d76dae5190b8ae0968b331100b43963b6348b7b537"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1011,7 +1011,7 @@
     "ops/linear/DISPATCH-TEMPLATE.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "115b26f14ff76289b7992bb19b97ebb0d526ebf6d7e981eba47be7ed901d037d"
+      "sha256": "f1b95c2e802f03583d712beb2366ca5df98e835f97221dac4209c106c171a0a3"
     },
     "ops/linear/EXECUTION-STANDARD.md": {
       "callers": [],
@@ -1036,12 +1036,12 @@
     "ops/linear/ORCHESTRATOR-MANUAL.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "7c0c550e7196a919cc07644da35b10ce24c9cb47f8ce1e0ebb59dd7f782156fb"
+      "sha256": "4ab50d14f0ad6531cb370ab30347620d546634f26ee0e4b7dc43fae31246dbe9"
     },
     "ops/linear/PLANNER-BRIEF.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "3bf2342ecd61bd87bb9e3f9e1002453b62fd5a492771c04ae34696375488def9"
+      "sha256": "12a5bfa71637046f4f0b501af75cd2065625a7f430853c80d54d6b92699a946f"
     },
     "ops/linear/REGISTER-WRITER.md": {
       "callers": [],
@@ -1081,7 +1081,7 @@
     "ops/linear/WORKER-STANDARD.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "475a004aeaf672eb0b24d24a882f7418e93fbb4a2e3de46dbbd6ff915a608f42"
+      "sha256": "9d267d63fea6f9f0f3a9e3dbfa6a6bd12f6afa86341775fdad381a32c22ad9b3"
     },
     "ops/maxbounty-fresh-probe.md": {
       "callers": [
@@ -1597,7 +1597,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
+      "sha256": "07c8279f180c54bae281a7e1007000b7773a9a149a84af21d7a0bb6488d723f6"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -1637,7 +1637,7 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "d3ac1c8aab8c484b41ff73d35e86569ff65611f199377a0becd372d23f345795"
+      "sha256": "6415484a61a00fd5d9c40357a598b0ea7276588cfbca14e2cbe28e4dae1e97c6"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -1659,7 +1659,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05"
+      "sha256": "16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108"
     },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": [
@@ -2075,7 +2075,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "8c22f9149eeba2aeee26301a699c004caa5095ee50c5acdac003a79e638e2ea1"
+      "sha256": "00a370f399a8f0d36088db7dc61bd18ed3fd5015a5a46cb8f26eb44402830d4d"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -2090,7 +2090,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "58422121cecd73aa6c57e5fd48f2c5c9e6d100f9b4896b89b9c157016615d34c"
+      "sha256": "a4c5016d0d55f352a769d317448b28c240fb537fc1b233709700648d75dc4a4c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2828,7 +2828,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "589fdcdcf9c0266a907a864e6206c0cdc1dbc5347d06c01cbe3aa88bd56b56a0"
+      "sha256": "7ad7af886d94b4d97fd006f67db80f920f2aa173a44dc4c1e2c1e6ac526c7bc7"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
       "callers": [
@@ -2915,7 +2915,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0555fc21bdfc5fff3c5a28ee2d41676a32104a6e3a6557b81d67047a213b6f4b"
+      "sha256": "1f77f1f7ee54f7ce974ebe29af99798a8d358c0011d4d2cb8481542add9341e0"
     },
     "tests/test_glp96_research_only_contract.py": {
       "callers": [
@@ -3273,7 +3273,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "75e325bed33366e27ceac9115eb6646dee6fd04e972298cf954ed34adea92617"
+      "sha256": "86bd8a1fd88094bc495ef30fea11703563505810ac4114f8a242bd501094c7e9"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -3568,14 +3568,14 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0d909b1396803cf16b07d62f47305acbd73c3656d59126e6f8ca6a6c3bb24b4a"
+      "sha256": "0bd1c62299f5c65ffa71010fbfdcfcbc3498343486ecc8a79bdf737385d5648d"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "18d7f494c40bec58ebb351cfd6c4ddf5698d01c85cea91cf12bce4af49807864"
+      "sha256": "ac63b72185835835621d852130b4a6b0309b19fbfd7e13f049e41f4bb118f01f"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3808,6 +3808,154 @@
       ],
       "kind": "repository_control",
       "sha256": "0656677017b9ee058fe2b8159b67dcea6e29122aa090fa549992ca3b6140243f"
+    },
+    "scripts/agent_exec.py": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "script",
+      "sha256": "298e4009a33f64c58da8be28bbb7e2acac83fd5e4f19c4d6418bf5d1836ad4cc"
+    },
+    "ops/linear/MODEL-ROUTING.md": {
+      "callers": [
+        "on-demand:orchestrator"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "0c752510e36a1b49cdf97fb67d3f4d5b7efdaa86f95a094fc3ee07adc61a1aff"
+    },
+    "tests/test_agent_exec_routing.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "d8a50b39757208cdb3c34cfb475ab060e97a1a49300b464807584f965a47f105"
+    },
+    "tests/test_glp44_collector_successor.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "797365254430a98957e71a1f8de3413f38acd292378dc3a15b832284bff05204"
+    },
+    "scripts/affiliate_reporting_admitad.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "af037fa009eac0b59566a06a8fdff33dc158eb0e49131a4707fa38bd04de5154"
+    },
+    "scripts/affiliate_reporting_clickbank.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "2bee89360d643781df5afa877bb88f9053c036cf7ce09716cfb83099c93211c8"
+    },
+    "scripts/affiliate_reporting_healthtrader.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "7a06aa6092833cf7530a4d2ca4782b6c3366f0583fc3765a0e8f8615c331467d"
+    },
+    "scripts/affiliate_reporting_partnerstack.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "4240277a9115278da04c976c0f2b26899684ac44d83982ce8d907fec8dc7e7fa"
+    },
+    "scripts/affiliate_reporting_refersion.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "21e277d6bf41ca8484bc8ad91486dfd85900a5f6f4123e30b1440c139d3a3bee"
+    },
+    "scripts/glp_api_collectors_smoke.py": {
+      "kind": "script",
+      "callers": [
+        "manual read-only reporting"
+      ],
+      "sha256": "978533716a109d198af4d5859c990fbdaa4b466de65d5885fde0ea4773b3a5d8"
+    },
+    "tests/test_api_collectors_clickbank_healthtrader.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "3f252110449784fed779216b8082b8c3a93a175c0a5d69e5427f9d3af0902545"
+    },
+    "tests/test_api_collectors_partnerstack_admitad.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "1f0c96107d5b56db8e2d44a32338fb6fd5245a675a9161acad2008c172898f24"
+    },
+    "tests/test_api_collectors_refersion.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "688a5f1ea4cc53d13fda318236cf11d0edce83049bfe53c8e6668353e7884bdc"
+    },
+    "tests/test_api_collectors_smoke.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "37ea8ac0ff35b1810fcfff53e633ad2158d01b7aa9f5a0510e014c76e637859f"
+    },
+    "tests/test_api_collectors_wiring.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "b8b8be912ac1455521e80c73f8979bf9acb3f6dea8d0b3fa1be4e9aedd67abdf"
+    },
+    "ops/glp/reporting-v2/API-COLLECTORS.md": {
+      "kind": "documentation",
+      "callers": [
+        "manual read-only reporting"
+      ],
+      "sha256": "8dcdd41aeda3b0d76a3db318edef51511fc7d52e87735eccc4bcafcfc9974a08"
+    },
+    ".github/workflows/glp93-current-base-consumer.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "28e4c7542eebc492c1d914ba50712b59d4a95f2c9950dc9fbd76468980503265"
+    },
+    "ops/glp93-current-base-consumer.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "368846da60dd77bd7cfed68306876ff6f1bc0868b8ee5104da95183c1f6615f7"
+    },
+    "tests/test_glp93_current_base_consumer.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp93-current-base-consumer.yml"
+      ],
+      "sha256": "a3f4cb73f5070c92a1cdc7f33e174e1aa3be1e32f201557500863b37a6f590c8"
+    },
+    "tests/test_pr148_reporting_followups.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "45d54ca4b582a6f7d5fe0b05d57bbd622f975263adda82c7648b2a4f4e3e6875"
+    },
+    "tests/test_glp333_impact_subwindows.py": {
+      "callers": [
+        "GLP-333 read-only network access contract"
+      ],
+      "kind": "test",
+      "sha256": "3e0001a742ff76f7f09ee11fc8a456a070844d01913c7c8931eb976bf46c3eb7"
     }
   }
 }
