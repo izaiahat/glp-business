@@ -15,7 +15,10 @@ Coverage = Literal['COMPLETE', 'PARTIAL', 'UNKNOWN']
 # The scheduler roster selects accounts; this tuple identifies reviewed readers.
 ADDITIONAL_REPORTING_NETWORKS = ('partnerstack', 'admitad', 'clickbank', 'refersion', 'healthtrader')
 REPORTING_TIMEZONES = {'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
-                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN'}
+                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN',
+                      'everflow':'UNKNOWN_TIMEZONE_ID_UNVERIFIED'}
+# Four isolated Everflow partner accounts read by one shared parser module.
+EVERFLOW_TENANTS = ('everflow_orderly', 'everflow_ro', 'everflow_eden', 'everflow_reverse_health')
 
 
 @dataclass(frozen=True)
@@ -129,6 +132,10 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
         from importlib import import_module
         return import_module('affiliate_reporting_' + network).collect(
             transport, start=start, end=end, deadline=deadline, max_requests=max_requests)
+    if network in EVERFLOW_TENANTS:
+        from importlib import import_module
+        return import_module('affiliate_reporting_everflow').collect(
+            transport, tenant=network, start=start, end=end, deadline=deadline, max_requests=max_requests)
     if network != 'awin':
         return _other_earnings(network, transport, start=start, end=end,
                                deadline=deadline, max_requests=max_requests, **kwargs)
@@ -356,6 +363,8 @@ def weekly_collectors(names, transport):
                     profile_binding_source='retained S2 Katalys account read 2026-09-08' if network == 'katalys' else None)
                 if network in ADDITIONAL_REPORTING_NETWORKS:
                     page['reporting_timezone'] = REPORTING_TIMEZONES[network]
+                if network in EVERFLOW_TENANTS:
+                    page['reporting_timezone'] = REPORTING_TIMEZONES['everflow']
                 sink(page)
                 observations.append(page)
                 if any(r['http_status'] in (401,403,429) for r in result.receipts):
@@ -408,12 +417,12 @@ class ReadTransport:
             'api.clickbank.com': r'/rest/1\.3/quickstats/list',
         }
         post = {'https://commissions.api.cj.com/query', 'https://api.katalys.com/v1/report/conversions',
-                'https://graphql.refersion.com'}
+                'https://graphql.refersion.com', 'https://api.eflow.team/v1/affiliates/reporting/conversions'}
         valid = (method == 'GET' and parsed.hostname in routes and
                  re.fullmatch(routes[parsed.hostname], parsed.path))
         if method == 'POST' and url in post:
             body = kwargs.get('json_body', {})
-            valid = url.startswith('https://api.katalys.com/') or (
+            valid = url.startswith(('https://api.katalys.com/', 'https://api.eflow.team/')) or (
                 isinstance(body.get('query'), str) and
                 not re.search(r'\b(mutation|subscription)\b', body['query'], re.I))
         if (not valid or parsed.scheme != 'https' or parsed.query or parsed.fragment or
