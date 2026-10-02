@@ -79,7 +79,16 @@ def collect(transport, *, start, end, deadline=None, max_requests=32):
                         'endDate':(b-timedelta(days=1)).date().isoformat()})
             if response.status not in (200,206):
                 raise ValueError('unexpected_status')
-            rows = _rows(response.json(), a, b, seen)
+            document = response.json()
+            # The bounded live read returned literal JSON null (not [] or an
+            # accountData envelope). The official Quickstats contract does not
+            # establish an empty population from null; never normalize to zero.
+            if document is None:
+                return AccessResult('clickbank','conversions_earnings','SUPPORTED',SOURCE,
+                    coverage='UNKNOWN',receipts=tuple(t.receipts),
+                    reason='HTTP200_NULL_BODY_NO_POPULATION_PROOF',
+                    account_binding='CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY')
+            rows = _rows(document, a, b, seen)
             records.extend(rows)
             if response.status == 200:
                 break
