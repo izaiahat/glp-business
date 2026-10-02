@@ -10,7 +10,7 @@ check_source() {
 }
 check_source scripts/glp_affiliate_weekly_reporting_job.py 79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18
 check_source ops/glp/reporting-v2/source-manifest.json a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530
-check_source ops/glp/reporting-v2/identity-registry.json 93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271
+check_source ops/glp/reporting-v2/identity-registry.json 0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513
 check_source reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json 9e0bc9ba3f1910e1f5e540bcbfcaa1c344a27366fbc0209ee55972ef4628a799
 args=(--live-network-readonly)
 if (( $# )); then

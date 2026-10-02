@@ -28,7 +28,7 @@ import sync_from_repo as syncer
 from glp_ship_registry import REPORTING_PATHS as SHIP_REPORTING_PATHS
 
 # Current producer with the immutable PR119 reporting cohort, retained in history.
-PR119_PRODUCER_SOURCE = 'b114dee30bf20d1ae983c086b593c839829d7f79'
+PR119_PRODUCER_SOURCE = '6b20392d2d30978a7c89aa4a31c89d740d615b6c'
 
 EXTRA = {
     'ops/glp/reporting-v2/identity-registry.json',
