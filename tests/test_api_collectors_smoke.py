@@ -27,6 +27,9 @@ def test_smoke_records_only_http_counts_and_never_retries(monkeypatch,tmp_path):
     result=smoke.run_smoke(output,as_of=datetime(2026,10,2,tzinfo=timezone.utc),transport_factory=SyntheticTransport)
     assert result['start_inclusive']=='2026-09-21T00:00:00+00:00'
     assert result['end_exclusive']=='2026-09-28T00:00:00+00:00'
+    assert result['requested_window_timezone']=='UTC'
+    assert result['networks']['clickbank']['source_reporting_timezone']=='UNKNOWN_VENDOR_CALENDAR'
+    assert result['networks']['admitad']['source_reporting_timezone']=='UNKNOWN'
     assert len(result['networks'])==5
     assert all(kwargs['max_requests']==1 for _,kwargs in calls)
     assert result['networks']['partnerstack']['http_status']==200
@@ -37,3 +40,8 @@ def test_smoke_records_only_http_counts_and_never_retries(monkeypatch,tmp_path):
     with pytest.raises(FileExistsError):
         smoke.run_smoke(output,transport_factory=SyntheticTransport)
     assert len(calls)==5
+
+def test_smoke_http200_provider_error_does_not_claim_zero_rows():
+    import glp_api_collectors_smoke as smoke
+    response=_base.json_response({'status':400,'data':{'items':[]}})
+    assert smoke._row_count('partnerstack',response) is None

@@ -14,6 +14,8 @@ Coverage = Literal['COMPLETE', 'PARTIAL', 'UNKNOWN']
 
 # The scheduler roster selects accounts; this tuple identifies reviewed readers.
 ADDITIONAL_REPORTING_NETWORKS = ('partnerstack', 'admitad', 'clickbank', 'refersion', 'healthtrader')
+REPORTING_TIMEZONES = {'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
+                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN'}
 
 
 @dataclass(frozen=True)
@@ -351,9 +353,7 @@ def weekly_collectors(names, transport):
                     account_scope_complete=False,financial_classification='UNKNOWN',
                     profile_binding_source='retained S2 Katalys account read 2026-09-08' if network == 'katalys' else None)
                 if network in ADDITIONAL_REPORTING_NETWORKS:
-                    page['reporting_timezone'] = {
-                        'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
-                        'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN'}[network]
+                    page['reporting_timezone'] = REPORTING_TIMEZONES[network]
                 sink(page)
                 observations.append(page)
                 if any(r['http_status'] in (401,403,429) for r in result.receipts):

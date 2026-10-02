@@ -10,7 +10,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from affiliate_network_access import ADDITIONAL_REPORTING_NETWORKS, conversions_earnings
+from affiliate_network_access import ADDITIONAL_REPORTING_NETWORKS, REPORTING_TIMEZONES, conversions_earnings
 from glp_affiliate_weekly_reporting import save, windows
 from marketplace_adapters._base import RequestsTransport
 
@@ -20,7 +20,9 @@ def _row_count(network, response):
         return None
     try:
         document=response.json()
-        if isinstance(document,dict) and (document.get('error') or document.get('errors')):
+        if isinstance(document,dict) and (document.get('error') or document.get('errors')
+                or document.get('success') is False
+                or document.get('status') not in (None,200,'200','success')):
             return None
         if network == 'partnerstack':
             rows=document.get('data',{}).get('items')
@@ -69,7 +71,7 @@ def run_smoke(output, *, as_of=None, transport_factory=RequestsTransport):
     window=windows(as_of)
     report={'schema':'affiliate-api-smoke-v1','captured_at':as_of.isoformat(),
         'start_inclusive':window['week_start'],'end_exclusive':window['end_exclusive'],
-        'reporting_timezone':'UTC','count_scope':'SINGLE_RESPONSE_NOT_COMPLETE_PERIOD',
+        'requested_window_timezone':'UTC','count_scope':'SINGLE_RESPONSE_NOT_COMPLETE_PERIOD',
         'provider_mutations':0,'tracking_clicks':0,'networks':{}}
     save(output,report)
     for network in ADDITIONAL_REPORTING_NETWORKS:
@@ -77,6 +79,7 @@ def run_smoke(output, *, as_of=None, transport_factory=RequestsTransport):
         result=conversions_earnings(network,transport,start=window['week_start'],
             end=window['end_exclusive'],deadline=time.monotonic()+35,max_requests=1)
         report['networks'][network]={'http_status':transport.http_status,'row_count':transport.row_count,
+            'source_reporting_timezone':REPORTING_TIMEZONES[network],
             'request_count':transport.calls,'coverage':result.coverage,'reason':result.reason,
             'report_complete_period':result.report_complete_period}
         save(output,report)

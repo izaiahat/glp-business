@@ -212,7 +212,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "bd1b548a2b46fbcfa7380db031bd60dbcdc9cc3a45669c116a18fb7898468b48"
+      "sha256": "b066ebd07882617ed975009407b6c2eca58ca0339058ae976ca6e4216cbbd125"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -605,7 +605,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "6e9c594ccbfb34c9db34a0ff7587e54846ed9318589abbb1e747fd5517d66b19"
+      "sha256": "cb6320da7b6862fd20828da185096854e93e1f86ca073a9f678b8bc3460026e0"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -781,7 +781,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "f74f927366fd4a8eb176489bd4fbcca5a00c60cc6f920df79319f6be6fe552f1"
+      "sha256": "bc11194bd952c4346d3b3933db2d4706035e2d67ba6d4e8dbba680830cf56a2a"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1604,7 +1604,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "75d005fcae2b7733b2bc2fafe066fec56e147aa8bfcd394f1a1600a2058520ac"
+      "sha256": "b7bb8452cf4fd07ab0f8f4efd6f0ca14b6435cc55532c2e48c1e11b9590f09af"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -3575,7 +3575,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "51007ef5a05cfbf931635b6943f63d5c96e2c8def4980c25d5a648aca5f8a5f4"
+      "sha256": "aba7d4f0b3b4bbd7be00dab8c30cba9eea7dd7776c77072c8f0215012c1f6668"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -3823,7 +3823,7 @@
       "callers": [
         "manual read-only reporting"
       ],
-      "sha256": "57e060aabb348ad1d571b93990717510116f9363497fe7b41bfb8aa84f2ce8d8"
+      "sha256": "bfe57d37e950dcbcec0504ce013b69fa0f58ed6b05ef3aa8e2850d1762267ea4"
     },
     "tests/test_api_collectors_clickbank_healthtrader.py": {
       "kind": "test",
@@ -3855,7 +3855,7 @@
         "scripts/run_tests.sh",
         ".github/workflows/glp333-reporting-generation.yml"
       ],
-      "sha256": "f45e17746fb74459767f028a19e667d0e207f36be4c8292d2cf95d215e7bf968"
+      "sha256": "37ea8ac0ff35b1810fcfff53e633ad2158d01b7aa9f5a0510e014c76e637859f"
     },
     "tests/test_api_collectors_wiring.py": {
       "kind": "test",

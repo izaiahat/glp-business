@@ -26,6 +26,9 @@ import maintenance_inventory as inventory
 import maintenance_window as window_module
 import sync_from_repo as syncer
 
+# Maintained producer after PR142, with the immutable PR119 reporting cohort.
+PR119_PRODUCER_SOURCE = '488eeffd8a01f2fdb2fb19abf95636ad33829851'
+
 EXTRA = {
     'ops/glp/reporting-v2/identity-registry.json',
     'scripts/glp_affiliate_weekly_reporting.py',
@@ -39,6 +42,11 @@ def sha(body):
 
 def blob(ref, rel):
     return subprocess.check_output(['git', '-C', str(ROOT), 'show', ref + ':' + rel])
+
+
+def test_reporting_prerequisite_binds_merged_collector():
+    rel = 'systems/analytics-brain/collector.py'
+    assert pair.PR119_PREREQUISITES[rel] == sha(blob('04a875148dbf260e1d91c36452c9f3b3cfcb7aa8', rel))
 
 
 def put(path, body, mode=0o600):
@@ -77,6 +85,13 @@ class PortableScheduler:
 
 
 def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
+    # Exercise the historical adoption against a real committed candidate,
+    # independently of later reporting successor bytes in this checkout.
+    checkout = tmp_path / 'reporting-candidate'
+    subprocess.run(['git', 'clone', '--shared', '--no-checkout', '--quiet', str(ROOT), str(checkout)], check=True)
+    subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', PR119_PRODUCER_SOURCE], check=True)
+    assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
+    assert {rel: sha((checkout / rel).read_bytes()) for rel in pair.PR119_HASHES} == pair.PR119_HASHES
     root, hermes = tmp_path / 'business', tmp_path / 'hermes'
     root.mkdir()
     hermes.mkdir()
@@ -89,7 +104,8 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
         assert sha(body) == expected
         put(root / rel, body)
     for rel, expected in pair.PR119_PREREQUISITES.items():
-        body = blob(pair.APPROVED, rel)
+        ref = '04a875148dbf260e1d91c36452c9f3b3cfcb7aa8' if rel == 'systems/analytics-brain/collector.py' else pair.APPROVED
+        body = blob(ref, rel)
         assert sha(body) == expected
         put(root / rel, body)
     for rel, expected in pair.PR119_BEFORE.items():
@@ -119,7 +135,7 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
             body = blob(ref, rel)
             assert sha(body) == expected
             put(root / rel, body, 0o640)
-    put(root / syncer.MANIFEST, (ROOT / syncer.MANIFEST).read_bytes())
+    put(root / syncer.MANIFEST, (checkout / syncer.MANIFEST).read_bytes())
     put(root / 'scripts/unselected.py', b'not selected\n')
     hashes = {str(p.relative_to(root)): sha(p.read_bytes()) for p in root.rglob('*') if p.is_file()}
     if pr71_predecessor:
@@ -202,13 +218,13 @@ def generation_fixture(tmp_path, monkeypatch, *, pr71_predecessor=False):
     assert window.status()['verified']
     assert set(backend.inventory()['coverage']) == {'hermes', 'crontab', 'systemd', 'n8n'}
     saves.clear()
-    return SimpleNamespace(root=root, hermes=hermes, registry=registry, scheduler=scheduler,
+    return SimpleNamespace(root=root, hermes=hermes, checkout=checkout, registry=registry, scheduler=scheduler,
                            window=window, backend=backend, journal=journal, saves=saves, native=native)
 
 
 def preview(f):
     with window_module.require_active_window(f.journal, f.root, f.hermes) as active:
-        return pair.plan(ROOT, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)[0]
+        return pair.plan(f.checkout, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)[0]
 
 
 def acceptance(proposal):
@@ -224,7 +240,7 @@ def acceptance(proposal):
 
 
 def apply(f, review):
-    return pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler,
+    return pair.adopt(f.checkout, f.root, f.hermes, review, scheduler=f.scheduler,
                       window=f.journal, generation=pair.PR119_GENERATION)
 
 
@@ -236,8 +252,10 @@ def payloads(f):
 def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
     f = generation_fixture(tmp_path, monkeypatch, pr71_predecessor=True)
     checkout_before = {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS}
-    assert sha(checkout_before['ops/glp/reporting-v2/source-manifest.json']) == pair.PR119_HASHES['ops/glp/reporting-v2/source-manifest.json']
-    assert sha(checkout_before[pair.SNAPSHOT]) == pair.PR119_HASHES[pair.SNAPSHOT]
+    # The current checkout may carry a later reporting successor. Historical
+    # PR119 approval remains bound to its immutable source, independently of
+    # the unchanged-checkout assertion below.
+    assert {rel: sha(blob(pair.PR119_SOURCE, rel)) for rel in pair.PR119_HASHES} == pair.PR119_HASHES
     approved = {rel: blob(pair.APPROVED, rel) for rel in pair.PATHS}
     try:
         before = payloads(f)
@@ -245,7 +263,7 @@ def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
             # Before the fix this is the real V6 approved_source_moved refusal.
             proposal = pair.plan(ROOT, f.root, f.hermes, window=active)[0]
             with pytest.raises(RuntimeError, match='glp44_prerequisite_not_adopted'):
-                pair.plan(ROOT, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)
+                pair.plan(f.checkout, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)
         assert payloads(f) == before and not f.saves
         assert proposal['source_sha256'] == {rel: sha(body) for rel, body in approved.items()}
         assert proposal['wrapper_sha256'] == pair.PR119_BEFORE[pair.SNAPSHOT]
@@ -284,8 +302,27 @@ def test_pr71_from_advanced_main_uses_immutable_cohort(tmp_path, monkeypatch):
             pair.adopt(ROOT, f.root, f.hermes, review, scheduler=f.scheduler, window=f.journal)
         assert payloads(f) == landed and len(f.saves) == 1
         assert {rel: (ROOT / rel).read_bytes() for rel in pair.PATHS} == checkout_before
-        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == pair.PR119_PREREQUISITES
+        # PR71 remains immutable; only the successor requires PR142's collector.
+        assert {rel: sha((f.root / rel).read_bytes()) for rel in pair.PR119_PREREQUISITES} == {
+            rel: sha(blob(pair.APPROVED, rel)) for rel in pair.PR119_PREREQUISITES
+        }
         assert all(sha((f.root / rel).read_bytes()) == expected for rel, expected in pair.PR119_BEFORE.items())
+    finally:
+        f.window.release_locks()
+
+
+def test_current_reporting_successor_is_refused_for_historical_pr119_before_writes(tmp_path, monkeypatch):
+    checkout_before = {rel: (ROOT / rel).read_bytes() for rel in pair.PR119_PATHS}
+    assert any(sha(body) != pair.PR119_HASHES[rel] for rel, body in checkout_before.items())
+    f = generation_fixture(tmp_path, monkeypatch)
+    try:
+        before = payloads(f)
+        with window_module.require_active_window(f.journal, f.root, f.hermes) as active:
+            with pytest.raises(RuntimeError, match='approved_source_moved:'):
+                pair.plan(ROOT, f.root, f.hermes, window=active, generation=pair.PR119_GENERATION)
+        assert payloads(f) == before and not f.saves
+        assert not (f.root / 'reports/ops/pin-archive').exists()
+        assert {rel: (ROOT / rel).read_bytes() for rel in pair.PR119_PATHS} == checkout_before
     finally:
         f.window.release_locks()
 
@@ -427,7 +464,7 @@ def test_exact_target_and_producer_manifest_binding(tmp_path, monkeypatch):
             'root': str(f.root.resolve()), 'hermes': str(f.hermes.resolve()),
             'registry': str(f.registry.resolve()), 'journal': str(f.journal.resolve()),
         }
-        assert proposal.get('producer_source_manifest_sha256') == sha((ROOT / syncer.MANIFEST).read_bytes())
+        assert proposal.get('producer_source_manifest_sha256') == sha((f.checkout / syncer.MANIFEST).read_bytes())
         review = acceptance(proposal)
         review['target']['registry'] = str(f.root / 'different-store.json')
         before = payloads(f)
