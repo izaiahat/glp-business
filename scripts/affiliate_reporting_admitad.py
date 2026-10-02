@@ -1,9 +1,10 @@
-"""Admitad publisher action reports using an already cached Bearer token only.
+"""Admitad publisher actions: cached bearer or one client-credentials exchange.
 
-Official contract: https://developers.mitgo.com/hc/en-us/articles/
-34481279018130-Publisher-reports; limit cap 500: 34481238241554-Limit-offset-parameters.
-Date-only filters and timezone-free timestamps do not prove UTC window coverage.
-Client credentials are never used to mint or refresh a token.
+Official reports: https://developers.mitgo.com/hc/en-us/articles/34481279018130-Publisher-reports
+Client authorization: https://developers.mitgo.com/hc/en-us/articles/34481345606546-Client-authorization
+Only the read-only statistics scope is requested. Tokens remain in memory;
+no credential-file writes, refresh/retry, or token bodies in receipts.
+Date-only filters and timezone-free timestamps do not prove UTC coverage.
 """
 from datetime import datetime, timedelta
 from affiliate_network_access import AccessResult, ReadTransport, ProviderResponseError, _window
@@ -14,10 +15,39 @@ import re
 API='https://api.admitad.com/statistics/actions/'
 
 
-def _headers():
-    token=_base.secret_text('affiliate-marketplaces','admitad','access_token').strip()
+def _headers(t):
+    import time
+    try:
+        token=_base.secret_text('affiliate-marketplaces','admitad','access_token').strip()
+    except FileNotFoundError:
+        token=''
     if not token:
-        raise FileNotFoundError('cached_token_missing')
+        client=_base.secret_text('affiliate-marketplaces','admitad','client_id').strip()
+        secret=_base.secret_text('affiliate-marketplaces','admitad','client_secret').strip()
+        if not client or not secret:
+            raise FileNotFoundError('cached_token_missing')
+        if t.max_requests < 1 or time.monotonic() >= t.deadline:
+            raise ValueError('read_budget_exhausted')
+        # Authentication is separate from the reporting read budget. Fixed HTTPS
+        # origin and no redirects; its secret response is never a page receipt.
+        raw=t.transport
+        if isinstance(raw,_base.RequestsTransport):
+            raw._sess().max_redirects=0
+        request=getattr(raw,'auth_request',raw.request)
+        response=request('POST','https://api.admitad.com/token/',
+            auth=(client,secret),headers={'Accept':'application/json'},
+            data={'grant_type':'client_credentials','client_id':client,'scope':'statistics'},
+            timeout=max(.1,min(30,t.deadline-time.monotonic())))
+        if response.status != 200:
+            raise ProviderResponseError('token_exchange_failed_no_retry')
+        doc=response.json()
+        if (not isinstance(doc,dict) or doc.get('error') or
+                not isinstance(doc.get('access_token'),str) or not doc['access_token'].strip() or
+                str(doc.get('token_type','')).casefold() != 'bearer' or
+                not isinstance(doc.get('scope'),str) or 'statistics' not in doc['scope'].split() or
+                type(doc.get('expires_in')) is not int or doc['expires_in'] <= 0):
+            raise ProviderResponseError('token_schema_or_scope_unproven')
+        token=doc['access_token'].strip()
     return {'Authorization':'Bearer '+token}
 
 
@@ -47,7 +77,7 @@ def collect(transport, *, start, end, deadline=None, max_requests=32):
         if a.hour or a.minute or a.second or b.hour or b.minute or b.second:
             raise ValueError('calendar_boundaries_required')
         try:
-            headers=_headers()
+            headers=_headers(t)
         except FileNotFoundError:
             return AccessResult('admitad','conversions_earnings','SUPPORTED',API,
                 account_binding=binding,reason='CACHED_ACCESS_TOKEN_MISSING_NO_TOKEN_MINT')

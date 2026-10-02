@@ -400,7 +400,7 @@ class ReadTransport:
             'link-search.api.cj.com': r'/v2/link-search',
             'login.affiliatinetwork.com': r'/affiliates/api/(Offers/(Feed|Campaign|Event)|Creatives/GetCode|Reports/Conversions)',
             'api.partnerize.com': r'/(user/publisher/1100l432092/campaign/(approved|pending|rejected|t)|v2/publishers/1100l432092/campaigns/terms|reference/publisher/camref/1100l432092|reporting/report_publisher/publisher/1100l432092/conversion.json)',
-            'api.healthtrader.com': r'/affiliates/v1/offers/list',
+            'api.healthtrader.com': r'/affiliates/v1/(offers/list|conversions/search)',
             'api.partnerstack.com': r'/api/v2/(rewards|transactions|payouts)',
             'api.admitad.com': r'/statistics/actions/',
             'api.clickbank.com': r'/rest/1\.3/quickstats/list',

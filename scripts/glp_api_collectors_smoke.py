@@ -28,6 +28,8 @@ def _row_count(network, response):
             rows=document.get('data',{}).get('items')
         elif network == 'admitad':
             rows=document.get('results')
+        elif network == 'healthtrader':
+            rows=document.get('conversions')
         elif network == 'refersion':
             rows=document.get('data',{}).get('conversions')
         elif network == 'clickbank':
@@ -49,8 +51,19 @@ class OneCallTransport:
         self.calls=0
         self.http_status=None
         self.row_count=None
+        self.auth_calls=0
+        self.auth_http_status=None
         if isinstance(transport,RequestsTransport):
             transport._sess().max_redirects=0
+
+    def auth_request(self, method, url, **kwargs):
+        if (self.network != 'admitad' or method != 'POST' or
+                url != 'https://api.admitad.com/token/' or self.auth_calls or self.calls):
+            raise ValueError('smoke_auth_route_or_budget')
+        self.auth_calls+=1
+        response=self.transport.request(method,url,**kwargs)
+        self.auth_http_status=response.status
+        return response
 
     def request(self, method, url, **kwargs):
         if self.calls:
@@ -80,7 +93,8 @@ def run_smoke(output, *, as_of=None, transport_factory=RequestsTransport):
             end=window['end_exclusive'],deadline=time.monotonic()+35,max_requests=1)
         report['networks'][network]={'http_status':transport.http_status,'row_count':transport.row_count,
             'source_reporting_timezone':REPORTING_TIMEZONES[network],
-            'request_count':transport.calls,'coverage':result.coverage,'reason':result.reason,
+            'request_count':transport.calls,'auth_request_count':transport.auth_calls,
+            'auth_http_status':transport.auth_http_status,'coverage':result.coverage,'reason':result.reason,
             'report_complete_period':result.report_complete_period}
         save(output,report)
     return report
