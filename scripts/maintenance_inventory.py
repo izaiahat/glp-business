@@ -28,13 +28,14 @@ class InventoryError(RuntimeError):
 def affected_paths(root: Path, hermes: Path) -> set[Path]:
     paths = {root / 'ops/.rebuild-sync-state.json'}
     for filename in ('glp44_scoped_adoption.py', 'glp73_paired_adoption.py', 'glp331_carrier_adoption.py',
-                     'glp345_a4_adoption.py'):
+                     'glp_ship_registry.py', 'glp345_a4_adoption.py'):
         tree = ast.parse((Path(__file__).parent / filename).read_text())
         for node in tree.body:
             if not isinstance(node, ast.Assign):
                 continue
             names = {n.id for n in node.targets if isinstance(n, ast.Name)}
             if ('PATHS' in names or
+                    (filename == 'glp_ship_registry.py' and 'REPORTING_PATHS' in names) or
                     (filename == 'glp73_paired_adoption.py' and 'RETENTION_PATHS' in names) or
                     (filename == 'glp44_scoped_adoption.py' and names & {'PR119_PATHS', 'GLP331_PATHS', 'GLP337_PATHS', 'REPORTING_SUCCESSOR_EXTRA_PATHS'})):
                 paths.update(root / p for p in ast.literal_eval(node.value))
