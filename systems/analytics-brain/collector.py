@@ -1351,8 +1351,8 @@ def _bound_listing_contracts(release: Path, control: dict[str, Any],
         raise RuntimeError("affiliate_listing_release_changed")
     rows = read_json(Path(pointer["manifest"]["path"]))["release_rows"]
     seals = {row["path"]: row["sha256"] for row in rows}
-    # Imports execute code: validate sealed native modules BEFORE importing them.
-    # Data and capture reads are separately hash-checked at the real read boundary.
+    # Retain the source preflight, but it is not the module-consumption boundary.
+    # Node's synchronous load hook below authenticates the actual evaluated bytes.
     for source in (release / "src").rglob("*"):
         if source.is_file():
             name = source.relative_to(release).as_posix()
@@ -1362,7 +1362,7 @@ def _bound_listing_contracts(release: Path, control: dict[str, Any],
     script = r'''
 import fs from 'node:fs';
 import cp from 'node:child_process';
-import {syncBuiltinESMExports} from 'node:module';
+import {syncBuiltinESMExports, registerHooks, isBuiltin} from 'node:module';
 import {createHash} from 'node:crypto';
 import {pathToFileURL, fileURLToPath} from 'node:url';
 import path from 'node:path';
@@ -1390,6 +1390,36 @@ for(const key of ['writeFileSync','appendFileSync','renameSync','unlinkSync','rm
 for(const key of ['exec','execSync','execFile','execFileSync','spawn','spawnSync','fork']) cp[key]=deny;
 globalThis.fetch=deny;
 syncBuiltinESMExports();
+// Node >=22.15 registerHooks runs in-thread, so caught import failures share
+// the data-read failure latch. Check nextLoad's source, not a second path read:
+// this is the exact buffer Node will evaluate, including dependency imports.
+const moduleName=url=>{
+  if(url.startsWith('node:')&&isBuiltin(url)) return null;
+  if(!url.startsWith('file:')) return fail('module-url:'+url);
+  const name=path.relative(root,fileURLToPath(url));
+  if(path.isAbsolute(name)||name==='..'||name.startsWith('..'+path.sep)||!input.seals[name]) return fail('module-unbound:'+name);
+  return name;
+};
+registerHooks({
+  resolve(specifier,context,nextResolve){
+    let result;
+    try { result=nextResolve(specifier,context); } catch { return fail('module-resolve:'+specifier); }
+    moduleName(result.url);
+    return result;
+  },
+  load(url,context,nextLoad){
+    const name=moduleName(url);
+    let result;
+    try { result=nextLoad(url,context); } catch { return fail('module-load:'+url); }
+    if(name!==null){
+      if(!['module','json'].includes(result.format)||!(typeof result.source==='string'||ArrayBuffer.isView(result.source)||result.source instanceof ArrayBuffer)) return fail('module-source:'+name);
+      const bytes=result.source instanceof ArrayBuffer?new Uint8Array(result.source):result.source;
+      if(createHash('sha256').update(bytes).digest('hex')!==input.seals[name]) return fail('module-drift:'+name);
+      if(result.format==='json') { try { JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return fail('module-json:'+name); } }
+    }
+    return result;
+  }
+});
 const json=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
 const load=name=>import(pathToFileURL(path.join(root,'src',name)));
 const phase=await load('phase3-page-graph.mjs');
@@ -1416,7 +1446,8 @@ console.log(JSON.stringify(result));
 '''
     result = subprocess.run(["node", "--input-type=module", "-e", script, str(release)],
                             input=json.dumps({"seals": seals, "covered": sorted(covered)}),
-                            text=True, capture_output=True, timeout=45, check=True)
+                            text=True, capture_output=True, timeout=45, check=False)
+    result.check_returncode()  # Retain refusal; the genuine process result is observable first.
     contracts = {}
     for route, html in json.loads(result.stdout).items():
         # The shell finalizer installs site.js; bind its actual sealed loader and

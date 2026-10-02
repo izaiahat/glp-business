@@ -172,3 +172,109 @@ def test_listing_seal_damage_is_unknown_never_empty(listing_release, damage):
            'sponsored_anchor_targets': [], 'sponsored_anchor_count': 0}
     assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == 'unknown'
     assert 'listing_contract_error' in row
+
+
+@pytest.mark.parametrize('dependency', [None, 'src/synthetic-render-dependency.mjs', 'functions/synthetic-render-dependency.js'])
+def test_transient_module_bytes_cannot_hide_positive_cards(listing_release, monkeypatch, dependency):
+    """Real ESM handoff mutation, restored afterwards; no Node output is mocked."""
+    fixture = listing_release
+    phase = fixture.release / 'src/phase3-page-graph.mjs'
+    module = phase
+    if dependency:
+        module = fixture.release / dependency
+        module.parent.mkdir(exist_ok=True)
+        module.write_bytes(phase.read_bytes())
+        write_json(fixture.release / 'package.json', {'type': 'module'})
+        # The real graph includes ESM .js leaves under functions/, not only src/.
+        phase.write_text('export * from ' + json.dumps(module.as_uri()) + ';')
+    positive = EMPTY.replace('0 comparable', '1 comparable').replace(
+        '<div data-phase3-provider-grid></div>',
+        '<div data-phase3-provider-grid><article data-phase3-provider="synthetic-allowed">Synthetic comparable row</article></div>')
+    write_json(fixture.release / 'data/synthetic-render.json', {'html': positive.split('<script')[0]})
+    fixture.listing_seal()
+    original = module.read_bytes()
+    data = (fixture.release / 'data/synthetic-render.json').read_bytes()
+    row = {'path': '/duration/', 'listing_contract': collector._listing_contract(positive),
+           'sponsored_anchor_targets': [], 'sponsored_anchor_count': 0}
+    assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == 'required'
+    row['listing_contract'] = collector._listing_contract(EMPTY)
+    mutant = original.decode().replace('.html;', '.html.replace("1 comparable", "0 comparable").replace(/<article[^>]*>Synthetic comparable row<\\/article>/, "");').encode()
+    assert mutant != original
+    real_run, calls = collector.subprocess.run, []
+
+    def handoff(argv, **kwargs):
+        module.write_bytes(mutant)
+        try:
+            result = real_run(argv, **kwargs)
+            calls.append(result)
+            return result
+        finally:
+            module.write_bytes(original)
+
+    monkeypatch.setattr(collector.subprocess, 'run', handoff)
+    assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == 'unknown'
+    assert len(calls) == 1 and calls[0].returncode != 0
+    assert 'affiliate_listing_input_invalid:' in calls[0].stderr
+    assert module.read_bytes() == original
+    assert (fixture.release / 'data/synthetic-render.json').read_bytes() == data
+
+
+@pytest.mark.parametrize('specifier', ['./missing.mjs', '../unbound.mjs',
+                                      'data:text/javascript,export default 0', 'node:not-a-builtin'])
+def test_caught_unknown_module_import_is_not_empty(listing_release, specifier):
+    fixture = listing_release
+    phase = fixture.release / 'src/phase3-page-graph.mjs'
+    # Even a sealed producer's optional-import fallback may not hide a refusal.
+    phase.write_text('await import(' + json.dumps(specifier) + ').catch(()=>{});\n' + phase.read_text())
+    fixture.listing_seal()
+    if specifier == '../unbound.mjs':
+        (fixture.release / 'unbound.mjs').write_text('export default 0;')
+    row = {'path': '/duration/', 'listing_contract': collector._listing_contract(EMPTY),
+           'sponsored_anchor_targets': [], 'sponsored_anchor_count': 0}
+    assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == 'unknown'
+    assert 'listing_contract_error' in row
+
+
+@pytest.mark.parametrize('damage', ['drift', 'missing'])
+def test_caught_sealed_dependency_load_failure_is_not_empty(listing_release, monkeypatch, damage):
+    fixture = listing_release
+    phase = fixture.release / 'src/phase3-page-graph.mjs'
+    phase.write_text("await import('./optional.mjs').catch(()=>{});\n" + phase.read_text())
+    dependency = fixture.release / 'src/optional.mjs'
+    dependency.write_text('export default 0;')
+    fixture.listing_seal()
+    original = dependency.read_bytes()
+    real_run, calls = collector.subprocess.run, []
+
+    def handoff(argv, **kwargs):
+        if damage == 'drift':
+            dependency.write_text('export default 1;')
+        else:
+            dependency.unlink()
+        try:
+            result = real_run(argv, **kwargs)
+            calls.append(result)
+            return result
+        finally:
+            dependency.write_bytes(original)
+
+    monkeypatch.setattr(collector.subprocess, 'run', handoff)
+    row = {'path': '/duration/', 'listing_contract': collector._listing_contract(EMPTY),
+           'sponsored_anchor_targets': [], 'sponsored_anchor_count': 0}
+    assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == 'unknown'
+    assert len(calls) == 1 and calls[0].returncode != 0
+    assert 'affiliate_listing_swallowed_input_failure:' in calls[0].stderr
+    assert dependency.read_bytes() == original
+
+
+@pytest.mark.parametrize('valid_json', [True, False])
+def test_sealed_json_dependency_uses_same_failure_latch(listing_release, valid_json):
+    fixture = listing_release
+    phase = fixture.release / 'src/phase3-page-graph.mjs'
+    phase.write_text("await import('../data/optional.json', {with:{type:'json'}}).catch(()=>{});\n" + phase.read_text())
+    (fixture.release / 'data/optional.json').write_text('{}' if valid_json else '{broken')
+    fixture.listing_seal()
+    row = {'path': '/duration/', 'listing_contract': collector._listing_contract(EMPTY),
+           'sponsored_anchor_targets': [], 'sponsored_anchor_count': 0}
+    expected = 'forbidden' if valid_json else 'unknown'
+    assert collector.derive_affiliate_obligations(fixture.control, static_routes=[row])['/duration/'] == expected
