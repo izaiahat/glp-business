@@ -788,7 +788,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "8a14b56aa15f7003adbe2db20b480f766f8109621a74417af0e9a264154e55b9"
+      "sha256": "58653a04c0c331bee1f1a6f43b5da865b02a22593a9edb762914bc2c326a316f"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
