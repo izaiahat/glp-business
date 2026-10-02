@@ -254,6 +254,7 @@ def main(argv=None):
         required += [here/'affiliate_network_access.py', here/'impact_api_credentials.py']
         required += [here/('affiliate_reporting_'+name+'.py') for name in (
             'partnerstack','admitad','clickbank','refersion','healthtrader','sovrn')]
+        required += [here/'affiliate_reporting_everflow.py']
         required += [here/'marketplace_adapters'/f for f in (
             '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
     pin_hash=verify_pins(args.source_manifest,required)

@@ -44,6 +44,21 @@ stale reconciliation carrier gates still require a separate reviewed cutover or
 explicit safe fenced handoff before allowing a natural run. This source change,
 its CI and the disposable-root test confer no live-window or release authority.
 
+## GLP44 collector publication successor
+
+`glp44_scoped_adoption.py --generation glp44-collector-successor-20261002`
+publishes the reviewed hourly collector (`af1d8f9…`, PR142 + PR146) as a
+supported member instead of only a PR119 prerequisite. It stages the PR71
+members plus the PR119 reporting members, all from immutable merge commit
+`488eeffd8a01f2fdb2fb19abf95636ad33829851` with literal per-file hashes, so the
+staged wrapper, reporting pin manifest and collector are one closed generation.
+The unchanged reporting pin closure still requires every retained host-only
+pinned leaf to match. PR71 is unchanged and still stages old collector
+`24f3798…`. Review/apply require the same verified active window, distinct
+`prepared_by`/`reviewer`, and a `glp44-collector-successor-runtime-review-v1`
+proposal-hash acceptance. Use this instead of the PR71 then PR119 sequence when
+PR71's pins no longer close on the receiving host.
+
 ## GLP337 fixed shared-bridge generation
 
 The existing scoped adopter's `--generation glp337-shared-bridge-20261001`

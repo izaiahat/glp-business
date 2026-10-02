@@ -20,6 +20,7 @@
 !/scripts/shared_bridge_predecessor_migration.py
 !/tests/test_glp337_shared_bridge_generation.py
 !/tests/test_glp337_shared_bridge_migration.py
+!/tests/test_glp44_collector_successor.py
 !/ops/glp337-shared-bridge-custody.md
 !/scripts/glp331_carrier_adoption.py
 !/ops/glp331-carrier-generation.md
@@ -471,3 +472,5 @@
 !/tests/test_api_collectors_sovrn.py
 !/tests/test_api_collectors_sovrn_wiring.py
 !/ops/glp/reporting-v2/SOVRN.md
+!/scripts/affiliate_reporting_everflow.py
+!/tests/test_api_collectors_everflow.py

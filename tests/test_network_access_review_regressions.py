@@ -117,3 +117,24 @@ def test_weekly_error_envelopes_persist_unknown_not_zero(tmp_path):
     assert len(doc['observations']) == 6
     assert all(r['record_count'] is None and r['coverage'] == 'UNKNOWN' for r in doc['observations'])
     assert doc['fleet_cash_minor'] is doc['fleet_commission_minor'] is None
+
+
+# GLP-333: synthetic HTTP 200 envelope that declares one row but returns none.
+KATALYS_ROWCOUNT_MISMATCH = {'success': True, 'rowCount': 1, 'rows': []}
+
+
+def test_weekly_katalys_rowcount_rows_mismatch_reason_preserved(tmp_path, monkeypatch):
+    import glp_affiliate_weekly_reporting as weekly
+    limiter = katalys.SharedReportingLimiter(tmp_path / 'limiter.json', clock=lambda: 1000., sleep=lambda _: None)
+    monkeypatch.setattr(katalys, 'SharedReportingLimiter', lambda *a, **k: limiter)
+    t = FixtureTransport(KATALYS_ROWCOUNT_MISMATCH)
+    weekly.run(tmp_path / 'report', {'marketplace_count': 1, 'marketplaces': [{'marketplace': 'katalys'}]}, [],
+        as_of=datetime(2026, 9, 30, tzinfo=timezone.utc), collectors=c.weekly_collectors(['katalys'], t))
+    doc = json.loads((tmp_path / 'report' / 'RESULT.json').read_text())
+    assert len(doc['observations']) == 3 and len(t.calls) == 3
+    for row in doc['observations']:
+        assert row['reason'] == 'katalys_rowcount_rows_mismatch'
+        assert row['declared_row_count'] == 1 and row['returned_row_count'] == 0
+        assert row['coverage'] in {'PARTIAL', 'UNKNOWN'} and row['payload_complete'] is False
+        assert row['record_count'] is None and row['records'] == []
+    assert doc['fleet_cash_minor'] is doc['fleet_commission_minor'] is None

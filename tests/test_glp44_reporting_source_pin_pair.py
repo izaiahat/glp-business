@@ -18,7 +18,8 @@ def test_reporting_source_pin_pair_is_coherent():
     host_only = {
         'scripts/glp_network_revenue_import_v2.py': '0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c',
     }
-    assert len(manifest['files']) == 22
+    assert len(manifest['files']) == 23
+    assert str(LIVE/'scripts/affiliate_reporting_everflow.py') in manifest['files']
     assert {str(LIVE / ('scripts/affiliate_reporting_'+name+'.py')) for name in (
         'partnerstack','admitad','clickbank','refersion','healthtrader','sovrn')} <= manifest['files'].keys()
     assert str(LIVE/'scripts/affiliate_network_access.py') in manifest['files']
@@ -32,4 +33,7 @@ def test_reporting_source_pin_pair_is_coherent():
     shell_pin = re.findall(r'^check_source ops/glp/reporting-v2/source-manifest\.json ([0-9a-f]{64})$', text, re.M)
     job_pin = re.findall(r'^  --manifest-sha256 ([0-9a-f]{64}) \\$', text, re.M)
     assert shell_pin == job_pin == [digest]
-    assert 'check_source ops/glp/reporting-v2/identity-registry.json 93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271' in text
+    # Preserve the separately reviewed GLP85 installed-registry pin. Its CJ
+    # source-only successor deliberately does not authorize runtime adoption.
+    registry_pin = re.findall(r'^check_source ops/glp/reporting-v2/identity-registry\.json ([0-9a-f]{64})$', text, re.M)
+    assert registry_pin == ['93aa4fa83cba6ee24c81504fe0e58133c87014cb7bb618e1ff9140ab66b21271']

@@ -75,12 +75,19 @@ or automatic crash-state recovery; Kael owns review of uncertain state.
 
 The maintained runner and scheduler wrapper still use a global 240-second
 budget and the CLI sets SIGALRM at budget + 5 seconds. This cannot fit even
-the 366 seconds of waits. The normal weekly job therefore emits UNKNOWN /
+the 366 seconds of waits. After the wrapper admits its approved source and
+registry inputs, the weekly collector therefore emits UNKNOWN /
 RUNNER_BUDGET_INSUFFICIENT before reading a credential or making a request.
 Budget refusal takes precedence over credential diagnosis; an admissible
 collector invocation with an absent key reports UNKNOWN / CREDENTIAL_MISSING.
 The existing global bounds and process alarm are unchanged. Month/lookback
 UNKNOWN observations are still persisted after a weekly failure.
+
+The current-main CJ identity-registry change is separately source-only: its
+wrapper retains the installed predecessor registry pin. Executing the wrapper
+against the new source registry bytes would fail the checksum before the job.
+This candidate preserves that explicit adoption boundary; Kael must reconcile
+installed registry/pin custody separately from Sovrn scheduling.
 
 The seven-request path and protection failures are verified only with injected
 transports and clocks. No live credentials, provider reads or state recovery

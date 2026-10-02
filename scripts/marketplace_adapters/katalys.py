@@ -282,7 +282,11 @@ def _report(kind, start_date, end_date, transport, *, profile_id,
             raise ValueError("incomplete response")
         for total_key in ["total", "total_count", "totalCount", "rowCount"]:
             if total_key in payload:
-                if not re.fullmatch(r"\d+", str(payload[total_key])) or int(payload[total_key]) != len(payload["rows"]):
+                if not re.fullmatch(r"\d+", str(payload[total_key])):
+                    raise ValueError("count mismatch")
+                if int(payload[total_key]) != len(payload["rows"]):
+                    result.update(reason="katalys_rowcount_rows_mismatch", declared_row_count=int(payload[total_key]),
+                                  returned_row_count=len(payload["rows"]))
                     raise ValueError("count mismatch")
         rows, identities = [], set()
         for raw in payload["rows"]:
@@ -323,7 +327,8 @@ def _report(kind, start_date, end_date, transport, *, profile_id,
                 identities.add(row["aff_id"])
             rows.append(row)
     except (ValueError, TypeError, KeyError, InvalidOperation, OverflowError):
-        result.update(status="PARTIAL", reason="invalid_or_incomplete_response", completeness="INCOMPLETE")
+        result.update(status="PARTIAL", reason=result.get("reason", "invalid_or_incomplete_response"),
+                      completeness="INCOMPLETE")
         return result
     result.update(status="PASS", rows=rows, row_count=len(rows), completeness="COMPLETE")
     return result

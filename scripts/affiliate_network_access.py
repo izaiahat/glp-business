@@ -16,7 +16,10 @@ Coverage = Literal['COMPLETE', 'PARTIAL', 'UNKNOWN']
 # Sovrn requires seven spaced calls and is outside this one-call smoke cohort.
 ADDITIONAL_REPORTING_NETWORKS = ('partnerstack', 'admitad', 'clickbank', 'refersion', 'healthtrader')
 REPORTING_TIMEZONES = {'partnerstack':'UTC', 'refersion':'UTC', 'admitad':'UNKNOWN',
-                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN', 'sovrn':'UNKNOWN'}
+                      'clickbank':'UNKNOWN_VENDOR_CALENDAR', 'healthtrader':'UNKNOWN',
+                      'everflow':'UNKNOWN_TIMEZONE_ID_UNVERIFIED', 'sovrn':'UNKNOWN'}
+# Four isolated Everflow partner accounts read by one shared parser module.
+EVERFLOW_TENANTS = ('everflow_orderly', 'everflow_ro', 'everflow_eden', 'everflow_reverse_health')
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,8 @@ class AccessResult:
     receipts: tuple[dict, ...] = ()
     account_binding: str = 'UNKNOWN'
     report_complete_period: bool = False
+    declared_row_count: int | None = None  # provider envelope claim; diagnostic only, never coverage
+    returned_row_count: int | None = None
 
     def __post_init__(self):
         if self.status not in {'SUPPORTED','PORTAL_ONLY','UNSUPPORTED','UNKNOWN'}:
@@ -128,6 +133,10 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
         from importlib import import_module
         return import_module('affiliate_reporting_' + network).collect(
             transport, start=start, end=end, deadline=deadline, max_requests=max_requests)
+    if network in EVERFLOW_TENANTS:
+        from importlib import import_module
+        return import_module('affiliate_reporting_everflow').collect(
+            transport, tenant=network, start=start, end=end, deadline=deadline, max_requests=max_requests)
     if network != 'awin':
         return _other_earnings(network, transport, start=start, end=end,
                                deadline=deadline, max_requests=max_requests, **kwargs)
@@ -358,6 +367,8 @@ def weekly_collectors(names, transport):
                     profile_binding_source='retained S2 Katalys account read 2026-09-08' if network == 'katalys' else None)
                 if network in REPORTING_TIMEZONES:
                     page['reporting_timezone'] = REPORTING_TIMEZONES[network]
+                if network in EVERFLOW_TENANTS:
+                    page['reporting_timezone'] = REPORTING_TIMEZONES['everflow']
                 sink(page)
                 observations.append(page)
                 if network != 'sovrn' and any(r['http_status'] in (401,403,429) for r in result.receipts):
@@ -411,12 +422,12 @@ class ReadTransport:
             'viglink.io': r'/v1/reports/transactions',
         }
         post = {'https://commissions.api.cj.com/query', 'https://api.katalys.com/v1/report/conversions',
-                'https://graphql.refersion.com'}
+                'https://graphql.refersion.com', 'https://api.eflow.team/v1/affiliates/reporting/conversions'}
         valid = (method == 'GET' and parsed.hostname in routes and
                  re.fullmatch(routes[parsed.hostname], parsed.path))
         if method == 'POST' and url in post:
             body = kwargs.get('json_body', {})
-            valid = url.startswith('https://api.katalys.com/') or (
+            valid = url.startswith(('https://api.katalys.com/', 'https://api.eflow.team/')) or (
                 isinstance(body.get('query'), str) and
                 not re.search(r'\b(mutation|subscription)\b', body['query'], re.I))
         if (not valid or parsed.scheme != 'https' or parsed.query or parsed.fragment or
@@ -525,7 +536,7 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
     t = ReadTransport(transport, deadline=deadline, max_requests=max_requests)
     a, b = _window(start, end)
     count, complete, period = 0, False, False
-    projected = []
+    projected, mismatch = [], {}
     binding = 'CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY'
     try:
         if network == 'cj':
@@ -552,6 +563,8 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
             complete = (got['completeness'] == 'COMPLETE' and bool(declared) and
                         all(type(n) is int and n == got['row_count'] for n in declared))
             count = got['row_count']
+            if got.get('reason') == 'katalys_rowcount_rows_mismatch':
+                mismatch = {k: got[k] for k in ('reason','declared_row_count','returned_row_count')}
             projected = _projection(network,got['rows'])
             period = complete and got['period_state'] == 'CLOSED'
             binding = 'request:profile:' + profile_id + ';aff_id:13031;retained_profile_binding'
@@ -610,8 +623,10 @@ def _other_earnings(network, transport, *, start, end, deadline=None, max_reques
             record_count=count if complete else None,
             receipts=tuple(t.receipts), records=tuple(projected) if complete else (),
             account_binding=binding, report_complete_period=period,
-            reason='ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN'
-                if complete else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE')
+            declared_row_count=mismatch.get('declared_row_count'),
+            returned_row_count=mismatch.get('returned_row_count'),
+            reason=mismatch.get('reason') or ('ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN'
+                if complete else 'COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE'))
     except Exception as error:
         # A failed Impact sub-window leaves the requested window unproven as a whole.
         return AccessResult(network, 'conversions_earnings', 'SUPPORTED', source,
