@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 630,
+  "tracked_count": 640,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "98709adf2c4de3bc00fe94340437339311a5fa30b7e4fa88c19c8ff068ad0d6e"
+      "sha256": "6bb3b82094ceaa42e585c8f1f2a75a41cd093dd11a971aa16ae4ec054ac02f69"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a75ad3cf36b7507a50412126917f156c39e0c790cdd1c8c1c7e213ede105186e"
+      "sha256": "c86d202e81137f41e66958cee8361d8f022f97a2e851e1900de67aab7d6a92b3"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3c0a3a6cde15d32c59c5d4084bf89eb4bee6249d51699563b84039c04744d332"
+      "sha256": "b95e956095837ee12eefd76e9ed42ffa6322865f06d9f0b99efecb256fa6a7e3"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2304,7 +2304,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "80a200ace77b606adeadad08e663843530e6b2308932d4847edfbbfea70827b9"
+      "sha256": "39ea089df2711b96a9da90be5e66e0a546511d26ede287db27322afbabd4eada"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -3728,7 +3728,7 @@
         "GLP75/76 Sunday workweek source admission; consumer/test review context"
       ],
       "kind": "script",
-      "sha256": "5b831b9f3318b97b892d96700a62a9684c2844555ff1b7af04bfa6460bf37d71"
+      "sha256": "656b9a7e86503541bda053b409b2937fb42a8232adb8efb7f7e2ef20e1d643c7"
     },
     "systems/seo-blog-machine/tests/test_learning_loop_actions.py": {
       "callers": [
@@ -4227,6 +4227,76 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
+    },
+    "systems/analytics-brain/decision_policy.py": {
+      "kind": "script",
+      "callers": [
+        "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      ],
+      "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
+    },
+    "tests/test_glp76_material_custody.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "340703e336ec2c95caca05d9669019281a6020ebe98e8f62438543c8af2daabf"
+    },
+    "tests/test_glp76_continuation.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "702d48ee8c66785e8ad54273c586c29d0f9048ac0224c73df66cbda3e784a74d"
+    },
+    "tests/fixtures/glp76-carrier-material/build-lastmod-provenance.mjs": {
+      "callers": [
+        "tests/test_glp76_material_custody.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "28813a11a72fd88370c222527d2c57765e0cee745157174684082f4cadb0218f"
+    },
+    "ops/glp76-current-generation-continuation.md": {
+      "callers": [
+        "GLP76 exact-operation receiving continuation"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "a49e5474282313115c893e2c62d4533c26b133a897ddd40a5b7c47d64ba4c93f"
+    },
+    "ops/glp/topic-supply-inputs/README.md": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "d3fecaaa047534ce2f5271eecdd658a6a033967d869cc7c2945a6bf87419815b"
+    },
+    "ops/glp/topic-supply-inputs/cluster-map.json": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "05d215c1bd3a8656f4bc5f5534a1ad5e13934b94a649492743fd975533f2818b"
+    },
+    "ops/glp/topic-supply-inputs/strategy-queue.json": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "59627aee4ddb6a2a1eb1f2b3a0129c2b2ab184c38426194db63e404a78fd3ea6"
+    },
+    "systems/seo-blog-machine/scripts/select_opus_content_queue.py": {
+      "kind": "source",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "e223db1b64cf7c272e0f019fdf05b682134ac93b2a14d73b856263af0eb7e2e2"
+    },
+    "tests/test_glp75_topic_supply_inputs.py": {
+      "kind": "test",
+      "callers": [
+        "registered topic_supply_mint producer"
+      ],
+      "sha256": "6e99a1c76196fba4477d306b2938b8696c0f212388b458cdcfa5c28eb694872a"
     }
   }
 }

@@ -1,0 +1,357 @@
+{
+  "schema": "glp-seo-commercial-cluster-map-v1",
+  "created_at": "2026-08-04",
+  "status": "PASS_MAP_READY_QUEUE_ROTATION",
+  "site_id": "glp-clinic-scout",
+  "production_route_inventory": {
+    "sitemap_route_count": 92,
+    "sitemap_sha256": "6b5bfcb25b812619e1f21cdbc682acae5bd4819ad3a9e4e2560ecf72ccab0830",
+    "basis": "candidate public tree deployed as 131f529f; Firecrawl production sitemap scrape returned HTTP 200"
+  },
+  "measurement_rules": {
+    "volume": "U.S. monthly search volume from DataForSEO receipt; zero/null means not measured, not zero demand",
+    "difficulty": "X3 KD where present; null means current receipt lacks KD",
+    "coverage": "route count; overlaps are declared per cluster; state-specific coverage is separately called out"
+  },
+  "source_receipts": [
+    {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-blog-machine-20260730/04-KEYWORD-SOURCES-20260731.json",
+      "sha256": "02b4b3664bd4748ad331302b8b1bd3f6fefd192e5f76a66a3ab0edb748e2f9c7",
+      "provider": "DataForSEO Google Ads search volume live",
+      "status": "PASS"
+    },
+    {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-blog-machine-20260730/05c-X3-15-OPPORTUNITIES-20260801.json",
+      "sha256": "d33466eac7f4eac9197547351ad38624dba0df75cc3a3e85bc85d4b15d237579",
+      "provider": "DataForSEO + Firecrawl competitor gap receipt",
+      "status": "PASS"
+    },
+    {
+      "provider": "Firecrawl",
+      "research_queries": [
+        "GLP-1 cost pricing cheapest semaglutide tirzepatide",
+        "GLP-1 coupon savings card manufacturer discount",
+        "oral GLP-1 pill semaglutide tablet",
+        "Mounjaro vs Ozempic Zepbound vs Wegovy",
+        "GLP-1 insurance coverage eligibility prior authorization",
+        "best online GLP-1 provider telehealth reviews pricing",
+        "semaglutide tirzepatide dosage cost calculator",
+        "GLP-1 alternatives compounded semaglutide tirzepatide"
+      ],
+      "status": "PASS_SERP_CONFIRMATION"
+    }
+  ],
+  "clusters": [
+    {
+      "id": "cost-pricing",
+      "name": "Drug and provider cost/pricing",
+      "role": "commercial core",
+      "live_coverage_count": 14,
+      "coverage_basis": "deployed sitemap route classification; overlaps with insurance, oral, and comparison clusters",
+      "measured_anchors": [
+        {
+          "keyword": "glp-1 cost",
+          "volume": 14800,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "tirzepatide cost",
+          "volume": 12100,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "cheapest glp-1",
+          "volume": 12100,
+          "kd": 26,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "cheapest tirzepatide",
+          "volume": 8100,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "semaglutide cost",
+          "volume": 4400,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "how much does ro cost",
+          "volume": 4400,
+          "kd": 7,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "mochi health price",
+          "volume": 880,
+          "kd": 2,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "There is coverage, but no single drug-by-provider cost pillar with a complete cash-price, recurring-price, fee, insurance, and source-date matrix. KD is missing for four head terms in the current receipt.",
+      "priority": "P0",
+      "measured_volume_max": 14800,
+      "measured_anchor_count": 7,
+      "kd_available_for_anchors": 4
+    },
+    {
+      "id": "coupons-savings",
+      "name": "Coupons, savings cards, and manufacturer assistance",
+      "role": "transactional commercial",
+      "live_coverage_count": 4,
+      "coverage_basis": "deployed sitemap route classification",
+      "measured_anchors": [
+        {
+          "keyword": "mounjaro coupon",
+          "volume": 74000,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "zepbound coupon",
+          "volume": 110000,
+          "kd": 4,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "ozempic coupon",
+          "volume": 33100,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "Zepbound is covered, but Mounjaro and Ozempic have no dedicated coupon/savings-card pillar routes; assistance versus savings needs a unified hub with eligibility and date boundaries.",
+      "priority": "P0",
+      "measured_volume_max": 110000,
+      "measured_anchor_count": 3,
+      "kd_available_for_anchors": 3
+    },
+    {
+      "id": "oral-glp1",
+      "name": "Oral GLP-1 and pill options",
+      "role": "emerging commercial",
+      "live_coverage_count": 1,
+      "coverage_basis": "deployed sitemap route classification",
+      "measured_anchors": [
+        {
+          "keyword": "wegovy pills cost",
+          "volume": 60500,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "One Wegovy-pill page exists. It needs a pillar plus five spokes covering approval/status, oral-versus-injectable cost, insurance, access, and what is actually available; no second oral anchor is measured yet.",
+      "priority": "P0",
+      "measured_volume_max": 60500,
+      "measured_anchor_count": 1,
+      "kd_available_for_anchors": 1
+    },
+    {
+      "id": "drug-comparisons",
+      "name": "Drug-versus-drug and approved-versus-compounded comparisons",
+      "role": "comparison commercial",
+      "live_coverage_count": 6,
+      "coverage_basis": "drug-specific guide routes only; provider and assistance comparisons excluded from this count",
+      "measured_anchors": [
+        {
+          "keyword": "mounjaro vs ozempic",
+          "volume": 40500,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "ozempic vs zepbound",
+          "volume": 5400,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "Mounjaro/Ozempic has a pillar; Ozempic/Zepbound and Wegovy/Mounjaro remain uncovered as dedicated comparison intents. Every comparison must stay label-, indication-, and evidence-bound.",
+      "priority": "P0",
+      "measured_volume_max": 40500,
+      "measured_anchor_count": 2,
+      "kd_available_for_anchors": 2
+    },
+    {
+      "id": "provider-comparisons",
+      "name": "Provider-versus-provider and program-term comparisons",
+      "role": "commercial comparison",
+      "live_coverage_count": 15,
+      "coverage_basis": "/compare/* plus provider-pair guide routes in deployed sitemap",
+      "measured_anchors": [
+        {
+          "keyword": "best online glp-1 providers",
+          "volume": 0,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731",
+          "note": "DataForSEO returned null volume; remeasure"
+        },
+        {
+          "keyword": "glp-1 provider reviews",
+          "volume": 0,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731",
+          "note": "DataForSEO returned null volume; remeasure"
+        },
+        {
+          "keyword": "online glp-1 clinic",
+          "volume": 0,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731",
+          "note": "DataForSEO returned null volume; remeasure"
+        }
+      ],
+      "gap": "Depth exists, but the source receipt has no usable demand metric for the head terms. Keep the hub and five-spoke comparison architecture; refresh metrics before allocating more volume.",
+      "priority": "P1",
+      "measured_volume_max": null,
+      "measured_anchor_count": 3,
+      "kd_available_for_anchors": 0
+    },
+    {
+      "id": "insurance-eligibility",
+      "name": "Insurance, eligibility, coverage, and prior authorization",
+      "role": "high-intent commercial/medium-risk",
+      "live_coverage_count": 9,
+      "coverage_basis": "routes containing insurance, prior-authorization, HSA/FSA, or Medicare; overlaps with cost and provider comparisons",
+      "measured_anchors": [
+        {
+          "keyword": "glp-1 insurance coverage",
+          "volume": 2400,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "what insurance covers zepbound",
+          "volume": 5400,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "wegovy cost without insurance",
+          "volume": 6600,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "how to get zepbound",
+          "volume": 4400,
+          "kd": 26,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "Existing coverage is broad but not drug-specific enough. Add Zepbound coverage and state-plan spokes; keep individualized eligibility and medical decisions out of affiliate copy.",
+      "priority": "P0",
+      "measured_volume_max": 6600,
+      "measured_anchor_count": 4,
+      "kd_available_for_anchors": 2
+    },
+    {
+      "id": "telehealth-provider-brands",
+      "name": "Telehealth provider brands and enrollment terms",
+      "role": "brand-commercial",
+      "live_coverage_count": 30,
+      "coverage_basis": "28 review routes plus best-provider and intake routes; includes sister-pool review routes and is not a GLP-fit denominator",
+      "measured_anchors": [
+        {
+          "keyword": "online tirzepatide",
+          "volume": 1600,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "online semaglutide",
+          "volume": 1300,
+          "kd": null,
+          "source": "04-KEYWORD-SOURCES-20260731"
+        },
+        {
+          "keyword": "how much does ro cost",
+          "volume": 4400,
+          "kd": 7,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "mochi health price",
+          "volume": 880,
+          "kd": 2,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "The site has review breadth but lacks dedicated, measured brand-term hubs for Ro and Mochi and a systematic provider-brand topic feed. G1 program approval and live-link gates remain authoritative.",
+      "priority": "P1",
+      "measured_volume_max": 4400,
+      "measured_anchor_count": 4,
+      "kd_available_for_anchors": 2
+    },
+    {
+      "id": "dose-cost-math",
+      "name": "Dose, duration, and total-cost math",
+      "role": "tool/commercial support",
+      "live_coverage_count": 1,
+      "coverage_basis": "calculator route in deployed sitemap",
+      "measured_anchors": [],
+      "gap": "The calculator is live, but no measured keyword row exists in the current receipts. Build a pillar plus five explanatory spokes and require the next discovery run to measure dose-cost queries before publishing.",
+      "priority": "P1",
+      "measured_volume_max": null,
+      "measured_anchor_count": 0,
+      "kd_available_for_anchors": 0
+    },
+    {
+      "id": "alternatives-compounded",
+      "name": "Alternatives, compounded options, and product-status boundaries",
+      "role": "commercial with legal/medical guardrails",
+      "live_coverage_count": 2,
+      "coverage_basis": "approved-versus-compounded guide routes; alternatives routes are absent",
+      "measured_anchors": [
+        {
+          "keyword": "ozempic alternatives",
+          "volume": 5400,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "best tirzepatide compounding pharmacy",
+          "volume": 2400,
+          "kd": 0,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "There are two approved-versus-compounded explainers but no alternatives pillar or drug-specific alternatives spokes. Legal and FDA status must outrank monetization.",
+      "priority": "P0",
+      "measured_volume_max": 5400,
+      "measured_anchor_count": 2,
+      "kd_available_for_anchors": 2
+    },
+    {
+      "id": "state-access-availability",
+      "name": "State access, pharmacy availability, and fulfillment",
+      "role": "access/commercial",
+      "live_coverage_count": 10,
+      "coverage_basis": "availability, online-prescription, pharmacy-verification, product-status, and fulfillment routes; state-specific pages count is zero",
+      "measured_anchors": [
+        {
+          "keyword": "how to get ozempic",
+          "volume": 12100,
+          "kd": 16,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        },
+        {
+          "keyword": "how to get zepbound",
+          "volume": 4400,
+          "kd": 26,
+          "source": "05c-X3-15-OPPORTUNITIES-20260801"
+        }
+      ],
+      "gap": "Access explainers exist, but there are zero state-specific coverage/access pages. Build a state-access pillar and five state/fulfillment spokes only after current service-area and source gates pass.",
+      "priority": "P1",
+      "measured_volume_max": 12100,
+      "measured_anchor_count": 2,
+      "kd_available_for_anchors": 2
+    }
+  ],
+  "operating_decision": "Use hub-and-spoke depth across all ten clusters. The queue schedules two items/day from different clusters, then repeats the same pair pattern for five spoke rounds so each cluster receives one pillar plus five spokes rather than one orphan post."
+}
