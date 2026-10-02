@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 584,
+  "tracked_count": 586,
   "files": {
     "tests/test_glp73_scoped_reviewer_routing.py": {
       "callers": [
@@ -212,7 +212,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "b066ebd07882617ed975009407b6c2eca58ca0339058ae976ca6e4216cbbd125"
+      "sha256": "76c19b98dee3f4214dcb8a6377c7e26bf1e3af229283ceb18c537c260fee755a"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -431,7 +431,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "66f267c1b96c3013ee7c553fa7df5204458c08cd76028ed66a6d2c0e399926d8"
+      "sha256": "7d444d4980dd328093d970935df4b4b5ded4f872b03bce9e26882de228415545"
     },
     ".hermes.md": {
       "callers": [],
@@ -605,7 +605,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "cb6320da7b6862fd20828da185096854e93e1f86ca073a9f678b8bc3460026e0"
+      "sha256": "32559c5bafb970855443c1b25d0c1bb34302944bf4705ee1e2304113b98d9c79"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -781,7 +781,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "bc11194bd952c4346d3b3933db2d4706035e2d67ba6d4e8dbba680830cf56a2a"
+      "sha256": "a117142c15bb740975a381aad826f278e22e03e391ef97bc401f7ca1dc0a721c"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1644,7 +1644,7 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "6415484a61a00fd5d9c40357a598b0ea7276588cfbca14e2cbe28e4dae1e97c6"
+      "sha256": "efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -2097,7 +2097,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "be65909d945445e4d6ac24565151cf62d25fe76e565fd02f4587322ae0d6f204"
+      "sha256": "d56f4c0cdae10d936ddd5dee5f326cdee2b38e256c987f1523a2193dad64adef"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2828,7 +2828,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "7ad7af886d94b4d97fd006f67db80f920f2aa173a44dc4c1e2c1e6ac526c7bc7"
+      "sha256": "13408d78458c897619c09131f71db1e231d159d105702515394161ebbe98a27a"
     },
     "tests/test_glp44_safe_bridge_activation.py": {
       "callers": [
@@ -3568,7 +3568,7 @@
     ".github/workflows/glp333-reporting-generation.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e3d532e22792235e06c581a6a30555c6801ab8af491356509ff019c62a0be810"
+      "sha256": "2534f7ad1e41f72aa5079232699ecd091e3ca59ea5b79c9f781fe0d7036878ad"
     },
     "tests/test_glp333_reporting_generation.py": {
       "callers": [
@@ -3870,7 +3870,7 @@
       "callers": [
         "manual read-only reporting"
       ],
-      "sha256": "7746c6a089603d21dad0903607bf74b7a74bae2160fe1e6fe1a153b7005995c4"
+      "sha256": "f19a3702e5fcb62c8311beb9fd264d3c2904cb1b9f7cc12b4f3c639a39f9e2d7"
     },
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
@@ -3918,6 +3918,21 @@
       ],
       "kind": "test",
       "sha256": "d8a50b39757208cdb3c34cfb475ab060e97a1a49300b464807584f965a47f105"
+    },
+    "scripts/affiliate_reporting_everflow.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_network_access.py"
+      ],
+      "sha256": "d141413f872603d738583a8fed483b3424f7c18e6d66a62c1d193c340fccfff3"
+    },
+    "tests/test_api_collectors_everflow.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp333-reporting-generation.yml"
+      ],
+      "sha256": "b0f147a133b761cf15bfa49d1bdd2be4c640b7f100f6ae8a58bcd926501b9dff"
     }
   }
 }

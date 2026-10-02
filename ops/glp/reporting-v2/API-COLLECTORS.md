@@ -28,6 +28,21 @@ lookback as half-open intervals. Each reader preserves its source time axis:
   `created_to` are translated to the requested UTC half-open seconds. Archived
   conversions and cancelled payments are omitted by the provider. An initially
   empty population has no independent total proof and remains PARTIAL.
+- Everflow uses one shared partner reader for four isolated tenant partitions:
+  `everflow_orderly` (OrderlyMeds), `everflow_ro` (Ro), `everflow_eden` (Eden)
+  and `everflow_reverse_health` (Reverse Health). Each reads only its own
+  `<tenant>_affiliate_api_key` partner key via `X-Eflow-API-Key`; network,
+  advertiser and marketplace keys are not interchangeable. A missing key gives
+  that tenant UNKNOWN (`UNKNOWN_CREDENTIAL_MISSING`) without a request. The
+  conversions report pages with `page`/`page_size=50` and is COMPLETE only when
+  every page is fetched and summed rows equal `paging.total_count`; a mismatch,
+  changing total, duplicate or early empty page is PARTIAL. Whole-UTC-day
+  windows map to inclusive `from`/`to` dates within the prior 365 days.
+  Base conversions and events stay distinct; zero-payout actions are not paid
+  customers; offer terms never become commission or cash. TEST/REAL and
+  currency stay UNKNOWN unless a row states them. The requested `timezone_id`
+  mapping was not verified, so `reporting_timezone` is
+  `UNKNOWN_TIMEZONE_ID_UNVERIFIED`.
 - HealthTrader remains UNKNOWN without credential or API reads: its referenced
   Apiary documentation was inaccessible and no official reporting endpoint was
   verified. Offer inventory does not establish reporting capability.
@@ -51,6 +66,7 @@ Official contracts reviewed on 2026-10-02:
 - [Refersion affiliate examples](https://www.refersion.dev/docs/graphql/for-marketplace-affiliates/example-queries/),
   [queries](https://www.refersion.dev/docs/graphql/reference/queries/),
   [pagination](https://www.refersion.dev/docs/graphql/pagination/).
+- [Everflow partner conversions report](https://developers.everflow.io/api-reference/post-affiliatesreportingconversions).
 - HealthTrader's referenced [Apiary host](http://docs.htaffiliate.apiary.io)
   was inaccessible; its [official tour](https://healthtrader.com/us/tour)
   describes portal exports without an API reporting contract.

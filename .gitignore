@@ -466,3 +466,5 @@
 !/tests/test_api_collectors_smoke.py
 !/tests/test_api_collectors_wiring.py
 !/ops/glp/reporting-v2/API-COLLECTORS.md
+!/scripts/affiliate_reporting_everflow.py
+!/tests/test_api_collectors_everflow.py
