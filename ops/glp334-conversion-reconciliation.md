@@ -35,6 +35,10 @@ Supported edges:
   Duplicate native conversion identities, conflicting financial revisions and
   multiple commissions never select a last winner. Identical evidence repeated
   in overlapping weekly/lookback/month observations is deduplicated.
+  Conflicts are checked across all commission evidence by the full typed tuple
+  plus native `provider_event_id` before filtering for a conversion. Competing
+  mappings or revisions leave every affected conversion UNKNOWN with null
+  amounts, even if the other mapped conversion is absent from the export.
 - Financial evidence requires explicit `authenticated: true`, `REAL`, `GLP`,
   `receipt_sha256` and `receipt_pointer`, consistent with the existing v2
   provenance contract. These are supplied assertions, not live verification.

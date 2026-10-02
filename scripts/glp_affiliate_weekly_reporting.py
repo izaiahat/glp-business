@@ -239,6 +239,11 @@ def reconcile_conversions(snapshot, observations, identities):
     # Overlapping weekly/lookback/month pages may repeat identical evidence.
     # Different revisions or values remain competing candidates, never last-win.
     financial = list({digest(r): r for r in financial}.values())
+    # Native commission identity excludes its conversion mapping and currency.
+    # Detect competing mappings/revisions across all evidence before filtering
+    # by conversion, including records whose mapped conversion is absent.
+    commission_counts = Counter(digest([*[r.get(k) for k in IDENTITY], r.get('provider_event_id')])
+                                for r in financial if r.get('event_type') == 'commission')
     counts = Counter(digest(r.get('revenue_event_id')) for r in snapshot['conversions'])
     native_counts = Counter(digest([*[r.get(k) for k in IDENTITY], r.get('conversion_id')])
                             for r in snapshot['conversions'])
@@ -306,6 +311,9 @@ def reconcile_conversions(snapshot, observations, identities):
         if kind:
             result['rows'].pop()
             result['excluded_counts'][kind] += 1
+            continue
+        if commission_counts[digest([*typed, earning.get('provider_event_id')])] != 1:
+            row['gaps'].append('EARNINGS_EDGE_AMBIGUOUS')
             continue
         if (not _mapping_reference(earning.get('conversion_join_evidence_ref'))
                 or not _financial_provenance(earning)):

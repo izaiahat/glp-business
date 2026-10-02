@@ -198,6 +198,89 @@ def test_duplicate_native_conversion_identity_cannot_repeat_an_earning():
     assert all(r['commission_minor'] is None for r in reconcile(data)['rows'])
 
 
+@pytest.mark.parametrize('source', ['snapshot', 'weekly'])
+def test_conflicting_commission_mappings_are_detected_before_conversion_filtering(source):
+    data = fixture()
+    other_conversion = deepcopy(data['conversions'][0])
+    other_conversion.update(revenue_event_id='receipt-2', conversion_id='native-conversion-2')
+    data['conversions'].append(other_conversion)
+    other_earning = deepcopy(data['financial_records'][0])
+    other_earning['conversion_id'] = 'native-conversion-2'
+    observations = []
+    if source == 'snapshot':
+        data['financial_records'].append(other_earning)
+    else:
+        observations = [{'records': [other_earning]}]
+    registry = deepcopy(REGISTRY)
+    before = deepcopy((data, observations, registry))
+    result = reconcile(data, observations=observations, registry=registry)
+    assert (data, observations, registry) == before
+    assert len(result['rows']) == 2
+    for got in result['rows']:
+        assert got['earnings_state'] == got['payout_state'] == 'UNKNOWN'
+        assert got['commission_minor'] is got['payout_total_minor'] is got['cash_minor'] is None
+        assert 'EARNINGS_EDGE_AMBIGUOUS' in got['gaps']
+        assert 'earnings' not in got['evidence'] and 'payout' not in got['evidence']
+
+
+@pytest.mark.parametrize('conversion_id', ['unobserved-conversion', None])
+def test_conflicting_commission_mapping_to_absent_conversion_still_blocks_join(conversion_id):
+    data = fixture()
+    other = deepcopy(data['financial_records'][0])
+    other['conversion_id'] = conversion_id
+    data['financial_records'].append(other)
+    got = row(data)
+    assert got['earnings_state'] == 'UNKNOWN'
+    assert got['commission_minor'] is got['payout_total_minor'] is None
+    assert 'EARNINGS_EDGE_AMBIGUOUS' in got['gaps']
+
+
+@pytest.mark.parametrize('field', ['network', 'account_id', 'tenant_id', 'program_id'])
+def test_commission_identity_conflicts_never_cross_typed_partitions(field):
+    data, registry = fixture(), deepcopy(REGISTRY)
+    other_identity = {**IDENTITY, field: 'another-partition'}
+    registry.append({**registry[0], **other_identity,
+                     'tenant_kind': 'host' if field == 'tenant_id' else 'not_applicable'})
+    data['conversions'].append({**data['conversions'][0], **other_identity,
+                                'revenue_event_id': 'receipt-2', 'conversion_id': 'native-conversion-2'})
+    data['financial_records'].append({**data['financial_records'][0], **other_identity,
+                                      'conversion_id': 'native-conversion-2', 'commission_minor': 1700})
+    result = reconcile(data, registry=registry)
+    assert [r['earnings_state'] for r in result['rows']] == ['JOINED', 'JOINED']
+    assert [r['commission_minor'] for r in result['rows']] == [2500, 1700]
+
+
+def test_independent_native_commissions_preserve_negative_reversal_amount():
+    data = fixture()
+    data['conversions'].append({**data['conversions'][0], 'revenue_event_id': 'receipt-2',
+                                'conversion_id': 'native-conversion-2'})
+    data['financial_records'].append({**data['financial_records'][0], 'provider_event_id': 'commission-2',
+                                      'conversion_id': 'native-conversion-2', 'mapped_status': 'reversed',
+                                      'commission_minor': -2500})
+    result = reconcile(data)
+    assert [r['earnings_state'] for r in result['rows']] == ['JOINED', 'JOINED']
+    assert [r['commission_minor'] for r in result['rows']] == [2500, -2500]
+
+
+def test_reversed_commission_revision_with_conflicting_mapping_never_wins():
+    data = fixture()
+    data['financial_records'].append({**data['financial_records'][0], 'conversion_id': 'another-conversion',
+                                      'source_revision_id': 'reversal-2', 'mapped_status': 'reversed',
+                                      'commission_minor': -2500})
+    got = row(data)
+    assert got['earnings_state'] == 'UNKNOWN'
+    assert got['commission_minor'] is got['payout_total_minor'] is None
+
+
+def test_test_commission_with_conflicting_mapping_remains_excluded():
+    data = fixture()
+    data['financial_records'][0]['is_test'] = True
+    data['financial_records'].append({**data['financial_records'][0], 'conversion_id': 'another-conversion'})
+    result = reconcile(data)
+    assert result['rows'] == []
+    assert result['excluded_counts'] == {'SELFTEST': 0, 'TEST': 1, 'PROBE': 0}
+
+
 def test_known_test_payout_identifier_never_publishes_cash():
     from glp_network_revenue_v2 import TEST_ID
     data = fixture()
