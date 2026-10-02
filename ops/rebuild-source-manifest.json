@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 585,
+  "tracked_count": 588,
   "files": {
     "tests/test_pr148_reporting_followups.py": {
       "kind": "test",
@@ -121,7 +121,7 @@
       "callers": [
         "GLP331 scoped carrier closure; independent exact review required"
       ],
-      "sha256": "d27a06f5e663909cca73463c9bb66988b20995844d02e08e66307244ec841ad8"
+      "sha256": "4ba9a9f146f1adf0beed5f208d9963a54cd839e9d7cf7951ed3677f2e2d44a2a"
     },
     "scripts/wrapper_pin_sync.py": {
       "kind": "script",
@@ -142,14 +142,14 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "e3cbfd36b92d7f76d5fe94f1731cdc02f913fb7eb9498c023643988e686c00e5"
+      "sha256": "5607f66b600de9ce8d955d59ea30379c02bcddac0bb829f12c0efc482bb9d161"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
       "callers": [
         "GLP331 exact proposal and independent review contract"
       ],
-      "sha256": "9dc515ac2e97a581afb435ea1c9df15718b5d16d4905523b84366cd230159190"
+      "sha256": "c51e904d6e1832a901012eff73b3fc8db96f06c104fd0508f1e483f968b643dc"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
@@ -1673,7 +1673,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05"
+      "sha256": "16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108"
     },
     "scripts/glp_analytics_brain_cadence.py": {
       "callers": [
@@ -2089,7 +2089,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "8c22f9149eeba2aeee26301a699c004caa5095ee50c5acdac003a79e638e2ea1"
+      "sha256": "00a370f399a8f0d36088db7dc61bd18ed3fd5015a5a46cb8f26eb44402830d4d"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3280,7 +3280,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "75e325bed33366e27ceac9115eb6646dee6fd04e972298cf954ed34adea92617"
+      "sha256": "86bd8a1fd88094bc495ef30fea11703563505810ac4114f8a242bd501094c7e9"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
@@ -3925,6 +3925,23 @@
       ],
       "kind": "test",
       "sha256": "d8a50b39757208cdb3c34cfb475ab060e97a1a49300b464807584f965a47f105"
+    },
+    ".github/workflows/glp93-current-base-consumer.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "28e4c7542eebc492c1d914ba50712b59d4a95f2c9950dc9fbd76468980503265"
+    },
+    "ops/glp93-current-base-consumer.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "368846da60dd77bd7cfed68306876ff6f1bc0868b8ee5104da95183c1f6615f7"
+    },
+    "tests/test_glp93_current_base_consumer.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp93-current-base-consumer.yml"
+      ],
+      "sha256": "a3f4cb73f5070c92a1cdc7f33e174e1aa3be1e32f201557500863b37a6f590c8"
     }
   }
 }

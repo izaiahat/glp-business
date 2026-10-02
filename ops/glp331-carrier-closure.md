@@ -139,3 +139,33 @@ still emits held; that fixture does not grant live authorization. Keeper-owned
 maintenance/admission/inventory source, live dependencies/carrier/pins/baselines,
 current release and jobs are untouched. Independent parent review and actual
 runtime acceptance remain required before any coherent cutover.
+
+## GLP93 current-base dependency successor (PR138; source only)
+
+Only the fixed worker successor in `GLP331_DEPENDENCY_BINDINGS` advances from
+`59e25a8c605f6c0c2ae284edfb3dae99eb7354c2679146fb787a923a4544ef05` to
+`83ee8b438ef7b11850a8357b0938753db414267470a00220054eb10c87bb1a9b`.
+The external carrier's legacy worker span remains `1f698853...`; preparation
+must still authenticate the new dependency against its literal SHA, the exact
+producer-head Git blob, that head's manifest, and receiving installed bytes.
+The producer installs neither worker version. There is no fallback accepting
+both hashes, skipping the pin, changing the source cohort, or sweeping drift.
+
+`GLP331_SOURCE_HEAD=727ad1f...` continues to authenticate **only the seven original
+PR117 outputs**, not approval of the new worker. Those blobs, carrier preimage,
+source snapshot, other three dependency bindings, scopes, generation identity,
+CAS, alias/seal custody and no-replay gates remain unchanged. Historical source,
+producer and manifest at immutable predecessor commit
+`ae6a761c53c035e5fd7a79b3a6f2af2ba85378b7` retain the `59e25a8c...` contract and can
+reproduce old proposals using their original roots/preimages. Retained reports
+and receipts are not rewritten. Historical receipts do not authorize a successor:
+producer-head and exact proposal comparison require a fresh separately designated
+independent source/runtime review and later receiving-side owner adoption.
+Changing this fixed dependency does not create a second generation or reset an
+existing uncertain cutover intent.
+
+The added regressions authenticate predecessor and successor Git/manifest custody,
+retain the exact seven-source assertion, and refuse old receiving worker bytes,
+a coherent-but-old Git/manifest/input graph, and a historical producer proposal
+before custody, source creation or scheduler writes. Existing native success,
+uncertain-save, seal/alias and replay controls are unchanged.
