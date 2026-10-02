@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 625,
+  "tracked_count": 627,
   "files": {
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -471,7 +471,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "596e4f582a852d2d3779297369c555b9ebb0e49b852784b54debdc437b961df5"
+      "sha256": "a45651f27051627c433265b1ee87f14aa3384dca489b6fcfb1f974e1f070e00e"
     },
     ".hermes.md": {
       "callers": [],
@@ -1603,12 +1603,26 @@
       "kind": "script",
       "sha256": "470ea1dd5c90b471ef7a6f09c9846329b48369171f1c345c3c367e9ba5006330"
     },
+    "scripts/fable_parent_handoff.py": {
+      "callers": [
+        "scripts/fable_bridge.py --parent-review-handoff"
+      ],
+      "kind": "script",
+      "sha256": "0b4d81caa00224f856f1e96b6ccceaa538845d6ba2604ee0472aef29b649900e"
+    },
+    "tests/test_fable_parent_handoff.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "5f7e118c311374773e3108eec87ec9e3628a41e80eb65ed4cd388563f5f3b0d2"
+    },
     "scripts/fable_bridge.py": {
       "callers": [
         "registered:fable-bridge"
       ],
       "kind": "script",
-      "sha256": "91f689e18d4eacf9804dd99e641e924ed0fa791faa501deaa63c37bf544d8f2f"
+      "sha256": "10e4a4ef7f6aa6efdebf1ef723253b318b661243d8c85ce8bbb058b3dcb6ab47"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -2137,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0b196ae714845adab6a7c6a10f8da84f9208095fb843948e50a127c66fe0599e"
+      "sha256": "3c0a3a6cde15d32c59c5d4084bf89eb4bee6249d51699563b84039c04744d332"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [

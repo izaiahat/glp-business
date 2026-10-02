@@ -1434,20 +1434,39 @@ if __name__ == "__main__":
         # Process-local native Hermes toolset: no write/terminal/browser/delegation tools.
         from toolsets import create_custom_toolset
         from hermes_cli.main import main as hermes_main
+        # Neither the designated Fable route nor GLP42 may change reviewer via
+        # the CLI's saved fallback chain. This changes only this child process.
+        from cli import CLI_CONFIG
+        CLI_CONFIG["fallback_providers"] = []
+        CLI_CONFIG.pop("fallback_model", None)
         if "--provider" in sys.argv and sys.argv[sys.argv.index("--provider") + 1] == "openai-codex":
-            # chat --oneshot uses cli.CLI_CONFIG; default parses to normal (no
-            # priority override). Disable cross-model/provider fallback locally.
-            from cli import CLI_CONFIG
             CLI_CONFIG.setdefault("agent", {})["service_tier"] = "default"
-            CLI_CONFIG["fallback_providers"] = []
-            CLI_CONFIG.pop("fallback_model", None)
         create_custom_toolset("fable-review-readonly", "Read-only independent review", [
             "read_file", "search_files", "web_search", "web_extract", "vision_analyze",
         ])
         sys.argv = ["hermes", *sys.argv[2:]]
-        hermes_main()
+        if "--provider" in sys.argv and sys.argv[sys.argv.index("--provider") + 1] == "claude-subscription-directsdk-experimental":
+            # Installed oneshot._run_agent reloads config; CLI_CONFIG alone
+            # cannot disable resolution-time or mid-turn fallback on this route.
+            import copy
+            import hermes_cli.config as native_config
+            original_load_config = native_config.load_config
+            def readonly_fable_config(*args, **kwargs):
+                value = copy.deepcopy(original_load_config(*args, **kwargs))
+                value["fallback_providers"] = []
+                value.pop("fallback_model", None)
+                return value
+            native_config.load_config = readonly_fable_config
+            try:
+                hermes_main()
+            finally:
+                native_config.load_config = original_load_config
+        else:
+            hermes_main()
     elif sys.argv[1:2] in (["--resume-preinvocation-quota"], ["--issue-no-decision-successor"],
-                          ["--recover-missing-mention"]):
+                          ["--recover-missing-mention"], ["--parent-review-handoff"]):
+        if sys.argv[1] == "--parent-review-handoff" and len(sys.argv) != 6:
+            raise SystemExit("usage: fable_bridge.py --parent-review-handoff REQUEST_ID ISSUE_ID TUPLE_SHA256 OPERATOR_INTENT_MESSAGE_ID")
         if len(sys.argv) != 5 and sys.argv[1] in {"--resume-preinvocation-quota", "--recover-missing-mention"}:
             raise SystemExit(f"usage: fable_bridge.py {sys.argv[1]} REQUEST_ID ISSUE_ID TUPLE_SHA256")
         if len(sys.argv) != 6 and sys.argv[1] == "--issue-no-decision-successor":
@@ -1460,7 +1479,9 @@ if __name__ == "__main__":
         if not SESSION_ID:
             raise RuntimeError("fable_session_id_missing")
         SELF_ID = validate_startup_identity()
-        result = {"--resume-preinvocation-quota": resume_preinvocation_quota,
+        from fable_parent_handoff import dispatch as parent_handoff_dispatch
+        result = {"--parent-review-handoff": lambda *args: parent_handoff_dispatch(sys.modules[__name__], *args),
+                  "--resume-preinvocation-quota": resume_preinvocation_quota,
                   "--recover-missing-mention": recover_missing_mention,
                   "--issue-no-decision-successor": issue_no_decision_successor}[sys.argv[1]](*sys.argv[2:])
         print(json.dumps(result, sort_keys=True))
