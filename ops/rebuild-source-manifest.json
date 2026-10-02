@@ -430,7 +430,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dd3ed0f07163a6be3ee13153089ecd534e2370111732b76d01e713449ff201f1"
+      "sha256": "ae412fe17ed36b835461eb497d3d2289faafb9af625f8c566236d2e0bfd64b4a"
     },
     ".hermes.md": {
       "callers": [],
@@ -604,7 +604,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a628f6bf5af2f673d33b5439d4ef1d84386002410bdf1b1ea5552bc6ae122530"
+      "sha256": "61c26ec3378b13c6f7357b947c290d1bae1bcb7ce0d40b1fd23b7d2c7059ebec"
     },
     "ops/glp/seo-weekly-installed-pins.json": {
       "callers": [
@@ -780,7 +780,7 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "script",
-      "sha256": "8a14b56aa15f7003adbe2db20b480f766f8109621a74417af0e9a264154e55b9"
+      "sha256": "0cb4a82d527009b630da9ec2276468d0486855236d2cacdf1b87581cd9ad574e"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1643,14 +1643,14 @@
         "scripts/glp_affiliate_weekly_reporting_job.py"
       ],
       "kind": "script",
-      "sha256": "efda77e2a53de1438850e48a42c2599b66746487349b9e5a9bc923bb4d3eacd1"
+      "sha256": "fc60da6b63ad664bd1c3c329c4713662b9874d16d702c2f38f0a47521b2c61e2"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
       ],
       "kind": "script",
-      "sha256": "79e27c066307249971c5afc69dc2fd08dea76245f4267ecb5c084b16795ffd18"
+      "sha256": "8888f3d1c342267abbdffd70e08bf490eb3c2e4c83199e909d0ba9723d685949"
     },
     "scripts/glp_affiliate_wire_backlog_daily.py": {
       "callers": [
@@ -2096,7 +2096,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ff087c13258cb53eef78fad8a695943a7cca528e9b6af5a2d7ed2c33f63d3b43"
+      "sha256": "bda550cc5ce5e4a1d5c3925a1a5e71ba830270ff9e9fdbd7f5d9b90d319651a7"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3977,7 +3977,19 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "sha256": "c902ecc877f9a76f0257079be6159473101fd32898fe14f01c8365e2637a9f75"
+    },
+    "tests/test_glp334_conversion_reconciliation.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "20f0a79a0c47cbc50f8e05616995e925e0c48e23638a30e774ad66b8194be830"
+    },
+    "ops/glp334-conversion-reconciliation.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "c84b04a6572c8b7fdb47fa7c5499923a940f5a0b1e5454ba07b8275f616f1f90"
     }
   },
-  "tracked_count": 593
+  "tracked_count": 595
 }

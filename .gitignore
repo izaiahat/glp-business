@@ -470,3 +470,5 @@
 !/ops/glp/reporting-v2/API-COLLECTORS.md
 !/scripts/affiliate_reporting_everflow.py
 !/tests/test_api_collectors_everflow.py
+!/tests/test_glp334_conversion_reconciliation.py
+!/ops/glp334-conversion-reconciliation.md

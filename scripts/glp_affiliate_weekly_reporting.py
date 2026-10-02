@@ -169,7 +169,192 @@ def collect_cj(transport, secret, account_id, start, end, *, deadline, max_reque
     return receipts
 
 
-def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32):
+def _noncommercial(record):
+    """Explicit stored markers only; no guessed selftest prefixes or time joins."""
+    from glp_network_revenue_v2 import TEST_ID
+    if record.get('network') == '__receiver_selftest__':
+        return 'SELFTEST'
+    marked = lambda value: value is True or (type(value) is int and value == 1) or value in ('true', '1')
+    if (marked(record.get('is_test')) or record.get('classification') == 'TEST'
+            or str(record.get('event_status', '')).casefold() == 'test' or record.get('provider_event_id') == TEST_ID):
+        return 'TEST'
+    if marked(record.get('is_probe')) or record.get('probe_kind') == 'program_liveness':
+        return 'PROBE'
+    return None
+
+
+def _financial_provenance(record):
+    import re
+    try:
+        token(record.get('provider_event_id'))
+    except ValueError:
+        return False
+    return (record.get('authenticated') is True and record.get('classification') == 'REAL'
+            and record.get('attribution') == 'GLP' and not _noncommercial(record)
+            and isinstance(record.get('receipt_sha256'), str)
+            and re.fullmatch('[a-f0-9]{64}', record['receipt_sha256']) is not None
+            and isinstance(record.get('receipt_pointer'), str)
+            and re.fullmatch(r'/[A-Za-z0-9_/-]{0,255}', record['receipt_pointer']) is not None)
+
+
+def _mapping_reference(value):
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= 512
+
+
+def reconcile_conversions(snapshot, observations, identities):
+    """Reconcile supplied local evidence, without creating identity/member edges.
+
+    Native conversion_id equality requires a source mapping reference; it is
+    never aliased to provider_event_id. A payout_id requires its own membership
+    reference. Current weekly projections lack these edges and remain UNKNOWN.
+    Supplied classification/authentication are input claims, not live validation.
+    """
+    from collections import Counter
+    from glp_network_revenue_v2 import EXPONENT, IDENTITY
+    result = {'schema': 'glp-f12-conversion-reconciliation-v1', 'status': 'UNKNOWN',
+              'provenance': 'SUPPLIED_LOCAL_EVIDENCE_NOT_VERIFIED_PRODUCTION_DATA',
+              'input_sha256': None, 'weekly_observations_sha256': digest(observations),
+              'input_event_count': None, 'input_completeness': 'UNKNOWN', 'coverage_complete': False,
+              'commission_minor': None, 'cash_minor': None, 'rows': [], 'gaps': [],
+              'excluded_counts': {'SELFTEST': 0, 'TEST': 0, 'PROBE': 0}}
+    if snapshot is None:
+        result['gaps'].append('CONVERSION_SNAPSHOT_MISSING')
+        return result
+    if (not isinstance(snapshot, dict) or snapshot.get('schema') != 'glp-f12-reconciliation-input-v1'
+            or not isinstance(snapshot.get('evidence_ref'), str) or not snapshot['evidence_ref']
+            or not isinstance(snapshot.get('conversions'), list)
+            or any(not isinstance(r, dict) for r in snapshot['conversions'])
+            or any(not isinstance(snapshot.get(k, []), list) or
+                   any(not isinstance(r, dict) for r in snapshot.get(k, []))
+                   for k in ('clicks', 'financial_records'))):
+        raise ValueError('reconciliation_input_schema_invalid')
+    result.update(input_sha256=digest(snapshot), input_event_count=len(snapshot['conversions']),
+                  input_completeness='SUPPLIED_COMPLETE' if snapshot.get('complete') is True else 'UNKNOWN')
+    # Completeness of a supplied export does not prove financial or live coverage.
+    result['gaps'].append('PRODUCTION_AND_FINANCIAL_POPULATION_UNVERIFIED')
+    financial = list(snapshot.get('financial_records', []))
+    for observation in observations:
+        for field in ('records', 'accounting_projection'):
+            financial.extend(r for r in observation.get(field, []) if isinstance(r, dict))
+    # Overlapping weekly/lookback/month pages may repeat identical evidence.
+    # Different revisions or values remain competing candidates, never last-win.
+    financial = list({digest(r): r for r in financial}.values())
+    counts = Counter(digest(r.get('revenue_event_id')) for r in snapshot['conversions'])
+    native_counts = Counter(digest([*[r.get(k) for k in IDENTITY], r.get('conversion_id')])
+                            for r in snapshot['conversions'])
+    for event in snapshot['conversions']:
+        attributes = event.get('attributes_json', '{}')
+        try:
+            attributes = json.loads(attributes) if isinstance(attributes, str) else attributes
+        except ValueError:
+            attributes = None
+        clicks = [c for c in snapshot.get('clicks', []) if event.get('cs_click_id')
+                  and c.get('click_token') == event['cs_click_id'] and event.get('network')
+                  and c.get('network') == event['network'] and event.get('program_id')
+                  and c.get('program_id') == event['program_id']]
+        kind = _noncommercial(event) or (_noncommercial(attributes) if isinstance(attributes, dict) else None)
+        kind = kind or next((_noncommercial(c) for c in clicks if _noncommercial(c)), None)
+        if kind:
+            result['excluded_counts'][kind] += 1
+            continue
+        try:
+            event_id = token(event.get('revenue_event_id'))
+            native_id = token(event.get('conversion_id'))
+        except ValueError:
+            event_id = native_id = None
+        row = {'conversion_event_id': event_id, 'classification': 'REAL' if event.get('classification') == 'REAL' else 'UNKNOWN',
+               'earnings_state': 'UNKNOWN', 'payout_state': 'UNKNOWN', 'commission_minor': None,
+               'payout_total_minor': None, 'cash_minor': None, 'currency': None,
+               'payout_amount_scope': None, 'evidence': {'conversion_snapshot': snapshot['evidence_ref']}, 'gaps': []}
+        result['rows'].append(row)
+        if not isinstance(attributes, dict):
+            row['gaps'].append('CONVERSION_ATTRIBUTES_INVALID')
+        if event.get('event_type') != 'accepted_conversion':
+            row['gaps'].append('CONVERSION_EVENT_TYPE_UNSUPPORTED')
+        if event_id is None or counts[digest(event_id)] != 1:
+            row['gaps'].append('CONVERSION_RECEIPT_MISSING_OR_AMBIGUOUS')
+        if native_id is None:
+            row['gaps'].append('NATIVE_CONVERSION_ID_MISSING')
+        elif native_counts[digest([*[event.get(k) for k in IDENTITY], native_id])] != 1:
+            row['gaps'].append('NATIVE_CONVERSION_ID_AMBIGUOUS')
+        if len(clicks) > 1:
+            row['gaps'].append('CLICK_IDENTITY_AMBIGUOUS')
+        if event.get('classification') != 'REAL':
+            row['gaps'].append('CONVERSION_CLASSIFICATION_UNKNOWN')
+        typed = tuple(event.get(k) for k in IDENTITY)
+        bound = [i for i in identities if tuple(i.get(k) for k in IDENTITY) == typed and i.get('status') == 'verified']
+        if (any(not isinstance(v, str) or not v or v == 'UNKNOWN' for v in typed) or len(bound) != 1
+                or not _mapping_reference(bound[0].get('evidence_ref'))
+                or not isinstance(bound[0].get('provider_slug'), str) or not bound[0]['provider_slug']
+                or bound[0].get('tenant_kind') not in {'host', 'not_applicable'}
+                or (bound[0]['tenant_kind'] == 'not_applicable') != (typed[2] == 'not_applicable')):
+            row['gaps'].append('TYPED_IDENTITY_UNRESOLVED_OR_AMBIGUOUS')
+        elif 'fella' in bound[0]['provider_slug'].casefold():
+            row['gaps'].append('PROVIDER_EXCLUDED')
+        else:
+            row['evidence']['typed_identity'] = bound[0]['evidence_ref']
+        if row['gaps']:
+            continue
+        matches = [r for r in financial if r.get('event_type') == 'commission'
+                   and tuple(r.get(k) for k in IDENTITY) == typed
+                   and r.get('conversion_id') == event['conversion_id']]
+        if len(matches) != 1:
+            row['gaps'].append('EARNINGS_EDGE_MISSING' if not matches else 'EARNINGS_EDGE_AMBIGUOUS')
+            continue
+        earning = matches[0]
+        kind = _noncommercial(earning)
+        if kind:
+            result['rows'].pop()
+            result['excluded_counts'][kind] += 1
+            continue
+        if (not _mapping_reference(earning.get('conversion_join_evidence_ref'))
+                or not _financial_provenance(earning)):
+            row['gaps'].append('EARNINGS_MAPPING_OR_PROVENANCE_UNVERIFIED')
+            continue
+        if any(event.get(k) and earning.get(k) and event[k] != earning[k]
+               for k in ('cs_click_id', 'network_click_id')):
+            row['gaps'].append('EARNINGS_CLICK_IDENTITY_CONFLICT')
+            continue
+        row.update(earnings_state='JOINED', currency=earning.get('currency'))
+        row['evidence']['earnings'] = {k: earning[k] for k in
+                                      ('provider_event_id', 'receipt_sha256', 'receipt_pointer', 'conversion_join_evidence_ref')}
+        amount = earning.get('commission_minor')
+        if type(amount) is int and abs(amount) <= 2**63-1 and earning.get('currency') in EXPONENT:
+            row['commission_minor'] = amount
+        else:
+            row['gaps'].append('EARNINGS_AMOUNT_UNKNOWN')
+        if not isinstance(earning.get('payout_id'), str) or not earning['payout_id'] or not _mapping_reference(earning.get('payout_join_evidence_ref')):
+            row['gaps'].append('SETTLEMENT_MEMBERSHIP_MISSING')
+            continue
+        payouts = [r for r in financial if r.get('event_type') == 'settlement'
+                   and tuple(r.get(k) for k in IDENTITY) == typed
+                   and r.get('provider_event_id') == earning['payout_id']]
+        if len(payouts) != 1:
+            row['gaps'].append('PAYOUT_EDGE_MISSING' if not payouts else 'PAYOUT_EDGE_AMBIGUOUS')
+            continue
+        payout = payouts[0]
+        if not _financial_provenance(payout) or payout.get('mapped_status') != 'paid':
+            row['gaps'].append('PAYOUT_PROVENANCE_OR_PAID_STATE_UNVERIFIED')
+            continue
+        if earning.get('currency') not in EXPONENT or payout.get('currency') != earning['currency']:
+            row['gaps'].append('PAYOUT_CURRENCY_MISMATCH')
+            continue
+        row.update(payout_state='JOINED', payout_amount_scope='WHOLE_SETTLEMENT_NOT_CONVERSION_CASH')
+        row['evidence']['payout'] = {k: payout[k] for k in ('provider_event_id', 'receipt_sha256', 'receipt_pointer')}
+        row['evidence']['payout']['membership'] = earning['payout_join_evidence_ref']
+        amount = payout.get('net_paid_minor')
+        if type(amount) is int and abs(amount) <= 2**63-1:
+            row['payout_total_minor'] = amount
+        else:
+            row['gaps'].append('PAYOUT_AMOUNT_UNKNOWN')
+        row['gaps'].append('PER_CONVERSION_CASH_ALLOCATION_UNAVAILABLE')
+    if any(r['earnings_state'] == 'JOINED' for r in result['rows']):
+        result['status'] = 'PARTIAL'
+    return result
+
+
+def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
+        reconciliation_input=None):
     as_of = as_of or datetime.now(timezone.utc)
     window = windows(as_of, lookback_days)
     marketplaces = roster.get('marketplaces')
@@ -215,6 +400,7 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
             except Exception as exc:
                 result['gaps'].append({'network': name, 'state': 'SAFE_COLLECTOR_ERROR', 'exception_class': type(exc).__name__})
         save(output/'checkpoint.json', result)
+    result['conversion_reconciliation'] = reconcile_conversions(reconciliation_input, result['observations'], identities)
     result['completed_at'] = datetime.now(timezone.utc).isoformat()
     save(output/'RESULT.json', result)
     return result
@@ -240,6 +426,7 @@ def main(argv=None):
     p.add_argument('--lookback-days',type=int,default=90)
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
+    p.add_argument('--reconciliation-input',type=Path,help='Optional local F12 evidence JSON; never fetches conversions')
     p.add_argument('--live-cj-readonly',action='store_true')
     p.add_argument('--live-network-readonly',action='store_true')
     args=p.parse_args(argv)
@@ -258,6 +445,7 @@ def main(argv=None):
         required += [here/'marketplace_adapters'/f for f in (
             '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
     pin_hash=verify_pins(args.source_manifest,required)
+    reconciliation_input = json.loads(args.reconciliation_input.read_text()) if args.reconciliation_input else None
     roster=json.loads(args.roster.read_text())
     registry=json.loads(args.identity_registry.read_text())
     if registry.get('schema')!='reporting-identity-registry-v1':
@@ -311,7 +499,8 @@ def main(argv=None):
             signal.alarm(args.budget_seconds+5)
         try:
             result=run(args.output,roster,registry.get('identities',[]),lookback_days=args.lookback_days,
-                collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests)
+                collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests,
+                reconciliation_input=reconciliation_input)
             result['source_pins_sha256']=pin_hash
             result['invocation']='MANUAL_READ_ONLY' if live_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
             save(args.output/'RESULT.json',result)
