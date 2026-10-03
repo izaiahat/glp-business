@@ -23,7 +23,7 @@
         "scripts/glp_affiliate_sync_job.py",
         "scripts/glp_deploy_glp34_authority_v1.py"
       ],
-      "sha256": "afea9ddd39139b6ad03ca2bae2d05aee9d56295c53b2b504de0562423008f183"
+      "sha256": "596eede2b9dffd0a75050b065483fe283091d4946872eafc12139c7f7233e4bf"
     },
     "scripts/glp_affiliate_sync_job.py": {
       "kind": "script",

@@ -64,13 +64,24 @@ def validate_operator_release(review, prepared):
 def authenticated_current_base(carrier):
     """Continue from a terminal native release, never a caller-supplied UUID."""
     pointer=read(carrier.POINTER)
-    terminal=bound(pointer['final_receipt'])
-    if (pointer.get('status')!='PASS' or terminal.get('status')!='PASS_PRODUCTION_TERMINAL'
-            or terminal.get('deployment_id')!=pointer.get('deployment_id')
-            or terminal.get('schema')!='glp43-current-deploy-receipt-v1'):
+    final=bound(pointer['final_receipt'])
+    terminal_path=Path(pointer['final_receipt']['path']).parent/'CURRENT-RECEIPT.json'
+    terminal=read(terminal_path)
+    if (pointer.get('status')!='PASS' or final.get('status')!='PASS_PRODUCTION_TERMINAL'
+            or final.get('deployment',{}).get('deployment_id')!=pointer.get('deployment_id')
+            or final.get('site_head')!=pointer.get('site_head')
+            or terminal.get('status')!='PASS_PRODUCTION_TERMINAL'
+            or terminal.get('schema')!='glp43-current-deploy-receipt-v1'
+            or terminal.get('stages',{}).get('pages_deployment')!={'deployment_id':pointer['deployment_id'],'commit_hash':pointer['site_head']}
+            or terminal.get('stages',{}).get('canonical_pointer_readback',{}).get('pointer_sha256')!=sha(Path(carrier.POINTER).read_bytes())
+            or terminal.get('effects',{}).get('pages_deployments')!=1
+            or terminal.get('effects',{}).get('pages_rollbacks')!=0
+            or terminal.get('effects',{}).get('pointer_atomic_cas')!=1):
         raise ValueError('affiliate_release_current_base_not_terminal')
     prepared_path=Path(pointer['release_root']).parent/'PREPARED.json'
     prepared=read(prepared_path)
+    if terminal.get('binding',{}).get('prepared_manifest_sha256')!=sha(prepared_path.read_bytes()):
+        raise ValueError('affiliate_release_current_base_prepared_binding_invalid')
     if (prepared.get('site_head')!=pointer.get('site_head')
             or prepared.get('deploy_directory',{}).get('tree_sha256')!=pointer.get('deploy_directory_sha256')):
         raise ValueError('affiliate_release_current_base_identity_drift')
