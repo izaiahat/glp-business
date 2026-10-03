@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 694,
+  "tracked_count": 695,
   "files": {
     "scripts/glp334_live_reconciliation.py": {
       "kind": "script",
@@ -2179,7 +2179,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1c2cfd9d361129a97ffcfff468646a38f048aba2f938aab042f706c351aee0f2"
+      "sha256": "d8327603366dc139f118df95c225596c8b17e9df59f5bed4216a6918b52ee8a1"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3434,7 +3434,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "15f8c97c5069cdbf7ace819d2ad2e5b7e4e942424dda65fca42df4f18604ff83"
+      "sha256": "203be322e3b43b100cde3e72367974ae7268bc8fb608e432d217d6624e5c0621"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3525,7 +3525,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "script",
-      "sha256": "8d38839ceedc33cc259247784056c1755cc4d56d5e8222c4c790d79d1689d232"
+      "sha256": "53785928d2ccab72e4e8c09f885e15b0006777294063ce6ab9c3845b2176d669"
     },
     "scripts/maintenance_cohort.py": {
       "callers": [
@@ -3546,7 +3546,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0df9bc054646b08e2884ecf55b9b1f0a482dad2539d205691a88a23ebc5379e5"
+      "sha256": "bc031e430a63c88a2ee1f4c9b63f204c1d565c29c685974c81c845bc42bb0a8e"
     },
     "tests/test_maintenance_cohort_recovery.py": {
       "callers": [
@@ -4677,6 +4677,13 @@
       ],
       "kind": "test",
       "sha256": "c0d1438b1cf9c8f8e3152a1c4e4d9704e5a55fa6d595204a934cef232090d3b7"
+    },
+    "scripts/test_maintenance_recovery.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "542297faf9b8cf31ddb4a854f8e23b793bb6b20f21b4e05abcf612b19eda10dd"
     }
   }
 }
