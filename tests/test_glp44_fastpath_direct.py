@@ -83,4 +83,36 @@ def test_fastpath_direct_without_go_membership(synthetic_release, case):
     assert sum(row['unauthorized_affiliate_anchor_count'] for row in static) == (0 if case == 'approved' else 2)
     if case in ('approved', 'go', 'wrong-href'):
         assert all(obligations[path] == 'required' for path in paths)
-    assert pid not in f.local['programs']  # Never added to redirect authority.
+    assert pid not in f.local['programs']
+
+
+@pytest.mark.parametrize('destination,allowed', [
+    ('https://glpclinicscout.com/providers/', True),
+    ('https://tracking.invalid/offer', False),
+    ('https://glpclinicscout.com/go/provider', False),
+    ('http://glpclinicscout.com/providers/', False),
+])
+def test_redirect_reader_stays_editorial(destination, allowed):
+    request = collector.urllib.request.Request('https://glpclinicscout.com/old/')
+    reader = collector._PublicRouteRedirects()
+    if allowed:
+        result = reader.redirect_request(request, None, 302, 'Found', {}, destination)
+        assert result.full_url == destination
+    else:
+        with pytest.raises(RuntimeError, match='outside_editorial_scope'):
+            reader.redirect_request(request, None, 302, 'Found', {}, destination)
+
+
+def test_directory_permissions_use_observed_destination(synthetic_release, monkeypatch):
+    seen = []
+    def directory(target, path, *unused):
+        seen.append(path)
+        return path == '/providers/'
+    monkeypatch.setattr(collector, '_approved_directory_target', directory)
+    rows = [{'path': '/old-comparison/', 'resolved_path': '/providers/',
+             'sponsored_anchor_count': 1,
+             'sponsored_anchor_targets': [{'program_id': 'synthetic-directory',
+                                           'href': 'https://tracking.invalid/issued'}]}]
+    collector.derive_affiliate_obligations(synthetic_release.control, {'/old-comparison/'}, rows)
+    assert seen == ['/providers/']
+    assert rows[0]['unauthorized_affiliate_anchor_count'] == 0
