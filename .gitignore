@@ -15,6 +15,7 @@
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/tests/test_glp320_host_failure_sensor.py
 !/tests/test_agent_exec_routing.py
 !/scripts/fable_parent_handoff.py
 !/tests/test_fable_parent_handoff.py
@@ -66,6 +67,7 @@
 !/ops/glp/reporting-v2/source-manifest.json
 !/ops/hermes-cron-scripts/
 /ops/hermes-cron-scripts/*
+!/ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py
 !/ops/linear/
 /ops/linear/*
 !/scripts/cron_ports/

@@ -1197,8 +1197,14 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh",
       "source": "ops/hermes-cron-scripts/glp_seo_publish_failure_alert_cron.sh",
-      "reviewed_sha256": "bc11df966517025e109519d2840ea24ca4eadfdb9f7c5c339ccd455afe6751a2",
-      "payloads": []
+      "reviewed_sha256": "d42a5735e4b417437e83b976dbcb8f33cbbf611fb9808c2594e3b7c117189afc",
+      "payloads": [
+        {
+          "path": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py",
+          "sha256": "09b2eff03246bb74f90b753e25d4a7584a5385a9fad37aecc8747f234f273a7e",
+          "owner": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh"
+        }
+      ]
     },
     {
       "id": "777ee08cf53b",
