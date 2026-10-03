@@ -1072,82 +1072,52 @@ def _prepared_base_links(
     return binding
 
 
-def _registered_direct_publication(pointer, root, prepared, raw, manifest_path, package, receipt):
-    """Read-only admission of the native publisher's ordinary success path.
-
-    Recovery promotion receipts are a different path, not a prerequisite for a
-    successful first publication. Reuse native preparation/approval/intent gates.
-    """
-    import glp_deploy_glp34_authority_v1 as producer
-    fail = lambda: RuntimeError('current_content_base_direct_publication_invalid')
-    expected_effects = {'pages_deployments': 1, 'pages_rollbacks': 0, 'pointer_atomic_cas': 1,
-                        'worker_deploys': 0, 'd1_mutations': 0, 'cron_mutations': 0, 'email_sends': 0}
-    binding = receipt.get('binding', {})
-    stages = receipt.get('stages', {})
-    if (set(receipt) != {'schema', 'status', 'binding', 'site_head', 'rollback_deployment_id',
-                        'deploy_directory', 'stages', 'effects'}
-            or receipt.get('schema') != 'glp43-current-deploy-receipt-v1'
-            or receipt.get('status') != 'PASS_PRODUCTION_TERMINAL'
-            or set(binding) != {'prepared_manifest_sha256', 'approval_sha256'}
-            or binding.get('prepared_manifest_sha256') != sha_bytes(raw)
-            or not _valid_sha256(binding.get('approval_sha256'))
-            or receipt.get('site_head') != pointer['site_head']
-            or receipt.get('rollback_deployment_id') != prepared['rollback_deployment_id']
-            or receipt.get('deploy_directory') != prepared['deploy_directory']
-            or receipt.get('effects') != expected_effects
-            or any(type(v) is not int for v in receipt['effects'].values())
-            or set(stages) != {'pages_deploy_intent', 'pages_deploy_cli', 'pages_deployment',
-                              'pointer_intent', 'pointer_cas', 'canonical_pointer_readback',
-                              'route_probes', 'route_probe_raw', 'runtime_and_holds'}
-            or not all(isinstance(stages.get(k), list) and stages[k]
-                       for k in ('route_probes', 'route_probe_raw', 'runtime_and_holds'))):
-        raise fail()
-    if set(package) != {
-            'account_id', 'authority_created', 'build_receipt', 'file_count', 'files',
-            'github_reads', 'mode', 'project', 'provider_mutations', 'provider_reads',
-            'public_root', 'public_tree_sha256', 'release_authorized', 'rollback_branch',
-            'rollback_checked_at_utc', 'rollback_deployment_id', 'rollback_environment',
-            'schema', 'scope', 'signature_created', 'site_head', 'site_head_binding',
-            'site_repository', 'tree_hash_algorithm'}:
-        raise fail()
-    # The argv artifact only locates the review. Its path/string is not authority:
-    # the receipt's exact digest and the unchanged native approval gate are.
-    argv_path, argv_raw, _ = _read_bound_regular_file(str(root.parent / 'PUBLISH-ARGV.json'), 'publication_argv')
-    argv = json.loads(argv_raw)
-    if (not isinstance(argv, list) or not all(isinstance(v, str) for v in argv)
-            or argv.count('--approval') != 1 or argv.count('--expected-approval-sha256') != 1
-            or '--publish-current' not in argv):
-        raise fail()
-    approval_path = Path(argv[argv.index('--approval') + 1])
-    if not approval_path.is_relative_to(root.parent) or argv[argv.index('--expected-approval-sha256') + 1] != binding['approval_sha256']:
-        raise fail()
-    _, approval_raw, _ = _read_bound_regular_file(str(approval_path), 'publication_approval')
-    if sha_bytes(approval_raw) != binding['approval_sha256']:
-        raise fail()
+def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer):
+    """Accept the registered direct terminal path as well as historical promotions."""
+    original_path = run_dir / "CURRENT-RECEIPT.json"
+    _path, receipt_raw, receipt_identity = _read_bound_regular_file(str(original_path), "current_deploy")
+    terminal = json.loads(receipt_raw)
+    approval_path = root.parent / "astra-final-review/RESPONSE.md"
+    _path, approval_raw, approval_identity = _read_bound_regular_file(str(approval_path), "current_approval")
+    binding = {"prepared_manifest_sha256": sha_bytes(raw), "approval_sha256": sha_bytes(approval_raw)}
     producer.current_approval(argparse.Namespace(approval=str(approval_path),
-        expected_approval_sha256=binding['approval_sha256'],
-        expected_prepared_manifest_sha256=sha_bytes(raw), authorize_production=True), prepared)
-    intent = producer.current_pointer_intent(root, prepared, pointer['deployment_id'], manifest_path.parent)
-    successor = base64.b64decode(intent['successor_bytes_base64'], validate=True)
-    if (stages['pages_deploy_intent'].get('predecessor_id') != prepared['rollback_deployment_id']
-            or stages['pages_deploy_intent'].get('commit_hash') != pointer['site_head']
-            or stages['pages_deployment'] != {'deployment_id': pointer['deployment_id'], 'commit_hash': pointer['site_head']}
-            or stages['pointer_intent'] != intent
-            or stages['pointer_cas'].get('status') != 'PASS_ATOMIC_POINTER_CAS'
-            or stages['pointer_cas'].get('sha256') != sha_bytes(successor)
-            or stages['canonical_pointer_readback'] != {'deployment_id': pointer['deployment_id'],
-                'site_head': pointer['site_head'], 'pointer_sha256': sha_bytes(successor)}
+        expected_approval_sha256=binding["approval_sha256"],
+        expected_prepared_manifest_sha256=binding["prepared_manifest_sha256"],
+        authorize_production=True), prepared)
+    deployment_id = pointer["deployment_id"]
+    intent = producer.current_pointer_intent(root, prepared, deployment_id, run_dir)
+    successor = base64.b64decode(intent["successor_bytes_base64"], validate=True)
+    stages = terminal.get("stages", {})
+    if (set(terminal) != {"binding", "deploy_directory", "effects", "rollback_deployment_id",
+                         "schema", "site_head", "stages", "status"}
+            or terminal.get("schema") != "glp43-current-deploy-receipt-v1"
+            or terminal.get("status") != "PASS_PRODUCTION_TERMINAL"
+            or terminal.get("binding") != binding
+            or terminal.get("site_head") != pointer["site_head"]
+            or terminal.get("rollback_deployment_id") != prepared["rollback_deployment_id"]
+            or terminal.get("deploy_directory") != prepared["deploy_directory"]
+            or terminal.get("effects") != {"pages_deployments": 1, "pages_rollbacks": 0,
+                 "pointer_atomic_cas": 1, "worker_deploys": 0, "d1_mutations": 0,
+                 "cron_mutations": 0, "email_sends": 0}
+            or stages.get("pages_deploy_cli", {}).get("returncode") != 0
+            or stages.get("pages_deploy_intent", {}).get("predecessor_id") != prepared["rollback_deployment_id"]
+            or stages.get("pages_deploy_intent", {}).get("commit_hash") != pointer["site_head"]
+            or stages.get("pages_deployment") != {"deployment_id": deployment_id, "commit_hash": pointer["site_head"]}
+            or "rollback_intent" in stages
+            or not stages.get("route_probes") or not stages.get("runtime_and_holds")
+            or stages.get("pointer_intent") != intent
+            or stages.get("pointer_cas", {}).get("sha256") != sha_bytes(successor)
+            or stages.get("canonical_pointer_readback") != {"deployment_id": deployment_id,
+                 "site_head": pointer["site_head"], "pointer_sha256": sha_bytes(successor)}
             or successor != CURRENT_BASE.read_bytes()):
-        raise fail()
-    dependencies = [root / 'PACKAGE-MANIFEST.json', root / 'gate.json', Path(prepared['build_receipt']['path']),
-                    manifest_path.parent / 'CURRENT-RECEIPT.json', argv_path, approval_path]
-    dependencies += [producer.BUSINESS / name for name in producer.CURRENT_AUTHORITIES]
-    bound = {str(path): (sha_bytes(data), identity) for path in dependencies
-             for _path, data, identity in [_read_bound_regular_file(str(path), 'prepared_dependency')]}
-    return {'files': bound,
-            'source_sha256': sha_bytes(json.dumps(prepared['source'], sort_keys=True, separators=(',', ':')).encode()),
-            'compiled_sha256': sha_bytes(json.dumps(prepared['compiled'], sort_keys=True, separators=(',', ':')).encode()),
-            'release': prepared['release'], 'deploy': prepared['deploy_directory']}
+        raise RuntimeError("current_content_base_native_terminal_binding_invalid")
+    for path, expected_raw, expected_identity in ((original_path, receipt_raw, receipt_identity),
+                                                (approval_path, approval_raw, approval_identity)):
+        _path, after, identity = _read_bound_regular_file(str(path), "native_dependency")
+        if after != expected_raw or identity != expected_identity:
+            raise RuntimeError("current_content_base_native_dependency_changed")
+    return {str(original_path): (sha_bytes(receipt_raw), receipt_identity),
+            str(approval_path): (sha_bytes(approval_raw), approval_identity)}
 
 
 def _registered_prepared_binding(
@@ -1216,9 +1186,18 @@ def _registered_prepared_binding(
                 raise RuntimeError("current_content_base_prepared_runtime_drift")
         run_dir = manifest_path.parent
         original_path = run_dir / "CURRENT-RECEIPT.json"
-        original = json.loads(_read_bound_regular_file(str(original_path), "publication")[1])
-        if original.get('status') == 'PASS_PRODUCTION_TERMINAL':
-            return _registered_direct_publication(pointer, root, prepared, raw, manifest_path, package, original)
+        original = json.loads(_read_bound_regular_file(str(original_path), "current_deploy")[1])
+        if (original.get("schema") == "glp43-current-deploy-receipt-v1"
+                and original.get("status") == "PASS_PRODUCTION_TERMINAL"):
+            bound = _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer)
+            dependencies = (package_path, gate_path, Path(prepared["build_receipt"]["path"]))
+            bound.update({str(path): (sha_bytes(data), identity)
+                for path in dependencies
+                for _path, data, identity in [_read_bound_regular_file(str(path), "prepared_dependency")]})
+            return {"files": bound,
+                "source_sha256": sha_bytes(json.dumps(source, sort_keys=True, separators=(",", ":")).encode()),
+                "compiled_sha256": sha_bytes(json.dumps(prepared["compiled"], sort_keys=True, separators=(",", ":")).encode()),
+                "release": prepared["release"], "deploy": prepared["deploy_directory"]}
         deployment_id = pointer["deployment_id"]
         prefix = "CURRENT-PROMOTION-" + deployment_id
         root_path = run_dir / (prefix + ".json")

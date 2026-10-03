@@ -203,7 +203,8 @@ def test_direct_publication_receipt_not_recovery_chain(consumer, tmp_path, monke
     prepared = json.loads((root / 'PREPARED.json').read_text())
     run_dir = Path(pointer['manifest']['path']).parent
     intent = producer.current_pointer_intent(root, prepared, pointer['deployment_id'], run_dir)
-    approval = root.parent / 'review.json'
+    approval = root.parent / 'astra-final-review/RESPONSE.md'
+    approval.parent.mkdir(parents=True)
     approval.write_text('{"fixture":"independent approval"}')
     approval_sha = daily.sha(approval)
     put = lambda p, v: p.write_text(json.dumps(v))
@@ -241,7 +242,7 @@ def test_direct_publication_receipt_not_recovery_chain(consumer, tmp_path, monke
     daily.unchanged(bound)
     direct['effects']['pointer_atomic_cas'] = 0
     put(receipt, direct)
-    with pytest.raises(RuntimeError, match='direct_publication'):
+    with pytest.raises(RuntimeError, match='native_terminal_binding'):
         daily.binding(path, releases)
 
 
