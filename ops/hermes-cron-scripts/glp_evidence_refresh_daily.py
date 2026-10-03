@@ -13,11 +13,11 @@ import sys
 BASE = Path('/home/ubuntu/business/ops/glp/evidence-refresh-k3')
 PYTHON = '/home/ubuntu/.hermes/hermes-agent/venv/bin/python'
 PINS = {
-    'daily_evidence_refresh.py': 'b130c0071156fbe54397ea6aee9d7edbcf8020799a4e913b9b6e65a5abab5022',
+    'daily_evidence_refresh.py': '804e01703504fec54c652d76e6fa48c22d03247bb445f399f268daea694b1323',
     'review_evidence.py': '5ae7911e00b33c96650e0cba182fa0e3eda474c0f95973cd5fc85310fef40d06',
-    'SOURCE-PINS.json': '9f4ca471589c2a320ea1c2e93ab80ab84750d6483574820db8ba3e23906f5f37',
+    'SOURCE-PINS.json': 'efa406a0ffd1dcc07583db377fffb7c9d319886d47aa6b4692f7a0b6d3fd3803',
     'ASTRA-LOW-PROMPT.md': 'dd82f3885007de1d9f1fb01e4ddda49ca0253e23c3229ef6245bb1acca7f29e1',
-    'compose_current_base.py': '2e744ebad931afd09809854752fc31d9f3ca975a823b9819bfe3220b0cfd2a20',
+    'compose_current_base.py': '0db2d0eccab90f843489618711afdbca24a58997fd0d357509e6a66af242fc3c',
 }
 
 

@@ -70,6 +70,20 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
     row = d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
     assert row['capture_count'] == 1
     assert row['capture_outcome'] == 'IMPORTED_RETAINED_TAXONOMY_CAPTURE'
+    monkeypatch.setattr(d, 'SUPPLEMENTS', tmp_path / 'supplements')
+    body = tmp_path / 'supplement.txt'
+    body.write_text('Fixture provider page')
+    caps = {'extra': {'source_url': 'https://provider.example/',
+                     'captured_at_utc': '2026-10-02T12:01:00Z',
+                     'markdown_path': str(body), 'markdown_sha256': er.sha(body)}}
+    manifest = put(d.SUPPLEMENTS / '2026-10-02/shedrx/CAPTURES.json', caps)
+    supplemented = d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
+    assert supplemented['capture_count'] == 2
+    assert supplemented['capture_outcome'] == 'IMPORTED_RETAINED_AND_OPERATOR_CAPTURES'
+    caps['extra']['captured_at_utc'] = '2026-10-01T12:01:00Z'
+    put(manifest, caps)
+    with pytest.raises(RuntimeError, match='STALE_CAPTURE_NO_RESTAMP'):
+        d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
 
 
 def test_disjoint_composition_does_not_serially_apply_shared_counts(tmp_path):
@@ -124,10 +138,18 @@ def test_successor_stage_preserves_immutable_original_and_reuses(tmp_path):
     assert parent == {'path': str(p), 'sha256': d.sha(p)}
     assert p.read_bytes() == before
     assert d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, True) == (folder, parent)
+    replacement = {'fixture': 'new-authenticated-base'}
+    next_folder, next_parent = d.stage_directory(tmp_path, '2026-10-02', replacement, pins, False, None, True)
+    assert next_folder != folder and next_parent == parent
+    assert p.read_bytes() == before  # Fresh namespace, NEVER replay old packets.
     with pytest.raises(RuntimeError, match='BASE_CHANGED'):
-        d.stage_directory(tmp_path, '2026-10-02', {}, pins, False, None, True)
+        d.stage_directory(tmp_path, '2026-10-02', replacement, pins, False, None, False)
     with pytest.raises(RuntimeError, match='INPUT_MODE_CHANGED'):
         d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, False)
+    supplement = {'fixture/CAPTURES.json': 'new-actual-capture-hash'}
+    refreshed, _ = d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, True, supplement)
+    assert refreshed != folder
+    assert p.read_bytes() == before
 
 
 def test_pallas_policy_matches_captured_wording_without_adding_tags():
@@ -140,3 +162,34 @@ def test_pallas_policy_matches_captured_wording_without_adding_tags():
     text = 'Compounded semaglutide injection is $139 for your first month, then $199 every 4 weeks, or $139/mo average forever on the annual plan; compounded tirzepatide injection is $179 for your first month, then $299 every 4 weeks, or $239/mo average forever on the annual plan.'
     assert set(p['quotes']['molecule_tags']) == {'semaglutide', 'tirzepatide'}
     assert all(q in text for q in p['quotes']['molecule_tags'].values())
+
+
+def test_composition_requires_the_actual_pricing_receiver(tmp_path, monkeypatch):
+    import types
+    c = load('compose_current_base')
+    d = load('daily_evidence_refresh')
+    er = d.load(ROOT / 'tools/glp/evidence_refresh.py', 'pricing_engine')
+    release = tmp_path / 'release'
+    for name in ['program-registry.json', 'provider-pricing-matrix.json']:
+        put(release / 'data' / name, {})
+    monkeypatch.setattr(d, 'unchanged', lambda bound: None)
+    monkeypatch.setattr(c, 'merge_packets', lambda *a: ({}, {}, {}))
+    calls = []
+    def native(argv, **kw):
+        calls.append(argv)
+        if argv[0] == 'node':
+            return types.SimpleNamespace(returncode=0, stdout='{"registry":{},"matrix":{}}', stderr='')
+        assert argv[0] == 'bwrap' and '--unshare-net' in argv
+        assert argv[-1] == str(tmp_path / 'out/pricing-validation-root/scripts/validate-provider-pricing-matrix.mjs')
+        # The accepted baseline stays visible at its real path; overlay only a
+        # different candidate root, never the matrix the pointer authenticates.
+        assert str(release / 'data/provider-pricing-matrix.json') not in argv
+        assert str(release / 'data/program-registry.json') not in argv
+        return types.SimpleNamespace(returncode=1, stdout='{"status":"FAIL","violations":["legacy_snapshot_drift"]}', stderr='')
+    monkeypatch.setattr(c.subprocess, 'run', native)
+    out = tmp_path / 'out'
+    result = c.compose(d, er, {'pointer': {'release_root': str(release)}}, [{'program_id': 'fixture', 'status': 'PACKET_READY'}], out)
+    assert result['status'] == 'BLOCKED_PRICING_VALIDATION'
+    assert result['combined_patch'] is None
+    assert not (out / 'COMBINED-PATCH.json').exists()
+    assert len(calls) == 2
