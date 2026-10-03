@@ -119,7 +119,11 @@ class CognyClient:
         lane can record an honest per-probe failure without losing the whole run.
         """
         last: Exception | None = None
-        for attempt in range(self._retries):
+        # Queue mutations have no idempotency key: an uncertain ACK must not
+        # cause another claim or duplicate completion/findings.
+        attempts = 1 if tool in {'get_next_task', 'complete_task'} else self._retries
+        attempts = max(1, attempts)
+        for attempt in range(attempts):
             try:
                 self._id += 1
                 _, body = self._post({
@@ -147,7 +151,7 @@ class CognyClient:
                 return payload
             except Exception as exc:  # transport / rpc / parse
                 last = exc
-                if attempt + 1 < self._retries:
+                if attempt + 1 < attempts:
                     time.sleep(2 * (attempt + 1))
                     if isinstance(exc, urllib.error.HTTPError) and exc.code in (400, 401, 404):
                         # Session may have been invalidated; re-init once.

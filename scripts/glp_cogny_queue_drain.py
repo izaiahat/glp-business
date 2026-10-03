@@ -56,6 +56,9 @@ as `glp_onboarding_authoring_dispatch`.
 from __future__ import annotations
 
 import argparse
+import fcntl
+import functools
+import tempfile
 import datetime as dt
 import json
 import os
@@ -135,23 +138,47 @@ def load_state(path: str | Path | None = None) -> dict:
     p = Path(path or STATE_PATH)
     if not p.is_file():
         return {"schema": SCHEMA, "dispatches": []}
-    try:
-        doc = json.loads(p.read_text(encoding="utf-8"))
-        if isinstance(doc, dict):
-            doc.setdefault("dispatches", [])
-            return doc
-    except Exception:  # noqa: BLE001 — a corrupt state file must not stop the lane
-        pass
-    return {"schema": SCHEMA, "dispatches": []}
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(doc, dict) or not isinstance(doc.get('dispatches'), list):
+        raise ValueError('cogny_state_invalid_no_reset')
+    return doc
 
 
 def save_state(state: dict, path: str | Path | None = None) -> None:
     p = Path(path or STATE_PATH)
     p.parent.mkdir(parents=True, exist_ok=True)
     state["schema"] = SCHEMA
-    # Keep the tail bounded; this file is a receipt trail, not a database.
-    state["dispatches"] = state.get("dispatches", [])[-60:]
-    p.write_text(json.dumps(state, indent=1, sort_keys=False) + "\n", encoding="utf-8")
+    # Keep every uncertain identity; pruning can reopen a once-only mutation.
+    fd, temp = tempfile.mkstemp(prefix='.cogny-', dir=p.parent)
+    try:
+        with os.fdopen(fd, 'w') as out:
+            json.dump(state, out, sort_keys=True)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temp, p)
+        directory = os.open(p.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def custody(fn):
+    """One owner across native calls, bridge continuations and host callbacks."""
+    import inspect
+    signature = inspect.signature(fn)
+    @functools.wraps(fn)
+    def locked(*args, **kwargs):
+        bound = signature.bind(*args, **kwargs)
+        path = Path(bound.arguments.get('state_path') or STATE_PATH)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.with_suffix('.lock').open('a') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            return fn(*args, **kwargs)
+    return locked
 
 
 def sink() -> str:
@@ -368,10 +395,15 @@ def mode_status(client: Any) -> dict:
             "output_count": int(stats.get("pending") or 0)}
 
 
+@custody
 def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
                   poster: Callable | None = None, now: dt.datetime | None = None,
                   state_path: str | Path | None = None) -> dict:
     state = load_state(state_path)
+    if state.get('claim_uncertain') or any(r.get('status') not in {'completed', 'completed_no_receipt'}
+                                         for r in state['dispatches']):
+        return {'schema': SCHEMA, 'mode': 'dispatch', 'ok': False, 'dispatched': False,
+                'reason': 'prior_custody_unresolved', 'output_count': 0}
     stamp = (now or dt.datetime.now(dt.timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
 
     client.call("heartbeat", {"agent_harness": "n8n-bridge", "harness_version": "1.0",
@@ -384,7 +416,9 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
                 "reason": "queue_read_failed", "error": str(queue.get("cogny_error"))[:300],
                 "output_count": 0}
     stats = (queue or {}).get("stats") or {}
-    pending = int(stats.get("pending") or 0)
+    if type(stats.get('pending')) is not int or stats['pending'] < 0:
+        raise ValueError('queue_denominator_unknown')
+    pending = stats['pending']
     if pending <= 0:
         # An empty queue is a SUCCESS. The never-zero doctrine applies to
         # telemetry ROWS, not to a work queue that is legitimately drained.
@@ -393,19 +427,29 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
                 "in_progress": int(stats.get("in_progress") or 0),
                 "completed": int(stats.get("completed") or 0), "output_count": 0}
 
+    if not isinstance(stats.get('pending'), int) or stats.get('pending') < 0:
+        raise ValueError('queue_denominator_unknown')
+    state['claim_uncertain'] = {'at': utc_now(), 'pending_before': pending}
+    save_state(state, state_path)
     task = client.call("get_next_task", {}, allow_error=True)
     if not isinstance(task, dict) or not task.get("hasTask"):
-        return {"schema": SCHEMA, "mode": "dispatch", "ok": True, "dispatched": False,
+        return {"schema": SCHEMA, "mode": "dispatch", "ok": False, "dispatched": False,
                 "reason": "get_next_task_returned_none", "pending": pending, "output_count": 0}
     row = task.get("task") if isinstance(task.get("task"), dict) else task
     task_id = str(row.get("id") or "")
+    if not task_id:
+        raise ValueError('claimed_task_identity_missing')
+    claim = {'task_id': task_id, 'status': 'claimed', 'claimed_at': utc_now()}
+    state['dispatches'].append(claim)
+    state.pop('claim_uncertain')
+    save_state(state, state_path)
 
-    verdict = may_dispatch(row, state, now)
+    verdict = may_dispatch(row, {'dispatches': state['dispatches'][:-1]}, now)
     if not verdict.get("ok"):
         rec = {"task_id": task_id, "pt_day": pt_day(now), "dispatched_utc": utc_now(now),
                "status": "refused", "why": verdict.get("why"),
                "refused_class": verdict.get("refused_class", "gate")}
-        state["dispatches"].append(rec)
+        claim.update(rec)
         save_state(state, state_path)
         return {"schema": SCHEMA, "mode": "dispatch", "ok": True, "dispatched": False,
                 "reason": "refused", "why": verdict.get("why"), "task_id": task_id,
@@ -419,6 +463,9 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
     if poster is None:
         poster = ((lambda p, t, cb, m: _sink_write(p, t, cb, task_id, m))
                   if sink() else bridge_hermes_chat)
+    claim.update({'status': 'dispatch_uncertain', 'agent_receipt': receipt_file,
+                  'report_dir': report_dir, 'pt_day': pt_day(now)})
+    save_state(state, state_path)
     try:
         res = poster(brief, budget_s, callback_url, model) or {}
     except Exception as exc:  # noqa: BLE001 — a dead bridge is a blocked receipt, not a dead lane
@@ -439,7 +486,7 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
         "status": "in_flight" if job_id else "dispatch_failed",
         "error": res.get("error"),
     }
-    state["dispatches"].append(rec)
+    claim.update(rec)
     save_state(state, state_path)
 
     return {"schema": SCHEMA, "mode": "dispatch", "ok": bool(job_id),
@@ -475,13 +522,15 @@ def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
     telemetry lane uses, so the two writers cannot fight each other."""
     open_titles: set = set()
     try:
-        cur = client.call("list_findings", {"limit": 100}, allow_error=True)
+        cur = client.call("list_findings", {"limit": 100})
+        if not isinstance(cur, dict) or not isinstance(cur.get('findings'), list):
+            raise ValueError('findings_shape_unknown')
         rows = cur.get("findings") if isinstance(cur, dict) else cur
         for r in rows or []:
             if isinstance(r, dict) and str(r.get("status") or "open") not in ("done", "dismissed"):
                 open_titles.add(str(r.get("title") or "").strip())
-    except Exception:  # noqa: BLE001 — a read failure must not block the write path
-        open_titles = set()
+    except Exception as exc:
+        raise RuntimeError('cogny_findings_read_failed') from exc
     fresh, skipped = [], []
     for f in findings or []:
         if not isinstance(f, dict) or not f.get("title") or not f.get("body"):
@@ -501,71 +550,75 @@ def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
     return fresh, skipped
 
 
+@custody
 def mode_resume(client: Any, job_id: str = "", task_id: str = "",
                 job_status: Callable | None = None,
                 state_path: str | Path | None = None) -> dict:
     state = load_state(state_path)
-    rec = None
-    for r in reversed(state.get("dispatches", [])):
-        if (job_id and r.get("job_id") == job_id) or (task_id and r.get("task_id") == task_id):
-            rec = r
-            break
-    if rec is None and state.get("dispatches"):
-        rec = state["dispatches"][-1]
-    if rec is None:
-        return {"schema": SCHEMA, "mode": "resume", "ok": False,
-                "reason": "no_dispatch_on_record", "output_count": 0}
-
-    task_id = task_id or str(rec.get("task_id") or "")
-    job_id = job_id or str(rec.get("job_id") or "")
-
-    job = (job_status or bridge_job_status)(job_id) if job_id else {"error": "no_job_id"}
-    rc = job.get("rc") if isinstance(job, dict) else None
-
-    receipt = read_agent_receipt(rec.get("agent_receipt") or "")
-    if receipt.get("_unreadable"):
-        # The agent did not leave a readable receipt. Say so, complete the task
-        # honestly rather than leaving it claimed forever — a stuck in_progress
-        # row is the exact failure this whole lane exists to end.
-        summary = (f"Automated drain dispatched this task (bridge job {job_id}, rc={rc}) but the "
-                   f"agent left no usable receipt at {rec.get('agent_receipt')}: "
-                   f"{receipt.get('_unreadable')}. Completing the row so the queue cannot stall "
-                   f"again; the work itself is NOT done and should be re-queued.")
-        res = client.call("complete_task", {"taskId": task_id, "resultSummary": summary,
-                                            "findings": []}, allow_error=True)
-        rec["status"] = "completed_no_receipt"
-        rec["resolved_utc"] = utc_now()
-        save_state(state, state_path)
-        return {"schema": SCHEMA, "mode": "resume", "ok": False, "task_id": task_id,
-                "job_id": job_id, "rc": rc, "reason": "agent_receipt_missing",
-                "error": receipt.get("_unreadable"), "findings_created": 0,
-                "complete_task": str(res)[:200], "output_count": 0}
-
-    fresh, skipped = dedupe_findings(client, receipt.get("findings") or [])
-    summary = str(receipt.get("result_summary") or "").strip() or (
-        f"Cogny task {task_id} executed by the automated drain (bridge job {job_id}). "
-        f"The agent returned no result_summary.")
-    if receipt.get("blocked"):
-        summary += "\n\nBLOCKED: " + json.dumps(receipt["blocked"])[:1200]
-    if receipt.get("report_path"):
-        summary += f"\n\nFull report: {receipt['report_path']}"
-
-    res = client.call("complete_task", {"taskId": task_id, "resultSummary": summary[:20000],
-                                        "findings": fresh}, allow_error=True)
-    failed = isinstance(res, dict) and bool(res.get("cogny_error"))
-    rec["status"] = "completed" if not failed else "complete_failed"
-    rec["resolved_utc"] = utc_now()
-    rec["findings_created"] = 0 if failed else len(fresh)
-    rec["findings_skipped_open"] = len(skipped)
+    matches = [r for r in state['dispatches'] if
+               (job_id or task_id) and (not job_id or r.get('job_id') == job_id)
+               and (not task_id or r.get('task_id') == task_id)]
+    out = {'schema': SCHEMA, 'mode': 'resume', 'ok': False, 'output_count': 0,
+           'task_id': task_id, 'job_id': job_id}
+    if len(matches) != 1:
+        return {**out, 'reason': 'exact_dispatch_not_found'}
+    rec = matches[0]
+    task_id, job_id = rec['task_id'], rec.get('job_id')
+    out.update(task_id=task_id, job_id=job_id)
+    if rec.get('status') == 'completed' and rec.get('completion_ack'):
+        return {**out, 'ok': True, 'reason': 'already_acknowledged',
+                'findings_created': rec.get('findings_created', 0),
+                'report_path': rec.get('report_path')}
+    if rec.get('status') in {'completion_uncertain', 'completion_awaiting_readback'}:
+        queue = client.call('get_queue_status', {})
+        remote = [r for r in queue.get('tasks', []) if r.get('id') == task_id]
+        if len(remote) == 1 and remote[0].get('status') == 'completed':
+            rec.update(status='completed', completion_ack={'readback': remote[0]}, resolved_utc=utc_now())
+            save_state(state, state_path)
+            return {**out, 'ok': True, 'reason': 'completion_reconciled',
+                    'findings_created': rec.get('findings_created', 0),
+                    'report_path': rec.get('report_path')}
+        return {**out, 'reason': 'completion_ack_unknown_no_replay'}
+    if not job_id or rec.get('status') != 'in_flight':
+        return {**out, 'reason': 'dispatch_unresolved'}
+    job = (job_status or bridge_job_status)(job_id)
+    if job.get('job_id') != job_id or job.get('status') not in {'done', 'error'}:
+        return {**out, 'reason': 'job_not_terminal'}
+    receipt = read_agent_receipt(rec.get('agent_receipt') or '')
+    if (job.get('rc') != 0 or receipt.get('_unreadable') or receipt.get('task_id') != task_id
+            or receipt.get('ok') is not True or not receipt.get('result_summary')
+            or not receipt.get('report_path')):
+        return {**out, 'reason': 'analysis_not_successful', 'rc': job.get('rc')}
+    fresh, skipped = dedupe_findings(client, receipt.get('findings') or [])
+    summary = str(receipt['result_summary']) + '\n\nFull report: ' + str(receipt['report_path'])
+    rec.update(status='completion_uncertain', report_path=receipt['report_path'],
+               findings_created=len(fresh), findings_skipped_open=len(skipped))
     save_state(state, state_path)
+    res = client.call('complete_task', {'taskId': task_id, 'resultSummary': summary[:20000],
+                                      'findings': fresh}, allow_error=True)
+    if not isinstance(res, dict) or res.get('success') is not True:
+        return {**out, 'reason': 'completion_ack_unknown_no_replay'}
+    rec.update(status='completion_awaiting_readback', completion_response=res)
+    save_state(state, state_path)
+    queue = client.call('get_queue_status', {})
+    remote = [r for r in queue.get('tasks', []) if r.get('id') == task_id]
+    if len(remote) != 1 or remote[0].get('status') != 'completed':
+        return {**out, 'reason': 'completion_readback_missing'}
+    rec.update(status='completed', completion_ack={'response': res, 'readback': remote[0]},
+               resolved_utc=utc_now())
+    save_state(state, state_path)
+    return {**out, 'ok': True, 'reason': 'completed', 'output_count': max(1, len(fresh)),
+            'findings_created': len(fresh), 'findings_skipped_open': len(skipped),
+            'report_path': receipt['report_path']}
 
-    return {"schema": SCHEMA, "mode": "resume", "ok": not failed, "task_id": task_id,
-            "job_id": job_id, "rc": rc, "reason": "completed" if not failed else "complete_task_failed",
-            "findings_created": 0 if failed else len(fresh),
-            "findings_skipped_open": len(skipped),
-            "report_path": receipt.get("report_path"),
-            "complete_task": json.dumps(res)[:400] if isinstance(res, (dict, list)) else str(res)[:400],
-            "output_count": 0 if failed else max(1, len(fresh))}
+
+def mode_tick(client):
+    state = load_state()
+    pending = [r for r in state['dispatches'] if r.get('status') != 'completed']
+    if pending:
+        row = pending[0]
+        return mode_resume(client, row.get('job_id', ''), row.get('task_id', ''))
+    return mode_dispatch(client, '', BUDGET_S, MODEL)
 
 
 # ---------------------------------------------------------------------------
@@ -574,7 +627,7 @@ def mode_resume(client: Any, job_id: str = "", task_id: str = "",
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Drain Cogny's scheduled-task queue, no hands.")
-    ap.add_argument("--mode", choices=("dispatch", "resume", "status"), default="status")
+    ap.add_argument("--mode", choices=("dispatch", "resume", "status", "tick"), default="status")
     ap.add_argument("--callback", default="", help="n8n $execution.resumeUrl for the hermes_chat job")
     ap.add_argument("--budget-s", type=int, default=BUDGET_S)
     ap.add_argument("--model", default=MODEL)
@@ -594,6 +647,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if ns.mode == "status":
         out = mode_status(client)
+    elif ns.mode == 'tick':
+        out = mode_tick(client)
     elif ns.mode == "dispatch":
         out = mode_dispatch(client, ns.callback, max(1, min(ns.budget_s, 3600)), ns.model)
     else:
