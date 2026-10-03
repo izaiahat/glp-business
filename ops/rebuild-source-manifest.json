@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 678,
+  "tracked_count": 679,
   "files": {
     "tests/test_glp110_prepared_authority_cache.py": {
       "kind": "test",
@@ -482,7 +482,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "51b31edd6d3f49d52ed1a783c28d654a3c211c182489c979164751a6ef8acbb2"
+      "sha256": "aa0d5d5773ceae5c43026f0f8d7637f46b4f723e6365190d9d2150d2c58293d3"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2325,7 +2325,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "d59dbbb83a2f1b3f9ec883a1ffba31997b29aec073d3c5b9eaa4c0aab990cc18"
+      "sha256": "878a60cd6e35c16c166e4869f091ac46abebe7f4a39a86ddea429ad95f93e742"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -4563,6 +4563,13 @@
         "host:cogny-task-drain"
       ],
       "sha256": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f"
+    },
+    "tests/test_glp76_review_publication_date.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "32a9b26763e96e0067eaaf4ae388dc4a8b45ebff205c3ad1e2aeb9a53e264f6a"
     }
   }
 }
