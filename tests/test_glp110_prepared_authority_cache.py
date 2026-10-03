@@ -100,6 +100,54 @@ def test_added_member_with_directory_stat_collision_forces_native_validation(pre
     assert len(calls) == 2
 
 
+def test_warm_authority_does_not_rebuild_unchanged_expected_membership(prepared, monkeypatch):
+    """Reuse derived topology, never current names or member/ancestor stats."""
+    release, member, external, calls, module = prepared
+    archiver._registered_prepared_release_evidence({}, release)
+    expected = archiver._PREPARED_EVIDENCE_CACHE['identity']
+    real_os = archiver.os
+    stats, scans, splits = [], [], []
+
+    class PathProbe:
+        def __getattr__(self, name):
+            return getattr(real_os.path, name)
+
+        def dirname(self, path):
+            splits.append(path)
+            return real_os.path.dirname(path)
+
+        def basename(self, path):
+            splits.append(path)
+            return real_os.path.basename(path)
+
+    class OSProbe:
+        path = PathProbe()
+
+        def __getattr__(self, name):
+            return getattr(real_os, name)
+
+        def lstat(self, path):
+            stats.append(str(path))
+            return real_os.lstat(path)
+
+        def scandir(self, path):
+            scans.append(str(path))
+            return real_os.scandir(path)
+
+    monkeypatch.setattr(archiver, 'os', OSProbe())
+    for _ in range(2):
+        stats.clear()
+        scans.clear()
+        assert archiver._registered_prepared_release_evidence({}, release)['prepared_binding']['release'] == 'validated'
+        # Every call still does BOTH complete opening/closing lstat passes and
+        # BOTH fresh exact-name enumerations of every prepared directory.
+        assert all(stats.count(row[0]) >= 2 for row in expected)
+        assert all(scans.count(row[0]) == 2 for row in expected
+                   if len(row) == 10 and stat.S_ISDIR(row[3]))
+    assert len(calls) == 1
+    assert not splits, 'warm member approvals must not rebuild immutable expected child-name sets'
+
+
 def test_mutation_during_full_validation_cannot_seed_cache(prepared):
     release, member, external, calls, module = prepared
     native = module._validate_base_evidence
