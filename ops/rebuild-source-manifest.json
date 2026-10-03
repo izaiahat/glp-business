@@ -1235,7 +1235,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "7c07cb8afbc430b89867e5e777d6034b861fbbfe1b483f145035df1a67d0a389"
+      "sha256": "73b387b64f43172bb95e0d8095e568f124462297195bf5904fc327bb6b6f7e06"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2185,7 +2185,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "ff0f70b329c7dc82e7562e255ab0fead78d4324176fcb1d3010eda119478ef1c"
+      "sha256": "6f16cfd34b305e30e426b9bc7c919f58071b3f88fc11548578e7668a9a5d8455"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -5065,7 +5065,7 @@
       "callers": [
         "tests/test_rook_communication.py"
       ],
-      "sha256": "4dc2efe68698a2d64d1a455b84fd0f3388f176eb77024aad0e7d57ac0e9f03f0"
+      "sha256": "17531375a86b133ab5ef13b9d86b3dcadd2645969169dd6817a8a71ac8519dc4"
     },
     "tests/fixtures/finch_cabx_embedded_file.jumb": {
       "kind": "retained_offline_fixture_not_runtime_authority",

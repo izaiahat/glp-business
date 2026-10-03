@@ -176,19 +176,67 @@ Zero-to-EOF lengths, extended lengths, duplicate stores, unknown box/type UUIDs,
 compressed `brob`/`c2cm`, XML/codestream/custom UUID/protected content and external
 embedded references fail closed rather than being skipped.
 
-Embedded descriptors accept only `image/png` or `image/jpeg`, with an optional
-nonempty UTF-8 filename of at most 1024 bytes. CBOR, JSON and embedded image
-content bytes are **opaque**: this is a framing check, not a CBOR/JSON parser,
-embedded-image decoder, C2PA semantic validator or provenance-trust check.
+Embedded descriptors accept `image/png`, `image/jpeg`, and the **source-only,
+reject-only `image/svg+xml` subset** below, with an optional nonempty UTF-8
+filename of at most 1024 bytes. Only `bidb` paired with `bfdb` MIME
+`image/svg+xml` in the standard embedded-file UUID gets SVG validation.
+Standalone SVG uploads remain denied; all other profiles are unchanged.
+CBOR, JSON and PNG/JPEG embedded content bytes remain **opaque**: this is a
+framing check, not a CBOR/JSON parser, embedded PNG/JPEG decoder, C2PA semantic
+validator or provenance-trust check.
 The complete raw caBX payload plus individual labels, salt and leaf payloads
 are marker-scanned (FourCC boundaries must not mask standalone word markers),
 including embedded image pixels; they gain **no** outer-image IDAT exemption.
-Inner image compressed metadata, escaped JSON and encoded CBOR values are not
+Inner PNG/JPEG compressed metadata, escaped JSON and encoded CBOR values are not
 expanded/interpreted: an escaped JSON or chunked CBOR semantic marker can pass
 if it has no matching raw-byte marker. Even invalid JSON/CBOR or invalid embedded
-image content can pass supported framing. Existing word-boundary regex limits remain; marker scans
+PNG/JPEG content can pass supported framing. Existing word-boundary regex limits remain; marker scans
 are not sanitization or a complete malware/PHI detector. No URL is fetched,
 signature trusted, bytes normalized, metadata stripped or image re-encoded.
+
+#### Embedded SVG compatibility (not general SVG safety)
+
+The explicit namespace-aware Expat parser accepts exactly one `svg` root and
+one direct, empty `path`, both in `http://www.w3.org/2000/svg`, declared once as
+the root's default namespace. Whitespace-only XML text is allowed. Unnamespaced
+root attributes may only be `width`, `height`, `viewBox`, `fill`; path attributes
+may only be mandatory `d` and optional `fill`. Root dimensions/viewBox/fill are
+optional; normal SVG defaults apply when absent. No other elements, attributes,
+namespace declarations/prefixes, descendants or nonwhitespace text are accepted.
+
+Limits before parsing: UTF-8 XML at most **8192 bytes**, no `&`, `<!` or `<?`
+constructs. Numeric/predefined character references are deliberately refused,
+as are XML declarations, PI, comments, CDATA, DTDs and entities. Defensive parser
+handlers refuse them too; parameter-entity parsing is disabled, and no external
+entity resolver is provided. Immediate start callbacks enforce two elements,
+depth two and root/path attribute counts (four/two); no XML tree is built.
+Non-`d` attribute values have a 128-byte UTF-8 cap. The input cap also bounds
+parser allocation/work for names and attribute values before those callbacks.
+
+The fully consumed path grammar supports only **explicit absolute `M L H V C Z`**,
+with arities **2/2/1/1/6/0**, and requires initial `M`. Numeric tokens support sign,
+decimal and exponent forms, comma/ASCII-whitespace separation and adjacent
+signed/decimal tokens. Every coordinate/control value must be finite with
+absolute value at most **1,000,000**. A path has at most **4096 UTF-8 bytes**,
+**1024 operands** and **256 drawing segments**, counting `Z` but excluding moves.
+Each command takes exactly one operand group: implicit repetitions, relative
+commands, arcs, quadratic/reflected curves and lowercase close are refused.
+
+Present dimensions must be positive, at most **4096**, unitless or `px` only.
+Present `viewBox` must consume exactly four comma/ASCII-whitespace-separated
+finite values bounded by absolute 1,000,000, with positive width/height. Fill is only `none`, `black`, `white`,
+`#RGB` or `#RRGGBB` (hex digits case-insensitive). Scripts, events, foreignObject,
+animation, styles/CSS, transforms, links, XML base and references are unsupported.
+The narrow vocabulary intentionally sacrifices compatibility; acceptance is not
+universal semantic safety, sanitization, rendering correctness or provenance
+verification. Original PNG and metadata bytes, the Finch 3MiB cap, shared 256KiB
+aggregate metadata cap and every existing raw marker scan remain unchanged.
+
+The 2415-byte SVG / 2282-byte path test is newly constructed artificial geometry,
+matching only reported counts (287 operands; 79 drawing segments; M8 L20 H2 V13
+C36 Z8), not original artwork or proof of a live request. The actual original
+bytes are unavailable; the reported request expired and is not retried.
+
 Most fixtures are synthetic spec-shaped framing, not signed/verified provenance.
 The independently published regression bytes in
 `tests/fixtures/finch_cabx_embedded_file.jumb` are an unchanged 12,628-byte
