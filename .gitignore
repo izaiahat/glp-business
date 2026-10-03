@@ -434,6 +434,7 @@
 !/inbox_control_plane/affiliate_decision_queue.py
 !/tests/test_cleanup_inbox_reader.py
 !/tests/test_cleanup_affiliate_decisions.py
+!/tests/test_glp113_imap_sent_classification.py
 
 # GLP330 exact retained discovery predecessor; non-executable byte fixture
 !/scripts/discovery_predecessor_migration.py
