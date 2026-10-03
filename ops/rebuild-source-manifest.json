@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 648,
+  "tracked_count": 656,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "afb5141315b8c418fa36b7e6e09f19c629e1f212b37e3603dd146a29f62b479a"
+      "sha256": "7de921594df3e3e33ccf4e22a8d42d2271f9b69a7c7911fb1c7c60e071b87456"
     },
     ".hermes.md": {
       "callers": [],
@@ -4353,6 +4353,62 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
+    },
+    "tools/glp/price_evidence_delta.py": {
+      "callers": [
+        "GLP-344 F04 monthly price-evidence registry delta"
+      ],
+      "kind": "script",
+      "sha256": "7b9fa0dd2d5b1d0c1ea1f10c4dbff6da3c2b626a7e7bd18d7357b980238ee93a"
+    },
+    "tests/test_glp344_price_evidence_delta.py": {
+      "callers": [
+        "tools/glp/price_evidence_delta.py"
+      ],
+      "kind": "test",
+      "sha256": "9dee58fb32a4ba29cf6ee056203faa3aac5c53a61efef2a42ab6122d2ff45934"
+    },
+    "tests/fixtures/glp344-price-evidence/captures/pricing-later.md": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "eaffdadadb0d27f6cccd04123ab4f50f9e498d5d97997c9ef4246db94733ed20"
+    },
+    "tests/fixtures/glp344-price-evidence/captures/pricing.md": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "5a7dd75b41afa46cdbaef11fdcfdb43f51e96c10ab2c7985e28142e430307427"
+    },
+    "tests/fixtures/glp344-price-evidence/captures/terms.md": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "0af90a7572bc3a7d035f1188d7d26e0be363afe8b12470560ae6d45b5fea12de"
+    },
+    "tests/fixtures/glp344-price-evidence/claims-conflict.json": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "49ab656ba077b554b3d5a077edacf290665c819e9df8ab514c1011ab71ffb8f3"
+    },
+    "tests/fixtures/glp344-price-evidence/claims.json": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "d0c88ea36647cb531289ef4f29e76a2df4d1d823c28a617006e67cbd50af83b1"
+    },
+    "tests/fixtures/glp344-price-evidence/provider-pricing-matrix.json": {
+      "callers": [
+        "tests/test_glp344_price_evidence_delta.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "96a7b60de1f3dd5d0d8f8618ba7b7c4caf7be9f12b5d1c0954d39157b9cf13d7"
     }
   }
 }

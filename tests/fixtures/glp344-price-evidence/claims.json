@@ -1,0 +1,69 @@
+{
+  "schema": "glp-price-evidence-claims-v1",
+  "program_id": "example-telehealth",
+  "first_party_hosts": [
+    "example-telehealth.com"
+  ],
+  "captures": {
+    "pricing": {
+      "source_url": "https://example-telehealth.com/pricing",
+      "captured_at_utc": "2026-10-01T14:05:00+00:00",
+      "status": "CAPTURED",
+      "forced_fresh": true,
+      "markdown_path": "captures/pricing.md",
+      "content_sha256": "5a7dd75b41afa46cdbaef11fdcfdb43f51e96c10ab2c7985e28142e430307427"
+    },
+    "terms": {
+      "source_url": "https://example-telehealth.com/terms",
+      "captured_at_utc": "2026-10-01T14:06:00+00:00",
+      "status": "CAPTURED",
+      "forced_fresh": true,
+      "markdown_path": "captures/terms.md",
+      "content_sha256": "0af90a7572bc3a7d035f1188d7d26e0be363afe8b12470560ae6d45b5fea12de"
+    }
+  },
+  "claims": [
+    {
+      "kind": "price_component",
+      "field": "amount_usd",
+      "value": 249,
+      "capture_key": "pricing",
+      "quote": "Compounded semaglutide program: $249/month, billed monthly.",
+      "row_id": "example-telehealth:sema",
+      "source_url": "https://example-telehealth.com/pricing",
+      "content_sha256": "5a7dd75b41afa46cdbaef11fdcfdb43f51e96c10ab2c7985e28142e430307427",
+      "captured_at_utc": "2026-10-01T14:05:00+00:00"
+    },
+    {
+      "kind": "price_component",
+      "field": "period",
+      "value": "month",
+      "capture_key": "pricing",
+      "quote": "Compounded semaglutide program: $249/month, billed monthly.",
+      "row_id": "example-telehealth:sema",
+      "source_url": "https://example-telehealth.com/pricing",
+      "content_sha256": "5a7dd75b41afa46cdbaef11fdcfdb43f51e96c10ab2c7985e28142e430307427",
+      "captured_at_utc": "2026-10-01T14:05:00+00:00"
+    },
+    {
+      "kind": "cancellation_terms",
+      "field": "notice_days",
+      "value": 7,
+      "capture_key": "terms",
+      "quote": "You may cancel anytime with 7 days notice before your next billing date.",
+      "source_url": "https://example-telehealth.com/terms",
+      "content_sha256": "0af90a7572bc3a7d035f1188d7d26e0be363afe8b12470560ae6d45b5fea12de",
+      "captured_at_utc": "2026-10-01T14:06:00+00:00"
+    },
+    {
+      "kind": "cancellation_terms",
+      "field": "cancellation_policy",
+      "value": "cancel anytime",
+      "capture_key": "terms",
+      "quote": "You may cancel anytime with 7 days notice before your next billing date.",
+      "source_url": "https://example-telehealth.com/terms",
+      "content_sha256": "0af90a7572bc3a7d035f1188d7d26e0be363afe8b12470560ae6d45b5fea12de",
+      "captured_at_utc": "2026-10-01T14:06:00+00:00"
+    }
+  ]
+}
