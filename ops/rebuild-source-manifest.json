@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 698,
+  "tracked_count": 699,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "62a3606a5bbe5fc9edc35b2ce86d60a33af5392366f35e2c104deb42a5435ca2"
+      "sha256": "a2a142f01f4f3f6a39648e3f765b9e87c7ee55378d2d83d73ce4e2963102e4f3"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d310dc9d80cb5f21351c2a9d5bda16ccb8d232291bb921a032cdc6e673db8d09"
+      "sha256": "45657639fb173d46841b91925f0112943f46b2b10f6cf79312d33281e6b02355"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3722,7 +3722,7 @@
         "GLP343 first-party refresh score consumer (fail-open)"
       ],
       "kind": "script",
-      "sha256": "79dbadf3cc30a8e3413a17e396b1740f57540a44d84a6d165a71b3d547b38e39"
+      "sha256": "9e0723072de4619c0a535cf6937fa906c6339d72268a8b87ae77a6364c697b79"
     },
     "systems/seo-blog-machine/scripts/r2_update_carrier.py": {
       "callers": [
@@ -4297,7 +4297,7 @@
       "callers": [
         "registered topic_supply_mint producer"
       ],
-      "sha256": "e223db1b64cf7c272e0f019fdf05b682134ac93b2a14d73b856263af0eb7e2e2"
+      "sha256": "d1822b4ae58e65a71ed0ab727fa78380a084f7faebc3b9f60778445931641bbb"
     },
     "tests/test_glp75_topic_supply_inputs.py": {
       "kind": "test",
@@ -4362,14 +4362,21 @@
         "learning_loop_actions P5 first-party refresh ordering"
       ],
       "kind": "script",
-      "sha256": "158609c1bd2855c6430a71addc35e57288716ce81352bffe81d40df9501b45d5"
+      "sha256": "86c4c1b5a93a3a4ad82dd52c03bcdabd8ae23a7c19d3051426777a368a5ffc8e"
+    },
+    "tests/test_glp343_integration_guards.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "a425dd111052629f6350401c5e33bb312a2a8055e9b4a3779d931204d2a883c8"
     },
     "tests/test_glp343_topic_first_party_scoring.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "6a7cc8d567ff0ab21de0583306fa420c7570d87df41b3f423f8195621e06279a"
+      "sha256": "4ab1f223e354de0ac6520f5cd11c920b78e5a5f1a7309394d7ba43f3e6d6461b"
     },
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",

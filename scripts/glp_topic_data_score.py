@@ -10,11 +10,11 @@ It reads only receipts the system already collects, never a provider:
 
 * the analytics-brain canonical source cache (``glp-analytics-source-cache-v1``)
   for GSC query/page rows on the exact ``sc-domain`` property, Bing Webmaster
-  query/page stats for the exact site, and GA4 page sessions on the production
-  host; each source carries its own collector state, identity and watermark;
+  query/page stats for the exact site, and GA4's approved neutral-page aggregate
+  on the production host; each source has its own collector state and identity;
 * the weekly GSC sitewide aggregate (``glp.weekly-gsc-sitewide-aggregate.v1``)
-  for the exact property, finalized (``data_state=final``) day window that
-  anchors the score and its denominator.
+  for the exact apex property and finalized day window. Its bounded site-level
+  term never serves as a denominator for the differently windowed query rows.
 
 No DataForSEO, Cogny, or model scraping is consulted. A metric that no receipt
 reports stays ``null`` with an ``UNKNOWN_*`` state; it is never written as zero.
@@ -62,6 +62,9 @@ SIDECAR_MAX_AGE_HOURS = 96.0
 # A cached source older than this is UNKNOWN here even if the collector has not
 # re-marked it; the collector's own tighter per-source thresholds still apply first.
 SOURCE_MAX_AGE_HOURS = 168.0
+# Mirror the maintained collector's privacy-approved GA4 population. Never join
+# a health route, user, affiliate click or provider identity onto this aggregate.
+GA4_APPROVED_NEUTRAL_PATHS = frozenset(("/", "/about/", "/privacy/", "/privacy/cookies/", "/terms/"))
 AGGREGATE_MAX_AGE_DAYS = 21
 # Same striking-distance band and hub-gap overlap rule the selector applies.
 STRIKING_POSITION = (11.0, 40.0)
@@ -168,7 +171,19 @@ def source_state(sources: dict[str, Any], name: str, *, now: dt.datetime) -> dic
             return {"state": "UNKNOWN_PROPERTY_MISMATCH", "observed_property": source.get("property")}
         if not (isinstance(window, dict) and window.get("start") and window.get("end")):
             return {"state": "UNKNOWN_WINDOW_MISSING"}
-        identity = {"property": GSC_PROPERTY, "window": {"start": window["start"], "end": window["end"]}}
+        try:
+            start, end = (dt.date.fromisoformat(str(window[key])) for key in ("start", "end"))
+            watermark = dt.date.fromisoformat(str(source.get("watermark")))
+        except (TypeError, ValueError):
+            return {"state": "UNKNOWN_WINDOW_INVALID"}
+        # The maintained GoogleRail omits dataState, whose documented default
+        # is final. Do not invent an explicit final flag in older receipts.
+        if (start > end or end > now.date() - dt.timedelta(days=3)
+                or source.get("watermark_kind") != "provider_report_date" or watermark < end
+                or window.get("data_state", "final") != "final"):
+            return {"state": "UNKNOWN_WINDOW_NOT_FINALIZED"}
+        identity = {"property": GSC_PROPERTY, "window": {"start": window["start"], "end": window["end"]},
+                    "data_state": "final", "data_state_basis": "maintained_GoogleRail_API_default_final"}
     elif name == "bing":
         if source.get("site") != BING_SITE:
             return {"state": "UNKNOWN_SITE_MISMATCH", "observed_site": source.get("site")}
@@ -181,8 +196,10 @@ def source_state(sources: dict[str, Any], name: str, *, now: dt.datetime) -> dic
     if readback is None:
         return {"state": "UNKNOWN_READBACK_MISSING"}
     age_hours = round((now - readback).total_seconds() / 3600.0, 2)
-    if age_hours < -1 or age_hours > SOURCE_MAX_AGE_HOURS:
-        return {"state": "UNKNOWN_STALE", "age_hours": age_hours, "max_age_hours": SOURCE_MAX_AGE_HOURS}
+    configured_max_age = finite_number(source.get("collector_max_age_hours"))
+    max_age = min(SOURCE_MAX_AGE_HOURS, configured_max_age) if configured_max_age is not None and configured_max_age > 0 else SOURCE_MAX_AGE_HOURS
+    if age_hours < -1 or age_hours > max_age:
+        return {"state": "UNKNOWN_STALE", "age_hours": age_hours, "max_age_hours": max_age}
     return {
         "state": "SOURCE_REPORTED", **identity,
         "collector_state": state, "actual_rows": source.get("actual_rows"),
@@ -198,7 +215,7 @@ def _bucket(table: dict[str, dict[str, Any]], key: str) -> dict[str, Any]:
 
 def _accumulate(bucket: dict[str, Any], impressions: Any, clicks: Any, position: Any) -> None:
     imp, clk = finite_number(impressions), finite_number(clicks)
-    if imp is None or clk is None:
+    if imp is None or clk is None or imp < 0 or clk < 0:
         bucket["unknown_metric_rows"] += 1
         return
     bucket["rows"] += 1
@@ -214,8 +231,8 @@ def _finish(table: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     for bucket in table.values():
         numerator = bucket.pop("position_numerator")
         weight = bucket.pop("position_weight")
-        if bucket["rows"] == 0:
-            # Every provider row for this key carried null metrics: unknown, not zero.
+        if bucket["rows"] == 0 or bucket["unknown_metric_rows"]:
+            # Missing rows make the aggregate incomplete, not measured zero.
             bucket.update(impressions=None, clicks=None, position=None, unknown=True)
             continue
         bucket["position"] = round(numerator / weight, 4) if weight else None
@@ -273,6 +290,8 @@ def ga4_pages(rows: list[Any]) -> dict[str, dict[str, Any]]:
         if not isinstance(row, dict) or row.get("host") != PRODUCTION_HOST or row.get("event_name") != "page_view":
             continue
         path = str(row.get("path") or "")
+        if path not in GA4_APPROVED_NEUTRAL_PATHS:
+            continue
         views, sessions, engaged = (finite_number(row.get(key)) for key in ("event_count", "sessions", "engaged_sessions"))
         if not path or views is None or sessions is None or engaged is None:
             continue
@@ -318,6 +337,14 @@ def load_sitewide_aggregate(path: Path | None, *, now: dt.datetime) -> dict[str,
                 or context.get("aggregation_type") != "byProperty" or context.get("search_type") != "web"
                 or not context.get("start_date") or not context.get("end_date")):
             return {**meta, "state": "UNKNOWN_CONTEXT:" + label}
+        try:
+            start_day, end_day = (dt.date.fromisoformat(str(context[key])) for key in ("start_date", "end_date"))
+        except (TypeError, ValueError):
+            return {**meta, "state": "UNKNOWN_WINDOW_INVALID:" + label}
+        if (start_day > end_day or (end_day - start_day).days + 1 != context.get("window_days")
+                or end_day > now.date() - dt.timedelta(days=3)
+                or context.get("timezone") != "America/Los_Angeles"):
+            return {**meta, "state": "UNKNOWN_WINDOW_NOT_FINALIZED:" + label}
         scope_window = {"start": context["start_date"], "end": context["end_date"],
                         "days": context.get("window_days"), "data_state": "final",
                         "timezone": context.get("timezone")}
@@ -325,12 +352,18 @@ def load_sitewide_aggregate(path: Path | None, *, now: dt.datetime) -> dict[str,
             return {**meta, "state": "UNKNOWN_WINDOW_MISMATCH"}
         window = scope_window
         totals = item.get("totals") if isinstance(item.get("totals"), dict) else {}
-        reported = item.get("state") == "SOURCE_REPORTED" and all(
+        expected_days = {(start_day + dt.timedelta(days=n)).isoformat() for n in range(context["window_days"])}
+        availability = item.get("date_availability") or []
+        observed_days = {day.get("date") for day in availability if isinstance(day, dict)
+                         and day.get("state") == "SOURCE_REPORTED"}
+        complete_days = not item.get("missing_dates") and observed_days == expected_days
+        reported = item.get("state") == "SOURCE_REPORTED" and complete_days and all(
             finite_number(totals.get(key)) is not None and finite_number(totals.get(key)) >= 0
             for key in AGGREGATE_FIELDS)
         output[label] = {
             "property": property_uri,
-            "state": item.get("state") if isinstance(item.get("state"), str) else "UNKNOWN_STATE",
+            "state": (item.get("state") if isinstance(item.get("state"), str) and item.get("state") != "SOURCE_REPORTED"
+                      else "SOURCE_REPORTED" if reported else "UNKNOWN_METRICS_OR_DATE_COVERAGE"),
             "totals": {key: totals.get(key) for key in AGGREGATE_FIELDS} if reported else dict.fromkeys(AGGREGATE_FIELDS),
             "missing_dates": list(item.get("missing_dates") or []),
             "captured_at_utc": item.get("captured_at_utc"),
@@ -429,17 +462,22 @@ def demand_for(key: str, table: dict[str, dict[str, Any]]) -> dict[str, Any]:
         related.append({"query": other, "impressions": row["impressions"], "clicks": row["clicks"],
                         "position": row["position"], "overlap": round(overlap, 3), "weight": contribution})
     related.sort(key=lambda row: (-row["weight"], row["query"]))
-    exact_impressions = int(exact["impressions"]) if exact else 0
+    if exact is None and not related:
+        return {"state": "UNKNOWN_NO_OBSERVED_QUERY", "exact_observed": False,
+                "exact_impressions": None, "exact_clicks": None, "exact_position": None,
+                "related_impressions_weighted": None, "related_query_count": None,
+                "related_queries": [], "weighted_impressions": None}
+    exact_impressions = int(exact["impressions"]) if exact else None
     return {
         "state": "SOURCE_REPORTED",
         "exact_observed": exact is not None,
         "exact_impressions": exact_impressions,
-        "exact_clicks": int(exact["clicks"]) if exact else 0,
+        "exact_clicks": int(exact["clicks"]) if exact else None,
         "exact_position": exact["position"] if exact else None,
         "related_impressions_weighted": round(related_weight, 4),
         "related_query_count": len(related),
         "related_queries": related[:10],
-        "weighted_impressions": round(exact_impressions + related_weight, 4),
+        "weighted_impressions": round((exact_impressions or 0) + related_weight, 4),
     }
 
 
@@ -447,7 +485,39 @@ def clamp_multiplier(value: float) -> float:
     return round(min(MULTIPLIER_MAX, max(MULTIPLIER_MIN, value)), 4)
 
 
-def score_topics(candidates: list[dict[str, Any]], tables: dict[str, Any], states: dict[str, Any]) -> list[dict[str, Any]]:
+def scoring_context(tables: dict[str, Any], states: dict[str, Any], sitewide: dict[str, Any]) -> dict[str, Any]:
+    """Bounded site-level context, never a cross-window or health-path join.
+
+    Weekly GSC totals only describe the exact apex property's own finalized
+    window. GA4 only describes the approved neutral-page aggregate; a session
+    spanning minutes can be counted repeatedly, so this is not a user count.
+    Both terms affect scores, but cannot create demand for an unobserved query.
+    """
+    scope = (sitewide.get("scopes") or {}).get("consumer_https_apex") or {}
+    totals = scope.get("totals") or {}
+    ctr = finite_number(totals.get("ctr")) if sitewide.get("state") == "SOURCE_REPORTED" else None
+    impressions = finite_number(totals.get("impressions"))
+    gsc_bonus = round(0.1 * max(0.0, 1.0 - min(1.0, ctr / 0.02)), 4) if ctr is not None and impressions and impressions > 0 else None
+    pages = tables["ga4_pages"] if states["ga4"]["state"] == "SOURCE_REPORTED" else {}
+    sessions = sum(row["sessions"] for row in pages.values()) if pages else None
+    engaged = sum(row["engaged_sessions"] for row in pages.values()) if pages else None
+    fraction = round(min(1.0, engaged / sessions), 4) if sessions and engaged is not None else None
+    ga4_bonus = round(0.1 * fraction, 4) if fraction is not None else None
+    return {
+        "gsc_sitewide": {"state": "SOURCE_REPORTED" if gsc_bonus is not None else "UNKNOWN_NO_SITEWIDE_METRIC",
+                         "property": CONSUMER_PROPERTY, "window": sitewide.get("window"),
+                         "ctr": ctr, "impressions": impressions, "bonus": gsc_bonus,
+                         "scope": "separate_weekly_window_not_query_denominator"},
+        "ga4": {"state": "SOURCE_REPORTED" if ga4_bonus is not None else "UNKNOWN_NO_NEUTRAL_ENGAGEMENT",
+                "host": PRODUCTION_HOST, "paths": sorted(pages), "sessions": sessions,
+                "engaged_sessions": engaged, "engagement_fraction": fraction, "bonus": ga4_bonus,
+                "scope": "approved_neutral_routes_only_no_health_path_join"},
+        "applied_bonus": round(sum(term for term in (gsc_bonus, ga4_bonus) if term is not None), 4),
+    }
+
+
+def score_topics(candidates: list[dict[str, Any]], tables: dict[str, Any], states: dict[str, Any],
+                 context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for candidate in candidates:
         gsc = demand_for(candidate["key"], tables["gsc_queries"]) if states["gsc"]["state"] == "SOURCE_REPORTED" else None
@@ -455,9 +525,10 @@ def score_topics(candidates: list[dict[str, Any]], tables: dict[str, Any], state
         reported = [row for row in (gsc, bing) if row is not None and row["weighted_impressions"] is not None]
         if reported:
             weighted = round(sum(row["weighted_impressions"] for row in reported), 4)
-            bonus = STRIKING_BONUS if (gsc and gsc["exact_impressions"] > 0 and gsc["exact_position"] is not None
+            bonus = STRIKING_BONUS if (gsc and gsc["exact_impressions"] is not None and gsc["exact_impressions"] > 0 and gsc["exact_position"] is not None
                                        and STRIKING_POSITION[0] <= gsc["exact_position"] <= STRIKING_POSITION[1]) else 0.0
-            multiplier: float | None = clamp_multiplier(1.0 + math.log10(1.0 + weighted) + bonus)
+            multiplier: float | None = clamp_multiplier(1.0 + math.log10(1.0 + weighted) + bonus
+                                                       + (context or {}).get("applied_bonus", 0.0))
             state = "SOURCE_REPORTED" if weighted > 0 else "SOURCE_REPORTED_NO_OBSERVED_DEMAND"
         else:
             weighted, bonus, multiplier = None, None, None
@@ -488,14 +559,14 @@ def _page_metric(table: dict[str, dict[str, Any]], route: str, reported: bool, f
         return None
     row = table.get(route)
     if row is None:
-        return {"state": "SOURCE_REPORTED_NO_ROWS", **{field: 0 for field in fields if field != "position"},
-                **({"position": None} if "position" in fields else {})}
+        return {"state": "UNKNOWN_NO_OBSERVED_PAGE", **dict.fromkeys(fields)}
     if row.get("unknown"):
         return {"state": "UNKNOWN_METRICS_NULL", **dict.fromkeys(fields)}
     return {"state": "SOURCE_REPORTED", **{field: row.get(field) for field in fields}}
 
 
-def score_refreshes(candidates: list[dict[str, Any]], tables: dict[str, Any], states: dict[str, Any]) -> list[dict[str, Any]]:
+def score_refreshes(candidates: list[dict[str, Any]], tables: dict[str, Any], states: dict[str, Any],
+                    context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Route-keyed refresh demand across GSC pages, Bing pages and GA4 engagement."""
     reported = {name: states[name]["state"] == "SOURCE_REPORTED" for name in ("gsc", "bing", "ga4")}
     routes: set[str] = set()
@@ -509,21 +580,17 @@ def score_refreshes(candidates: list[dict[str, Any]], tables: dict[str, Any], st
     for route in sorted(routes):
         gsc = _page_metric(tables["gsc_pages"], route, reported["gsc"], ("impressions", "clicks", "position", "query_count"))
         bing = _page_metric(tables["bing_pages"], route, reported["bing"], ("impressions", "clicks", "position"))
-        ga4 = _page_metric(tables["ga4_pages"], route, reported["ga4"], ("page_views", "sessions", "engaged_sessions"))
-        search = [row for row in (gsc, bing) if row is not None and row["state"] != "UNKNOWN_METRICS_NULL"]
-        if ga4 is not None and ga4["state"] == "UNKNOWN_METRICS_NULL":
-            ga4_known = None
-        else:
-            ga4_known = ga4
-        if search or ga4_known is not None:
-            impressions = sum(int(row["impressions"]) for row in search) if search else None
-            engagement = None
-            if ga4_known is not None:
-                engagement = (round(min(1.0, int(ga4_known["engaged_sessions"]) / int(ga4_known["sessions"])), 4)
-                              if int(ga4_known["sessions"]) > 0 else 0.0)
-            score: float | None = round(1.0 + math.log10(1.0 + (impressions or 0)) + (engagement or 0.0), 4)
-            observed = (impressions or 0) > 0 or (ga4_known is not None and int(ga4_known["sessions"]) > 0)
-            state = "SOURCE_REPORTED" if observed else "SOURCE_REPORTED_NO_OBSERVED_DEMAND"
+        # GA4 has no privacy-authorized health-path population. Its only scoring
+        # term is the site-level neutral aggregate above, never a route join.
+        ga4 = {"state": "UNKNOWN_ROUTE_UNMEASURED_BY_DESIGN", "page_views": None,
+               "sessions": None, "engaged_sessions": None} if reported["ga4"] else None
+        search = [row for row in (gsc, bing) if row is not None and row["state"] == "SOURCE_REPORTED"]
+        if search:
+            impressions = sum(int(row["impressions"]) for row in search)
+            engagement = ((context or {}).get("ga4") or {}).get("engagement_fraction")
+            score: float | None = round(1.0 + math.log10(1.0 + impressions)
+                                       + (context or {}).get("applied_bonus", 0.0), 4)
+            state = "SOURCE_REPORTED" if impressions > 0 else "SOURCE_REPORTED_NO_OBSERVED_DEMAND"
         else:
             impressions, engagement, score, state = None, None, None, "UNKNOWN_NO_FIRST_PARTY_SOURCE"
         queue_row = queue_refresh.get(route)
@@ -601,8 +668,9 @@ def run(*, source_cache: Path, weekly_report_root: Path, strategy_queue: Path, t
     tables = {"gsc_queries": gsc_queries, "gsc_pages": gsc_pages, "bing_queries": bing_queries,
               "bing_pages": bing_pages, "ga4_pages": ga4_pages(list(data.get("ga4_rows") or []))}
     sitewide = load_sitewide_aggregate(latest_sitewide_aggregate(weekly_report_root), now=now)
-    topics = score_topics(candidates, tables, states)
-    refreshes = score_refreshes(candidates, tables, states)
+    context = scoring_context(tables, states, sitewide)
+    topics = score_topics(candidates, tables, states, context)
+    refreshes = score_refreshes(candidates, tables, states, context)
     degraded = [f"{name}:{state['state']}" for name, state in states.items() if state["state"] != "SOURCE_REPORTED"]
     if sitewide["state"] != "SOURCE_REPORTED":
         degraded.append("gsc_sitewide_aggregate:" + sitewide["state"])
@@ -617,14 +685,14 @@ def run(*, source_cache: Path, weekly_report_root: Path, strategy_queue: Path, t
         "generated_at_utc": written, "effects": {"network_calls": 0, "provider_calls": 0, "sends": 0, "deploys": 0,
                                                 "model_scraping": False},
         "inputs": {"source_cache": cache_meta, "gsc_sitewide_aggregate": sitewide, **candidate_meta},
-        "sources": states, "degraded": degraded,
+        "sources": states, "degraded": degraded, "scoring_context": context,
         "candidates": len(candidates), "multipliers_written": len(scored),
         "topics": topics, "refreshes": refreshes,
         "rules": {"topic_key": "normalize(target_query), identical to the selector join key",
-                  "multiplier": "clamp(1 + log10(1 + weighted first-party impressions) + striking bonus, 0.1, 5.0); null when no source reported",
+                  "multiplier": "clamp(1 + log10(1 + weighted first-party impressions) + striking bonus + bounded site context, 0.1, 5.0); null for unobserved queries",
                   "hub_gap_overlap": {"full_weight": OVERLAP_FULL, "half_weight": OVERLAP_HALF},
                   "striking_bonus": {"position": list(STRIKING_POSITION), "bonus": STRIKING_BONUS},
-                  "refresh_score": "1 + log10(1 + page impressions) + GA4 engaged-session fraction; null when no source reported",
+                  "refresh_score": "1 + log10(1 + page impressions) + bounded site context; null for unobserved pages; GA4 neutral aggregate only",
                   "unknown_never_zero": True},
     }
     receipt["receipt_sha256"] = payload_hash(receipt)
@@ -632,6 +700,7 @@ def run(*, source_cache: Path, weekly_report_root: Path, strategy_queue: Path, t
     sidecar = {
         "schema": SIDECAR_SCHEMA, "written_utc": written, "max_age_hours": SIDECAR_MAX_AGE_HOURS,
         "generator": "scripts/glp_topic_data_score.py", "model": MODEL, "status": status, "degraded": degraded,
+        "scoring_context": context,
         "sources": {name: {"state": state["state"], **{key: state[key] for key in ("property", "site", "host", "window", "watermark") if key in state}}
                     for name, state in states.items()},
         "finalized_window": {"state": sitewide["state"], "window": sitewide.get("window"),

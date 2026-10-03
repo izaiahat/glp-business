@@ -22,6 +22,7 @@ from existing_article_updates import (
     canonical_route,
     load_observability,
     load_release_articles,
+    payload_hash as selection_payload_hash,
 )
 from machine_config import load_config
 
@@ -320,6 +321,26 @@ def prioritize_p5_spokes(
                      "duplicate_routes_removed": sorted(duplicates)}
 
 
+def prioritize_r2_work_orders(rows, scores):
+    """Order within existing tier/authority slots; keep selection and quotas."""
+    if not scores:
+        return list(rows), {"work_orders": len(rows), "scored": 0}
+    groups = {}
+    def group(row):
+        return row.get("priority"), bool(row.get("operator_freshness_cadence_authority"))
+    for row in rows:
+        signal = scores.get(row["route"])
+        annotated = {**row, "first_party_demand": signal}
+        groups.setdefault(group(row), []).append(annotated)
+    for values in groups.values():
+        values.sort(key=lambda row: (
+            row["first_party_demand"] is None,
+            -(row["first_party_demand"] or {}).get("refresh_score", 0),
+        ))
+    ordered = [groups[group(row)].pop(0) for row in rows]
+    return ordered, {"work_orders": len(rows), "scored": sum(row["first_party_demand"] is not None for row in ordered)}
+
+
 def week_start(day: dt.date) -> str:
     # Sunday's learning prepares the following Monday's carrier workweek.
     if day.weekday() == 6:
@@ -368,6 +389,12 @@ def emit(
     }
 
     refresh_scores, demand_meta = load_first_party_refresh_scores(demand_sidecar)
+    selected, refresh_priority = prioritize_r2_work_orders(selection["weekly_plan"]["selected"], refresh_scores)
+    if refresh_scores:
+        selection["weekly_plan"]["selected"] = selected
+        selection["first_party_demand"] = {"sidecar": demand_meta, "priority": refresh_priority}
+        selection.pop("receipt_sha256", None)
+        selection["receipt_sha256"] = selection_payload_hash(selection)
     p5_rows, p5_priority = prioritize_p5_spokes(list(selection.get("p5_net_new_spokes") or []), refresh_scores)
     p6_rows = p6_duplicate_query_tasks(metrics, article_ids, as_of=as_of)
     p6_rows.extend(loop_consolidation_tasks(loops, as_of=as_of))

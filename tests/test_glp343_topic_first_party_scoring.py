@@ -24,6 +24,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "systems/analytics-brain"))  # decision_policy for the learning emitter's imports
 sys.path.insert(0, str(ROOT / "systems/seo-blog-machine/scripts"))
 
+# Load the worktree's real policy before the older helper prepends its live
+# host path. Offline checks must not read sealed/recovering installed sources.
+import decision_policy  # noqa: E402, F401
 import glp_topic_data_score as scorer  # noqa: E402
 import learning_loop_actions as actions  # noqa: E402
 
@@ -80,13 +83,13 @@ def source_cache(**overrides: Any) -> dict[str, Any]:
             {"path": "/reviews/bing-only-route/", "impressions": 7, "clicks": 0, "position": 20.0},
         ],
         "ga4_rows": [
-            {"host": "glpclinicscout.com", "path": COST_ROUTE, "event_name": "page_view",
+            {"host": "glpclinicscout.com", "path": "/about/", "event_name": "page_view",
              "provider_time": "202609301200", "event_count": 30, "sessions": 20, "engaged_sessions": 15},
-            {"host": "glpclinicscout.com", "path": COST_ROUTE, "event_name": "scroll",
+            {"host": "glpclinicscout.com", "path": "/about/", "event_name": "scroll",
              "provider_time": "202609301200", "event_count": 99, "sessions": 99, "engaged_sessions": 99},
             {"host": "partners.glpclinicscout.com", "path": "/guides/ga4-only-route/", "event_name": "page_view",
              "provider_time": "202609301200", "event_count": 9, "sessions": 9, "engaged_sessions": 9},
-            {"host": "glpclinicscout.com", "path": "/guides/ga4-only-route/", "event_name": "page_view",
+            {"host": "glpclinicscout.com", "path": "/privacy/", "event_name": "page_view",
              "provider_time": "202609301200", "event_count": 4, "sessions": 4, "engaged_sessions": 1},
         ],
     }
@@ -185,7 +188,7 @@ def test_topics_and_refreshes_scored_from_exact_property_finalized_window_receip
     assert result["sources"] == {"gsc": "SOURCE_REPORTED", "bing": "SOURCE_REPORTED", "ga4": "SOURCE_REPORTED"}
     assert result["degraded"] == []
     # Five distinct keys: one strategy row and two topic rows collapsed onto existing keys.
-    assert (result["candidates"], result["duplicates_removed"], result["multipliers_written"]) == (5, 3, 5)
+    assert (result["candidates"], result["duplicates_removed"], result["multipliers_written"]) == (5, 3, 3)
     assert result["top_pick"] == "GLP-1 cost"
     assert result["finalized_window"] == {"start": WINDOW_START.isoformat(), "end": WINDOW_END.isoformat(),
                                           "days": 7, "data_state": "final", "timezone": "America/Los_Angeles"}
@@ -202,18 +205,20 @@ def test_topics_and_refreshes_scored_from_exact_property_finalized_window_receip
     assert sidecar["finalized_window"]["scopes"]["domain_including_partners"]["totals"]["impressions"] == 2100
 
     rows = {row["key"]: row for row in sidecar["multipliers"]}
-    assert [row["rank"] for row in sidecar["multipliers"]] == [1, 2, 3, 4, 5]
-    multipliers = [row["multiplier"] for row in sidecar["multipliers"]]
+    assert [row["rank"] for row in sidecar["multipliers"]] == [1, 2, 3, None, None]
+    multipliers = [row["multiplier"] for row in sidecar["multipliers"] if row["multiplier"] is not None]
     assert multipliers == sorted(multipliers, reverse=True)
     assert all(0.1 <= value <= 5.0 for value in multipliers)
     # Exact GSC query (900 impressions at position 14 -> striking bonus) + hub-gap overlap + Bing.
     cost = rows["glp1 cost"]
     assert cost["state"] == "SOURCE_REPORTED" and cost["rank"] == 1 and cost["origin"] == "strategy_queue"
     assert cost["weighted_impressions"] == 1080 and cost["target_route"] == COST_ROUTE
-    assert cost["multiplier"] == round(1 + __import__("math").log10(1081) + 0.5, 4)
-    # Complete GSC and Bing pulls with no rows for this key: measured no demand, neutral 1.0.
+    assert cost["multiplier"] == round(1 + __import__("math").log10(1081) + 0.5
+                                       + sidecar["scoring_context"]["applied_bonus"], 4)
+    # An absent query is not a measured zero, even in a complete API pull:
+    # GSC/Bing do not guarantee every suppressed/unreported query is returned.
     assert (rows["oral semaglutide pill"]["multiplier"], rows["oral semaglutide pill"]["state"],
-            rows["oral semaglutide pill"]["weighted_impressions"]) == (1.0, "SOURCE_REPORTED_NO_OBSERVED_DEMAND", 0)
+            rows["oral semaglutide pill"]["weighted_impressions"]) == (None, "UNKNOWN_METRICS_NULL", None)
     assert rows["wegovy vs zepbound"]["origin"] == "topic_queue"
 
     receipt = json.loads(Path(result["receipt"]["path"]).read_bytes())
@@ -232,18 +237,18 @@ def test_topics_and_refreshes_scored_from_exact_property_finalized_window_receip
     assert "tirzepatide cost" not in {row["query"] for row in cost_detail["bing"]["related_queries"]}
 
     refreshes = {row["route"]: row for row in receipt["refreshes"]}
-    assert set(refreshes) == {COST_ROUTE, INSURANCE_ROUTE, "/best/unrelated/", "/reviews/bing-only-route/",
-                              "/guides/ga4-only-route/"}
+    assert set(refreshes) == {COST_ROUTE, INSURANCE_ROUTE, "/best/unrelated/", "/reviews/bing-only-route/"}
     lead = refreshes[COST_ROUTE]
-    assert lead["rank"] == 1 and lead["search_impressions"] == 1060 and lead["engagement_fraction"] == 0.75
+    assert lead["rank"] == 1 and lead["search_impressions"] == 1060
+    assert lead["engagement_fraction"] == round(16 / 24, 4)
     assert lead["queue_keyword"] == "GLP-1 cost" and lead["queue_position"] == 1
     assert lead["gsc"] == {"state": "SOURCE_REPORTED", "impressions": 1000, "clicks": 13, "position": 14.8, "query_count": 2}
     assert lead["bing"] == {"state": "SOURCE_REPORTED", "impressions": 60, "clicks": 1, "position": 13.0}
-    assert lead["ga4"] == {"state": "SOURCE_REPORTED", "page_views": 30, "sessions": 20, "engaged_sessions": 15}
-    ga4_only = refreshes["/guides/ga4-only-route/"]
-    assert ga4_only["gsc"]["state"] == "SOURCE_REPORTED_NO_ROWS" and ga4_only["gsc"]["position"] is None
-    assert ga4_only["ga4"]["sessions"] == 4  # the partners-host row is excluded by exact host
-    assert ga4_only["refresh_score"] == 1.25 and ga4_only["state"] == "SOURCE_REPORTED"
+    assert lead["ga4"] == {"state": "UNKNOWN_ROUTE_UNMEASURED_BY_DESIGN", "page_views": None,
+                           "sessions": None, "engaged_sessions": None}
+    neutral = receipt["scoring_context"]["ga4"]
+    assert neutral["paths"] == ["/about/", "/privacy/"] and neutral["sessions"] == 24
+    assert neutral["engagement_fraction"] == round(16 / 24, 4)
     assert [row["route"] for row in sidecar["refreshes"]] == [row["route"] for row in receipt["refreshes"]]
 
     # Re-running at the same instant is idempotent: identical immutable receipt, same sidecar bytes.
@@ -278,13 +283,13 @@ def test_unknown_metrics_stay_null_and_degraded_sources_are_named(lane, capsys):
     assert scopes["consumer_https_apex"]["totals"] == {"clicks": None, "impressions": None, "ctr": None, "position": None}
     assert scopes["consumer_https_apex"]["missing_dates"] == [WINDOW_END.isoformat()]
     assert scopes["domain_including_partners"]["totals"]["impressions"] == 2100
-    # Refreshes: only queue refresh routes exist (GA4 measured zero rows); search metrics stay null.
+    # Refreshes cannot invent GA4 demand for uncollected health paths.
     receipt = json.loads(Path(result["receipt"]["path"]).read_bytes())
     assert [row["route"] for row in receipt["refreshes"]] == [COST_ROUTE, INSURANCE_ROUTE]
     for row in receipt["refreshes"]:
         assert row["gsc"] is None and row["bing"] is None and row["search_impressions"] is None
-        assert row["ga4"]["state"] == "SOURCE_REPORTED_NO_ROWS" and row["refresh_score"] == 1.0
-        assert row["state"] == "SOURCE_REPORTED_NO_OBSERVED_DEMAND"
+        assert row["ga4"]["state"] == "UNKNOWN_ROUTE_UNMEASURED_BY_DESIGN" and row["refresh_score"] is None
+        assert row["state"] == "UNKNOWN_NO_FIRST_PARTY_SOURCE"
 
     # No source cache at all: nothing is scored and nothing is written as zero.
     absent = run_scorer(lane, capsys, cache=lane["root"] / "missing.json", report_root=lane["root"] / "no-reports",
@@ -347,9 +352,10 @@ def test_sidecar_is_a_valid_downstream_selector_input(lane, capsys):
     result = run_scorer(lane, capsys)
     selector = load_selector_namespace()
     table, meta = selector["load_demand_multipliers"](Path(result["sidecar"]["path"]))
-    assert meta["state"] == "applied" and meta["count"] == 5 and meta["degraded"] == []
+    assert meta["state"] == "applied" and meta["count"] == 3 and meta["degraded"] == []
     assert selector["demand_multiplier"]("GLP 1 Cost", table) == table["glp1 cost"]
-    assert table["glp1 cost"] > table["cheapest glp1"] > table["oral semaglutide pill"] == 1.0
+    assert table["glp1 cost"] > table["cheapest glp1"] > selector["demand_multiplier"]("oral semaglutide pill", table) == 1.0
+    assert "oral semaglutide pill" not in table  # neutral fallback is not a measured metric
     # The downstream research selection orders the strategy-safe set by this measured demand
     # when no candidate carries a GSC striking-distance weight (the no-rankings-yet case).
     strategy = json.loads(lane["strategy"].read_text())["queue"]
@@ -371,18 +377,18 @@ def test_weekly_learning_p5_spokes_are_prioritized_and_deduplicated_fail_open(la
     result = run_scorer(lane, capsys)
     sidecar_path = Path(result["sidecar"]["path"])
     scores, meta = actions.load_first_party_refresh_scores(sidecar_path, now=NOW)
-    assert meta["state"] == "applied" and meta["scored_routes"] == 5 and meta["degraded"] == []
+    assert meta["state"] == "applied" and meta["scored_routes"] == 4 and meta["degraded"] == []
     assert scores[COST_ROUTE]["rank"] == 1
     spokes = [
-        {"route": "/guides/ga4-only-route/", "priority": "P5", "position": 45.0, "action": "net_new_spoke"},
+        {"route": "/reviews/bing-only-route/", "priority": "P5", "position": 45.0, "action": "net_new_spoke"},
         {"route": "/guides/unscored-route/", "priority": "P5", "position": 41.0, "action": "net_new_spoke"},
         {"route": COST_ROUTE, "priority": "P5", "position": 60.0, "action": "net_new_spoke"},
-        {"route": "/guides/ga4-only-route/", "priority": "P5", "position": 45.0, "action": "net_new_spoke"},
+        {"route": "/reviews/bing-only-route/", "priority": "P5", "position": 45.0, "action": "net_new_spoke"},
     ]
     ordered, priority = actions.prioritize_p5_spokes(spokes, scores)
-    assert [row["route"] for row in ordered] == [COST_ROUTE, "/guides/ga4-only-route/", "/guides/unscored-route/"]
+    assert [row["route"] for row in ordered] == [COST_ROUTE, "/reviews/bing-only-route/", "/guides/unscored-route/"]
     assert priority == {"work_orders": 3, "scored": 2, "unscored": 1,
-                        "duplicate_routes_removed": ["/guides/ga4-only-route/"]}
+                        "duplicate_routes_removed": ["/reviews/bing-only-route/"]}
     assert ordered[0]["first_party_demand"]["state"] == "SOURCE_REPORTED"
     assert ordered[0]["first_party_demand"]["refresh_score"] == scores[COST_ROUTE]["refresh_score"]
     assert ordered[-1]["first_party_demand"] == {"state": "UNKNOWN_NOT_SCORED", "refresh_score": None, "rank": None}
@@ -394,4 +400,4 @@ def test_weekly_learning_p5_spokes_are_prioritized_and_deduplicated_fail_open(la
         table, meta = actions.load_first_party_refresh_scores(path, now=NOW)
         assert table == {} and meta["state"] in ("stale", "absent", "schema_mismatch")
         fallback, _ = actions.prioritize_p5_spokes(spokes, table)
-        assert [row["route"] for row in fallback] == ["/guides/unscored-route/", "/guides/ga4-only-route/", COST_ROUTE]
+        assert [row["route"] for row in fallback] == ["/guides/unscored-route/", "/reviews/bing-only-route/", COST_ROUTE]
