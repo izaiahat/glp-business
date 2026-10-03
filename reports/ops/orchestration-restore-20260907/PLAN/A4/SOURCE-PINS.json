@@ -1,7 +1,7 @@
 {
   "monitor": {
     "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
-    "sha256": "bf6dfdb0f93a69a0ddacfc49840650e4e4608e31511218a1948007ed0fa43a4e"
+    "sha256": "7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180"
   },
   "economics": {
     "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/WS-G/offline_extension.py",
