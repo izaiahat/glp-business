@@ -8,28 +8,21 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 645,
+  "tracked_count": 647,
   "files": {
-    "scripts/glp334_live_reconciliation.py": {
+    "scripts/glp110_restore_pruned_execution.py": {
       "kind": "script",
       "callers": [
-        "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
+        "operator-approved GLP110 recovery"
       ],
-      "sha256": "f7d55f798cde54ad3289f61b38ebaccc7f2084dc5d2e9980a5690c7dfeec1c74"
+      "sha256": "9497f31657ffe42db28d7a190d7a21675ae779e97b868da116bd6782324b5672"
     },
-    "ops/hermes-cron-scripts/glp334_live_reconciliation.sh": {
-      "kind": "script",
-      "callers": [
-        "native GLP334 reconciliation job"
-      ],
-      "sha256": "6027e327ed48a736c448812788877f2286a5b6fc0149d4b22e463f0b05f6f15b"
-    },
-    "tests/test_glp334_live_reconciliation.py": {
+    "tests/test_glp110_restore_pruned_execution.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        "scripts/run_tests.sh"
       ],
-      "sha256": "4ee1636818219d2f18beb1abdfbf9cbb3980c3cb656b18178c631c84273c14d9"
+      "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
     },
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
@@ -2179,7 +2172,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b95e956095837ee12eefd76e9ed42ffa6322865f06d9f0b99efecb256fa6a7e3"
+      "sha256": "ab96cb5f8fb1111c0f048f72b748cc2d88fa32fd2c741cc547807cf123d3dc17"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4332,6 +4325,27 @@
         "GLP80 daily evidence review"
       ],
       "sha256": "92d145603d8fce44bb917f1d88e297182612e8bb34ee780ddf057491d9ab8ae1"
+    },
+    "scripts/glp334_live_reconciliation.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/glp334_live_reconciliation.sh"
+      ],
+      "sha256": "f7d55f798cde54ad3289f61b38ebaccc7f2084dc5d2e9980a5690c7dfeec1c74"
+    },
+    "ops/hermes-cron-scripts/glp334_live_reconciliation.sh": {
+      "kind": "script",
+      "callers": [
+        "native GLP334 reconciliation job"
+      ],
+      "sha256": "6027e327ed48a736c448812788877f2286a5b6fc0149d4b22e463f0b05f6f15b"
+    },
+    "tests/test_glp334_live_reconciliation.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "4ee1636818219d2f18beb1abdfbf9cbb3980c3cb656b18178c631c84273c14d9"
     }
   }
 }
