@@ -14,7 +14,8 @@ the expected window?
 
 Read-only except for one bounded recovery action: observing the SEO article
 buffer below floor fires its registered, concurrency-safe refill adapter. Every
-other check only reads ledgers/receipts the machines already write.
+other check only reads ledgers/receipts the machines already write; the GLP
+scheduler check also keeps a first-seen file per open alert episode.
 """
 from __future__ import annotations
 
@@ -22,9 +23,12 @@ import datetime as dt
 import glob
 import hashlib
 import json
+import os
+import re
 import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from article_carrier_gate_health import accepted_failure_health
@@ -302,12 +306,36 @@ def affiliate_deploy() -> dict:
                  f"{d.get('status')} with {d.get('failure_count')} failure(s), {d.get('live_programs')} live; receipt_age_hours={age_hours if age_hours is not None else 'UNKNOWN'}")
 
 
+def read_sqlite_ro(path: Path, sql: str) -> list:
+    """Read with a fresh read-only handle; a handle that raised is closed, never reused.
+
+    GLP-109: one `disk I/O error` left the old handle open and crashed the check, so
+    the inbox row read "check crashed" until the next tick. Retry once on a NEW
+    connection; a second failure is raised to the caller as real evidence.
+    """
+    for attempt in (1, 2):
+        db = None
+        try:
+            db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            return list(db.execute(sql))
+        except sqlite3.OperationalError:
+            if attempt == 2:
+                raise
+        finally:
+            if db is not None:
+                db.close()
+    raise AssertionError("unreachable")
+
+
 def inbox_monitor() -> dict:
-    db = sqlite3.connect(f"file:{HERMES / 'state/email-monitor.sqlite3'}?mode=ro", uri=True)
-    rows = list(db.execute(
-        "SELECT mailbox_id, last_read_success_at, unhealthy_reason FROM provider_cursors "
-        "WHERE last_read_success_at IS NOT NULL"))
-    db.close()
+    try:
+        rows = read_sqlite_ro(
+            HERMES / "state/email-monitor.sqlite3",
+            "SELECT mailbox_id, last_read_success_at, unhealthy_reason FROM provider_cursors "
+            "WHERE last_read_success_at IS NOT NULL")
+    except sqlite3.OperationalError as exc:
+        return check("affiliate_inbox", False, "mailboxes being read",
+                     f"cursor DB unreadable after fresh-handle retry: {exc}")
     if not rows:
         return check("affiliate_inbox", False, "mailboxes being read", "no cursors")
     now = dt.datetime.now(dt.timezone.utc)
@@ -343,10 +371,157 @@ def seo_r2_authority_fresh() -> dict:
     return stale_authority()
 
 
+# GLP-109 scheduler health. Hermes writes a naive cron timestamp in the host
+# scheduler zone, not UTC; reading it as UTC made on-time PT jobs look ~7h late.
+SCHEDULER_TZ = PT
+OVERDUE_GRACE = dt.timedelta(minutes=45)   # scheduled_job_health_manager stale_due_grace_minutes default
+CLOCK_SKEW = dt.timedelta(minutes=5)
+QUOTA_RX = re.compile(r"HTTP 429|\b429\b|quota|rate.?limit|RESOURCE_EXHAUSTED|RateLimitError", re.I)
+OUTPUT_HEALTH_JOB_ID = "eb6a4b2a47a3"      # registered business_output_health_cron.sh entry
+EPISODE_STATE = BUSINESS / "ops/state/output-health-scheduler-episodes.json"
+
+
+def scheduler_time(value) -> tuple[dt.datetime | None, bool]:
+    """Parse a scheduler timestamp; returns (aware time, was_naive)."""
+    if not isinstance(value, str) or not value.strip():
+        return None, False
+    try:
+        parsed = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None, False
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=SCHEDULER_TZ), True
+    return parsed, False
+
+
+def overdue_state(job: dict, now: dt.datetime) -> tuple[str, str]:
+    """on_time | late | clock_misread | unscheduled.
+
+    clock_misread means the timestamps disagree with the observer's clock (a
+    naive value that only looks late when misread as UTC, or a last run stamped
+    in the future); late means a consistent due time passed grace with no run.
+    """
+    raw = job.get("next_run_at")
+    next_run, naive = scheduler_time(raw)
+    if next_run is None:
+        return "unscheduled", f"next_run_at={raw!r}"
+    last_run, _ = scheduler_time(job.get("last_run_at"))
+    if last_run is not None and last_run - now > CLOCK_SKEW:
+        return "clock_misread", f"last_run_at {job.get('last_run_at')} is ahead of observer clock {now.isoformat()}"
+    late = now - next_run
+    if late > OVERDUE_GRACE:
+        return "late", f"next_run_at {raw} is {int(late.total_seconds() // 60)}m past due"
+    if naive and now - next_run.replace(tzinfo=dt.timezone.utc) > OVERDUE_GRACE:
+        return "clock_misread", f"naive next_run_at {raw} looks late only when read as UTC"
+    return "on_time", f"next_run_at {raw}"
+
+
+def latest_job_output(job_id: str) -> tuple[Path | None, dt.datetime | None]:
+    root = HERMES / "cron/output" / job_id
+    files = sorted(root.glob("*.md"), key=lambda p: p.stat().st_mtime) if root.is_dir() else []
+    if not files:
+        return None, None
+    return files[-1], dt.datetime.fromtimestamp(files[-1].stat().st_mtime, dt.timezone.utc)
+
+
+def job_problem(job: dict, now: dt.datetime) -> tuple[str | None, str, str]:
+    """Return (problem kind or None, overdue state, detail)."""
+    status = str(job.get("last_status") or "").lower()
+    streak = job.get("failure_streak", 0)
+    streak = streak if type(streak) is int and streak >= 0 else 0
+    quota = status == "error" and bool(QUOTA_RX.search(str(job.get("last_error") or "")))
+    state, detail = overdue_state(job, now)
+    # A 429/quota failure is transient only while the scheduler has re-armed the
+    # job for a future run; a quota-failed job left without a live due time is dead.
+    if quota and state in {"unscheduled", "late"}:
+        return "quota_not_rearmed", state, f"429/quota error and not re-armed ({detail})"
+    if status == "error" and streak >= 2:
+        return ("quota_errors" if quota else "repeated_errors"), state, f"{streak} consecutive errors"
+    if state in {"late", "clock_misread"}:
+        return state, state, detail
+    return None, state, detail
+
+
+def episode_delivered(key: str, first_seen: dt.datetime) -> bool:
+    """Proof of delivery is this sensor's own registered cron output, not a local flag.
+
+    The SEO updater also runs this sensor as a child; a state-only "alerted" bit
+    would let that undelivered run swallow the ops-alerts card.
+    """
+    root = HERMES / "cron/output" / OUTPUT_HEALTH_JOB_ID
+    if not root.is_dir():
+        return False
+    marker = f"episode {key}"
+    floor = first_seen.timestamp() - 1
+    for path in root.glob("*.md"):
+        try:
+            if path.stat().st_mtime >= floor and marker in path.read_text(errors="replace"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def save_episodes(episodes: dict) -> None:
+    EPISODE_STATE.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".output-health-episodes-", dir=EPISODE_STATE.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump({"schema": "output-health-scheduler-episodes-v1", "episodes": episodes},
+                      out, indent=2, sort_keys=True)
+            out.write("\n")
+        os.replace(name, EPISODE_STATE)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def glp_scheduler_jobs() -> dict:
+    """GLP scheduler rows: overdue, quota re-arm, 2+ consecutive errors, real output link."""
+    now = dt.datetime.now(dt.timezone.utc)
+    data = read_json(HERMES / "cron/jobs.json")
+    jobs = data.get("jobs") if isinstance(data, dict) else data
+    previous = read_json(EPISODE_STATE).get("episodes", {}) if EPISODE_STATE.is_file() else {}
+    table, problems, episodes = [], [], {}
+    for job in jobs or []:
+        if not isinstance(job, dict) or job.get("enabled") is False or job.get("state") == "paused":
+            continue
+        if not re.search(r"glp", str(job.get("name") or ""), re.I):
+            continue
+        jid = str(job.get("id") or "")
+        kind, state, detail = job_problem(job, now)
+        output, output_at = latest_job_output(jid)
+        last_run, _ = scheduler_time(job.get("last_run_at"))
+        table.append({
+            "job_id": jid, "name": str(job.get("name") or ""),
+            "last_status": job.get("last_status"), "failure_streak": job.get("failure_streak"),
+            "next_run_at": job.get("next_run_at"), "overdue": state,
+            "output": str(output) if output else None,
+            "output_at_utc": output_at.isoformat() if output_at else None,
+            "output_after_last_run": (output_at >= last_run) if output_at and last_run else None,
+            "problem": kind,
+        })
+        if kind:
+            key = f"{jid}:{kind}"
+            first_seen = str((previous.get(key) or {}).get("first_seen_at_utc") or now.isoformat())
+            episodes[key] = {"first_seen_at_utc": first_seen}
+            new = not episode_delivered(key, dt.datetime.fromisoformat(first_seen))
+            problems.append((key, new, f"{job.get('name')} {kind}: {detail}; output {output or 'none'}"))
+    # Keys absent this run are dropped: a cleared episode re-arms its next alert.
+    save_episodes(episodes)
+    result = check("glp_scheduler_jobs", not problems,
+                   "GLP jobs on time, re-armed after 429/quota, <2 consecutive errors",
+                   "; ".join(f"{text} [episode {key}]" for key, _new, text in problems) or
+                   f"{len(table)} GLP jobs healthy")
+    result["alert"] = any(new for _key, new, _text in problems)
+    result["jobs"] = table
+    return result
+
+
 CHECKS = (seo_net_new, seo_buffer, seo_topic_supply, seo_update_carrier,
           seo_weekly_refresh_yield, seo_r2_authority_fresh,
           affiliate_harvest, affiliate_application_queue, affiliate_approved_but_unlinked,
-          affiliate_deploy, inbox_monitor)
+          affiliate_deploy, inbox_monitor, glp_scheduler_jobs)
 
 
 def main() -> int:
@@ -367,6 +542,8 @@ def main() -> int:
     out = BUSINESS / "reports/ops/output-health-latest.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    # Deduplicated rows stay red in the receipt; only an undelivered episode re-posts.
+    bad = [r for r in bad if r.get("alert", True)]
     if bad:
         lines = [f"🔴 **Output Health** — {len(bad)} machine(s) not producing",
                  ""]
