@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 670,
+  "tracked_count": 677,
   "files": {
     "scripts/glp334_live_reconciliation.py": {
       "kind": "script",
@@ -484,12 +484,12 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "35a8a09264299949886e77625f28741021c0d766c561d4d9a98f629b75cc4ec9"
+      "sha256": "a5b96e1cb8f3847987d22d9bfd54c9e76f1f14d9b719d81ce01181f8afbafd37"
     },
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "09162f687751480205f679b897a61a4b093e7105e3977e20b7658ba39a3e4ffa"
+      "sha256": "9fd54986383dc4a222502ee70fc3bd2a9518053115ade6af7b7ea76c866c3bad"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -973,7 +973,7 @@
         "hermes:3c79a0b5f7b2"
       ],
       "kind": "script",
-      "sha256": "7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc"
+      "sha256": "2cba7ec77ee5cb3261d5d8c8566b567bef5b27e9731d07e25444bd3821fde05a"
     },
     "ops/hermes-cron-scripts/investment_ops_daily_snapshot.sh": {
       "callers": [
@@ -1355,7 +1355,7 @@
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "3204eabea035bf1fe3d14c2621ebe40b31de89df7d6a802cb3852894cefb5605"
+      "sha256": "0f28eba47533da8aa2ee6b34950db07e414e260304e2a40ee240be68f35396af"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [
@@ -3497,7 +3497,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "e2e612f338f79da2f0e342681b617b5ad82326794a64f7072ac44b11d77d6988"
+      "sha256": "21092303ade5f05431bd36aacc642b97620b0af9724b5466dd29edeba3c20566"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3518,7 +3518,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "119739b14e0f6f476c2676d16e2e9ff13517d209941eae7ceeba10a46b54cdf8"
+      "sha256": "1e8e73fc1c1decb9619baa1a50da24d89ed311caf44d466aaf89f63a4efd2196"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4506,6 +4506,56 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "b06b612aea2707c9a9c4fe686c50694899b287b257b31488060dab4a2b7b8677"
+    },
+    "scripts/glp_host_ingress.py": {
+      "kind": "script",
+      "callers": [
+        "systemd:glp-host-ingress",
+        "systemd:glp-host-custody"
+      ],
+      "sha256": "0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e"
+    },
+    "tests/test_host_custody.py": {
+      "kind": "test",
+      "callers": [
+        "CI"
+      ],
+      "sha256": "89c3d0538960d4e5c3ae7166ae6a6103384385e9759acf727b21630e1974e3bd"
+    },
+    "ops/systemd/glp-host-ingress.service": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "a8b63e05b6c3f5a08543491879b8dbce87c64e37cb792bfee95dfa87cce676e6"
+    },
+    "ops/systemd/glp-host-custody.service": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "2432890a95755a9a732e6d1fd7349c985f2f45b59791b498eb5f19a586365943"
+    },
+    "ops/systemd/glp-host-custody.timer": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "5f6fe5ddf763e39c53a77b9204a82847ebe71f4c091fbe9f6177a73f186d8105"
+    },
+    "scripts/glp_cogny_queue_drain.py": {
+      "kind": "script",
+      "callers": [
+        "host:cogny-task-drain"
+      ],
+      "sha256": "630570a8fe3f24afc088ff49e0da2af9c73d8fc5c1f7c1e8aa8cd2351bab0177"
+    },
+    "ops/glp/cogny_client.py": {
+      "kind": "script",
+      "callers": [
+        "host:cogny-task-drain"
+      ],
+      "sha256": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f"
     }
   }
 }
