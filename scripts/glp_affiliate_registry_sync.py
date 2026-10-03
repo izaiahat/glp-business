@@ -151,26 +151,20 @@ def project(registry, mappings, snapshot, receipts=(), root=ROOT):
         # Neither an approval nor a higher rate clears a previously recorded denial.
         if previous and previous.get('promotion_denied') and not current['promotion_denied']:
             current['promotion_denied'] = True
+            current['lifecycle'] = previous.get('lifecycle', 'reported')
             current['reactivation_requires_separate_approval'] = True
-        if current != previous:
-            p['affiliate_relationship_snapshot'] = current
-            if current['lifecycle'] == 'withdrawn':
-                p['affiliate_program_state'] = 'withdrawn'
-                p['commercial_state'] = 'held'
-                p.setdefault('go', {})['entry_state'] = 'held'
-                history = {'state':'withdrawn','relationship':':'.join(identity),
+        if previous.get('adverse_history'):
+            current['adverse_history'] = previous['adverse_history']
+        if current['lifecycle'] == 'withdrawn':
+            history = list(current.get('adverse_history', []))
+            observation = {'state':'withdrawn','relationship':':'.join(identity),
                            'source_kind':'authenticated_sole_writer_sheet_readback',
                            'source_checked_at':current['source_checked_at'],
                            'sheet_row':number,'relationship_status':cells[10]}
-                p.setdefault('affiliate_program_history', [])
-                if history not in p['affiliate_program_history']:p['affiliate_program_history'].append(history)
-                for profile in p.get('profiles', {}).values():
-                    profile['wired'] = False
-                    for surface in ('compare','quiz','calculator','go','review','sitemap'):
-                        profile.setdefault('surfaces', {})[surface] = False
-                        profile.setdefault('exceptions', {}).setdefault(surface, {
-                            'enabled':True,'reason':'Reported selected affiliate relationship withdrawn.',
-                            'surface_restriction_basis':'sole_writer_withdrawn_relationship'})
+            if observation not in history:history.append(observation)
+            current['adverse_history'] = history
+        if current != previous:
+            p['affiliate_relationship_snapshot'] = current
             changes.append({'program_id': p['program_id'], 'before': previous, 'after': current})
     for identity, rows in indexed.items():
         for number, cells in rows:
