@@ -178,6 +178,18 @@ def unmatched(result):
                for p in result['providers'])
 
 
+def queue_fact(row, *, observed_at):
+    return {**row, 'status': 'queued', 'queued_at_utc': observed_at,
+            'note': 'GLP96 source-bound research intake; not applied or approved.'}
+
+
+def repairable_queue_row(current, original):
+    metadata = ('status', 'queued_at_utc', 'note')
+    return (current.get('kind') == 'research_only_provider'
+            and all(current.get(k) in (None, '') for k in metadata)
+            and all(current.get(k) == v for k, v in original.items()))
+
+
 def run(*, output=None, apply=False):
     """Natural source read plus exact existing-queue reconciliation; research only."""
     import hashlib
@@ -239,12 +251,23 @@ def run(*, output=None, apply=False):
     capture = 'reports/ops/glp96-research-intake-followthrough-20260927/two-prospects-report-only.json'
     prospects = json.loads((root / capture).read_text())
     eligible = {p['provider_id'] for p in result['providers'] if p['disposition'] == 'missing'}
-    for row in build_research_only_queue_rows(prospects, capture_path=capture):
-        if row['program_id'] not in eligible:
+    for original in build_research_only_queue_rows(prospects, capture_path=capture):
+        prior = [r for r in queues['sheet_update_queue'] if r.get('update_id') == original['update_id']]
+        legacy = (len(prior) == 1 and repairable_queue_row(prior[0], original)
+                  and any(p['provider_id'] == original['program_id'] and p['disposition'] == 'matched'
+                          for p in result['providers']))
+        if original['program_id'] not in eligible and not legacy:
             continue
+        row = queue_fact(original, observed_at=observation['source_observations'][0]['observed_at_utc'])
         if apply:
             from cron_bridge_action import same_sheet_operation
             existing = n8n_dt.rows('hJiP3eJKBvtZ6bQU', n8n_dt.eq('update_id', row['update_id']), limit=3)
+            if existing and legacy:
+                if len(existing) != 1 or not repairable_queue_row(existing[0], original):
+                    raise RuntimeError('published_intake_legacy_preimage_changed')
+                patch = {k: row[k] for k in ('status', 'queued_at_utc', 'note')}
+                n8n_dt.update('hJiP3eJKBvtZ6bQU', n8n_dt.eq('update_id', row['update_id']), patch)
+                result['effects']['queue_metadata_repaired'] = result['effects'].get('queue_metadata_repaired', 0) + 1
             if not existing:
                 try:
                     n8n_dt.insert('hJiP3eJKBvtZ6bQU', row)
@@ -269,7 +292,7 @@ def run(*, output=None, apply=False):
         counts = Counter(p['disposition'] for p in result['providers'])
         result['counts'] = {'published': len(result['providers']), **dict(counts)}
         result['status'] = 'INCOMPLETE' if counts['missing'] else 'COMPLETE'
-    result['status'] = 'INCOMPLETE' if unmatched(result) else 'COMPLETE'
+    result['status'] = 'INCOMPLETE' if unmatched(result) or result.get('planned_queue_rows') else 'COMPLETE'
     result['producer'] = {'registered_command': 'python3 scripts/glp_published_provider_intake.py' + (' --admit-research' if apply else ''),
                           'source': 'scripts/glp_published_provider_intake.py'}
     (folder / 'RESULT.json').write_text(json.dumps(result, indent=2) + '\n')
