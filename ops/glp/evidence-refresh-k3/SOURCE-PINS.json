@@ -9,6 +9,6 @@
     "/home/ubuntu/business/scripts/site_tree_materializer.py": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4",
     "/home/ubuntu/business/systems/seo-blog-machine/scripts/build_opus_article_release.py": "ad711878f8c6b6bc0ed198c977319fc0efa90d68f4c7922bda8514a33d15e858"
   },
-  "runner_sha256": "935568353b63b97fc8020e22ef7aa34f67dd182bbd1fffb9b5fb591c271e927e",
+  "runner_sha256": "804e01703504fec54c652d76e6fa48c22d03247bb445f399f268daea694b1323",
   "composer_sha256": "0db2d0eccab90f843489618711afdbca24a58997fd0d357509e6a66af242fc3c"
 }

@@ -22,6 +22,7 @@ ROOT = Path('/home/ubuntu/business')
 HERE = Path(__file__).resolve().parent
 STAGE = ROOT / 'reports/ops/orchestration-restore-20260907/PLAN/K3/cadence-candidate'
 PRODUCTION_OUTPUT = ROOT / 'reports/glp-clinic-scout/evidence-refresh'
+SUPPLEMENTS = PRODUCTION_OUTPUT / 'capture-supplements'
 POINTER = ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
 ENGINE = ROOT / 'tools/glp/evidence_refresh.py'
 SCHEMA = ROOT / 'scripts/glp_current_content_base_schema.py'
@@ -296,6 +297,13 @@ def stage_program(er, release, pid, folder, captures, day, review=None):
     if captures is None:
         caps = retained_captures(er, pid, profile, pricing, day, folder)
         outcome = 'IMPORTED_RETAINED_TAXONOMY_CAPTURE' if caps else 'UNKNOWN_CAPTURE_MANIFEST_MISSING'
+        supplement_root = SUPPLEMENTS / day
+        if (supplement_root / pid / 'CAPTURES.json').is_file():
+            extra, _ = captures_for(er, supplement_root, pid, profile, pricing, day)
+            caps.update(extra)
+            if len(caps) > 12:
+                raise RuntimeError('CAPTURE_BUDGET_EXCEEDED')
+            outcome = 'IMPORTED_RETAINED_AND_OPERATOR_CAPTURES'
     put(folder / 'CAPTURES.json', caps)
     command = [sys.executable, '-B', str(ENGINE), '--program', pid, '--candidate', str(release), '--out', str(folder), '--dry-run']
     if review:
@@ -322,7 +330,7 @@ def stage_program(er, release, pid, folder, captures, day, review=None):
             'unresolved_fact_count': sum(f['status'] == 'NEEDS_ADJUDICATION' for f in packet.get('mechanical_facts', [])) if packet['status'] == 'NEEDS_ADJUDICATION' else None}
 
 
-def stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day):
+def stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day, capture_inputs=None):
     folder = root / day
     index = folder / 'RUN.json'
     if not index.exists():
@@ -333,14 +341,14 @@ def stage_directory(root, day, bound, pins, selector_only, capture_root, continu
     check_cache(prior, folder)
     if prior['selector_only'] != selector_only or prior['capture_root'] != capture_root:
         raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
-    if prior['source_pins'] == pins and prior['binding'] == bound:
+    if prior['source_pins'] == pins and prior['binding'] == bound and prior.get('capture_inputs') == capture_inputs:
         return folder, None
     if not continue_day:
         raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
     parent = {'path': str(index), 'sha256': sha(index)}
     # binding() has already authenticated the new production chain. A changed
     # base gets a NEW selection/packet namespace; prior packets are never replayed.
-    generation = hashlib.sha256(json.dumps({'parent': parent, 'pins': pins, 'binding': bound}, sort_keys=True).encode()).hexdigest()
+    generation = hashlib.sha256(json.dumps({'parent': parent, 'pins': pins, 'binding': bound, 'capture_inputs': capture_inputs}, sort_keys=True).encode()).hexdigest()
     return root / 'continuations' / day / generation, parent
 
 
@@ -353,7 +361,8 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, cont
     day = now.date().isoformat()  # UTC date namespace; scheduler may run in PT.
     with lock(root):
         bound = binding()
-        folder, predecessor = stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day)
+        capture_inputs = {str(p): sha(p) for p in sorted((SUPPLEMENTS / day).glob('*/CAPTURES.json'))}
+        folder, predecessor = stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day, capture_inputs)
         index_path = folder / 'RUN.json'
         if index_path.exists():
             prior = read(index_path)
@@ -390,6 +399,8 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, cont
             except (ValueError, KeyError, OSError, RuntimeError) as exc:
                 rows.append({'program_id': pid, 'status': 'BLOCKED_INPUT', 'reason': str(exc)})
         unchanged(bound)
+        if capture_inputs != {str(p): sha(p) for p in sorted((SUPPLEMENTS / day).glob('*/CAPTURES.json'))}:
+            raise RuntimeError('SUPPLEMENT_CAPTURE_INPUT_DRIFT')
         put(folder / 'HANDOFF.json', {'schema': 'k3-evidence-adjudication-handoff-v1',
             'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'dispatch_status': 'STAGED_NOT_DISPATCHED',
             'binding': bound, 'programs': rows, 'review_prompt': str(HERE / 'ASTRA-LOW-PROMPT.md'),
@@ -401,7 +412,7 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, cont
                   'as_of_utc': now.isoformat(), 'day_timezone': 'UTC', 'stale_within_days': 7,
                   'binding': bound, 'source_pins': pins, 'selector_only': selector_only,
                   'capture_root': capture_root, 'selected_count': len(selected), 'programs': rows,
-                  'run_dir': str(folder), 'predecessor': predecessor,
+                  'run_dir': str(folder), 'predecessor': predecessor, 'capture_inputs': capture_inputs,
                   'capture_gap_count': sum(r.get('capture_outcome') == 'UNKNOWN_CAPTURE_MANIFEST_MISSING' for r in rows),
                   'resolved_alias_count': sum('canonical_program_id' in r for r in rows),
                   'artifacts': artifacts, 'network_requests': 0, 'candidate_writes': 0,

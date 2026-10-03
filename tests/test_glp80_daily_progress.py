@@ -70,6 +70,20 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
     row = d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
     assert row['capture_count'] == 1
     assert row['capture_outcome'] == 'IMPORTED_RETAINED_TAXONOMY_CAPTURE'
+    monkeypatch.setattr(d, 'SUPPLEMENTS', tmp_path / 'supplements')
+    body = tmp_path / 'supplement.txt'
+    body.write_text('Fixture provider page')
+    caps = {'extra': {'source_url': 'https://provider.example/',
+                     'captured_at_utc': '2026-10-02T12:01:00Z',
+                     'markdown_path': str(body), 'markdown_sha256': er.sha(body)}}
+    manifest = put(d.SUPPLEMENTS / '2026-10-02/shedrx/CAPTURES.json', caps)
+    supplemented = d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
+    assert supplemented['capture_count'] == 2
+    assert supplemented['capture_outcome'] == 'IMPORTED_RETAINED_AND_OPERATOR_CAPTURES'
+    caps['extra']['captured_at_utc'] = '2026-10-01T12:01:00Z'
+    put(manifest, caps)
+    with pytest.raises(RuntimeError, match='STALE_CAPTURE_NO_RESTAMP'):
+        d.stage_program(er, tmp_path / 'release', 'shedrx', out / 'shedrx', None, '2026-10-02')
 
 
 def test_disjoint_composition_does_not_serially_apply_shared_counts(tmp_path):
@@ -132,6 +146,10 @@ def test_successor_stage_preserves_immutable_original_and_reuses(tmp_path):
         d.stage_directory(tmp_path, '2026-10-02', replacement, pins, False, None, False)
     with pytest.raises(RuntimeError, match='INPUT_MODE_CHANGED'):
         d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, False)
+    supplement = {'fixture/CAPTURES.json': 'new-actual-capture-hash'}
+    refreshed, _ = d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, True, supplement)
+    assert refreshed != folder
+    assert p.read_bytes() == before
 
 
 def test_pallas_policy_matches_captured_wording_without_adding_tags():
