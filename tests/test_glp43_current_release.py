@@ -25,6 +25,55 @@ NEW_ID = "11111111-1111-4111-8111-111111111111"
 
 
 class CurrentReleaseTests(unittest.TestCase):
+    def test_f06_distributed_receipt_preserves_scope_and_authenticates_leaves(self):
+        # Explicit synthetic fixtures: never approval or actual execution evidence.
+        rows = self.gate_data["output_before"]["files"]
+        counts = dict(tests=3, suites=0, **{"pass": 2, "fail": 0}, cancelled=0, skipped=1, todo=0)
+        tap = ''.join(f'# {k} {v}\n' for k, v in counts.items()).encode()
+        values = {
+            "build": c.json_bytes({"head": self.head, "exit_code": 0, "files": rows}),
+            "full_suite": c.json_bytes({"head": "1" * 40, "counts": counts, "public_unchanged": True,
+                                       "raw_tap_sha256": c.sha_bytes(tap)}),
+            "full_tap": tap,
+            "source_review": b"**APPROVE synthetic fixture, not live authority**",
+            "hosted_ci": c.json_bytes({"headRefOid": self.head, "statusCheckRollup": [
+                {"status": "COMPLETED", "conclusion": "SUCCESS"}]}),
+        }
+        record = {**self.gate_data, "schema": "glp-f06-distributed-release-result-v1",
+                  "scope": "f06-distributed-evidence-with-reviewed-integration",
+                  "suite_covers_integrated_head": False, "release_authorized": False,
+                  "tested_head": "1" * 40, "evidence": {}}
+        def bind(payload):
+            for role, raw in payload.items():
+                leaf = self.root / (role + '.evidence')
+                leaf.write_bytes(raw)
+                record["evidence"][role] = {"path": str(leaf), "sha256": c.sha_bytes(raw)}
+        bind(values)
+        c.f06_receipt_evidence(record, rows)
+        with mock.patch.object(c, "read_token", side_effect=AssertionError("credential read forbidden")), \
+             mock.patch.object(c, "package_get", side_effect=AssertionError("provider read forbidden")):
+            for key, bad in (("suite_covers_integrated_head", True), ("release_authorized", True),
+                             ("tested_head", "2" * 40)):
+                with self.subTest(key=key), self.assertRaises(c.GateError):
+                    c.f06_receipt_evidence({**record, key: bad}, rows)
+            for role, raw in (
+                ("build", c.json_bytes({"head": "2" * 40, "exit_code": 0, "files": rows})),
+                ("build", c.json_bytes({"head": self.head, "exit_code": 1, "files": rows})),
+                ("full_tap", tap + b"# fail 0\n"),
+                ("full_tap", tap.replace(b"# fail 0", b"# fail 1")),
+                ("hosted_ci", c.json_bytes({"headRefOid": "2" * 40, "statusCheckRollup": [
+                    {"status": "COMPLETED", "conclusion": "SUCCESS"}]})),
+                ("hosted_ci", c.json_bytes({"headRefOid": self.head, "statusCheckRollup": []})),
+                ("source_review", b"BLOCK synthetic fixture"),
+            ):
+                bind({**values, role: raw})
+                with self.subTest(role=role), self.assertRaises(c.GateError):
+                    c.f06_receipt_evidence(record, rows)
+            bind(values)
+            (self.root / 'build.evidence').write_bytes(b"tampered")
+            with self.assertRaisesRegex(c.GateError, 'f06_evidence_pin_mismatch'):
+                c.f06_receipt_evidence(record, rows)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="glp43-fixture-")
         self.addCleanup(self.temp.cleanup)
