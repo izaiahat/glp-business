@@ -724,8 +724,33 @@ def notify_failure(action, receipt, state, state_path):
     return {**alert, "id": message_id, "channel_id": CHANNEL,
             "status": "verified", "exact_readback": True}
 
+def article_current_base():
+    """Read the existing accepted-base validators; never create release authority."""
+    from scripts.glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape
+    from scripts.glp_price_index_weekly import _read_bound_regular_file, _validate_base_evidence
+    path = ROOT / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
+    _path, raw, identity = _read_bound_regular_file(str(path), "state")
+    pointer = json.loads(raw)
+    validate_pointer_shape(pointer, releases_root=None if is_prepared_pointer(pointer)
+                           else ROOT / "site-system/flagship-v2/releases", require_release_dirs=True)
+    _validate_base_evidence(pointer, Path(pointer["release_root"]))
+    _path, after, after_identity = _read_bound_regular_file(str(path), "state")
+    if after != raw or after_identity != identity:
+        raise RuntimeError("carrier_current_pointer_changed")
+    return {"deployment_id": pointer["deployment_id"], "pointer_sha256": hashlib.sha256(raw).hexdigest()}
+
+
 def article_release_live():
-    """Bind the completed release receipt to the current production pointer."""
+    """Bind accepted current publication to the live head, not a canceled tracker."""
+    current = ROOT / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
+    if current.exists() or current.is_symlink():
+        try:
+            before = article_current_base()
+            return (article_production_head_id() == before["deployment_id"]
+                    and article_current_base() == before)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            return False
+    # Preserve the historical bootstrap path when no moving pointer exists.
     from scripts.linear_client import gql, OPERATIONS
     issue = gql(OPERATIONS["issue_get"], {"id": "GLP-40"}).get("issue") or {}
     if issue.get("state", {}).get("type") != "completed":

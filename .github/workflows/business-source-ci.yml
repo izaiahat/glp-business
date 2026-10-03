@@ -102,7 +102,7 @@ jobs:
           PYTHONPATH: systems/analytics-brain:scripts
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
@@ -121,6 +121,13 @@ jobs:
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py
+      - name: GLP-320 current terminal carrier release regression (offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONPATH: systems/analytics-brain:scripts:.
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py -k 'carrier_current_terminal_base_supersedes_canceled_legacy_tracker or carrier_release_requires_completed_receipt_matching_live_head or carrier_cron_declines_before_glp40_release_without_bridge_post'
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: GLP44 sealed commercial obligations (offline, exact head)
