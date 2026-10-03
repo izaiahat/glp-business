@@ -4605,7 +4605,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "804e5fe1be45a1ce9bef69ebe33bb20ae45a7f93b24543885a8f68102199358e"
+      "sha256": "33aca4545c1e62ddfb8e1ad003095064d1227fb70bd42cb3150af31b3ee49ece"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -4626,7 +4626,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "3cc40f45e96b3b8327229f9853247a8b5de2f632e7f03ec15761b139e086b78b"
+      "sha256": "1885c34842ecaf08467c45f30919d32fa098e18c8381e8185faeafd11067655c"
     },
     "tests/test_glp113_imap_sent_classification.py": {
       "callers": [
