@@ -321,6 +321,14 @@
         ],
         "tier2": [
           "--tier2-only"
+        ],
+        "intake": [
+          "--mode",
+          "intake"
+        ],
+        "notification-ack": [
+          "--mode",
+          "notification-ack"
         ]
       }
     }

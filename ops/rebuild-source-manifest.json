@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 702,
+  "tracked_count": 703,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "aa0d5d5773ceae5c43026f0f8d7637f46b4f723e6365190d9d2150d2c58293d3"
+      "sha256": "dfd21eda58f73101fa7333b0d7b0735dc7942324e550cb9cd0cea8818dfdba42"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1165,6 +1165,14 @@
       "callers": [],
       "kind": "instruction_or_policy",
       "sha256": "fe3705b35f340c18de92fb0b49e9c8131f2f905651b9f774433f163ff0adbb9b"
+    },
+    "ops/n8n-bridge/actions.json": {
+      "callers": [
+        "ops/n8n-bridge/bridge.py",
+        "scripts/cron_bridge_action.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47"
     },
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
@@ -2682,7 +2690,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "aa85413a0cc45264c21eb1b4c9930c776fdbbb97a81b951f158dfd74c5ffd025"
+      "sha256": "89ed1a6d899d7fc05cd643e8c2df3f86a07b99e11b7574defe2d34bea3118b11"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
