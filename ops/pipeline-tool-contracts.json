@@ -96,7 +96,9 @@
           "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
         },
         "partnerize_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_supply_discovery.py",
           "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/discovery/",
@@ -128,7 +130,9 @@
           "reason": "Merged into Awin; discovery treats it as Awin membership (scripts/affiliate_supply_discovery.py:1366)."
         },
         "firecrawl": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_supply_discovery.py",
           "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/discovery/",
@@ -139,7 +143,9 @@
           "reason": "F01 reads only the retained backrun Sheet export (backrun-*/sheet-full-row-export.json) and never writes the Sheet; writes belong to the allowlisted CAS writer scripts/affiliate_sheet_batch_writer.py (scripts/affiliate_supply_discovery.py:35)."
         },
         "discord": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
           "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/ranked-card.json",
@@ -983,28 +989,36 @@
           "reason": "Hermes no-agent script; no n8n workflow."
         },
         "awin_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
           "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
         },
         "impact_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
           "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
         },
         "cj_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
           "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
         },
         "partnerize_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
@@ -1012,14 +1026,18 @@
           "note": "Stops PARTIAL at a next page rather than guessing a cursor."
         },
         "affiliati_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
           "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
         },
         "katalys_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/affiliate_network_access.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
@@ -1032,7 +1050,9 @@
           "reason": "Tenant-bound Everflow remains PORTAL_ONLY where no authorized API-only read is bound (ops/glp333-network-access-contract.md)."
         },
         "additional_reporting_apis": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "scripts/glp_affiliate_weekly_reporting.py",
           "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
           "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
@@ -1098,7 +1118,9 @@
       ],
       "tools": {
         "posthog": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
           "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
@@ -1179,7 +1201,9 @@
           "reason": "No Sheet input or output."
         },
         "discord": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
@@ -1195,21 +1219,27 @@
           "reason": "No receiver/D1 input; revenue chain is PostHog aggregates."
         },
         "google_ads": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
           "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
           "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:84-88"
         },
         "meta_ads": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
           "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
           "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:119-129"
         },
         "microsoft_ads": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
           "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
           "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
@@ -1256,7 +1286,9 @@
           "reason": "Public n8n MCP does not expose the account billing boundary the budget check needs (ops/n8n_execution_budget.py:44)."
         },
         "n8n_api": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "ops/n8n_execution_budget.py",
           "job": "hermes:b86ec8937c20 via ops/hermes-cron-scripts/scheduled_job_health_manager.py",
           "readback_artifact": "ops/scheduled-job-health-state.json",
@@ -1311,7 +1343,9 @@
           "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
         },
         "discord": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
           "job": "hermes:b86ec8937c20 via ops/hermes-cron-scripts/scheduled_job_health_manager.py",
           "readback_artifact": "ops/scheduled-job-health-state.json",
@@ -1875,7 +1909,9 @@
           "reason": "Local archive/retention only; no external provider calls."
         },
         "discord": {
-          "status": "wired",
+          "status": "gap",
+          "owner": "Current coordinator via the existing pipeline issue named by this row",
+          "reason": "Committed consumer is identified below, but this source-only contract has no authenticated installed run and exact-target readback. Promote to wired only after the existing pipeline owner binds that real receipt; do not force an effect to satisfy this contract.",
           "consumer": "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py",
           "job": "hermes:69a28f878ce3",
           "readback_artifact": "archive/f13-growth-retention/",
