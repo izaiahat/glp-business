@@ -1396,6 +1396,9 @@ class Application:
             if sender is send:
                 def finch_send(channel, wire, file=None):
                     payload = {'content': wire, 'allowed_mentions': {'parse': [], 'replied_user': False}, 'flags': 4}
+                    # Finch may notify only the fixed Kael recipient, and only for a literal tag.
+                    if re.search(rf'<@!?{BOT}>', wire):
+                        payload['allowed_mentions']['users'] = [BOT]
                     if file is not None:
                         payload['attachments'] = [{'id': 0, 'filename': file['filename']}]
                     return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot)
