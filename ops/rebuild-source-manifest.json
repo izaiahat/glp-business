@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 707,
+  "tracked_count": 709,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "484bea575158e25bebd92171b6015b4c734966cac7aef194d0b70473bd2d038f"
+      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4761,6 +4761,21 @@
     },
     "ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py": {
       "sha256": "09b2eff03246bb74f90b753e25d4a7584a5385a9fad37aecc8747f234f273a7e"
+    },
+    "scripts/repin_reports_archiver_dependents.py": {
+      "kind": "script",
+      "callers": [
+        "reviewed lock-held F12/F13 coupled-pin adoption"
+      ],
+      "sha256": "9baf9c084e6a7d66913831ec0e854bcac48d56929313568bb7d3156579ca346a"
+    },
+    "tests/test_repin_reports_archiver_dependents.py": {
+      "kind": "test",
+      "callers": [
+        "CI",
+        "disposable native home"
+      ],
+      "sha256": "25bb3eb57f34aafbfdade08d94d21d31f1961581479a2e3bdeed001a2fe98a46"
     }
   }
 }
