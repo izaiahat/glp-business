@@ -243,6 +243,26 @@ class TestFinchCaBX:
     def test_embedded_svg_strict_xml_subset(self, data):
         with pytest.raises(self.m.RpcError): self.validate(embedded_svg(data))
 
+    @pytest.mark.parametrize('encoding', ['utf-8', 'utf-16-le', 'utf-16-be'])
+    @pytest.mark.parametrize('route', ['direct', 'finch'])
+    def test_embedded_svg_utf8_only(self, encoding, route, monkeypatch):
+        # BOM-less UTF-16 decodes as UTF-8 with NULs, but Expat autodetects it.
+        data = svg_fixture('M0 0').decode('utf-8').encode(encoding)
+        png = png_fixture(extra=[(b'caBX', embedded_svg(data))])
+        if encoding == 'utf-8':
+            if route == 'direct':
+                self.m.png_embedded_svg(data)
+            else:
+                assert self.m.validate_file('art.png', 'image/png', png, finch=True)['data'] == png
+        else:
+            assert '\x00' in data.decode('utf-8')
+            monkeypatch.setattr(self.m.expat, 'ParserCreate', lambda *a, **k: pytest.fail('XML parser entered'))
+            if route == 'direct':
+                with pytest.raises(ValueError, match='SVG XML NUL'): self.m.png_embedded_svg(data)
+            else:
+                with pytest.raises(self.m.RpcError, match='InvalidOrUnsupportedPNG'):
+                    self.m.validate_file('art.png', 'image/png', png, finch=True)
+
     def test_embedded_svg_all_resource_boundaries(self):
         for length in (4096, 4097):
             path = 'M0 0' + ' ' * (length - 4)

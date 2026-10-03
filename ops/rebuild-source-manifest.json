@@ -29,7 +29,7 @@
       "callers": [
         "tests/test_rook_communication.py"
       ],
-      "sha256": "17531375a86b133ab5ef13b9d86b3dcadd2645969169dd6817a8a71ac8519dc4"
+      "sha256": "21a8121316ec9ec09df43d03a4b61f90294130f0d35497c6e833684d22ef5456"
     },
     "tests/finch_png_acceptance.py": {
       "kind": "test",
@@ -2199,7 +2199,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "6f16cfd34b305e30e426b9bc7c919f58071b3f88fc11548578e7668a9a5d8455"
+      "sha256": "cca98fcbcf9c9e6e7dd5b465c08ef279d9a25d98483498e0ae2889a7783c578d"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
