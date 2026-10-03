@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile one sealed GLP review packet into the source-driven article contract."""
 from __future__ import annotations
-import argparse, hashlib, json, re
+import argparse, datetime as dt, hashlib, json, re
 from pathlib import Path
 from typing import Any
 import yaml
@@ -84,6 +84,38 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
     return sections, faqs
 
 
+def r2_publication_date(authority: dict[str, Any]) -> str | None:
+    """Read first-publication truth from the sealed predecessor, not frontmatter."""
+    if authority.get('operation') != 'r2_refresh' or not authority.get('existing_article'):
+        return None
+    e = authority['existing_article']
+    specs = [s for s in authority.get('inputs', {}).get('catalogs', []) if s.get('catalog_id') == e.get('catalog_id')]
+    if len(specs) != 1:
+        raise RuntimeError('r2_publication_catalog_binding_invalid')
+    p = Path(specs[0]['path'])
+    if p.is_symlink() or not p.is_file():
+        raise RuntimeError('r2_publication_catalog_not_regular')
+    raw = p.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != specs[0].get('sha256'):
+        raise RuntimeError('r2_publication_catalog_hash_drift')
+    rows = json.loads(raw)[e['records_key']]
+    index = e.get('article_index')
+    if type(index) is not int or not 0 <= index < len(rows):
+        raise RuntimeError('r2_publication_article_index_invalid')
+    a = rows[index]
+    canonical = (json.dumps(a, sort_keys=True, separators=(',', ':'), ensure_ascii=False)+'\n').encode()
+    if (hashlib.sha256(canonical).hexdigest() != e.get('article_sha256')
+            or a.get('article_id') != e.get('article_id')
+            or a.get('article_id') != authority.get('existing_article_id')
+            or a.get('canonical_path') != e.get('canonical_path')):
+        raise RuntimeError('r2_publication_article_binding_invalid')
+    value = a.get('date_published') or a.get('updated_at')
+    if not isinstance(value, str) or re.fullmatch(r'\d{4}-\d{2}-\d{2}', value) is None:
+        raise RuntimeError('r2_publication_date_invalid')
+    dt.date.fromisoformat(value)
+    return value
+
+
 def compile_packet(packet: Path) -> dict[str, Any]:
     draft_path = packet / "04-draft.md"
     raw = draft_path.read_text()
@@ -154,10 +186,10 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "canonical_path": meta["slug"], "primary_keyword": meta["primaryKeyword"], "target_query": meta["primaryKeyword"],
         "title": meta["title"], "h1": meta["h1"], "meta_description": meta["metaDescription"],
         "updated_at": meta["dateModified"], "source_checked_through": meta["pricesCheckedDate"],
-        # Packet frontmatter is draft/source-check history, not proof of first publication.
-        # The release builder binds this field on a new publication or retains the
-        # predecessor's value on a same-route refresh.
-        "prices_checked_date": meta["pricesCheckedDate"], "date_published": None,
+        # Draft/check history never proves first publication. R2 can expose the
+        # sealed predecessor's truth to review; new drafts remain pending None.
+        # The builder still rebinds dates against its current predecessor.
+        "prices_checked_date": meta["pricesCheckedDate"], "date_published": r2_publication_date(authority),
         "status": "PASS_OPUS_PENDING", "risk_tier": str(meta.get("riskTier") or "MEDIUM").upper(), "search_intent": "transactional informational",
         "audience": f"U.S. readers researching {meta['primaryKeyword']} using current primary evidence",
         "intent": intent, "direct_answer": direct_answer,
