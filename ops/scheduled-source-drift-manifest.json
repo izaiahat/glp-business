@@ -651,7 +651,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/inbox_control_plane_cron.py",
       "source": "ops/hermes-cron-scripts/inbox_control_plane_cron.py",
-      "reviewed_sha256": "7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc",
+      "reviewed_sha256": "2cba7ec77ee5cb3261d5d8c8566b567bef5b27e9731d07e25444bd3821fde05a",
       "payloads": []
     },
     {
@@ -837,7 +837,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_discovery_daily.sh",
       "source": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
-      "reviewed_sha256": "e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8",
+      "reviewed_sha256": "bd9288957cfb26d385541751e791b580007bed960482e611eb450d0e77de124a",
       "payloads": []
     },
     {

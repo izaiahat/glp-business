@@ -1,0 +1,11 @@
+[Unit]
+Description=GLP durable release and Cogny continuation drain
+After=network.target glp-host-ingress.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/business
+ExecStart=/usr/bin/python3 -B /home/ubuntu/business/scripts/glp_host_ingress.py drain
+TimeoutStartSec=600
+UMask=0077
+NoNewPrivileges=true
