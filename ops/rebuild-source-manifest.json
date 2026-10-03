@@ -50,7 +50,7 @@
       "callers": [
         "authorized parent install owner"
       ],
-      "sha256": "25af9f157aa4cce29d6be1c96ceaa80c3e9e799a9a7922af8cba411274f9efbd"
+      "sha256": "203b38003f2fec015dce8e65b1b8045efda3c0acaec6e3f365f3206a2a39d3f2"
     },
     "tests/test_glp345_a4_adoption.py": {
       "kind": "test",
@@ -385,7 +385,7 @@
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
       ],
       "kind": "test",
-      "sha256": "d584068e357d91c29a5e01f34280872f35147bde95409efb8672fbba1bc5425a"
+      "sha256": "64c1b3a46761723ce99bca18f0d11c7f9a246c67446d862743cc18fd0bace499"
     },
     ".github/workflows/glp341-weekly-ads-compatibility.yml": {
       "callers": [
@@ -399,7 +399,7 @@
         "hermes:ea5bad730e53 via weekly_cron_entry.py"
       ],
       "kind": "script",
-      "sha256": "05bda1aa7f23fc2dca94d35bbcf65276b8bd1e743a9c0e4eb21445867f306653"
+      "sha256": "5032dd52cb7069ffd99a2e17ea1d0efa9b8992c5901c3900abff4fe13687ad70"
     },
     "reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json": {
       "callers": [
@@ -952,7 +952,7 @@
         "hermes:ea5bad730e53"
       ],
       "kind": "script",
-      "sha256": "468587b7d6492bc7bc808743cec1316e1e7bf7e908c877459948c503d484df9a"
+      "sha256": "43532ad8c94c1dde3eac99abe42eb499fe831d1bc1328aa661b9184ea147206d"
     },
     "ops/hermes-cron-scripts/hermes_state_archive_weekly.py": {
       "callers": [
@@ -4317,7 +4317,7 @@
       "callers": [
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
       ],
-      "sha256": "b01685f61756edd8961ce82532dd2bd38d70c39f4917afdd0904d726a54381e6"
+      "sha256": "6a812d3ba6f8cbc7be862405c705be6262b7c5c0e57e3072d59ecd6523f642f5"
     },
     "ops/glp345-a4/weekly.predecessor.py": {
       "kind": "source_control",
