@@ -3009,16 +3009,54 @@ def _prepared_tree_identity(root: Path) -> tuple[Any, ...] | None:
 
 
 def _prepared_dependencies_unchanged(evidence: dict[str, Any]) -> bool:
-    """Rehash every producer-returned external/small dependency on each use."""
+    """Rehash direct and producer-consumed transitive proof files on each use.
+
+    Follow semantic live dependencies, NOT arbitrary path/hash pairs: a native
+    journal also contains historical pointer preimages that must not be read as
+    current files. Unknown build-gate families decline caching, never validation.
+    """
+    from collections import deque
     try:
         from glp_price_index_weekly import _read_bound_regular_file
         files = evidence['prepared_binding']['files']
         if not isinstance(files, dict) or not files:
             return False
-        for path, (expected_sha, expected_identity) in files.items():
-            _path, body, identity = _read_bound_regular_file(path, 'retention_prepared_dependency')
-            if hashlib.sha256(body).hexdigest() != expected_sha or identity != expected_identity:
+        pending = deque((path, digest, identity) for path, (digest, identity) in files.items())
+        visited = set()
+        while pending:
+            path, expected_sha, expected_identity = pending.popleft()
+            path = Path(path)
+            if not path.is_absolute():
+                path = BUSINESS / path
+            key = (str(path), expected_sha)
+            if key in visited:
+                continue
+            visited.add(key)
+            if len(visited) > 1024:
                 return False
+            _path, body, identity = _read_bound_regular_file(str(path), 'retention_prepared_dependency')
+            if (hashlib.sha256(body).hexdigest() != expected_sha
+                    or (expected_identity is not None and identity != expected_identity)):
+                return False
+            try:
+                value = json.loads(body)
+            except (UnicodeError, ValueError):
+                continue  # The checksum-only operator authority is Markdown.
+            if not isinstance(value, dict):
+                continue
+            bindings = []
+            if value.get('schema') == 'glp-affiliate-sync-release-result-v1':
+                if set(value.get('evidence', {})) != {'build', 'ci', 'design'}:
+                    return False
+                bindings.extend(value['evidence'].values())
+            elif path.name.lower() == 'gate.json':
+                return False  # A future producer must declare its live read graph.
+            if value.get('schema') == 'glp-affiliate-sync-operator-release-v1':
+                bindings.append(value['operator_authority'])
+            if value.get('checks') == ['affiliate-relationship-sync', 'raw-held-output', 'native-build-validators']:
+                bindings.append(value['unmapped_adverse_evidence'])
+            for binding in bindings:
+                pending.append((binding['path'], binding['sha256'], None))
         return True
     except (ImportError, KeyError, TypeError, ValueError, RuntimeError, OSError):
         return False

@@ -135,6 +135,51 @@ def test_snapshot_limit_declines_cache_not_native_validation(prepared, monkeypat
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
 
 
+@pytest.mark.parametrize('changed', ['build', 'ci', 'design', 'absence', 'authority'])
+def test_transitive_affiliate_proof_drift_cannot_use_cached_authority(prepared, monkeypatch, changed):
+    release, member, external, calls, module = prepared
+    root=external.parent
+    monkeypatch.setattr(archiver,'BUSINESS',root)
+    paths={name:root/(name+'.json') for name in ('build','ci','design','absence','authority')}
+    for name,path in paths.items():path.write_bytes(name.encode())
+    def pin(path, relative=False):return {'path':path.name if relative else str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    paths['design'].write_text(json.dumps({'checks':['affiliate-relationship-sync','raw-held-output','native-build-validators'],
+        'unmapped_adverse_evidence':pin(paths['absence'])}))
+    external.write_text(json.dumps({'schema':'glp-affiliate-sync-release-result-v1',
+        'evidence':{name:pin(paths[name]) for name in ('build','ci','design')}}))
+    review=root/'review.json';review.write_text(json.dumps({'schema':'glp-affiliate-sync-operator-release-v1',
+        'operator_authority':pin(paths['authority'],True)}))
+    expected={path:hashlib.sha256(path.read_bytes()).hexdigest() for path in [external,review,*paths.values()]}
+    def native(base,directory):
+        calls.append(dict(base))
+        if any(hashlib.sha256(path.read_bytes()).hexdigest()!=digest for path,digest in expected.items()):
+            raise RuntimeError('native_transitive_proof_drift')
+        return {'prepared_binding':{'files':{str(path):(expected[path],identity(path)) for path in (external,review)},'release':'validated'}}
+    module._validate_base_evidence=native
+    archiver._registered_prepared_release_evidence({},release)
+    archiver._registered_prepared_release_evidence({},release)
+    assert len(calls)==1
+    paths[changed].write_bytes(b'altered')
+    with pytest.raises(RuntimeError,match='native_transitive_proof_drift'):
+        archiver._registered_prepared_release_evidence({},release)
+    assert len(calls)==2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_historical_preimage_is_not_a_live_dependency(prepared):
+    release, member, external, calls, module=prepared
+    external.write_text(json.dumps({'schema':'glp43-current-deploy-receipt-v1',
+        'predecessor_pointer':{'path':str(module.pointer),'sha256':'0'*64}}))
+    proof={'prepared_binding':{'files':{str(external):(hashlib.sha256(external.read_bytes()).hexdigest(),identity(external))}}}
+    assert archiver._prepared_dependencies_unchanged(proof)
+
+
+def test_unknown_gate_family_declines_cache(prepared):
+    release, member, external, calls, module=prepared
+    gate=external.with_name('gate.json');gate.write_text(json.dumps({'schema':'unregistered-future-gate'}))
+    proof={'prepared_binding':{'files':{str(gate):(hashlib.sha256(gate.read_bytes()).hexdigest(),identity(gate))}}}
+    assert not archiver._prepared_dependencies_unchanged(proof)
+
+
 @pytest.fixture
 def reuse(tmp_path, monkeypatch):
     home = tmp_path/'home'; business=home/'business'; root=business/'archive/f12-disk-archival'

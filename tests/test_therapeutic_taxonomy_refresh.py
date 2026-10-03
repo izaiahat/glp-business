@@ -50,10 +50,10 @@ def policy_row(producer, pid):
             'evidence_bindings': [{'fixture': 'old'}]}
 
 
-def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False, markdown_overrides=None):
+def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False, markdown_overrides=None, links_by_url=None, reports=None):
     """Execute maintained main with only external effects replaced by fixtures."""
     monkeypatch.setattr(producer, 'BUSINESS', tmp_path)
-    monkeypatch.setattr(producer, 'REPORTS', tmp_path / 'receipts')
+    monkeypatch.setattr(producer, 'REPORTS', reports or tmp_path / 'receipts')
     registry = tmp_path / 'fixture-registry.json'
     monkeypatch.setattr(producer, 'REGISTRY', registry)
     rows = {pid: policy_row(producer, pid) for pid in ids
@@ -79,12 +79,19 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
                 if url in (s.get('url'), s.get('linked_url')):
                     parts.extend(q for f, tags in s.get('quotes', {}).items()
                                  for tag, q in tags.items() if (pid, f, tag) not in missing)
-        receipt = {'received_at': '2026-09-26T12:00:00+00:00',
-                   'response': {'data': {'markdown': '\n' + ('\n' + '.' * 200 + '\n').join(parts), 'links': []}}}
+        receipt = {'request': {'url': url, 'maxAge': 0},
+                   'started_at': '2026-09-26T11:59:59+00:00',
+                   'received_at': '2026-09-26T12:00:00+00:00',
+                   'response': {'success': True, 'data': {
+                       'markdown': '\n' + ('\n' + '.' * 200 + '\n').join(parts),
+                       'links': [], 'metadata': {'statusCode': 200, 'url': url}}}}
         if markdown_overrides and url in markdown_overrides:
             receipt['response']['data']['markdown'] = markdown_overrides[url]
         if linked:
-            receipt['response']['data']['links'] = [p['linked_url'] for p in producer.POLICIES.values() if p.get('linked_url')]
+            receipt['response']['data']['links'] = [p[k] for p in producer.POLICIES.values()
+                                                   for k in ('intermediate_url', 'linked_url') if p.get(k)]
+        if links_by_url and url in links_by_url:
+            receipt['response']['data']['links'] = links_by_url[url]
         dest.write_bytes(producer.encoded(receipt))
         return receipt
     monkeypatch.setattr(producer, 'capture', fake_capture)
@@ -101,7 +108,7 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
     monkeypatch.setattr(producer.subprocess, 'run', lock)
     monkeypatch.setattr(sys, 'argv', ['refresh'] + ([] if default else [a for pid in ids for a in ['--program', pid]]))
     code = producer.main()
-    receipt = json.loads(next((tmp_path / 'receipts').glob('run-*/RESULT.json')).read_text())
+    receipt = json.loads(next(producer.REPORTS.glob('run-*/RESULT.json')).read_text())
     return code, receipt, before, json.loads(registry.read_text()), captures
 
 
@@ -183,7 +190,7 @@ def test_multisource_uses_oldest_actual_capture_date(producer, monkeypatch, tmp_
 
 @pytest.mark.parametrize('pid,condition', [
     ('pallas-health-review', 'assertion_no_longer_supported:molecule_tags:semaglutide'),
-    ('rxspan-md-telehealth-program-review', 'supplement_no_longer_linked_by_program')])
+    ('rxspan-md-telehealth-program-review', 'intermediate_no_longer_linked_by_program')])
 def test_existing_real_refusal_classes_still_review_required(producer, monkeypatch, tmp_path, pid, condition):
     missing = {(pid, 'molecule_tags', 'semaglutide')}
     code, result, before, after, _ = run_fixture(producer, monkeypatch, tmp_path, [pid, 'breeze-meds-review'], missing)
@@ -246,6 +253,7 @@ def test_nine_original_policies_and_evidence_rules_are_unchanged(producer):
     pallas['quotes']['molecule_tags'] = {
         'semaglutide': 'Compounded semaglutide is $139 for your first month',
         'tirzepatide': 'compounded tirzepatide is $179 for your first month'}
+    assert old['rxspan-md-telehealth-program-review'].pop('intermediate_url') == 'https://www.rxspanmd.com/main-weight-loss'
     assert hashlib.sha256(json.dumps(old, sort_keys=True).encode()).hexdigest() == SNAPSHOT['original_policies_sha256']
     tree = ast.parse(SOURCE.read_text())
     for name, expected in SNAPSHOT['original_functions_source_sha256'].items():
@@ -281,8 +289,110 @@ def test_rxspan_linked_success_binding_stays_on_supplement(producer, monkeypatch
     code, result, _, after, calls = run_fixture(producer, monkeypatch, tmp_path, [pid], linked=True)
     p = producer.POLICIES[pid]
     assert code == 0 and result['status'] == 'PASS'
-    assert calls == [p['url'], p['linked_url']]
+    assert calls == [p['url'], p['intermediate_url'], p['linked_url']]
     assert after['therapeutic_taxonomy']['programs'][pid]['evidence_bindings'][0]['source_url'] == p['linked_url']
+
+
+def test_rxspan_missing_second_edge_refuses_without_clock_change(producer, monkeypatch, tmp_path):
+    pid = 'rxspan-md-telehealth-program-review'
+    p = producer.POLICIES[pid]
+    code, result, before, after, calls = run_fixture(producer, monkeypatch, tmp_path, [pid], linked=True, links_by_url={p['intermediate_url']: []})
+    assert code == 1 and result['written'] == [] and after == before
+    assert result['findings'][0]['condition'] == 'supplement_no_longer_linked_by_program'
+    assert calls == [p['url'], p['intermediate_url']]
+
+
+R1_EDGE_FAULTS = ['stale', 'missing_clocks', 'cache_hit', 'foreign_redirect']
+
+
+@pytest.mark.parametrize('edge,fault,rebind', [
+    ('intermediate', 'healthy', False), ('intermediate', 'unbound', True),
+    ('intermediate', 'missing_link', True),
+    *[(edge, fault, rebind) for edge in ('primary', 'intermediate')
+      for fault in R1_EDGE_FAULTS for rebind in (False, True)],
+])
+def test_rxspan_navigation_receipts_authenticated_before_intake(
+        producer, monkeypatch, tmp_path, edge, fault, rebind):
+    """R1: exact writer bindings plus per-edge freshness, not intake-made hashes."""
+    pid = 'rxspan-md-telehealth-program-review'
+    policy = producer.POLICIES[pid]
+    # Keep the registered reports-relative receiving contract in this fixture.
+    root = tmp_path / 'reports/ops/glp38-20260915/taxonomy-refresh'
+    root.mkdir(parents=True)
+    code, result, before, registry, _ = run_fixture(
+        producer, monkeypatch, tmp_path, [pid], linked=True, reports=root)
+    assert code == 0 and result['status'] == 'PASS'
+    row = registry['therapeutic_taxonomy']['programs'][pid]
+    name = row['evidence_bindings'][0]['authority']
+    authority = registry['therapeutic_taxonomy']['authorities'][name]
+    manifest_path = tmp_path / authority['path']
+    manifest = json.loads(manifest_path.read_text())
+    registry_path = producer.REGISTRY
+    spec = importlib.util.spec_from_file_location('r1_receiver', ROOT / 'ops/glp/evidence-refresh-k3/registered_taxonomy.py')
+    assert spec and spec.loader
+    receiver = importlib.util.module_from_spec(spec);spec.loader.exec_module(receiver)
+    d = types.SimpleNamespace(ROOT=tmp_path, TAXONOMY_PRODUCER=SOURCE,
+        TAXONOMY_POLICIES=SOURCE.with_name('therapeutic-taxonomy-refresh-policies.json'),
+        TAXONOMY_REGISTRY=registry_path,
+        sha=lambda p: producer.sha(Path(p).read_bytes()),
+        read=lambda p: json.loads(Path(p).read_text()))
+    er = types.SimpleNamespace(safe_url=lambda u, hosts: u.startswith('https://www.rxspanmd.com/'))
+    final = manifest_path.parent / (pid + '-linked.json')
+    final_raw = d.read(final)
+    body = tmp_path / 'final.md';body.write_text(final_raw['response']['data']['markdown'])
+    caps = {'final': {'raw_capture_path': str(final), 'raw_capture_sha256': d.sha(final),
+        'captured_at_utc': final_raw['received_at'], 'markdown_path': str(body), 'markdown_sha256': d.sha(body)}}
+    args = (d, er, pid, before['therapeutic_taxonomy']['programs'][pid],
+            {'source_urls': [policy['url']]}, caps, row['verified_as_of'])
+    assert receiver.verified_row(*args) is not None
+    sealed = [registry_path, manifest_path, final, manifest_path.parent / 'RESULT.json']
+    sealed_before = {str(p): p.read_bytes() for p in sealed}
+    edge_path = manifest_path.parent / (pid + '-' + edge + '.json')
+    original = edge_path.read_bytes();raw = d.read(edge_path)
+    if fault == 'stale':
+        raw.update(started_at='2020-01-01T00:00:00Z', received_at='2020-01-01T00:00:01Z')
+    elif fault == 'missing_clocks':
+        raw.pop('started_at');raw.pop('received_at')
+    elif fault == 'cache_hit':
+        raw['response']['data']['metadata'].update(cacheState='hit', cachedAt='2020-01-01T00:00:00Z')
+    elif fault == 'foreign_redirect':
+        raw['response']['data']['metadata'].update(url='https://unrelated.example/', sourceURL='https://unrelated.example/')
+    elif fault == 'missing_link':
+        raw['response']['data']['links'] = []
+    if fault != 'healthy':
+        edge_path.write_bytes(producer.encoded(raw))
+        if rebind:
+            if fault == 'unbound':
+                manifest.pop('navigation_edges', None)
+            else:
+                for binding in manifest.get('navigation_edges', []):
+                    if binding['capture_path'] == str(edge_path.relative_to(tmp_path)):
+                        binding.update(capture_sha256=d.sha(edge_path), started_at=raw.get('started_at'),
+                                       captured_at=raw.get('received_at'), verified_as_of=str(raw.get('received_at'))[:10])
+            manifest_path.write_bytes(producer.encoded(manifest))
+            authority['sha256'] = d.sha(manifest_path)
+            row['evidence_bindings'][0]['authority_sha256'] = authority['sha256']
+            registry_path.write_bytes(producer.encoded(registry))
+        try:
+            proof = receiver.verified_row(*args)
+        except ValueError as exc:
+            assert str(exc).startswith('REGISTERED_TAXONOMY_')
+        else:
+            assert proof is None, f'accepted {edge} {fault} rebind={rebind}'
+        if not rebind:
+            assert sealed_before == {str(p): p.read_bytes() for p in sealed}
+    else:
+        bindings = manifest['navigation_edges']
+        assert [(b['source_url'], b['linked_url']) for b in bindings] == [
+            (policy['url'], policy['intermediate_url']), (policy['intermediate_url'], policy['linked_url'])]
+        for binding in bindings:
+            retained_path = tmp_path / binding['capture_path']
+            retained = d.read(retained_path)
+            assert binding['capture_sha256'] == d.sha(retained_path)
+            assert binding['started_at'] == retained['started_at']
+            assert binding['captured_at'] == retained['received_at']
+            assert binding['verified_as_of'] == retained['received_at'][:10]
+    edge_path.write_bytes(original)  # synthetic only; authentic receipts are never edited
 
 
 # Fixed adversarial excerpts, not derived from the current policy. The first two
