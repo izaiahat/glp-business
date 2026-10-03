@@ -296,6 +296,24 @@ class CronBridgeTests(unittest.TestCase):
                 "acceptance_clauses": [{"verdict": "PASS"}]}))
             self.assertFalse(cron.article_release_live())
 
+    def test_carrier_current_terminal_base_supersedes_canceled_legacy_tracker(self):
+        from scripts import linear_client
+        pointer = self.root / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
+        pointer.parent.mkdir(parents=True)
+        pointer.write_text('{}')
+        binding = {"deployment_id": "approved-deployment", "pointer_sha256": "a" * 64}
+        with patch.object(cron, "ROOT", self.root), \
+                patch.object(linear_client, "gql", return_value={"issue": {"state": {"type": "canceled"}}}) as tracker, \
+                patch.object(cron, "article_current_base", return_value=binding, create=True) as accepted, \
+                patch.object(cron, "article_production_head_id", return_value="approved-deployment") as head:
+            self.assertTrue(cron.article_release_live())
+            tracker.assert_not_called()
+            self.assertEqual(accepted.call_count, 2)
+            head.return_value = "rolled-back-deployment"
+            self.assertFalse(cron.article_release_live())
+            accepted.side_effect = RuntimeError("manifest drift")
+            self.assertFalse(cron.article_release_live())
+
     def test_overlapping_action_skipped_by_lock(self):
         lock = self.root / "fixture.lock"
         with lock.open("w") as handle:

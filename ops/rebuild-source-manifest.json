@@ -2703,7 +2703,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "09a133e325022503165fa5c6956c6ce6d23d0e13132b27474a8edf711e5e34e5"
+      "sha256": "6d3e3a1ca9e0697b49b97d8c4784838f5ff55c1bba956bd0fb06949a9af7c7bb"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
