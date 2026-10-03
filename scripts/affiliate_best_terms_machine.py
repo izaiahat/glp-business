@@ -2282,6 +2282,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Idempotently queue a quantified payout-leak fixture through payout_evaluation.",
     )
     parser.add_argument("--first-run", action="store_true")
+    parser.add_argument("--poll-run-id", default="")
     parser.add_argument("--approval-events", action="store_true")
     parser.add_argument("--resume-census", action="store_true",
                         help="finish read-only catalog batches on a duplicate weekly fire; never restage")
@@ -2291,6 +2292,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--send-discord", action="store_true")
     parser.add_argument("--stdout", choices=("json", "discord", "silent"), default="json")
     args = parser.parse_args(argv)
+    # Stable inode + kernel ownership, shared by weekly and approval producers.
+    # Never infer a live holder from an old XenTraffic failure notification.
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    owner_handle = (STATE_DIR / 'continuation.lock').open('a+')
+    try:
+        fcntl.flock(owner_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(json.dumps({'status': 'DEFERRED_ACTIVE_OWNER', 'poll_run_id': args.poll_run_id}))
+        return 75
+    owner_handle.seek(0)
+    owner_handle.truncate()
+    json.dump({'pid': os.getpid(), 'started_at': utc_now(), 'poll_run_id': args.poll_run_id,
+               'mode': 'approval' if args.approval_events else 'weekly'}, owner_handle)
+    owner_handle.flush()
+    os.fsync(owner_handle.fileno())
     if args.enqueue_payout_leaks:
         if not args.enqueue_payout_leaks.is_absolute():
             parser.error("--enqueue-payout-leaks requires an absolute path")
@@ -2349,12 +2365,21 @@ def main(argv: list[str] | None = None) -> int:
         elif args.stdout == "json":
             print(json.dumps(failure, sort_keys=True))
         return 1
+    if args.approval_events:
+        result['poll_run_id'] = args.poll_run_id or None
+        result['holder_pid'] = os.getpid()
+        result['cursor_path'] = str(APPROVAL_CURSOR)
+        continuation_path = RUNS_ROOT / ('continuation-' + stamp() + '-' + str(os.getpid()) + '.json')
+        atomic_json(continuation_path, result)
+        result['continuation_receipt'] = str(continuation_path)
     if args.stdout == "discord":
         content = (result.get("discord") or {}).get("content") or discord_message(result)
         if content:
             print(content)
     elif args.stdout == "json":
         print(json.dumps({
+            "poll_run_id": result.get('poll_run_id'),
+            "continuation_receipt": result.get('continuation_receipt'),
             "status": result.get("status"),
             "mode": result.get("mode"),
             "run_receipt": result.get("run_receipt"),
