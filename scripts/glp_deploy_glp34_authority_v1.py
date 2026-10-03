@@ -1770,6 +1770,88 @@ CURRENT_AUTHORITIES = {
 }
 
 
+# One authenticated D1 successor, not a caller-selectable rollback or schema alias.
+# PR29's complete native gate/public package are retained, not rebuilt here.
+CURRENT_D1 = {
+    "head": "3636173150662d4249ed1b01123c16d1c582de5c",
+    "git_tree": "78ff74ce175aa9a76bfa3539de331d878b9f64bc",
+    "gate_sha256": "49927a128ab3abc97ef87e0e1559d3041d18a2628489e4bf3f7b51af7c5bc5ba",
+    "package_sha256": "c0072d40b151e1cde9d0b0e8be03608543ef09cdb103977b694dfc59c70b041f",
+    "built_source_sha256": "d29f8dc3f4fc86352bc6b47d486b1bbdd78cf6e1c5aa8860d1af18d83ab0cbd5",
+    "rollback": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+    "pointer_sha256": "e090daac70dae7ca9ad5c765baf500afc1ec264c1312ec4d1c357606775bc68d",
+    "terminal_sha256": "a75908842f3a2dd9cc2f0685f20311e4ab849cbbfe25ffd0f52897827b3e5d41",
+    "predecessor_prepared_sha256": "1d7faf179c1d780355e88c5b042ba5619523c50c279f0e60cc4a33aa48d20837",
+    # Same complete Functions bytes as that predecessor; pinned compiler router
+    # shape includes all 23 ordered method/mount/module/middleware entries.
+    "route_shape_sha256": "6a5c03ee94766d450b7f009964f46ca3e4457c07b3141f96ac4b85a22fe70174",
+    "runtime": {
+        "functions": {"tree_sha256": "73592cec67a88cb22dd8db4f40e333673d7db08d1c565e9dfaacd5e182b2a3d8", "file_count": 18, "total_bytes": 244471},
+        "src": {"tree_sha256": "0046125d06dd6b1e91336f3d889fc9973342068eac4d4d7ac454af145c0062b6", "file_count": 132, "total_bytes": 2544753},
+        "data": {"tree_sha256": "2a84eb8e074fb4269e696ddfd489410b4d57134be0912dd52eed2c8b9cd0c0ad", "file_count": 912, "total_bytes": 89357660},
+    },
+}
+
+
+def current_rollback(head: str, gate_sha256: str, package_sha256: str) -> str:
+    if (head == CURRENT_D1["head"] or gate_sha256 == CURRENT_D1["gate_sha256"]
+            or package_sha256 == CURRENT_D1["package_sha256"]):
+        if (head, gate_sha256, package_sha256) != tuple(CURRENT_D1[k] for k in ("head", "gate_sha256", "package_sha256")):
+            fail("current_d1_successor_binding_mismatch")
+        return CURRENT_D1["rollback"]
+    return CURRENT_ROLLBACK
+
+
+def current_d1_predecessor(raw: bytes) -> None:
+    """Authenticate the retained native terminal chain; never mutate a global.
+
+    The fixed pointer and terminal pins anchor the preimage. Fresh canonical
+    production identity still comes from package_rollback immediately before use.
+    """
+    if sha_bytes(raw) != CURRENT_D1["pointer_sha256"]:
+        fail("current_d1_predecessor_pointer_drift")
+    pointer = json.loads(raw)
+    final = current_json(Path(pointer["final_receipt"]["path"]), pointer["final_receipt"]["sha256"])
+    manifest = current_json(Path(pointer["manifest"]["path"]), pointer["manifest"]["sha256"])
+    terminal = current_json(Path(pointer["final_receipt"]["path"]).parent / "CURRENT-RECEIPT.json", CURRENT_D1["terminal_sha256"])
+    root = package_plain_path(Path(pointer["release_root"]).parent)
+    prior = current_json(root / "PREPARED.json", CURRENT_D1["predecessor_prepared_sha256"])
+    identity = {"deployment_id": CURRENT_D1["rollback"], "commit_hash": pointer["site_head"]}
+    if (pointer.get("status") != "PASS" or pointer.get("deployment_id") != CURRENT_D1["rollback"]
+            or final.get("status") != "PASS_PRODUCTION_TERMINAL" or final.get("deployment") != {"deployment_id": identity["deployment_id"]}
+            or final.get("site_head") != pointer["site_head"] or prior.get("site_head") != pointer["site_head"]
+            or terminal.get("schema") != "glp43-current-deploy-receipt-v1" or terminal.get("status") != "PASS_PRODUCTION_TERMINAL"
+            or terminal.get("stages", {}).get("pages_deployment") != identity
+            or terminal.get("stages", {}).get("canonical_pointer_readback") != {
+                "deployment_id": identity["deployment_id"], "site_head": pointer["site_head"], "pointer_sha256": sha_bytes(raw)}
+            or terminal.get("binding", {}).get("prepared_manifest_sha256") != CURRENT_D1["predecessor_prepared_sha256"]
+            or terminal.get("effects") != {"pages_deployments": 1, "pages_rollbacks": 0, "pointer_atomic_cas": 1,
+                                          "worker_deploys": 0, "d1_mutations": 0, "cron_mutations": 0, "email_sends": 0}
+            or manifest.get("release_tree_sha256") != prior["release"]["tree_sha256"]
+            or pointer.get("release_tree_sha256") != prior["release"]["tree_sha256"]
+            or pointer.get("deploy_directory_sha256") != prior["deploy_directory"]["tree_sha256"]
+            or file_closure(root / "release") != prior["release"]
+            or file_closure(root / "deploy-public") != prior["deploy_directory"]):
+        fail("current_d1_predecessor_not_terminal")
+    package = current_json(root / "PACKAGE-MANIFEST.json", prior["package_manifest_sha256"])
+    gate = current_json(root / "gate.json", prior["build_receipt"]["sha256"])
+    current_deploy_public(root / "deploy-public", package["files"], prior["compiled"]["worker_sha256"])
+    rows = [[name, sha_file(root / "release" / name)] for name, _ in prior["source"]["tracked_files"]]
+    if (package.get("site_head") != pointer["site_head"] or gate.get("head") != pointer["site_head"]
+            or gate.get("status") != "PASS" or rows != prior["source"]["tracked_files"]
+            or sha_bytes(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()) != gate.get("built_source_sha256")
+            or package_tree(root / "release/public") != (prior["public_tree_sha256"], package["files"])
+            or any(gate.get(phase) != {"sha256": prior["public_tree_sha256"], "files": package["files"]}
+                   for phase in ("output_before", "output_after"))):
+        fail("current_d1_predecessor_source_public_drift")
+
+
+def current_d1_routes(routes: list[dict[str, str]]) -> None:
+    rows = [[r["route"], r["mount"], r["method"], bool(r["middlewares"]), bool(r["modules"])] for r in routes]
+    if sha_bytes(json.dumps(rows, separators=(",", ":")).encode()) != CURRENT_D1["route_shape_sha256"]:
+        fail("current_d1_compiled_route_closure_drift")
+
+
 def current_json(path: Path, digest: str) -> dict[str, Any]:
     package_plain_path(path)
     require_regular(path)
@@ -1816,8 +1898,14 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
     expected_functions = 18 if gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") else 17
+    d1_current = gate.get("schema") == "glp-d1-release-result-v1" and head == CURRENT_D1["head"]
+    if d1_current:
+        if (gate.get("head") != head or tree != CURRENT_D1["git_tree"]
+                or digest != CURRENT_D1["built_source_sha256"] or closures != CURRENT_D1["runtime"]):
+            fail("current_d1_runtime_closure_drift")
+        expected_functions = 18
     if (closures["functions"]["file_count"] != expected_functions
-            or (expected_functions == 18 and sha_file(source / "functions/api/postback/xentraffic.js") !=
+            or (expected_functions == 18 and not d1_current and sha_file(source / "functions/api/postback/xentraffic.js") !=
                 "04e1205c2b3461d0ca8aa7106b94aea4885bdcaf3fa4ab059d0afe040d03fa77")):
         fail("current_functions_inventory_drift")
     for row in gate.get("authority_files", []):
@@ -1843,10 +1931,15 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
             "wrangler_config_sha256": sha_file(source / "wrangler.toml")}
 
 
-def current_pointer() -> dict[str, Any]:
+def current_pointer(rollback: str | None = None) -> dict[str, Any]:
+    rollback = CURRENT_ROLLBACK if rollback is None else rollback
     raw, st = capture_pointer(POINTER)
     parsed = json.loads(raw)
-    if parsed.get("deployment_id") != CURRENT_ROLLBACK:
+    if rollback == CURRENT_D1["rollback"]:
+        current_d1_predecessor(raw)
+    elif rollback != CURRENT_ROLLBACK:
+        fail("current_pointer_unknown_predecessor")
+    if parsed.get("deployment_id") != rollback:
         fail("current_pointer_rollback_mismatch")
     return {"path": str(POINTER), "bytes_base64": base64.b64encode(raw).decode(),
             "sha256": sha_bytes(raw), "bytes": len(raw), "st_dev": st.st_dev, "st_ino": st.st_ino,
@@ -1916,10 +2009,11 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
     if output.exists() or not output.parent.is_dir():
         fail("current_output_must_be_new")
     manifest = current_json(package / "PACKAGE-MANIFEST.json", args.expected_package_manifest_sha256)
+    rollback = current_rollback(args.site_head, args.expected_build_receipt_sha256, args.expected_package_manifest_sha256)
     if (manifest.get("schema") != "glp34-deploy-package-v1" or manifest.get("site_head") != args.site_head
             or manifest.get("site_repository") != CURRENT_REPOSITORY or manifest.get("project") != PROJECT
             or manifest.get("account_id") != ACCOUNT_ID or manifest.get("rollback_branch") != PRODUCTION_BRANCH
-            or manifest.get("rollback_deployment_id") != CURRENT_ROLLBACK
+            or manifest.get("rollback_deployment_id") != rollback
             or manifest.get("build_receipt", {}).get("sha256") != args.expected_build_receipt_sha256):
         fail("current_package_binding_mismatch")
     args.expected_tree_sha256 = manifest["public_tree_sha256"]
@@ -1936,13 +2030,13 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
     if (not holds or holds.get("anchors") != [] or holds.get("routes") != [] or not holds.get("held")
             or any(v != 0 for v in holds["counts"].values()) or "fella-health" not in holds["counts"]):
         fail("current_gate_holds_nonpass")
-    pointer = current_pointer()
+    pointer = current_pointer(rollback)
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     subprocess.run([sys.executable, str(BUSINESS / "scripts/candidate_build_lock.py"),
                     "require-held", "--seat", args.build_seat], check=True, capture_output=True, timeout=30)
     package_site_commit(args.site_head)
     token = read_token()
-    package_rollback(CURRENT_ROLLBACK, token, detail=True)
+    package_rollback(rollback, token, detail=True)
     output.mkdir(mode=0o700)
     try:
         release, compile_root = output / "release", output / "compile"
@@ -1959,6 +2053,8 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
             if sha_file(release / name) != digest:
                 fail("current_release_copy_drift")
         compiled = current_compile(compile_root)
+        if rollback == CURRENT_D1["rollback"]:
+            current_d1_routes(compiled["routes"])
         if (gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1")
                 and not any(r["route"] == "/api/postback/xentraffic" and r["modules"] for r in compiled["routes"])):
             fail("f06_compiled_xentraffic_route_missing")
@@ -1979,11 +2075,11 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
                     "project": PROJECT, "branch": PRODUCTION_BRANCH, "account_id": ACCOUNT_ID,
                     "public_tree_sha256": tree_hash, "package_manifest_sha256": args.expected_package_manifest_sha256,
                     "build_receipt": gate_binding, "source": binding, "compiled": compiled,
-                    "toolchain": CURRENT_TOOLCHAIN, "rollback_deployment_id": CURRENT_ROLLBACK,
+                    "toolchain": CURRENT_TOOLCHAIN, "rollback_deployment_id": rollback,
                     "predecessor_pointer": pointer, "release": file_closure(release),
                     "deploy_directory": file_closure(deploy), "holds": holds, "route_specs": route_specs,
                     "provider_reads": 3, "provider_mutations": 0, "release_authorized": False}
-        package_rollback(CURRENT_ROLLBACK, token, detail=False)
+        package_rollback(rollback, token, detail=False)
         verify_signed_predecessor(pointer)
         if current_source(source, args.site_head, args.git_tree, gate) != binding or package_tree(public) != (tree_hash, rows):
             fail("current_inputs_changed_before_completion")
@@ -2002,10 +2098,11 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
 
 def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     value = current_json(root / "PREPARED.json", digest)
+    rollback = current_rollback(value.get("site_head"), value.get("build_receipt", {}).get("sha256"), value.get("package_manifest_sha256"))
     if (value.get("schema") != "glp43-current-prepared-v1" or value.get("prepared_dir") != str(root)
             or value.get("site_repository") != CURRENT_REPOSITORY or value.get("project") != PROJECT
             or value.get("branch") != PRODUCTION_BRANCH or value.get("account_id") != ACCOUNT_ID
-            or value.get("rollback_deployment_id") != CURRENT_ROLLBACK or value.get("toolchain") != CURRENT_TOOLCHAIN):
+            or value.get("rollback_deployment_id") != rollback or value.get("toolchain") != CURRENT_TOOLCHAIN):
         fail("current_prepared_identity_mismatch")
     if (file_closure(root / "release") != value["release"]
             or file_closure(root / "deploy-public") != value["deploy_directory"]
@@ -2014,6 +2111,14 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     package = current_json(root / "PACKAGE-MANIFEST.json", value["package_manifest_sha256"])
     current_deploy_public(root / "deploy-public", package["files"], value["compiled"]["worker_sha256"])
     gate = current_json(root / "gate.json", value["build_receipt"]["sha256"])
+    if rollback == CURRENT_D1["rollback"]:
+        current_d1_predecessor(base64.b64decode(value["predecessor_pointer"]["bytes_base64"], validate=True))
+        current_d1_routes(current_routes((root / "deploy-public/_worker.js").read_bytes()))
+        if (value["source"]["git_tree"] != CURRENT_D1["git_tree"]
+                or value["source"]["built_source_sha256"] != CURRENT_D1["built_source_sha256"]
+                or {name: file_closure(root / "release" / name) for name in ("functions", "src", "data")} != CURRENT_D1["runtime"]
+                or package.get("rollback_deployment_id") != rollback):
+            fail("current_d1_prepared_binding_drift")
     if (package_tree(root / "release/public") != (value["public_tree_sha256"], package["files"])
             or current_route_specs(root / "release/public") != value["route_specs"]):
         fail("current_prepared_public_drift")
@@ -2040,7 +2145,7 @@ def current_approval(args: argparse.Namespace, prepared: dict[str, Any]) -> dict
                 "git_tree": prepared["source"]["git_tree"], "public_tree_sha256": prepared["public_tree_sha256"],
                 "package_manifest_sha256": prepared["package_manifest_sha256"],
                 "project": PROJECT, "rollback_branch": PRODUCTION_BRANCH, "rollback_environment": "production",
-                "rollback_deployment_id": CURRENT_ROLLBACK,
+                "rollback_deployment_id": prepared["rollback_deployment_id"],
                 "prepared_manifest_sha256": args.expected_prepared_manifest_sha256,
                 "deploy_directory_sha256": prepared["deploy_directory"]["tree_sha256"],
                 "compiled_worker_sha256": prepared["compiled"]["worker_sha256"]}
@@ -2277,7 +2382,7 @@ def current_pointer_intent(root: Path, prepared: dict[str, Any], deployment_id: 
                       "release_tree_sha256": prepared["release"]["tree_sha256"],
                       "public_tree_sha256": file_closure(root / "release/public")["tree_sha256"],
                       "site_head": prepared["site_head"], "deploy_directory_sha256": prepared["deploy_directory"]["tree_sha256"],
-                      "supersedes": {"deployment_id": CURRENT_ROLLBACK, "release_root": spec["release_root"]}})
+                      "supersedes": {"deployment_id": prepared["rollback_deployment_id"], "release_root": spec["release_root"]}})
     for key in ("deployment_reconciliation", "gsc_closeout"):
         successor.pop(key, None)
     raw = json_bytes(successor)
@@ -2331,6 +2436,7 @@ def current_deployments(client: CloudflareClient) -> list[dict[str, Any]]:
 def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
+    rollback = prepared["rollback_deployment_id"]
     current_approval(args, prepared)  # No lock, client, credential, or output before approval.
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     lock_fd = acquire_lock()
@@ -2346,7 +2452,7 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         else:
             verify_signed_predecessor(prepared["predecessor_pointer"])
             receipt = {"schema": "glp43-current-deploy-receipt-v1", "status": "ACTIVE", "binding": binding,
-                       "site_head": prepared["site_head"], "rollback_deployment_id": CURRENT_ROLLBACK,
+                       "site_head": prepared["site_head"], "rollback_deployment_id": rollback,
                        "deploy_directory": prepared["deploy_directory"], "stages": {}}
             exclusive_file(receipt_path, json_bytes(receipt))
         stages = receipt["stages"]
@@ -2357,21 +2463,21 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
                       and d.get("environment") == "production" and deployment_branch(d) == PRODUCTION_BRANCH]
         if "rollback_intent" in stages:
             # An uncertain rollback is also reconciliation-only: never replay it.
-            if current.get("id") == CURRENT_ROLLBACK and successful_production(current):
+            if current.get("id") == rollback and successful_production(current):
                 verify_signed_predecessor(prepared["predecessor_pointer"])
                 receipt["status"] = "BLOCKED_ROLLED_BACK"
                 checkpoint(receipt_path, receipt)
             fail("current_prior_rollback_no_replay")
         if "pages_deploy_intent" not in stages:
-            if current.get("id") != CURRENT_ROLLBACK or not successful_production(current) or candidates:
+            if current.get("id") != rollback or not successful_production(current) or candidates:
                 fail("current_predecessor_or_existing_candidate_mismatch")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
             verify_signed_predecessor(prepared["predecessor_pointer"])
-            stages["pages_deploy_intent"] = {"predecessor_id": CURRENT_ROLLBACK, "commit_hash": head, "created_at_utc": utc()}
+            stages["pages_deploy_intent"] = {"predecessor_id": rollback, "commit_hash": head, "created_at_utc": utc()}
             checkpoint(receipt_path, receipt)
             immediate = production_deployment(client.project())
-            if immediate.get("id") != CURRENT_ROLLBACK or not successful_production(immediate):
+            if immediate.get("id") != rollback or not successful_production(immediate):
                 fail("current_canonical_changed_before_publish")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             cwd = run_dir / "deploy-cwd"
@@ -2394,7 +2500,7 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
                       and d.get("environment") == "production" and deployment_branch(d) == PRODUCTION_BRANCH]
         if (len(candidates) != 1 or current.get("id") != candidates[0].get("id")
                 or deployment_commit(current) != head or not successful_production(current)
-                or current.get("id") == CURRENT_ROLLBACK):
+                or current.get("id") == rollback):
             fail("current_deploy_outcome_unsettled_reconcile_only")
         deployment_id = current["id"]
         stages["pages_deployment"] = {"deployment_id": deployment_id, "commit_hash": head}
@@ -2443,13 +2549,14 @@ def current_posteffect(args: argparse.Namespace, root: Path, prepared: dict[str,
         if production_deployment(client.project()).get("id") != deployment_id:
             fail("current_foreign_head_no_rollback")
         verify_signed_predecessor(prepared["predecessor_pointer"])
-        stages["rollback_intent"] = {"deployment_id": CURRENT_ROLLBACK}
+        rollback = prepared["rollback_deployment_id"]
+        stages["rollback_intent"] = {"deployment_id": rollback}
         checkpoint(receipt_path, receipt)
         try:
-            client.rollback(CURRENT_ROLLBACK)
+            client.rollback(rollback)
         finally:
             restored = production_deployment(client.project())
-            if restored.get("id") == CURRENT_ROLLBACK and successful_production(restored):
+            if restored.get("id") == rollback and successful_production(restored):
                 verify_signed_predecessor(prepared["predecessor_pointer"])
                 receipt["status"] = "BLOCKED_ROLLED_BACK"
                 checkpoint(receipt_path, receipt)
