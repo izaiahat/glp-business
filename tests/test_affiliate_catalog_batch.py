@@ -38,6 +38,23 @@ def test_replay_preserves_deferred_reads_and_never_opens_tracking_url():
     assert rows[1]['reason'] == 'unsafe_legacy_scrape_url'
 
 
+def test_explicit_manual_fresh_read_does_not_relabel_cached_evidence(tmp_path, monkeypatch):
+    calls = []
+    def read(transport):
+        calls.append('actual injected API read')
+        return inventory()
+    legacy = contract({'awin': read})
+    state = tmp_path / 'state.json'
+    batch.run(legacy, tmp_path / 'one', state=state)
+    batch.run(legacy, tmp_path / 'two', state=state)
+    assert len(calls) == 1
+    monkeypatch.setenv('AFFILIATE_CATALOG_REFRESH', '1')
+    result = batch.run(legacy, tmp_path / 'fresh', state=state)
+    assert len(calls) == 2
+    assert result['batch']['attempted'] == ['awin']
+    assert result['batch']['forced_fresh_read'] is True
+
+
 def contract(sweeps):
     def verdict(enumerated, total, blockers):
         complete = not blockers and total is not None and enumerated >= total
