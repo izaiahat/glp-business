@@ -142,6 +142,20 @@ def test_unsettled_or_unbound_host_truth_never_falls_back_to_legacy(host_failure
         assert not sensor.STATE.exists()
 
 
+@pytest.mark.parametrize('which', ['branch', 'common'])
+@pytest.mark.parametrize('malformed', [[], '', '{}'])
+def test_non_object_host_state_stays_unknown(host_failure, which, malformed):
+    sensor, alerts, _, _ = host_failure
+    name = (f'{sensor.HOST_ACTION}-{sensor.HOST_DIGEST}.state.json'
+            if which == 'branch' else f'{sensor.HOST_ACTION}.state.json')
+    (sensor.HOST_RUNS / name).write_text(json.dumps(malformed))
+    with sqlite3.connect(sensor.EXEC_DB) as db:
+        db.execute('UPDATE executions SET started_at=?', (DAY + 'T12:00:00-07:00',))
+    assert sensor.carrier_terminal(DAY) is None
+    assert sensor.main() == 0 and alerts == []
+    assert not sensor.STATE.exists()
+
+
 def test_legacy_consumer_without_host_state_and_missing_database(host_failure):
     sensor, _, _, _ = host_failure
     sensor.HOST_RUNS = sensor.HOST_RUNS / 'unmigrated'

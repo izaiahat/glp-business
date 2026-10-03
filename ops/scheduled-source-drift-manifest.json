@@ -1201,7 +1201,7 @@
       "payloads": [
         {
           "path": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py",
-          "sha256": "885d1da6afbb08c745ed9410b22f3d99e7856425ce56002b0a8f499ace523262",
+          "sha256": "09b2eff03246bb74f90b753e25d4a7584a5385a9fad37aecc8747f234f273a7e",
           "owner": "/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh"
         }
       ]

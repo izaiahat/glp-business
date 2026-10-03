@@ -139,6 +139,8 @@ def host_carrier_terminal(day: str, *, runs: Path | None = None) -> str | None:
             state = json.loads((runs / f"{HOST_ACTION}-{HOST_DIGEST}.state.json").read_text())
             common_path = runs / f"{HOST_ACTION}.state.json"
             common = json.loads(common_path.read_text()) if common_path.exists() else {}
+            if not isinstance(state, dict) or not isinstance(common, dict):
+                return None
             if "pending" in state or "pending" in common:
                 return None
             path = Path(state["last_receipt"])
