@@ -280,13 +280,15 @@ class CronBridgeTests(unittest.TestCase):
         self.assertEqual(state["slots"][slot]["receipt_path"], result["receipt_path"])
 
     def test_carrier_release_requires_completed_receipt_matching_live_head(self):
-        from scripts import linear_client
+        from types import SimpleNamespace
+        linear_client = SimpleNamespace(gql=lambda *args: None, OPERATIONS={"issue_get": "fixture"})
         path = self.root / "reports/ops/orchestration-restore-20260907/PLAN/K10/EXECUTION/K10-009-C/RESULT.json"
         path.parent.mkdir(parents=True)
         path.write_text(json.dumps({"issue": "GLP-43", "status": "COMPLETE",
             "acceptance_clauses": [{"verdict": "PASS"}],
             "production_deployment_id": "approved-deployment"}))
-        with patch.object(cron, "ROOT", self.root), \
+        with patch.dict("sys.modules", {"scripts.linear_client": linear_client}), \
+                patch.object(cron, "ROOT", self.root), \
                 patch.object(linear_client, "gql", return_value={"issue": {"state": {"type": "completed"}}}), \
                 patch.object(cron, "article_production_head_id", return_value="approved-deployment") as head:
             self.assertTrue(cron.article_release_live())
@@ -297,12 +299,14 @@ class CronBridgeTests(unittest.TestCase):
             self.assertFalse(cron.article_release_live())
 
     def test_carrier_current_terminal_base_supersedes_canceled_legacy_tracker(self):
-        from scripts import linear_client
+        from types import SimpleNamespace
+        linear_client = SimpleNamespace(gql=lambda *args: None, OPERATIONS={"issue_get": "fixture"})
         pointer = self.root / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
         pointer.parent.mkdir(parents=True)
         pointer.write_text('{}')
         binding = {"deployment_id": "approved-deployment", "pointer_sha256": "a" * 64}
-        with patch.object(cron, "ROOT", self.root), \
+        with patch.dict("sys.modules", {"scripts.linear_client": linear_client}), \
+                patch.object(cron, "ROOT", self.root), \
                 patch.object(linear_client, "gql", return_value={"issue": {"state": {"type": "canceled"}}}) as tracker, \
                 patch.object(cron, "article_current_base", return_value=binding, create=True) as accepted, \
                 patch.object(cron, "article_production_head_id", return_value="approved-deployment") as head:
