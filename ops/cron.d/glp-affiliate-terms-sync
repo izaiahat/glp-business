@@ -1,0 +1,5 @@
+# F04/F06 sole-writer registry/site propagation. The job owns its overlap lock.
+# No direct Sheet writes; no affiliate tracking requests; operator-approved release.
+SHELL=/bin/bash
+PATH=/home/ubuntu/.hermes/node/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+17 * * * * ubuntu cd /home/ubuntu/business && GLP_RUN_TYPE=scheduled /usr/bin/python3 -B scripts/glp_affiliate_sync_job.py --publish >> /home/ubuntu/business/logs/affiliate-registry-sync.log 2>&1
