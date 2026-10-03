@@ -1653,7 +1653,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "69989d9e770ef552bde3ebe516bc58a5ae078100d3ddcf937bd8a1d7930615a3"
+      "sha256": "96d7c096d5cfe37eb244e3df3f6022852a0a3c4055be6fcd60b02223e498d4d7"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2889,7 +2889,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "repository_control",
-      "sha256": "5f64b56a43198fd34eccbd6c0f04ef4ca6d66a7db00e05fc0c5e5f9bbd9df60e"
+      "sha256": "dbc6badd69e8624a12d3ebc49726d6eec7ffb5bb0d96c52e698504a2650c4c00"
     },
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],

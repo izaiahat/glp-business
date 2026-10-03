@@ -3,7 +3,9 @@
 
 No bridge hot patch: close new TCP admission outside the old resident, let its
 unchanged JobStore finish accepted work, then restart the existing user unit.
-The only bypass is a privileged marked GET reader, never a /run producer.
+The original bridge-upgrade path bypasses the gate only for privileged GETs.
+GLP338 adds one fixed pre-admission rejection to read cached registry mode keys;
+it never creates an error case, ACK, job, callback or producer execution.
 Any uncertainty leaves ingress closed; no kill, replay or automatic rollback.
 """
 from __future__ import annotations
@@ -264,7 +266,7 @@ class LinuxHost:
     def journal(self, **fields):
         fd = os.open(CONTROL / 'activation.jsonl', os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
         with os.fdopen(fd, 'a') as handle:
-            handle.write(json.dumps(dict(fields, bridge_sha256=APPROVED_BRIDGE_SHA256), sort_keys=True) + '\n')
+            handle.write(json.dumps(dict(fields, bridge_sha256=getattr(self, 'bridge_sha256', APPROVED_BRIDGE_SHA256)), sort_keys=True) + '\n')
             handle.flush()
             os.fsync(handle.fileno())
 
@@ -298,6 +300,174 @@ def read_regular(path):
 
 APPROVED_BRIDGE_SHA256 = 'b02f156a8d247acc02c61c6dbc24c365ee6b22a9a7afc79646b30c49c897f072'
 TERMINAL = {'done', 'error'}
+
+# Independently accepted PR219 registry generation, NOT a bridge upgrade or a
+# caller-supplied expected-hash override. The original GLP44 pin stays fixed.
+REGISTRY = BUSINESS / 'ops/n8n-bridge/actions.json'
+REGISTRY_REL = 'ops/n8n-bridge/actions.json'
+REGISTRY_BRIDGE_SHA256 = 'a2ef8399f4d14c3d9c14e9691bcd44edab5a8ed50d7761d271ebe6fe88a25b8a'
+REGISTRY_BEFORE = '335c4f0cc2b2933ac6ddda4a3f9eb674e8699a08534a71ea54038ee8ceb401c7'
+REGISTRY_AFTER = '32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47'
+REGISTRY_ACCEPTANCE = '39f09d41c32d7f4ada0a128b2288bbfe0c4eb22d4983605a91f7686a30294bcb'
+
+
+class RegistryHost(LinuxHost):
+    """Exact GLP338 registry generation; all resident drain predicates inherited."""
+
+    def __init__(self):
+        self.checkout = Path(__file__).resolve().parents[1]
+        self.imported = False
+
+    def source(self):
+        require(hashlib.sha256(read_regular(BRIDGE)).hexdigest() == REGISTRY_BRIDGE_SHA256,
+                'unchanged_registry_bridge_mismatch')
+        expected = REGISTRY_AFTER if self.imported else REGISTRY_BEFORE
+        require(hashlib.sha256(read_regular(REGISTRY)).hexdigest() == expected,
+                'registry_generation_mismatch')
+
+    def identity(self):
+        identity = super().identity()
+        # A new PID plus the disk registry is not enough if ExecStart's runtime
+        # environment loads another registry. Never log the rest of environ.
+        entries = read_regular(PROC / str(identity[0]) / 'environ').split(b'\0')
+        for key, expected in ((b'N8N_BRIDGE_ACTIONS_FILE', str(REGISTRY).encode()),
+                              (b'N8N_BRIDGE_PORT', b'8791')):
+            values = [row.split(b'=', 1)[1] for row in entries if row.startswith(key + b'=')]
+            require(not values or values == [expected], 'registry_startup_environment')
+        return identity
+
+    @property
+    def bridge_sha256(self):
+        return REGISTRY_BRIDGE_SHA256
+
+    def journal(self, **fields):
+        super().journal(**dict(fields, registry_before=REGISTRY_BEFORE,
+                               registry_after=REGISTRY_AFTER,
+                               registry_acceptance=REGISTRY_ACCEPTANCE))
+
+    def importer(self):
+        # Execute only this independently reviewed importer, never an installed
+        # module or caller-provided adapter. No bytecode cache or CLI child.
+        import types
+        path = self.checkout / 'scripts/sync_from_repo.py'
+        data = read_regular(path)
+        require(hashlib.sha256(data).hexdigest() ==
+                '87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001',
+                'registry_importer_generation_mismatch')
+        module = types.ModuleType('registry_scoped_importer')
+        module.__file__ = str(path)
+        exec(compile(data, str(path), 'exec'), module.__dict__)
+        return module
+
+    def validate_checkout(self):
+        # Root executes an operator-reviewed ubuntu-owned checkout. Explicitly
+        # trust only this directory for Git's ownership check; no global config.
+        git = ['/usr/bin/git', '-c', 'safe.directory=' + str(self.checkout),
+               '-C', str(self.checkout)]
+        require(not self.command(git + ['status', '--porcelain', '--untracked-files=no']).strip(),
+                'registry_checkout_not_clean')
+        rel = 'scripts/glp44_safe_bridge_activation.py'
+        require(self.command(git + ['show', 'HEAD:' + rel]).encode() == read_regular(self.checkout / rel),
+                'registry_producer_not_committed')
+        require(hashlib.sha256(read_regular(self.checkout / REGISTRY_REL)).hexdigest() == REGISTRY_AFTER,
+                'registry_candidate_mismatch')
+
+    @contextmanager
+    def exclusive_source(self):
+        self.syncer = self.importer()
+        # Maintained writer lock first; same live lease reaches sync(), including
+        # its preview and post-apply no-adoption check. Old importers/direct
+        # writers must be excluded by the receiving owner before invocation.
+        with self.syncer.source_lock(BUSINESS) as owner:
+            self.owner = owner
+            try:
+                self.validate_checkout()
+                with super().exclusive_source():
+                    yield
+            finally:
+                self.owner = None
+
+    def scoped_sync(self, apply, adoption):
+        # The root controller owns nft/token/journal custody. The existing
+        # importer writes as workspace uid/gid 1000 so registry and sync-state
+        # ownership remain usable by ordinary imports. No child/second lease.
+        import threading
+        require(threading.active_count() == 1, 'registry_controller_must_be_single_threaded')
+        require(os.geteuid() == 0, 'registry_controller_root_required')
+        gid = os.getegid()
+        try:
+            os.setegid(1000)
+            os.seteuid(1000)
+            return self.syncer.sync(BUSINESS, self.checkout, apply, adoption,
+                                    (REGISTRY_REL,), _source_owner=self.owner)
+        finally:
+            os.seteuid(0)
+            os.setegid(gid)
+
+    def restart(self):
+        require(getattr(self, 'owner', None) is not None and not self.imported,
+                'registry_handoff_required_no_replay')
+        only = (REGISTRY_REL,)
+        require(self.scoped_sync(False, only) == 0, 'registry_preview_refused')
+        self.source()
+        require(drained(self, self.resident_identity, {}), 'registry_preimport_drain_changed')
+        self.journal(phase='IMPORTING_REGISTRY')
+        # An exception/ack loss here leaves the gate closed and journal intact.
+        # No replacement bridge, raw copy, baseline manufacture or retry.
+        require(self.scoped_sync(True, only) == 0, 'registry_import_uncertain')
+        self.imported = True
+        self.source()
+        require(self.scoped_sync(False, ()) == 0, 'registry_zero_diff_refused')
+        require(drained(self, self.resident_identity, {}), 'registry_prerestart_drain_changed')
+        self.journal(phase='REGISTRY_IMPORTED_RESTARTING')
+        super().restart()
+
+    def cached_registration(self):
+        """Fixed pre-admission rejection, not a synthetic error case/job.
+
+        /actions omits enum values. On this pinned bridge, an invalid mode is
+        rejected by build_script_command before spill files, ticket allocation,
+        case creation or child launch. There is no arbitrary POST/payload API.
+        Exact registry bytes held across startup bind flag values; this genuine
+        cached response independently confirms the newly loaded enum keys.
+        """
+        self.source()
+        identity = self.identity()
+        require(self.imported and identity != self.resident_identity,
+                'registry_probe_requires_new_instance')
+        self.verify_ingress()
+        fd = os.open(TOKEN, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd, 'r') as handle:
+            require(stat.S_IMODE(os.fstat(handle.fileno()).st_mode) == 0o600, 'token_mode')
+            token = handle.read().strip()
+        require(bool(token) and '\n' not in token and '\r' not in token, 'token_invalid')
+        conn = http.client.HTTPConnection('127.0.0.1', 8791, timeout=15)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(15)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_MARK, MARK)
+            sock.connect(('127.0.0.1', 8791))
+            conn.sock = sock
+            conn.request('POST', '/run', body=json.dumps({
+                'action': 'script', 'name': 'error_fixer',
+                'args': {'mode': '__glp338_registry_readback__'}}), headers={
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json', 'Connection': 'close'})
+            response = conn.getresponse()
+            require(response.status == 400, 'cached_registry_status_uncertain')
+            expected = {'error': "invalid value '__glp338_registry_readback__' for arg 'mode' "
+                        "in action 'error_fixer' (allowed: full, intake, notification-ack, sweep, tier2)"}
+            require(json.loads(response.read(4096)) == expected, 'cached_registry_mismatch')
+        finally:
+            conn.close()
+            sock.close()
+        require(self.identity() == identity, 'cached_registry_resident_changed')
+        self.source()
+        self.verify_ingress()
+
+    def readback(self, retained):
+        super().readback(retained)
+        self.cached_registration()
 
 
 class Refused(RuntimeError):
@@ -356,7 +526,7 @@ def activate(host, expected_identity, timeout=3600):
         host.readback(retained)
         result = {'phase': 'VERIFIED', 'old_identity': expected_identity,
                   'new_identity': new_identity, 'accepted_ids': sorted(retained),
-                  'bridge_sha256': APPROVED_BRIDGE_SHA256}
+                  'bridge_sha256': getattr(host, 'bridge_sha256', APPROVED_BRIDGE_SHA256)}
         host.journal(**result)
         host.open_ingress()
     return result
@@ -364,20 +534,27 @@ def activate(host, expected_identity, timeout=3600):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', nargs='?', choices=['plan', 'activate', 'status'], default='plan')
+    parser.add_argument('mode', nargs='?', choices=['plan', 'activate', 'status', 'registry-plan', 'activate-registry'], default='plan')
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--pid', type=int)
     parser.add_argument('--start-ticks', type=int)
     parser.add_argument('--wait-seconds', type=int, default=3600)
     parser.add_argument('--job-id')
     args = parser.parse_args(argv)
+    if args.mode == 'registry-plan':
+        print(json.dumps({'status': 'SOURCE_ONLY_PLAN', 'bridge_sha256': REGISTRY_BRIDGE_SHA256,
+                          'registry_before': REGISTRY_BEFORE, 'registry_after': REGISTRY_AFTER,
+                          'registry_acceptance': REGISTRY_ACCEPTANCE, 'target': str(REGISTRY),
+                          'runtime_authorization': False}, sort_keys=True))
+        return 0
     if args.mode == 'plan':
         print(json.dumps({'status': 'SOURCE_ONLY_PLAN', 'bridge_sha256': APPROVED_BRIDGE_SHA256,
                           'target': str(BRIDGE), 'gate': gate_commands(),
                           'runtime_authorization': False}, sort_keys=True))
         return 0
     try:
-        require(args.mode != 'activate' or args.apply, 'apply_required_separate_operator_authority')
+        require(args.mode not in {'activate', 'activate-registry'} or args.apply,
+                'apply_required_separate_operator_authority')
         require(os.geteuid() == 0, 'root_network_capability_required')
         require(0 <= args.wait_seconds <= 86400, 'invalid_wait')
         CONTROL.mkdir(mode=0o700, exist_ok=True)
@@ -387,7 +564,7 @@ def main(argv=None):
         fd = os.open(CONTROL / 'controller.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            host = LinuxHost()
+            host = RegistryHost() if args.mode == 'activate-registry' else LinuxHost()
             if args.mode == 'status':
                 route = '/job/' + args.job_id if args.job_id else '/health'
                 value = host.get(route)
