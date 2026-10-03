@@ -321,6 +321,8 @@
 /scripts/marketplace_adapters/*
 !/scripts/marketplace_adapters/__init__.py
 !/scripts/marketplace_adapters/portal_apply.py
+!/scripts/affiliate_fresh_browser.py
+!/tests/test_glp268_fresh_browser_callers.py
 !/scripts/marketplace_adapters/awin.py
 !/scripts/marketplace_adapters/_base.py
 !/tests/test_awin_fresh_preflight.py

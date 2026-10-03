@@ -8,72 +8,21 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 703,
+  "tracked_count": 705,
   "files": {
-    "scripts/glp_host_ingress.py": {
-      "kind": "script",
-      "callers": [
-        "systemd:glp-host-ingress",
-        "systemd:glp-host-custody"
-      ],
-      "sha256": "0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e"
-    },
-    "tests/test_host_custody.py": {
+    "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
       "callers": [
-        "CI"
+        ".github/workflows/glp341-weekly-ads-compatibility.yml"
       ],
-      "sha256": "89c3d0538960d4e5c3ae7166ae6a6103384385e9759acf727b21630e1974e3bd"
+      "sha256": "6a812d3ba6f8cbc7be862405c705be6262b7c5c0e57e3072d59ecd6523f642f5"
     },
-    "ops/systemd/glp-host-ingress.service": {
-      "kind": "config",
+    "ops/glp345-a4/weekly.predecessor.py": {
+      "kind": "source_control",
       "callers": [
-        "systemd-user"
+        "scripts/glp345_a4_adoption.py"
       ],
-      "sha256": "a8b63e05b6c3f5a08543491879b8dbce87c64e37cb792bfee95dfa87cce676e6"
-    },
-    "ops/systemd/glp-host-custody.service": {
-      "kind": "config",
-      "callers": [
-        "systemd-user"
-      ],
-      "sha256": "2432890a95755a9a732e6d1fd7349c985f2f45b59791b498eb5f19a586365943"
-    },
-    "ops/systemd/glp-host-custody.timer": {
-      "kind": "config",
-      "callers": [
-        "systemd-user"
-      ],
-      "sha256": "5f6fe5ddf763e39c53a77b9204a82847ebe71f4c091fbe9f6177a73f186d8105"
-    },
-    "scripts/affiliate_catalog_batch.py": {
-      "kind": "script",
-      "callers": [
-        "hermes:ecbe6fdc0163",
-        "scripts/affiliate_best_terms_machine.py"
-      ],
-      "sha256": "872f9bc34af23fab89a47f594719e6054007265c92510fea8c8a20c57e7615f7"
-    },
-    "scripts/affiliate_catalog_discovery.py": {
-      "kind": "script",
-      "callers": [
-        "hermes:58202b06bdc0"
-      ],
-      "sha256": "dc9dddb3d22312c948a2e6bf950b4cacb00db68c4423ee89c9d13eac41357cb0"
-    },
-    "tests/test_affiliate_catalog_batch.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
-    },
-    "systems/analytics-brain/decision_policy.py": {
-      "kind": "script",
-      "callers": [
-        "systems/seo-blog-machine/scripts/existing_article_updates.py"
-      ],
-      "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
+      "sha256": "d51b9ea03eddfd72641a4cd79e04d6b76e114e80c645ba6f866a7ca29705d1d1"
     },
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -526,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b864ea9048c29ccdb92e68fc849ce9f3e6ca5e0520a670b81472b30417abd60"
+      "sha256": "614c33259617fcbb543c296cd38bcd6f3cbbb53b57d7d37b337dcfdc7be4965a"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -536,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f4c704241b005e1a2d70a266a18b7d70742fccac4714756ce45d881ff65dab5d"
+      "sha256": "af9c9832dc865ebb723ec044381abfaccba0b668e51842a69439f8d40ce4d97a"
     },
     ".hermes.md": {
       "callers": [],
@@ -1668,20 +1617,6 @@
       "kind": "script",
       "sha256": "470ea1dd5c90b471ef7a6f09c9846329b48369171f1c345c3c367e9ba5006330"
     },
-    "scripts/fable_parent_handoff.py": {
-      "callers": [
-        "scripts/fable_bridge.py --parent-review-handoff"
-      ],
-      "kind": "script",
-      "sha256": "a0ee261b1268ca4e413a5db4ddbf18ea8bca46f32d30cc2d79f7f2cd1f6f9855"
-    },
-    "tests/test_fable_parent_handoff.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "6926f96fa62a011819ee7923729fd88d0e82ad109de9045a6d9bcd417fc8f55e"
-    },
     "scripts/fable_bridge.py": {
       "callers": [
         "registered:fable-bridge"
@@ -2149,7 +2084,7 @@
         "GLP-317 Awin paused source review"
       ],
       "kind": "script",
-      "sha256": "233e8f9f0ad5b29746f9cd1f6357eae94ff00f6c717c45f56193829abdc22c77"
+      "sha256": "53b32b6f7f89c8dfae264c1fb22866219b16418ea9b74d7381cd3c60d2c19330"
     },
     "scripts/maxbounty_pin_release.py": {
       "callers": [],
@@ -2216,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b141aa7a35a73821a75ce4abc81f4a5517f69ec08c4017f7336116bbc58039b"
+      "sha256": "527fd478115477ff9443b968f23353c1b357b55d0c5fdbaafecdd3bd48d90fd3"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3830,34 +3765,6 @@
       ],
       "sha256": "49b113d74bfdfaf15a8e3132b3fef58b4ccdb16826a1aca6b71132720fbea9a0"
     },
-    "tests/test_glp76_material_custody.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
-      "sha256": "340703e336ec2c95caca05d9669019281a6020ebe98e8f62438543c8af2daabf"
-    },
-    "tests/test_glp76_continuation.py": {
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "kind": "test",
-      "sha256": "702d48ee8c66785e8ad54273c586c29d0f9048ac0224c73df66cbda3e784a74d"
-    },
-    "tests/fixtures/glp76-carrier-material/build-lastmod-provenance.mjs": {
-      "callers": [
-        "tests/test_glp76_material_custody.py"
-      ],
-      "kind": "test_fixture",
-      "sha256": "28813a11a72fd88370c222527d2c57765e0cee745157174684082f4cadb0218f"
-    },
-    "ops/glp76-current-generation-continuation.md": {
-      "callers": [
-        "GLP76 exact-operation receiving continuation"
-      ],
-      "kind": "instruction_or_policy",
-      "sha256": "a49e5474282313115c893e2c62d4533c26b133a897ddd40a5b7c47d64ba4c93f"
-    },
     "tests/fixtures/glp76-carrier-material/postbuild-aeo-surface.mjs": {
       "callers": [
         "tests/test_glp76_carrier_calendar.py"
@@ -3944,6 +3851,13 @@
         ".github/workflows/glp331-carrier-closure.yml"
       ],
       "sha256": "032157a276f12ec819f524d09ec2ecf145a3130a84794ecd0abffbb9bbefe56c"
+    },
+    "tests/test_glp44_fastpath_direct.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "0a515157e45a8442ad94c9371acc7fcdf07b2b43661e205d75dfed7ac4067047"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
@@ -4286,13 +4200,6 @@
       "callers": [],
       "sha256": "0689b06ca3e975e87fa7d5056466b1f8bd74995e90846ff67efe7110e9bdc748"
     },
-    "tests/test_f12_scheduled_retained_input.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp333-network-access.yml"
-      ],
-      "sha256": "4c0059490b3e3dbf171cba773bc1cc75e201ba85b53900f93a00106a81e545de"
-    },
     "tests/test_glp334_conversion_reconciliation.py": {
       "kind": "test",
       "callers": [
@@ -4300,12 +4207,68 @@
       ],
       "sha256": "8c7b49fddf7065269d8e594c9a839c7be69d6f5a8ef5a27d5fcd757c3532b8cc"
     },
+    "tests/test_f12_scheduled_retained_input.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp333-network-access.yml"
+      ],
+      "sha256": "4c0059490b3e3dbf171cba773bc1cc75e201ba85b53900f93a00106a81e545de"
+    },
+    "scripts/fable_parent_handoff.py": {
+      "callers": [
+        "scripts/fable_bridge.py --parent-review-handoff"
+      ],
+      "kind": "script",
+      "sha256": "a0ee261b1268ca4e413a5db4ddbf18ea8bca46f32d30cc2d79f7f2cd1f6f9855"
+    },
+    "tests/test_fable_parent_handoff.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "6926f96fa62a011819ee7923729fd88d0e82ad109de9045a6d9bcd417fc8f55e"
+    },
     "tests/test_glp44_listing_contract.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
       "sha256": "e58f4db3f891cc056f24d965e7721be53544d755198adab762e0ed630ed443e9"
+    },
+    "systems/analytics-brain/decision_policy.py": {
+      "kind": "script",
+      "callers": [
+        "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      ],
+      "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
+    },
+    "tests/test_glp76_material_custody.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "340703e336ec2c95caca05d9669019281a6020ebe98e8f62438543c8af2daabf"
+    },
+    "tests/test_glp76_continuation.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "702d48ee8c66785e8ad54273c586c29d0f9048ac0224c73df66cbda3e784a74d"
+    },
+    "tests/fixtures/glp76-carrier-material/build-lastmod-provenance.mjs": {
+      "callers": [
+        "tests/test_glp76_material_custody.py"
+      ],
+      "kind": "test_fixture",
+      "sha256": "28813a11a72fd88370c222527d2c57765e0cee745157174684082f4cadb0218f"
+    },
+    "ops/glp76-current-generation-continuation.md": {
+      "callers": [
+        "GLP76 exact-operation receiving continuation"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "a49e5474282313115c893e2c62d4533c26b133a897ddd40a5b7c47d64ba4c93f"
     },
     "ops/glp/topic-supply-inputs/README.md": {
       "kind": "source",
@@ -4341,20 +4304,6 @@
         "registered topic_supply_mint producer"
       ],
       "sha256": "6e99a1c76196fba4477d306b2938b8696c0f212388b458cdcfa5c28eb694872a"
-    },
-    "tests/test_glp341_weekly_adoption.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp341-weekly-ads-compatibility.yml"
-      ],
-      "sha256": "6a812d3ba6f8cbc7be862405c705be6262b7c5c0e57e3072d59ecd6523f642f5"
-    },
-    "ops/glp345-a4/weekly.predecessor.py": {
-      "kind": "source_control",
-      "callers": [
-        "scripts/glp345_a4_adoption.py"
-      ],
-      "sha256": "d51b9ea03eddfd72641a4cd79e04d6b76e114e80c645ba6f866a7ca29705d1d1"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "kind": "source_control",
@@ -4405,12 +4354,19 @@
       ],
       "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
     },
-    "tests/test_glp44_fastpath_direct.py": {
+    "ops/pipeline-tool-contracts.json": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "tests/test_pipeline_tool_contracts.py"
+      ],
+      "sha256": "04c1117988b4870ed186e58036e893194aed62091f53e34b6f862e0a735c425c"
+    },
+    "tests/test_pipeline_tool_contracts.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        "scripts/run_tests.sh"
       ],
-      "sha256": "0a515157e45a8442ad94c9371acc7fcdf07b2b43661e205d75dfed7ac4067047"
+      "sha256": "72f7027823c484507b8776f6cf3e6355e56183738a2f1d6ea93c3e6f0612b029"
     },
     "scripts/glp_sponsor_campaign.py": {
       "kind": "script",
@@ -4452,40 +4408,27 @@
       ],
       "sha256": "f73b7039034f6c0648db216ff4fbe07d3312eeaedede531af07833d9378dfd62"
     },
-    "scripts/glp_cogny_queue_drain.py": {
+    "scripts/affiliate_catalog_batch.py": {
       "kind": "script",
       "callers": [
-        "host:cogny-task-drain"
+        "hermes:ecbe6fdc0163",
+        "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "630570a8fe3f24afc088ff49e0da2af9c73d8fc5c1f7c1e8aa8cd2351bab0177"
+      "sha256": "872f9bc34af23fab89a47f594719e6054007265c92510fea8c8a20c57e7615f7"
     },
-    "ops/glp/cogny_client.py": {
+    "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
       "callers": [
-        "host:cogny-task-drain"
+        "hermes:58202b06bdc0"
       ],
-      "sha256": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f"
+      "sha256": "dc9dddb3d22312c948a2e6bf950b4cacb00db68c4423ee89c9d13eac41357cb0"
     },
-    "tests/test_glp76_native_terminal_base.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "36e913f6a89cfe4f6a9cb42e388f586b01f0c26a0e964fba2d0020da889ba8f7"
-    },
-    "scripts/f13_atop_retention_launcher.c": {
-      "kind": "script",
-      "callers": [
-        "f13-atop-retention.service"
-      ],
-      "sha256": "7611a06db7abcfc540fa99e5f48fc838e311152336be36ffb4e533adc462fe9f"
-    },
-    "tests/test_f13_atop_launcher_pin.py": {
+    "tests/test_affiliate_catalog_batch.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "9459ac1c16756192e74c92f7e217b13a71fb8f017736250c5b882b455c7dbf65"
+      "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
     },
     "tools/glp/price_evidence_delta.py": {
       "callers": [
@@ -4543,6 +4486,34 @@
       "kind": "test_fixture",
       "sha256": "96a7b60de1f3dd5d0d8f8618ba7b7c4caf7be9f12b5d1c0954d39157b9cf13d7"
     },
+    "scripts/f13_atop_retention_launcher.c": {
+      "kind": "script",
+      "callers": [
+        "f13-atop-retention.service"
+      ],
+      "sha256": "7611a06db7abcfc540fa99e5f48fc838e311152336be36ffb4e533adc462fe9f"
+    },
+    "tests/test_f13_atop_launcher_pin.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "9459ac1c16756192e74c92f7e217b13a71fb8f017736250c5b882b455c7dbf65"
+    },
+    "scripts/affiliate_fresh_browser.py": {
+      "callers": [
+        "scripts/marketplace_adapters/portal_apply.py"
+      ],
+      "kind": "script",
+      "sha256": "3fa0238e3c3830b120ca98b9f9c67db708b0c5406110333d4397961679acfe58"
+    },
+    "tests/test_glp268_fresh_browser_callers.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "8ccc5211cebd06d1d966aedb239b5c6251dcfd4f19f3567af5e6988badcdf203"
+    },
     "tests/test_glp341_native_registry_lock.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -4550,12 +4521,74 @@
       "kind": "test",
       "sha256": "5721a635a2e6701a87d72dc8fead3dffcbbdcd5f48b3c0b84fadac213c46ea24"
     },
+    "tests/test_glp76_native_terminal_base.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "36e913f6a89cfe4f6a9cb42e388f586b01f0c26a0e964fba2d0020da889ba8f7"
+    },
     "tests/test_glp110_prepared_authority_cache.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
       "sha256": "bd31f088ae542eb546804105e94943635202a46678b998ffb8c0bc240cd4e42f"
+    },
+    "scripts/glp_host_ingress.py": {
+      "kind": "script",
+      "callers": [
+        "systemd:glp-host-ingress",
+        "systemd:glp-host-custody"
+      ],
+      "sha256": "0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e"
+    },
+    "tests/test_host_custody.py": {
+      "kind": "test",
+      "callers": [
+        "CI"
+      ],
+      "sha256": "89c3d0538960d4e5c3ae7166ae6a6103384385e9759acf727b21630e1974e3bd"
+    },
+    "ops/systemd/glp-host-ingress.service": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "a8b63e05b6c3f5a08543491879b8dbce87c64e37cb792bfee95dfa87cce676e6"
+    },
+    "ops/systemd/glp-host-custody.service": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "2432890a95755a9a732e6d1fd7349c985f2f45b59791b498eb5f19a586365943"
+    },
+    "ops/systemd/glp-host-custody.timer": {
+      "kind": "config",
+      "callers": [
+        "systemd-user"
+      ],
+      "sha256": "5f6fe5ddf763e39c53a77b9204a82847ebe71f4c091fbe9f6177a73f186d8105"
+    },
+    "scripts/glp_cogny_queue_drain.py": {
+      "kind": "script",
+      "callers": [
+        "host:cogny-task-drain"
+      ],
+      "sha256": "630570a8fe3f24afc088ff49e0da2af9c73d8fc5c1f7c1e8aa8cd2351bab0177"
+    },
+    "ops/glp/cogny_client.py": {
+      "kind": "script",
+      "callers": [
+        "host:cogny-task-drain"
+      ],
+      "sha256": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f"
+    },
+    "scripts/glp44_commit_recovery.py": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "43a1c971e181f5a6bf1f7d6d88296a3d84c22ab9f34919990031b1697ed71d8d"
     },
     "tests/test_glp76_packet_selection_metadata.py": {
       "callers": [
@@ -4722,25 +4755,6 @@
       ],
       "kind": "instruction_or_policy",
       "sha256": "32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47"
-    },
-    "ops/pipeline-tool-contracts.json": {
-      "kind": "instruction_or_policy",
-      "callers": [
-        "tests/test_pipeline_tool_contracts.py"
-      ],
-      "sha256": "04c1117988b4870ed186e58036e893194aed62091f53e34b6f862e0a735c425c"
-    },
-    "tests/test_pipeline_tool_contracts.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "72f7027823c484507b8776f6cf3e6355e56183738a2f1d6ea93c3e6f0612b029"
-    },
-    "scripts/glp44_commit_recovery.py": {
-      "callers": [],
-      "kind": "repository_control",
-      "sha256": "43a1c971e181f5a6bf1f7d6d88296a3d84c22ab9f34919990031b1697ed71d8d"
     }
   }
 }
