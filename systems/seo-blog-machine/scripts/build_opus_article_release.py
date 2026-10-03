@@ -2705,10 +2705,21 @@ def _image_lineage_paths(target: Path, visual_key: str) -> list[Path]:
 
 
 def snapshot_image_lineage(target: Path, visual_key: str) -> dict[Path, bytes | None]:
-    """Capture the bytes a lineage tier may touch, so a rejected tier leaves no trace."""
+    """Capture tier-owned regular files; malformed inherited entries must survive.
+
+    None means genuinely absent, never an existing symlink, directory or FIFO.
+    Reject those before the native tier can write or fallback can mask them.
+    """
     snapshot: dict[Path, bytes | None] = {}
     for path in _image_lineage_paths(target, visual_key):
-        snapshot[path] = path.read_bytes() if path.is_file() and not path.is_symlink() else None
+        try:
+            mode = path.lstat().st_mode
+        except FileNotFoundError:
+            snapshot[path] = None
+            continue
+        if not stat.S_ISREG(mode):
+            raise RuntimeError(f"article_image_lineage_nonregular_collision:{path.relative_to(target)}")
+        snapshot[path] = path.read_bytes()
     return snapshot
 
 

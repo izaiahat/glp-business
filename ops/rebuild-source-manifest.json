@@ -2297,7 +2297,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "a5e422313126e166b46f855590612d472e29f298813f1b29d1db68884f7c9488"
+      "sha256": "9359b21440ebf8abd5f3b4912b8f5792f7bc8273cae3605f40db203464f21640"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -4359,7 +4359,7 @@
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
-      "sha256": "5e2eb3ca2a52870f24c5f4e080f7a8bbae07ec7f83a06553427dc46b887e9e1b"
+      "sha256": "47759dfacbd3323141eabf6edc4d49ec937bce9c3b0b023baa3fa4f65c9209dd"
     },
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",

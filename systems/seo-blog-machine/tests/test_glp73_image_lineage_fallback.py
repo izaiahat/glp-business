@@ -235,3 +235,55 @@ def test_real_rejected_receipt_selects_real_stock_or_text_only(tmp_path, monkeyp
         assert article["image_availability"] == "text_only"
         assert not list(derivative.glob(KEY + "*"))
     assert json.loads(catalog_paths["content_batch"].read_text())["articles"][0] == article
+
+
+@pytest.mark.parametrize("collision_type", ["symlink", "dangling_symlink", "directory", "fifo"])
+def test_fallback_preserves_preexisting_nonregular_lineage_collision(tmp_path, monkeypatch, collision_type):
+    """A decorative fallback cannot erase inherited malformed-tree evidence."""
+    import os
+
+    builder = load_builder()
+    article = {"canonical_path": ROUTE, "h1": "Lineage fallback", "batch_gate_passed": True}
+    generated = generated_receipt(builder.article_images, article["h1"])
+    target, catalogs, catalog_paths, manifest, state = candidate(tmp_path, builder, article)
+    derivative = target / "assets/derivatives"
+    derivative.mkdir(parents=True)
+    for suffix in builder.IMAGE_SUFFIXES:
+        dimensions = (1200, 630) if suffix == "-og.jpg" else (
+            (800, 450) if suffix.startswith("-800") else (1600, 900))
+        Image.new("RGB", dimensions, "#485367").save(derivative / ("editorial-evidence-hero" + suffix))
+    state.write_text(json.dumps({"schema": "glp-pass2-route-image-generation-v1",
+                               "job_set_type": "gpt_image_2", "model": "GPT Image 2",
+                               "quality": "high", "resolution": "4k", "records": {}}))
+    doc = json.loads(manifest.read_text())
+    doc["route_master_state"] = {"path": builder.ROUTE_MASTER_STATE_RELATIVE.as_posix(),
+                                 "sha256": builder.sha(state)}
+    manifest.write_text(json.dumps(doc))
+    collision = derivative / f"{KEY}-og.jpg"
+    if collision_type == "symlink":
+        collision.symlink_to(derivative / "editorial-evidence-hero-og.jpg")
+    elif collision_type == "dangling_symlink":
+        collision.symlink_to(derivative / "missing.jpg")
+    elif collision_type == "directory":
+        collision.mkdir()
+    else:
+        os.mkfifo(collision)
+    before = {p: p.read_bytes() for p in (manifest, state, *catalog_paths.values())}
+    identity = collision.lstat()
+    link = os.readlink(collision) if collision.is_symlink() else None
+    events = []
+    monkeypatch.setattr(builder.article_images, "record_event", events.append)
+    monkeypatch.setattr(builder.article_image_release_contract, "configure", lambda *args: None)
+    monkeypatch.setattr(builder, "configure_article_route_master_state_overlay", lambda *args: None)
+    monkeypatch.setattr(builder, "patch_article_image_visual_qa_for_release", lambda *args: None)
+
+    with pytest.raises(RuntimeError, match="article_image_lineage_nonregular_collision"):
+        builder.stage_article_image_lineage(target, article, generated, KEY, catalogs, catalog_paths)
+
+    assert collision.lstat().st_ino == identity.st_ino
+    assert collision.lstat().st_mode == identity.st_mode
+    if link is not None:
+        assert os.readlink(collision) == link
+    assert all(p.read_bytes() == value for p, value in before.items())
+    assert events == []
+    assert not (target / "artifacts/ultracode/article-release-image-receipts" / f"{KEY}.json").exists()
