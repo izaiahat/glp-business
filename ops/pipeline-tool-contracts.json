@@ -106,21 +106,21 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/n8n_mcp: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/n8n_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
         "awin_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/awin_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.awin",
@@ -131,7 +131,7 @@
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/impact_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.impact",
@@ -142,7 +142,7 @@
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/cj_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.cj",
@@ -153,7 +153,7 @@
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/partnerize_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerize",
@@ -164,7 +164,7 @@
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/affiliati_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.affiliati",
@@ -175,7 +175,7 @@
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/katalys_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.katalys",
@@ -186,7 +186,7 @@
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F01/everflow_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.everflow",
@@ -197,7 +197,7 @@
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
           "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
@@ -212,21 +212,21 @@
         "firecrawl": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds Firecrawl web discovery/scrape to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/firecrawl: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
         "google_sheets": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds Google Sheets affiliate applications sheet to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/google_sheets: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/discord: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -257,7 +257,7 @@
         "partnerstack_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/partnerstack_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerstack",
@@ -268,7 +268,7 @@
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/admitad_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.admitad",
@@ -279,7 +279,7 @@
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/clickbank_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickbank",
@@ -290,7 +290,7 @@
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/refersion_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.refersion",
@@ -301,7 +301,7 @@
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/healthtrader_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.healthtrader",
@@ -312,7 +312,7 @@
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F01/clickdealer_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickdealer",
@@ -323,7 +323,7 @@
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F01/digistore24_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.digistore24",
@@ -346,14 +346,14 @@
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/provider_registry: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F01/host_scheduler: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -388,7 +388,7 @@
         "pro_relay": {
           "status": "gap",
           "existing_issue": "GLP-330",
-          "owner": "Existing GLP-330 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-330 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Optional existing source-bound judgment has no inspected result consumed by this exact pipeline operation. Tool availability is not a scheduled dependency or authority for additional relay work.",
           "required_readback": "F01/pro_relay: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -403,7 +403,7 @@
         "xentraffic_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F01/xentraffic_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.xentraffic",
@@ -414,7 +414,7 @@
         "other_network_portals": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F01 consumer result is bound.",
           "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F01 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
           "scopes": [
@@ -495,21 +495,21 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/n8n_mcp: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/n8n_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "awin_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/awin_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.awin",
@@ -520,7 +520,7 @@
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/impact_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.impact",
@@ -531,7 +531,7 @@
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/cj_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.cj",
@@ -542,7 +542,7 @@
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/partnerize_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerize",
@@ -553,7 +553,7 @@
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/affiliati_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.affiliati",
@@ -564,7 +564,7 @@
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/katalys_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.katalys",
@@ -575,7 +575,7 @@
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Everflow tenant APIs: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/everflow_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.everflow",
@@ -598,28 +598,28 @@
         "google_sheets": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Google Sheets affiliate applications sheet to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/google_sheets: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/discord: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "linear": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Linear GraphQL / MCP to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/linear: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "cloudflare_d1": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Cloudflare D1 database (not Pages deployment) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/cloudflare_d1: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
@@ -642,7 +642,7 @@
         "partnerstack_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/partnerstack_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerstack",
@@ -653,7 +653,7 @@
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/admitad_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.admitad",
@@ -664,7 +664,7 @@
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/clickbank_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickbank",
@@ -675,7 +675,7 @@
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/refersion_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.refersion",
@@ -686,7 +686,7 @@
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/healthtrader_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.healthtrader",
@@ -697,7 +697,7 @@
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickdealer publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/clickdealer_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickdealer",
@@ -708,7 +708,7 @@
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Digistore24 publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/digistore24_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.digistore24",
@@ -771,28 +771,28 @@
         "resend": {
           "status": "hold",
           "existing_issue": "GLP-47",
-          "owner": "Existing GLP-47 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-47 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Subscriber/lifecycle copy and consent/suppression approval remain required; canonical inbox poll is not a send or onboarding acceptance.",
           "required_readback": "F02/resend: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "suppression_store": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Existing consent/suppression store to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/suppression_store: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/provider_registry: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-340",
-          "owner": "Existing GLP-340 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-340 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F02/host_scheduler: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
         },
@@ -839,7 +839,7 @@
         "xentraffic_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F02/xentraffic_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.xentraffic",
@@ -850,7 +850,7 @@
         "other_network_portals": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F02 consumer result is bound.",
           "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F02 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
           "scopes": [
@@ -932,14 +932,14 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/n8n_mcp: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/n8n_api: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
@@ -986,14 +986,14 @@
         "google_sheets": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds Google Sheets affiliate applications sheet to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/google_sheets: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/discord: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1064,14 +1064,14 @@
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/provider_registry: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-329",
-          "owner": "Existing GLP-329 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-329 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F03/host_scheduler: authenticated target identity, actual source window and supported consume queued Sheet updates through single writer; exact row CAS/ACK readback and downstream reconcile receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1199,14 +1199,14 @@
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F04/n8n_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
         "awin_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/awin_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.awin",
@@ -1217,7 +1217,7 @@
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/impact_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.impact",
@@ -1228,7 +1228,7 @@
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/cj_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.cj",
@@ -1239,7 +1239,7 @@
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/partnerize_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerize",
@@ -1250,7 +1250,7 @@
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/affiliati_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.affiliati",
@@ -1261,7 +1261,7 @@
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/katalys_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.katalys",
@@ -1272,7 +1272,7 @@
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Everflow tenant APIs: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/everflow_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.everflow",
@@ -1291,14 +1291,14 @@
         "firecrawl": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds Firecrawl web discovery/scrape to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F04/firecrawl: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
         "google_sheets": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds Google Sheets affiliate applications sheet to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F04/google_sheets: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1351,7 +1351,7 @@
         "partnerstack_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/partnerstack_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerstack",
@@ -1362,7 +1362,7 @@
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/admitad_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.admitad",
@@ -1373,7 +1373,7 @@
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/clickbank_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickbank",
@@ -1384,7 +1384,7 @@
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/refersion_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.refersion",
@@ -1395,7 +1395,7 @@
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/healthtrader_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.healthtrader",
@@ -1406,7 +1406,7 @@
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickdealer publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/clickdealer_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickdealer",
@@ -1417,7 +1417,7 @@
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Digistore24 publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/digistore24_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.digistore24",
@@ -1440,14 +1440,14 @@
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F04/provider_registry: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F04/host_scheduler: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1482,7 +1482,7 @@
         "pro_relay": {
           "status": "gap",
           "existing_issue": "GLP-344",
-          "owner": "Existing GLP-344 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Optional existing source-bound judgment has no inspected result consumed by this exact pipeline operation. Tool availability is not a scheduled dependency or authority for additional relay work.",
           "required_readback": "F04/pro_relay: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1497,7 +1497,7 @@
         "xentraffic_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
           "required_readback": "F04/xentraffic_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.xentraffic",
@@ -1508,7 +1508,7 @@
         "other_network_portals": {
           "status": "gap",
           "existing_issue": "GLP-333",
-          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-333 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F04 consumer result is bound.",
           "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F04 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
           "scopes": [
@@ -1571,21 +1571,21 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds PostHog product analytics (HogQL query API) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/posthog: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
         "cogny": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds Cogny SEO/ads data client (ops/glp/cogny_client.py) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/cogny: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
         "ga4": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
           "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
         },
@@ -1658,14 +1658,14 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/n8n_mcp: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/n8n_api: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1708,7 +1708,7 @@
         "firecrawl": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds Firecrawl web discovery/scrape to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/firecrawl: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1719,7 +1719,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/discord: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1794,7 +1794,7 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F05/host_scheduler: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1809,7 +1809,7 @@
         "rook": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Reddit/community moves to existing Rook draft-only research lane; no scoped consumed draft receipt inspected. No posting or send.",
           "required_readback": "F05/rook: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1832,7 +1832,7 @@
         "pro_relay": {
           "status": "gap",
           "existing_issue": "GLP-343",
-          "owner": "Existing GLP-343 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Optional existing source-bound judgment has no inspected result consumed by this exact pipeline operation. Tool availability is not a scheduled dependency or authority for additional relay work.",
           "required_readback": "F05/pro_relay: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1870,7 +1870,7 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds PostHog product analytics (HogQL query API) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/posthog: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
@@ -1881,35 +1881,35 @@
         "ga4": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
           "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
         },
         "gsc": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Google Search Console (webmasters v3 / URL inspection) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/gsc: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "bing_webmaster": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Bing Webmaster Tools / IndexNow to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/bing_webmaster: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/n8n_mcp: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "hold",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 outcome owner; no new queue",
+          "owner": "GLP-73 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Host owns article publishing; n8n article carrier must remain inactive. Existing read-only carrier inspection is not publication proof.",
           "required_readback": "Retained carrier-inactive readback only; never activate it to satisfy contract."
         },
@@ -1960,7 +1960,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/discord: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2031,28 +2031,28 @@
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/provider_registry: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/host_scheduler: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "github": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing private source/CI API to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/github: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "cloudflare_pages": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing Cloudflare Pages deployment carrier to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/cloudflare_pages: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2063,7 +2063,7 @@
         "host_filesystem": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/host_filesystem: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2074,14 +2074,14 @@
         "gtm": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Published versus workspace measurement inventory and consent configuration require exact version/allowed-neutral receiving readback. No tag/guard/privacy mutation by contract task.",
           "required_readback": "F06/gtm: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "indexnow": {
           "status": "gap",
           "existing_issue": "GLP-73",
-          "owner": "Existing GLP-73 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing changed-URL notification carrier to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F06/indexnow: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2124,7 +2124,7 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Shared project aggregate is not exact production host/neutral-route or consented REAL funnel evidence. Legacy all-host rows cannot prove this consumer; no raw URL/person/health export.",
           "required_readback": "Exact production host and approved neutral-route allowlist projection, source window and actual receiving consumer readback; privacy gates unchanged."
         },
@@ -2154,42 +2154,42 @@
         "ga4": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
           "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
         },
         "gsc": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds Google Search Console (webmasters v3 / URL inspection) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/gsc: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
         "bing_webmaster": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds Bing Webmaster Tools / IndexNow to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/bing_webmaster: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/n8n_mcp: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/n8n_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
         "awin_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Awin publisher API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/awin_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.awin",
@@ -2200,7 +2200,7 @@
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Impact media-partner API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/impact_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.impact",
@@ -2211,7 +2211,7 @@
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "CJ commissions API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/cj_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.cj",
@@ -2222,7 +2222,7 @@
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerize publisher API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/partnerize_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerize",
@@ -2233,7 +2233,7 @@
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Affiliati network reports API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/affiliati_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.affiliati",
@@ -2244,7 +2244,7 @@
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "September declared1/returned0 remains PARTIAL. No exhausted complete scope or settled cash consumer proof; keep commissions/cash unknown.",
           "required_readback": "F07/katalys_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.katalys",
@@ -2255,7 +2255,7 @@
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F07/everflow_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.everflow",
@@ -2266,7 +2266,7 @@
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
           "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
@@ -2289,7 +2289,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/discord: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2300,7 +2300,7 @@
         "cloudflare_d1": {
           "status": "hold",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-334 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Only retained receiver capture available; 14 TEST/SELFTEST rows do not establish empty production, zero income or REAL lineage. No synthetic callbacks or replay.",
           "required_readback": "Authorized bounded production D1 export with exact source window/identity consumed by unchanged REAL conversion-to-payout reconciliation."
         },
@@ -2323,7 +2323,7 @@
         "partnerstack_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/partnerstack_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerstack",
@@ -2334,7 +2334,7 @@
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/admitad_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.admitad",
@@ -2345,7 +2345,7 @@
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/clickbank_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickbank",
@@ -2356,7 +2356,7 @@
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/refersion_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.refersion",
@@ -2367,7 +2367,7 @@
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/healthtrader_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.healthtrader",
@@ -2378,7 +2378,7 @@
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F07/clickdealer_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickdealer",
@@ -2389,7 +2389,7 @@
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F07/digistore24_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.digistore24",
@@ -2416,7 +2416,7 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-44 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F07/host_scheduler: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2439,14 +2439,14 @@
         "stripe": {
           "status": "hold",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-328 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Existing GLP Stripe account connectivity does not prove any sponsor invoice/payment/balance-transaction consumer. Affiliate payouts are separate; invoicing/spend not authorized by this contract.",
           "required_readback": "When sponsor invoicing is explicitly authorized and real invoices exist: exact sponsor account, invoice/payment/balance IDs and actual report consumer readback; otherwise keep hold."
         },
         "gtm": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Published versus workspace measurement inventory and consent configuration require exact version/allowed-neutral receiving readback. No tag/guard/privacy mutation by contract task.",
           "required_readback": "F07/gtm: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2469,7 +2469,7 @@
         "xentraffic_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F07/xentraffic_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.xentraffic",
@@ -2480,7 +2480,7 @@
         "other_network_portals": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F07 consumer result is bound.",
           "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F07 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
           "scopes": [
@@ -2542,21 +2542,21 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Shared project aggregate is not exact production host/neutral-route or consented REAL funnel evidence. Legacy all-host rows cannot prove this consumer; no raw URL/person/health export.",
           "required_readback": "Exact production host and approved neutral-route allowlist projection, source window and actual receiving consumer readback; privacy gates unchanged."
         },
         "cogny": {
           "status": "gap",
           "existing_issue": "GLP-345",
-          "owner": "Existing GLP-345 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-345 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Bing Ads connector token was rejected; native Microsoft access does not prove Cogny reconnection.",
           "required_readback": "F08/cogny: authenticated target identity, actual source window and supported read parked-platform campaign and spend reports for recommendations/guard only receipt with exact consumer result; otherwise retain this gap."
         },
         "ga4": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
           "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
         },
@@ -2701,14 +2701,14 @@
         "meta_ads": {
           "status": "gap",
           "existing_issue": "GLP-341",
-          "owner": "Existing GLP-341 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-341 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Retained paused-campaign observation exists; spend null/UNKNOWN and report-only weekly consumer acceptance is outstanding. No numerical zero inferred.",
           "required_readback": "F08/meta_ads: authenticated target identity, actual source window and supported read parked-platform campaign and spend reports for recommendations/guard only receipt with exact consumer result; otherwise retain this gap."
         },
         "microsoft_ads": {
           "status": "gap",
           "existing_issue": "GLP-345",
-          "owner": "Existing GLP-345 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-345 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Native account189346863 read succeeded, provider Success with nil download is NO_DATA and spend null/UNKNOWN; one campaign paused. Cogny Bing token rejection is separate. No all-platform zero or reconnection by inference.",
           "required_readback": "Existing monitor exact-account complete report or honest unknown-spend alert with campaign pause readback; operator owns explicit Cogny reconnect acceptance."
         },
@@ -2763,7 +2763,7 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-341",
-          "owner": "Existing GLP-341 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-341 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "read parked-platform campaign and spend reports for recommendations/guard only; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F08/host_scheduler: authenticated target identity, actual source window and supported read parked-platform campaign and spend reports for recommendations/guard only receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2790,7 +2790,7 @@
         "gtm": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Published versus workspace measurement inventory and consent configuration require exact version/allowed-neutral receiving readback. No tag/guard/privacy mutation by contract task.",
           "required_readback": "F08/gtm: authenticated target identity, actual source window and supported read parked-platform campaign and spend reports for recommendations/guard only receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2801,7 +2801,7 @@
         "pro_relay": {
           "status": "gap",
           "existing_issue": "GLP-341",
-          "owner": "Existing GLP-341 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-341 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Optional existing source-bound judgment has no inspected result consumed by this exact pipeline operation. Tool availability is not a scheduled dependency or authority for additional relay work.",
           "required_readback": "F08/pro_relay: authenticated target identity, actual source window and supported read parked-platform campaign and spend reports for recommendations/guard only receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2858,14 +2858,14 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Public MCP omits account billing-period boundary; n8n API fallback and exact consumed budget readback required, not tool/API absence.",
           "required_readback": "F09/n8n_mcp: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/n8n_api: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2916,14 +2916,14 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/discord: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
         "linear": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Linear GraphQL / MCP to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/linear: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
@@ -2994,14 +2994,14 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/host_scheduler: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
         "github": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Existing private source/CI API to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/github: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3016,7 +3016,7 @@
         "host_filesystem": {
           "status": "gap",
           "existing_issue": "GLP-337",
-          "owner": "Existing GLP-337 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F09/host_filesystem: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3140,7 +3140,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F10/discord: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3215,7 +3215,7 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F10/host_scheduler: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3234,7 +3234,7 @@
         "host_filesystem": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F10/host_filesystem: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3261,7 +3261,7 @@
         "subscription_telemetry": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing subscription/capacity read-only telemetry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F10/subscription_telemetry: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3309,14 +3309,14 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/n8n_mcp: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/n8n_api: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3367,14 +3367,14 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/discord: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
         "linear": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Linear GraphQL / MCP to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/linear: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3445,14 +3445,14 @@
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/host_scheduler: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
         "github": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing private source/CI API to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/github: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3467,7 +3467,7 @@
         "host_filesystem": {
           "status": "gap",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F11/host_filesystem: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3520,7 +3520,7 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Shared project aggregate is not exact production host/neutral-route or consented REAL funnel evidence. Legacy all-host rows cannot prove this consumer; no raw URL/person/health export.",
           "required_readback": "Exact production host and approved neutral-route allowlist projection, source window and actual receiving consumer readback; privacy gates unchanged."
         },
@@ -3543,21 +3543,21 @@
         "n8n_mcp": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume real production receiver events and complete network conversion/earnings/payout lineage; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F12/n8n_mcp: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume real production receiver events and complete network conversion/earnings/payout lineage; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F12/n8n_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
         },
         "awin_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Awin publisher API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/awin_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.awin",
@@ -3568,7 +3568,7 @@
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Impact media-partner API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/impact_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.impact",
@@ -3579,7 +3579,7 @@
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "CJ commissions API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/cj_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.cj",
@@ -3590,7 +3590,7 @@
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerize publisher API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/partnerize_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerize",
@@ -3601,7 +3601,7 @@
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Affiliati network reports API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/affiliati_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.affiliati",
@@ -3612,7 +3612,7 @@
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "September declared1/returned0 remains PARTIAL. No exhausted complete scope or settled cash consumer proof; keep commissions/cash unknown.",
           "required_readback": "F12/katalys_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.katalys",
@@ -3623,7 +3623,7 @@
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F12/everflow_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.everflow",
@@ -3634,7 +3634,7 @@
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
-          "owner": "Existing GLP-339 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
           "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
@@ -3657,7 +3657,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume real production receiver events and complete network conversion/earnings/payout lineage; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F12/discord: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3668,7 +3668,7 @@
         "cloudflare_d1": {
           "status": "hold",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-334 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Only retained receiver capture available; 14 TEST/SELFTEST rows do not establish empty production, zero income or REAL lineage. No synthetic callbacks or replay.",
           "required_readback": "Authorized bounded production D1 export with exact source window/identity consumed by unchanged REAL conversion-to-payout reconciliation."
         },
@@ -3691,7 +3691,7 @@
         "partnerstack_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/partnerstack_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.partnerstack",
@@ -3702,7 +3702,7 @@
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/admitad_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.admitad",
@@ -3713,7 +3713,7 @@
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/clickbank_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickbank",
@@ -3724,7 +3724,7 @@
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/refersion_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.refersion",
@@ -3735,7 +3735,7 @@
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/healthtrader_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.healthtrader",
@@ -3746,7 +3746,7 @@
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F12/clickdealer_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.clickdealer",
@@ -3757,7 +3757,7 @@
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
           "required_readback": "F12/digistore24_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.digistore24",
@@ -3780,14 +3780,14 @@
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume real production receiver events and complete network conversion/earnings/payout lineage; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F12/provider_registry: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume real production receiver events and complete network conversion/earnings/payout lineage; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F12/host_scheduler: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3834,7 +3834,7 @@
         "xentraffic_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
           "required_readback": "F12/xentraffic_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
           "retained_scope_ref": "network_scope_limits.xentraffic",
@@ -3845,7 +3845,7 @@
         "other_network_portals": {
           "status": "gap",
           "existing_issue": "GLP-334",
-          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-334 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F12 consumer result is bound.",
           "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F12 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
           "scopes": [
@@ -3907,7 +3907,7 @@
         "posthog": {
           "status": "gap",
           "existing_issue": "GLP-342",
-          "owner": "Existing GLP-342 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Shared project aggregate is not exact production host/neutral-route or consented REAL funnel evidence. Legacy all-host rows cannot prove this consumer; no raw URL/person/health export.",
           "required_readback": "Exact production host and approved neutral-route allowlist projection, source window and actual receiving consumer readback; privacy gates unchanged."
         },
@@ -3918,21 +3918,21 @@
         "ga4": {
           "status": "hold",
           "existing_issue": "GLP-44",
-          "owner": "Existing GLP-44 outcome owner; no new queue",
+          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
           "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
         },
         "gsc": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Google Search Console (webmasters v3 / URL inspection) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/gsc: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "bing_webmaster": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Bing Webmaster Tools / IndexNow to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/bing_webmaster: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3983,7 +3983,7 @@
         "firecrawl": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Firecrawl web discovery/scrape to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/firecrawl: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
@@ -3994,7 +3994,7 @@
         "discord": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/discord: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
@@ -4053,35 +4053,35 @@
         "gmail": {
           "status": "hold",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 outcome owner; no new queue",
+          "owner": "GLP-328 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Nu Image reply and sponsor sends stay under existing copy/placement approval; no send or receiver outcome invented.",
           "required_readback": "F13/gmail: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "resend": {
           "status": "hold",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-328 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Sponsor send setup/copy/rate/previews approval and existing suppression gates remain prerequisites. No outreach send authorized by contract work.",
           "required_readback": "F13/resend: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "suppression_store": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Existing consent/suppression store to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/suppression_store: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "provider_registry": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/provider_registry: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "host_scheduler": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/host_scheduler: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
@@ -4092,14 +4092,14 @@
         "cloudflare_pages": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Existing Cloudflare Pages deployment carrier to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/cloudflare_pages: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
         "rook": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback; no inspected receipt binds Existing draft-only Reddit/community research carrier to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F13/rook: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
@@ -4110,7 +4110,7 @@
         "stripe": {
           "status": "hold",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 outcome owner; no new queue",
+          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-328 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
           "reason": "Existing GLP Stripe account connectivity does not prove any sponsor invoice/payment/balance-transaction consumer. Affiliate payouts are separate; invoicing/spend not authorized by this contract.",
           "required_readback": "When sponsor invoicing is explicitly authorized and real invoices exist: exact sponsor account, invoice/payment/balance IDs and actual report consumer readback; otherwise keep hold."
         },
@@ -4125,7 +4125,7 @@
         "pro_relay": {
           "status": "gap",
           "existing_issue": "GLP-328",
-          "owner": "Existing GLP-328 outcome owner; no new queue",
+          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-328 remains the existing underlying outcome owner (no new dispatch/reopen)",
           "reason": "Optional existing source-bound judgment has no inspected result consumed by this exact pipeline operation. Tool availability is not a scheduled dependency or authority for additional relay work.",
           "required_readback": "F13/pro_relay: authenticated target identity, actual source window and supported consume reviewed rate-card/placement and eligible-US/suppression inputs; approval-bound outreach/pilot readback receipt with exact consumer result; otherwise retain this gap."
         },
