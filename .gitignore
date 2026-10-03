@@ -500,3 +500,12 @@
 !/ops/glp/topic-supply-inputs/README.md
 !/ops/glp/topic-supply-inputs/strategy-queue.json
 !/ops/glp/topic-supply-inputs/cluster-map.json
+# GLP344 F04 price-evidence -> registry-delta seam (source only)
+!/tools/glp/price_evidence_delta.py
+!/tests/test_glp344_price_evidence_delta.py
+!/tests/fixtures/glp344-price-evidence/
+/tests/fixtures/glp344-price-evidence/*
+!/tests/fixtures/glp344-price-evidence/captures/
+!/tests/fixtures/glp344-price-evidence/claims.json
+!/tests/fixtures/glp344-price-evidence/claims-conflict.json
+!/tests/fixtures/glp344-price-evidence/provider-pricing-matrix.json
