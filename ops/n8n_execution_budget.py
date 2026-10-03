@@ -105,13 +105,13 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
         day = now.astimezone(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
         reporting_path, reporting = reporting_state(path, state)
         line = None
-        if reporting.get('daily_line_day') != day:
-            count = snapshot.get('month_execution_high_water')
-            projected = snapshot.get('projected_month_end')
-            line = (f"n8n execution budget: {count if count is not None else 'UNKNOWN'}/{CAP} observed high-water; "
-                    f"projected month-end {projected if projected is not None else 'UNKNOWN'}/{CAP}; "
-                    f"month={month} UTC (billing boundary assumed); alert=70%; status={snapshot['status']}; billing counter separate")
+        # Preserve the old day marker while emitting this richer digest once
+        # after upgrade; repeated/manual ticks still use the same daily custody.
+        if (reporting.get('daily_line_day') != day or
+                reporting.get('daily_line_version') != 'actual-forecast-headroom-v1'):
+            line = daily_line(snapshot, month)
             reporting['daily_line_day'] = day
+            reporting['daily_line_version'] = 'actual-forecast-headroom-v1'
         state['daily_line_day'] = reporting.get('daily_line_day')
         status = snapshot['status']
         issue = None
@@ -160,6 +160,29 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
                           'evidence': json.dumps({k: invariants.get(k) for k in ('enabled_schedule_nodes', 'error_handler_recursion_findings')}, sort_keys=True),
                           'operator_fix': 'Reconcile published schedules and error-handler recursion without disabling event ingress or replaying effects.'})
         return {'snapshot': snapshot, 'daily_line': line, 'issue': issue, 'issues': issues}
+
+
+def daily_line(snapshot, month):
+    """Digest line: actual month-to-date, forecast and headroom under the cap.
+
+    Headroom is measured against the worse of actual and forecast, so it is
+    never more optimistic than either. The batched polling set (TOP_FIVE) is
+    shown separately so a regression in their demand is visible daily.
+    """
+    def shown(value):
+        return value if value is not None else 'UNKNOWN'
+    count = snapshot.get('month_execution_high_water')
+    projected = snapshot.get('projected_month_end')
+    headroom = snapshot.get('headroom_to_cap')
+    if headroom is None and count is not None and projected is not None:
+        headroom = CAP - max(count, projected)
+    heaviest = snapshot.get('heaviest_workflows')
+    top = ('UNKNOWN' if heaviest is None else
+           ','.join(f"{row['workflow_id']}={row['executions']}" for row in heaviest) or 'none')
+    return (f"n8n execution budget: {shown(count)}/{CAP} actual month-to-date (observed high-water); "
+            f"forecast month-end {shown(projected)}/{CAP}; headroom {shown(headroom)} under {CAP}; "
+            f"batched polling set {shown(snapshot.get('top_five_polling_executions'))}; heaviest {top}; "
+            f"month={month} UTC (billing boundary assumed); alert=70%; status={snapshot['status']}; billing counter separate")
 
 
 def reporting_state(path, accounting=None):
@@ -301,6 +324,7 @@ def summarize(executions, now, previous_count=0):
     week_count = sum(parse_time(r['startedAt']) >= now - timedelta(days=7) for r in current)
     daily_rate = max(count / elapsed, day_count / min(elapsed, 1), week_count / min(elapsed, 7))
     projected = math.ceil(count + daily_rate * remaining)
+    by_workflow = Counter(r['workflowId'] for r in current)
     status = 'CAP_RISK' if max(count, projected) >= CAP else 'WARN_70_PERCENT' if max(count, projected) >= CAP * .7 else 'PASS'
     return {'schema': 'glp.n8n_execution_budget.v1', 'generated_at_utc': now.isoformat(),
             'month_utc': start.strftime('%Y-%m'), 'cap': CAP, 'alert_threshold': 7000,
@@ -311,4 +335,8 @@ def summarize(executions, now, previous_count=0):
             'status': status, 'billed_usage': None,
             'billing_boundary': 'UTC calendar month assumed; account billing timezone/period not exposed by public API/MCP',
             'usage_semantics': 'retained execution lower bound; all modes conservatively counted; monotonic monthly high-water',
-            'by_workflow': dict(Counter(r['workflowId'] for r in current))}
+            'headroom_to_cap': CAP - max(count, projected),
+            'top_five_polling_executions': sum(by_workflow.get(wid, 0) for wid in TOP_FIVE),
+            'heaviest_workflows': [{'workflow_id': wid, 'executions': n} for wid, n in
+                                   sorted(by_workflow.items(), key=lambda item: (-item[1], item[0]))[:5]],
+            'by_workflow': dict(by_workflow)}

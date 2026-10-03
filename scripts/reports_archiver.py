@@ -2969,16 +2969,63 @@ _PREPARED_EVIDENCE_CACHE: dict[str, Any] | None = None
 _PREPARED_CACHE_MAX_ENTRIES = 100_000
 
 
-def _prepared_tree_identity(root: Path) -> tuple[Any, ...] | None:
+def _prepared_tree_identity(
+    root: Path, *, previous: tuple[Any, ...] | None = None,
+) -> tuple[Any, ...] | None:
     """Complete path-set + lstat identity, or decline caching (not validation).
 
-    Include ctime: rewriting bytes and restoring mtime cannot reuse a proof.
-    Ancestor identities bind the namespace without treating unrelated sibling
-    writes as changes to this prepared tree. Symlinks/special files never cache.
+    A validated sorted path set saves enumeration/sorting/Path construction only.
+    EVERY cached path is lstatted anew on EVERY opening/closing boundary, with
+    exactly the original fields (including ctime, owner, mode and link count).
+    Any drift forces the original complete enumeration; closing directory checks
+    also catch membership/ancestor replacement during the fast pass. No TTL.
     """
     try:
         if not root.is_absolute() or root.resolve(strict=True) != root:
             return None
+        if previous is not None and len(previous) <= _PREPARED_CACHE_MAX_ENTRIES:
+            lstat = os.lstat
+            directories = []
+            children: dict[str, set[str]] = {}
+            for expected in previous:
+                path = expected[0]
+                info = lstat(path)
+                actual = (path, info.st_dev, info.st_ino, info.st_mode,
+                          info.st_uid, info.st_gid)
+                if len(expected) == 10:
+                    actual += (info.st_nlink, info.st_size,
+                               info.st_mtime_ns, info.st_ctime_ns)
+                if actual != expected:
+                    break
+                if len(expected) == 10:
+                    parent = os.path.dirname(path)
+                    if parent in children:
+                        children[parent].add(os.path.basename(path))
+                if stat.S_ISDIR(info.st_mode):
+                    directories.append(expected)
+                    if len(expected) == 10:
+                        children[path] = set()
+            else:
+                # Recheck names as well as stats: finite-resolution directory
+                # timestamps can collide, but complete membership must not.
+                # Ancestors bind namespace only; do not enumerate siblings.
+                for expected in directories:
+                    path = expected[0]
+                    info = lstat(path)
+                    actual = (path, info.st_dev, info.st_ino, info.st_mode,
+                              info.st_uid, info.st_gid)
+                    if len(expected) == 10:
+                        actual += (info.st_nlink, info.st_size,
+                                   info.st_mtime_ns, info.st_ctime_ns)
+                    if actual != expected:
+                        break
+                    if path in children:
+                        with os.scandir(path) as entries:
+                            if {entry.name for entry in entries} != children[path]:
+                                break
+                else:
+                    return previous
+            # Drift gets native enumeration, never a reduced membership proof.
         rows: list[Any] = []
         for parent in root.parents:
             info = parent.lstat()
@@ -3074,22 +3121,23 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
     # parsed JSON. Formatting-only rewrites must also force native validation.
     key = (str(release), json.dumps(base, sort_keys=True, separators=(',', ':')),
            hashlib.sha256(pointer_raw).hexdigest())
-    before = _prepared_tree_identity(release.parent)
     cached = _PREPARED_EVIDENCE_CACHE
+    previous = cached['identity'] if cached is not None and cached['key'] == key else None
+    before = _prepared_tree_identity(release.parent, previous=previous)
     if (before is not None and cached is not None and cached['key'] == key
             and cached['identity'] == before
             and _prepared_dependencies_unchanged(cached['evidence'])
-            and _prepared_tree_identity(release.parent) == before
+            and _prepared_tree_identity(release.parent, previous=before) == before
             and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         return copy.deepcopy(cached['evidence'])
     # No stale fallback: every mismatch, unreadable path, membership change or
     # unsupported shape invokes the unchanged native transitive validator.
     _PREPARED_EVIDENCE_CACHE = None
     evidence = _validate_base_evidence(base, release)
-    after = _prepared_tree_identity(release.parent)
+    after = _prepared_tree_identity(release.parent, previous=before)
     if (before is not None and before == after
             and _prepared_dependencies_unchanged(evidence)
-            and _prepared_tree_identity(release.parent) == after
+            and _prepared_tree_identity(release.parent, previous=after) == after
             and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         _PREPARED_EVIDENCE_CACHE = {'key': key, 'identity': after,
                                     'evidence': copy.deepcopy(evidence)}
