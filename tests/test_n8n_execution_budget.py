@@ -171,6 +171,32 @@ def test_glp338_digest_tracks_batched_polling_set_and_heaviest_workflows():
     assert 'heaviest none;' in m.daily_line(m.summarize([], now), '2026-10')
 
 
+def test_glp338_same_day_upgrade_emits_once_without_resetting_daily_marker(tmp_path):
+    import json
+    m = module()
+    now = datetime(2026, 10, 3, 12, tzinfo=timezone.utc)
+    path = tmp_path / 'budget.json'
+    reporting_path = path.with_name(path.name + '.health.json')
+    snapshot = m.summarize([], now)
+    snapshot['invariants'] = {'status': 'PASS', 'article_inactive': True}
+    path.write_text(json.dumps({'snapshot': snapshot, 'month_utc': '2026-10',
+                               'month_high_water': 0, 'daily_line_day': '2026-10-03'}))
+    reporting_path.write_text(json.dumps({'daily_line_day': '2026-10-03'}))
+    before = (path.read_bytes(), reporting_path.read_bytes())
+    def no_refresh(*args):
+        raise AssertionError('cached observation must remain cached')
+    preview = m.health_check(path, now=now, get=no_refresh, dry_run=True)
+    assert preview['daily_line'] is not None, 'same-day old marker suppressed upgraded digest'
+    assert '0/10000 actual month-to-date' in preview['daily_line']
+    assert 'forecast month-end 0/10000; headroom 10000 under 10000' in preview['daily_line']
+    assert (path.read_bytes(), reporting_path.read_bytes()) == before
+    emitted = m.health_check(path, now=now, get=no_refresh)
+    assert emitted['daily_line'] == preview['daily_line']
+    assert json.loads(path.read_text())['daily_line_day'] == '2026-10-03'
+    assert json.loads(reporting_path.read_text())['daily_line_day'] == '2026-10-03'
+    assert m.health_check(path, now=now, get=no_refresh)['daily_line'] is None
+
+
 def test_glp338_regression_snapshot_cached_before_upgrade_still_reports_headroom():
     m = module()
     old = {'status': 'PASS', 'month_execution_high_water': 1200, 'projected_month_end': 4000}

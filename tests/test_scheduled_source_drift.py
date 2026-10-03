@@ -358,7 +358,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert shared == 20
     # GLP-338: exact budget payload repin (digest headroom), F09 job only.
     budget = 'ops/n8n_execution_budget.py'
-    budget_pin = '5bff111efa1be9a7effaf238d03e8d2af3ec049b2c8d8f4304b1368d52b4faab'
+    budget_pin = 'f817de02a7c6659cd28767099a67edfab8411c20e095757142cd80ba66f42c10'
     assert sha((ROOT/budget).read_bytes()) == budget_pin
     repinned = 0
     for row in expected['jobs']:

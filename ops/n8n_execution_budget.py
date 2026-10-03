@@ -105,9 +105,13 @@ def health_check(state_path=DEFAULT_STATE, *, now=None, get=None, dry_run=False,
         day = now.astimezone(ZoneInfo('America/Los_Angeles')).strftime('%Y-%m-%d')
         reporting_path, reporting = reporting_state(path, state)
         line = None
-        if reporting.get('daily_line_day') != day:
+        # Preserve the old day marker while emitting this richer digest once
+        # after upgrade; repeated/manual ticks still use the same daily custody.
+        if (reporting.get('daily_line_day') != day or
+                reporting.get('daily_line_version') != 'actual-forecast-headroom-v1'):
             line = daily_line(snapshot, month)
             reporting['daily_line_day'] = day
+            reporting['daily_line_version'] = 'actual-forecast-headroom-v1'
         state['daily_line_day'] = reporting.get('daily_line_day')
         status = snapshot['status']
         issue = None
