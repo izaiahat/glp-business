@@ -64,12 +64,16 @@ def fixture(tmp_path):
 
 @pytest.fixture
 def approved_checkout(tmp_path):
-    # This generation is immutable. Exercise its genuine installed PR164 tree,
-    # not future HEAD bytes (which must fail its fixed source-digest admission).
+    # Retain the immutable PR164 payload; commit only the maintained producer
+    # into this disposable tree so its producer equality guard remains exact.
+    from test_glp333_reporting_generation import commit_fixture_tree
     checkout = tmp_path / 'approved-pr164'
     subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
     subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach',
                     '2265d3539691fa221a49936da23cd206c3fe0bc8'], check=True)
+    put(checkout / 'scripts/glp44_scoped_adoption.py', Path(pair.__file__).read_bytes(), 0o755)
+    commit_fixture_tree(checkout)
+    assert {rel: sha((checkout / rel).read_bytes()) for rel in MEMBERS} == pair.F07_HASHES
     assert (checkout / 'scripts/glp44_scoped_adoption.py').read_bytes() == Path(pair.__file__).read_bytes()
     return checkout
 
@@ -86,7 +90,8 @@ def test_both_old_previews_refuse_and_one_successor_proposes(tmp_path, old, appr
     assert snapshot(root, hermes) == before
     assert proposal['generation'] == GENERATION
     assert proposal['source_sha256'] == {rel: sha(blob(SOURCE, rel)) for rel in MEMBERS}
-    assert proposal['producer_head'] == '2265d3539691fa221a49936da23cd206c3fe0bc8'
+    assert proposal['producer_head'] == subprocess.check_output(
+        ['git', '-C', str(approved_checkout), 'rev-parse', 'HEAD'], text=True).strip()
     assert {rel for rel, value in proposal['source_before_sha256'].items() if value is None} == set(NEW_LEAVES)
     assert proposal['target']['journal'] is None
     # No-apply preview is not authority to bypass maintenance or predecessor custody.
