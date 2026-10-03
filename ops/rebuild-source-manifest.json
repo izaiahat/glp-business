@@ -110,7 +110,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "aba6edec8753643c39297691650b4e53779ba8ae932c389b47b3b2f812709d72"
+      "sha256": "06560723b1a542f214a4bc5d096a3adc9ceca9b22c27ce58b61055a6afbefe1a"
     },
     "scripts/glp331_carrier_adoption.py": {
       "kind": "script",
@@ -3497,7 +3497,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "828dfeb5311ee70bdde50d0c9edd66f99f6de859710bfb4d7478a97fc499f9dc"
+      "sha256": "05a7be5ba5688f729121dd44e6e6e97281edea15fcc1cc20a27bbd5ce64ff7ae"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
