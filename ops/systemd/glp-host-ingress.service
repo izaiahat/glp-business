@@ -1,0 +1,15 @@
+[Unit]
+Description=GLP authenticated host intent ingress
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/business
+ExecStart=/usr/bin/python3 -B /home/ubuntu/business/scripts/glp_host_ingress.py serve
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

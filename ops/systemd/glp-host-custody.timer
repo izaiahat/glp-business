@@ -1,0 +1,11 @@
+[Unit]
+Description=GLP host custody cadence
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=glp-host-custody.service
+
+[Install]
+WantedBy=timers.target
