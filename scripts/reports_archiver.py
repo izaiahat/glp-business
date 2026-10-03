@@ -2984,8 +2984,29 @@ _PREPARED_EVIDENCE_CACHE: dict[str, Any] | None = None
 _PREPARED_CACHE_MAX_ENTRIES = 100_000
 
 
+def _prepared_identity_layout(identity: tuple[Any, ...]) -> tuple[Any, ...]:
+    """Derive immutable expected names once; this contains no fresh observations."""
+    directories = []
+    children: dict[str, set[str]] = {}
+    for expected in identity:
+        path = expected[0]
+        if len(expected) == 10:
+            parent = os.path.dirname(path)
+            if parent in children:
+                children[parent].add(os.path.basename(path))
+        if stat.S_ISDIR(expected[3]):
+            directories.append(expected)
+            if len(expected) == 10:
+                children[path] = set()
+    return (identity, tuple(
+        (expected, frozenset(children[expected[0]]) if expected[0] in children else None)
+        for expected in directories
+    ))
+
+
 def _prepared_tree_identity(
     root: Path, *, previous: tuple[Any, ...] | None = None,
+    layout: tuple[Any, ...] | None = None,
 ) -> tuple[Any, ...] | None:
     """Complete path-set + lstat identity, or decline caching (not validation).
 
@@ -3000,8 +3021,11 @@ def _prepared_tree_identity(
             return None
         if previous is not None and len(previous) <= _PREPARED_CACHE_MAX_ENTRIES:
             lstat = os.lstat
-            directories = []
-            children: dict[str, set[str]] = {}
+            # The existing evidence cache may retain this purely derived layout.
+            # Bind it by object identity to the exact immutable expected rows;
+            # drift/new rows must never inherit the prior expected name sets.
+            if layout is None or layout[0] is not previous:
+                layout = _prepared_identity_layout(previous)
             for expected in previous:
                 path = expected[0]
                 info = lstat(path)
@@ -3012,19 +3036,11 @@ def _prepared_tree_identity(
                                info.st_mtime_ns, info.st_ctime_ns)
                 if actual != expected:
                     break
-                if len(expected) == 10:
-                    parent = os.path.dirname(path)
-                    if parent in children:
-                        children[parent].add(os.path.basename(path))
-                if stat.S_ISDIR(info.st_mode):
-                    directories.append(expected)
-                    if len(expected) == 10:
-                        children[path] = set()
             else:
                 # Recheck names as well as stats: finite-resolution directory
                 # timestamps can collide, but complete membership must not.
                 # Ancestors bind namespace only; do not enumerate siblings.
-                for expected in directories:
+                for expected, expected_children in layout[1]:
                     path = expected[0]
                     info = lstat(path)
                     actual = (path, info.st_dev, info.st_ino, info.st_mode,
@@ -3034,9 +3050,9 @@ def _prepared_tree_identity(
                                    info.st_mtime_ns, info.st_ctime_ns)
                     if actual != expected:
                         break
-                    if path in children:
+                    if expected_children is not None:
                         with os.scandir(path) as entries:
-                            if {entry.name for entry in entries} != children[path]:
+                            if {entry.name for entry in entries} != expected_children:
                                 break
                 else:
                     return previous
@@ -3138,11 +3154,12 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
            hashlib.sha256(pointer_raw).hexdigest())
     cached = _PREPARED_EVIDENCE_CACHE
     previous = cached['identity'] if cached is not None and cached['key'] == key else None
-    before = _prepared_tree_identity(release.parent, previous=previous)
+    layout = cached.get('identity_layout') if cached is not None and previous is not None else None
+    before = _prepared_tree_identity(release.parent, previous=previous, layout=layout)
     if (before is not None and cached is not None and cached['key'] == key
             and cached['identity'] == before
             and _prepared_dependencies_unchanged(cached['evidence'])
-            and _prepared_tree_identity(release.parent, previous=before) == before
+            and _prepared_tree_identity(release.parent, previous=before, layout=layout) == before
             and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         return copy.deepcopy(cached['evidence'])
     # No stale fallback: every mismatch, unreadable path, membership change or
@@ -3150,11 +3167,12 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
     _PREPARED_EVIDENCE_CACHE = None
     evidence = _validate_base_evidence(base, release)
     after = _prepared_tree_identity(release.parent, previous=before)
-    if (before is not None and before == after
+    if (before is not None and after is not None and before == after
             and _prepared_dependencies_unchanged(evidence)
             and _prepared_tree_identity(release.parent, previous=after) == after
             and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         _PREPARED_EVIDENCE_CACHE = {'key': key, 'identity': after,
+                                    'identity_layout': _prepared_identity_layout(after),
                                     'evidence': copy.deepcopy(evidence)}
     return evidence
 
