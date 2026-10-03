@@ -120,6 +120,35 @@ process.stdout.write(JSON.stringify({registry:r,matrix:m}));'''
         return {'status': 'BLOCKED_COMBINED_VALIDATION', 'combined_patch': None,
                 'condition': run.stderr[-4000:], 'inputs': consumed}
     verified = json.loads(run.stdout)
+    # The whole pricing receiver owns typed witnesses, historical retention and
+    # exact legacy snapshots. Taxonomy/dynamic PASS cannot stand in for it.
+    validation_root = out / 'pricing-validation-root'
+    validation_root.mkdir(parents=True, exist_ok=True)
+    validation_root = validation_root.resolve()
+    overlays = ['--ro-bind', str(release), str(validation_root)]
+    for name, value in [('program-registry.json', verified['registry']), ('provider-pricing-matrix.json', verified['matrix'])]:
+        source = release / 'data' / name
+        proposed = out / 'pricing-validation-inputs' / name
+        proposed.parent.mkdir(parents=True, exist_ok=True)
+        if er.read(source) == value:
+            proposed.write_bytes(source.read_bytes())
+        else:
+            er.put(proposed, value)
+        overlays += ['--ro-bind', str(proposed.resolve()), str(validation_root / 'data' / name)]
+    pricing = subprocess.run(['bwrap', '--unshare-net', '--die-with-parent', '--ro-bind', '/', '/',
+                              *overlays, 'node', str(validation_root / 'scripts/validate-provider-pricing-matrix.mjs')],
+                             text=True, capture_output=True, timeout=90)
+    d.unchanged(bound)
+    for path, digest in consumed.items():
+        if er.sha(path) != digest:
+            raise RuntimeError('COMPOSITION_INPUT_DRIFT')
+    d.put(out / 'PRICING-VALIDATION.json', {'exit_code': pricing.returncode,
+          'stdout': pricing.stdout, 'stderr': pricing.stderr, 'originals_read_only': True})
+    if pricing.returncode:
+        return {'status': 'BLOCKED_PRICING_VALIDATION', 'combined_patch': None,
+                'validation_path': str(out / 'PRICING-VALIDATION.json'), 'inputs': consumed}
+    if json.loads(pricing.stdout).get('status') != 'PASS':
+        raise RuntimeError('PRICING_RECEIVER_PASS_MISSING')
     targets = []
     for name, value in [('program-registry.json', verified['registry']), ('provider-pricing-matrix.json', verified['matrix'])]:
         path = release / 'data' / name
