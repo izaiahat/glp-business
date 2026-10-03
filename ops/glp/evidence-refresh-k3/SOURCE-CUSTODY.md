@@ -60,3 +60,22 @@ holds/date authority, writes the registry/Sheet, dispatches review, enables a
 writer, publishes, releases or sends. Qualified-fact adjudication and the sole
 candidate writer remain separate held contracts. Runtime operational acceptance
 belongs to the parent, not to these fixture tests or source CI.
+
+## Daily progress successor
+
+The stage now bridges existing same-day raw taxonomy captures into K3 without
+network access or factual approval. A source-pinned continuation preserves the
+original RUN and receipts. The declared Shed alias waits on ShedRx, rather than
+being misclassified as a missing profile. Review regeneration invokes a disjoint
+current-base composer and produces hash-bound report-only intake only after
+whole-base native validation. It neither bypasses stale rows nor installs a live
+writer. Governance and commercial holds are unchanged.
+
+The Pallas excerpt correction is bound to the actual saved capture
+`reports/ops/glp38-20260915/taxonomy-refresh/run-20261002T120118652689Z/pallas-health-review-primary.json`
+received at `2026-10-02T12:01:28.411212+00:00`. Both retained molecule quotes
+now include `injection`; no tags or price clocks are added. RxSpan's changed
+catalog link remains UNKNOWN. The qualified Eden source already on main still
+requires its paired renderer and factual successor adoption: installing this
+consumer does not fabricate that separate GLP98 source adoption or clear the
+whole-registry taxonomy validator. Preserve its exit1 until genuinely resolved.

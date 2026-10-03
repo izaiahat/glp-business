@@ -51,6 +51,8 @@
 /ops/glp/evidence-refresh-k3/*
 !/ops/glp/evidence-refresh-k3/daily_evidence_refresh.py
 !/ops/glp/evidence-refresh-k3/review_evidence.py
+!/ops/glp/evidence-refresh-k3/compose_current_base.py
+!/tests/test_glp80_daily_progress.py
 !/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
 !/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md
@@ -485,6 +487,8 @@
 !/ops/glp345-a4/SOURCE-PINS.predecessor.json
 !/ops/glp345-a4/wrapper.predecessor.py
 !/ops/glp345-a4/README.md
+!/ops/glp345-a4/weekly.predecessor.py
+!/tests/test_glp341_weekly_adoption.py
 !/tests/test_glp334_conversion_reconciliation.py
 !/ops/glp334-conversion-reconciliation.md
 

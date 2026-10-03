@@ -234,8 +234,18 @@ def test_all_58_rows_accounted_for_and_all_48_near_expiry_selected(producer):
 
 
 def test_nine_original_policies_and_evidence_rules_are_unchanged(producer):
-    old = {pid: producer.POLICIES[pid] for pid, row in SNAPSHOT['programs'].items() if row['previously_covered']}
+    old = copy.deepcopy({pid: producer.POLICIES[pid] for pid, row in SNAPSHOT['programs'].items() if row['previously_covered']})
     assert len(old) == 9
+    # Exact captured Pallas wording successor; reverse only this reviewed delta
+    # before testing the immutable nine-policy predecessor oracle.
+    pallas = old['pallas-health-review']
+    assert pallas['quotes'] == {'molecule_tags': {
+        'semaglutide': 'Compounded semaglutide injection is $139 for your first month',
+        'tirzepatide': 'compounded tirzepatide injection is $179 for your first month'}}
+    assert pallas.pop('finding') == 'Retained first-party capture received 2026-10-02T12:01:28.411212Z adds the word injection to both existing molecule excerpts. No additional tags, price renewal, or RxSpan inference.'
+    pallas['quotes']['molecule_tags'] = {
+        'semaglutide': 'Compounded semaglutide is $139 for your first month',
+        'tirzepatide': 'compounded tirzepatide is $179 for your first month'}
     assert hashlib.sha256(json.dumps(old, sort_keys=True).encode()).hexdigest() == SNAPSHOT['original_policies_sha256']
     tree = ast.parse(SOURCE.read_text())
     for name, expected in SNAPSHOT['original_functions_source_sha256'].items():
