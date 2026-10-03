@@ -2124,7 +2124,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "5d206ccfa2177d62a1463a57e90af945d3d4b6018ab221eb1ba3a811b000861a"
+      "sha256": "945b0380b46ee2a3eadfc2a2dde64ada9f37a77aa53320a277d47ff93dc14703"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -3714,7 +3714,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "6750df522879e269c99919bfd0e2ee4090becc4450b4f1a33d7cf2f4af6419e0"
+      "sha256": "10d310bcad5d698420895e2e89c2c65e78b8db5d2db7d2e6ece7500c8c3a107a"
     },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [

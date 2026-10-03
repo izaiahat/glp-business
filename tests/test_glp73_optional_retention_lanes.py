@@ -68,3 +68,20 @@ def test_missing_required_releases_root_stays_fail_closed(flagship):
     (flagship / "releases").rmdir()
     with pytest.raises(archiver.SiteAuthorityError, match="release_alias_root_unreadable"):
         archiver.release_symlink_target_references()
+
+
+def test_unknown_recovery_pair_cannot_age_out_with_empty_registry():
+    # Actual GLP-110 counterexample: ordinary F13 --inspect selected this old
+    # archive_history directory with refs=set(). The interrupted source must
+    # also remain protected even after its age guard eventually admits it.
+    source = Path('/home/ubuntu/sandboxes/claude-sdk-maintenance-20260922')
+    archive = Path('/home/ubuntu/business/archive/f13-growth-retention/20261002T003626Z')
+    for root in (archive, source):
+        assert archiver._reference_protects(root, set())
+        assert archiver._reference_protects(root / 'retained-member', set())
+        assert archiver._reference_protects(root.parent, set())
+        assert not archiver._reference_protects(root.with_name(root.name + '-unrelated'), set())
+    # An unrelated genuine reference retains the same symmetric protection.
+    unrelated = Path('/independent/retained')
+    assert archiver._reference_protects(unrelated / 'member', {unrelated})
+    assert not archiver._reference_protects(Path('/independent/ordinary'), set())

@@ -74,7 +74,22 @@ OPS_ALERT_BOOTSTRAP = (
     "exec(compile(source,source_path,'exec'),namespace,namespace)"
 )
 
+# Exact non-expiring custody hold, not a new recovery/execution mechanism.
+# UNKNOWN native execution 437d02f1fc5748abafc0fb4080b03ad6: 66 survivors,
+# eight missing paths with unknown provenance. Evidence is retained in
+# reports/ops/f11-exact-recovery-20261002/LOCAL-RECONCILIATION.json,
+# SHA256 c2636553424089c30489172420016777c707a30c64c695da6ce798135d8b382f.
+# Original 74-member tar SHA256:
+# a918609f9d8372047fbc0a05d8f7cf426520b2e3c2cbbf58dc95512a76b8eef7.
+# Evidence disappearance, age, Git damage, or a verified disposition ack MUST
+# NOT clear this hold. Release requires separately reviewed source authority.
+UNKNOWN_RECOVERY_ROOTS = (
+    HOME / "sandboxes" / "claude-sdk-maintenance-20260922",
+    BUSINESS / "archive" / "f13-growth-retention" / "20261002T003626Z",
+)
+
 PROTECTED = (
+    *UNKNOWN_RECOVERY_ROOTS,
     REPORTS / "loopos-runs",
     REPORTS / "glp-clinic-scout" / "affiliate-machine" / "g6-r1a-wirein-20260806",
     REPORTS / "glp-clinic-scout" / "seo-machine",
@@ -5180,7 +5195,8 @@ def site_reference_context(
     rollback_index: ActiveRollbackIndex | None = None,
 ) -> dict[str, Any]:
     refs: set[Path] = {
-        path.resolve(strict=False) for path in PROTECTED if under(path, FLAGSHIP)
+        path.resolve(strict=False) for path in PROTECTED
+        if under(path, FLAGSHIP) or path in UNKNOWN_RECOVERY_ROOTS
     }
     authority: dict[str, Any] | None = None
     active_index = rollback_index
@@ -5250,7 +5266,8 @@ def referenced_roots(
             raise SiteAuthorityError(str(context["site_authority_error"]))
         return set(context["refs"])
     refs: set[Path] = {
-        path.resolve(strict=False) for path in PROTECTED if under(path, FLAGSHIP)
+        path.resolve(strict=False) for path in PROTECTED
+        if under(path, FLAGSHIP) or path in UNKNOWN_RECOVERY_ROOTS
     }
     active_index = rollback_index or build_active_rollback_index(deadline=deadline)
     if rollback_index is not None:
@@ -5264,8 +5281,12 @@ def referenced_roots(
 
 def _reference_protects(path: Path, refs: set[Path]) -> bool:
     resolved = path.resolve(strict=False)
+    # F13 discovery and fresh pre-R2/per-removal revalidation share this gate.
+    # Keep the exact recovery pair even when the ordinary registry is empty or
+    # a destructive checkpoint rebuilds its reference set from current inputs.
     return any(
-        resolved == ref or under(resolved, ref) or under(ref, resolved) for ref in refs
+        resolved == ref or under(resolved, ref) or under(ref, resolved)
+        for ref in (*refs, *UNKNOWN_RECOVERY_ROOTS)
     )
 
 
