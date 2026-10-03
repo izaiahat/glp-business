@@ -42,6 +42,23 @@ def machine(monkeypatch, tmp_path):
     return module
 
 
+def test_registered_duplicate_census_never_repeats_sheet_effects(machine, tmp_path, monkeypatch):
+    terms = machine
+    monkeypatch.setattr(terms, 'RUNS_ROOT', tmp_path)
+    monkeypatch.setattr(terms, 'claim_weekly_window', lambda: {'duplicate': True})
+    monkeypatch.setattr(terms, 'run_supply_census', lambda directory: (directory, {'networks': {}}))
+    monkeypatch.setattr(terms, 'census_contract', lambda summary, xen: {'status': 'PARTIAL'})
+    def forbidden(*args, **kwargs):
+        raise AssertionError('duplicate census reached weekly effects')
+    for name in ['read_live_sheet', 'stage_backlog', 'drain_queue']:
+        monkeypatch.setattr(terms, name, forbidden)
+    result = terms.run_machine(first_run=False, approval_events=False,
+                               stage=True, resume_census=True)
+    assert result['mode'] == 'read_only_census_resume'
+    assert all(value == 0 for value in result['effects'].values())
+    assert (tmp_path / 'latest-census-resume.json').is_file()
+
+
 def test_pro_f5_unknown_currency_stays_unknown_and_cannot_compete(machine, tmp_path):
     from scripts import affiliate_payout_policy as policy
     source = {'name': 'Fixture Clinic', 'network': 'impact', 'program_id': 'rail',
@@ -127,7 +144,7 @@ def test_supply_launch_excludes_held_network(machine, monkeypatch, tmp_path):
     from types import SimpleNamespace
     scripts = tmp_path / 'scripts'
     scripts.mkdir()
-    (scripts / 'marketplace_supply_sweep.py').touch()
+    (scripts / 'affiliate_catalog_batch.py').touch()
     monkeypatch.setattr(machine, 'SCRIPTS', scripts)
     monkeypatch.setattr(machine, 'collector_runtime_preflight', lambda: {'status': 'PASS'})
     def launched(command, **kwargs):

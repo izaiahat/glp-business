@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 655,
+  "tracked_count": 658,
   "files": {
     "tests/test_glp76_native_terminal_base.py": {
       "kind": "test",
@@ -449,7 +449,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "190f76ed5b07cd401894d2c6f6da5831aae8c72ee2c7cf8d5592792ff70ffb64"
+      "sha256": "890661dc20165bae2555bcd4e69830fe574c0f4df9aa30916a623e729cb6e27d"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -729,14 +729,14 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "ee80c755fc6ce7c058472867f4c7e030adc0f828c63d7d94d030946ca0f82cc3"
+      "sha256": "e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "356ed9ffed0d5feed7477d05d6bd7214f0767d3f65c420bb86f668704ca2ac9c"
+      "sha256": "b952f95b9714b72c3615b05d40f343f3428f3a5fbbd6bf4effdef694bf8bb9f2"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -870,7 +870,7 @@
         "hermes:d5d5b954f303"
       ],
       "kind": "script",
-      "sha256": "35d2cef1454f5cb1beef912f6d2a2e9be6dac2f74afde5fbdccebb560d37349a"
+      "sha256": "87cb8b968fa2b8433f4a1105fe4f66e5b4cc0f2581121afc30a6412897afddab"
     },
     "ops/hermes-cron-scripts/glp_cron_error_sensor.py": {
       "callers": [
@@ -1355,7 +1355,7 @@
         "wrapper:ops/hermes-cron-scripts/inbox_control_plane_cron.py"
       ],
       "kind": "script",
-      "sha256": "7c13ca288f82ae061888e5a7b5773f10ea09284102f65471de2959fb4b5c2aef"
+      "sha256": "3204eabea035bf1fe3d14c2621ebe40b31de89df7d6a802cb3852894cefb5605"
     },
     "scripts/affiliate_marketplace_update_sheet.py": {
       "callers": [
@@ -2179,7 +2179,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d46d6208a2d5b4b6c913722c65d551375a02b96f1a14530f7b4e8865ed48d35e"
+      "sha256": "032c84248a46f3a49cc4a0ab8160eb048a1faed1451bb729fe917898afc78516"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2548,7 +2548,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c9e64a1d6e827d701c08522f8f687220233c4d36e7a9cd0c32f2503d90c8a751"
+      "sha256": "0fca0756230237c2240ef2549b33e8da75d62262da052435e08d774185b26da7"
     },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
@@ -3497,7 +3497,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "35becfb167b436ea666a3bff69f761fa20e6bca328d096e8f215a39ffbac1fdb"
+      "sha256": "828dfeb5311ee70bdde50d0c9edd66f99f6de859710bfb4d7478a97fc499f9dc"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3518,7 +3518,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "0aa058329cd59d9259659c77c0654b27f752dc767fc8cfbfb29be40dd293569c"
+      "sha256": "6ac181b991e9621c738b8355bcea865126648506256be9e5dbd5ee32b05fa15e"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4400,6 +4400,28 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "f73b7039034f6c0648db216ff4fbe07d3312eeaedede531af07833d9378dfd62"
+    },
+    "scripts/affiliate_catalog_batch.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:ecbe6fdc0163",
+        "scripts/affiliate_best_terms_machine.py"
+      ],
+      "sha256": "7bd22500c5a7c3145bb8a7683741106a3e481e1091cf38784018bdb98e970695"
+    },
+    "scripts/affiliate_catalog_discovery.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:58202b06bdc0"
+      ],
+      "sha256": "b419913e1f2cdd40aae28a002599d1ad4ada184a842f9cfb5dfaafeb7c93d556"
+    },
+    "tests/test_affiliate_catalog_batch.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "58d5f90d31ee97aeebf9cbc915da960a3b1b4fb665b05fa7adadcd717d9e8569"
     }
   }
 }
