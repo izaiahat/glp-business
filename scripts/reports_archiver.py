@@ -3058,6 +3058,49 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
     return evidence
 
 
+def _prepared_predecessor_identity_evidence(base: dict[str, Any], current: Path) -> tuple[Path, dict[str, str]]:
+    """Consume the authenticated predecessor snapshot emitted by the native publisher.
+
+    Called only after full current prepared-publication validation. This does not
+    admit a reports lane: UUID/root must match the hash-bound prior pointer, and
+    its exact manifest/terminal receipt must independently bind that same pair.
+    """
+    prepared, _ = _read_json_bytes(current.parent / 'PREPARED.json', label='predecessor_preparation')
+    snapshot = prepared.get('predecessor_pointer', {})
+    try:
+        raw = base64.b64decode(snapshot['bytes_base64'], validate=True)
+        if (len(raw) != snapshot['bytes'] or hashlib.sha256(raw).hexdigest() != snapshot['sha256']):
+            raise ValueError('snapshot_digest_mismatch')
+        prior = json.loads(raw)
+        validate_pointer_shape(prior, releases_root=None, require_release_dirs=True)
+        wanted = base['supersedes']
+        if any(prior[k] != wanted[k] or snapshot[k] != wanted[k] for k in ('deployment_id', 'release_root')):
+            raise ValueError('predecessor_identity_mismatch')
+        predecessor = Path(prior['release_root'])
+        if predecessor.resolve(strict=True) != predecessor or not predecessor.is_dir():
+            raise ValueError('predecessor_namespace_invalid')
+        manifest_path, manifest_sha = _evidence_entry(prior, 'manifest')
+        receipt_path, receipt_sha = _evidence_entry(prior, 'final_receipt')
+        manifest, _ = _read_json_bytes(manifest_path, label='prepared_predecessor_manifest', expected_sha256=manifest_sha)
+        receipt, _ = _read_json_bytes(receipt_path, label='prepared_predecessor_receipt', expected_sha256=receipt_sha)
+        if (manifest.get('schema') != 'glp-opus-release-deployment-manifest-v1'
+                or manifest.get('release_root') != str(predecessor)
+                or manifest.get('release_tree_sha256') != prior['release_tree_sha256']
+                or receipt.get('schema') != 'glp-opus-production-terminal-receipt-v1'
+                or receipt.get('status') != 'PASS_PRODUCTION_TERMINAL'
+                or _receipt_deployment_id(receipt) != prior['deployment_id']
+                or receipt.get('evidence_sha256') != {manifest_path.name: manifest_sha}
+                or receipt.get('immutable_closure', {}).get('release_tree_sha256') != prior['release_tree_sha256']
+                or receipt.get('immutable_closure', {}).get('public_tree_sha256') != prior['public_tree_sha256']):
+            raise ValueError('predecessor_terminal_binding_mismatch')
+        return predecessor, {'method': 'native_prepared_predecessor_snapshot',
+                             'pointer_sha256': snapshot['sha256'], 'manifest_path': str(manifest_path),
+                             'manifest_sha256': manifest_sha, 'final_receipt_path': str(receipt_path),
+                             'final_receipt_sha256': receipt_sha}
+    except (KeyError, TypeError, ValueError, RuntimeError, OSError) as exc:
+        raise SiteAuthorityError(f'prepared_predecessor_identity_invalid:{exc}') from exc
+
+
 def load_site_tree_authority() -> dict[str, Any]:
     """Load and cross-validate the canonical current/predecessor authority chain."""
     base_path = _canonical_base_path()
@@ -3150,16 +3193,21 @@ def load_site_tree_authority() -> dict[str, Any]:
     refs: set[Path] = {current}
     predecessor: Path | None = None
     supersedes = base["supersedes"]
-    # The shared schema has already required both exact predecessor identities.
-    predecessor = _site_direct_reference(
-        supersedes["release_root"],
-        label="predecessor_release",
-        lanes={"releases"},
-        require_directory=True,
-    )
-    predecessor_identity_evidence = _validate_predecessor_identity_evidence(
-        supersedes["deployment_id"], str(predecessor)
-    )
+    # Legacy predecessors keep their exact lane/remint checks. Prepared
+    # successors consume the publisher's authenticated previous-pointer bytes;
+    # a directory under reports is never admitted merely by its location.
+    if prepared_format and Path(supersedes['release_root']).parent != FLAGSHIP / 'releases':
+        predecessor, predecessor_identity_evidence = _prepared_predecessor_identity_evidence(base, current)
+    else:
+        predecessor = _site_direct_reference(
+            supersedes["release_root"],
+            label="predecessor_release",
+            lanes={"releases"},
+            require_directory=True,
+        )
+        predecessor_identity_evidence = _validate_predecessor_identity_evidence(
+            supersedes["deployment_id"], str(predecessor)
+        )
     refs.add(predecessor)
     for payload in (base, manifest, receipt):
         for value in _collect_explicit_rollback_values(payload):
@@ -6985,6 +7033,56 @@ def run_loaded_worker_bounded(
         tree_scope.close()
 
 
+def _verified_reuse_rows() -> list[dict[str, Any]]:
+    path = ARCHIVE_ROOT / 'verified-reuse-index.json'
+    if not path.exists():
+        return []
+    index, _ = _read_json_bytes(path, label='archive_reuse_index')
+    if index.get('schema') != 'f12-r2-verified-reuse-v1' or not isinstance(index.get('objects'), list):
+        raise RuntimeError('archive_reuse_index_invalid')
+    rows = index['objects']
+    if len(rows) > 5000:
+        raise RuntimeError('archive_reuse_index_oversized')
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RuntimeError('archive_reuse_index_row_invalid')
+        key = row.get('r2_key', '')
+        if (row.get('r2_bucket') != getattr(r2_offload, 'BUCKET', 'tilton-archives')
+                or not re.fullmatch(r'archive/f12-disk-archival/[0-9]{8}T[0-9]{6}Z/[^/]+\.tar\.gz', key)
+                or '..' in Path(key).parts or not SHA256_RE.fullmatch(str(row.get('sha256', '')))
+                or type(row.get('bytes')) is not int or row['bytes'] <= 0
+                or row.get('get_sha256') != row['sha256'] or row.get('verified') is not True):
+            raise RuntimeError('archive_reuse_index_row_invalid')
+    return rows
+
+
+def _offload_archive(archive: Path, archive_sha: str) -> dict[str, Any]:
+    """Use an exact already-stored archive only after fresh service checksum proof.
+
+    The index is a lookup hint, not deletion authority. Local exact-source tar
+    verification and the normal post-provider source/reference gates still run.
+    An indexed remote mismatch refuses; it never falls through to a duplicate PUT.
+    """
+    size = archive.stat().st_size
+    matches = [r for r in _verified_reuse_rows() if r['sha256'] == archive_sha and r['bytes'] == size]
+    if not matches:
+        return r2_offload.offload(archive, archive_sha, delete_local=False)
+    row = sorted(matches, key=lambda r: r['r2_key'])[0]
+    head = r2_offload._client().head_object(Bucket=row['r2_bucket'], Key=row['r2_key'], ChecksumMode='ENABLED')
+    checksum = base64.b64encode(bytes.fromhex(archive_sha)).decode()
+    verified = (head.get('ResponseMetadata', {}).get('HTTPStatusCode') == 200
+                and head.get('ContentLength') == size
+                and head.get('Metadata', {}).get('sha256') == archive_sha
+                and head.get('ChecksumSHA256') == checksum)
+    return {'r2_bucket': row['r2_bucket'], 'r2_key': row['r2_key'],
+            'r2_status': 'EXISTING_VERIFIED' if verified else 'VERIFY_FAILED',
+            'verified': verified, 'bytes': size, 'sha256': archive_sha,
+            'deleted_local': False, 'r2_put_attempted': False,
+            'head_status': head.get('ResponseMetadata', {}).get('HTTPStatusCode'),
+            'r2_checksum_sha256_b64': head.get('ChecksumSHA256'),
+            'verify_method': 'existing_object_fresh_head_service_sha256'}
+
+
 def run_r2_offload_bounded(
     archive: Path,
     archive_sha: str,
@@ -7015,11 +7113,7 @@ def run_r2_offload_bounded(
             except OSError:
                 pass
             try:
-                result = r2_offload.offload(
-                    archive,
-                    archive_sha,
-                    delete_local=False,
-                )
+                result = _offload_archive(archive, archive_sha)
             except BaseException as exc:
                 result = {
                     "r2_status": "FAILED",
@@ -7307,7 +7401,11 @@ def _offhost_verified(
         return False
     return bool(
         isinstance(r2, dict)
-        and r2.get("r2_status") == "UPLOADED_VERIFIED"
+        and (r2.get("r2_status") == "UPLOADED_VERIFIED" or (
+            r2.get('r2_status') == 'EXISTING_VERIFIED'
+            and isinstance(archive_sha, str) and SHA256_RE.fullmatch(archive_sha)
+            and r2.get('r2_put_attempted') is False and r2.get('head_status') == 200
+            and r2.get('r2_checksum_sha256_b64') == base64.b64encode(bytes.fromhex(archive_sha)).decode()))
         and r2.get("verified") is True
         and r2.get("sha256") == archive_sha
         and r2.get("bytes") == archive_size
@@ -9445,6 +9543,47 @@ def _site_removal_revalidation(
     return None
 
 
+def _reuse_source_archive(source_relative: Path, before: dict[str, Any], content: dict[str, Any],
+                          *, run_context: RunContext | None, deadline: RunDeadline | None):
+    """Match a materialized prior tar to the COMPLETE current source, never its name alone."""
+    safe = str(source_relative).replace('/', '__')
+    for row in _verified_reuse_rows():
+        name = Path(row['r2_key']).name
+        if name[:-7].rsplit('-', 1)[0] != safe:
+            continue
+        archive = BUSINESS / row['r2_key']
+        if not archive.exists():
+            continue
+        if archive.resolve(strict=True) != archive or archive.is_symlink() or not archive.is_file():
+            raise RuntimeError('archive_reuse_namespace_invalid')
+        def check(write_fd, worker_deadline):
+            try:
+                verified = _source_archive_verify_worker(archive, source_relative, before, content,
+                                                         write_fd, worker_deadline)
+            except RuntimeError as exc:
+                if str(exc).startswith('archive_member_'):
+                    return {'source_matches': False}
+                raise
+            if verified['archive_sha256'] != row['sha256'] or verified['archive_size_bytes'] != row['bytes']:
+                raise RuntimeError('archive_reuse_local_digest_moved')
+            # Content checks alone are not sufficient for reuse: preserve the
+            # same uid/gid/mode/mtime representation as a newly created GNU tar.
+            with tarfile.open(archive, mode='r:gz') as tf:
+                for member in tf:
+                    worker_deadline.check('archive_reuse_metadata')
+                    value = (HOME / _normalized_tar_name(member.name)).lstat()
+                    if (stat.S_IMODE(value.st_mode) != member.mode or value.st_uid != member.uid
+                            or value.st_gid != member.gid or int(value.st_mtime) != int(member.mtime)):
+                        return {'source_matches': False}
+            return {**verified, 'source_matches': True}
+        result, _events = run_loaded_worker_bounded(check, run_context=run_context,
+            stage='archive_reuse_source_verify', cap_seconds=TAR_MAX_SECONDS,
+            operation_deadline=deadline or RunDeadline.start(TAR_MAX_SECONDS))
+        if result.get('source_matches') is True:
+            return archive, result
+    return None
+
+
 def archive_one(
     row: dict[str, Any],
     archive_dir: Path,
@@ -9538,70 +9677,77 @@ def archive_one(
     partial = archive.with_suffix(archive.suffix + ".partial")
     if not safe_symlinks(source, deadline=deadline):
         return {"path": str(source), "status": "SKIPPED", "reason": "symlink_escapes_source"}
-    try:
-        tar_deadline = deadline or RunDeadline.start(TAR_MAX_SECONDS)
-        tar_result = _with_free_space_guard(
-            lambda: run_process_group(
-                [
-                    "/usr/bin/tar",
-                    "--create",
-                    "--use-compress-program=/usr/bin/pigz",
-                    "--file",
-                    str(partial),
-                    "--directory",
-                    str(HOME),
-                    str(source_relative),
-                ],
-                deadline=tar_deadline,
-                cap_seconds=TAR_MAX_SECONDS,
-                stage="tar_archive",
+    reused = _reuse_source_archive(source_relative, before, content,
+                                  run_context=run_context, deadline=deadline)
+    if reused is not None:
+        archive, verify_result = reused
+        archive_sha = verify_result['archive_sha256']
+        member_count = verify_result['member_count']
+    else:
+        try:
+            tar_deadline = deadline or RunDeadline.start(TAR_MAX_SECONDS)
+            tar_result = _with_free_space_guard(
+                lambda: run_process_group(
+                    [
+                        "/usr/bin/tar",
+                        "--create",
+                        "--use-compress-program=/usr/bin/pigz",
+                        "--file",
+                        str(partial),
+                        "--directory",
+                        str(HOME),
+                        str(source_relative),
+                    ],
+                    deadline=tar_deadline,
+                    cap_seconds=TAR_MAX_SECONDS,
+                    stage="tar_archive",
+                    run_context=run_context,
+                ),
                 run_context=run_context,
-            ),
-            run_context=run_context,
-        )
-        if tar_result.returncode != 0:
-            raise RuntimeError(f"tar_failed:{tar_result.stderr[-1000:]}")
-    except BaseException as exc:
-        _cleanup_partial_or_fail(partial, exc)
-        raise
-    try:
-        os.chmod(partial, 0o600)
-        verify_deadline = deadline or RunDeadline.start(TAR_MAX_SECONDS)
-        verify_result, _verify_events = run_loaded_worker_bounded(
-            lambda write_fd, worker_deadline: _source_archive_verify_worker(
-                partial,
-                source_relative,
-                before,
-                content,
-                write_fd,
-                worker_deadline,
-            ),
-            run_context=run_context,
-            stage="source_archive_verify",
-            cap_seconds=TAR_MAX_SECONDS,
-            operation_deadline=verify_deadline,
-        )
-        partial_stat = partial.lstat()
-        if (
-            stat.S_ISLNK(partial_stat.st_mode)
-            or not stat.S_ISREG(partial_stat.st_mode)
-            or partial_stat.st_size != verify_result.get("archive_size_bytes")
-            or verify_result.get("verified") is not True
-        ):
-            raise RuntimeError("source_archive_worker_result_or_identity_mismatch")
-        archive_sha = str(verify_result["archive_sha256"])
-        if not SHA256_RE.fullmatch(archive_sha):
-            raise RuntimeError("source_archive_worker_digest_invalid")
-        member_count = int(verify_result["member_count"])
-        _check_deadline(deadline, "candidate:before_archive_commit")
-        if run_context is not None:
-            run_context.assert_worker_boundary(deadline=deadline)
-        os.replace(partial, archive)
-        if run_context is not None:
-            run_context.effects["archive_files_created"] += 1
-    except BaseException as exc:
-        _cleanup_partial_or_fail(partial, exc)
-        raise
+            )
+            if tar_result.returncode != 0:
+                raise RuntimeError(f"tar_failed:{tar_result.stderr[-1000:]}")
+        except BaseException as exc:
+            _cleanup_partial_or_fail(partial, exc)
+            raise
+        try:
+            os.chmod(partial, 0o600)
+            verify_deadline = deadline or RunDeadline.start(TAR_MAX_SECONDS)
+            verify_result, _verify_events = run_loaded_worker_bounded(
+                lambda write_fd, worker_deadline: _source_archive_verify_worker(
+                    partial,
+                    source_relative,
+                    before,
+                    content,
+                    write_fd,
+                    worker_deadline,
+                ),
+                run_context=run_context,
+                stage="source_archive_verify",
+                cap_seconds=TAR_MAX_SECONDS,
+                operation_deadline=verify_deadline,
+            )
+            partial_stat = partial.lstat()
+            if (
+                stat.S_ISLNK(partial_stat.st_mode)
+                or not stat.S_ISREG(partial_stat.st_mode)
+                or partial_stat.st_size != verify_result.get("archive_size_bytes")
+                or verify_result.get("verified") is not True
+            ):
+                raise RuntimeError("source_archive_worker_result_or_identity_mismatch")
+            archive_sha = str(verify_result["archive_sha256"])
+            if not SHA256_RE.fullmatch(archive_sha):
+                raise RuntimeError("source_archive_worker_digest_invalid")
+            member_count = int(verify_result["member_count"])
+            _check_deadline(deadline, "candidate:before_archive_commit")
+            if run_context is not None:
+                run_context.assert_worker_boundary(deadline=deadline)
+            os.replace(partial, archive)
+            if run_context is not None:
+                run_context.effects["archive_files_created"] += 1
+        except BaseException as exc:
+            _cleanup_partial_or_fail(partial, exc)
+            raise
 
     base_result: dict[str, Any] = {
         "path": str(source),
@@ -9609,7 +9755,8 @@ def archive_one(
         "reason": row["reason"],
         "archive": str(archive),
         "archive_sha256": archive_sha,
-        "archive_created": True,
+        "archive_created": reused is None,
+        "archive_reused": reused is not None,
         "r2_call_attempted": False,
         "archive_members": member_count,
         "source_files": before["files"],
@@ -9715,7 +9862,7 @@ def archive_one(
                 stage="candidate_r2",
             )
         else:
-            r2 = r2_offload.offload(archive, archive_sha, delete_local=False)
+            r2 = _offload_archive(archive, archive_sha)
     except ActiveTestFixtureReferenceProtected as exc:
         return blocked_result(
             "ACTIVE_TEST_FIXTURE_REFERENCE_PROTECTED",
@@ -10380,6 +10527,44 @@ def _cron_archive_verify_worker(
     }
 
 
+def _reuse_cron_archive(row: dict[str, Any], *, run_context: RunContext | None,
+                        deadline: RunDeadline | None):
+    for cached in _verified_reuse_rows():
+        if Path(cached['r2_key']).name[:-7].rsplit('-', 1)[0] != 'cron-output__' + row['job_id']:
+            continue
+        archive = BUSINESS / cached['r2_key']
+        if not archive.exists():
+            continue
+        if archive.resolve(strict=True) != archive or archive.is_symlink() or not archive.is_file():
+            raise RuntimeError('archive_reuse_namespace_invalid')
+        def check(_fd, worker_deadline):
+            try:
+                count = _verify_batch_tar(archive, row['members'], deadline=worker_deadline)
+            except RuntimeError as exc:
+                if str(exc).startswith('cron_archive_'):
+                    return {'source_matches': False}
+                raise
+            digest = sha256_file(archive, deadline=worker_deadline)
+            if digest != cached['sha256'] or archive.stat().st_size != cached['bytes']:
+                raise RuntimeError('archive_reuse_local_digest_moved')
+            with tarfile.open(archive, mode='r:gz') as tf:
+                for expected, member in zip(row['members'], tf):
+                    worker_deadline.check('archive_reuse_cron_metadata')
+                    value = Path(expected['path']).lstat()
+                    if (stat.S_IMODE(value.st_mode) != member.mode or value.st_uid != member.uid
+                            or value.st_gid != member.gid or value.st_mtime != member.mtime):
+                        return {'source_matches': False}
+            return {'source_matches': True, 'archive_sha256': digest,
+                    'archive_size_bytes': cached['bytes'], 'member_count': count,
+                    'verified': True, 'exact_manifest_verified': True}
+        result, _events = run_loaded_worker_bounded(check, run_context=run_context,
+            stage='archive_reuse_cron_verify', cap_seconds=TAR_MAX_SECONDS,
+            operation_deadline=deadline or RunDeadline.start(TAR_MAX_SECONDS))
+        if result.get('source_matches') is True:
+            return archive, result
+    return None
+
+
 def archive_file_batch(
     row: dict[str, Any],
     archive_dir: Path,
@@ -10411,44 +10596,49 @@ def archive_file_batch(
     archive = archive_dir / f"cron-output__{row['job_id']}-{stamp()}.tar.gz"
     partial = archive.with_suffix(archive.suffix + ".partial")
     operation_deadline = deadline or RunDeadline.start(TAR_MAX_SECONDS)
-    try:
-        worker_result, _worker_events = _with_free_space_guard(
-            lambda: run_loaded_worker_bounded(
-                lambda write_fd, worker_deadline: _cron_archive_verify_worker(
-                    partial,
-                    row["members"],
-                    write_fd,
-                    worker_deadline,
+    reused = _reuse_cron_archive(row, run_context=run_context, deadline=deadline)
+    if reused is not None:
+        archive, worker_result = reused
+        archive_sha = worker_result['archive_sha256']
+    else:
+        try:
+            worker_result, _worker_events = _with_free_space_guard(
+                lambda: run_loaded_worker_bounded(
+                    lambda write_fd, worker_deadline: _cron_archive_verify_worker(
+                        partial,
+                        row["members"],
+                        write_fd,
+                        worker_deadline,
+                    ),
+                    run_context=run_context,
+                    stage="cron_archive_verify",
+                    cap_seconds=TAR_MAX_SECONDS,
+                    operation_deadline=operation_deadline,
                 ),
                 run_context=run_context,
-                stage="cron_archive_verify",
-                cap_seconds=TAR_MAX_SECONDS,
-                operation_deadline=operation_deadline,
-            ),
-            run_context=run_context,
-        )
-        partial_stat = partial.lstat()
-        if (
-            stat.S_ISLNK(partial_stat.st_mode)
-            or not stat.S_ISREG(partial_stat.st_mode)
-            or partial_stat.st_size != worker_result.get("archive_size_bytes")
-            or worker_result.get("verified") is not True
-            or worker_result.get("exact_manifest_verified") is not True
-            or worker_result.get("member_count") != len(row["members"])
-        ):
-            raise RuntimeError("cron_archive_worker_result_or_identity_mismatch")
-        archive_sha = str(worker_result["archive_sha256"])
-        if not SHA256_RE.fullmatch(archive_sha):
-            raise RuntimeError("cron_archive_worker_digest_invalid")
-        _check_deadline(deadline, "cron_batch:before_archive_commit")
-        if run_context is not None:
-            run_context.assert_worker_boundary(deadline=deadline)
-        os.replace(partial, archive)
-        if run_context is not None:
-            run_context.effects["archive_files_created"] += 1
-    except BaseException as exc:
-        _cleanup_partial_or_fail(partial, exc)
-        raise
+            )
+            partial_stat = partial.lstat()
+            if (
+                stat.S_ISLNK(partial_stat.st_mode)
+                or not stat.S_ISREG(partial_stat.st_mode)
+                or partial_stat.st_size != worker_result.get("archive_size_bytes")
+                or worker_result.get("verified") is not True
+                or worker_result.get("exact_manifest_verified") is not True
+                or worker_result.get("member_count") != len(row["members"])
+            ):
+                raise RuntimeError("cron_archive_worker_result_or_identity_mismatch")
+            archive_sha = str(worker_result["archive_sha256"])
+            if not SHA256_RE.fullmatch(archive_sha):
+                raise RuntimeError("cron_archive_worker_digest_invalid")
+            _check_deadline(deadline, "cron_batch:before_archive_commit")
+            if run_context is not None:
+                run_context.assert_worker_boundary(deadline=deadline)
+            os.replace(partial, archive)
+            if run_context is not None:
+                run_context.effects["archive_files_created"] += 1
+        except BaseException as exc:
+            _cleanup_partial_or_fail(partial, exc)
+            raise
 
     base = {
         "path": str(job_root),
@@ -10457,7 +10647,8 @@ def archive_file_batch(
         "reason": row["reason"],
         "archive": str(archive),
         "archive_sha256": archive_sha,
-        "archive_created": True,
+        "archive_created": reused is None,
+        "archive_reused": reused is not None,
         "r2_call_attempted": False,
         "batch_manifest_sha256": row["stats"]["manifest_sha256"],
         "source_files": len(row["members"]),
@@ -10521,7 +10712,7 @@ def archive_file_batch(
                 stage="cron_batch_r2",
             )
         else:
-            r2 = r2_offload.offload(archive, archive_sha, delete_local=False)
+            r2 = _offload_archive(archive, archive_sha)
     except (DeadlineExceeded, ArchivalAborted):
         cleanup_local_archive(archive)
         raise

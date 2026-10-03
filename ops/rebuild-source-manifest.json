@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 677,
+  "tracked_count": 678,
   "files": {
+    "tests/test_glp110_archive_reuse.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "850a13e504c72c846962afb05b5ef19f5615f98de94c98c3cbacaf23d81cedd3"
+    },
     "scripts/glp_host_ingress.py": {
       "kind": "script",
       "callers": [
@@ -2189,7 +2196,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "cad3a76e2df6a60bdd065b0f56beeeb994cc5f800ed9cc2d4090d9cacbc64223"
+      "sha256": "0bccec6b6ee351d08a0ba635dbcb8b16897816d1bf50cef1bd464866a7fe4b0b"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2216,7 +2223,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0629181e8125f63f0e888c6e666a0c8c0d39a9ef58f433117398316482ab3d73"
+      "sha256": "550f68f55ec66aed14a22e214152024c1accf2ba0eb68e3048be9bee49a2c45d"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3001,7 +3008,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "ee60060f5077892371e94b0721d3065c880f25f1defee9d59331ae348c58b6e4"
+      "sha256": "d530905789f810bf8e9d8e5f5e93bd8b657ea5d5d1b7b40ade18a2ee436fd79e"
     },
     "tests/test_glp73_sensor_hook_source.py": {
       "callers": [
