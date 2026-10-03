@@ -3805,7 +3805,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0b8727471ff0f2cca67386cccef5784c7e4c001604d54869c892bebe72f53ace"
+      "sha256": "961a5936126b74f92dcbe64d952b3a0b041b45ad29704c7c09f8bc8e18888269"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
