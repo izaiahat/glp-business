@@ -2986,6 +2986,7 @@ def _prepared_tree_identity(
         if previous is not None and len(previous) <= _PREPARED_CACHE_MAX_ENTRIES:
             lstat = os.lstat
             directories = []
+            children: dict[str, set[str]] = {}
             for expected in previous:
                 path = expected[0]
                 info = lstat(path)
@@ -2996,12 +2997,18 @@ def _prepared_tree_identity(
                                info.st_mtime_ns, info.st_ctime_ns)
                 if actual != expected:
                     break
+                if len(expected) == 10:
+                    parent = os.path.dirname(path)
+                    if parent in children:
+                        children[parent].add(os.path.basename(path))
                 if stat.S_ISDIR(info.st_mode):
                     directories.append(expected)
+                    if len(expected) == 10:
+                        children[path] = set()
             else:
-                # A restored directory mtime still changes ctime. Recheck after
-                # all file stats so a newly added name cannot hide behind a
-                # directory observed earlier in this pass.
+                # Recheck names as well as stats: finite-resolution directory
+                # timestamps can collide, but complete membership must not.
+                # Ancestors bind namespace only; do not enumerate siblings.
                 for expected in directories:
                     path = expected[0]
                     info = lstat(path)
@@ -3012,6 +3019,10 @@ def _prepared_tree_identity(
                                    info.st_mtime_ns, info.st_ctime_ns)
                     if actual != expected:
                         break
+                    if path in children:
+                        with os.scandir(path) as entries:
+                            if {entry.name for entry in entries} != children[path]:
+                                break
                 else:
                     return previous
             # Drift gets native enumeration, never a reduced membership proof.

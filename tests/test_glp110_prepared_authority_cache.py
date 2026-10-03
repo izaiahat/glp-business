@@ -79,6 +79,27 @@ def test_every_drift_reenters_native_validator_and_never_uses_stale_proof(prepar
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
 
 
+def test_added_member_with_directory_stat_collision_forces_native_validation(prepared, monkeypatch):
+    release, member, external, calls, module = prepared
+    archiver._registered_prepared_release_evidence({}, release)
+    old_directory_stat = release.lstat()
+    (release / 'late-member.bin').write_bytes(b'not approved')
+    original_lstat = os.lstat
+
+    def colliding_lstat(path, *args, **kwargs):
+        value = original_lstat(path, *args, **kwargs)
+        if str(path) == str(release):
+            # Model a finite-resolution directory-stat collision. All name
+            # enumeration and all other inode reads remain real syscalls.
+            return old_directory_stat
+        return value
+
+    monkeypatch.setattr(os, 'lstat', colliding_lstat)
+    with pytest.raises(RuntimeError, match='native_authority_invalid'):
+        archiver._registered_prepared_release_evidence({}, release)
+    assert len(calls) == 2
+
+
 def test_mutation_during_full_validation_cannot_seed_cache(prepared):
     release, member, external, calls, module = prepared
     native = module._validate_base_evidence
