@@ -153,7 +153,7 @@ def project(registry, mappings, snapshot, receipts=(), root=ROOT):
             current['promotion_denied'] = True
             current['lifecycle'] = previous.get('lifecycle', 'reported')
             current['reactivation_requires_separate_approval'] = True
-        if previous.get('adverse_history'):
+        if previous and previous.get('adverse_history'):
             current['adverse_history'] = previous['adverse_history']
         if current['lifecycle'] == 'withdrawn':
             history = list(current.get('adverse_history', []))

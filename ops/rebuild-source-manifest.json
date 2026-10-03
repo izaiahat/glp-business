@@ -15,7 +15,7 @@
       "callers": [
         "scripts/glp_affiliate_sync_job.py"
       ],
-      "sha256": "1dc61e22df84ee7f9cccd3ab2fb0d6093226c6a105b5e3c8e56c8ec0c42ef13f"
+      "sha256": "e8938ae5f195291a554e6ccfb8bd9bd64e636c3bc51c7e37c199f4d76dc047cc"
     },
     "scripts/glp_affiliate_release.py": {
       "kind": "script",
