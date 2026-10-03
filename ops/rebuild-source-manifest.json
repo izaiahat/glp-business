@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 648,
+  "tracked_count": 649,
   "files": {
+    "tests/test_glp76_native_terminal_base.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "ed2843c8287c6d6775205c75f810cf8b626e82678885d4e6cbca1619a0801bef"
+    },
     "scripts/glp110_restore_pruned_execution.py": {
       "kind": "script",
       "callers": [
