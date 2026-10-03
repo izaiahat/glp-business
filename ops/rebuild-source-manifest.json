@@ -2198,7 +2198,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "7acc184d201ed24c6447b2304fc8b1ca2dac98beaedb0bca0786b4dac43b58fc"
+      "sha256": "87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -4178,7 +4178,7 @@
       "sha256": "024ead95c627b281fc84bb954050d2f6423100602946c4299f1bc5c25cf7f390"
     },
     "tests/test_source_lock_owner.py": {
-      "sha256": "9137c9486917c670219e08487b0102ab4ab0641476549970fe88b68f5dfa6362"
+      "sha256": "77f58bb06a5dafe18a6d0e0a40b129a60bcb94806d2f9ebfbdb3a9ed2dfad507"
     },
     "tests/test_f07_registered_weekly_entry.py": {
       "kind": "test",
