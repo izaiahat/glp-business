@@ -49,7 +49,7 @@ suites+=(tests/test_glp329_add_approved_row_full_grid_dry_run.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 suites+=(tests/test_glp320_readonly_grouping.py tests/test_agent_exec_routing.py)
 suites+=(systems/seo-blog-machine/tests/test_workweek_boundary.py)
-suites+=(tests/test_glp_affiliate_registry_sync.py tests/test_glp_affiliate_release.py)
+suites+=(tests/test_glp_affiliate_registry_sync.py tests/test_glp_affiliate_release.py tests/test_glp_affiliate_absence_audit.py)
 suites+=(tests/test_affiliate_discovery_resume.py tests/test_affiliate_discovery_admission.py tests/test_affiliate_best_terms_recovery.py tests/test_affiliate_terms_fanout.py tests/test_pro_opaque_program_identity.py)
 suites+=(tests/test_receive_one_discord_message.py tests/test_rook_mcp_events.py tests/test_rook_communication.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \

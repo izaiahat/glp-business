@@ -79,7 +79,11 @@ const census=assertRawHeldOutput(rawHeldOutputCensus(docs,inputs,GO_RUNTIME_MANI
 writeFileSync('artifacts/ops/affiliate-sync-census.json',JSON.stringify(census));"""
     run(argv+['node','--input-type=module','-e',code],log=report/'hold-census.log')
     census=read(source/'artifacts/ops/affiliate-sync-census.json')
-    design={'head':head,'exit_code':0,'checks':['affiliate-relationship-sync','raw-held-output','native-build-validators'],'raw_held':census}
+    from glp_affiliate_absence_audit import audit
+    absence = audit(source, read(report/'registry/registry-sync.json'), read(report/'registry/sheet-snapshot.json'))
+    save(report/'ADVERSE-ABSENCE.json', absence)
+    design={'head':head,'exit_code':0,'checks':['affiliate-relationship-sync','raw-held-output','native-build-validators'],'raw_held':census,
+            'unmapped_adverse_evidence':{'path':str(report/'ADVERSE-ABSENCE.json'),'sha256':sha(report/'ADVERSE-ABSENCE.json')}}
     save(report/'DESIGN.json',design)
     if package_tree(source/'public')!=(tree,files):raise RuntimeError('build_output_changed_during_checks')
     names=run(['git','ls-files','-z'],cwd=source).rstrip('\0').split('\0')
@@ -105,9 +109,13 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     outcome=sync(source,report/'registry',True)
     prior=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     prior_root=Path(prior['release_root'])
-    surfaces=['data/program-registry.json','src/affiliate-relationship-sync.mjs','src/go-runtime-selection.mjs','scripts/build-staging.mjs']
+    surfaces=['data/program-registry.json','src/affiliate-relationship-sync.mjs','src/go-runtime-selection.mjs','scripts/build-staging.mjs','functions/go/program-manifest.js']
     if outcome['changed']==0 and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
-        result={'status':'PASS_ALREADY_CURRENT','registry_changed':0,'deployment_id':prior['deployment_id'],'run_type':os.environ.get('GLP_RUN_TYPE','scheduled')}
+        from glp_affiliate_absence_audit import audit
+        absence=audit(source,outcome,read(report/'registry/sheet-snapshot.json'),public=prior_root/'public')
+        save(report/'ADVERSE-ABSENCE.json',absence)
+        result={'status':'PASS_ALREADY_CURRENT','registry_changed':0,'deployment_id':prior['deployment_id'],'run_type':os.environ.get('GLP_RUN_TYPE','manual'),
+                'unmapped_adverse':absence['remaining_unmapped'],'evidenced_no_site_presence':absence['evidenced_no_live_offer_presence'],'unaccounted':absence['unaccounted']}
         save(report/'RESULT.json',result);return result
     if outcome['changed']:
         argv=namespace(config,source,report)
@@ -134,6 +142,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     run(['git','fetch','origin','main'],cwd=source,log=report/'fetch.log')
     if run(['git','rev-parse','origin/main^{tree}'],cwd=source)!=run(['git','rev-parse','HEAD^{tree}'],cwd=source):raise RuntimeError('main_advanced_rebase_required')
     save(report/'MERGE.json',merged)
+    save(report/'CI.json',{**evidence,**merged})
     lock=[sys.executable,'-B',str(ROOT/'scripts/candidate_build_lock.py')]
     state=json.loads(run(lock+['status']))
     if state['status']!='FREE':raise RuntimeError('build_slot_busy:'+state.get('holder','unknown'))
@@ -142,7 +151,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     try:
         build_gate(source,report,config,head)
         result=package_and_publish(source,report,seat,publish=publish)
-        result.update(run_type=os.environ.get('GLP_RUN_TYPE','scheduled'),source_pr=source_pr)
+        result.update(run_type=os.environ.get('GLP_RUN_TYPE','manual'),source_pr=source_pr)
         save(report/'RESULT.json',result)
         return result
     finally:run(lock+['release','--seat',seat])
@@ -172,8 +181,32 @@ def provision(config_path):
     return {'status':'PROVISIONED','config':str(CONFIG),'bindings':len(bindings)}
 
 
+def resume_prepared(report, config, publish):
+    """Manual registered continuation after a no-publication preparation run."""
+    from glp_affiliate_registry_sync import sync
+    from glp_affiliate_release import package_and_publish
+    source=report/'candidate';gate=read(report/'GATE.json')
+    if (report/'publish-intent.json').exists():
+        raise ValueError('publication_intent_exists_inspect_exact_native_target')
+    fresh=report/'manual-installed-readback'
+    sync_result=sync(source,fresh,apply=False)
+    if sync_result['changed']:raise ValueError('current_sheet_changed_rebuild_required')
+    original=read(report/'CI.json')
+    ci(original['url'],report)
+    lock=[sys.executable,'-B',str(ROOT/'scripts/candidate_build_lock.py')]
+    seat='affiliate-sync-'+gate['head'][:12]
+    run(lock+['acquire','--seat',seat,'--reason','Installed manual F04/F06 continuation of verified prepared bytes'])
+    try:
+        result=package_and_publish(source,report,seat,publish=publish)
+        save(report/'MANUAL-INSTALLED-RESULT.json',{**result,'run_type':'manual_registered_entry',
+             'fresh_sheet_diff':len(sync_result['changes']),'source_pr':original['url']})
+        return result
+    finally:run(lock+['release','--seat',seat])
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--config',type=Path,default=CONFIG)
+    p.add_argument('--resume-report',type=Path)
     p.add_argument('--provision-from',type=Path)
     p.add_argument('--output',type=Path);p.add_argument('--source-ref');p.add_argument('--source-pr');p.add_argument('--publish',action='store_true')
     a=p.parse_args()
@@ -186,11 +219,13 @@ def main():
         # An uncertain prior publication blocks any later effect until exact native readback.
         for intent in root.glob('*/publish-intent.json'):
             if not (intent.parent/'PUBLISH.json').exists():raise RuntimeError('prior_publication_uncertain:'+str(intent))
+        if a.resume_report:
+            print(json.dumps(resume_prepared(a.resume_report.resolve(),config,a.publish)));return 0
         report=a.output or root/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         report.mkdir(parents=True,exist_ok=False)
         try:result=execute(config,report,source_ref=a.source_ref,source_pr=a.source_pr,publish=a.publish)
         except Exception as e:
-            save(report/'FAILURE.json',{'status':'FAIL','error':str(e),'run_type':os.environ.get('GLP_RUN_TYPE','scheduled')});raise
+            save(report/'FAILURE.json',{'status':'FAIL','error':str(e),'run_type':os.environ.get('GLP_RUN_TYPE','manual')});raise
         print(json.dumps(result));return 0
 
 if __name__=='__main__':raise SystemExit(main())

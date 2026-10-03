@@ -15,9 +15,12 @@ def test_operator_release_cannot_forge_authority_or_skip_build(tmp_path,monkeypa
 
 def test_build_ci_design_and_hold_proofs_are_required(tmp_path):
     head='a'*40;rows=[{'file':'index.html','sha256':'b'*64}]
+    absence=tmp_path/'absence.json'
+    absence.write_text(json.dumps({'status':'PASS','unaccounted':0,'remaining_unmapped':0,'evidenced_no_live_offer_presence':0,'rows':[]}))
     records={'build':{'head':head,'exit_code':0,'files':rows},
-      'ci':{'headRefOid':head,'statusCheckRollup':[{'status':'COMPLETED','conclusion':'SUCCESS'}]},
+      'ci':{'state':'MERGED','headRefOid':head,'statusCheckRollup':[{'status':'COMPLETED','conclusion':'SUCCESS'}]},
       'design':{'head':head,'exit_code':0,'checks':['affiliate-relationship-sync','raw-held-output','native-build-validators'],
+                'unmapped_adverse_evidence':release.pin(absence),
                 'raw_held':{'held':[{'id':'fella-health'}],'htmlFiles':1,'jsonFiles':1,'anchors':[],'routes':[]}}}
     def gate():
         refs={}

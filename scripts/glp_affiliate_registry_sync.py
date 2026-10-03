@@ -35,6 +35,11 @@ def encode(data):
 def selected_relationships(site):
     """Exact maintained identity crosswalk; current selection wins over history."""
     mappings = {}
+    registry_ids = {p['program_id'] for p in read(site / 'data/program-registry.json')['programs']}
+    for p in read(site / 'data/approved-program-registry.json')['programs']:
+        target = p.get('existing_release_alias') or p.get('registry_id')
+        if target in registry_ids and p.get('provider_program_id') and p.get('network'):
+            mappings[target] = (p['network'].casefold(), str(p['provider_program_id']))
     for p in read(site / 'data/affiliate-wire-in-approvals.json')['programs']:
         if p.get('existing_release_alias') and p.get('provider_program_id'):
             mappings[p['existing_release_alias']] = (p['network'].casefold(), str(p['provider_program_id']))

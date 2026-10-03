@@ -41,7 +41,7 @@ def validate_build_evidence(receipt, rows):
     if build.get('exit_code')!=0 or build.get('head')!=receipt['head'] or build.get('files')!=rows:
         raise ValueError('affiliate_release_build_binding_invalid')
     checks=ci.get('statusCheckRollup')
-    if ci.get('headRefOid')!=receipt['head'] or not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):
+    if ci.get('state')!='MERGED' or ci.get('headRefOid')!=receipt['head'] or not checks or any(c.get('status')!='COMPLETED' or c.get('conclusion')!='SUCCESS' for c in checks):
         raise ValueError('affiliate_release_ci_not_green')
     if (design.get('exit_code')!=0 or design.get('head')!=receipt['head']
             or design.get('checks')!=['affiliate-relationship-sync','raw-held-output','native-build-validators']):
@@ -50,6 +50,11 @@ def validate_build_evidence(receipt, rows):
     if (not census.get('held') or not census.get('htmlFiles') or not census.get('jsonFiles')
             or census.get('anchors')!=[] or census.get('routes')!=[]):
         raise ValueError('affiliate_release_hold_census_nonpass')
+    absence=bound(design['unmapped_adverse_evidence'])
+    if (absence.get('status')!='PASS' or absence.get('unaccounted')!=0
+            or absence.get('remaining_unmapped')!=len(absence.get('rows',[]))
+            or absence.get('evidenced_no_live_offer_presence')!=absence.get('remaining_unmapped')):
+        raise ValueError('affiliate_release_unmapped_adverse_unaccounted')
 
 
 def validate_operator_release(review, prepared):
