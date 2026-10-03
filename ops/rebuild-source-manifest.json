@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 670,
+  "tracked_count": 671,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e93b52e1870fde22e241b576396b3af038bb8428b413be99247230cf0678243b"
+      "sha256": "351239af36a9e97ebce73172ccb760b79361935fd45a7d17ed7afb6a62a50ef5"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "af4ced8e516ebc57abf1e67784ea1c045ee52df370137e6db2d780bde50a5fe0"
+      "sha256": "b88ebcc51640f409daceb28db491e31ddc0b2dd7d5ea434f8ada68b319192ea4"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3406,7 +3406,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "23a4a9d40b54b7f41dbb7d0dba3ce775fbc05b87a160a5617af18448d804f9bb"
+      "sha256": "15f8c97c5069cdbf7ace819d2ad2e5b7e4e942424dda65fca42df4f18604ff83"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -4509,6 +4509,13 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "ed2843c8287c6d6775205c75f810cf8b626e82678885d4e6cbca1619a0801bef"
+    },
+    "tests/test_glp341_native_registry_lock.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "5721a635a2e6701a87d72dc8fead3dffcbbdcd5f48b3c0b84fadac213c46ea24"
     }
   }
 }

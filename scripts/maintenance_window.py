@@ -228,6 +228,7 @@ def native_registry_lock(scheduler):
     deadline = time.monotonic() + 5.0
     require(scheduler._jobs_file_lock.acquire(timeout=5.0), 'native_registry_lock_timeout')
     fd = None
+    handle = None
     state = getattr(scheduler, '_jobs_lock_state', None)
     entered = False
     try:
@@ -242,15 +243,23 @@ def native_registry_lock(scheduler):
                 require(remaining > 0, 'native_registry_lock_timeout')
                 time.sleep(min(0.05, remaining))
                 require(time.monotonic() < deadline, 'native_registry_lock_timeout')
+        handle = os.fdopen(fd, 'a+')
+        fd = None  # The file object now owns the genuinely flocked descriptor.
         if state is not None:
             state.depth = 1  # Native tool calls reuse this held descriptor.
+            state.cross_process = True
+            state.custody = (scheduler._jobs_lock_file(), handle)
             state.load_stamp = None
             entered = True
         yield  # Outside the contention handler: ambiguous failures propagate.
     finally:
         if entered:
             state.depth = 0
+            state.cross_process = False
+            state.custody = None
             state.load_stamp = None
+        if handle is not None:
+            handle.close()
         if fd is not None:
             os.close(fd)
         scheduler._jobs_file_lock.release()
