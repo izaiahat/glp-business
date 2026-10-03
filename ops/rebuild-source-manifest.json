@@ -8,8 +8,23 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 703,
+  "tracked_count": 705,
   "files": {
+    "scripts/repin_reports_archiver_dependents.py": {
+      "kind": "script",
+      "callers": [
+        "reviewed lock-held F12/F13 coupled-pin adoption"
+      ],
+      "sha256": "9baf9c084e6a7d66913831ec0e854bcac48d56929313568bb7d3156579ca346a"
+    },
+    "tests/test_repin_reports_archiver_dependents.py": {
+      "kind": "test",
+      "callers": [
+        "CI",
+        "disposable native home"
+      ],
+      "sha256": "25bb3eb57f34aafbfdade08d94d21d31f1961581479a2e3bdeed001a2fe98a46"
+    },
     "scripts/glp_host_ingress.py": {
       "kind": "script",
       "callers": [
@@ -2216,7 +2231,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b141aa7a35a73821a75ce4abc81f4a5517f69ec08c4017f7336116bbc58039b"
+      "sha256": "349f1a24f160764033c5baa0c403536f3aac0784dd9654c67132d5a4a9fdbbab"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
