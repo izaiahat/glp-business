@@ -12,6 +12,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "systems/seo-blog-machine/scripts"
@@ -170,3 +171,67 @@ def test_rejected_generated_lineage_rolls_back_and_publishes_with_stock(tmp_path
     with pytest.raises(RuntimeError, match="article_stock_route_identity_invalid"):
         builder.stage_article_image_lineage(
             target, {"canonical_path": ROUTE, "h1": article["h1"]}, None, KEY, catalogs, catalog_paths)
+
+
+@pytest.mark.parametrize("stock_available", [True, False])
+def test_real_rejected_receipt_selects_real_stock_or_text_only(tmp_path, monkeypatch, stock_available):
+    """Exercise the actual native receipt rejection and actual fallback staging.
+
+    Only the unrelated renderer-source overlay is stubbed. Pixels and receipts
+    are synthetic test inputs, not production provenance or acceptance output.
+    """
+    builder = load_builder()
+    article = {"canonical_path": ROUTE, "h1": "Lineage fallback", "batch_gate_passed": True}
+    generated = generated_receipt(builder.article_images, article["h1"])
+    builder.article_images.apply_article_image_metadata(article, generated)
+    target, catalogs, catalog_paths, manifest_path, state_path = candidate(tmp_path, builder, article)
+    state = {"schema": "glp-pass2-route-image-generation-v1", "job_set_type": "gpt_image_2",
+             "model": "GPT Image 2", "quality": "high", "resolution": "4k", "records": {}}
+    state_path.write_text(json.dumps(state))
+    manifest = json.loads(manifest_path.read_text())
+    manifest["route_master_state"] = {"path": builder.ROUTE_MASTER_STATE_RELATIVE.as_posix(),
+                                      "sha256": builder.sha(state_path)}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(builder.article_image_release_contract, "configure", lambda *args: None)
+    monkeypatch.setattr(builder, "configure_article_route_master_state_overlay", lambda *args: None)
+    monkeypatch.setattr(builder, "patch_article_image_visual_qa_for_release", lambda *args: None)
+    events = []
+    monkeypatch.setattr(builder.article_images, "record_event", events.append)
+    derivative = target / "assets/derivatives"
+    derivative.mkdir(parents=True)
+    if stock_available:
+        for suffix in builder.IMAGE_SUFFIXES:
+            dimensions = (1200, 630) if suffix == "-og.jpg" else (
+                (800, 450) if suffix.startswith("-800") else (1600, 900))
+            Image.new("RGB", dimensions, "#485367").save(derivative / ("editorial-evidence-hero" + suffix))
+
+    # The pre-selector build called this exact tier directly and aborted here.
+    with pytest.raises(RuntimeError, match="article_route_master_receipt_source_invalid"):
+        builder.stage_new_article_route_master(target, article, generated, KEY, catalogs)
+    lineage, effective, selection = builder.stage_article_image_lineage(
+        target, article, generated, KEY, catalogs, catalog_paths)
+    assert selection["attempts"][0]["status"] == "REJECTED"
+    assert "article_route_master_receipt_source_invalid" in effective["reason"]
+    assert "images" not in article and article["batch_gate_passed"] is True
+    assert events == [effective]
+    receipt_path = target / lineage["receipt"]["path"]
+    assert builder.sha(receipt_path) == lineage["receipt"]["sha256"]
+    receipt = json.loads(receipt_path.read_text())
+    manifest = json.loads(manifest_path.read_text())
+    if stock_available:
+        assert selection["tier"] == "stock_fallback" and len(lineage["family"]) == 7
+        assert receipt["status"] == "FALLBACK" and receipt["provider"] == "stock"
+        assert receipt["fallback_key"] == "editorial-evidence-hero"
+        assert receipt["stock_source_sha256"] == builder.sha(derivative / "editorial-evidence-hero-1600.webp")
+        assert manifest["records"][0]["generation_model"] == "stock"
+        assert manifest["external_generation_services_used"] == 0
+        assert json.loads(state_path.read_text())["records"][ROUTE]["provider"] == "stock"
+        for output in lineage["family"]:
+            assert builder.sha(derivative / output["name"]) == output["sha256"]
+    else:
+        assert selection["tier"] == "text_only" and lineage["family"] == []
+        assert receipt["status"] == "TEXT_ONLY" and receipt["reason"] == "stock_family_missing"
+        assert manifest["article_count"] == 1 and manifest["route_master_count"] == 0
+        assert article["image_availability"] == "text_only"
+        assert not list(derivative.glob(KEY + "*"))
+    assert json.loads(catalog_paths["content_batch"].read_text())["articles"][0] == article

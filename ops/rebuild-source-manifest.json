@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "aa0d5d5773ceae5c43026f0f8d7637f46b4f723e6365190d9d2150d2c58293d3"
+      "sha256": "60e6afd0c0d44a30fb2328836a0ed6b3b1047be59001a592e89bdf7eb580397f"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -4359,7 +4359,7 @@
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
-      "sha256": "8a5a6be1acba4fab1451a16a8899dd500cbbe5dc393de259814d35c4757b433d"
+      "sha256": "5e2eb3ca2a52870f24c5f4e080f7a8bbae07ec7f83a06553427dc46b887e9e1b"
     },
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",
