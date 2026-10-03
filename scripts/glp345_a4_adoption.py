@@ -35,6 +35,10 @@ WRAPPER_BEFORE = 'b39204ba33af406227ef430087a84f4217c9d1b2a97924ce68b42724a38d98
 # installed monitor closure. No dependency/module rollback or arbitrary repin.
 WEEKLY_GENERATION = 'glp341-weekly-pr115-after-pr165-20261002'
 WEEKLY_SOURCE = 'b951f2abb6d2c258269e3b8012ec3cfbaacb05ee'
+# Explicit report-producing run-now successor; the historical generation stays fixed.
+MANUAL_WEEKLY_GENERATION = 'glp341-weekly-manual-report-20261003'
+MANUAL_WEEKLY_SOURCE = '965433bb59dbf64d9f5689e585cfbc43ff7729b5'
+MANUAL_WEEKLY_AFTER = '5032dd52cb7069ffd99a2e17ea1d0efa9b8992c5901c3900abff4fe13687ad70'
 WEEKLY_PREDECESSOR_SOURCE = 'efe3067b460427b42cc7b796cdfe84009c3abf33'
 WEEKLY = 'reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py'
 WEEKLY_PATHS = (
@@ -80,15 +84,18 @@ def stage_pins(before, wrapper):
     return emitted, carrier
 
 
-def stage_weekly_pins(before, wrapper):
-    """Replace only obsolete consumed edges, preserving actual PR165 wrapper."""
+def stage_weekly_pins(before, wrapper, *, generation=WEEKLY_GENERATION):
+    """Replace consumed edges only; preserve the fixed historical route."""
+    if generation not in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
+        raise RuntimeError('unknown_a4_generation')
     if sha(before) != WEEKLY_MAP_BEFORE or sha(wrapper) != WEEKLY_WRAPPER_BEFORE:
         raise RuntimeError('unknown_weekly_artifact_preimage')
     if before.count(RAILS_BEFORE.encode()) != 1:
         raise RuntimeError('exact_posthog_pin_site_count')
     emitted = before.replace(RAILS_BEFORE.encode(), RAILS_AFTER.encode(), 1)
     pins = wrapper_pins(wrapper)
-    pins[str(BUSINESS / WEEKLY)] = WEEKLY_AFTER
+    pins[str(BUSINESS / WEEKLY)] = (MANUAL_WEEKLY_AFTER
+        if generation == MANUAL_WEEKLY_GENERATION else WEEKLY_AFTER)
     pins[str(BUSINESS / MAP)] = sha(emitted)
     # PR115 removes today's closeout/authoring-brief validator from collect();
     # replace those unused edges with the actual frozen historical observation.
@@ -138,8 +145,10 @@ def authenticate(checkout, generation=GENERATION):
     if (sha(body) != AFTER or (checkout / MONITOR).read_bytes() != body
             or sha(p.git(checkout, 'show', SOURCE + '^:' + MONITOR)) != BEFORE):
         raise RuntimeError('approved_monitor_source_moved')
-    if generation == WEEKLY_GENERATION:
-        p.git(checkout, 'merge-base', '--is-ancestor', WEEKLY_SOURCE, head)
+    if generation in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
+        weekly_source = MANUAL_WEEKLY_SOURCE if generation == MANUAL_WEEKLY_GENERATION else WEEKLY_SOURCE
+        weekly_after = MANUAL_WEEKLY_AFTER if generation == MANUAL_WEEKLY_GENERATION else WEEKLY_AFTER
+        p.git(checkout, 'merge-base', '--is-ancestor', weekly_source, head)
         p.git(checkout, 'merge-base', '--is-ancestor', WEEKLY_PREDECESSOR_SOURCE, head)
         snap = p.git(checkout, 'show', head + ':' + WEEKLY_SNAPSHOT)
         if sha(snap) != WEEKLY_BEFORE or p.read_regular(checkout / WEEKLY_SNAPSHOT)[0] != snap:
@@ -150,14 +159,14 @@ def authenticate(checkout, generation=GENERATION):
                            p.git(checkout, 'show', WEEKLY_PREDECESSOR_SOURCE + ':' + WRAPPER_SNAPSHOT))
         if tuple(map(sha, prior)) != (WEEKLY_MAP_BEFORE, WEEKLY_WRAPPER_BEFORE):
             raise RuntimeError('accepted_pr165_outputs_moved')
-        emitted = stage_weekly_pins(*prior)
+        emitted = stage_weekly_pins(*prior, generation=generation)
         for rel, body in zip((MAP, 'ops/hermes-cron-scripts/' + WRAPPER), emitted):
             if (p.git(checkout, 'show', head + ':' + rel) != body
                     or p.read_regular(checkout / rel)[0] != body
                     or manifest['files'][rel]['sha256'] != sha(body)):
                 raise RuntimeError('weekly_co_pin_source_moved:' + rel)
-        for rel, digest in ((WEEKLY, WEEKLY_AFTER), (RAILS, RAILS_AFTER)):
-            approved = p.git(checkout, 'show', WEEKLY_SOURCE + ':' + rel)
+        for rel, digest in ((WEEKLY, weekly_after), (RAILS, RAILS_AFTER)):
+            approved = p.git(checkout, 'show', weekly_source + ':' + rel)
             if (sha(approved) != digest or p.git(checkout, 'show', head + ':' + rel) != approved
                     or p.read_regular(checkout / rel)[0] != approved
                     or manifest['files'][rel]['sha256'] != digest):
@@ -167,7 +176,7 @@ def authenticate(checkout, generation=GENERATION):
         if not any(row['glob'] == WEEKLY and 'scripts/glp345_a4_adoption.py' in row['producers']
                    for row in registry['artifacts']):
             raise RuntimeError('weekly_producer_not_registered')
-        body = p.git(checkout, 'show', WEEKLY_SOURCE + ':' + WEEKLY)
+        body = p.git(checkout, 'show', weekly_source + ':' + WEEKLY)
     elif generation != GENERATION:
         raise RuntimeError('unknown_a4_generation')
     return head, body
@@ -180,13 +189,15 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
     root, hermes = root.resolve(strict=True), hermes.resolve(strict=True)
     if not isinstance(prepared_by, str) or not prepared_by.strip():
         raise RuntimeError('preparer_required')
-    if generation not in (GENERATION, WEEKLY_GENERATION):
+    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
         raise RuntimeError('unknown_a4_generation')
-    weekly = generation == WEEKLY_GENERATION
+    weekly = generation in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION)
+    manual = generation == MANUAL_WEEKLY_GENERATION
+    weekly_source = MANUAL_WEEKLY_SOURCE if manual else WEEKLY_SOURCE
     head, source = authenticate(checkout, generation=generation) if weekly else authenticate(checkout)
     subject = WEEKLY if weekly else MONITOR
     before = WEEKLY_BEFORE if weekly else BEFORE
-    after = WEEKLY_AFTER if weekly else AFTER
+    after = (MANUAL_WEEKLY_AFTER if manual else WEEKLY_AFTER) if weekly else AFTER
     wrapper_before = WEEKLY_WRAPPER_BEFORE if weekly else WRAPPER_BEFORE
     observed = {root / subject: p.read_regular(root / subject),
                 root / MAP: p.read_regular(root / MAP),
@@ -202,8 +213,9 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
         raise RuntimeError('source_import_baseline_moved')
     if weekly and state['hashes'].get(MAP) not in (None, WEEKLY_MAP_BEFORE):
         raise RuntimeError('map_import_baseline_moved')
-    emitted, carrier = (stage_weekly_pins if weekly else stage_pins)(
-        observed[root / MAP][0], observed[hermes / 'scripts' / WRAPPER][0])
+    emitted, carrier = (stage_weekly_pins(
+        observed[root / MAP][0], observed[hermes / 'scripts' / WRAPPER][0], generation=generation)
+        if weekly else stage_pins(observed[root / MAP][0], observed[hermes / 'scripts' / WRAPPER][0]))
     state['hashes'][subject] = after
     if weekly:
         state['hashes'][MAP] = sha(emitted)
@@ -246,7 +258,7 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
     if window is not None and (job.get('enabled') is not False or job.get('state') != 'paused'):
         raise RuntimeError('weekly_not_held_by_window')
     proposal = {'schema': 'glp345-a4-proposal-v1', 'generation': generation,
-                'producer_head': head, 'source_head': WEEKLY_SOURCE if weekly else SOURCE, 'prepared_by': prepared_by.strip(),
+                'producer_head': head, 'source_head': weekly_source if weekly else SOURCE, 'prepared_by': prepared_by.strip(),
                 'root': str(root), 'hermes': str(hermes),
                 'journal': str(Path(window.journal).resolve()) if window else None,
                 'window_preimage_sha256': sha(p.json_bytes({k: v for k, v in
@@ -290,7 +302,7 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None):
     if not isinstance(review, dict) or not isinstance(review.get('proposal'), dict):
         raise RuntimeError('independent_review_required')
     generation = review['proposal'].get('generation')
-    if generation not in (GENERATION, WEEKLY_GENERATION):
+    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
         raise RuntimeError('unknown_a4_generation')
     custody = root / 'reports/ops/pin-archive/glp345-a4' / generation
     intent = custody / 'cutover.json'
@@ -376,7 +388,7 @@ def main(argv=None):
     parser.add_argument('--root', type=Path, default=BUSINESS)
     parser.add_argument('--hermes', type=Path, default=HERMES)
     parser.add_argument('--prepared-by', default='F08 source owner')
-    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION), default=GENERATION)
+    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION), default=GENERATION)
     parser.add_argument('--window', type=Path)
     parser.add_argument('--review', type=Path)
     parser.add_argument('--apply', action='store_true')
