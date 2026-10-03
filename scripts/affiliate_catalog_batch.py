@@ -23,6 +23,7 @@ import time
 BUSINESS = Path('/home/ubuntu/business')
 MACHINE = BUSINESS / 'reports/glp-clinic-scout/affiliate-machine'
 STATE = MACHINE / 'catalog-batch/checkpoint.json'
+EVIDENCE_REVISIONS = {'awin': 'advertiser_status_preserved_v1'}
 LEGACY_SHA = '58e3073c0ae9cf957acfdae9ffd9904c4f490090ce7c1a08225a6b80e180e7da'
 
 
@@ -72,6 +73,39 @@ def portal_refusal(network, display, api_attempt=None):
     return out
 
 
+def awin_inventory(legacy, transport):
+    """Preserve advertiser status inside Awin's relationship buckets."""
+    states = {}
+    class StatusTransport:
+        def request(self, method, url, **kwargs):
+            response = transport.request(method, url, **kwargs)
+            endpoint = f'https://api.awin.com/publishers/{legacy.awin.PUBLISHER_ID}/programmes'
+            if method.upper() == 'GET' and url == endpoint and response.status == 200:
+                body = response.json()
+                rows = body if isinstance(body, list) else []
+                relationship = (kwargs.get('params') or {}).get('relationship')
+                for row in rows:
+                    states[(relationship, str(row.get('id') or ''))] = str(row.get('status') or '')
+            return response
+    source = legacy.awin.readback(StatusTransport())
+    buckets = {}
+    for normalized in source.get('programs') or []:
+        program = {**normalized, 'network_status': states.get(
+            (normalized['relationship'], normalized['program_id']), '')}
+        buckets.setdefault(program['relationship'], []).append({
+            **program, 'id': program['program_id'],
+            'displayUrl': program.get('url') or '',
+            'primaryRegion': {'countryCode': program.get('region') or ''}})
+    count = len(source.get('programs') or [])
+    return {'schema': legacy.SCHEMA, 'network': 'Awin',
+            'auth_state': source['auth_state'],
+            'relationships': {str(legacy.awin.PUBLISHER_ID): buckets},
+            'relationship_counts': {key: len(rows) for key, rows in buckets.items()},
+            'enumerated': count,
+            'reported_total': count if not source.get('blockers') else None,
+            'blockers': source.get('blockers') or []}
+
+
 def live_legacy():
     source = BUSINESS / 'scripts/marketplace_supply_sweep.py'
     if hashlib.sha256(source.read_bytes()).hexdigest() != LEGACY_SHA:
@@ -81,6 +115,7 @@ def live_legacy():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module._portal_catalog_sweep = portal_refusal
+    module.SWEEPS['awin'] = lambda transport: awin_inventory(module, transport)
     return module
 
 
@@ -120,8 +155,8 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
             if name == 'xentraffic':
                 continue
             prior = rows.get(name, {})
-            if prior.get('complete') and (now - dt.datetime.fromisoformat(
-                    prior['attempted_at'])).total_seconds() < 86400:
+            if (prior.get('complete') and prior.get('evidence_revision') == EVIDENCE_REVISIONS.get(name)
+                    and (now - dt.datetime.fromisoformat(prior['attempted_at'])).total_seconds() < 86400):
                 continue
             remaining = deadline - time.monotonic()
             if remaining <= 1:
@@ -138,7 +173,8 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
                                                 else type(exc).__name__}]}
             verdict = catalog_verdict(legacy, inventory)
             rows[name] = {'attempted_at': now.isoformat(), 'inventory': inventory,
-                          'complete': verdict['complete'], 'verdict': verdict}
+                          'complete': verdict['complete'], 'verdict': verdict,
+                          'evidence_revision': EVIDENCE_REVISIONS.get(name)}
             save(state, document)  # every network survives an interrupted parent
         summary = {'schema': 'affiliate-marketplace-supply-sweep-v1',
                    'portal_only': dict(legacy.PORTAL_ONLY),

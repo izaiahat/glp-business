@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-BUSINESS = Path(__file__).resolve().parents[2]
+BUSINESS = Path("/home/ubuntu/business")
 MACHINE = BUSINESS / "scripts/affiliate_best_terms_machine.py"
 
 
