@@ -857,6 +857,113 @@ def png_text(kind, payload, remaining):
     return text
 
 
+def png_cabx(payload):
+    """Bounded uncompressed JUMBF framing, NOT C2PA provenance verification.
+
+    C2PA 2.4 A.3.2/11.1.4; ISO 19566-5 description/content boxes.
+    CBOR/JSON and embedded image bytes stay opaque and fully marker-scanned.
+    No decompression, URL resolution, signature check or metadata exemption.
+    """
+    if not payload or len(payload) > PNG_METADATA_LIMIT:
+        raise ValueError('JUMBF bounds')
+    scan_file_markers(payload)
+    count = 0
+    suffix = bytes.fromhex('00110010800000aa00389b71')
+    containers = {b'c2pa', b'c2ma', b'c2um', b'c2as'}
+    contents = {b'c2cl': b'cbor', b'c2cs': b'cbor', b'c2db': b'cbor',
+                b'cbor': b'cbor', b'json': b'json', b'bfdb': b'bfdb'}
+
+    def box(start, limit):
+        nonlocal count
+        count += 1
+        if count > 1024 or limit - start < 8:
+            raise ValueError('JUMBF box bounds')
+        size, kind = struct.unpack('>I4s', payload[start:start + 8])
+        # Explicit sizes only: neither zero-to-EOF nor XLBox is supported.
+        if size < 8 or size > limit - start:
+            raise ValueError('JUMBF box length')
+        return kind, start + 8, start + size
+
+    def superbox(start, limit, depth):
+        if depth > 8:
+            raise ValueError('JUMBF depth')
+        kind, pos, end = box(start, limit)
+        if kind != b'jumb':
+            raise ValueError('JUMBF superbox required')
+        kind, desc, next_pos = box(pos, end)
+        if kind != b'jumd' or next_pos - desc < 18:
+            raise ValueError('JUMBF description required')
+        uuid = payload[desc:desc + 16]
+        content = uuid[:4]
+        if uuid[4:] != suffix or content not in containers | contents.keys():
+            raise ValueError('unsupported JUMBF content type')
+        toggles = payload[desc + 16]
+        if toggles & 3 != 3 or toggles & ~31:
+            raise ValueError('unsupported JUMBF toggles')
+        label_end = payload.find(b'\x00', desc + 17, next_pos)
+        if not desc + 17 < label_end <= desc + 17 + 1024:
+            raise ValueError('JUMBF label bounds')
+        scan_file_markers(payload[desc + 17:label_end])
+        label = payload[desc + 17:label_end].decode('utf-8')
+        if any(ord(c) < 32 or 127 <= ord(c) <= 159 or c in '/;?#\ufeff\uffff' for c in label):
+            raise ValueError('JUMBF label syntax')
+        if depth == 1 and (content != b'c2pa' or label != 'c2pa'):
+            raise ValueError('C2PA store required')
+        tail = label_end + 1 + (4 if toggles & 4 else 0) + (32 if toggles & 8 else 0)
+        if tail > next_pos:
+            raise ValueError('JUMBF optional field truncated')
+        if toggles & 16:
+            salt, begin, finish = box(tail, next_pos)
+            if salt != b'c2sh' or finish - begin not in {16, 32}:
+                raise ValueError('unsupported JUMBF private field')
+            scan_file_markers(payload[begin:finish])
+            tail = finish
+        if tail != next_pos:
+            raise ValueError('JUMBF description trailing bytes')
+        pos = next_pos
+        children = []
+        while pos < end:
+            # Recurse without counting the child's header twice.
+            if end - pos >= 8 and payload[pos + 4:pos + 8] == b'jumb':
+                finish = superbox(pos, end, depth + 1)
+                child, begin = b'jumb', pos + 8
+            else:
+                child, begin, finish = box(pos, end)
+                # Isolate leaf boundaries: FourCC bytes must not hide word markers.
+                scan_file_markers(payload[begin:finish])
+            if child == b'free':
+                if finish != end or not children:
+                    raise ValueError('JUMBF padding order')
+            elif content in containers:
+                if child != b'jumb':
+                    raise ValueError('unsupported JUMBF container child')
+            elif content == b'bfdb':
+                if child == b'bfdb' and not children:
+                    fields = payload[begin:finish]
+                    if not fields or fields[0] not in {0, 1}:
+                        raise ValueError('external or unsupported embedded file')
+                    strings = fields[1:].split(b'\x00', fields[0] + 2)
+                    if (len(strings) != fields[0] + 2 or strings[-1]
+                            or strings[0] not in {b'image/png', b'image/jpeg'}):
+                        raise ValueError('unsupported embedded media description')
+                    if fields[0]:
+                        name = strings[1].decode('utf-8')
+                        if not name or len(strings[1]) > 1024 or any(ord(c) < 32 for c in name):
+                            raise ValueError('embedded file name')
+                elif child != b'bidb' or children != [b'bfdb'] or begin == finish:
+                    raise ValueError('embedded file box order')
+            elif child != contents[content] or begin == finish:
+                raise ValueError('unsupported JUMBF content box')
+            children.append(child)
+            pos = finish
+        if not children or children == [b'free'] or (content == b'bfdb' and children[:2] != [b'bfdb', b'bidb']):
+            raise ValueError('missing JUMBF content')
+        return end
+
+    if superbox(0, len(payload), 1) != len(payload):
+        raise ValueError('JUMBF trailing bytes or multiple stores')
+
+
 def validate_finch_png(data):
     """Narrow PNG-only image-aware guard; unknown variants/chunks fail closed."""
     try:
@@ -899,9 +1006,11 @@ def validate_finch_png(data):
             else:
                 if parts:
                     ended_idat = True
-                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'gAMA', b'cHRM', b'sRGB', b'pHYs'}:
+                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'gAMA', b'cHRM', b'sRGB', b'pHYs', b'caBX'}:
                     raise ValueError('unsupported chunk')
-                if kind not in {b'tEXt', b'zTXt', b'iTXt'}:
+                if kind == b'caBX' and kind in seen:
+                    raise ValueError('duplicate C2PA store')
+                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'caBX'}:
                     sizes = {b'gAMA': 4, b'cHRM': 32, b'sRGB': 1, b'pHYs': 9}
                     if parts or kind in seen or length != sizes[kind]:
                         raise ValueError('metadata order or size')
@@ -912,6 +1021,8 @@ def validate_finch_png(data):
                 metadata_size += length
                 if metadata_size > PNG_METADATA_LIMIT:
                     raise ValueError('metadata bounds')
+                if kind == b'caBX':
+                    png_cabx(payload)
                 if kind in {b'tEXt', b'zTXt', b'iTXt'}:
                     text = png_text(kind, payload, PNG_METADATA_LIMIT - metadata_size)
                     # Count expanded text too; never hide compressed metadata from the guard.
