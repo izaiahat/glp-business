@@ -186,6 +186,33 @@ def test_bounded_process_admission_blocks_source_and_task_descendants_only(tmp_p
     assert all(row['start_ticks'] == 123 for row in rows)
 
 
+def test_receive_only_ingress_is_not_a_drain_worker(tmp_path, monkeypatch):
+    import hashlib
+    proc = tmp_path / 'proc'
+    proc.mkdir()
+    script = tmp_path / 'glp_host_ingress.py'
+    script.write_bytes(b'fixture receive-only server')
+    monkeypatch.setattr(admission, 'RECEIVE_ONLY_INGRESS',
+                        (str(script), hashlib.sha256(script.read_bytes()).hexdigest()))
+    base = proc_entry(proc, 31, 0, ['/usr/bin/python3', '-B', str(script), 'serve'], tmp_path)
+    thread = base / 'task/31'
+    thread.mkdir(parents=True)
+    (thread / 'children').write_text('')
+    assert admission.process_readers([], [script], proc=proc) == []
+    (base / 'cmdline').write_bytes(b'\0'.join(x.encode() for x in ['/usr/bin/python3', '-B', str(script), 'drain']))
+    assert admission.process_readers([], [script], proc=proc)[0]['pid'] == 31
+    (base / 'cmdline').write_bytes(b'\0'.join(x.encode() for x in ['/usr/bin/python3', '-B', str(script), 'serve']))
+    (thread / 'children').write_text('32')
+    assert admission.process_readers([], [script], proc=proc)[0]['pid'] == 31
+    (thread / 'children').write_text('')
+    (base / 'task/32').mkdir()
+    assert admission.process_readers([], [script], proc=proc)[0]['pid'] == 31
+    (base / 'task/32').rmdir()
+    assert admission.process_readers([script], [script], proc=proc)[0]['pid'] == 31
+    script.write_bytes(b'tampered')
+    assert admission.process_readers([], [script], proc=proc)[0]['pid'] == 31
+
+
 def test_unreadable_unrelated_pid_is_ignored_but_identified_source_blocks(tmp_path, monkeypatch):
     proc = tmp_path / 'proc'
     proc.mkdir()
