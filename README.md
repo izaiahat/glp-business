@@ -16,9 +16,10 @@ If the initial live workspace contains a curated file that differs from remote, 
 source for the existing native wrapper's Python payload, not a second monitor.
 The first curation commit preserves the installed predecessor (`b6a8a6b7…`) at
 `scripts/glp_seo_publish_failure_alert.py`; the following commit relocates the
-snapshot into the existing native-script convention. The wrapper, native outer
-pin, schedule and notification transport remain unchanged. The drift inventory
-now includes this actual Python payload instead of declaring no payloads.
+snapshot into the existing native-script convention. The narrow TEST entry also
+changes the wrapper and its exact outer co-pin; schedule, production formatting
+and notification transport remain unchanged. The drift inventory includes the
+actual Python payload instead of declaring no payloads.
 
 The sensor follows the registered `article_carrier_consume` consume-branch
 state/receipt under its existing action lock. It binds action, payload, slot,
@@ -29,16 +30,43 @@ execution-ledger fallback. Publication-lane/accepted-failure, daily dedupe and
 recovery rules are unchanged.
 
 `tests/test_glp320_host_failure_sensor.py` runs the real host receipt producer
-with fake transport into a disposable root, then the real sensor with a captured
-alert sink. This is source/fixture proof, **not** a failed production publication
-or registered live alert. The current wrapper/payload has no supported isolated
-native TEST mode; do not insert fake production receipts/events to test it.
-Independent exact-head review precedes merge and any installation. Native source
-snapshots are not installed by the ordinary business sync. Receiving must bind
-the exact source payload and inventory under fresh source/native admission and
-an independently accepted native-payload installation plan; never patch the
-installed payload, raw-repin jobs or reuse a closed window. Positive registered
-TEST delivery and clinical publication continuation remain separate acceptance.
+with fake transport into a disposable root, then the real sensor and exact shell
+entry with a captured alert sink. This is offline proof, **not** a registered
+execution or an actual failed publication.
+
+The opt-in `GLP320_FAILURE_SENSOR_TEST=failure|recovery|healthy` uses only
+`/home/ubuntu/business/reports/ops/glp320-failure-sensor-test/`. No paths, URLs,
+commands, notification destinations or production redirection are accepted.
+The directory must already contain `TEST.json` with exactly
+`{"schema":"glp320-isolated-failure-sensor-test-v1","pt_date":"2026-10-02"}`
+and `runs/` minted at that exact location by the existing offline `run_action`
+fixture (fake terminal transport, no publisher call). Do not copy path-bound
+receipts from another root. Alias/special-file, pending, unbound and uncertain
+capture states refuse without production fallback. The parent owns input/writer
+exclusion; this is not a hostile same-UID sandbox.
+
+TEST never imports the production alert hook or reads the production ledgers.
+It exercises the unchanged lane/dedupe logic, records TEST-labelled captures
+and local state, emits one explicit TEST stdout line for `failure`, suppresses
+the repeat, captures recovery without another outward delivery, and suppresses
+healthy repeat/cold healthy. Capture intent precedes output; interrupted capture
+or lost state with surviving capture refuses replay. A lost native-delivery ack
+must be reconciled at the exact message/ledger, never by resetting TEST state.
+Absent the environment variable, the default production path is unchanged and
+never reads this directory. Never persist the opt-in in the scheduler or profile.
+
+Independent combined-head review precedes merge/adoption. Native snapshots are
+not installed by business sync. The native wrapper co-pin proposal is exercised
+with the existing `fleet_pin_release.release(..., apply=False)` producer against
+a **fixture-only** registry; it is not current native adoption approval. Receiving
+must couple payload + wrapper publication and only job `76de44046a9b`'s outer
+hash under existing source/fire/native locks, full-record CAS, reader exclusion,
+custody and exact readback. The generic fleet apply is not a payload installer
+and its broad scope/rollback must not be used as a substitute. A parent-owned,
+independently accepted invocation using the existing cohort switch/native saver
+is still required; no new broad maintenance window is implied. One registered
+TEST delivery via existing ops-alerts, repeat/healthy suppression, and clinical
+publication continuation remain separate future acceptance.
 
 ## GLP331 dependency-only generation
 

@@ -9,22 +9,24 @@ urgent page per PT day, with an explicit recovery notice if the lanes recover.
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import fcntl
 import hashlib
+import io
 import json
+import os
 import re
 import sqlite3
+import stat
 import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-sys.path.insert(0, "/home/ubuntu/business/ops/operator-console")
-import red_alert_hook  # noqa: E402
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import daily_outcome_cards as outcome_cards  # noqa: E402
-sys.path.append('/home/ubuntu/business/scripts')
-from article_carrier_gate_health import accepted_failure_health  # noqa: E402
+# TEST admission precedes all host-only imports and production reads.
+TEST_ROOT = Path('/home/ubuntu/business/reports/ops/glp320-failure-sensor-test')
+TEST_SCHEMA = 'glp320-isolated-failure-sensor-test-v1'
+TEST_DAY = '2026-10-02'
 
 PT = ZoneInfo("America/Los_Angeles")
 CARRIER_JOB = "b8948c536d31"
@@ -64,6 +66,10 @@ def new_routes_today(day: str) -> list[str]:
 
 def publication_summary(day: str) -> dict[str, object]:
     """Return NEW_ROUTE and signed R2_REFRESH truth as separate lanes."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import daily_outcome_cards as outcome_cards
+    sys.path.append('/home/ubuntu/business/scripts')
+    from article_carrier_gate_health import accepted_failure_health
     day_date = dt.date.fromisoformat(day)
     routes = new_routes_today(day)
     refresh = outcome_cards.r2_refreshes_today(day_date)
@@ -120,22 +126,23 @@ def format_summary(summary: dict[str, object]) -> str:
     )
 
 
-def host_carrier_terminal(day: str) -> str | None:
+def host_carrier_terminal(day: str, *, runs: Path | None = None) -> str | None:
     """Read only the registered consume branch under its existing writer lock.
 
     Unknown/pending/held receipts are not terminal failures or retry authority.
     Never scan glob/mtime for a convenient older successful or failed receipt.
     """
+    runs = HOST_RUNS if runs is None else runs
     try:
-        with (HOST_RUNS / f"{HOST_ACTION}.lock").open("rb") as lock:
+        with (runs / f"{HOST_ACTION}.lock").open("rb") as lock:
             fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
-            state = json.loads((HOST_RUNS / f"{HOST_ACTION}-{HOST_DIGEST}.state.json").read_text())
-            common_path = HOST_RUNS / f"{HOST_ACTION}.state.json"
+            state = json.loads((runs / f"{HOST_ACTION}-{HOST_DIGEST}.state.json").read_text())
+            common_path = runs / f"{HOST_ACTION}.state.json"
             common = json.loads(common_path.read_text()) if common_path.exists() else {}
             if "pending" in state or "pending" in common:
                 return None
             path = Path(state["last_receipt"])
-            if (path.parent != HOST_RUNS or path.is_symlink()
+            if (path.parent != runs or path.is_symlink()
                     or not re.fullmatch(r"article_carrier_consume-[0-9a-f]{32}\.json", path.name)):
                 return None
             receipt = json.loads(path.read_text())
@@ -202,13 +209,20 @@ def load_state() -> dict:
 
 
 def main() -> int:
+    if 'GLP320_FAILURE_SENSOR_TEST' in os.environ:
+        return test_main(os.environ['GLP320_FAILURE_SENSOR_TEST'])
+    sys.path.insert(0, '/home/ubuntu/business/ops/operator-console')
+    import red_alert_hook
     day = pt_today()
-    state = load_state()
-    summary = publication_summary(day)
+    return evaluate(day, load_state(), publication_summary(day), carrier_terminal(day),
+                    red_alert_hook.raise_alert, lambda state: STATE.write_text(json.dumps(state)))
+
+
+def evaluate(day, state, summary, terminal, emit, save) -> int:
+    """Same lane/daily-dedupe policy for production and isolated TEST evidence."""
     new = summary["new_route"]
     refresh = summary["r2_refresh"]
     assert isinstance(new, dict) and isinstance(refresh, dict)
-    terminal = carrier_terminal(day)
     terminal_run = terminal in ("completed", "failed", "blocked")
     failures = []
     if terminal_run and new["scheduled"] and int(new["published_count"]) == 0:
@@ -222,7 +236,7 @@ def main() -> int:
 
     if all_scheduled_lanes_healthy:
         if state.get("alerted_day") == day and not state.get("recovered"):
-            red_alert_hook.raise_alert({
+            emit({
                 "severity": "RED", "source": "SEO Publish",
                 "impact": "recovered — scheduled SEO publication lanes are healthy",
                 "what": f"{format_summary(summary)}. The earlier failure self-resolved.",
@@ -233,13 +247,13 @@ def main() -> int:
                 "emergency": False, "recovery": True,
             }, live=True)
             state["recovered"] = True
-            STATE.write_text(json.dumps(state))
+            save(state)
         print(f"ok: {format_summary(summary)} on {day}")
         return 0
 
     if failures:
         if state.get("alerted_day") != day:
-            red_alert_hook.raise_alert({
+            emit({
                 "severity": "RED", "source": "SEO Publish",
                 "impact": "scheduled SEO publication lane failed: " + ", ".join(failures),
                 "what": (f"The {day} carrier run ended '{terminal}'. "
@@ -251,7 +265,7 @@ def main() -> int:
                 "dedup_key": f"SEO Publish:publication-lanes:{day}",
                 "emergency": False, "recovery": False,
             }, live=True)
-            STATE.write_text(json.dumps({"alerted_day": day, "recovered": False}))
+            save({"alerted_day": day, "recovered": False})
             print(
                 f"ALERTED: carrier={terminal}, failures={'+'.join(failures)}, "
                 f"{format_summary(summary)} on {day}"
@@ -261,6 +275,79 @@ def main() -> int:
         return 0
 
     print(f"waiting: carrier={terminal}, {format_summary(summary)}")
+    return 0
+
+
+def test_main(mode: str) -> int:
+    """One fixed report-local acceptance case, never a publication or send.
+
+    The registered native wrapper alone may deliver the single TEST stdout line.
+    No path/URL/command overrides; no production imports, ledger or native DB.
+    Receiving owns this directory and excludes writers throughout the invocation.
+    """
+    if mode not in ('failure', 'recovery', 'healthy'):
+        raise RuntimeError('TEST mode refused')
+    root = TEST_ROOT
+    # Reject aliases before reads/writes, including ancestor symlinks, hardlinks
+    # and special files. This is accidental-redirection protection, not a sandbox
+    # against a hostile same-UID writer racing the receiving owner's exclusion.
+    for path in (*root.parents, root):
+        if not stat.S_ISDIR(path.lstat().st_mode):
+            raise RuntimeError('TEST path alias or special file refused')
+    for path in root.rglob('*'):
+        info = path.lstat()
+        if not (stat.S_ISDIR(info.st_mode) or
+                (stat.S_ISREG(info.st_mode) and info.st_nlink == 1)):
+            raise RuntimeError('TEST path alias or special file refused')
+    if json.loads((root / 'TEST.json').read_text()) != {
+            'schema': TEST_SCHEMA, 'pt_date': TEST_DAY}:
+        raise RuntimeError('TEST marker refused')
+    with (root / 'test.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        state_path = root / 'test-state.json'
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        if (not isinstance(state, dict) or 'pending' in state
+                or (state and (set(state) != {'alerted_day', 'recovered'}
+                               or state['alerted_day'] != TEST_DAY
+                               or type(state['recovered']) is not bool))
+                or (not state and (root / 'captured-alerts.jsonl').exists())):
+            raise RuntimeError('TEST uncertain capture refused; reconcile without replay')
+        terminal = host_carrier_terminal(TEST_DAY, runs=root / 'runs')
+        if terminal != 'failed':
+            raise RuntimeError('TEST requires bound terminal producer failure, not unknown')
+        summary = {
+            'new_route': {'scheduled': True, 'published_count': int(mode != 'failure'),
+                          'cadence': 'M/W/F', 'accepted_failures': {}},
+            'r2_refresh': {'scheduled': True, 'ok': True, 'status': 'TEST_FIXTURE',
+                           'published_count': 2, 'completed': 2, 'required': 2, 'deficit': 0},
+        }
+        captured = []
+
+        def save(value):
+            with state_path.open('w') as handle:
+                json.dump(value, handle)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+        def capture(payload, *, live):
+            # Intent first; interruption after this point is never auto-replayed.
+            save({'pending': True})
+            event = {'schema': TEST_SCHEMA, 'test_only': True, 'payload': {
+                **payload, 'source': 'TEST — GLP320',
+                'where': 'isolated report fixture; no production publication',
+                'dedup_key': 'TEST:' + payload['dedup_key'],
+            }}
+            with (root / 'captured-alerts.jsonl').open('a') as handle:
+                handle.write(json.dumps(event) + '\n')
+                handle.flush()
+                os.fsync(handle.fileno())
+            captured.append(event)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            evaluate(TEST_DAY, state, summary, terminal, capture, save)
+        if captured and not captured[0]['payload']['recovery']:
+            print('TEST — GLP320 failure-sensor acceptance: isolated producer failure '
+                  'detected; no actual publication failed. No production alert queue or Pushover.')
     return 0
 
 

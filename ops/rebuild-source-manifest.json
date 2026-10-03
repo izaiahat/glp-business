@@ -556,7 +556,7 @@
     "README.md": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0e0b54999941e014a0d57bfb4dc0288207ef1666b4e879910a365380c0f8f0a5"
+      "sha256": "13b689c054f5b6ec96fb3cf68a8ae57ee74da65d9f077f5724bf1e077b13ba85"
     },
     "config/affiliate-sites/best-terms-selection.json": {
       "callers": [
@@ -975,7 +975,7 @@
         "hermes:76de44046a9b"
       ],
       "kind": "script",
-      "sha256": "bc11df966517025e109519d2840ea24ca4eadfdb9f7c5c339ccd455afe6751a2"
+      "sha256": "d42a5735e4b417437e83b976dbcb8f33cbbf611fb9808c2594e3b7c117189afc"
     },
     "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py": {
       "callers": [
@@ -1517,10 +1517,10 @@
       "sha256": "fa39dce69e424a23b5514b1781c7644d39338764d65204580ba2bb4e667029d7"
     },
     "tests/test_glp320_host_failure_sensor.py": {
-      "sha256": "d3f015034f96d5cfb6b4382bdb8e1de9ccabfe68c2bb15cc9c1eaa1e7adb6bd0"
+      "sha256": "eeef66b9881a27987e3fa1a17b379aba6b7bf0f29608bbab208caf1769215e2b"
     },
     "ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py": {
-      "sha256": "5c10a1615c530ba61d0a8f6cf9f986d866168e82fce29ae33b51ad455975d98e"
+      "sha256": "430a7f88585befb646dad0fc95d22d012b558143443b1d846395bd7fa8e2e994"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [
@@ -3540,7 +3540,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "5eb2f40e38ec0cb2403c45996e1a40e690b744349f44961e1b157db09e353b60"
+      "sha256": "2eab78bab27767078f37ec3f575bf658ff213a3db714f2bb37481bc0dcb400ee"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3561,7 +3561,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "cd9137e695be04ce641bb053b98cc278f8504bc0c7a2f8b132fd5a8c08247c51"
+      "sha256": "eb69ffe4f5d75e49967ce25168b4a5777ec2203fd3a0dcccaea6a12ac6bd7389"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
