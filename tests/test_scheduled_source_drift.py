@@ -371,7 +371,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert repinned == 1
     # GLP-320: exact isolated TEST entry and repaired native Python payload.
     sensor = 'ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py'
-    sensor_pin = '430a7f88585befb646dad0fc95d22d012b558143443b1d846395bd7fa8e2e994'
+    sensor_pin = '885d1da6afbb08c745ed9410b22f3d99e7856425ce56002b0a8f499ace523262'
     assert sha((ROOT/sensor).read_bytes()) == sensor_pin
     sensor_rows = [row for row in expected['jobs'] if row['id'] == '76de44046a9b']
     assert len(sensor_rows) == 1 and sensor_rows[0]['payloads'] == []

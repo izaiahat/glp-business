@@ -306,6 +306,29 @@ def test_test_capture_uncertainty_never_replays(host_failure, monkeypatch, capsy
     assert json.loads((root / 'test-state.json').read_text()) == {'pending': True}
 
 
+def test_test_intent_directory_is_durable_before_capture(host_failure, monkeypatch):
+    import os
+    import stat
+    sensor, _, _, _ = host_failure
+    root = sensor.HOST_RUNS.parent
+    (root / 'TEST.json').write_text(json.dumps({'schema': sensor.TEST_SCHEMA, 'pt_date': DAY}))
+    monkeypatch.setattr(sensor, 'TEST_ROOT', root)
+    monkeypatch.setenv('GLP320_FAILURE_SENSOR_TEST', 'failure')
+    original_open, original_fsync = Path.open, os.fsync
+    durable_directories = []
+    def fsync(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            durable_directories.append(os.fstat(fd).st_ino)
+        return original_fsync(fd)
+    def capture_open(path, *args, **kwargs):
+        if path == root / 'captured-alerts.jsonl':
+            assert root.stat().st_ino in durable_directories, 'TEST intent filename must survive a crash'
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(os, 'fsync', fsync)
+    monkeypatch.setattr(Path, 'open', capture_open)
+    assert sensor.main() == 0
+
+
 def test_test_cold_healthy_is_silent(host_failure, monkeypatch, capsys):
     sensor, alerts, _, _ = host_failure
     root = sensor.HOST_RUNS.parent

@@ -328,6 +328,11 @@ def test_main(mode: str) -> int:
                 json.dump(value, handle)
                 handle.flush()
                 os.fsync(handle.fileno())
+            directory = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
 
         def capture(payload, *, live):
             # Intent first; interruption after this point is never auto-replayed.
