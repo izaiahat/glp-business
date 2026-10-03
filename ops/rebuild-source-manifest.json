@@ -1718,7 +1718,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "e0c6e14b086813661059013d8bfee9c4fd75ddb23b4b57f604bdea670ceb88ce"
+      "sha256": "c6e56ca421913e90afc4d6a75743ac4f84888846fe3c4055e31729276827fcff"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
