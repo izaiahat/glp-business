@@ -25,6 +25,7 @@ suites+=(tests/test_glp44_collector_release.py tests/test_glp44_collector_succes
 suites+=(tests/test_glp341_native_registry_lock.py)
 suites+=(tests/test_maintenance_inventory.py tests/test_maintenance_window.py tests/test_maintenance_window_lock_contention.py tests/test_maintenance_keeper_contention.py tests/test_maintenance_adoptions.py)
 suites+=(tests/test_maintenance_restoration_review.py tests/test_maintenance_admission_review.py tests/test_maintenance_native_admission.py tests/test_maintenance_cohort_recovery.py tests/test_glp73_sync_rebaseline.py)
+suites+=(scripts/test_maintenance_recovery.py)
 suites+=(tests/test_adoption_cache_restore.py)
 suites+=(tests/test_candidate_freshness_horizon.py)
 suites+=(tests/test_glp_landed_uncertain_deployment_reconcile.py)

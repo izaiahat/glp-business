@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 687,
+  "tracked_count": 688,
   "files": {
     "tests/test_glp76_review_publication_date.py": {
       "kind": "test",
@@ -44,6 +44,13 @@
         "systems/seo-blog-machine/scripts/existing_article_updates.py"
       ],
       "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
+    },
+    "scripts/test_maintenance_recovery.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "504706d80a6d55d75e29df1ec44e646a7be57ca1661e4fddd8c2b6445625a75b"
     },
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -2186,7 +2193,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "67d278ecd7f59b39d2897e5c9b97068b5145d4bd374a9aafc9a223f1f1f7951a"
+      "sha256": "0d040dfe2e50de477c2dcc369b676fe4574b5a85abf09e96ec4e03be16ff6b7c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3441,7 +3448,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "15f8c97c5069cdbf7ace819d2ad2e5b7e4e942424dda65fca42df4f18604ff83"
+      "sha256": "c4bf9264aca82ed26da830a11fc9493a95f2919e1d2494c31d77c5a791681b54"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
@@ -3532,7 +3539,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "script",
-      "sha256": "8d38839ceedc33cc259247784056c1755cc4d56d5e8222c4c790d79d1689d232"
+      "sha256": "53785928d2ccab72e4e8c09f885e15b0006777294063ce6ab9c3845b2176d669"
     },
     "scripts/maintenance_cohort.py": {
       "callers": [
@@ -3553,7 +3560,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "0df9bc054646b08e2884ecf55b9b1f0a482dad2539d205691a88a23ebc5379e5"
+      "sha256": "bc031e430a63c88a2ee1f4c9b63f204c1d565c29c685974c81c845bc42bb0a8e"
     },
     "tests/test_maintenance_cohort_recovery.py": {
       "callers": [
