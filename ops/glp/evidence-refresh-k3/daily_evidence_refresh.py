@@ -70,6 +70,8 @@ def check_pins(pin_file=PIN_FILE):
             raise RuntimeError('SOURCE_PIN_DRIFT:' + path)
     if sha(__file__) != pins['runner_sha256']:
         raise RuntimeError('RUNNER_PIN_DRIFT')
+    if sha(HERE / 'compose_current_base.py') != pins['composer_sha256']:
+        raise RuntimeError('COMPOSER_PIN_DRIFT')
     return pins
 
 
@@ -197,6 +199,62 @@ def check_cache(index, folder):
             raise RuntimeError('DAILY_ARTIFACT_DRIFT:' + rel)
 
 
+def retained_captures(er, pid, profile, pricing, day, folder, source=None):
+    """Import saved first-party responses, not the taxonomy writer's disposition.
+
+    A blocked whole-registry write can still have usable captures. Receiving
+    clocks are preserved; this grants neither per-fact support nor adoption.
+    """
+    if not re.fullmatch('[a-z0-9][a-z0-9-]*', pid) or 'fella' in pid:
+        return {}
+    source = Path(source or ROOT / 'reports/ops/glp38-20260915/taxonomy-refresh')
+    _, hosts = er.canonical_urls(profile, pricing)
+    by_url = {}
+    for run in sorted(source.glob('run-' + day.replace('-', '') + 'T*')):
+        result = run / 'RESULT.json'
+        if not result.is_file() or pid not in read(result).get('requested', []):
+            continue
+        for path in sorted(run.glob(pid + '-*.json')):
+            # Do not mistake derived verification manifests for raw captures.
+            if not re.fullmatch(re.escape(pid) + r'-(primary|linked|source-\d+)\.json', path.name):
+                continue
+            raw_sha = sha(path)
+            cap = read(path)
+            request, response = cap.get('request', {}), cap.get('response', {})
+            data = response.get('data') or {}
+            meta = data.get('metadata') or {}
+            url = request.get('url', '')
+            received = timestamp(cap['received_at'])
+            started = timestamp(cap['started_at'])
+            final = meta.get('url') or meta.get('sourceURL') or url
+            if (received.date().isoformat() != day or started > received
+                    or received > datetime.now(timezone.utc)
+                    or request.get('maxAge') != 0 or response.get('success') is not True
+                    or meta.get('statusCode') != 200 or not data.get('markdown')
+                    or not er.safe_url(url, hosts) or not er.safe_url(final, hosts)
+                    or any(not er.safe_url(meta[k], hosts) for k in ('url', 'sourceURL') if meta.get(k))
+                    or str(meta.get('cacheState', '')).lower() in ('hit', 'cached')
+                    or (meta.get('cachedAt') and timestamp(meta['cachedAt']) < started)):
+                continue
+            if sha(path) != raw_sha:
+                raise RuntimeError('RETAINED_CAPTURE_CHANGED')
+            if url not in by_url or received > by_url[url][0]:
+                by_url[url] = (received, path, raw_sha, cap, final)
+    caps = {}
+    for url, (_, path, raw_sha, cap, final) in sorted(by_url.items())[:12]:
+        key = hashlib.sha256(url.encode()).hexdigest()[:16]
+        body = folder / 'retained-captures' / (key + '.md')
+        body.parent.mkdir(parents=True, exist_ok=True)
+        body.write_text(cap['response']['data']['markdown'])
+        caps[key] = {'source_url': url, 'final_url': final,
+                     'captured_at_utc': cap['received_at'], 'forced_fresh': True,
+                     'freshness_basis': 'retained maxAge=0 request; no independent cache attestation',
+                     'markdown_path': str(body), 'markdown_sha256': sha(body),
+                     'raw_capture_path': str(path), 'raw_capture_sha256': raw_sha}
+    er.load_captures(caps)
+    return caps
+
+
 def captures_for(er, source, pid, profile, pricing, day):
     if source is None:
         return {}, 'NOT_REQUESTED_NO_AUTHORIZED_CAPTURE_PRODUCER'
@@ -222,9 +280,22 @@ def stage_program(er, release, pid, folder, captures, day, review=None):
     reg = read(release / 'data/program-registry.json')
     profile = reg['provider_dynamic_profiles']['profiles'].get(pid)
     if not profile:
-        return {'program_id': pid, 'status': 'UNRESOLVED_ALIAS_OR_PROFILE', 'capture_outcome': 'NOT_REQUESTED'}
+        try:
+            owner = er.alias_owner(reg, pid)
+        except ValueError:
+            return {'program_id': pid, 'status': 'UNRESOLVED_ALIAS_OR_PROFILE', 'capture_outcome': 'NOT_REQUESTED'}
+        dependency = folder.parent / owner / 'PACKET.json'
+        if not dependency.is_file() or read(dependency).get('status') != 'PACKET_READY':
+            return {'program_id': pid, 'canonical_program_id': owner,
+                    'status': 'DEPENDENCY_NEEDS_ADJUDICATION', 'capture_outcome': 'CANONICAL_DEPENDENCY'}
+        status = er.generate(pid, folder, release, dry_run=True)
+        return {'program_id': pid, 'canonical_program_id': owner, 'status': status,
+                'capture_outcome': 'CANONICAL_DEPENDENCY', 'packet_path': str(folder / 'PACKET.json')}
     pricing = read(release / 'data/provider-pricing-matrix.json')['providers'].get(pid, {})
     caps, outcome = captures_for(er, captures, pid, profile, pricing, day)
+    if captures is None:
+        caps = retained_captures(er, pid, profile, pricing, day, folder)
+        outcome = 'IMPORTED_RETAINED_TAXONOMY_CAPTURE' if caps else 'UNKNOWN_CAPTURE_MANIFEST_MISSING'
     put(folder / 'CAPTURES.json', caps)
     command = [sys.executable, '-B', str(ENGINE), '--program', pid, '--candidate', str(release), '--out', str(folder), '--dry-run']
     if review:
@@ -251,7 +322,27 @@ def stage_program(er, release, pid, folder, captures, day, review=None):
             'unresolved_fact_count': sum(f['status'] == 'NEEDS_ADJUDICATION' for f in packet.get('mechanical_facts', [])) if packet['status'] == 'NEEDS_ADJUDICATION' else None}
 
 
-def run_daily(out_root, as_of=None, capture_root=None, selector_only=False):
+def stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day):
+    folder = root / day
+    index = folder / 'RUN.json'
+    if not index.exists():
+        return folder, None
+    prior = read(index)
+    if prior['binding'] != bound:
+        raise RuntimeError('SAME_DAY_BASE_CHANGED_REQUIRES_RECONCILIATION')
+    check_cache(prior, folder)
+    if prior['selector_only'] != selector_only or prior['capture_root'] != capture_root:
+        raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
+    if prior['source_pins'] == pins:
+        return folder, None
+    if not continue_day:
+        raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
+    parent = {'path': str(index), 'sha256': sha(index)}
+    generation = hashlib.sha256(json.dumps({'parent': parent, 'pins': pins}, sort_keys=True).encode()).hexdigest()
+    return root / 'continuations' / day / generation, parent
+
+
+def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, continue_day=False):
     pins = check_pins()
     root = output_root(out_root)
     if as_of is not None and root == PRODUCTION_OUTPUT:
@@ -260,7 +351,7 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False):
     day = now.date().isoformat()  # UTC date namespace; scheduler may run in PT.
     with lock(root):
         bound = binding()
-        folder = root / day
+        folder, predecessor = stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day)
         index_path = folder / 'RUN.json'
         if index_path.exists():
             prior = read(index_path)
@@ -272,7 +363,7 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False):
             return {**prior, 'invocation': 'IDEMPOTENT_REUSE'}
         if folder.exists():
             raise RuntimeError('INCOMPLETE_DAILY_RUN_REQUIRES_RECONCILIATION')
-        folder.mkdir()
+        folder.mkdir(parents=True)
         put(folder / 'BINDING.json', bound)
         er = load(ENGINE, 'k3_evidence_refresh')
         release = Path(bound['pointer']['release_root'])
@@ -300,13 +391,17 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False):
         put(folder / 'HANDOFF.json', {'schema': 'k3-evidence-adjudication-handoff-v1',
             'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'dispatch_status': 'STAGED_NOT_DISPATCHED',
             'binding': bound, 'programs': rows, 'review_prompt': str(HERE / 'ASTRA-LOW-PROMPT.md'),
-            'candidate_writer_status': 'BLOCKED_NO_GENERIC_CURRENT_BASE_WRITER_CONTRACT',
+            'candidate_writer_status': 'COMPOSER_AVAILABLE_PENDING_REVIEWED_PACKETS',
+            'composer': str(HERE / 'compose_current_base.py'),
             'combined_patch': None, 'applied': False, 'release_accepted': False})
         artifacts = {str(p.relative_to(folder)): sha(p) for p in sorted(folder.rglob('*')) if p.is_file()}
         result = {'schema': 'k3-daily-evidence-stage-v1', 'status': 'STAGED_PENDING_ADJUDICATION' if selected else 'NO_STALE_IDENTITIES',
                   'as_of_utc': now.isoformat(), 'day_timezone': 'UTC', 'stale_within_days': 7,
                   'binding': bound, 'source_pins': pins, 'selector_only': selector_only,
                   'capture_root': capture_root, 'selected_count': len(selected), 'programs': rows,
+                  'run_dir': str(folder), 'predecessor': predecessor,
+                  'capture_gap_count': sum(r.get('capture_outcome') == 'UNKNOWN_CAPTURE_MANIFEST_MISSING' for r in rows),
+                  'resolved_alias_count': sum('canonical_program_id' in r for r in rows),
                   'artifacts': artifacts, 'network_requests': 0, 'candidate_writes': 0,
                   'scheduler_receipt': 'NOT_A_NATURAL_RUN', 'invocation': 'NEW_STAGE'}
         put(index_path, result)
@@ -319,10 +414,11 @@ def main():
     parser.add_argument('--as-of', help='Offline witness only: explicit timezone required')
     parser.add_argument('--capture-root', help='Read existing authorized same-day manifests; never fetch')
     parser.add_argument('--selector-only', action='store_true')
+    parser.add_argument('--continue-day', action='store_true', help='Append a source-pinned successor; never replace daily evidence')
     args = parser.parse_args()
     try:
-        result = run_daily(args.out_root, args.as_of, args.capture_root, args.selector_only)
-        print(json.dumps({k: result[k] for k in ('status', 'selected_count', 'as_of_utc', 'invocation', 'network_requests')}))
+        result = run_daily(args.out_root, args.as_of, args.capture_root, args.selector_only, args.continue_day)
+        print(json.dumps({k: result.get(k) for k in ('status', 'selected_count', 'as_of_utc', 'invocation', 'network_requests', 'run_dir', 'capture_gap_count', 'resolved_alias_count')}))
     except (ValueError, KeyError, OSError, RuntimeError) as exc:
         print(json.dumps({'status': 'BLOCKED', 'reason': str(exc)}))
         return 2
