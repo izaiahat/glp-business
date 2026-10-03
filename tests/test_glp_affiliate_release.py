@@ -13,6 +13,24 @@ def test_operator_release_cannot_forge_authority_or_skip_build(tmp_path,monkeypa
         release.validate_operator_release({'operator_authority':{'path':'other','sha256':'a'*64}}, {})
 
 
+def test_ci_registration_gap_is_read_only_not_failure(tmp_path,monkeypatch):
+    spec=importlib.util.spec_from_file_location('affiliate_job',Path(__file__).resolve().parents[1]/'scripts/glp_affiliate_sync_job.py')
+    job=importlib.util.module_from_spec(spec);spec.loader.exec_module(job)
+    records=[{'headRefOid':'a'*40,'statusCheckRollup':[]},
+             {'headRefOid':'a'*40,'statusCheckRollup':[{'status':'IN_PROGRESS'}]},
+             {'state':'MERGED','headRefOid':'a'*40,'statusCheckRollup':[{'status':'COMPLETED','conclusion':'SUCCESS'}]}]
+    calls=[]
+    def run(argv,**kw):
+        calls.append(argv)
+        if 'checks' in argv:return ''
+        return json.dumps(records.pop(0))
+    monkeypatch.setattr(job,'run',run);monkeypatch.setattr(job.time,'sleep',lambda _:None)
+    monkeypatch.setattr(job,'save',lambda *a:None)
+    assert job.ci('28',tmp_path)['state']=='MERGED'
+    assert len(calls)==4
+    assert all('create' not in c and 'merge' not in c for c in calls)
+
+
 def test_build_ci_design_and_hold_proofs_are_required(tmp_path):
     head='a'*40;rows=[{'file':'index.html','sha256':'b'*64}]
     absence=tmp_path/'absence.json'
