@@ -500,7 +500,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "afb5141315b8c418fa36b7e6e09f19c629e1f212b37e3603dd146a29f62b479a"
+      "sha256": "f84db6ae8746f7f0705defc48e35ed15b3502c55d01b7333144bde52b5ac2646"
     },
     ".hermes.md": {
       "callers": [],
@@ -2180,7 +2180,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "032c84248a46f3a49cc4a0ab8160eb048a1faed1451bb729fe917898afc78516"
+      "sha256": "1026f170152075dba13667a183b50fb19129d72dbc27e59cfcce3a945ec9428b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
