@@ -394,6 +394,7 @@
 !/scripts/glp73_sync_rebaseline.py
 !/tests/test_maintenance_inventory.py
 !/tests/test_maintenance_window.py
+!/tests/test_glp341_native_registry_lock.py
 !/tests/test_maintenance_adoptions.py
 
 # GLP affiliate discovery/application/terms source and offline fixtures
