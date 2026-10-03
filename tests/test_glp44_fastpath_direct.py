@@ -11,7 +11,7 @@ from test_glp44_collector_release import synthetic_release, write_json, sha, AUT
 import collector
 
 
-@pytest.mark.parametrize('case', ['approved', 'go', 'wrong-href', 'held-network', 'inactive', 'rejected-terms', 'source-drift'])
+@pytest.mark.parametrize('case', ['approved', 'go', 'wrong-href', 'wrong-surface', 'held-network', 'inactive', 'rejected-terms', 'source-drift'])
 def test_fastpath_direct_without_go_membership(synthetic_release, case):
     f = synthetic_release
     pid = 'synthetic-direct-fastpath'
@@ -71,6 +71,8 @@ def test_fastpath_direct_without_go_membership(synthetic_release, case):
     if case == 'wrong-href':
         target['href'] += '&unapproved=1'
     paths = [f'/providers/{pid}/', f'/reviews/{pid}/']
+    if case == 'wrong-surface':
+        paths = ['/compare/synthetic-one/', '/compare/synthetic-two/']
     static = [{'path': path, 'sponsored_anchor_count': 1,
                'sponsored_anchor_targets': [copy.deepcopy(target)]} for path in paths]
     if case == 'source-drift':

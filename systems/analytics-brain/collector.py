@@ -1237,7 +1237,7 @@ def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
     Read only sealed publication inputs; unknown/inactive terms stay link-dark.
     """
     candidates = {pid: program for pid, program in programs.items()
-                  if pid not in runtime and program.get('commercial_state') == 'live'
+                  if pid != 'fella-health' and pid not in runtime and program.get('commercial_state') == 'live'
                   and (authority.get(pid) or {}).get('promotion_authorized') is True
                   and (authority.get(pid) or {}).get('status') == 'VERIFIED'
                   and (program.get('profiles', {}).get('glp-clinic-scout') or {}).get('wired') is True
@@ -1306,7 +1306,8 @@ def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
         held = str(network['network']).lower() in current_holds
         permissions[pid] = {'obligation': 'forbidden' if held else 'required',
                             'allowed': not held, 'direct_target': None if held else href,
-                            'go_allowed': False, 'network': str(network['network']).lower()}
+                            'go_allowed': False, 'network': str(network['network']).lower(),
+                            'direct_paths': [f'/providers/{pid}/', program['review_path']]}
     return permissions
 
 
@@ -1696,6 +1697,7 @@ def derive_affiliate_obligations(control: dict[str, Any],
                         and parsed.hostname in (None, PRODUCTION_HOST)
                         and parsed.scheme in ("", "https"))
             valid_direct = (permission.get("allowed") is True
+                            and ("direct_paths" not in permission or row["path"] in permission["direct_paths"])
                             and target.get("href") == permission.get("direct_target")
                             and target.get("link_mode") == "transparent-direct"
                             and str(target.get("network") or "").lower() == permission.get("network"))

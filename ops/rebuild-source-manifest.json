@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 645,
+  "tracked_count": 646,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -2248,7 +2248,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "388f200bb2ec3fd4c64a34b96d331738ba6f6b20f3c2596882e78cc4e7347e13"
+      "sha256": "939536d7ad57d54f9904689df762b24dace7a17a09dfc144f0502e801fa47baf"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -3851,6 +3851,13 @@
         ".github/workflows/glp331-carrier-closure.yml"
       ],
       "sha256": "032157a276f12ec819f524d09ec2ecf145a3130a84794ecd0abffbb9bbefe56c"
+    },
+    "tests/test_glp44_fastpath_direct.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "73c6256949282d565f48d095ef4eb0d6b9a97760f49506828182d5a536609cd5"
     },
     "tests/test_glp44_collector_release.py": {
       "kind": "test",
