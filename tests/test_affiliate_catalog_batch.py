@@ -4,6 +4,7 @@ import json
 import time
 from scripts import affiliate_catalog_batch as batch
 from scripts import affiliate_catalog_discovery as discovery
+import pytest
 
 
 def contract(sweeps):
@@ -87,4 +88,51 @@ def test_awin_bucket_denominator_and_negative_relationship_survive(tmp_path):
     row = discovery.adapters(core, state=state)['awin']['programs'][0]
     assert row['program_id'] == '001'
     assert row['relationship'] == 'pending'
+
+
+@pytest.mark.parametrize('state', ['Active', 'Paused', ''])
+def test_awin_api_status_survives_normalizer_and_scheduled_bucket(monkeypatch, state):
+    from scripts.marketplace_adapters import awin, _base
+    monkeypatch.setattr(awin, '_headers', lambda: {})
+    raw = {'id': '001', 'name': 'Fixture GLP clinic', 'status': state,
+           'primaryRegion': {'countryCode': 'US'}}
+    transport = _base.RecordingTransport([
+        ('GET', '/advertisers', _base.json_response([raw]))])
+    legacy = SimpleNamespace(awin=awin, SCHEMA='fixture')
+    doc = batch.awin_inventory(legacy, transport)
+    rows = doc['relationships'][str(awin.PUBLISHER_ID)]
+    assert rows['notjoined'][0]['network_status'] == state
+    assert rows['pending'][0]['network_status'] == state
+    assert rows['notjoined'][0]['program_id'] == '001'
+    assert doc['enumerated'] == 5
+
+
+def test_awin_checkpoint_without_status_is_refreshed_not_abandoned(tmp_path):
+    legacy = contract({'awin': lambda _: inventory()})
+    state = tmp_path / 'state.json'
+    batch.run(legacy, tmp_path / 'one', state=state)
+    checkpoint = json.loads(state.read_text())
+    checkpoint['networks']['awin'].pop('evidence_revision')
+    batch.save(state, checkpoint)
+    summary = batch.run(legacy, tmp_path / 'two', state=state)
+    assert summary['batch']['attempted'] == ['awin']
+
+
+def test_terms_registered_copy_uses_business_not_hermes_parent(tmp_path, monkeypatch):
+    import importlib.util
+    import shutil
+    source = Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/glp_best_terms_weekly.py'
+    target = tmp_path / '.hermes/scripts/glp_best_terms_weekly.py'
+    target.parent.mkdir(parents=True)
+    shutil.copyfile(source, target)
+    spec = importlib.util.spec_from_file_location('copied_terms_wrapper', target)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    def registered(command, **kwargs):
+        assert command[1] == '/home/ubuntu/business/scripts/affiliate_best_terms_machine.py'
+        assert '--resume-census' in command
+        return SimpleNamespace(stdout='fixture receipt', returncode=0)
+    monkeypatch.setattr(module.subprocess, 'run', registered)
+    assert module.main() == 0
+
 

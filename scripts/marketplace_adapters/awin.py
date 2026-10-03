@@ -58,6 +58,9 @@ def readback(transport, relationships: tuple = RELATIONSHIPS) -> dict:
             programs.append({
                 "program_id": str(r.get("id") or ""), "name": str(r.get("name") or ""),
                 "relationship": rel, "region": str(region.get("countryCode") or ""),
+                # Advertiser status is independent of our membership bucket.
+                # Preserve the API's exact value; never infer Active from listing.
+                "network_status": str(r.get("status") or ""),
                 "currency": str(r.get("currencyCode") or ""), "url": str(r.get("displayUrl") or ""),
                 "description": str(r.get("description") or "")[:500],
                 # Awin's own sector taxonomy. Carried so the niche lanes see the
