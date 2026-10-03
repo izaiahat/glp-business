@@ -128,13 +128,15 @@ jobs:
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py
-      - name: GLP-320 current terminal carrier release regression (offline)
+      - name: GLP-320 portable cron runner test group (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           PYTHONPATH: systems/analytics-brain:scripts:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py -k 'carrier_current_terminal_base_supersedes_canceled_legacy_tracker or carrier_release_requires_completed_receipt_matching_live_head or carrier_cron_declines_before_glp40_release_without_bridge_post'
+          # DecisionsGraphTests requires the uncurated host-only action_items module.
+          # Run the complete portable runner class, including every carrier test.
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py::CronBridgeTests
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: GLP44 sealed commercial obligations (offline, exact head)
