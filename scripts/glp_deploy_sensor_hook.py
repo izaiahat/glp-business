@@ -304,8 +304,12 @@ def receipt_is_sensor_verified(receipt: dict[str, Any]) -> tuple[bool, str]:
     sensor = receipt.get("sensor_result")
     if not isinstance(sensor, dict):
         return False, "deploy receipt carries no sensor_result (deploy is unverified)"
-    if sensor.get("status") != "PASS" or sensor.get("offline") is True:
+    if sensor.get("status") != "PASS":
         return False, "sensor_result is not a complete live PASS"
+    # GLP-73 R2: only evidence that STATES it was a live run counts. A summary
+    # whose mode is offline, unstated or not a boolean is unknown, not live.
+    if sensor.get("offline") is not False:
+        return False, "sensor_result mode is offline or unstated (not live evidence)"
     path, digest = sensor.get("receipt_path"), sensor.get("receipt_sha256")
     if not isinstance(path, str) or not path or not isinstance(digest, str) or len(digest) != 64:
         return False, "sensor raw receipt path/hash missing"

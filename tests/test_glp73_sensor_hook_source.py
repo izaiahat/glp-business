@@ -288,3 +288,113 @@ def test_r2_native_producer_names_are_ordered_mandatory_pass(tmp_path):
     missing = _complete_receipt(tmp_path, labels[:-1], now)
     missing.update({key: native[key] for key in ("schema", "status", "apply", "deployment", "completed_at_utc")})
     assert hook.receipt_is_sensor_verified(missing)[0] is False
+
+
+def _base_chain_fixture(tmp_path, monkeypatch, target, other):
+    releases = tmp_path / "releases"
+    current = releases / "current"
+    (releases / "predecessor").mkdir(parents=True)
+    current.mkdir()
+    pointer = {
+        "schema": "glp-opus-current-content-base-v1", "status": "PASS",
+        "deployment_id": target, "release_root": str(current),
+        "release_tree_sha256": "a" * 64, "public_tree_sha256": "b" * 64,
+        "manifest": {"path": str(tmp_path / "manifest.json"), "sha256": "c" * 64},
+        "final_receipt": {"path": str(tmp_path / "final.json"), "sha256": "d" * 64},
+        "supersedes": {"deployment_id": other, "release_root": str(releases / "predecessor")},
+    }
+    path = tmp_path / "current-content-base.json"
+    path.write_text(json.dumps(pointer))
+    monkeypatch.setattr(sensor, "CONTENT_BASE", path)
+    monkeypatch.setattr(sensor, "RELEASES", releases)
+    monkeypatch.setattr(sensor, "load_env_value", lambda _key: "fixture-token-not-sent")
+    responses = []
+    queries = []
+
+    class Session:
+        def __init__(self):
+            self.headers = {}
+
+        def get(self, url, **kwargs):
+            queries.append(url)
+            body = responses.pop(0)
+            if isinstance(body, Exception):
+                raise body
+            return types.SimpleNamespace(json=lambda: body)
+
+    monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(Session=Session))
+    return responses, queries
+
+
+def test_r1_missing_canonical_witness_is_reported_unknown_not_substituted(tmp_path, monkeypatch):
+    """R1: no canonical witness -> null live identity, 'unestablished', one project query."""
+    target = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    other = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    responses, queries = _base_chain_fixture(tmp_path, monkeypatch, target, other)
+    # A project body that offers every creation-order substitute a sensor could
+    # be tempted by, next to an absent/empty/non-string canonical witness.
+    newest = {"id": target, "environment": "production", "is_skipped": False,
+              "created_on": "2026-10-03T00:00:00Z", "latest_stage": {"status": "success"}}
+    witnessless = [
+        {"success": True, "result": {"canonical_deployment": None, "latest_deployment": newest,
+                                     "deployments": [newest]}},
+        {"success": True, "result": {"canonical_deployment": {"id": ""}, "latest_deployment": newest}},
+        {"success": True, "result": {"canonical_deployment": {"id": 7}, "latest_deployment": newest}},
+        {"success": True, "result": {"canonical_deployment": newest["created_on"]}},
+        {"success": False, "result": {"canonical_deployment": {"id": target}}},
+        ValueError("cloudflare body was not json"),
+    ]
+    for body in witnessless:
+        queries.clear()
+        responses[:] = [body]
+        result = sensor.check_base_chain(offline=False)
+        assert result["status"] == "FAIL"
+        assert "live_canonical_deployment_id" in result and result["live_canonical_deployment_id"] is None
+        assert result["chain_state"] == "unestablished"
+        assert result["base_deployment_id"] == target
+        assert len(queries) == 1 and queries[0].endswith(f"/pages/projects/{sensor.CF_PROJECT}")
+        assert not any("deployments" in q.rsplit("/", 1)[-1] for q in queries)
+    responses[:] = [witnessless[0]]
+    failure = sensor.check_base_chain(offline=False)["failures"]
+    assert failure == ["cloudflare returned no canonical production deployment; "
+                       "live identity unknown (not inferred from deployment creation order)"]
+    # The actual witness still decides: mismatch is a mismatch, match is a PASS.
+    responses[:] = [{"success": True, "result": {"canonical_deployment": {"id": other},
+                                                 "latest_deployment": newest}}]
+    mismatch = sensor.check_base_chain(offline=False)
+    assert mismatch["status"] == "FAIL" and mismatch["chain_state"] == "mismatched"
+    assert mismatch["live_canonical_deployment_id"] == other
+    responses[:] = [{"success": True, "result": {"canonical_deployment": {"id": target}}}]
+    matched = sensor.check_base_chain(offline=False)
+    assert matched["status"] == "PASS" and matched["chain_state"] == "matched"
+    assert matched["live_canonical_deployment_id"] == target
+
+
+def test_r2_unstated_or_offline_mode_is_never_live_verification(tmp_path):
+    """R2: only a summary that states a live run (offline is False) can be verified."""
+    import inspect
+
+    now = dt.datetime.now(dt.timezone.utc)
+    receipt = _complete_receipt(tmp_path, hook.LIVE_CHECKS, now)
+    receipt.update(schema="glp-enrichment-production-deployment-receipt-v1",
+                   status="PASS_DEPLOYED_READBACK_REQUIRED", apply={"exit_code": 0},
+                   deployment={"id": receipt["deployment_id"],
+                               "created_on": (now - dt.timedelta(minutes=2)).isoformat(),
+                               "latest_stage": {"status": "success"}},
+                   completed_at_utc=(now - dt.timedelta(minutes=1)).isoformat())
+    assert receipt["sensor_result"]["offline"] is False
+    assert hook.receipt_is_sensor_verified(receipt)[0] is True  # live control
+    for mode in (True, None, "false", "False", 0, "", "live", [], {}):
+        bad = copy.deepcopy(receipt)
+        bad["sensor_result"]["offline"] = mode
+        verified, why = hook.receipt_is_sensor_verified(bad)
+        assert verified is False, mode
+        assert "offline or unstated" in why, mode
+    unstated = copy.deepcopy(receipt)
+    del unstated["sensor_result"]["offline"]
+    verified, why = hook.receipt_is_sensor_verified(unstated)
+    assert verified is False and "offline or unstated" in why
+    # The native producer always states the mode it ran in, so a live run is
+    # verifiable and an offline pre-deploy report never is.
+    assert '"offline": offline,' in inspect.getsource(hook.attach_sensor_result)
+    assert hook.receipt_is_sensor_verified(receipt)[0] is True  # control unchanged
