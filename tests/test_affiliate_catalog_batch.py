@@ -7,6 +7,54 @@ from scripts import affiliate_catalog_discovery as discovery
 import pytest
 
 
+def test_replay_reads_carried_operations_without_retiring_unknowns():
+    rows = [{'kind': kind, 'arguments': args, 'status': 'pending'} for kind, args in [
+        ('search', ['old clinical query', 10]), ('scrape', ['https://example.invalid/affiliate']),
+        ('catalog:partnerize', []), ('unknown_reader', [])]]
+    checkpoint = SimpleNamespace(doc={'operations': dict(enumerate(rows))}, save=lambda: None)
+    calls = []
+    def reader(index):
+        def invoke(*args):
+            calls.append((rows[index]['kind'], list(args)))
+            rows[index]['status'] = 'ok'
+        return invoke
+    discovery.replay_pending(checkpoint, {rows[i]['kind']: reader(i) for i in range(3)}, ())
+    assert calls == [(row['kind'], row['arguments']) for row in rows[:3]]
+    assert rows[3]['status'] == 'pending'
+
+
+def test_replay_preserves_deferred_reads_and_never_opens_tracking_url():
+    rows = [{'kind': 'search', 'arguments': ['query', 10], 'status': 'pending'},
+            {'kind': 'scrape', 'arguments': ['https://tracking.invalid/link'], 'status': 'pending'}]
+    checkpoint = SimpleNamespace(doc={'operations': dict(enumerate(rows))}, save=lambda: None)
+    def deferred(*args):
+        raise ValueError('budget exhausted; no read started')
+    def forbidden(*args):
+        raise AssertionError('tracking URL opened')
+    discovery.replay_pending(checkpoint, {'search': deferred, 'scrape': forbidden},
+                             (ValueError,), safe_scrape=lambda url: False)
+    assert rows[0]['status'] == 'pending'
+    assert rows[1]['status'] == 'unavailable'
+    assert rows[1]['reason'] == 'unsafe_legacy_scrape_url'
+
+
+def test_explicit_manual_fresh_read_does_not_relabel_cached_evidence(tmp_path, monkeypatch):
+    calls = []
+    def read(transport):
+        calls.append('actual injected API read')
+        return inventory()
+    legacy = contract({'awin': read})
+    state = tmp_path / 'state.json'
+    batch.run(legacy, tmp_path / 'one', state=state)
+    batch.run(legacy, tmp_path / 'two', state=state)
+    assert len(calls) == 1
+    monkeypatch.setenv('AFFILIATE_CATALOG_REFRESH', '1')
+    result = batch.run(legacy, tmp_path / 'fresh', state=state)
+    assert len(calls) == 2
+    assert result['batch']['attempted'] == ['awin']
+    assert result['batch']['forced_fresh_read'] is True
+
+
 def contract(sweeps):
     def verdict(enumerated, total, blockers):
         complete = not blockers and total is not None and enumerated >= total

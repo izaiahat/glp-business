@@ -44,11 +44,12 @@ suites+=(tests/test_glp73_current_pointer_consumer.py tests/test_glp73_weekly_ac
 suites+=(tests/test_glp110_prepared_authority_cache.py)
 suites+=(tests/test_glp73_archive_hardlink_manifest.py tests/test_glp110_restore_pruned_execution.py tests/test_f13_atop_launcher_pin.py)
 suites+=(tests/test_glp250_partner_email_hold.py)
-suites+=(tests/test_glp96_research_only_contract.py)
+suites+=(tests/test_glp96_research_only_contract.py tests/test_glp96_published_intake.py)
 suites+=(tests/test_glp329_add_approved_row_full_grid_dry_run.py)
 suites+=(tests/test_glp85_cj_reporting_identity.py)
 suites+=(tests/test_glp320_readonly_grouping.py tests/test_agent_exec_routing.py)
 suites+=(systems/seo-blog-machine/tests/test_workweek_boundary.py)
+suites+=(tests/test_glp_affiliate_registry_sync.py tests/test_glp_affiliate_release.py tests/test_glp_affiliate_absence_audit.py)
 suites+=(tests/test_affiliate_discovery_resume.py tests/test_affiliate_discovery_admission.py tests/test_affiliate_best_terms_recovery.py tests/test_affiliate_terms_fanout.py tests/test_pro_opaque_program_identity.py)
 suites+=(tests/test_receive_one_discord_message.py tests/test_rook_mcp_events.py tests/test_rook_communication.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
@@ -61,4 +62,5 @@ fi
 suites+=(tests/test_glp75_topic_supply_inputs.py)
 suites+=(tests/test_affiliate_catalog_batch.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
+suites+=(tests/test_glp109_scheduler_health.py)
 python3 -m pytest -q "${suites[@]}"

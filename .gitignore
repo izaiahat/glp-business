@@ -34,6 +34,7 @@
 !/tests/test_maintenance_keeper_contention.py
 !/tests/test_n8n_execution_budget.py
 !/tests/test_rook_communication.py
+!/tests/test_glp109_scheduler_health.py
 !/.github/workflows/
 /.github/workflows/*
 !/.github/workflows/maintenance-pause-cursor-race.yml
@@ -435,6 +436,7 @@
 !/inbox_control_plane/affiliate_decision_queue.py
 !/tests/test_cleanup_inbox_reader.py
 !/tests/test_cleanup_affiliate_decisions.py
+!/tests/test_glp113_imap_sent_classification.py
 
 # GLP330 exact retained discovery predecessor; non-executable byte fixture
 !/scripts/discovery_predecessor_migration.py

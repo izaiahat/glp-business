@@ -31,6 +31,7 @@ RELEASES = ROOT / 'site-system/flagship-v2/releases'
 PIN_FILE = HERE / 'SOURCE-PINS.json'
 NATIVE_EVIDENCE = ROOT / 'scripts/glp_price_index_weekly.py'
 NATIVE_PRODUCER = ROOT / 'scripts/glp_deploy_glp34_authority_v1.py'
+NATIVE_AFFILIATE_RELEASE = ROOT / 'scripts/glp_affiliate_release.py'
 NATIVE_MATERIALIZER = ROOT / 'scripts/site_tree_materializer.py'
 NATIVE_BUILDER = ROOT / 'systems/seo-blog-machine/scripts/build_opus_article_release.py'
 TAXONOMY_PRODUCER = ROOT / 'site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py'
@@ -67,7 +68,7 @@ def load(path, name):
 def check_pins(pin_file=PIN_FILE):
     pins = read(pin_file)
     required = {str(ENGINE), str(ENGINE.with_name('evidence_refresh_verify.mjs')), str(SCHEMA),
-                str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER),
+                str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_AFFILIATE_RELEASE), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER),
                 str(TAXONOMY_PRODUCER), str(TAXONOMY_POLICIES)}
     if set(pins['sources']) != required:
         raise RuntimeError('SOURCE_PIN_SET_INVALID')
