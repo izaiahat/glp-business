@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dfd21eda58f73101fa7333b0d7b0735dc7942324e550cb9cd0cea8818dfdba42"
+      "sha256": "7e30d2d558f01a7bc50dd9c04d47c4360f585f07a804cfa41106e5bf1b0b8ea2"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
