@@ -1438,11 +1438,36 @@
           "reason": "Existing consent/suppression store is not a producer/consumer dependency of canonical F04 Provider data; no forced integration."
         },
         "provider_registry": {
-          "status": "gap",
-          "existing_issue": "GLP-344",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-344 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F04/provider_registry: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "scripts/glp_affiliate_registry_sync.py",
+          "job": "existing registered hourly glp_affiliate_sync_job",
+          "authenticated_scope": "Exact Coivas Awin128761 commission projection and25 held identities at canonical glpclinicscout.com deployment8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+          "source_window": "Retained source commission-terms-awin-128761-20260812T160112Z;checked_at2026-08-20T01:28:40Z; registered manual publication/canonical readback2026-10-03",
+          "operation": "Receipt-backed registry consumer projection reached canonical commission page and removed held promotion",
+          "readback_artifact": "reports/ops/glp331-332-20261003/LIVE-VERIFICATION.json",
+          "evidence": "Retained real registered consumer operation; literal JSON observations authenticated by receipt SHA256, not source/mock coverage.",
+          "readback": {
+            "sha256": "d06e3c21b790e63795f198d7c9a83aceb712c6a1c54d45f82d832f9719e4557b",
+            "observed": {
+              "/status": "PASS",
+              "/site_head": "2359d8db82563032030d55dc35e2937ab4883357",
+              "/deployment_id": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+              "/commission_projection": [
+                {
+                  "program_id": "awin-128761",
+                  "display_name": "Coivas",
+                  "network": "awin",
+                  "commission_terms": "Default: 0%; Semaglutide: 155 USD; Tirzepatide: 155 USD",
+                  "cookie_window": null,
+                  "checked_at": "2026-08-20T01:28:40Z",
+                  "reported_information": true
+                }
+              ],
+              "/held_anchors_after": 0,
+              "/tracking_clicks": 0
+            }
+          },
+          "limitations": "One retained genuine commission/hold propagation only; other rates/date/cookie/price coverage UNKNOWN. No new commission/cancellation event or tracking visit fabricated."
         },
         "host_scheduler": {
           "status": "gap",
@@ -2029,11 +2054,36 @@
           "reason": "Existing consent/suppression store is not a producer/consumer dependency of canonical F06 Publishing + deploy; no forced integration."
         },
         "provider_registry": {
-          "status": "gap",
-          "existing_issue": "GLP-73",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing first-party provider registry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F06/provider_registry: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "scripts/glp_affiliate_registry_sync.py",
+          "job": "existing registered hourly glp_affiliate_sync_job",
+          "authenticated_scope": "Exact Coivas Awin128761 commission projection and25 held identities at canonical glpclinicscout.com deployment8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+          "source_window": "Retained source commission-terms-awin-128761-20260812T160112Z;checked_at2026-08-20T01:28:40Z; registered manual publication/canonical readback2026-10-03",
+          "operation": "Receipt-backed registry consumer projection reached canonical commission page and removed held promotion",
+          "readback_artifact": "reports/ops/glp331-332-20261003/LIVE-VERIFICATION.json",
+          "evidence": "Retained real registered consumer operation; literal JSON observations authenticated by receipt SHA256, not source/mock coverage.",
+          "readback": {
+            "sha256": "d06e3c21b790e63795f198d7c9a83aceb712c6a1c54d45f82d832f9719e4557b",
+            "observed": {
+              "/status": "PASS",
+              "/site_head": "2359d8db82563032030d55dc35e2937ab4883357",
+              "/deployment_id": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+              "/commission_projection": [
+                {
+                  "program_id": "awin-128761",
+                  "display_name": "Coivas",
+                  "network": "awin",
+                  "commission_terms": "Default: 0%; Semaglutide: 155 USD; Tirzepatide: 155 USD",
+                  "cookie_window": null,
+                  "checked_at": "2026-08-20T01:28:40Z",
+                  "reported_information": true
+                }
+              ],
+              "/held_anchors_after": 0,
+              "/tracking_clicks": 0
+            }
+          },
+          "limitations": "One retained genuine commission/hold propagation only; other rates/date/cookie/price coverage UNKNOWN. No new commission/cancellation event or tracking visit fabricated."
         },
         "host_scheduler": {
           "status": "gap",
@@ -2050,11 +2100,27 @@
           "required_readback": "F06/github: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
         },
         "cloudflare_pages": {
-          "status": "gap",
-          "existing_issue": "GLP-73",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-73 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification; no inspected receipt binds Existing Cloudflare Pages deployment carrier to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F06/cloudflare_pages: authenticated target identity, actual source window and supported consume accepted article/price/provider release inputs; existing deployment/current-pointer readback and changed-URL notification receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "scripts/glp_affiliate_sync_job.py",
+          "job": "existing registered hourly glp_affiliate_sync_job",
+          "authenticated_scope": "Exact glpclinicscout.com deployment8bb93c91-59fe-4a3b-b050-a956479c6ef5, site head2359d8db82563032030d55dc35e2937ab4883357",
+          "source_window": "Registered manual publication and346-document canonical readback2026-10-03; receiving deployment exact-bound, not a fresh task run",
+          "operation": "Actual publication consumer produced terminal deployment and canonical content/held-link readback",
+          "readback_artifact": "reports/ops/glp331-332-20261003/LIVE-VERIFICATION.json",
+          "evidence": "Retained real registered consumer operation; literal JSON observations authenticated by receipt SHA256, not source/mock coverage.",
+          "readback": {
+            "sha256": "d06e3c21b790e63795f198d7c9a83aceb712c6a1c54d45f82d832f9719e4557b",
+            "observed": {
+              "/status": "PASS",
+              "/deployment_id": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+              "/site_head": "2359d8db82563032030d55dc35e2937ab4883357",
+              "/canonical_documents": 346,
+              "/held_anchors_after": 0,
+              "/held_live_routes_after": 0,
+              "/tracking_clicks": 0
+            }
+          },
+          "limitations": "Historical accepted publication only. No new deploy, tracking visits, general article success or pending release approval inferred. Separate held article-carrier stays inactive."
         },
         "rook": {
           "status": "not_applicable",
