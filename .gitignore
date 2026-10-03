@@ -507,6 +507,8 @@
 !/ops/glp/topic-supply-inputs/README.md
 !/ops/glp/topic-supply-inputs/strategy-queue.json
 !/ops/glp/topic-supply-inputs/cluster-map.json
+!/ops/pipeline-tool-contracts.json
+!/tests/test_pipeline_tool_contracts.py
 
 # GLP343 first-party topic/refresh scoring (registered topic_data_score action)
 !/scripts/glp_topic_data_score.py
