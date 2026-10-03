@@ -22,7 +22,9 @@ def windows(as_of, lookback_days=90):
         raise ValueError('aware_clock_and_7_to_366_day_lookback_required')
     now = as_of.astimezone(timezone.utc)
     end = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
-    previous_month_end = end.replace(day=1)
+    # The latest closed month follows the execution clock, not the previous
+    # Monday. During the first days of a month the Monday can be in last month.
+    previous_month_end = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     previous_month_start = (previous_month_end - timedelta(days=1)).replace(day=1)
     return {'week_start': (end-timedelta(days=7)).isoformat(), 'end_exclusive': end.isoformat(),
             'lookback_start': (end-timedelta(days=lookback_days)).isoformat(),
