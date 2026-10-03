@@ -914,18 +914,32 @@ def reaction_emoji(value):
     return value, None, value
 
 
-def message_projection(value, channel):
+def actual_mentions_projection(value):
+    """Discord metadata only; null is unknown, [] is known empty, never parse text."""
+    mentions = value.get('mentions')
+    if not isinstance(mentions, list):
+        return {'mentions': None, 'mentions_truncated': False}
+    prefix = mentions[:100]
+    valid = all(isinstance(user, dict) and isinstance(user.get('id'), str)
+                and re.fullmatch(SNOWFLAKE['pattern'], user['id']) for user in prefix)
+    return {'mentions': [{'id': user['id']} for user in prefix] if valid else None,
+            'mentions_truncated': len(mentions) > 100}
+
+
+def message_projection(value, channel, *, finch=False):
     identity = snowflake(value.get('id'))
     if value.get('channel_id') != channel:
         raise RpcError(-32602, 'MessageContextMismatch')
     attachments = value.get('attachments', [])
     reactions = value.get('reactions', [])
-    return {'message_id': identity, 'author_id': value.get('author', {}).get('id'),
+    mentions = actual_mentions_projection(value) if finch else {}
+    return {**mentions,
+            'message_id': identity, 'author_id': value.get('author', {}).get('id'),
             'content': value.get('content', ''), 'timestamp': value.get('timestamp'),
             'url': f'https://discord.com/channels/{GUILD}/{channel}/{identity}',
             'attachments': [{k: a.get(k) for k in ('id', 'filename', 'content_type', 'size')} for a in attachments[:5]],
             'reactions': [{k: r.get(k) for k in ('emoji', 'count', 'me')} for r in reactions[:10]],
-            'truncated': len(attachments) > 5 or len(reactions) > 10}
+            'truncated': len(attachments) > 5 or len(reactions) > 10 or mentions.get('mentions_truncated', False)}
 
 
 def read_messages(arguments, *, research=None, finch=None):
@@ -960,7 +974,7 @@ def read_messages(arguments, *, research=None, finch=None):
     for value in values:
         if finch and (not isinstance(value, dict) or value.get('guild_id', finch.guild) != finch.guild):
             raise RpcError(-32602, 'MessageContextMismatch')
-        projected = message_projection(value, channel)
+        projected = message_projection(value, channel, finch=finch is not None)
         result['messages'].append(projected)
         if len(canonical(result).encode()) > 65000:
             result['messages'].pop()
@@ -1358,6 +1372,11 @@ class Application:
             self.tools[1]['inputSchema']['required'] = ['channel_id']
             self.event_definition = {**EVENT_DEFINITION, 'name': self.event,
                 'description': 'Literal Finch mention from Izaiah, Kael or Rook; one exact channel subscription, never cross-forwarded.',
+                'payloadSchema': {**EVENT_DEFINITION['payloadSchema'], 'properties': {
+                    **EVENT_DEFINITION['payloadSchema']['properties'],
+                    'mentions': {'type': ['array', 'null'], 'maxItems': 100,
+                                 'items': object_schema({'id': SNOWFLAKE})},
+                    'mentions_truncated': {'type': 'boolean'}}},
                 'inputSchema': object_schema({'guild_id': {'type': 'string', 'const': self.guild},
                                              'channel_id': {'type': 'string', 'enum': list(self.channels)}})}
         if config.metadata_only:
@@ -2038,6 +2057,8 @@ class Application:
             payload = {'request_id': request_id, 'guild_id': GUILD, 'channel_id': CHANNEL, 'message_id': message,
                        'sender_id': author['id'], 'text': text,
                        'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{message}'}
+            if self.config.finch:
+                payload.update(actual_mentions_projection(data))
             request = {'id': request_id, 'message_id': message, 'subject': self.config.subject, 'policy': self.policy,
                        'created': time.time(), 'expires': min(s['expires'] for s in subscriptions), 'state': 'ready'}
             if self.config.finch:

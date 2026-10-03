@@ -1363,6 +1363,76 @@ class TestFinchCommunication:
         _, body = self.http_call('events/list')
         assert body['result']['events'][0]['inputSchema']['properties']['channel_id']['enum'] == ['901', '902']
 
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_actual_mentions_survive_finch_reads_and_signed_events(self, channel):
+        event = self.event(channel=channel, mentions=[
+            {'id': self.dot.bot, 'username': 'not-projected', 'member': {'roles': ['777']}},
+            {'id': self.m.ROOK_BOT}])
+        self.messages[(channel, '301')] = deepcopy(event['d'])
+        for arguments in ({'channel_id': channel, 'message_id': '301'}, {'channel_id': channel, 'limit': 1}):
+            status, body = self.call('read_finch_messages', arguments)
+            assert status == 200 and not body['result']['isError']
+            value = body['result']['structuredContent']['messages'][0]
+            assert value['mentions'] == [{'id': self.dot.bot}, {'id': self.m.ROOK_BOT}]
+            assert value['mentions_truncated'] is False
+        assert not self.app.store.all('requests')  # Reads never replay live requests.
+        self.subscribe(channel)
+        assert self.app.ingest(event, self.cursors) == 1
+        payload = self.callbacks[-1][1]['data']
+        assert payload['mentions'] == [{'id': self.dot.bot}, {'id': self.m.ROOK_BOT}]
+        assert payload['mentions_truncated'] is False
+        assert payload['text'] == 'bounded assignment'
+        schema = self.app.event_definition['payloadSchema']
+        assert schema['properties']['mentions']['items']['properties']['id'] == self.m.SNOWFLAKE
+        assert set(payload) <= set(schema['properties'])
+        assert not self.posts
+
+    @pytest.mark.parametrize('metadata,expected,admitted', [
+        ({}, None, True), ({'mentions': None}, None, False), ({'mentions': []}, [], False),
+        ({'mentions': '<@903>'}, None, False), ({'mentions': {'id': '903'}}, None, False),
+        ({'mentions': [None]}, None, False), ({'mentions': [{'id': 903}]}, None, False),
+        ({'mentions': [{'id': '0903'}]}, None, False), ({'mentions': [{'id': '９０３'}]}, None, False),
+        ({'mentions': [{'id': '9' * 21}]}, None, False),
+        ({'mentions': [{'id': '903'}, {'id': 'bad'}]}, None, True),
+        ({'mentions': [{'id': '904'}]}, [{'id': '904'}], False),
+    ])
+    def test_mention_metadata_unknown_empty_and_literal_are_not_fabricated(self, metadata, expected, admitted):
+        event = self.event(**metadata)  # Literal <@903> is present in every body.
+        self.messages[('901', '301')] = deepcopy(event['d'])
+        _, body = self.call('read_finch_messages', {'channel_id': '901', 'message_id': '301'})
+        value = body['result']['structuredContent']['messages'][0]
+        assert value['mentions'] == expected
+        assert value['mentions_truncated'] is False
+        assert not self.app.store.all('requests')
+        self.subscribe('901')
+        assert self.app.ingest(event, self.cursors) == int(admitted)
+        events = [v['data'] for _, v in self.callbacks if v.get('name') == self.app.event]
+        if admitted:
+            assert events[0]['mentions'] == expected
+            assert events[0]['mentions_truncated'] is False
+        else:
+            assert not events and not self.app.store.all('requests')
+        # Shared Rook/Research projection and original event schema remain unchanged.
+        assert 'mentions' not in self.m.message_projection(event['d'], '901')
+        assert 'mentions' not in self.m.EVENT_DEFINITION['payloadSchema']['properties']
+        assert not self.posts
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_mentions_bounded_prefix_marks_read_and_event_truncation(self, channel):
+        prefix = [{'id': str(1000 + i)} for i in range(100)]
+        event = self.event(channel=channel, mentions=prefix + [{'id': self.dot.bot}])
+        self.messages[(channel, '301')] = deepcopy(event['d'])
+        _, body = self.call('read_finch_messages', {'channel_id': channel, 'message_id': '301'})
+        result = body['result']['structuredContent']; value = result['messages'][0]
+        assert value['mentions'] == prefix and value['mentions_truncated'] is True
+        assert value['truncated'] is True and result['truncated'] is True
+        self.subscribe(channel)
+        assert self.app.ingest(event, self.cursors) == 1  # Existing ingress still sees actual bot metadata.
+        payload = self.callbacks[-1][1]['data']
+        assert payload['mentions'] == prefix and payload['mentions_truncated'] is True
+        assert {'id': self.dot.bot} not in payload['mentions']  # No invented completeness.
+        assert not self.posts
+
     def test_auth_http_subject_resource_scope_and_rbac_fail_closed(self):
         for delta in ({'aud': 'https://other.example/mcp'}, {'iss': 'https://other.example/'},
             {'sub': 'auth0|other'}, {'exp': 1}):

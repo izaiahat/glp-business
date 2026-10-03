@@ -92,7 +92,15 @@ must be checked separately before any later live launch.
 
 Only `reply_to_finch_request` and `read_finch_messages` are exposed and dispatched.
 Reads require explicit allowlisted `channel_id`, retain 25-message/65KB bounds and never
-create assignments. Finch ingress requires a literal mention from Izaiah/Kael/Rook.
+create assignments. Finch reads and request-event `data` additionally retain actual Discord
+user-mention metadata as `mentions: [{"id": "<canonical snowflake>"}, ...]` (IDs only,
+first 100 entries), with `mentions_truncated` signaling an omitted suffix. Missing or
+malformed metadata is `mentions: null` (unknown); an actual empty list stays `[]`.
+Literal body tokens, role mentions and reply text never manufacture user IDs. Read
+truncation also contributes to the existing message/result `truncated` flag. These
+additive event fields are optional in discovery for compatibility with older events;
+Rook/Research serialization and ingress/auth/custody policy are unchanged.
+Finch ingress requires a literal mention from Izaiah/Kael/Rook.
 When Discord's `mentions` field is present, it must contain Finch's bot ID; absent
 metadata permits exact content-token fallback, but `mentions=[]` is refused in both
 Finch channels. Rook's suppressed-notification explicit-tag exception is Rook-only,
