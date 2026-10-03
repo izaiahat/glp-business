@@ -24,11 +24,12 @@ def put(path, obj):
     return path
 
 
-def test_saved_taxonomy_capture_becomes_hash_bound_packet_input(tmp_path):
+@pytest.mark.parametrize('suffix', ['primary', 'intermediate'])
+def test_saved_taxonomy_capture_becomes_hash_bound_packet_input(tmp_path, suffix):
     d = load('daily_evidence_refresh')
     source = tmp_path / 'taxonomy/run-20261002T120000Z'
     url = 'https://provider.example/medications'
-    raw = put(source / 'provider-primary.json', {
+    raw = put(source / ('provider-' + suffix + '.json'), {
         'request': {'url': url, 'maxAge': 0},
         'started_at': '2026-10-02T12:00:00+00:00',
         'received_at': '2026-10-02T12:00:01+00:00',
@@ -54,7 +55,7 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
            'provider_dynamic_profiles': {'profiles': {'shedrx': {
                'aliases': [{'render_id': 'shed', 'program_id': 'member'}],
                'registry_program_ids': ['member'], 'source_urls': ['https://provider.example/']}}},
-           'therapeutic_taxonomy': {'programs': {'shed': {'registry_program_id': 'member'}}}}
+           'therapeutic_taxonomy': {'programs': {'shedrx': {}, 'shed': {'registry_program_id': 'member'}}}}
     put(tmp_path / 'release/data/program-registry.json', reg)
     put(tmp_path / 'release/data/provider-pricing-matrix.json', {'providers': {}})
     out = tmp_path / 'out'

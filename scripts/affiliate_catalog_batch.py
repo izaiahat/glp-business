@@ -155,7 +155,8 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
             if name == 'xentraffic':
                 continue
             prior = rows.get(name, {})
-            if (prior.get('complete') and prior.get('evidence_revision') == EVIDENCE_REVISIONS.get(name)
+            if (os.environ.get('AFFILIATE_CATALOG_REFRESH') != '1'
+                    and prior.get('complete') and prior.get('evidence_revision') == EVIDENCE_REVISIONS.get(name)
                     and (now - dt.datetime.fromisoformat(prior['attempted_at'])).total_seconds() < 86400):
                 continue
             remaining = deadline - time.monotonic()
@@ -181,6 +182,7 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
                    'captured_at_utc': now.isoformat(),
                    'outdir': str(outdir), 'networks': {}, 'gaps': [],
                    'batch': {'attempted': attempted, 'checkpoint': str(state),
+                             'forced_fresh_read': os.environ.get('AFFILIATE_CATALOG_REFRESH') == '1',
                              'budget_seconds': budget},
                    'effects': {'provider_mutations': 0, 'tracking_clicks': 0,
                                'sheet_writes': 0}, 'secret_printed': False}

@@ -276,6 +276,7 @@ class MaintenanceWindow:
         self.max_window_seconds, self.clock, self.sleeper = max_window_seconds, clock, sleeper
         self.handles = []
         self.controller = None
+        self._recovery = None
 
     def plan(self):
         report = self.backend.inventory()
@@ -292,7 +293,7 @@ class MaintenanceWindow:
             os.close(fd)
         self.handles = []
 
-    def _take_locks(self, data):
+    def _take_locks(self, data, *, persist=True):
         self.release_locks()
         data['locks'] = []
         for path in self.lock_paths:
@@ -304,10 +305,12 @@ class MaintenanceWindow:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             data['locks'].append({'path': str(path), 'fd': fd, 'device': st.st_dev, 'inode': st.st_ino})
         data['keeper'] = identity()
-        self._save(data)
+        if persist:
+            self._save(data)
 
     def _verify(self, data):
-        if data['state'] != 'active' or time.time() >= data['expires_at'] or not locks_verified(data):
+        if (data.get('pre_adoption_recovery') or data['state'] != 'active'
+                or time.time() >= data['expires_at'] or not locks_verified(data)):
             return False
         if sorted(row['path'] for row in data['locks']) != sorted(str(p) for p in self.lock_paths):
             return False
@@ -422,6 +425,293 @@ class MaintenanceWindow:
         data['outcome_review_sha256'] = json_sha(review)
         self._save(data)
 
+    def _recovery_basis(self, data):
+        basis = copy.deepcopy(data)
+        for key in ('state', 'keeper', 'locks', 'error', 'restore_errors',
+                    'closed_at', 'pre_adoption_recovery'):
+            basis.pop(key, None)
+        for row in basis['entries']:
+            for key in ('restore_intent', 'restored', 'recovery_resolution'):
+                row.pop(key, None)
+        return basis
+
+    def _recovery_target(self, data):
+        require(data['journal'] == str(self.journal)
+                and data['root'] == str(self.backend.root)
+                and data['hermes'] == str(self.backend.hermes), 'recovery_target_changed')
+        require(data.get('source_transaction') is None
+                and not any(data.get(key) for key in
+                            ('source_switch', 'source_updates', 'job_updates',
+                             'job_outcomes', 'adopter', 'outcome_review')),
+                'recovery_requires_pre_adoption_window')
+        expected_locks = [str(p.absolute()) for p in
+                          default_locks(self.backend.root, self.backend.hermes)]
+        require([str(p) for p in self.lock_paths] == expected_locks,
+                'recovery_lock_scope_changed')
+        origin = data.get('pre_adoption_recovery', {}).get('origin', data)
+        retained = origin.get('locks', [])
+        require(not retained or sorted(row['path'] for row in retained) == sorted(expected_locks),
+                'recovery_retained_lock_scope_changed')
+
+    def _recovery_scope(self, data):
+        self._recovery_target(data)
+        report = self.plan()
+        # Native discover() reports per-backend coverage, not complete=True.
+        coverage = report.get('coverage', {})
+        complete = (report.get('complete') is True or
+                    set(coverage) == {'hermes', 'crontab', 'systemd', 'n8n'}
+                    and all(value is True for value in coverage.values()))
+        require(complete and inventory_shape(report) == data['inventory_shape'],
+                'recovery_inventory_changed')
+        rows = data['entries']
+        require(len({entry_key(row['entry']) for row in rows}) == len(rows)
+                and {entry_key(row['entry']) for row in rows}
+                == {entry_key(e) for e in report['entries'] if e['affected']},
+                'recovery_control_cohort_changed')
+        current = {entry_key(e): e for e in report['entries']}
+        require(all(set(row['entry'].get('source_sha256', {}))
+                    == set(current[entry_key(row['entry'])].get('source_sha256', {}))
+                    for row in rows), 'recovery_source_coverage_changed')
+        sources = {}
+        for entry in report['entries']:
+            for path, digest in entry.get('source_sha256', {}).items():
+                require(path not in sources or sources[path] == digest,
+                        'recovery_conflicting_source_inventory')
+                sources[path] = digest
+        require(set(sources) == set(data['source_sha256']), 'recovery_source_scope_changed')
+        for path, digest in sources.items():
+            source = Path(path)
+            require(source.is_absolute() and source.resolve() == source
+                    and not source.is_symlink()
+                    and (not source.exists() or source.is_file()), 'recovery_source_type_changed')
+            require(source_digest(path) == digest, 'recovery_source_inventory_stale')
+        return sources
+
+    def _recovery_dead_owners(self, data):
+        for key in ('keeper', 'controller', 'adopter'):
+            owner = data.get(key)
+            if not owner:
+                continue
+            # A second call in this process still has to reacquire every flock.
+            if key == 'keeper' and data.get('pre_adoption_recovery') and owner == identity():
+                continue
+            try:
+                current = identity(owner['pid'])
+            except FileNotFoundError:
+                require(not (Path('/proc') / str(owner['pid'])).exists(),
+                        'recovery_owner_visibility_unknown')
+                continue
+            require(current != owner, 'recovery_owner_alive:' + key)
+
+    def pre_adoption_proposal(self, data):
+        require(not data.get('pre_adoption_recovery')
+                and data['state'] == 'recovery_required', 'recovery_initial_state_required')
+        require(data['entries'] and all(row['intent'] and row['paused']
+                and not row['restore_intent'] and not row['restored']
+                for row in data['entries']), 'recovery_initial_custody_required')
+        self._recovery_dead_owners(data)
+        sources = self._recovery_scope(data)
+        changes = {path: {'before': old, 'after': sources[path]}
+                   for path, old in data['source_sha256'].items() if old != sources[path]}
+        require(changes and all(change['before'] is not None and change['after'] is not None
+                                for change in changes.values()), 'recovery_existing_sources_only')
+        tools = control_tools()
+        retained = {Path(path).name: digest for path, digest in data['control_tools'].items()}
+        current_tools = {Path(path).name: digest for path, digest in tools.items()}
+        require(len(retained) == len(data['control_tools'])
+                and len(current_tools) == len(tools) and set(retained) == set(current_tools)
+                and all(name == Path(__file__).name or digest == retained[name]
+                        for name, digest in current_tools.items()), 'recovery_other_control_tool_changed')
+        jobs = {}
+        for row in data['entries']:
+            entry, prior = row['entry'], row['prior']
+            if entry['kind'] != 'hermes':
+                require(self.backend.paused(entry, prior), 'recovery_pause_ownership_changed')
+                continue
+            job = self.backend.job(entry['id'])
+            require(job_configuration(job) == prior['configuration_sha256'], 'recovery_job_configuration_changed')
+            controls = {key: job[key] for key in CONTROL_FIELDS if key in job}
+            if controls == prior.get('paused_fields') and job.get('enabled') is False:
+                disposition = 'owned_pause'
+            elif controls == prior['fields']:
+                disposition = 'external_preimage'
+            else:
+                # Only an independently authorized owner release/re-hold of an
+                # original native hold may be preserved. Never normalize its
+                # cursor, replay its run, or write the old hold over its outcome.
+                cursors = ('pending_slot', 'next_run_at')
+                require(prior['fields'].get('enabled') is False
+                        and {k: controls[k] for k in cursors if k in controls}
+                            == {k: prior['fields'][k] for k in cursors if k in prior['fields']}
+                        and ((controls.get('enabled') is True and controls.get('state') == 'scheduled'
+                              and controls.get('paused_at') is None and controls.get('paused_reason') is None)
+                             or (controls.get('enabled') is False and controls.get('state') == 'paused'
+                                 and isinstance(controls.get('paused_at'), str) and controls['paused_at']
+                                 and isinstance(controls.get('paused_reason'), str) and controls['paused_reason'])),
+                        'recovery_control_conflict')
+                disposition = 'external_owner_controls'
+            pin = prior.get('script_sha256')
+            paths = [path for path, digest in entry.get('source_sha256', {}).items()
+                     if pin is not None and digest == pin]
+            pin_path = paths[0] if len(paths) == 1 else None
+            if pin_path is not None:
+                require(job.get('script_sha256') == sources[pin_path], 'recovery_pin_invalid')
+            else:
+                # Retain already-unpinned/legacy-stale pins without claiming
+                # source adoption. No previously unbound executable may change
+                # before our native restore. An externally restored exact
+                # preimage is observation only, separately reviewed below.
+                require(job.get('script_sha256') == pin, 'recovery_pin_invalid')
+                command_path = entry.get('command')
+                require(disposition == 'external_preimage' or
+                        command_path not in entry.get('source_sha256', {}) or
+                        sources[command_path] == entry['source_sha256'][command_path],
+                        'recovery_pin_binding_unproven')
+            after = copy.deepcopy(job)
+            if disposition != 'external_owner_controls':
+                for key in CONTROL_FIELDS:
+                    if key in prior['fields']:
+                        after[key] = copy.deepcopy(prior['fields'][key])
+                    else:
+                        after.pop(key, None)
+            jobs[entry['id']] = {'before_sha256': json_sha(job), 'after_sha256': json_sha(after),
+                                'pin': job.get('script_sha256'), 'pin_path': pin_path,
+                                'pin_changed': job.get('script_sha256') != pin,
+                                'disposition': disposition}
+            if disposition == 'external_owner_controls':
+                jobs[entry['id']]['preserved_controls'] = copy.deepcopy(controls)
+        require(not self.backend.inflight([row['entry'] for row in data['entries']]), 'recovery_not_drained')
+        return {'schema': 'glp-maintenance-pre-adoption-proposal-v1',
+                'journal_sha256': json_sha(data), 'source_sha256': sources, 'changes': changes,
+                'tools_sha256': tools,
+                'helper_sha256': {str(Path(__file__).with_name(name).resolve()):
+                    source_digest(Path(__file__).with_name(name))
+                    for name in ('maintenance_admission.py', 'sync_from_repo.py')},
+                'jobs': jobs, 'lock_paths': [str(p) for p in self.lock_paths]}
+
+    def _recovery_review(self, review, proposal):
+        require(review.get('schema') == 'glp-maintenance-pre-adoption-review-v1'
+                and review.get('decision') == 'ACCEPT_EXACT_PRE_ADOPTION_EXIT'
+                and isinstance(review.get('prepared_by'), str) and review['prepared_by'].strip()
+                and isinstance(review.get('reviewer'), str) and review['reviewer'].strip()
+                and review['prepared_by'].strip() != review['reviewer'].strip()
+                and review.get('proposal') == proposal, 'independent_exact_recovery_review_required')
+        required = {'source_approvals': set(proposal['changes']),
+                    'pin_approvals': {jid for jid, job in proposal['jobs'].items() if job['pin_changed']},
+                    'external_restores': {jid for jid, job in proposal['jobs'].items()
+                                          if job['disposition'] == 'external_preimage'},
+                    'external_controls': {jid for jid, job in proposal['jobs'].items()
+                                          if job['disposition'] == 'external_owner_controls'}}
+        for key, identities in required.items():
+            references = review.get(key, {} if key == 'external_controls' else None)
+            require(isinstance(references, dict) and set(references) == identities
+                    and all(isinstance(value, str) and value.strip() for value in references.values()),
+                    'recovery_approval_references_required:' + key)
+
+    def _recovery_source_view(self, data):
+        record = data.get('pre_adoption_recovery')
+        require(record is not None and self._recovery is record, 'use_recover_pre_adoption')
+        require(locks_verified(data) and data['keeper'] == identity()
+                and [row['path'] for row in data['locks']] == [str(p) for p in self.lock_paths],
+                'recovery_fences_lost')
+        proposal = record['review']['proposal']
+        require(control_tools() == proposal['tools_sha256'], 'recovery_executor_changed')
+        require(proposal['helper_sha256'] == {
+            str(Path(__file__).with_name(name).resolve()): source_digest(Path(__file__).with_name(name))
+            for name in ('maintenance_admission.py', 'sync_from_repo.py')}, 'recovery_helper_changed')
+        for path in proposal['source_sha256']:
+            source = Path(path)
+            require(source.resolve() == source and not source.is_symlink()
+                    and (not source.exists() or source.is_file()), 'recovery_source_type_changed')
+        # An exit-only comparison view, never a journal baseline or a job write.
+        view = copy.deepcopy(data)
+        view['source_sha256'] = copy.deepcopy(proposal['source_sha256'])
+        require(self._sources_valid(view, for_exit=True), 'recovery_sources_changed')
+        return view
+
+    def _recovery_row(self, data, row):
+        entry, prior = row['entry'], row['prior']
+        proposal = data['pre_adoption_recovery']['review']['proposal']
+        if entry['kind'] == 'hermes':
+            expected = proposal['jobs'][entry['id']]
+            job = self.backend.job(entry['id'])
+            require(job.get('script_sha256') == expected['pin']
+                    and job_configuration(job) == prior['configuration_sha256'], 'recovery_job_changed')
+            if row['restored']:
+                require(row.get('recovery_resolution') in
+                        {'native_readback', 'landed_intent', 'external_preimage', 'external_owner_controls'}, 'recovery_receipt_missing')
+                return 'released'
+            actual = json_sha(job)
+            if row['restore_intent'] and actual == expected['after_sha256']:
+                return 'landed_intent'
+            require(actual == expected['before_sha256'], 'recovery_job_preimage_changed')
+            return expected['disposition']
+        if row['restored']:
+            require(row.get('recovery_resolution') in {'native_readback', 'landed_intent'},
+                    'recovery_receipt_missing')
+            return 'released'
+        if self.backend.paused(entry, prior):
+            return 'owned_pause'
+        require(row['restore_intent'] and self.backend.recovery_restored(entry, prior),
+                'recovery_pause_ownership_changed')
+        return 'landed_intent'
+
+    def _recovery_check(self, data):
+        record = data['pre_adoption_recovery']
+        origin, review = record['origin'], record['review']
+        proposal = review['proposal']
+        require(record['schema'] == 'glp-maintenance-pre-adoption-recovery-v1'
+                and json_sha(origin) == proposal['journal_sha256']
+                and self._recovery_basis(data) == self._recovery_basis(origin), 'recovery_journal_changed')
+        self._recovery_review(review, proposal)
+        require(self._recovery_scope(data) == proposal['source_sha256'], 'recovery_preimage_changed')
+        self._recovery_source_view(data)
+        for row in data['entries']:
+            self._recovery_row(data, row)
+        require(not self.backend.inflight([row['entry'] for row in data['entries']]), 'recovery_not_drained')
+
+    def recover_pre_adoption(self, review=None):
+        if review is None:
+            return self._recover_pre_adoption()
+        from sync_from_repo import source_lock
+        self._recovery_target(read_journal(self.journal))
+        # Other live install owners keep their lane. Wait/refuse the shared
+        # importer fence, never race their sources or terminate their work.
+        with source_lock(self.backend.root):
+            return self._recover_pre_adoption(review)
+
+    def _recover_pre_adoption(self, review=None):
+        with operation_lock(self.journal, timeout=OPERATION_ADMISSION_SECONDS):
+            data = read_journal(self.journal)
+            record = data.get('pre_adoption_recovery')
+            if review is None:
+                require(record is None, 'recovery_started_reuse_original_review')
+                return self.pre_adoption_proposal(data)
+            if record is not None:
+                require(review == record['review'], 'recovery_review_changed')
+                if data['state'] == 'closed':
+                    return self.status()  # No effects and no renewed authority.
+                require(data['state'] in {'restoring', 'recovery_required'}, 'recovery_state_changed')
+            self._recovery_target(data)
+            self._recovery_dead_owners(data)
+            held = copy.deepcopy(data)
+            try:
+                self._take_locks(held, persist=False)
+                if record is None:
+                    proposal = self.pre_adoption_proposal(data)
+                    self._recovery_review(review, proposal)
+                    record = {'schema': 'glp-maintenance-pre-adoption-recovery-v1',
+                              'origin': copy.deepcopy(data), 'review': copy.deepcopy(review)}
+                    data['pre_adoption_recovery'] = record
+                data['keeper'], data['locks'] = held['keeper'], held['locks']
+                self._recovery = record
+                self._recovery_check(data)  # Entire cohort before the first control effect.
+                self._save(data)
+                return self._exit(data)
+            finally:
+                self._recovery = None
+                self.release_locks()
+
     def enter(self):
         with operation_lock(self.journal):
             return self._enter()
@@ -429,6 +719,7 @@ class MaintenanceWindow:
     def _enter(self):
         if self.journal.exists():
             data = read_journal(self.journal)
+            require(not data.get('pre_adoption_recovery'), 'recovery_is_exit_only')
             if self._verify(data):
                 return self.status()
             if data['state'] == 'closed':
@@ -499,12 +790,14 @@ class MaintenanceWindow:
         if data['state'] == 'closed':
             self.release_locks()
             return self.status()
+        recovery = data.get('pre_adoption_recovery')
+        source_view = self._recovery_source_view(data) if recovery is not None else data
         # Only the keeper or a controller after its death can release locks.
         if locks_verified(data):
             require(data['keeper'] == identity(), 'exit_must_be_requested_from_live_keeper')
         data['state'] = 'restoring'
         self._save(data)
-        if not self._sources_valid(data, for_exit=True):
+        if not self._sources_valid(source_view, for_exit=True):
             data['state'], data['error'] = 'recovery_required', 'source_or_adoption_outcome_requires_reconciliation'
             self._save(data)
             raise WindowError('restore_refused_source_or_adoption_outcome_requires_reconciliation')
@@ -514,19 +807,41 @@ class MaintenanceWindow:
         for row in reversed(data['entries']):
             if not row['intent'] or row['restored']:
                 continue
+            prior = row['prior']
+            if recovery is not None:
+                self._recovery_source_view(data)
+                disposition = self._recovery_row(data, row)
+                if disposition in {'landed_intent', 'external_preimage', 'external_owner_controls'}:
+                    row['restored'], row['recovery_resolution'] = True, disposition
+                    self._save(data)
+                    continue
+                if row['entry']['kind'] == 'hermes':
+                    expected = recovery['review']['proposal']['jobs'][row['entry']['id']]
+                    prior = copy.deepcopy(prior)
+                    prior['script_sha256'] = expected['pin']
+                    prior['recovery_expected_sha256'] = expected['before_sha256']
             row['restore_intent'] = True
             self._save(data)
             try:
-                self.backend.restore(row['entry'], row['prior'])
+                self.backend.restore(row['entry'], prior)
+                if recovery is not None and row['entry']['kind'] != 'hermes':
+                    require(self.backend.recovery_restored(row['entry'], prior), 'recovery_restore_readback_failed')
                 row['restored'] = True
+                if recovery is not None:
+                    row['recovery_resolution'] = 'native_readback'
                 self._save(data)
             except Exception as exc:
                 failures.append({'kind': row['entry']['kind'], 'id': row['entry']['id'],
                                  'error': type(exc).__name__})
+                if recovery is not None:
+                    break  # An ambiguous effect is not permission to restore more controls.
         if failures:
             data['state'], data['restore_errors'] = 'recovery_required', failures
             self._save(data)
-            raise WindowError('restore_failed_use_exit_to_reconcile_journal')
+            raise WindowError('restore_failed_use_recover_pre_adoption' if recovery is not None
+                              else 'restore_failed_use_exit_to_reconcile_journal')
+        if recovery is not None:
+            self._recovery_source_view(data)
         data['state'] = 'closed'
         data['closed_at'] = time.time()
         self._save(data)
@@ -996,6 +1311,20 @@ class LinuxBackend:
                 return False
         raise WindowError('unknown_backend_kind')
 
+    def recovery_restored(self, entry, prior):
+        if entry['kind'] == 'crontab':
+            lines = self._crontab_candidate(prior).splitlines(keepends=True)
+            lines[prior['index']] = prior['text'].splitlines(keepends=True)[prior['index']]
+            return self.command(['/usr/bin/crontab', '-l']) == ''.join(lines)
+        if entry['kind'] == 'systemd':
+            self.timer_unchanged(entry, prior, refresh=True)
+            return self.command(['/usr/bin/systemctl', '--user', 'show', entry['id'],
+                                 '-p', 'ActiveState', '--value']).strip() == prior['timer_active']
+        if entry['kind'] == 'n8n':
+            return (prior.get('gate_was_absent') is True
+                    and list(self.bridge().identity()) == prior['identity'] and self.nft_table_absent())
+        raise WindowError('unsupported_recovery_readback')
+
     def restore(self, entry, prior):
         kind = entry['kind']
         if kind == 'hermes':
@@ -1003,6 +1332,9 @@ class LinuxBackend:
             with scheduler._fire_job_lock(entry['id']) as fenced, native_registry_lock(scheduler):
                 require(fenced, 'restore_fire_fence_unavailable')
                 current = self.job(entry['id'])
+                if 'recovery_expected_sha256' in prior:
+                    require(json_sha(current) == prior['recovery_expected_sha256'],
+                            'recovery_restore_record_changed')
                 data = read_journal(self.journal)
                 update = data.get('job_updates', {}).get(entry['id'])
                 pins = {prior['script_sha256']}
@@ -1365,7 +1697,7 @@ def require_active_window(journal, root, hermes):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('plan', 'enter', 'status', 'exit', 'readers', 'recover-cohort'))
+    parser.add_argument('command', choices=('plan', 'enter', 'status', 'exit', 'readers', 'recover-cohort', 'recover-pre-adoption'))
     parser.add_argument('--root', type=Path, default=Path('/home/ubuntu/business'))
     parser.add_argument('--hermes', type=Path, default=Path('/home/ubuntu/.hermes'))
     parser.add_argument('--journal', type=Path, required=True)
@@ -1375,6 +1707,7 @@ def main(argv=None):
     parser.add_argument('--controller-pid', type=int, help=argparse.SUPPRESS)
     parser.add_argument('--outcome-review', type=Path, help='exit only: independently reviewed exact landed/rolled-back outcome')
     parser.add_argument('--cohort-review', type=Path, help='recover-cohort only: independent exact reconstruction review')
+    parser.add_argument('--recovery-review', type=Path, help='recover-pre-adoption only: exact external approvals')
     args = parser.parse_args(argv)
     backend = LinuxBackend(args.root, args.hermes, args.journal)
     window = MaintenanceWindow(backend, args.journal, default_locks(args.root, args.hermes),
@@ -1382,7 +1715,11 @@ def main(argv=None):
     try:
         require(args.outcome_review is None or args.command == 'exit', 'outcome_review_is_exit_only')
         require(args.cohort_review is None or args.command == 'recover-cohort', 'cohort_review_is_recovery_only')
-        if args.command == 'readers':
+        require(args.recovery_review is None or args.command == 'recover-pre-adoption', 'recovery_review_is_exit_only')
+        if args.command == 'recover-pre-adoption':
+            review = json.loads(args.recovery_review.read_text()) if args.recovery_review else None
+            result = window.recover_pre_adoption(review)
+        elif args.command == 'readers':
             from maintenance_admission import process_readers
             from maintenance_inventory import affected_paths
             visible = Path('/proc/1/comm').read_text().strip() != 'codex'
@@ -1509,7 +1846,8 @@ def main(argv=None):
         return 0 if args.command != 'status' or result['state'] in {'absent', 'closed'} or result['verified'] else 2
     except Exception as exc:
         failure = {'status': 'REFUSED', 'reason': str(exc) if isinstance(exc, WindowError) else type(exc).__name__,
-                   'journal': str(args.journal), 'recovery': 'inspect status; use exit to restore journaled preimages'}
+                   'journal': str(args.journal),
+                   'recovery': 'inspect status; follow the maintained route named by the refusal; never edit the journal'}
         if getattr(exc, 'errors', None):
             failure['inventory_errors'] = exc.errors
             failure['coverage'] = (getattr(exc, 'report', None) or {}).get('coverage', {})

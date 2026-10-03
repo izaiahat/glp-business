@@ -430,11 +430,16 @@ def _collect_gsc(data: dict[str, Any], sources: dict[str, Any], google: Any) -> 
 
 
 def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> None:
+    data["ga4_rows"], data["ga4_events"] = [], []
     try:
         ga4_doc = google.ga4_run_report(
             start_date=_utc_days_ago(2),
             end_date="today",
-            dimensions=["dateHourMinute", "hostName", "pagePath", "eventName", "customEvent:cs_click_id"],
+            # Five separately approved ordinary routes; no click identity or
+            # health-path enumeration is needed for this aggregate collector.
+            dimensions=["dateHourMinute", "hostName", "pagePath", "eventName"],
+            dimension_filter={"filter": {"fieldName": "pagePath", "inListFilter": {
+                "values": sorted(GA4_APPROVED_NEUTRAL_PATHS), "caseSensitive": True}}},
             metrics=["eventCount", "sessions", "engagedSessions"],
             limit=250000,
             fetch_all=True,
@@ -454,25 +459,20 @@ def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> 
         }
         non_allowlisted = _non_allowlisted(host_distribution)
         ga4_rows = []
-        ga4_events = []
         for row in ga4_doc.get("rows") or []:
             dimensions = row.get("dimensions") or []
             metrics = row.get("metrics") or []
-            observed_at = dimensions[0] if dimensions else None
-            host = dimensions[1] if len(dimensions) > 1 else None
-            page = dimensions[2] if len(dimensions) > 2 else "/"
-            event_name = dimensions[3] if len(dimensions) > 3 else None
-            click_id = dimensions[4] if len(dimensions) > 4 else None
+            if (len(dimensions) != 4 or dimensions[1] != PRODUCTION_HOST
+                    or dimensions[2] not in GA4_APPROVED_NEUTRAL_PATHS):
+                raise RuntimeError("ga4_neutral_route_shape_invalid")
+            observed_at, host, page, event_name = dimensions
             record = {"host": host, "path": page, "event_name": event_name,
                       "provider_time": observed_at,
                       "event_count": int(float(metrics[0])) if metrics else 0,
                       "sessions": int(float(metrics[1])) if len(metrics) > 1 else 0,
                       "engaged_sessions": int(float(metrics[2])) if len(metrics) > 2 else 0}
             ga4_rows.append(record)
-            if click_id and event_name in {"sponsor_click", "affiliate_click"}:
-                ga4_events.append({**record, "cs_click_id": click_id})
         data["ga4_rows"] = ga4_rows
-        data["ga4_events"] = ga4_events
         ga4_state = "healthy" if ga4_rows else "measured_zero"
         event_watermark = max((str(row.get("provider_time") or "") for row in ga4_rows), default="") or None
         sources["ga4"] = {
@@ -484,6 +484,9 @@ def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> 
             "provider_host_filter": ga4_doc.get("host_filter"),
             "host_distribution": host_distribution,
             "non_allowlisted_event_count": non_allowlisted,
+            "collection_window": {"scope": "exact_host_and_approved_neutral_routes",
+                                  "neutral_route_paths": sorted(GA4_APPROVED_NEUTRAL_PATHS),
+                                  "click_identity": "not_collected_by_aggregate_contract"},
         }
     except Exception as exc:  # noqa: BLE001
         sources["ga4"] = _source("error", None, host_scope=PRODUCTION_HOST,
@@ -550,13 +553,22 @@ def _collect_bing(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> 
 
 
 def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) -> None:
+    # The approved producer exports no click identity or health-route identity.
+    # Never query those fields to establish their intentional absence. Clear old
+    # populations before dispatch so a failed read cannot retain broader rows.
+    data["posthog_rows"], data["posthog_events"] = [], []
     try:
         posthog = rails.PostHog()
-        # HogQL uses server-side now() - INTERVAL 3 DAY. The local instant
-        # BEFORE dispatch is a conservative lower bound on its query start;
-        # report generation and later cache reuse are not query provenance.
+        paths = ", ".join(repr(path) for path in POSTHOG_APPROVED_NEUTRAL_PATHS)
         query_started = dt.datetime.now(dt.timezone.utc)
-        aggregate = posthog.page_conversion(days=3, host=PRODUCTION_HOST)
+        aggregate = posthog.hogql(
+            "SELECT properties.$pathname, countIf(event = '$pageview'), "
+            "countIf(event = 'affiliate_click') FROM events "
+            "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND properties.$host = 'glpclinicscout.com' "
+            f"AND properties.$pathname IN ({paths}) "
+            "GROUP BY properties.$pathname ORDER BY properties.$pathname LIMIT 7"
+        )
         query_finished = dt.datetime.now(dt.timezone.utc)
         if not aggregate.get("ok"):
             raise RuntimeError(str(aggregate.get("error") or "posthog_read_failed"))
@@ -565,71 +577,54 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
             "end_utc": query_finished.isoformat().replace("+00:00", "Z"),
             "basis": "capture_before_query_minus_3_days",
         }
-        # `host` is REQUIRED on every traffic row. analytics_brain builds
-        # posthog_traffic_paths with `row.get("host") == PRODUCTION_HOST`, exactly as
-        # it does for ga4_rows; omitting the key made that filter drop 100% of
-        # PostHog rows, so posthog_traffic_seen was False on every route forever and
-        # the cross-sink probe failed every trafficked path (FAIL_ROUTE_COVERAGE on
-        # /, /quiz/provider-fit/, /tools/glp-1-cost-calculator/ — which then blocked
-        # the SEO mint). The empty posthog host_distribution was the visible tell.
-        # Stamping the constant is factual, not laundering: page_conversion filters
-        # server-side with `domain(properties.$current_url) = host`, so every row it
-        # returns is already scoped to PRODUCTION_HOST.
-        data["posthog_rows"] = [
-            {"path": row.get("path"), "host": PRODUCTION_HOST,
-             "views": int(row.get("views") or 0),
-             "affiliate_clicks": int(row.get("clicks") or 0)}
-            for row in aggregate.get("rows") or []
-        ]
-        raw = posthog.hogql(
-            "SELECT properties.cs_click_id, path(properties.$current_url), "
-            "properties.$host, event, min(timestamp) "
-            "FROM events WHERE timestamp > now() - INTERVAL 3 DAY "
-            "AND properties.$host = 'glpclinicscout.com' "
-            "AND event IN ('sponsor_click','affiliate_click') "
-            "GROUP BY properties.cs_click_id, path(properties.$current_url), properties.$host, event "
-            "LIMIT 100000"
-        )
-        if not raw.get("ok"):
-            raise RuntimeError(str(raw.get("error") or "posthog_click_read_failed"))
-        data["posthog_events"] = [
-            {"cs_click_id": row[0], "path": row[1], "host": row[2], "event_name": row[3],
-             "occurred_at": str(row[4])}
-            for row in raw.get("rows") or [] if row and row[0]
-        ]
-        latest = posthog.hogql(
-            "SELECT max(timestamp), count() FROM events "
-            "WHERE properties.$host = 'glpclinicscout.com' "
-            "AND timestamp > now() - INTERVAL 3 DAY"
-        )
-        if not latest.get("ok"):
-            raise RuntimeError(str(latest.get("error") or "posthog_watermark_read_failed"))
-        latest_row = (latest.get("rows") or [[None, 0]])[0]
-        watermark = str(latest_row[0]) if latest_row and latest_row[0] else None
-        event_count = int(latest_row[1] or 0) if len(latest_row) > 1 else 0
-        host_counts = posthog.hogql(
-            "SELECT properties.$host, count() FROM events "
+        route_rows = []
+        for row in aggregate.get("rows") or []:
+            if len(row) != 3 or row[0] not in POSTHOG_APPROVED_NEUTRAL_PATHS:
+                raise RuntimeError("posthog_neutral_route_shape_invalid")
+            route_rows.append({"path": row[0], "host": PRODUCTION_HOST,
+                               "views": int(row[1] or 0), "affiliate_clicks": int(row[2] or 0)})
+        # Fixed server-side buckets retain missing/off-host evidence without
+        # returning raw hosts, URLs, arbitrary paths, identities or quiz values.
+        buckets = posthog.hogql(
+            "SELECT if(properties.$host = 'glpclinicscout.com', "
+            "'production_host', 'off_host_or_unknown') AS host_bucket, "
+            f"multiIf(properties.$pathname IN ({paths}), 'neutral_route', "
+            "empty(ifNull(properties.$pathname, '')), 'route_unknown', 'other_route') AS route_bucket, "
+            "count(), max(timestamp) FROM events "
             "WHERE timestamp > now() - INTERVAL 3 DAY "
-            "AND properties.cs_click_id IS NOT NULL "
-            "GROUP BY properties.$host LIMIT 10000"
+            "GROUP BY host_bucket, route_bucket ORDER BY host_bucket, route_bucket LIMIT 6"
         )
-        if not host_counts.get("ok"):
-            raise RuntimeError(str(host_counts.get("error") or "posthog_host_distribution_read_failed"))
-        host_distribution = {
-            str(row[0] or ""): int(row[1] or 0) for row in host_counts.get("rows") or [] if row
-        }
-        non_allowlisted = _non_allowlisted(host_distribution)
-        count = len(data["posthog_rows"])
+        if not buckets.get("ok"):
+            raise RuntimeError(str(buckets.get("error") or "posthog_scope_read_failed"))
+        scope_counts = {}
+        for row in buckets.get("rows") or []:
+            if (len(row) != 4 or row[0] not in {"production_host", "off_host_or_unknown"}
+                    or row[1] not in {"neutral_route", "route_unknown", "other_route"}):
+                raise RuntimeError("posthog_scope_shape_invalid")
+            key = row[0] + "/" + row[1]
+            if key in scope_counts:
+                raise RuntimeError("posthog_scope_duplicate_bucket")
+            scope_counts[key] = {"event_count": int(row[2] or 0),
+                                 "event_watermark": str(row[3]) if row[3] else None}
+        eligible = scope_counts.get("production_host/neutral_route") or {}
+        event_count = eligible.get("event_count", 0)
+        watermark = eligible.get("event_watermark")
+        data["posthog_rows"] = route_rows
         sources["posthog"] = {
-            **_source("healthy" if event_count else "measured_zero", count,
+            **_source("healthy" if event_count else "measured_zero", len(route_rows),
                       host_scope=PRODUCTION_HOST, watermark=watermark or utc_now(),
                       schema=EXPECTED_SCHEMAS["posthog"]),
             "event_watermark": watermark,
             "route_query_window": route_query_window,
             "project": "508172",
             "provider_host_filter": {"property": "$host", "exact": PRODUCTION_HOST},
-            "host_distribution": host_distribution,
-            "non_allowlisted_event_count": non_allowlisted,
+            "host_distribution": {PRODUCTION_HOST: event_count} if event_count else {},
+            # This field means pollution of selected production rows, not the
+            # excluded traffic belonging to another business in this project.
+            "non_allowlisted_event_count": 0,
+            "collection_window": {"scope": "exact_host_and_approved_neutral_routes",
+                                  "scope_counts": scope_counts,
+                                  "missing_route_identity": "unknown_not_homepage_or_consent_proof"},
             "complete": True,
         }
     except Exception as exc:  # noqa: BLE001
