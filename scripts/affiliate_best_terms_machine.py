@@ -876,7 +876,7 @@ def merge_offers(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def run_supply_census(run_dir: Path) -> tuple[Path, dict[str, Any]]:
-    collector = SCRIPTS / "marketplace_supply_sweep.py"
+    collector = SCRIPTS / "affiliate_catalog_batch.py"
     if not collector.is_file():
         raise RuntimeError(f"best_terms_collector_source_missing:{collector}")
     runtime = collector_runtime_preflight()
@@ -2096,12 +2096,31 @@ def record_failure_recovery(*, send_alert: bool) -> dict[str, Any]:
 def run_machine(
     *, first_run: bool, approval_events: bool, stage: bool,
     census_dir: Path | None = None, xentraffic_catalog: Path | None = None,
-    send_alert: bool = False,
+    send_alert: bool = False, resume_census: bool = False,
 ) -> dict[str, Any]:
     weekly_guard = None
     if not approval_events:
         weekly_guard = claim_weekly_window()
         if weekly_guard["duplicate"]:
+            if resume_census:
+                # Repeated registered fires may finish read-only catalog work,
+                # but never repeat the week's selection, staging or Sheet effects.
+                retry_dir = RUNS_ROOT / f"census-retry-{stamp()}"
+                retry_dir.mkdir(parents=True, exist_ok=True)
+                _, summary = run_supply_census(retry_dir)
+                census = census_contract(summary, held_source_summary("xentraffic")
+                                         if "xentraffic" in HELD_NETWORKS else {
+                                             "completeness": "NOT_ATTEMPTED",
+                                             "detail": "fresh vault browser required"})
+                result = {"schema": "glp.best-terms-run.v1", "status": census['status'],
+                          "mode": "read_only_census_resume", "generated_at_utc": utc_now(),
+                          "weekly_window": weekly_guard, "census": census,
+                          "run_receipt": repo_rel(retry_dir / "run-receipt.json"),
+                          "effects": {"deploys": 0, "live_link_changes": 0, "repoints": 0,
+                                      "sheet_writes": 0, "applications": 0}}
+                atomic_json(retry_dir / "run-receipt.json", result)
+                atomic_json(RUNS_ROOT / "latest-census-resume.json", result)
+                return result
             return {
                 "schema": "glp.best-terms-run.v1",
                 "status": "PASS_DUPLICATE_WINDOW",
@@ -2264,6 +2283,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--first-run", action="store_true")
     parser.add_argument("--approval-events", action="store_true")
+    parser.add_argument("--resume-census", action="store_true",
+                        help="finish read-only catalog batches on a duplicate weekly fire; never restage")
     parser.add_argument("--stage", action="store_true")
     parser.add_argument("--census-dir", type=Path)
     parser.add_argument("--xentraffic-catalog", type=Path)
@@ -2308,6 +2329,7 @@ def main(argv: list[str] | None = None) -> int:
             census_dir=args.census_dir,
             xentraffic_catalog=args.xentraffic_catalog,
             send_alert=args.send_discord,
+            resume_census=args.resume_census,
         )
     except Exception as exc:
         failure = {
