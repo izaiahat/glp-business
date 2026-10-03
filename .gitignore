@@ -505,6 +505,11 @@
 !/ops/glp/topic-supply-inputs/README.md
 !/ops/glp/topic-supply-inputs/strategy-queue.json
 !/ops/glp/topic-supply-inputs/cluster-map.json
+
+# GLP343 first-party topic/refresh scoring (registered topic_data_score action)
+!/scripts/glp_topic_data_score.py
+!/tests/test_glp343_topic_first_party_scoring.py
+!/tests/test_glp343_integration_guards.py
 # GLP344 F04 price-evidence -> registry-delta seam (source only)
 !/tools/glp/price_evidence_delta.py
 !/tests/test_glp344_price_evidence_delta.py
