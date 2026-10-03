@@ -884,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "ee3f188dc1c069ef40662a1aa93268ee2dbcce129433cb1a1ca1e0a5cc555993"
+      "sha256": "8a2c676b60149fb542a7fd712cab3b794eb15c7615ab31ff8a734f39ea94e2f4"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1646,7 +1646,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "23e97328c655cfdec4109179c57278f46730624ee1567ee5473e35f9db4a760b"
+      "sha256": "3c9d81bba04fd48c5651e2e482710326ad5f955e9221bb3690c307225f8f4b54"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1784,7 +1784,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "1df7f69e343f2ed9eeb40648a1e7aeb612656cbdd53534dcfa493de83ffffdb4"
+      "sha256": "db2d0e0445aff2fdcc4d6c0d582fb7ac3311e871a4f68f995e1ed9847fe970e5"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -2851,7 +2851,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "b597ec56b7613358c24b656da3180f1773bb686ffd03382a966a91bcca2e3e05"
+      "sha256": "4fc4082ad083eaa781fa8dd1cdee9a44ab08341d5e4be9bab0c72bbcbef47c93"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
@@ -3805,7 +3805,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "1839413bbc05e55b92799d7a989d612c3262051bdb2bd264c0852c6bb36b2afd"
+      "sha256": "a12858fb8db8bff1dc4f231f69f50c00f14f2cdd6b9b495287d7d3a8a03b6908"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [

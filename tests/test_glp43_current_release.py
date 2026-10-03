@@ -148,6 +148,98 @@ class CurrentReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(c.GateError, "current_d1_compiled_route_closure_drift"):
                 c.current_d1_routes(bad)
 
+    def test_d1_existing_recovery_keeps_exact_terminal_and_selects_once(self):
+        # Synthetic local native chain only. No live approval/cache readiness.
+        self.stack.enter_context(mock.patch('socket.socket.connect', side_effect=AssertionError('network forbidden')))
+        self.d1_fixture(); self.prepare(); self.approve_fixture()
+        self.readback_fail = True
+        self.assertEqual(self.publish(), 1)
+        self.readback_fail = False
+        original = c.SEO_REPORT_ROOT / ('current-release-' + self.head) / 'CURRENT-RECEIPT.json'
+        original_bytes, pointer_bytes = original.read_bytes(), self.pointer.read_bytes()
+        pins = {'head': self.head, 'candidate': self.fixture_next,
+                'prepared_sha256': c.sha_file(self.prepared / 'PREPARED.json'),
+                'approval_sha256': c.sha_file(self.approval), 'original_sha256': c.sha_file(original)}
+        self.stack.enter_context(mock.patch.object(c, 'CURRENT_D1_RECOVERY', pins, create=True))
+        args = argparse.Namespace(prepared_dir=str(self.prepared), site_head=self.head,
+            expected_prepared_manifest_sha256=pins['prepared_sha256'], approval=str(self.approval),
+            expected_approval_sha256=pins['approval_sha256'], authorize_production=True,
+            candidate_deployment_id=self.fixture_next, expected_rolled_back_receipt_sha256=pins['original_sha256'],
+            authorize_existing_promotion=True, authorize_d1_existing_promotion=True,
+            authorize_renewed_promotion=False, authorize_rolled_back_successor_renewal=False,
+            authorize_post_identity_promotion=False, expected_terminal_promotion_sha256=None)
+        # Exact grant and all cross-lineage renewal flags refuse before IO/intent.
+        with mock.patch.object(c, 'read_token', side_effect=AssertionError('credentials forbidden')):
+            for key, value in (
+                ('authorize_d1_existing_promotion', False), ('authorize_existing_promotion', False),
+                ('authorize_production', False), ('authorize_renewed_promotion', True),
+                ('authorize_rolled_back_successor_renewal', True), ('authorize_post_identity_promotion', True),
+                ('expected_terminal_promotion_sha256', 'f' * 64), ('site_head', 'f' * 40),
+                ('candidate_deployment_id', NEW_ID), ('expected_rolled_back_receipt_sha256', 'f' * 64),
+                ('expected_prepared_manifest_sha256', 'f' * 64), ('expected_approval_sha256', 'f' * 64)):
+                bad = copy.copy(args); setattr(bad, key, value)
+                with self.subTest(field=key), self.assertRaises(c.GateError):
+                    c.run_promote_current_existing(bad)
+            for key, value in (('rollback_deployment_id', c.CURRENT_ROLLBACK), ('site_head', 'f' * 40)):
+                bad_prepared = {**self.prepared_data, key: value}
+                with self.subTest(prepared=key), self.assertRaises(c.GateError):
+                    c.current_d1_promotion_source(args, bad_prepared, original)
+            original.write_bytes(original_bytes + b' ')
+            try:
+                with self.assertRaises(c.GateError):
+                    c.run_promote_current_existing(args)
+            finally:
+                original.write_bytes(original_bytes)
+        selection_posts = []
+        candidate_reads = []
+        def transport(request, **kwargs):
+            prefix = c.API_BASE + f'/accounts/{c.ACCOUNT_ID}/pages/projects/{c.PROJECT}/deployments/' + self.fixture_next
+            if request.full_url in (prefix, prefix + '/rollback'):
+                response = mock.MagicMock(); response.__enter__.return_value = response
+                if request.get_method() == 'POST':
+                    self.assertEqual(request.full_url, prefix + '/rollback')
+                    selection_posts.append(request.full_url)
+                    self.assertEqual(len(candidate_reads), 2)  # Fresh read immediately before intent effect.
+                    raise c.urllib.error.URLError('synthetic ambiguous selection')
+                else:
+                    self.assertEqual(request.get_method(), 'GET')
+                    candidate_reads.append(request.full_url)
+                response.read.return_value = c.json_bytes({'success': True, 'result': self.deployment(self.fixture_next, self.head)})
+                return response
+            return self.transport(request, **kwargs)
+        with mock.patch.object(c.urllib.request, 'urlopen', side_effect=transport):
+            journal = original.parent / ('CURRENT-D1-PROMOTION-' + self.fixture_next + '-' + pins['original_sha256'] + '.json')
+            for attempt in range(2):
+                with self.assertRaisesRegex(c.GateError, 'current_promotion_outcome_unsettled_reconcile_only'):
+                    c.run_promote_current_existing(args)
+                self.assertEqual(len(selection_posts), 1)
+                self.assertEqual(self.pointer.read_bytes(), pointer_bytes)
+                self.assertEqual(original.read_bytes(), original_bytes)
+                active = json.loads(journal.read_bytes())
+                self.assertEqual(active['status'], 'ACTIVE')
+                self.assertIsNone(active['effects']['existing_candidate_selections_confirmed'])
+            # The synthetic provider settles later. Reconciliation must not POST.
+            self.current = self.deployment(self.fixture_next, self.head)
+            result = c.run_promote_current_existing(args)
+            self.assertEqual(result['receipt'], str(journal))
+            self.assertEqual(result['status'], 'PASS_PRODUCTION_TERMINAL')
+            self.assertEqual(len(selection_posts), 1)
+            self.assertEqual(original.read_bytes(), original_bytes)
+            self.assertEqual(len(self.deploy_calls), 1)  # Original fixture upload only.
+            self.assertEqual(json.loads(self.pointer.read_bytes())['supersedes']['deployment_id'], self.fixture_base)
+            receipt = json.loads(Path(result['receipt']).read_bytes())
+            self.assertEqual(receipt['binding']['predecessor_id'], self.fixture_base)
+            self.assertEqual(receipt['effects']['pointer_atomic_cas'], 1)
+            self.assertNotEqual(self.pointer.read_bytes(), pointer_bytes)
+            with self.assertRaises(c.GateError):
+                c.run_promote_current_existing(args)
+            values = {k.replace('_', '-'): v for k, v in vars(args).items()
+                      if not k.startswith('authorize_') and v is not None}
+            self.assertEqual(self.cli('--promote-current-existing', values, '--authorize-production',
+                                      '--authorize-existing-promotion', '--authorize-d1-existing-promotion'), 1)
+            self.assertEqual(self.last['error'], 'current_promotion_consumed_or_binding_changed')
+            self.assertEqual(len(selection_posts), 1)
+
     def test_d1_current_rollback_uses_authenticated_base_once(self):
         self.d1_fixture(); self.prepare(); self.approve_fixture()
         before = self.pointer.read_bytes()
