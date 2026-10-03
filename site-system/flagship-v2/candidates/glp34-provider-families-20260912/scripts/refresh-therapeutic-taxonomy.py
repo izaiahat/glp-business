@@ -55,7 +55,8 @@ POLICIES = {
     },
     'pallas-health-review': {
         'url': 'https://www.pallashealth.co/',
-        'quotes': {'molecule_tags': {'semaglutide': 'Compounded semaglutide is $139 for your first month', 'tirzepatide': 'compounded tirzepatide is $179 for your first month'}},
+        'quotes': {'molecule_tags': {'semaglutide': 'Compounded semaglutide injection is $139 for your first month', 'tirzepatide': 'compounded tirzepatide injection is $179 for your first month'}},
+        'finding': 'Retained first-party capture received 2026-10-02T12:01:28.411212Z adds the word injection to both existing molecule excerpts. No additional tags, price renewal, or RxSpan inference.'
     },
     'rxspan-md-telehealth-program-review': {
         'url': 'https://www.rxspanmd.com/',

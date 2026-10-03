@@ -28,10 +28,16 @@ def review(day_dir, decisions, out):
     release = Path(bound['pointer']['release_root'])
     rows = []
     with d.lock(out):
-        for selected in d.read(day_dir / 'SELECTED.json'):
+        selected_rows = d.read(day_dir / 'SELECTED.json')
+        profiles = d.read(release / 'data/program-registry.json')['provider_dynamic_profiles']['profiles']
+        selected_rows.sort(key=lambda r: (r['program_id'] not in profiles, r['program_id']))
+        for selected in selected_rows:
             pid = selected['program_id']
             if not d.re.fullmatch('[a-z0-9][a-z0-9-]*', pid) or 'fella' in pid:
                 rows.append({'program_id': pid, 'status': 'EXCLUDED_UNSAFE_IDENTITY'})
+                continue
+            if pid not in profiles:
+                rows.append(d.stage_program(er, release, pid, out / pid, str(day_dir), run['as_of_utc'][:10]))
                 continue
             decision = decisions / pid / 'ADJUDICATION.json'
             if not decision.is_file():
@@ -47,11 +53,14 @@ def review(day_dir, decisions, out):
             row.update(adjudication_path=str(decision), adjudication_sha256=decision_sha)
             rows.append(row)
         d.unchanged(bound)
-        handoff = {'schema': 'k3-reviewed-writer-handoff-v1', 'status': 'BLOCKED_WRITER_CONTRACT',
+        composer = d.load(HERE / 'compose_current_base.py', 'k3_composer')
+        composition = composer.compose(d, er, bound, rows, out)
+        handoff = {'schema': 'k3-reviewed-writer-handoff-v1', 'status': composition['status'],
                    'binding': bound, 'daily_run_path': str(day_dir / 'RUN.json'), 'daily_run_sha256': d.sha(day_dir / 'RUN.json'),
                    'programs': rows, 'ready_program_ids': [r['program_id'] for r in rows if r['status'] == 'PACKET_READY'],
-                   'combined_patch': None, 'candidate_applied': False, 'independent_acceptance': 'NOT_REQUESTED',
-                   'required_next_artifact': 'Parent-reviewed generic current-base disjoint composer and governed candidate-writer intake contract; historical s1_compose.py is NOT runnable as daily writer',
+                   'combined_patch': composition['combined_patch'], 'composition': composition,
+                   'candidate_applied': False, 'independent_acceptance': 'NOT_REQUESTED',
+                   'required_next_artifact': 'Resolve capture/fact/whole-base validation gaps, then independent review and governed adoption of the bound combined intake; no automatic candidate write',
                    'serial_shared_preimage_apply': 'FORBIDDEN',
                    'artifacts': {str(p.relative_to(out)): d.sha(p) for p in sorted(out.rglob('*')) if p.is_file() and p.name != '.daily.lock'}}
         d.put(out / 'WRITER-HANDOFF.json', handoff)
