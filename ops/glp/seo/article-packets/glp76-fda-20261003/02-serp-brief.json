@@ -1,0 +1,662 @@
+{
+  "capture_date": "2026-09-03",
+  "competitive_parity": {
+    "article_word_counts": [
+      1236,
+      1818,
+      1524,
+      1434,
+      1034,
+      1026,
+      2276,
+      2335
+    ],
+    "draft_depth_action": "The draft must contain at least 2,219 words, the ceiling of 95% of the largest accessible result's 2,335-word article boundary.",
+    "largest_observed_winner_words": 2335,
+    "method": "Eight accessible results were captured as full-page Markdown. Article counts use explicit page-specific article line boundaries, remove Markdown link and image destinations, and count Unicode word tokens.",
+    "primary_target_words": 2219
+  },
+  "dataforseo_relevance_evidence": {
+    "as_of": "2026-09-03",
+    "competitor_position": null,
+    "exact_target_measured": false,
+    "exact_target_query": "compounded tirzepatide vs zepbound",
+    "gsc_observed_queries": [
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 4,
+        "position": 68.25,
+        "query": "compounded tirzepatide vs zepbound"
+      },
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 1,
+        "position": 76.0,
+        "query": "is zepbound tirzepatide"
+      }
+    ],
+    "keyword_difficulty": null,
+    "nearest_measured_row": {
+      "competitor_position": 17,
+      "competitor_url": "https://www.glpwinner.com/insights/semaglutide-and-tirzepatide-recall-fda-alert-and-what-it-means-for-you",
+      "keyword_difficulty": 8,
+      "opportunity_id": "B-94e69b7ce6dc17ed",
+      "query": "rx pro tirzepatide",
+      "queue_state": "HOLD_INSUFFICIENT_MEASURED_EVIDENCE",
+      "search_volume": 50,
+      "target_route": "/guides/semaglutide-and-tirzepatide-recall-fda-alert-and-what-it-means-for-you",
+      "used_for_target_selection": false
+    },
+    "note": "The exact GSC target query has no measured DataForSEO row in the current paid artifact. The nearest measured topical row is preserved below and is not retargeted.",
+    "opportunity_id": null,
+    "our_position": null,
+    "provider": "DataForSEO",
+    "run_receipt": {
+      "actual_spend_usd": 0.627432,
+      "artifact_path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/KEYWORD-GAP-MACHINE-20260823/snapshots/2026-09-03/opportunities.json",
+      "artifact_sha256": "90f882e680b04e5de1ff555bb8c29df825077b83735f40d4b36b0a7ab40a8f0c",
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/KEYWORD-GAP-MACHINE-20260823/snapshots/2026-09-03/RUN-RECEIPT.json",
+      "provider_calls": 8,
+      "sha256": "1d581fe2d7d13d6ed8565439286af109140e1f779f96d85740cd16436147f49c"
+    },
+    "search_volume": null,
+    "selection_aggregate": {
+      "clicks": 0,
+      "ctr": 0.0,
+      "impressions": 8,
+      "position": 53.0
+    }
+  },
+  "deduplicated_results": [
+    {
+      "discovered_url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide?srsltid=AfmBOooO51Fb5RfY9Or85-1wqWInXfuF1F_3ac8ATEzt_TPW9b_E83_b",
+      "duplicates_retained_rank": 9,
+      "normalized_destination": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide",
+      "original_rank": 10,
+      "reason": "Duplicate normalized destination; tracking variant removed after both positions were retained."
+    }
+  ],
+  "inbound_link_plan": [
+    {
+      "anchor_text": "compounded tirzepatide versus Zepbound regulatory guide",
+      "context_sentence": "For the parallel tirzepatide comparison, use the [compounded tirzepatide versus Zepbound regulatory guide](/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/).",
+      "contextual_reason": "The sibling semaglutide/Ozempic regulatory article is the nearest approved-versus-compounded comparison and can pass readers to the parallel tirzepatide identity question.",
+      "source_article_id": "national-wow-medium-compounded-semaglutide-vs-ozempic-regulatory-status-20260723",
+      "source_exists_in_current_release": true,
+      "source_route": "/guides/compounded-semaglutide-vs-ozempic-regulatory-status/",
+      "target_exists_in_current_release": true,
+      "target_route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/"
+    }
+  ],
+  "location": "United States",
+  "observed_serp_gaps_and_article_delta": {
+    "approved_safety_coverage": {
+      "article_section": "FDA warnings on unapproved and illegally marketed products",
+      "evidence_date_limit": "Retained October 3, 2026 Pacific captures; no new SERP or source fetch.",
+      "source_quote_ids": [
+        "S1-Q5",
+        "S1-Q6"
+      ],
+      "subtopics": [
+        "Risks of incorrect dosing",
+        "Counterfeit tirzepatide"
+      ]
+    },
+    "delta": "Replace equivalence shorthand with a four-record distinction—ingredient, approved product, compounded preparation, transaction—then add dated 503B/shortage-list boundaries, label identity/presentation, an evidence test for claims, a no-switching boundary, and an actionable source-check checklist without provider selection or treatment advice.",
+    "observed": "SERP pages repeatedly answer approval status, ingredient identity, safety/quality, cost, access, switching, and FAQs; several use equivalence language or provider-led calls to action."
+  },
+  "outbound_link_delta": {
+    "new_route": "/guides/glp-1-cost-sensitivity/",
+    "reason": "Current selection route catalog confirms the route exists; it is not used as a product, provider, price, or suitability claim. The predecessor article’s substantive outbound links are preserved separately; this route is a new contextual cost-boundary link."
+  },
+  "query": "compounded tirzepatide vs zepbound",
+  "ranking_wedge": "The source-backed wedge is an explicit regulatory identity/accountability test: shared tirzepatide wording does not collapse ingredient identity, an FDA-approved labeled product, a compounded preparation, and the transaction into one product. The page also dates the 503B/shortage-list boundary and refuses unverified equivalence, switching, safety, price, coverage, and suitability claims.",
+  "rankings": [
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "1e05ac04eb874a920076200229d8e71047862c68a9887923afb28700f4075cc3",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-01-goodrx.json",
+        "raw_capture_file_sha256": "04165fe5fe566425895477fb5fd6cbfeeab5d4df9d779c4562feedc653a459a8"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "1 day ago · 1. Zepbound is FDA approved, while compounded tirzepatide is not. FDA approval is one of the biggest differences between Zepbound and compounded ...",
+      "discovered_url": "https://www.goodrx.com/zepbound/zepbound-vs-compounded-tirzepatide?srsltid=AfmBOooXxcs8qydImai3IQAlCTbkoV9TTxp7yNTa1T20P4_7f1st9lKe",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "FDA",
+        "tirzepatide"
+      ],
+      "final_url": "https://www.goodrx.com/zepbound/zepbound-vs-compounded-tirzepatide",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "5-107",
+        "article_word_count": 1236,
+        "checked_at_utc": "2026-10-02T23:59:41Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S9-goodrx-zepbound-vs-compounded-tirzepatide-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff0f-616d-714a-8c50-e7887f626108",
+        "sha256": "619cf382d6d25bd2157cbf0dcc9870adc254a3d597bd3cbf8e449204e1613754",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 103,
+      "original_search_rank": 1,
+      "outline": [
+        "Zepbound vs. Compounded Tirzepatide?: A Complete Guide",
+        "FDA approval is one of the biggest differences",
+        "Zepbound is available in standardized injectable forms",
+        "Zepbound has been studied extensively, and compounded tirzepatide has not",
+        "Zepbound is manufactured under strict FDA standards",
+        "Some people may turn to compounded tirzepatide due to cost concerns"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": false,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 1,
+      "scrape_id": "01a06a10-8b9e-740c-96f4-54ba818278a7",
+      "title": "Zepbound vs. Compounded Tirzepatide?: A Complete Guide",
+      "url": "https://www.goodrx.com/zepbound/zepbound-vs-compounded-tirzepatide"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "03b32727be16db7d356f79b702e99f77ee9bc45ce24b2e53749406184674955b",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-02-maven.json",
+        "raw_capture_file_sha256": "cdedc9ec600f17ed2733c8b7f4516f088ac7fac9f0330690b4723e95f775532a"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Zepbound® is the same as tirzepatide. Tirzepatide is the active ingredient that helps regulate blood sugar and reduce appetite.",
+      "discovered_url": "https://www.mavenclinic.com/post/zepbound-vs-tirzepatide-compound",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "FDA",
+        "tirzepatide"
+      ],
+      "final_url": "https://www.mavenclinic.com/post/zepbound-vs-tirzepatide-compound",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "15-177",
+        "article_word_count": 1818,
+        "checked_at_utc": "2026-10-02T23:59:41Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S10-maven-zepbound-vs-tirzepatide-compound-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff0f-722d-744c-8233-eb9083924caf",
+        "sha256": "29a4a53a668e3186c212f096e710c2b6deca462c57010a79efa93762658fd5c9",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 91,
+      "original_search_rank": 2,
+      "outline": [
+        "Zepbound® vs. compounded tirzepatide: What you need to know",
+        "What’s the difference between Zepbound® and compounded tirzepatide?",
+        "The regulatory picture: What changed, and what does it mean for you?",
+        "Quality and cost: Where compounded and FDA-approved options differ the most",
+        "Cost breakdown",
+        "What are the safety concerns with compounded tirzepatide?",
+        "FAQ"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": true,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 2,
+      "scrape_id": "01a06a10-9fa0-75cf-ab50-404944cee595",
+      "title": "Zepbound® vs. Compounded Tirzepatide: Key Differences",
+      "url": "https://www.mavenclinic.com/post/zepbound-vs-tirzepatide-compound"
+    },
+    {
+      "capture_date": "2026-09-03",
+      "capture_provenance": {
+        "article_extract_sha256": null,
+        "exact_failure": "Firecrawl returned an unsupported-site error; no direct body, status, final URL, or scrape ID was exposed.",
+        "fail_closed": true,
+        "failure_file_sha256": "0dd2a2f67ed2dd49e1a8a8fd70d75349584dfb2a7282026d7050d0fb2d78d7e9",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-03-reddit-failed-closed.json",
+        "raw_capture_file_sha256": "0dd2a2f67ed2dd49e1a8a8fd70d75349584dfb2a7282026d7050d0fb2d78d7e9"
+      },
+      "capture_status": "CAPTURE_FAILED_CLOSED",
+      "description": "Zepbound is far superior. lost 15 lbs in less than 2 months. lost 30 lbs on compound tirz. Compounded tirzepatide is not precisely legal nor is ...",
+      "discovered_url": "https://www.reddit.com/r/Zepbound/comments/1lvn6yz/zepbound_or_compound/",
+      "entities": null,
+      "final_url": null,
+      "http_status": null,
+      "original_search_rank": 3,
+      "outline": null,
+      "page_features": {
+        "comparison_sections": false,
+        "cost_section": false,
+        "faq": false,
+        "safety_section": false,
+        "switching_section": false
+      },
+      "rank": 3,
+      "scrape_id": null,
+      "title": "Zepbound or compound - Reddit",
+      "url": "https://www.reddit.com/r/Zepbound/comments/1lvn6yz/zepbound_or_compound/"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "6d46ca476e22a99389e28afcbb64bc4f629d8a66fb3c8755326f0a455d1e1b6e",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-04-biocare.json",
+        "raw_capture_file_sha256": "b9bf833ddf09b9fe2760336d56f8a6c4a9d2440444d0e92be21cd49bf156bc21"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "A: In a direct tirzepatide vs. Zepbound comparison, effectiveness is essentially equal because they share the same active ingredient. Clinical ...",
+      "discovered_url": "https://biocarenutrition.com/blogs/biocare-blog/zepbound-vs-compound-tirzepatide?srsltid=AfmBOorsFGPJuiBFgZZ5zZsZYy1R8IR0PEl7jDBV7YyY6O1lT5VO8D_",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "tirzepatide",
+        "GLP-1"
+      ],
+      "final_url": "https://biocarenutrition.com/blogs/biocare-blog/zepbound-vs-compound-tirzepatide",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "36-254",
+        "article_word_count": 1524,
+        "checked_at_utc": "2026-10-02T23:59:41Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S11-biocare-zepbound-vs-compound-tirzepatide-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff0f-78b1-71a8-8023-db7bc8a02c6c",
+        "sha256": "c07f6d42c3de880d52e525e2a7501af0866fad34702dcb4b2ded938330e40947",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 127,
+      "original_search_rank": 4,
+      "outline": [
+        "Switching From Zepbound to Compound Tirzepatide: My GLP-1 Weight Loss Journey",
+        "Why I Switched From Zepbound to Compound Tirzepatide",
+        "Zepbound vs Compound Tirzepatide: My Honest Comparison",
+        "Side Effects: Comparable",
+        "Cost: Significantly lower with compound tirzepatide",
+        "Provider Support: Personalized and responsive",
+        "Frequently Asked Questions",
+        "Q: Is tirzepatide the same as Zepbound?",
+        "Q: Is compound tirzepatide safe?"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": true,
+        "safety_section": true,
+        "switching_section": true
+      },
+      "rank": 4,
+      "scrape_id": "01a06a10-a70b-719e-bb15-d0891b4e7c19",
+      "title": "Switching From Zepbound to Compound Tirzepatide: My GLP-1 Weight Loss Journey",
+      "url": "https://biocarenutrition.com/blogs/biocare-blog/zepbound-vs-compound-tirzepatide"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "50b6655bfbb68a63b7115154ca7fce9ed7cd68d3aaea5908d68fc440bb2dab78",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-05-plexusdx.json",
+        "raw_capture_file_sha256": "eedbdc26ce5a40dc75292062e3d5d851326544d1a44d311135a92971a974b61c"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Both contain identical tirzepatide, yet regulatory pathways, sourcing, and pricing differ significantly. Zepbound requires a prescription from ...",
+      "discovered_url": "https://plexusdx.com/blogs/learn/does-zepbound-work-better-than-compounded-tirzepatide-plexusdx?srsltid=AfmBOopJ96VXC82_V-F0YjhCO9Q0RHrA8ADcYOrueWwElLfsXuPx5Hxw",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "FDA",
+        "GLP-1",
+        "tirzepatide"
+      ],
+      "final_url": "https://plexusdx.com/blogs/learn/does-zepbound-work-better-than-compounded-tirzepatide-plexusdx",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "17-121",
+        "article_word_count": 1434,
+        "checked_at_utc": "2026-10-02T23:59:41Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S12-plexusdx-zepbound-vs-compounded-tirzepatide-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff0f-8a1b-7699-af84-b820ff486c03",
+        "sha256": "b3c9bb6fb4d9deda47f7e688397289b72783449efa45de62a29ab43143c99163",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 78,
+      "original_search_rank": 5,
+      "outline": [
+        "Does Zepbound Work Better Than Compounded Tirzepatide?",
+        "Zepbound vs. Compounded Tirzepatide: Key Differences",
+        "Efficacy: Is One More Effective Than the Other?",
+        "Cost and Accessibility: Where Compounded Tirzepatide Offers Advantages",
+        "Personalization and Precision Health: PlexusDx Differentiation",
+        "Safety Profile and Side Effects",
+        "Frequently Asked Questions",
+        "Does compounded tirzepatide work as well as Zepbound?",
+        "Why is PlexusDx compounded tirzepatide so much cheaper than Zepbound?",
+        "Can I switch from Zepbound to PlexusDx compounded tirzepatide?",
+        "Is compounded tirzepatide from PlexusDx FDA-approved?"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": true,
+        "safety_section": true,
+        "switching_section": true
+      },
+      "rank": 5,
+      "scrape_id": "01a06a10-b652-73eb-841f-26f5ad095795",
+      "title": "Does Zepbound Work Better Than Compounded Tirzepatide?",
+      "url": "https://plexusdx.com/blogs/learn/does-zepbound-work-better-than-compounded-tirzepatide-plexusdx"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "cb3e9db2b418c3806eb36624fb2b7d6d6eea816d6b272e545da3c599a7546aea",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-06-forbes.json",
+        "raw_capture_file_sha256": "78e7579d70d2ba5a28e5ed48f7359f930cf09874447f26eab60103d671e2aff2"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Learn more about the differences between Zepbound and compounded tirzepatide, including the differences in safety, FDA-approval and weight ...",
+      "discovered_url": "https://www.forbes.com/health/weight-loss/compounded-tirzepatide-vs-zepbound/",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "tirzepatide",
+        "FDA",
+        "GLP-1"
+      ],
+      "final_url": "https://www.forbes.com/health/weight-loss/compounded-tirzepatide-vs-zepbound/",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "133-251",
+        "article_word_count": 1034,
+        "checked_at_utc": "2026-10-03T00:17:49Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S17-forbes-compounded-tirzepatide-vs-zepbound-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff20-2659-7508-97af-3d75680949bc",
+        "sha256": "c3ba1b60b81bfa653cd819c877297fab0b0e6bd92d845422b428493d19aa1538",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 134,
+      "original_search_rank": 6,
+      "outline": [
+        "Compounded Tirzepatide vs. Zepbound For Weight Loss: What You Need To Know",
+        "Zepbound: Comparison",
+        "What Are Compounded Tirzepatide and Zepbound?",
+        "Compounded Tirzepatide vs. Zepbound: Costs",
+        "Compounded Tirzepatide vs. Zepbound: Side Effects",
+        "Where to Get a Zepbound Prescription Online",
+        "Compounded Tirzepatide vs. Zepbound: How to Determine Which Is Best for You"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": false,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 6,
+      "scrape_id": "01a06a10-c0fa-749a-9aaf-26d8bcfcd76c",
+      "title": "Compounded Tirzepatide vs. Zepbound For Weight Loss - Forbes",
+      "url": "https://www.forbes.com/health/weight-loss/compounded-tirzepatide-vs-zepbound/"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "5f715cfaf646b1a5270287f0dcb60e7dd4d34a090419542167fd1ae90a919395",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-07-brownhealth.json",
+        "raw_capture_file_sha256": "ac69defc142936d825dfe7ad25d3c9e3470564e84e28d07c8a375f46c755867e"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Despite this, tirzepatide is still being compounded because the FDA agreed not to prosecute compounding pharmacies while a lawsuit filed by one ...",
+      "discovered_url": "https://www.brownhealth.org/be-well/compounded-weight-loss-medications-what-are-they-and-what-are-their-risks",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "tirzepatide",
+        "FDA",
+        "GLP-1"
+      ],
+      "final_url": "https://www.brownhealth.org/be-well/compounded-weight-loss-medications-what-are-they-and-what-are-their-risks",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "25-95",
+        "article_word_count": 1026,
+        "checked_at_utc": "2026-10-03T00:17:49Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S18-brownhealth-compounded-weight-loss-medications-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff20-36f6-745d-98b6-0d8792b31ecd",
+        "sha256": "b17b544c7c2be5c5ed3cffc34ab44a6a0c3efe10681420d63e91168232c3a069",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 102,
+      "original_search_rank": 7,
+      "outline": [
+        "Compounded Weight Loss Medications: What are They and What are Their Risks?",
+        "What is a compounded medication?",
+        "What are GLP-1RAs (Weight loss medications)?",
+        "Risks associated with compounded GLP-1RAs",
+        "Risks of incorrect dosing",
+        "Lack of oversight and the FDA’s stance"
+      ],
+      "page_features": {
+        "comparison_sections": false,
+        "cost_section": false,
+        "faq": false,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 7,
+      "scrape_id": "01a06a10-d087-76db-8902-6a3334e64e5f",
+      "title": "Compounded Weight Loss Medications: What are They and What are Their Risks?",
+      "url": "https://www.brownhealth.org/be-well/compounded-weight-loss-medications-what-are-they-and-what-are-their-risks"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "11cf99114e2d41f95b2126eba263aa7b513b397ebc37c0cbd652d7d7a6c0e3be",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-08-healingmaps.json",
+        "raw_capture_file_sha256": "e109900ca53a49dd25170e39d7894f097397682f5e8af4dd623c54868fec021d"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Compounded tirzepatide and brand-name Mounjaro or Zepbound deliver the same active ingredient. The differences come down to regulation, cost, ...",
+      "discovered_url": "https://healingmaps.com/compounded-tirzepatide-vs-mounjaro-zepbound/",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "tirzepatide",
+        "FDA",
+        "Mounjaro",
+        "503A"
+      ],
+      "final_url": "https://healingmaps.com/compounded-tirzepatide-vs-mounjaro-zepbound/",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "35-203",
+        "article_word_count": 2276,
+        "checked_at_utc": "2026-10-03T00:17:49Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S19-healingmaps-compounded-tirzepatide-vs-mounjaro-zepbound-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff20-3d76-7510-bc0a-80185e4898c2",
+        "sha256": "06c6e47622f3a9e4fbfd4970d8d98a26541c8c853e4f5e2078821b79e233dc95",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 50,
+      "original_search_rank": 8,
+      "outline": [
+        "Compounded Tirzepatide vs. Mounjaro and Zepbound: 2026 Comparison",
+        "The Short Answer",
+        "Mounjaro and Zepbound: The Brand-Name Path",
+        "What Is Compounded Tirzepatide?",
+        "Cost Comparison: Real 2026 Numbers",
+        "Efficacy: Are They Actually the Same?",
+        "Safety and Quality Considerations",
+        "Who Should Choose Which?",
+        "How to Access Each",
+        "Frequently Asked Questions",
+        "The Bottom Line"
+      ],
+      "page_features": {
+        "comparison_sections": true,
+        "cost_section": true,
+        "faq": true,
+        "safety_section": true,
+        "switching_section": true
+      },
+      "rank": 8,
+      "scrape_id": "01a06a10-d95e-74df-aff5-8b8806687c22",
+      "title": "Compounded Tirzepatide vs Mounjaro/Zepbound: 75% Cheaper",
+      "url": "https://healingmaps.com/compounded-tirzepatide-vs-mounjaro-zepbound/"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "580a7138b907ae7a3f05cd57b56375cd7b3b327aff029a5830ee648235e32156",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Firecrawl directQuote answer-field token count; excerpt-scoped, not a full-page word count.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-09-10-goodrx-safety.json",
+        "raw_capture_file_sha256": "2082e11bf41201aecb5e2b8e2a0c911616fb6391446af54271baa358b317b7f5"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Key takeaways: Compounded tirzepatide isn't an exact match to FDA-approved Mounjaro or Zepbound. It's not regulated like the commercially available versions ...Shortage resolved · Differences · Counterfeit tirzepatide",
+      "discovered_url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide?srsltid=AfmBOoodjbgEsghjCWqB_xC2Hy0GHSzJHnO5tkm1CDemV24puaRGWUn7",
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide",
+        "tirzepatide",
+        "FDA"
+      ],
+      "final_url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide",
+      "full_page_depth_capture": {
+        "article_line_range_inclusive": "5-173",
+        "article_word_count": 2335,
+        "checked_at_utc": "2026-10-03T00:17:49Z",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-87aec3395aa7e234-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-02-87aec3395aa7e234/research/S20-goodrx-compounded-tirzepatide-safety-firecrawl.json",
+        "result": "SUCCESS_HTTP_200",
+        "scrape_id": "01a0ff20-46d1-75be-92e9-0ed4a67fe62e",
+        "sha256": "f8ceaae3d6590c1994a2bad7bd5c88536cee67785fa5cd4daab39f5d866dd756",
+        "word_count_method": "Unicode word tokens after removing Markdown link and image destinations within the article boundary."
+      },
+      "http_status": 200,
+      "normalized_article_words": 30,
+      "original_search_rank": 9,
+      "outline": [
+        "Is Compounded Tirzepatide Safe?",
+        "Key takeaways: Compounded tirzepatide isn't an exact match to FDA-approved Mounjaro or Zepbound.",
+        "It's not regulated like the commercially available versions.",
+        "Differences",
+        "Shortage resolved",
+        "Counterfeit tirzepatide"
+      ],
+      "page_features": {
+        "comparison_sections": false,
+        "cost_section": false,
+        "faq": false,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 9,
+      "scrape_id": "01a06a12-e148-738f-ba9e-d5ff55434ba7",
+      "title": "Is Compounded Tirzepatide Safe? - GoodRx",
+      "url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide"
+    },
+    {
+      "capture_provenance": {
+        "article_extract_sha256": "580a7138b907ae7a3f05cd57b56375cd7b3b327aff029a5830ee648235e32156",
+        "extraction_source_line_ranges_inclusive": [
+          "6-6"
+        ],
+        "normalized_word_method": "Duplicate row; rank 9 directQuote capture retained.",
+        "raw_capture_file": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/SERP-09-10-goodrx-safety.json",
+        "raw_capture_file_sha256": "2082e11bf41201aecb5e2b8e2a0c911616fb6391446af54271baa358b317b7f5"
+      },
+      "capture_status": "CAPTURED_AND_EXTRACTED",
+      "description": "Key takeaways: Compounded tirzepatide isn't an exact match to FDA-approved Mounjaro or Zepbound. It's not regulated like the commercially available versions ...",
+      "discovered_url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide?srsltid=AfmBOooO51Fb5RfY9Or85-1wqWInXfuF1F_3ac8ATEzt_TPW9b_E83_b",
+      "duplicate_of_rank": 9,
+      "entities": [
+        "Zepbound",
+        "compounded tirzepatide"
+      ],
+      "final_url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide",
+      "http_status": 200,
+      "normalized_article_words": 30,
+      "original_search_rank": 10,
+      "outline": [
+        "Duplicate normalized destination; no second scrape was required."
+      ],
+      "page_features": {
+        "comparison_sections": false,
+        "cost_section": false,
+        "faq": false,
+        "safety_section": true,
+        "switching_section": false
+      },
+      "rank": 10,
+      "scrape_id": "01a06a12-e148-738f-ba9e-d5ff55434ba7",
+      "title": "Is Compounded Tirzepatide Safe? - GoodRx",
+      "url": "https://www.goodrx.com/classes/gip-receptor-glp-1-receptor-agonists/compounded-tirzepatide"
+    }
+  ],
+  "schema": "glp-opus-serp-brief-v1",
+  "search_capture": {
+    "credits_used": 2,
+    "feedback_id": "01a06a0f-e009-7031-a558-d88e1c692be2",
+    "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S0-exact-search-normalized.json",
+    "provider": "Firecrawl MCP firecrawl_search",
+    "requested_limit": 10,
+    "returned_positions": 10,
+    "sha256": "7cbcccd0735370832d8bf7e898ef3b4d01200d9d60dbdc15e9b9eac44c002c59"
+  },
+  "search_id": "01a06a0f-bf8a-702c-9949-1413338016be",
+  "selection_binding": {
+    "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+    "operator_directive_id": "glp-content-mix-v1:54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0",
+    "queue_position": 1,
+    "queue_sha256": "54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0",
+    "selection_path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/authority/01-r2-54abb90fc94b77a50f58-selection.json",
+    "selection_receipt_sha256": "5c1ee18bd1b2da13c8d50a5ab9e51970508f79902b6708fe218491ef3cce3d30",
+    "selection_sha256": "e4aea9c157aef3d1f2828ed5c96b16671aef1b4eecb366ee5901feebf95ce692",
+    "strategy_map_sha256": "05d215c1bd3a8656f4bc5f5534a1ad5e13934b94a649492743fd975533f2818b",
+    "strategy_queue_sha256": "5763fcc1e92fb3cfe5b4175f7c1e2db38044274d3f8c4167333296d88d259ec9",
+    "target_query": "compounded tirzepatide vs zepbound",
+    "target_route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "topic_id": "r2-54abb90fc94b77a50f58"
+  },
+  "serp_depth_limitation": "Ten positions were returned. Nine normalized destinations remain after retaining the rank-10 GoodRx tracking duplicate as a separate position row. Eight non-Reddit destinations have dated maxAge=0 Firecrawl attempts, full-page Markdown captures, explicit article boundaries, and real article word counts; Reddit remains failed closed with no body/status/scrape ID.",
+  "serp_feature_inventory": {
+    "featured_snippet": "NOT_OBTAINABLE — normalized Firecrawl Search response exposed no typed featured-snippet field.",
+    "image_pack": "NOT_OBTAINABLE — normalized Firecrawl Search response exposed no typed image-pack field.",
+    "people_also_ask": "NOT_OBTAINABLE — normalized Firecrawl Search response exposed no typed People Also Ask field.",
+    "video_pack": "NOT_OBTAINABLE — normalized Firecrawl Search response exposed no typed video-pack field."
+  },
+  "status": "PASS_CURRENT_RUN_POSITION_BOUND_WITH_EXPLICIT_CAPTURE_LIMITS"
+}
