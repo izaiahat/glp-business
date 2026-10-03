@@ -19,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import ipaddress
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -32,6 +33,7 @@ import struct
 import threading
 import time
 import zlib
+from xml.parsers import expat
 from urllib.parse import urlsplit, quote, unquote, parse_qs, parse_qsl, urlencode
 
 import jwt
@@ -857,11 +859,147 @@ def png_text(kind, payload, remaining):
     return text
 
 
+SVG_NUMBER = re.compile(r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?')
+SVG_SPACE = ' \t\r\n'
+
+
+def svg_operands(text, pos, count, *, adjacent=True):
+    """Consume exactly count SVG numbers with comma-wsp or lexical separators."""
+    values = []
+    for index in range(count):
+        before = pos
+        while pos < len(text) and text[pos] in SVG_SPACE:
+            pos += 1
+        separated = pos != before
+        if index and pos < len(text) and text[pos] == ',':
+            pos += 1
+            separated = True
+            while pos < len(text) and text[pos] in SVG_SPACE:
+                pos += 1
+        if index and not separated and (not adjacent or pos == len(text) or text[pos] not in '+-.'):
+            raise ValueError('SVG number separator')
+        token = SVG_NUMBER.match(text, pos)
+        if token is None:
+            raise ValueError('SVG number required')
+        value = float(token[0])
+        if not math.isfinite(value) or abs(value) > 1e6:
+            raise ValueError('SVG numeric bounds')
+        values.append(value)
+        pos = token.end()
+    return values, pos
+
+
+def svg_path(text):
+    """Bounded explicit absolute M/L/H/V/C/Z grammar, not general SVG paths."""
+    if not 1 <= len(text.encode('utf-8')) <= 4096:
+        raise ValueError('SVG path bytes')
+    arities = {'M': 2, 'L': 2, 'H': 1, 'V': 1, 'C': 6, 'Z': 0}
+    pos = operands = segments = commands = 0
+    while pos < len(text):
+        if text[pos] in SVG_SPACE:
+            pos += 1
+            continue
+        command = text[pos]
+        if command not in arities or (not commands and command != 'M'):
+            raise ValueError('SVG explicit absolute command required')
+        commands += 1
+        segments += command != 'M'  # Z counts; moves do not.
+        operands += arities[command]
+        if operands > 1024 or segments > 256:
+            raise ValueError('SVG path complexity')
+        _, pos = svg_operands(text, pos + 1, arities[command])
+    if not commands:
+        raise ValueError('SVG initial move required')
+
+
+def png_embedded_svg(data):
+    """Reject-only observed one-path SVG subset; never render or resolve resources."""
+    # Bound the XML before parsing; prohibit references even when predefined or
+    # numeric. This also precludes declaration/DTD/entity work in Expat itself.
+    if not 1 <= len(data) <= 8192:
+        raise ValueError('SVG XML bytes')
+    text = data.decode('utf-8')
+    if '&' in text or '<!' in text or '<?' in text:
+        raise ValueError('SVG declarations or references')
+    namespace = 'http://www.w3.org/2000/svg'
+    depth = elements = declarations = 0
+
+    def refused(*args):
+        raise ValueError('SVG XML construct refused')
+
+    def declare(prefix, uri):
+        nonlocal declarations
+        declarations += 1
+        if prefix is not None or uri != namespace or depth or elements or declarations != 1:
+            refused()
+
+    def start(name, attrs):
+        nonlocal depth, elements
+        depth += 1
+        elements += 1
+        # Immediate callbacks bound depth/elements/attribute work; no XML tree.
+        expected = 'svg' if elements == 1 else 'path'
+        allowed = {'width', 'height', 'viewBox', 'fill'} if elements == 1 else {'d', 'fill'}
+        if (elements > 2 or depth != elements or name != namespace + '|' + expected
+                or declarations != 1 or len(attrs) > len(allowed) or not set(attrs) <= allowed):
+            refused()
+        for key, value in attrs.items():
+            if key == 'd':
+                svg_path(value)
+            elif len(value.encode('utf-8')) > 128:
+                refused()
+            elif key == 'fill':
+                if not re.fullmatch(r'(?:none|black|white|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6})', value):
+                    refused()
+            elif key in {'width', 'height'}:
+                number = value[:-2] if value.endswith('px') else value
+                if SVG_NUMBER.fullmatch(number) is None:
+                    refused()
+                numbers, end = svg_operands(number, 0, 1)
+                if end != len(number) or not 0 < numbers[0] <= 4096:
+                    refused()
+            elif key == 'viewBox':
+                numbers, end = svg_operands(value, 0, 4, adjacent=False)
+                if value[end:].strip(SVG_SPACE) or numbers[2] <= 0 or numbers[3] <= 0:
+                    refused()
+        if elements == 2 and 'd' not in attrs:
+            refused()
+
+    def end(name):
+        nonlocal depth
+        depth -= 1
+
+    def characters(value):
+        if value.strip(SVG_SPACE):
+            refused()
+
+    parser = expat.ParserCreate(encoding='utf-8', namespace_separator='|')
+    parser.StartNamespaceDeclHandler = declare
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = characters
+    parser.StartDoctypeDeclHandler = refused
+    parser.EntityDeclHandler = refused
+    parser.ExternalEntityRefHandler = refused
+    parser.ProcessingInstructionHandler = refused
+    parser.CommentHandler = refused
+    parser.StartCdataSectionHandler = refused
+    parser.XmlDeclHandler = refused
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError as exc:
+        raise ValueError('SVG malformed XML') from exc
+    if depth or elements != 2:
+        refused()
+
+
 def png_cabx(payload):
     """Bounded uncompressed JUMBF framing, NOT C2PA provenance verification.
 
     C2PA 2.4 A.3.2/11.1.4; ISO 19566-5 description/content boxes.
-    CBOR/JSON and embedded image bytes stay opaque and fully marker-scanned.
+    CBOR/JSON and PNG/JPEG bytes stay opaque and fully marker-scanned.
+    Embedded image/svg+xml alone has a bounded reject-only one-path XML grammar.
     No decompression, URL resolution, signature check or metadata exemption.
     """
     if not payload or len(payload) > PNG_METADATA_LIMIT:
@@ -935,6 +1073,7 @@ def png_cabx(payload):
             raise ValueError('JUMBF description trailing bytes')
         pos = next_pos
         children = []
+        embedded_mime = None
         while pos < end:
             # Recurse without counting the child's header twice.
             if end - pos >= 8 and payload[pos + 4:pos + 8] == b'jumb':
@@ -957,14 +1096,17 @@ def png_cabx(payload):
                         raise ValueError('external or unsupported embedded file')
                     strings = fields[1:].split(b'\x00', fields[0] + 2)
                     if (len(strings) != fields[0] + 2 or strings[-1]
-                            or strings[0] not in {b'image/png', b'image/jpeg'}):
+                            or strings[0] not in {b'image/png', b'image/jpeg', b'image/svg+xml'}):
                         raise ValueError('unsupported embedded media description')
+                    embedded_mime = strings[0]
                     if fields[0]:
                         name = strings[1].decode('utf-8')
                         if not name or len(strings[1]) > 1024 or any(ord(c) < 32 for c in name):
                             raise ValueError('embedded file name')
                 elif child != b'bidb' or children != [b'bfdb'] or begin == finish:
                     raise ValueError('embedded file box order')
+                elif embedded_mime == b'image/svg+xml':
+                    png_embedded_svg(payload[begin:finish])
             elif child != contents[content] or begin == finish:
                 raise ValueError('unsupported JUMBF content box')
             children.append(child)

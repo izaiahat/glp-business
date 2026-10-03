@@ -76,6 +76,16 @@ def reported_shape_fixture(width, height, color, idat_count, last_idat):
     return b'\x89PNG\r\n\x1a\n' + b''.join(png_chunk(k, d) for k, d in chunks), [(k.decode(), len(d)) for k, d in chunks]
 
 
+def svg_fixture(path='M0 0 L10 10 H20 V30 C0 0 1 1 2 2 Z', root='', path_attrs='fill="#000"'):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" {root}>'
+            f'<path d="{path}" {path_attrs}/></svg>').encode('utf-8')
+
+
+def embedded_svg(data, mime=b'image/svg+xml', filename=b''):
+    fields = bytes([bool(filename)]) + mime + b'\0' + (filename + b'\0' if filename else b'')
+    return manifest(superbox(EMBEDDED_FILE_UUID, b'example', [box(b'bfdb', fields), box(b'bidb', data)]))
+
+
 class TestFinchCaBX:
     @pytest.fixture(autouse=True)
     def setup(self, monkeypatch):
@@ -118,6 +128,185 @@ class TestFinchCaBX:
         (struct.pack('>I', 42) + bytes(32) + box(b'c2sh', bytes(32)), 31)])
     def test_supported_description_fields(self, optional, toggles):
         self.validate(manifest(optional=optional, toggles=toggles))
+
+    @pytest.mark.parametrize('filename', [b'', b'outline.svg'])
+    def test_embedded_svg_synthetic_observed_shape_not_original(self, filename):
+        # New artificial geometry matching REPORTED counts, not original artwork.
+        # Eight synthetic closed, curved badge cells, not recovered artwork.
+        commands = []
+        for cell in range(8):
+            x, y = 20 + (cell % 4) * 130, 20 + (cell // 4) * 260
+            commands.append(f'M{x} {y}')
+            for line in range(3 if cell < 4 else 2):
+                commands.append(f'L{x + 20 + line * 20} {y + 10 + line * 15}')
+            if cell < 2: commands.append(f'H{x + 100}')
+            for vertical in range(2 if cell < 5 else 1):
+                commands.append(f'V{y + 70 + vertical * 20}')
+            for curve in range(5 if cell < 4 else 4):
+                cx = x + 90 - curve * 15
+                control = '540.717' if cell == 3 and curve == 0 else str(cx + 25)
+                commands.append(f'C{control} {y + 100} {cx} {y + 120} {cx - 15} {y + 110}')
+            commands.append('Z')
+        path = ' '.join(commands)
+        assert len(path) <= 2282
+        path += ' ' * (2282 - len(path))
+        data = svg_fixture(path, 'width="600px" height="600" viewBox="0 0 600 600"')
+        data += b' ' * (2415 - len(data))
+        assert len(data) == 2415 and len(path.encode()) == 2282
+        assert sum(len(c[1:].split()) for c in commands) == 287
+        assert sum(c[0] != 'M' for c in commands) == 79
+        assert {c: sum(s[0] == c for s in commands) for c in 'MLHVCZ'} == {
+            'M': 8, 'L': 20, 'H': 2, 'V': 13, 'C': 36, 'Z': 8}
+        png = png_fixture(extra=[(b'caBX', embedded_svg(data, filename=filename))])
+        value = {'filename': 'art.png', 'content_type': 'image/png', 'content_base64': base64.b64encode(png).decode()}
+        file = self.m.upload_file(value, finch=True)
+        assert file['data'] == png
+        assert self.m.multipart_body({}, file, finch=True)[0].count(png) == 1
+
+    @pytest.mark.parametrize('path', ['M0 0', 'M-1e6 +1e6 L.5 -.5 H1. V1e-2 C0,0,1,1,2,2 Z',
+        'M0-1L2+3H4V5C0 0 1 1 2 2Z', 'M0 0 Z M1 1 L2 2'])
+    def test_embedded_svg_supported_complete_path_grammar(self, path):
+        self.validate(embedded_svg(svg_fixture(path)))
+
+    @pytest.mark.parametrize('path', ['', ' ', 'L0 0', 'Z', 'M0', 'M0 0 1 1', 'M0 0 L1',
+        'M0 0 L1 2 3 4', 'M0 0 H1 2', 'M0 0 V1 2', 'M0 0 C1 2 3 4 5',
+        'M0 0 C1 2 3 4 5 6 7', 'M0 0 Z1', 'M0 0 garbage', 'M0 0 LNaN 1',
+        'M0 0 LInf 1', 'M0 0 L1e999 1', 'M0 0 L1000000.1 1', 'M0 0 C0 0 -1000001 0 0 0',
+        'M,0 0', 'M0,,0', 'M0 0,', 'M0 0,L1 2', 'M0 0 L1,', 'M0 0 L1e 2',
+        'M0 0 L1e+ 2', 'M0 0 L1.2.3.4', 'M0 0 L1;2', 'M0 0\u00a0L1 2'])
+    def test_embedded_svg_path_syntax_and_numeric_bounds(self, path):
+        with pytest.raises(self.m.RpcError): self.validate(embedded_svg(svg_fixture(path)))
+
+    @pytest.mark.parametrize('command', list('mlhvczASQTasqt'))
+    def test_embedded_svg_unsupported_commands(self, command):
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture('M0 0 ' + command + '0 0 0 0 0 0 0')))
+
+    @pytest.mark.parametrize('root', ['width="4096" height=".5px" viewBox="-1e6 1e6 4096 4096"',
+        'width="1px" height="4096px" viewBox="0,0,1,1"', 'fill="none"'])
+    def test_embedded_svg_root_dimension_and_viewbox_acceptance(self, root):
+        self.validate(embedded_svg(svg_fixture(root=root)))
+
+    @pytest.mark.parametrize('root', ['width="0"', 'height="-1"', 'width="4097"', 'height="1e999"',
+        'width="100%"', 'width="1em"', 'width="NaN"', 'width="1 px"', 'height="+4096.01px"',
+        'viewBox="0 0 1"', 'viewBox="0 0 1 1 1"', 'viewBox="0 0 0 1"', 'viewBox="0 0 1 -1"',
+        'viewBox="1000001 0 1 1"', 'viewBox="0 0 1e999 1"', 'viewBox="0,,0,1,1"', 'viewBox="0 0 1 1,"',
+        'viewBox="0-0 1 1"', 'viewBox=".0.0 1 1"', 'viewBox="0 0 1000001 1"'])
+    def test_embedded_svg_bad_dimensions_and_viewbox(self, root):
+        with pytest.raises(self.m.RpcError): self.validate(embedded_svg(svg_fixture(root=root)))
+
+    @pytest.mark.parametrize('fill', ['none', 'black', 'white', '#123', '#ABCDEF'])
+    @pytest.mark.parametrize('location', ['root', 'path'])
+    def test_embedded_svg_fill_allowlist(self, fill, location):
+        self.validate(embedded_svg(svg_fixture(root=f'fill="{fill}"' if location == 'root' else '',
+            path_attrs=f'fill="{fill}"' if location == 'path' else '')))
+
+    @pytest.mark.parametrize('fill', ['red', 'currentColor', 'inherit', 'url(#x)', 'url(https://example.invalid)',
+        '#12', '#1234', '#12345678', '#xyz', 'rgb(0,0,0)', 'var(--x)', 'black;stroke:red'])
+    @pytest.mark.parametrize('location', ['root', 'path'])
+    def test_embedded_svg_unsupported_fill(self, fill, location):
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture(root=f'fill="{fill}"' if location == 'root' else '',
+                path_attrs=f'fill="{fill}"' if location == 'path' else '')))
+
+    @pytest.mark.parametrize('attr', ['onload="x"', 'style="fill:black"', 'class="x"', 'id="x"',
+        'href="https://example.invalid"', 'xml:base="https://example.invalid"', 'transform="scale(2)"',
+        'xmlns:x="https://example.invalid" x:fill="black"', 'xmlns:x="http://www.w3.org/2000/svg"'])
+    @pytest.mark.parametrize('location', ['root', 'path'])
+    def test_embedded_svg_unknown_attributes_and_namespaces(self, attr, location):
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture(root=attr if location == 'root' else '',
+                path_attrs=attr if location == 'path' else '')))
+
+    @pytest.mark.parametrize('data', [b'', b'not XML', b'\xff', b'<svg/>',
+        b'<svg xmlns="https://example.invalid"><path d="M0 0"/></svg>',
+        b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+        svg_fixture().replace(b'<path', b'<g><path').replace(b'/></svg>', b'/></g></svg>'),
+        svg_fixture().replace(b'</svg>', b'<path d="M0 0"/></svg>'),
+        svg_fixture().replace(b'/>', b'><path d="M0 0"/></path>'),
+        svg_fixture().replace(b'<path', b'<script'), svg_fixture().replace(b'<path', b'<foreignObject'),
+        svg_fixture().replace(b'<path', b'<animate'), svg_fixture().replace(b'<path', b'<style'),
+        svg_fixture().replace(b'<path', b'<use'), svg_fixture().replace(b'<path', b'<image'),
+        svg_fixture().replace(b'<path', b'text<path'), svg_fixture().replace(b'/>', b'>text</path>'),
+        b'text' + svg_fixture(), svg_fixture() + b'text', svg_fixture() + svg_fixture(),
+        svg_fixture().replace(b'fill="#000"', b'fill="#000" fill="black"'),
+        svg_fixture().replace(b'd="', b'width="1" d="'),
+        svg_fixture().replace(b'<svg ', b'<svg d="M0 0" '),
+        b'<?xml version="1.0"?>' + svg_fixture(), b'<?probe x?>' + svg_fixture(),
+        svg_fixture().replace(b'<path', b'<!--x--><path'),
+        b'<!DOCTYPE svg [<!ENTITY x "x">]>' + svg_fixture(),
+        b'<!DOCTYPE svg SYSTEM "https://example.invalid/dtd">' + svg_fixture(),
+        svg_fixture().replace(b'<path', b'<![CDATA[ ]]><path'),
+        svg_fixture().replace(b'#000', b'&#35;000'), svg_fixture().replace(b'#000', b'&amp;'),
+        svg_fixture().replace(b'M0 0', b'M0&#32;0'),
+        svg_fixture().replace(b'<path', b'&unknown;<path')])
+    def test_embedded_svg_strict_xml_subset(self, data):
+        with pytest.raises(self.m.RpcError): self.validate(embedded_svg(data))
+
+    def test_embedded_svg_all_resource_boundaries(self):
+        for length in (4096, 4097):
+            path = 'M0 0' + ' ' * (length - 4)
+            if length == 4096: self.validate(embedded_svg(svg_fixture(path)))
+            else:
+                with pytest.raises(self.m.RpcError): self.validate(embedded_svg(svg_fixture(path)))
+        for operands in (1024, 1025):
+            path = 'M0 0 ' + 'M0 0 ' * 511 + ('H0' if operands == 1025 else '')
+            if operands == 1024: self.validate(embedded_svg(svg_fixture(path)))
+            else:
+                with pytest.raises(self.m.RpcError): self.validate(embedded_svg(svg_fixture(path)))
+        for segments in (256, 257):
+            path = 'M0 0 ' + 'H0 ' * segments
+            if segments == 256: self.validate(embedded_svg(svg_fixture(path)))
+            else:
+                with pytest.raises(self.m.RpcError): self.validate(embedded_svg(svg_fixture(path)))
+        for length in (8192, 8193):
+            data = svg_fixture(); data += b' ' * (length - len(data))
+            if length == 8192: self.validate(embedded_svg(data))
+            else:
+                with pytest.raises(self.m.RpcError): self.validate(embedded_svg(data))
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(b'<svg xmlns="http://www.w3.org/2000/svg">' + b'<g>' * 1000 + b'</g>' * 1000 + b'</svg>'))
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture().replace(b'<path', b'<path ' + b'x="x" ' * 1000)))
+
+    def test_embedded_svg_nonpath_attribute_byte_budget(self):
+        self.validate(embedded_svg(svg_fixture(root='width="' + '0' * 127 + '1"')))
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture(root='width="' + '0' * 128 + '1"')))
+
+    def test_embedded_svg_pairing_raw_scans_caps_and_other_profiles(self):
+        with pytest.raises(self.m.RpcError): self.validate(embedded_svg(png_fixture()))
+        with pytest.raises(self.m.RpcError):
+            self.validate(embedded_svg(svg_fixture(), mime=b'image/svg+xml;charset=utf-8'))
+        # MIME is local to each embedded-file superbox, never a global hint.
+        def assertion(mime, data):
+            return superbox(EMBEDDED_FILE_UUID, b'example', [box(b'bfdb', b'\0' + mime + b'\0'), box(b'bidb', data)])
+        siblings = assertion(b'image/svg+xml', svg_fixture()) + assertion(b'image/png', b'opaque')
+        self.validate(superbox(b'c2pa', b'c2pa', [superbox(b'c2as', b'example', [siblings])]))
+        bad = assertion(b'image/png', b'opaque') + assertion(b'image/svg+xml', b'not XML')
+        with pytest.raises(self.m.RpcError):
+            self.validate(superbox(b'c2pa', b'c2pa', [superbox(b'c2as', b'example', [bad])]))
+        for children in ([box(b'bidb', svg_fixture())], [box(b'bfdb', b'\0image/svg+xml\0')],
+                [box(b'bfdb', b'\0image/svg+xml\0'), box(b'json', svg_fixture())],
+                [box(b'bfdb', b'\0image/svg+xml\0'), box(b'bidb', svg_fixture()), box(b'bidb', svg_fixture())]):
+            with pytest.raises(self.m.RpcError):
+                self.validate(manifest(superbox(EMBEDDED_FILE_UUID, b'example', children)))
+        # PNG/JPEG remain opaque; SVG under other MIME does not gain XML validation.
+        for mime in (b'image/png', b'image/jpeg'):
+            self.validate(embedded_svg(b'opaque legacy bytes', mime=mime))
+        with pytest.raises(self.m.RpcError, match='SensitiveOrActiveFileRefused'):
+            self.validate(embedded_svg(svg_fixture() + b' patient '))
+        data = svg_fixture()
+        with pytest.raises(self.m.RpcError, match='FileNameOrTypeRefused'):
+            self.m.validate_file('outline.svg', 'image/svg+xml', data, finch=True)
+        with pytest.raises(self.m.RpcError, match='FileNameOrTypeRefused'):
+            self.m.validate_file('outline.svg', 'image/svg+xml', data)
+        payload = embedded_svg(data)
+        budget = self.m.PNG_METADATA_LIMIT - len(payload) - 8
+        payload = box(b'jumb', payload[8:] + box(b'free', b'x' * budget))
+        assert len(payload) == self.m.PNG_METADATA_LIMIT
+        self.validate(payload)
+        with pytest.raises(self.m.RpcError): self.validate(payload, [(b'tEXt', b'Note\0safe')])
 
     @pytest.mark.parametrize('kind,children', [(b'cbor', [box(b'cbor', b'\xa0')]),
         (b'json', [box(b'json', b'{"note":"safe"}')]),
