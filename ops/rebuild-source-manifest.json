@@ -715,7 +715,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8"
+      "sha256": "bd9288957cfb26d385541751e791b580007bed960482e611eb450d0e77de124a"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -884,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "b763e3f3c89dd4b751f3477c42062fba071f388fe476b41b64747712dc4d6a94"
+      "sha256": "b05447e2368e90a9119d8879a64b1286bc5cd6be00598c0efd7d0ce693b86bca"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -3469,7 +3469,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "21092303ade5f05431bd36aacc642b97620b0af9724b5466dd29edeba3c20566"
+      "sha256": "11085e5c16b7b66bba68838cff92dd998d4ffb76d0360ca3878604446876a596"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3490,7 +3490,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "1e8e73fc1c1decb9619baa1a50da24d89ed311caf44d466aaf89f63a4efd2196"
+      "sha256": "bf4bd28f14348677da45fce2091c60b22ae2ae4316d702617c16a81a5f753d3b"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -3791,7 +3791,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "script",
-      "sha256": "b130c0071156fbe54397ea6aee9d7edbcf8020799a4e913b9b6e65a5abab5022"
+      "sha256": "804e01703504fec54c652d76e6fa48c22d03247bb445f399f268daea694b1323"
     },
     "ops/glp/evidence-refresh-k3/review_evidence.py": {
       "callers": [
@@ -3805,7 +3805,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "9f4ca471589c2a320ea1c2e93ab80ab84750d6483574820db8ba3e23906f5f37"
+      "sha256": "efa406a0ffd1dcc07583db377fffb7c9d319886d47aa6b4692f7a0b6d3fd3803"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -3817,12 +3817,12 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3fdff4a2ebb53f4f86ecee1976bcb182f4d1e7876be223ab3a0eaad76759b515"
+      "sha256": "509b1be48e4c8e71fac79d753330bbf4be5560fad042a1063bfd70e84ff2d09b"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "bf69bcd949d0219e2aad3622f05c152b47bee60e3e3aed87420716a1a85fd8ac"
+      "sha256": "cf3fcb0bdd8c4b8e7a101efbdb7b11070ffed88215460cb029f4b8252fdd3bf9"
     },
     "tools/glp/evidence_refresh.py": {
       "callers": [
@@ -4310,14 +4310,14 @@
       "callers": [
         "GLP80 daily evidence review"
       ],
-      "sha256": "2e744ebad931afd09809854752fc31d9f3ca975a823b9819bfe3220b0cfd2a20"
+      "sha256": "0db2d0eccab90f843489618711afdbca24a58997fd0d357509e6a66af242fc3c"
     },
     "tests/test_glp80_daily_progress.py": {
       "kind": "test",
       "callers": [
         "GLP80 daily evidence review"
       ],
-      "sha256": "92d145603d8fce44bb917f1d88e297182612e8bb34ee780ddf057491d9ab8ae1"
+      "sha256": "3d1da29473ae57a54d75b12c257f6cbb8b58342c8cc8b63136934eaedd61903f"
     },
     "scripts/glp334_live_reconciliation.py": {
       "kind": "script",
@@ -4421,14 +4421,14 @@
       "callers": [
         "hermes:58202b06bdc0"
       ],
-      "sha256": "b419913e1f2cdd40aae28a002599d1ad4ada184a842f9cfb5dfaafeb7c93d556"
+      "sha256": "dc9dddb3d22312c948a2e6bf950b4cacb00db68c4423ee89c9d13eac41357cb0"
     },
     "tests/test_affiliate_catalog_batch.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "4ad4159433b7a8e64c4df9b2c7b08f642b783a98ae94f16cc0f84aa63dcb937a"
+      "sha256": "450a84ae045b7d84ad49204210c6fa133a23eb88d0671c941323448cd0f13e3d"
     },
     "tools/glp/price_evidence_delta.py": {
       "callers": [

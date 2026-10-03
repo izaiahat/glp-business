@@ -6,6 +6,11 @@ on:
       - ops/glp/evidence-refresh-k3/**
       - ops/hermes-cron-scripts/glp_evidence_refresh_daily.py
       - tools/glp/evidence_refresh*
+      - scripts/glp_price_index_weekly.py
+      - scripts/glp_deploy_glp34_authority_v1.py
+      - scripts/glp_current_content_base_schema.py
+      - scripts/site_tree_materializer.py
+      - systems/seo-blog-machine/scripts/build_opus_article_release.py
       - tests/test_glp80_k3_prepared_consumer.py
       - tests/test_glp80_daily_progress.py
       - .github/workflows/glp80-k3-source.yml
