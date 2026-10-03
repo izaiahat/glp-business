@@ -30,7 +30,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "70a02047d471565314865ddf2bac511f0472e7be863e2a3f155c3287a23ba9a8"
+      "sha256": "b8688b87ce27c65b8d3a9305efd9a5c5d03865e1b6a68a77d3d4be153fb81404"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
@@ -751,7 +751,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "cfa47ee244760686d0503750f1baeb6a2265f661423ecd3a3237f0395fdf4347"
+      "sha256": "e207feda9e746ef4ec6c928ae7a2a27ffa24852cfe66bca8d31375da03d26560"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -2120,7 +2120,7 @@
         "scripts/awin_fresh_preflight.py"
       ],
       "kind": "script",
-      "sha256": "4472c65977782d9a123980f4d351efb93eae1d2a066e9f5872d48e1d1a8815c4"
+      "sha256": "864b16dc7816ec92a19964f465e08d833311462c0c4cb6c469d101b5f2854de8"
     },
     "scripts/marketplace_adapters/portal_apply.py": {
       "callers": [
@@ -3512,7 +3512,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "82bb62eb76f485db2d07673f5d4648e70e0b95113b154e0f0f28bab99ffb753d"
+      "sha256": "215edf64e35925dca32cc9d1e6aa4df3a04779fb8572e65e8af98779722987b7"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3533,7 +3533,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "f9e922f590abde12f7ca14332bc0e29d89648a7e6f4ebaa79754ae44e0aae8e1"
+      "sha256": "3fa4e3dd2e6f840dd65cb8319d882df448005ad92930d05e67ca788a813398a3"
     },
     "scripts/maintenance_admission.py": {
       "callers": [

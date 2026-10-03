@@ -335,7 +335,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     allowed = {
         '3c79a0b5f7b2': '7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc',
         '58202b06bdc0': 'e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8',
-        'ecbe6fdc0163': 'cfa47ee244760686d0503750f1baeb6a2265f661423ecd3a3237f0395fdf4347',
+        'ecbe6fdc0163': 'e207feda9e746ef4ec6c928ae7a2a27ffa24852cfe66bca8d31375da03d26560',
         'd5d5b954f303': '8d3cca1cb70d4fca01a5d70c6e050205c20d8fc637402a1e87711fb7bf929d07',
         'dc3649d3c84c': 'f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7',
     }

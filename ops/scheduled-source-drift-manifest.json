@@ -845,7 +845,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_sweep_daily.sh",
       "source": "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh",
-      "reviewed_sha256": "cfa47ee244760686d0503750f1baeb6a2265f661423ecd3a3237f0395fdf4347",
+      "reviewed_sha256": "e207feda9e746ef4ec6c928ae7a2a27ffa24852cfe66bca8d31375da03d26560",
       "payloads": []
     },
     {

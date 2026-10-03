@@ -75,9 +75,23 @@ def portal_refusal(network, display, api_attempt=None):
 
 def awin_inventory(legacy, transport):
     """Preserve advertiser status inside Awin's relationship buckets."""
-    source = legacy.awin.readback(transport)
+    states = {}
+    class StatusTransport:
+        def request(self, method, url, **kwargs):
+            response = transport.request(method, url, **kwargs)
+            endpoint = f'https://api.awin.com/publishers/{legacy.awin.PUBLISHER_ID}/advertisers'
+            if method.upper() == 'GET' and url == endpoint and response.status == 200:
+                body = response.json()
+                rows = body if isinstance(body, list) else body.get('advertisers') or []
+                relationship = (kwargs.get('params') or {}).get('advertiserRelationship')
+                for row in rows:
+                    states[(relationship, str(row.get('id') or ''))] = str(row.get('status') or '')
+            return response
+    source = legacy.awin.readback(StatusTransport())
     buckets = {}
-    for program in source.get('programs') or []:
+    for normalized in source.get('programs') or []:
+        program = {**normalized, 'network_status': states.get(
+            (normalized['relationship'], normalized['program_id']), '')}
         buckets.setdefault(program['relationship'], []).append({
             **program, 'id': program['program_id'],
             'displayUrl': program.get('url') or '',
