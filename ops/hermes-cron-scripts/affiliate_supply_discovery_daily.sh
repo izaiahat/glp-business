@@ -17,7 +17,7 @@ expected_card_sha256='30d152f78c8729a67c148d2972ef1ba3ecebab732c01929c5313998708
 [[ "$(sha256sum scripts/affiliate_supply_expansion.py | cut -d' ' -f1)" == "$expected_expansion_sha256" ]]
 [[ "$(sha256sum scripts/affiliate_monday_marketplace_receipt.py | cut -d' ' -f1)" == "$expected_coverage_sha256" ]]
 [[ "$(sha256sum scripts/affiliate_monday_discovery_card.py | cut -d' ' -f1)" == "$expected_card_sha256" ]]
-[[ "$(sha256sum scripts/affiliate_catalog_discovery.py | cut -d' ' -f1)" == 'f787d4ba8910f2f289bc303eaa318245a6d00f8db929bb3fbcfaca90979cfae5' ]]
+[[ "$(sha256sum scripts/affiliate_catalog_discovery.py | cut -d' ' -f1)" == 'b419913e1f2cdd40aae28a002599d1ad4ada184a842f9cfb5dfaafeb7c93d556' ]]
 [[ "${AFFILIATE_CRON_VERIFY_ONLY:-0}" == "1" ]] && exit 0
 
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"

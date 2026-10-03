@@ -16,21 +16,21 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "442e8d7c31da6dababc34f23972fe6555971953577f02c2328e432770317c8b5"
+      "sha256": "7bd22500c5a7c3145bb8a7683741106a3e481e1091cf38784018bdb98e970695"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
       "callers": [
         "hermes:58202b06bdc0"
       ],
-      "sha256": "f787d4ba8910f2f289bc303eaa318245a6d00f8db929bb3fbcfaca90979cfae5"
+      "sha256": "b419913e1f2cdd40aae28a002599d1ad4ada184a842f9cfb5dfaafeb7c93d556"
     },
     "tests/test_affiliate_catalog_batch.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "b16630a908bb347b7f88476fec8ac510e4894b168fb92c6bd7032c7cf155970f"
+      "sha256": "58d5f90d31ee97aeebf9cbc915da960a3b1b4fb665b05fa7adadcd717d9e8569"
     },
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
@@ -730,14 +730,14 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "f4ece90b7c1b7421b498a53a50554dbb7766c5294c6d08e7b87309ebc07cdc74"
+      "sha256": "e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "03b58a8a20af59181ba4b1c6a463e897891011b9b5265b265ff5afb624a291b8"
+      "sha256": "b952f95b9714b72c3615b05d40f343f3428f3a5fbbd6bf4effdef694bf8bb9f2"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -2549,7 +2549,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c6b661d979ae95d651825eee97b2db8eda2bad0e4117d3db57b2ab6c001ce3dd"
+      "sha256": "0fca0756230237c2240ef2549b33e8da75d62262da052435e08d774185b26da7"
     },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
@@ -3498,7 +3498,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "9615c3bda41dc039dd453329a13b69d3e80aeea6a6e248adc8cc89b8fa3bc614"
+      "sha256": "828dfeb5311ee70bdde50d0c9edd66f99f6de859710bfb4d7478a97fc499f9dc"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3519,7 +3519,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "fe6fbbda807277c18e08bf5682a39fc7f3708979cee680a96f5319ecee729d36"
+      "sha256": "6ac181b991e9621c738b8355bcea865126648506256be9e5dbd5ee32b05fa15e"
     },
     "scripts/maintenance_admission.py": {
       "callers": [

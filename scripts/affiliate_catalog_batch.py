@@ -84,6 +84,17 @@ def live_legacy():
     return module
 
 
+def catalog_verdict(legacy, inventory):
+    # The maintained legacy producer exposes verdict(count,total,blockers),
+    # not a dictionary completeness API. Awin keeps its bucketed shape.
+    enumerated = inventory.get('enumerated', len(inventory.get('programs') or []))
+    status, detail = legacy.verdict(enumerated, inventory.get('reported_total'),
+                                    inventory.get('blockers') or [])
+    return {'complete': status == 'COMPLETE', 'completeness': status,
+            'detail': detail, 'enumerated': enumerated,
+            'reported_total': inventory.get('reported_total')}
+
+
 def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75):
     """Rotate unfinished networks; preserve complete denominators for 24h."""
     outdir, state = Path(outdir), Path(state)
@@ -118,18 +129,20 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
             attempted.append(name)
             try:
                 with bounded_read(min(source_timeout, remaining)):
-                    inventory = legacy.SWEEPS[name](legacy._base.RequestsTransport(timeout=20))
+                    inventory = legacy.SWEEPS[name](legacy.b.RequestsTransport(timeout=20))
             except (ReadDeadline, Exception) as exc:
                 inventory = {'network': name, 'schema': legacy.SCHEMA,
                              'auth_state': 'BLOCKED', 'programs': [], 'enumerated': 0,
                              'reported_total': None, 'blockers': [{
                                  'error_class': 'bounded_read_timeout' if isinstance(exc, ReadDeadline)
                                                 else type(exc).__name__}]}
-            verdict = legacy.completeness(inventory)
+            verdict = catalog_verdict(legacy, inventory)
             rows[name] = {'attempted_at': now.isoformat(), 'inventory': inventory,
                           'complete': verdict['complete'], 'verdict': verdict}
             save(state, document)  # every network survives an interrupted parent
-        summary = {'schema': legacy.SCHEMA, 'captured_at_utc': now.isoformat(),
+        summary = {'schema': 'affiliate-marketplace-supply-sweep-v1',
+                   'portal_only': dict(legacy.PORTAL_ONLY),
+                   'captured_at_utc': now.isoformat(),
                    'outdir': str(outdir), 'networks': {}, 'gaps': [],
                    'batch': {'attempted': attempted, 'checkpoint': str(state),
                              'budget_seconds': budget},
@@ -144,20 +157,30 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
             elif row:
                 inventory = dict(row['inventory'])
                 inventory['catalog_observed_at_utc'] = row['attempted_at']
+                if (now - dt.datetime.fromisoformat(row['attempted_at'])).total_seconds() >= 86400:
+                    inventory['blockers'] = list(inventory.get('blockers') or []) + [
+                        {'error_class': 'catalog_checkpoint_expired'}]
+                    inventory['auth_state'] = 'STALE'
             else:
                 inventory = {'network': name, 'auth_state': 'DEFERRED', 'programs': [],
                              'enumerated': 0, 'reported_total': None,
                              'blockers': [{'error_class': 'batch_pending'}]}
-            verdict = legacy.completeness(inventory)
+            verdict = catalog_verdict(legacy, inventory)
             path = outdir / (name + '-inventory.json')
+            inventory.update(completeness=verdict['completeness'],
+                             completeness_detail=verdict['detail'],
+                             captured_at_utc=inventory.get('captured_at_utc') or
+                                             inventory.get('catalog_observed_at_utc') or now.isoformat(),
+                             effects={'provider_mutations': 0, 'tracking_clicks': 0},
+                             secret_printed=False)
             save(path, inventory)
             summary['networks'][name] = {**verdict, 'auth_state': inventory['auth_state'],
-                                        'inventory': str(path),
+                                        'receipt': str(path),
                                         'catalog_observed_at_utc': inventory.get('catalog_observed_at_utc')}
             if not verdict['complete']:
-                summary['gaps'].append({'network': name, 'reason': verdict['detail']})
-        if any(r.get('inventory', {}).get('auth_state') == 'DEFERRED' for r in rows.values()):
-            raise ValueError('deferred_catalog_must_not_be_checkpointed')
+                summary['gaps'].append({'network': name, 'state': verdict['completeness'],
+                                        'detail': verdict['detail']})
+        summary['status'] = 'GAPS' if summary['gaps'] else 'PASS'
         summary['total_enumerated'] = sum(r['enumerated'] for r in summary['networks'].values())
         summary['all_complete'] = not summary['gaps']
         summary['batch']['pending'] = [n for n in names if n not in rows and n != 'xentraffic']

@@ -31,7 +31,17 @@ def adapters(core, *, state=STATE, now=None):
         if network == 'xentraffic' or not row.get('complete') or not 0 <= age <= 86400:
             continue
         programs = []
-        for program in row['inventory'].get('programs') or []:
+        inventory = row['inventory']
+        source_rows = list(inventory.get('programs') or [])
+        # Awin's downstream apply contract deliberately retains relationship
+        # buckets. Flatten only for discovery, carrying the exact relationship.
+        for buckets in (inventory.get('relationships') or {}).values():
+            for relationship, bucket in buckets.items():
+                for program in bucket:
+                    source_rows.append({**program, 'program_id': str(program.get('id') or ''),
+                                        'relationship': relationship,
+                                        'url': program.get('displayUrl') or ''})
+        for program in source_rows:
             name = str(program.get('name') or '')
             description = ' '.join(str(program.get(field) or '') for field in
                                    ('description', 'category', 'categories', 'vertical'))

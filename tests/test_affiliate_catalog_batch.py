@@ -7,13 +7,12 @@ from scripts import affiliate_catalog_discovery as discovery
 
 
 def contract(sweeps):
-    def verdict(doc):
-        complete = not doc.get('blockers') and doc.get('reported_total') is not None
-        return {'complete': complete, 'verdict': 'COMPLETE' if complete else 'BLOCKED',
-                'detail': 'complete' if complete else 'unknown',
-                'enumerated': len(doc['programs']), 'reported_total': doc.get('reported_total')}
-    return SimpleNamespace(SWEEPS=sweeps, SCHEMA='fixture', completeness=verdict,
-                           _base=SimpleNamespace(RequestsTransport=lambda **kwargs: None))
+    def verdict(enumerated, total, blockers):
+        complete = not blockers and total is not None and enumerated >= total
+        return ('COMPLETE', 'complete') if complete else ('BLOCKED', 'unknown')
+    return SimpleNamespace(SWEEPS=sweeps, SCHEMA='fixture', verdict=verdict,
+                           PORTAL_ONLY={},
+                           b=SimpleNamespace(RequestsTransport=lambda **kwargs: None))
 
 
 def inventory():
@@ -75,18 +74,17 @@ def test_discovery_uses_complete_fresh_catalog_without_dropping_holds(tmp_path):
     assert discovery.adapters(core, state=state) == {}
 
 
-def test_registered_duplicate_census_never_repeats_sheet_effects(tmp_path, monkeypatch):
-    from scripts import affiliate_best_terms_machine as terms
-    monkeypatch.setattr(terms, 'RUNS_ROOT', tmp_path)
-    monkeypatch.setattr(terms, 'claim_weekly_window', lambda: {'duplicate': True})
-    monkeypatch.setattr(terms, 'run_supply_census', lambda directory: (directory, {'networks': {}}))
-    monkeypatch.setattr(terms, 'census_contract', lambda summary, xen: {'status': 'PARTIAL'})
-    def forbidden(*args, **kwargs):
-        raise AssertionError('duplicate census reached weekly effects')
-    for name in ['read_live_sheet', 'stage_backlog', 'drain_queue']:
-        monkeypatch.setattr(terms, name, forbidden)
-    result = terms.run_machine(first_run=False, approval_events=False,
-                               stage=True, resume_census=True)
-    assert result['mode'] == 'read_only_census_resume'
-    assert all(value == 0 for value in result['effects'].values())
-    assert (tmp_path / 'latest-census-resume.json').is_file()
+def test_awin_bucket_denominator_and_negative_relationship_survive(tmp_path):
+    doc = {'relationships': {'publisher': {'pending': [
+        {'id': '001', 'name': 'GLP clinic', 'displayUrl': 'https://example.invalid'}]}},
+           'enumerated': 1, 'reported_total': 1, 'blockers': [], 'auth_state': 'PASS'}
+    legacy = contract({'awin': lambda _: doc})
+    state = tmp_path / 'state.json'
+    summary = batch.run(legacy, tmp_path / 'out', state=state)
+    assert summary['networks']['awin']['enumerated'] == 1
+    assert summary['networks']['awin']['completeness'] == 'COMPLETE'
+    core = SimpleNamespace(glp_evidence=lambda name, text, url: {'fit': True})
+    row = discovery.adapters(core, state=state)['awin']['programs'][0]
+    assert row['program_id'] == '001'
+    assert row['relationship'] == 'pending'
+

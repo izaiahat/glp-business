@@ -837,7 +837,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_discovery_daily.sh",
       "source": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
-      "reviewed_sha256": "f4ece90b7c1b7421b498a53a50554dbb7766c5294c6d08e7b87309ebc07cdc74",
+      "reviewed_sha256": "e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8",
       "payloads": []
     },
     {
@@ -845,7 +845,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/affiliate_supply_sweep_daily.sh",
       "source": "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh",
-      "reviewed_sha256": "03b58a8a20af59181ba4b1c6a463e897891011b9b5265b265ff5afb624a291b8",
+      "reviewed_sha256": "b952f95b9714b72c3615b05d40f343f3428f3a5fbbd6bf4effdef694bf8bb9f2",
       "payloads": []
     },
     {
