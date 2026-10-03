@@ -88,3 +88,14 @@ def test_source_bound_research_queue_closes_gap_without_new_application():
     third = intake.reconcile([item], sheet_queue=queued, **args)
     assert second == third
     assert not queued[0].get('operator_authority')
+
+
+def test_research_fact_has_consumer_lifecycle_and_recovers_only_exact_unclaimed_predecessor():
+    from scripts import glp_published_provider_intake as feeder
+    stamp = '2026-10-03T00:00:00Z'
+    original = {'kind': 'research_only_provider', 'evidence': 'source-bound'}
+    fact = feeder.queue_fact(original, observed_at=stamp)
+    assert fact['status'] == 'queued' and fact['queued_at_utc'] == stamp and fact['note']
+    assert feeder.repairable_queue_row({**original, 'status': None}, original)
+    assert not feeder.repairable_queue_row({**original, 'status': 'claimed'}, original)
+    assert not feeder.repairable_queue_row({**original, 'evidence': 'drift'}, original)
