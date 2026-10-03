@@ -36,13 +36,21 @@ def repo(tmp_path_factory):
         if (ROOT / rel).exists():
             (repo / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / rel, repo / rel)
+    # Keep this historical migration cohort at its accepted committed bytes;
+    # newer registered wrappers are a separate ordinary scoped adoption.
+    from scripts import discovery_predecessor_migration as migration
+    for rel in migration.COHORT:
+        (repo / rel).write_bytes(subprocess.check_output(
+            ['git', '-C', str(repo), 'show', SOURCE + ':' + rel]))
     manifest = json.loads((repo / syncer.MANIFEST).read_text())
-    for rel in paths:
+    for rel in paths + sorted(migration.COHORT):
         if (repo / rel).exists():
             manifest['files'][rel] = {'sha256': sha((repo / rel).read_bytes())}
     manifest['tracked_count'] = len(manifest['files']) + 1
     dump(repo / syncer.MANIFEST, manifest)
-    subprocess.run(['git', '-C', str(repo), 'add', '-f', *[p for p in paths if (repo / p).exists()], syncer.MANIFEST], check=True)
+    subprocess.run(['git', '-C', str(repo), 'add', '-f',
+                    *[p for p in paths + sorted(migration.COHORT) if (repo / p).exists()],
+                    syncer.MANIFEST], check=True)
     subprocess.run(['git', '-C', str(repo), '-c', 'user.name=Fixture', '-c',
                     'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm',
                     'Synthetic exact candidate fixture'], check=True)

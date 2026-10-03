@@ -37,10 +37,10 @@ suites+=(tests/test_glp183_builder_checked_as_of.py)
 suites+=(tests/test_glp_awin_portal_login.py tests/test_awin_fresh_preflight.py)
 suites+=(tests/test_maxbounty_pin_release.py)
 suites+=(tests/test_glp_maxbounty_fresh_probe.py)
-suites+=(tests/test_glp328_outreach_policy.py tests/test_glp328_readonly_evidence.py tests/test_glp328_disabled_reply_connection.py)
+suites+=(tests/test_glp328_outreach_policy.py tests/test_glp328_readonly_evidence.py tests/test_glp328_disabled_reply_connection.py tests/test_glp_sponsor_campaign.py)
 suites+=(tests/test_glp76_updater_publication_date.py)
 suites+=(tests/test_glp73_current_pointer_consumer.py tests/test_glp73_weekly_actual_entry.py)
-suites+=(tests/test_glp73_archive_hardlink_manifest.py)
+suites+=(tests/test_glp73_archive_hardlink_manifest.py tests/test_glp110_restore_pruned_execution.py)
 suites+=(tests/test_glp250_partner_email_hold.py)
 suites+=(tests/test_glp96_research_only_contract.py)
 suites+=(tests/test_glp329_add_approved_row_full_grid_dry_run.py)
@@ -57,5 +57,6 @@ else
   printf 'HOST_ONLY_SKIPPED: ads monitor and bound Reddit capture suites require live /home/ubuntu/business inputs\n'
 fi
 suites+=(tests/test_glp75_topic_supply_inputs.py)
+suites+=(tests/test_affiliate_catalog_batch.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 python3 -m pytest -q "${suites[@]}"
