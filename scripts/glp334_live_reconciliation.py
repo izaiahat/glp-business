@@ -26,7 +26,7 @@ D1_SECRET = Path('/home/ubuntu/.hermes/secrets/cloudflare/glp-observability-d1.e
 # Execute the exact verified bytes, not a second import-time read.
 DEPENDENCIES = {
     'glp_network_revenue_v2': 'cbb68056ffe1988ebd3fb6ae2b158f027d1cbdfffdb4b0e79e80ddd1581763e1',
-    'glp_affiliate_weekly_reporting': 'ddfabbe7f1a53b65257a803a5a48b460699b4b712548d83731526c1ba1f550e0',
+    'glp_affiliate_weekly_reporting': '547f31d3543f72833ea470eee909b36ebb56a32283f5e3011c72a24d13256b7c',
 }
 MAX_ROWS = 10000
 COUNT_SQL = 'SELECT count(*) AS n FROM analytics_revenue_ledger_v1'
@@ -157,6 +157,48 @@ def weekly_input(report_root, now):
                  'window': doc['window'], 'freshness': 'LATEST_RETAINED_CLOSED_REPORT_NOT_CURRENT_EVENT_WINDOW'}
 
 
+def financial_input_rows(observations, reporter):
+    """Retain bounded financial-only inputs even without a receiver conversion.
+
+    These are diagnostic records, not normalized money or verified production
+    joins. Periods and native source pointers stay separate; do not sum them.
+    """
+    rows = []
+    ids = {'provider_event_id', 'record_id', 'program_id'}
+    money = {'reported_amount', 'reported_payout'}
+    labels = {'resource', 'event_type', 'source_status', 'amount_unit', 'amount_semantics', 'payout_semantics'}
+    for observation in observations:
+        for index, record in enumerate(observation.get('records', [])):
+            if not isinstance(record, dict) or reporter._noncommercial(record):
+                continue
+            if any('fella' in str(record.get(k, '')).casefold() for k in ('program_id', 'provider_slug')):
+                continue
+            projected = {}
+            for key in ids | money | labels | {'currency'}:
+                value = record.get(key)
+                if value is None or isinstance(value, bool):
+                    continue
+                text = str(value)
+                pattern = (r'[A-Za-z0-9_-]{1,100}' if key in ids else
+                           r'-?\d{1,30}(?:\.\d{1,20})?' if key in money else
+                           r'[A-Z]{3}' if key == 'currency' else r'[A-Za-z0-9_]{1,120}')
+                if re.fullmatch(pattern, text):
+                    projected[key] = text
+            # Even an unprojectable record must be owned by its exact source
+            # pointer; copying raw fields could expose customer attributes.
+            rows.append(projected | {
+                'observation_sha256': reporter.digest(observation),
+                'source_pointer': '/records/' + str(index),
+                'period_purpose': observation.get('period_purpose'),
+                'start_inclusive': observation.get('start_inclusive'),
+                'end_exclusive': observation.get('end_exclusive'),
+                'classification': 'UNKNOWN', 'attribution': 'UNKNOWN',
+                'reconciliation_state': 'UNKNOWN', 'owner': 'GLP-334',
+                'gap': 'AUTHENTICATED_TYPED_CONVERSION_EARNINGS_SETTLEMENT_BINDING_UNPROVEN',
+                'commission_minor': None, 'cash_minor': None})
+    return rows
+
+
 def network_rows(names, observations, snapshot, reconciled, reporter):
     """Keep each period separate: overlapping week/month/lookback are not additive."""
     rows = []
@@ -165,11 +207,14 @@ def network_rows(names, observations, snapshot, reconciled, reporter):
         events = [e for e in (snapshot or {}).get('conversions', []) if e.get('network') == name]
         event_ids = {e.get('revenue_event_id') for e in events}
         joined = [r for r in reconciled['rows'] if r['conversion_event_id'] in event_ids]
+        financial_inputs = financial_input_rows(obs, reporter)
         rows.append({'network': name, 'status': 'PARTIAL' if any(r['earnings_state'] == 'JOINED' for r in joined) else 'UNKNOWN',
                      'receiver_event_count': len(events) if snapshot is not None else None,
                      'commission_minor': None, 'cash_minor': None,
+                     'financial_input_records': financial_inputs,
                      'gaps': sorted(set(g for r in joined for g in r['gaps']) |
                                     ({'NO_ELIGIBLE_CONVERSION_LINEAGE'} if not joined else set()) |
+                                    ({'UNRECONCILED_NETWORK_FINANCIAL_RECORDS'} if financial_inputs else set()) |
                                     ({'NETWORK_REPORT_UNAVAILABLE'} if not obs else set())),
                      'periods': [{k: o.get(k) for k in ('period_purpose', 'start_inclusive', 'end_exclusive',
                                   'status', 'coverage', 'record_count', 'reason', 'account_binding', 'cash_minor', 'commission_minor')}
