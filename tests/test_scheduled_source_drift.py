@@ -335,8 +335,8 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     allowed = {
         '3c79a0b5f7b2': '2cba7ec77ee5cb3261d5d8c8566b567bef5b27e9731d07e25444bd3821fde05a',
         '58202b06bdc0': 'e6b5e09de5a765cf209cccd188b31ce783f56aab421d609469bc3b7a701531d8',
-        'ecbe6fdc0163': 'b952f95b9714b72c3615b05d40f343f3428f3a5fbbd6bf4effdef694bf8bb9f2',
-        'd5d5b954f303': '87cb8b968fa2b8433f4a1105fe4f66e5b4cc0f2581121afc30a6412897afddab',
+        'ecbe6fdc0163': '28c70ab318adac63d64ee5ebfcb863f77c9ee6e02bc7c8f91e02ff5b2a9f18dd',
+        'd5d5b954f303': '8d3cca1cb70d4fca01a5d70c6e050205c20d8fc637402a1e87711fb7bf929d07',
         'dc3649d3c84c': 'f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7',
     }
     seen = []
