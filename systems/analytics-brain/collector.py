@@ -86,10 +86,21 @@ def _http_text(url: str, timeout: int = 45) -> tuple[int, str]:
         return int(response.status), response.read().decode("utf-8", "replace")
 
 
+class _PublicRouteRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        parsed = urlsplit(newurl)
+        if (parsed.scheme != "https" or parsed.hostname != PRODUCTION_HOST
+                or parsed.path == "/go" or parsed.path.startswith("/go/")):
+            raise RuntimeError("public_route_redirect_outside_editorial_scope")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _http_page(url: str, timeout: int = 45) -> tuple[int, str, dict[str, str]]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    opener = urllib.request.build_opener(_PublicRouteRedirects())
+    with opener.open(request, timeout=timeout) as response:
         headers = {str(key).lower(): str(value) for key, value in response.headers.items()}
+        headers["_collector_resolved_path"] = urlsplit(response.geturl()).path
         return int(response.status), response.read().decode("utf-8", "replace"), headers
 
 
@@ -272,6 +283,7 @@ def inspect_route(route: str, control: dict[str, Any]) -> dict[str, Any]:
     return {
         "path": route,
         "http_status": status,
+        "resolved_path": headers.get("_collector_resolved_path", route),
         "ga4_static_present": gtm_present or direct_ga4,
         "ga4_direct_loader_present": direct_ga4,
         "gtm_static_present": gtm_present,
@@ -1697,12 +1709,12 @@ def derive_affiliate_obligations(control: dict[str, Any],
                         and parsed.hostname in (None, PRODUCTION_HOST)
                         and parsed.scheme in ("", "https"))
             valid_direct = (permission.get("allowed") is True
-                            and ("direct_paths" not in permission or row["path"] in permission["direct_paths"])
+                            and ("direct_paths" not in permission or row.get("resolved_path", row["path"]) in permission["direct_paths"])
                             and target.get("href") == permission.get("direct_target")
                             and target.get("link_mode") == "transparent-direct"
                             and str(target.get("network") or "").lower() == permission.get("network"))
             valid_directory = (not permission and _approved_directory_target(
-                target, row["path"], authority.get("programs") or {}, approved, current_holds))
+                target, row.get("resolved_path", row["path"]), authority.get("programs") or {}, approved, current_holds))
             bad += not (valid_go or valid_direct or valid_directory)
         row["unauthorized_affiliate_anchor_count"] = bad
     return obligations
