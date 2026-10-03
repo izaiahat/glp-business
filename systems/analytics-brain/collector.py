@@ -1305,8 +1305,8 @@ def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
         _assert_direct_decision(promotion)
         held = str(network['network']).lower() in current_holds
         permissions[pid] = {'obligation': 'forbidden' if held else 'required',
-                            'direct_href': None if held else href, 'go_allowed': False,
-                            'network': network['network']}
+                            'allowed': not held, 'direct_target': None if held else href,
+                            'go_allowed': False, 'network': str(network['network']).lower()}
     return permissions
 
 
