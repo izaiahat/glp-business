@@ -82,11 +82,12 @@ def test_portal_apply_has_no_persistent_chrome_or_saved_profile_attach():
         assert not banned.search((ROOT / relative).read_text(encoding="utf-8")), relative
 
 
-def test_fresh_context_launches_empty_browser_and_discards_it():
+def test_fresh_context_refuses_playwright_before_launch():
     log: list = []
-    with fresh.fresh_context(types.SimpleNamespace(chromium=FakeChromium(log))) as context:
-        context.new_page()
-    assert log == FRESH_LIFECYCLE
+    with pytest.raises(fresh.FreshAIBrowserRequired, match="fresh_ai_browser_vault_stage_required"):
+        with fresh.fresh_context(types.SimpleNamespace(chromium=FakeChromium(log))):
+            pytest.fail("Playwright portal context yielded")
+    assert log == []
 
 
 @pytest.mark.parametrize("value", ["http://127.0.0.1:9325", "http://127.0.0.1:9324",
@@ -157,13 +158,28 @@ def fake_sync_playwright(monkeypatch):
     return log
 
 
-def test_awin_transport_launches_fresh_browser_not_cdp_9325(portal_apply, fake_sync_playwright):
-    # Regression: the transport used to raise unless handed exactly 127.0.0.1:9325.
+def test_api_identity_never_launches_a_portal_browser(portal_apply, monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("API identity launched a browser")
+    monkeypatch.setattr(portal_apply, "PlaywrightApplyDriver", forbidden)
+    transport = portal_apply.AwinFreshBrowserTransport(api_identity=API_IDENTITY)
+    assert transport.authenticate_and_verify()["identity_source"] == "api"
+    transport.close()
+
+
+def test_default_portal_driver_requires_ai_vault_stage(portal_apply, fake_sync_playwright):
+    with pytest.raises(RuntimeError, match="fresh_ai_browser_vault_stage_required"):
+        portal_apply.PlaywrightApplyDriver(fresh=True).start()
+    assert fake_sync_playwright == []
+
+
+def test_awin_transport_uses_api_without_launching_second_browser(portal_apply, fake_sync_playwright):
     transport = portal_apply.AwinFreshBrowserTransport(api_identity=API_IDENTITY)
     assert portal_apply.AwinPlaywrightCDPTransport is portal_apply.AwinFreshBrowserTransport
-    assert transport.driver.fresh is True
+    assert transport.driver is None
+    assert transport.authenticate_and_verify()["browser"] == "not_used"
     transport.close()
-    assert fake_sync_playwright == ["playwright.start", *FRESH_LIFECYCLE, "playwright.stop"]
+    assert fake_sync_playwright == []
 
 
 def test_awin_transport_refuses_legacy_cdp_endpoint(portal_apply):
@@ -179,7 +195,7 @@ def test_awin_auth_report_names_fresh_browser_not_saved_profile(portal_apply):
     transport = portal_apply.AwinFreshBrowserTransport(
         driver=types.SimpleNamespace(close=lambda: None), api_identity=API_IDENTITY)
     report = transport._api_verified_report(captcha_used=False)
-    assert report["browser"] == "fresh_per_job"
+    assert report["browser"] == "fresh_ai_browser_vault"
     assert report["profile"] == "" and report["cdp_endpoint"] == ""
 
 
@@ -215,6 +231,38 @@ def test_awin_login_wall_without_api_identity_stops_for_vault_stage(portal_apply
         transport.authenticate_and_verify()
     assert (caught.value.failed_step, caught.value.detail) == (
         "vault_login_required", "fresh_vault_login_stage_not_integrated")
+
+
+def test_ai_bridge_requires_an_owned_runtime_and_refuses_mutations():
+    with pytest.raises(fresh.FreshAIBrowserRequired):
+        fresh.FreshAIBrowserReadDriver(js=None, goto_url=lambda _: None,
+            wait_for_load=lambda: None,
+            allowed_hosts={"ui.awin.com"}, owned_session="")
+    events = []
+    driver = fresh.FreshAIBrowserReadDriver(
+        js=lambda expression: "https://ui.awin.com/protected" if expression == "location.href" else "protected body",
+        goto_url=lambda url: events.append(url),
+        wait_for_load=lambda: None, allowed_hosts={"ui.awin.com"},
+        owned_session="test-owned", close_owned=lambda: events.append("closed"))
+    assert driver.body_text() == "protected body"
+    driver.goto("https://ui.awin.com/protected")
+    with pytest.raises(fresh.FreshAIBrowserRequired, match="outside_first_party"):
+        driver.goto("https://www.awin1.com/awclick.php")
+    with pytest.raises(fresh.FreshAIBrowserRequired, match="read_only"):
+        driver.page.locator("button").click()
+    with pytest.raises(fresh.FreshAIBrowserRequired, match="read_only"):
+        driver.page.locator("input").fill("not a credential")
+    driver.close()
+    driver.close()
+    assert events == ["https://ui.awin.com/protected", "closed"]
+
+
+def test_api_only_identity_cannot_authorize_terms_or_join(portal_apply):
+    transport = portal_apply.AwinFreshBrowserTransport(api_identity=API_IDENTITY)
+    for action in ("capture_program", "capture_authenticated_terms", "join_once"):
+        with pytest.raises(portal_apply.AwinAuthFailure, match="vault_login_required"):
+            transport.call(action, {"program_id": "123"})
+    transport.close()
 
 
 def test_katalys_executor_uses_fresh_browser_and_blocks_on_login_wall(portal_apply):

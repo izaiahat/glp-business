@@ -430,47 +430,32 @@ FORM_SCAN_JS = """
 
 
 class PlaywrightApplyDriver(pl.PlaywrightDriver):
-    """`portal_lane.PlaywrightDriver` plus dialog scopes and form introspection.
+    """Legacy compatibility surface; start refuses portal Playwright transport.
 
-    ``fresh=True`` launches one throwaway browser for this job (GLP-268): no
-    persistent Chrome/CDP listener and no saved profile; everything is
-    discarded on ``close``. It holds no credentials (login is the vault
-    stage's job), and a CDP endpoint is refused outright.
+    Dialog/form helpers remain for older importers, but no persistent or empty
+    Playwright browser is launched. Fresh vault reads use an explicitly injected
+    first-class AI browser driver; this name does not establish access.
     """
 
     def __init__(self, profile_dir: Path | str = "", *, fresh: bool = False,
                  cdp_url: str = "", **kwargs):
         refuse_persistent(cdp_url)
-        super().__init__(Path(profile_dir or "/tmp/portal-apply-unused"), **kwargs)
+        super().__init__(Path(profile_dir or "/home/ubuntu/.hermes/cache/scratch/portal-apply-unused"), **kwargs)
         self.fresh = fresh
         self._scopes: dict[str, Any] = {}
         self._fresh_stack: contextlib.ExitStack | None = None
 
     def start(self):
-        if not self.fresh:
-            return super().start()
-        from playwright.sync_api import sync_playwright  # noqa: PLC0415 - lazy on purpose
-
-        stack = contextlib.ExitStack()
-        try:
-            self._pw = stack.enter_context(sync_playwright())
-            self._ctx = stack.enter_context(fresh_context(self._pw))
-            self.page = self._ctx.new_page()
-            self.page.set_default_timeout(45000)
-        except BaseException:
-            stack.close()
-            raise
-        self._fresh_stack = stack
-        return self
+        # Empty Playwright contexts are still forbidden affiliate portal access.
+        # Only an injected first-class AI browser can consume a vault login;
+        # starting another browser would lose that login and its ownership proof.
+        from scripts.affiliate_fresh_browser import FreshAIBrowserRequired
+        raise FreshAIBrowserRequired("fresh_ai_browser_vault_stage_required")
 
     def close(self) -> None:
-        if not self.fresh:
-            super().close()
-            return
-        stack, self._fresh_stack = self._fresh_stack, None
-        if stack is not None:
-            with contextlib.suppress(Exception):
-                stack.close()
+        # No legacy superclass cleanup: this compatibility driver never starts
+        # a persistent context or listener and must not touch another consumer.
+        return None
 
     # -- scopes --------------------------------------------------------------
     def _scope(self, scope: str = ""):
@@ -583,12 +568,12 @@ class AwinAuthFailure(RuntimeError):
 
 
 class AwinFreshBrowserTransport:
-    """Fresh per-job Awin browser with one run-level login (GLP-268).
+    """API-only identity or an injected fresh AI/vault driver (GLP-268).
 
-    The persistent 127.0.0.1:9325 listener and its saved profile are no longer
-    attached: each job launches an empty browser. No password or CAPTCHA solver
-    is used here; a login wall yields the API-verified read-only identity or
-    stops for the vault stage. Any CDP endpoint a caller still passes is refused.
+    API identity creates no browser and grants no portal-write authority. An
+    injected driver consumes an already-owned fresh vault stage; no password,
+    CAPTCHA solver, saved profile or CDP endpoint is accepted here. Legacy
+    shell callers without an API identity stop before portal I/O.
     """
 
     PROFILE = AWIN_PROFILE_TEMPLATE
@@ -599,14 +584,15 @@ class AwinFreshBrowserTransport:
         if endpoint:
             raise AwinAuthFailure("launch_fresh_browser", "persistent_cdp_endpoint_refused")
         self.endpoint = ""
-        self.driver = driver or PlaywrightApplyDriver(fresh=True)
+        self.driver = driver
         self.api_identity = dict(api_identity or {})
         self._auth_report: dict[str, Any] | None = None
-        if driver is None:
-            try:
-                self.driver.start()
-            except Exception as exc:  # noqa: BLE001 - safe class-only boundary detail
-                raise AwinAuthFailure("launch_fresh_browser", f"fresh_launch_failed:{type(exc).__name__}") from exc
+        # Official API identity is checked before any portal driver is consulted.
+        # It cannot authorize terms or UI writes (call() still requires a driver).
+        if self.driver is None:
+            self._auth_report = self._api_verified_report(captcha_used=False)
+        if driver is None and self._auth_report is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
 
     @staticmethod
     def _visible(page: Any, selector: str) -> Any | None:
@@ -630,7 +616,7 @@ class AwinFreshBrowserTransport:
             "status": "API_VERIFIED", "reauthenticated": False,
             "publisher_id": api_id, "publisher_title": api_name,
             "account_name": api_name, "cdp_endpoint": self.endpoint,
-            "profile": "", "browser": FRESH_BROWSER_TRANSPORT,
+            "profile": "", "browser": "not_used" if self.driver is None else FRESH_BROWSER_TRANSPORT,
             "captcha_used": bool(captcha_used),
             "identity_source": "api",
         }
@@ -641,6 +627,8 @@ class AwinFreshBrowserTransport:
         auth_report = getattr(self, "_auth_report", None)
         if auth_report is not None:
             return dict(auth_report)
+        if self.driver is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
         page = self.driver.page
         try:
             self.driver.goto(self.PROGRAMS)
@@ -682,7 +670,8 @@ class AwinFreshBrowserTransport:
         return self._ensure_authenticated_session()
 
     def close(self) -> None:
-        self.driver.close()
+        if self.driver is not None:
+            self.driver.close()
 
     @staticmethod
     def failure_payload(exc: AwinAuthFailure) -> dict[str, str]:
@@ -813,6 +802,8 @@ class AwinFreshBrowserTransport:
 
     def call(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         program_id = str(payload.get("program_id") or "")
+        if action != "verify_identity" and self.driver is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
         if action == "verify_identity":
             # Real transports are constructed through __init__ and carry the
             # run-start auth sentinel. Provider-free legacy identity fixtures
