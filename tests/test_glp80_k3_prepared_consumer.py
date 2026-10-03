@@ -196,6 +196,56 @@ def test_legacy_binding_and_outside_lane_refusal(consumer, tmp_path, monkeypatch
         daily.binding(path, releases)
 
 
+def test_direct_publication_receipt_not_recovery_chain(consumer, tmp_path, monkeypatch):
+    daily, weekly, pointer, path, releases = k3_fixture(consumer, tmp_path, monkeypatch, True)
+    producer = sys.modules['glp_deploy_glp34_authority_v1']
+    root = Path(pointer['release_root']).parent
+    prepared = json.loads((root / 'PREPARED.json').read_text())
+    run_dir = Path(pointer['manifest']['path']).parent
+    intent = producer.current_pointer_intent(root, prepared, pointer['deployment_id'], run_dir)
+    approval = root.parent / 'astra-final-review/RESPONSE.md'
+    approval.parent.mkdir(parents=True)
+    approval.write_text('{"fixture":"independent approval"}')
+    approval_sha = daily.sha(approval)
+    put = lambda p, v: p.write_text(json.dumps(v))
+    argv_path = root.parent / 'PUBLISH-ARGV.json'
+    put(argv_path, ['python3', 'carrier.py', '--publish-current', '--approval', str(approval),
+                    '--expected-approval-sha256', approval_sha])
+    checked = []
+    def check_approval(args, actual):
+        assert args.expected_approval_sha256 == daily.sha(approval)
+        assert args.expected_prepared_manifest_sha256 == daily.sha(root / 'PREPARED.json')
+        assert actual == prepared and args.authorize_production is True
+        checked.append(True)
+    monkeypatch.setattr(producer, 'current_approval', check_approval, raising=False)
+    monkeypatch.setattr(producer, 'CURRENT_AUTHORITIES', {}, raising=False)
+    direct = {'schema': 'glp43-current-deploy-receipt-v1', 'status': 'PASS_PRODUCTION_TERMINAL',
+              'binding': {'prepared_manifest_sha256': daily.sha(root / 'PREPARED.json'), 'approval_sha256': approval_sha},
+              'site_head': pointer['site_head'], 'rollback_deployment_id': prepared['rollback_deployment_id'],
+              'deploy_directory': prepared['deploy_directory'],
+              'effects': {'pages_deployments': 1, 'pages_rollbacks': 0, 'pointer_atomic_cas': 1,
+                          'worker_deploys': 0, 'd1_mutations': 0, 'cron_mutations': 0, 'email_sends': 0},
+              'stages': {'pages_deploy_intent': {'predecessor_id': prepared['rollback_deployment_id'], 'commit_hash': pointer['site_head'], 'created_at_utc': '2026-10-03T00:00:00Z'},
+                         'pages_deploy_cli': {'returncode': 0},
+                         'pages_deployment': {'deployment_id': pointer['deployment_id'], 'commit_hash': pointer['site_head']},
+                         'pointer_intent': intent, 'pointer_cas': {'status': 'PASS_ATOMIC_POINTER_CAS', 'sha256': daily.sha(path)},
+                         'canonical_pointer_readback': {'deployment_id': pointer['deployment_id'], 'site_head': pointer['site_head'], 'pointer_sha256': daily.sha(path)},
+                         'route_probes': [{'fixture': True}], 'route_probe_raw': [{'fixture': True}],
+                         'runtime_and_holds': [{'fixture': True}]}}
+    receipt = run_dir / 'CURRENT-RECEIPT.json'
+    put(receipt, direct)
+    for p in run_dir.glob('CURRENT-PROMOTION-*'):
+        p.unlink()
+    bound = daily.binding(path, releases)
+    assert checked and str(receipt) in bound['prepared_binding']['files']
+    assert str(approval) in bound['prepared_binding']['files']
+    daily.unchanged(bound)
+    direct['effects']['pointer_atomic_cas'] = 0
+    put(receipt, direct)
+    with pytest.raises(RuntimeError, match='native_terminal_binding'):
+        daily.binding(path, releases)
+
+
 def test_exact_pin_cohort_and_preimport_drift(tmp_path, monkeypatch):
     daily = load_file(PACKAGE / 'daily_evidence_refresh.py', 'k3_test_pins')
     pins = json.loads((PACKAGE / 'SOURCE-PINS.json').read_text())
