@@ -919,6 +919,9 @@ def png_embedded_svg(data):
     if not 1 <= len(data) <= 8192:
         raise ValueError('SVG XML bytes')
     text = data.decode('utf-8')
+    # XML forbids NUL; without this Expat can autodetect BOM-less UTF-16.
+    if '\x00' in text:
+        raise ValueError('SVG XML NUL')
     if '&' in text or '<!' in text or '<?' in text:
         raise ValueError('SVG declarations or references')
     namespace = 'http://www.w3.org/2000/svg'
