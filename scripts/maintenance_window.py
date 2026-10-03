@@ -533,9 +533,23 @@ class MaintenanceWindow:
             controls = {key: job[key] for key in CONTROL_FIELDS if key in job}
             if controls == prior.get('paused_fields') and job.get('enabled') is False:
                 disposition = 'owned_pause'
-            else:
-                require(controls == prior['fields'], 'recovery_control_conflict')
+            elif controls == prior['fields']:
                 disposition = 'external_preimage'
+            else:
+                # Only an independently authorized owner release/re-hold of an
+                # original native hold may be preserved. Never normalize its
+                # cursor, replay its run, or write the old hold over its outcome.
+                cursors = ('pending_slot', 'next_run_at')
+                require(prior['fields'].get('enabled') is False
+                        and {k: controls[k] for k in cursors if k in controls}
+                            == {k: prior['fields'][k] for k in cursors if k in prior['fields']}
+                        and ((controls.get('enabled') is True and controls.get('state') == 'scheduled'
+                              and controls.get('paused_at') is None and controls.get('paused_reason') is None)
+                             or (controls.get('enabled') is False and controls.get('state') == 'paused'
+                                 and isinstance(controls.get('paused_at'), str) and controls['paused_at']
+                                 and isinstance(controls.get('paused_reason'), str) and controls['paused_reason'])),
+                        'recovery_control_conflict')
+                disposition = 'external_owner_controls'
             pin = prior.get('script_sha256')
             paths = [path for path, digest in entry.get('source_sha256', {}).items()
                      if pin is not None and digest == pin]
@@ -554,15 +568,18 @@ class MaintenanceWindow:
                         sources[command_path] == entry['source_sha256'][command_path],
                         'recovery_pin_binding_unproven')
             after = copy.deepcopy(job)
-            for key in CONTROL_FIELDS:
-                if key in prior['fields']:
-                    after[key] = copy.deepcopy(prior['fields'][key])
-                else:
-                    after.pop(key, None)
+            if disposition != 'external_owner_controls':
+                for key in CONTROL_FIELDS:
+                    if key in prior['fields']:
+                        after[key] = copy.deepcopy(prior['fields'][key])
+                    else:
+                        after.pop(key, None)
             jobs[entry['id']] = {'before_sha256': json_sha(job), 'after_sha256': json_sha(after),
                                 'pin': job.get('script_sha256'), 'pin_path': pin_path,
                                 'pin_changed': job.get('script_sha256') != pin,
                                 'disposition': disposition}
+            if disposition == 'external_owner_controls':
+                jobs[entry['id']]['preserved_controls'] = copy.deepcopy(controls)
         require(not self.backend.inflight([row['entry'] for row in data['entries']]), 'recovery_not_drained')
         return {'schema': 'glp-maintenance-pre-adoption-proposal-v1',
                 'journal_sha256': json_sha(data), 'source_sha256': sources, 'changes': changes,
@@ -582,9 +599,11 @@ class MaintenanceWindow:
         required = {'source_approvals': set(proposal['changes']),
                     'pin_approvals': {jid for jid, job in proposal['jobs'].items() if job['pin_changed']},
                     'external_restores': {jid for jid, job in proposal['jobs'].items()
-                                          if job['disposition'] == 'external_preimage'}}
+                                          if job['disposition'] == 'external_preimage'},
+                    'external_controls': {jid for jid, job in proposal['jobs'].items()
+                                          if job['disposition'] == 'external_owner_controls'}}
         for key, identities in required.items():
-            references = review.get(key)
+            references = review.get(key, {} if key == 'external_controls' else None)
             require(isinstance(references, dict) and set(references) == identities
                     and all(isinstance(value, str) and value.strip() for value in references.values()),
                     'recovery_approval_references_required:' + key)
@@ -620,7 +639,7 @@ class MaintenanceWindow:
                     and job_configuration(job) == prior['configuration_sha256'], 'recovery_job_changed')
             if row['restored']:
                 require(row.get('recovery_resolution') in
-                        {'native_readback', 'landed_intent', 'external_preimage'}, 'recovery_receipt_missing')
+                        {'native_readback', 'landed_intent', 'external_preimage', 'external_owner_controls'}, 'recovery_receipt_missing')
                 return 'released'
             actual = json_sha(job)
             if row['restore_intent'] and actual == expected['after_sha256']:
@@ -792,7 +811,7 @@ class MaintenanceWindow:
             if recovery is not None:
                 self._recovery_source_view(data)
                 disposition = self._recovery_row(data, row)
-                if disposition in {'landed_intent', 'external_preimage'}:
+                if disposition in {'landed_intent', 'external_preimage', 'external_owner_controls'}:
                     row['restored'], row['recovery_resolution'] = True, disposition
                     self._save(data)
                     continue

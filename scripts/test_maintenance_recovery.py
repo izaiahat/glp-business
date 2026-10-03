@@ -280,6 +280,74 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.backend.job('a'), before)
         self.assertEqual(self.backend.effects.count('hermes'), 1)
 
+    def owner_hold_transition(self, *, enabled=True):
+        row = self.original['entries'][-1]
+        row['prior']['fields'].update(enabled=False, state='paused',
+                                    paused_at='fixture-old-hold', paused_reason='fixture-original-hold')
+        window.atomic_json(self.journal, self.original)
+        self.backend.jobs['a'].update(enabled=enabled, state='scheduled' if enabled else 'paused',
+                                      paused_at=None if enabled else 'fixture-new-hold-time',
+                                      paused_reason=None if enabled else 'fixture-owner-failed-run-hold',
+                                      last_status='ok' if enabled else 'error',
+                                      last_run_at='fixture-terminal-outcome')
+        return row
+
+    def test_owner_released_original_hold_is_preserved_only_with_exact_approval(self):
+        row = self.owner_hold_transition()
+        before = self.backend.job('a')
+        proposal = self.window.recover_pre_adoption()
+        self.assertEqual(proposal['jobs']['a']['disposition'], 'external_owner_controls')
+        self.assertEqual(proposal['jobs']['a']['before_sha256'], proposal['jobs']['a']['after_sha256'])
+        self.assertEqual(proposal['jobs']['a']['preserved_controls'],
+                         {k: before[k] for k in window.CONTROL_FIELDS if k in before})
+        review = self.review()
+        with self.assertRaisesRegex(window.WindowError, 'external_controls'):
+            self.window.recover_pre_adoption(review)
+        self.assert_no_effects()
+        review['external_controls'] = {'a': 'fixture-owner-hold-release-and-terminal-outcome-approval'}
+        self.window.recover_pre_adoption(review)
+        data = window.read_journal(self.journal)
+        self.assertEqual(data['state'], 'closed')
+        self.assertEqual(self.backend.job('a'), before)
+        self.assertEqual(data['entries'][-1]['prior'], row['prior'])
+        self.assertEqual(data['entries'][-1]['recovery_resolution'], 'external_owner_controls')
+        self.assertFalse(data['entries'][-1]['restore_intent'])
+        self.assertEqual(self.backend.effects.count('hermes'), 1)
+
+    def test_owner_reheld_original_hold_keeps_new_terminal_hold(self):
+        self.owner_hold_transition(enabled=False)
+        before = self.backend.job('a')
+        review = self.review()
+        review['external_controls'] = {'a': 'fixture-owner-terminal-failure-rehold-approval'}
+        self.window.recover_pre_adoption(review)
+        self.assertEqual(self.backend.job('a'), before)
+        self.assertEqual(self.backend.effects.count('hermes'), 1)
+
+    def test_owner_controls_cannot_preserve_cursor_presence_drift(self):
+        self.owner_hold_transition()
+        self.backend.jobs['a']['pending_slot'] = None
+        with self.assertRaisesRegex(window.WindowError, 'recovery_control_conflict'):
+            self.review()
+        self.assert_no_effects()
+
+    def test_owner_controls_require_drained_terminal_native_record(self):
+        self.owner_hold_transition()
+        self.backend.busy = True
+        with self.assertRaisesRegex(window.WindowError, 'recovery_not_drained'):
+            self.review()
+        self.assert_no_effects()
+
+    def test_owner_controls_approval_does_not_accept_new_runtime_record(self):
+        self.owner_hold_transition()
+        review = self.review()
+        review['external_controls'] = {'a': 'fixture-owner-terminal-approval'}
+        self.backend.jobs['a']['last_status'] = 'fixture-raced-new-effect'
+        before = self.journal.read_bytes()
+        with self.assertRaisesRegex(window.WindowError, 'independent_exact_recovery_review_required'):
+            self.window.recover_pre_adoption(review)
+        self.assertEqual(self.journal.read_bytes(), before)
+        self.assert_no_effects()
+
     def test_native_resume_cursor_normalization_is_a_conflict(self):
         self.external_preimage()
         self.backend.jobs['a']['next_run_at'] = 'fixture-normalized-cursor'

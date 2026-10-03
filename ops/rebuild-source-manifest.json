@@ -50,7 +50,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "504706d80a6d55d75e29df1ec44e646a7be57ca1661e4fddd8c2b6445625a75b"
+      "sha256": "542297faf9b8cf31ddb4a854f8e23b793bb6b20f21b4e05abcf612b19eda10dd"
     },
     "scripts/glp345_a4_adoption.py": {
       "kind": "source_control",
@@ -3448,7 +3448,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "c4bf9264aca82ed26da830a11fc9493a95f2919e1d2494c31d77c5a791681b54"
+      "sha256": "203be322e3b43b100cde3e72367974ae7268bc8fb608e432d217d6624e5c0621"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
