@@ -87,42 +87,48 @@ def verified_row(d, er, pid, base_row, profile, captures, day):
     hosts = {urlsplit(u).hostname for u in profile['source_urls']}
     observed = {f: [] for f in FIELDS}
     dependencies = {str(d.TAXONOMY_REGISTRY): registry_sha, str(path): d.sha(path), str(result_path): d.sha(result_path)}
-    if policy.get('linked_url'):
-        primary_path = path.parent / (pid + '-primary.json')
-        primary = d.read(primary_path)
-        if (primary.get('request', {}).get('url') != policy['url']
-                or primary.get('request', {}).get('maxAge') != 0
-                or primary.get('response', {}).get('success') is not True
-                or primary['response']['data'].get('metadata', {}).get('statusCode') != 200
-                or policy.get('intermediate_url', policy['linked_url']) not in primary['response']['data'].get('links', [])):
-            return None
-        dependencies[str(primary_path)] = d.sha(primary_path)
-        if policy.get('intermediate_url'):
-            middle_path = path.parent / (pid + '-intermediate.json')
-            middle = d.read(middle_path)
-            if (middle.get('request', {}).get('url') != policy['intermediate_url']
-                    or middle.get('request', {}).get('maxAge') != 0
-                    or middle.get('response', {}).get('success') is not True
-                    or middle['response']['data'].get('metadata', {}).get('statusCode') != 200
-                    or policy['linked_url'] not in middle['response']['data'].get('links', [])):
-                return None
-            dependencies[str(middle_path)] = d.sha(middle_path)
-    for source, spec in zip(sources, specs):
+    def authenticated_capture(source, url):
+        """Apply the existing final-body checks to each manifest-bound receipt."""
         capture_path = d.ROOT / source['capture_path']
         if not capture_path.is_relative_to(lane) or capture_path.resolve() != capture_path or d.sha(capture_path) != source['capture_sha256']:
             raise ValueError('REGISTERED_TAXONOMY_CAPTURE_DRIFT')
         raw = d.read(capture_path);data = raw.get('response', {}).get('data', {});meta = data.get('metadata', {})
-        url = spec['url'];received = raw['received_at'];started = raw['started_at']
+        received = raw.get('received_at');started = raw.get('started_at')
         stamp = lambda v: datetime.fromisoformat(v.replace('Z', '+00:00'))
-        if (source['source_url'] != url or raw['request'].get('url') != url
+        try:
+            invalid = (not isinstance(received, str) or not isinstance(started, str)
+                or source['source_url'] != url or raw['request'].get('url') != url
                 or raw['request'].get('maxAge') != 0 or raw['response'].get('success') is not True
                 or meta.get('statusCode') != 200 or not data.get('markdown')
                 or source['captured_at'] != received or received[:10] != day or source['verified_as_of'] != day
                 or stamp(started) > stamp(received) or not er.safe_url(url, hosts)
                 or any(not er.safe_url(meta[k], hosts) for k in ('url', 'sourceURL') if meta.get(k))
                 or str(meta.get('cacheState', '')).lower() in {'hit', 'cached'}
-                or (meta.get('cachedAt') and stamp(meta['cachedAt']) < stamp(started))):
+                or (meta.get('cachedAt') and stamp(meta['cachedAt']) < stamp(started)))
+        except (KeyError, ValueError, TypeError, AttributeError):
+            invalid = True
+        if invalid:
             raise ValueError('REGISTERED_TAXONOMY_CAPTURE_BINDING')
+        dependencies[str(capture_path)] = source['capture_sha256']
+        return capture_path, raw, data
+
+    if policy.get('linked_url'):
+        expected = [(policy['url'], 'primary', policy.get('intermediate_url', policy['linked_url']))]
+        if policy.get('intermediate_url'):
+            expected.append((policy['intermediate_url'], 'intermediate', policy['linked_url']))
+        edges = manifest.get('navigation_edges', [])
+        if len(edges) != len(expected):
+            return None  # Legacy chains are unbound; never bless current sibling bytes.
+        for edge, (url, suffix, target) in zip(edges, expected):
+            if (edge.get('capture_path') != str((path.parent / (pid + '-' + suffix + '.json')).relative_to(d.ROOT))
+                    or edge.get('linked_url') != target):
+                raise ValueError('REGISTERED_TAXONOMY_NAVIGATION_BINDING')
+            _, raw, data = authenticated_capture(edge, url)
+            if edge.get('started_at') != raw['started_at'] or target not in data.get('links', []):
+                return None
+    for source, spec in zip(sources, specs):
+        capture_path, raw, data = authenticated_capture(source, spec['url'])
+        received = raw['received_at']
         matches = [c for c in captures.values() if c.get('raw_capture_path') == str(capture_path)
                    and c.get('raw_capture_sha256') == d.sha(capture_path)
                    and c.get('captured_at_utc') == received]

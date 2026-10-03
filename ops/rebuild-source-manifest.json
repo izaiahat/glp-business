@@ -898,7 +898,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "8340a06ba8f635f255dcac99af5d0cb5f5a24dd358a2a3dde1bf07470c75e6b1"
+      "sha256": "6bfd6f6c395f6957deed6ef5a10b6e961735842d7c59e4bb97475d7421fc4d6e"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2243,7 +2243,7 @@
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "66f9ca5de363d6f47fcd800679d979802d0a3773aa044d6ba70753ed2df8ef16"
+      "sha256": "09e16b9b6ad700b6bfe9c845e3c931dac716e0619d04b4d180641c2ca917a146"
     },
     "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json": {
       "callers": [],
@@ -3398,7 +3398,7 @@
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "95ad3fd60c7523397be547aa5da5096123f058caca959d444875c931b4941bbd"
+      "sha256": "4454fcc5d33fd2225e54536de25db11b711ef72152390a34e76f305794e08ffc"
     },
     "ventures/boring-ai/holistic-machine/config/bridge-authority-v1.json": {
       "callers": [
@@ -3847,7 +3847,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "script",
-      "sha256": "73e54a80d2c78a35ec5c2cfe4afa89a7fa91979301eb8c74a896a2709bc2628c"
+      "sha256": "fd1d126f21e9055be3492a00f6b77672274e71dbeaf9bab55476e32a06ce81f2"
     },
     "ops/glp/evidence-refresh-k3/review_evidence.py": {
       "callers": [
@@ -3861,7 +3861,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "e83e6cd4bb3c7a372069a2edd5c8b0bf4bf346804814531f6da48900121c1dbd"
+      "sha256": "0b8727471ff0f2cca67386cccef5784c7e4c001604d54869c892bebe72f53ace"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4331,7 +4331,7 @@
       "callers": [
         "GLP80 daily evidence review"
       ],
-      "sha256": "64a7ff2651c65bb308429ca647bc5f44c4ab492d187d0faaa56d808c512c742a"
+      "sha256": "ee222918c6025c65640a52b2d011c65eb6309c6dc461a6d23bd0ac9b9c8ecbb0"
     },
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",
@@ -4562,7 +4562,7 @@
       "callers": [
         "K3 daily registered taxonomy intake"
       ],
-      "sha256": "999b6219e061ae06f1911d7ed6ced92bea8fa53f39944d98b3cb1c947937de33"
+      "sha256": "a221943b5a779acf9de78e41bfc2a6b5e3faf6973b2c56c81b118818ac53421e"
     },
     "tests/test_glp80_registered_taxonomy_intake.py": {
       "kind": "test",

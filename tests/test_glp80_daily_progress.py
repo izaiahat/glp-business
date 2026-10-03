@@ -24,11 +24,12 @@ def put(path, obj):
     return path
 
 
-def test_saved_taxonomy_capture_becomes_hash_bound_packet_input(tmp_path):
+@pytest.mark.parametrize('suffix', ['primary', 'intermediate'])
+def test_saved_taxonomy_capture_becomes_hash_bound_packet_input(tmp_path, suffix):
     d = load('daily_evidence_refresh')
     source = tmp_path / 'taxonomy/run-20261002T120000Z'
     url = 'https://provider.example/medications'
-    raw = put(source / 'provider-primary.json', {
+    raw = put(source / ('provider-' + suffix + '.json'), {
         'request': {'url': url, 'maxAge': 0},
         'started_at': '2026-10-02T12:00:00+00:00',
         'received_at': '2026-10-02T12:00:01+00:00',

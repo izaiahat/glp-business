@@ -225,7 +225,7 @@ def retained_captures(er, pid, profile, pricing, day, folder, source=None):
             continue
         for path in sorted(run.glob(pid + '-*.json')):
             # Do not mistake derived verification manifests for raw captures.
-            if not re.fullmatch(re.escape(pid) + r'-(primary|linked|source-\d+)\.json', path.name):
+            if not re.fullmatch(re.escape(pid) + r'-(primary|intermediate|linked|source-\d+)\.json', path.name):
                 continue
             raw_sha = sha(path)
             cap = read(path)

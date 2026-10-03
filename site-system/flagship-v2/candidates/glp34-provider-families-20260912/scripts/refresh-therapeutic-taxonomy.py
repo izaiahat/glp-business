@@ -366,24 +366,39 @@ def main():
             else:
                 if policy['url'] not in row['source_urls']:
                     raise ValueError('reviewed_source_not_in_program')
-                primary = capture(policy['url'], run / (pid + '-primary.json'))
+                primary_path = run / (pid + '-primary.json')
+                primary = capture(policy['url'], primary_path)
+                navigation = [(policy['url'], primary_path, primary)]
                 selected, url = primary, policy['url']
                 if policy.get('intermediate_url'):
                     middle = policy['intermediate_url']
                     if middle not in primary['response']['data'].get('links', []):
                         raise ValueError('intermediate_no_longer_linked_by_program')
-                    selected = capture(middle, run / (pid + '-intermediate.json'))
+                    middle_path = run / (pid + '-intermediate.json')
+                    selected = capture(middle, middle_path)
+                    navigation.append((middle, middle_path, selected))
                 if policy.get('linked_url'):
                     url = policy['linked_url']
                     if url not in selected['response']['data'].get('links', []):
                         raise ValueError('supplement_no_longer_linked_by_program')
                     selected = capture(url, run / (pid + '-linked.json'))
                 assertions = support(row, policy, selected['response']['data']['markdown'])
+                selected_path = run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))
                 manifest = {'program_id': pid, 'source_url': url, 'verified_as_of': selected['received_at'][:10],
                     'captured_at': selected['received_at'], 'assertions': assertions,
-                    'capture_sha256': sha(encoded(selected)), 'capture_path': str((run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))).relative_to(BUSINESS)),
+                    'capture_sha256': sha(selected_path.read_bytes()), 'capture_path': str(selected_path.relative_to(BUSINESS)),
                     'finding': policy.get('finding'), 'previous_row': row,
                     'tags_unchanged': {field: row[field] for field in FIELDS}}
+                if policy.get('linked_url'):
+                    # Seal every outgoing edge inside the authority, not at intake.
+                    targets = [entry[0] for entry in navigation[1:]] + [url]
+                    manifest['navigation_edges'] = [
+                        {'source_url': edge_url, 'linked_url': target,
+                         'capture_path': str(edge_path.relative_to(BUSINESS)),
+                         'capture_sha256': sha(edge_path.read_bytes()),
+                         'started_at': receipt['started_at'], 'captured_at': receipt['received_at'],
+                         'verified_as_of': receipt['received_at'][:10]}
+                        for (edge_url, edge_path, receipt), target in zip(navigation, targets)]
             # CAS uses the actual pre-capture row, not the corrected view.
             # The immutable receipt records the sole reviewed tag-set exception.
             manifest['previous_row'] = before['therapeutic_taxonomy']['programs'][pid]
