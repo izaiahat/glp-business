@@ -328,17 +328,19 @@ def stage_directory(root, day, bound, pins, selector_only, capture_root, continu
     if not index.exists():
         return folder, None
     prior = read(index)
-    if prior['binding'] != bound:
+    if prior['binding'] != bound and not continue_day:
         raise RuntimeError('SAME_DAY_BASE_CHANGED_REQUIRES_RECONCILIATION')
     check_cache(prior, folder)
     if prior['selector_only'] != selector_only or prior['capture_root'] != capture_root:
         raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
-    if prior['source_pins'] == pins:
+    if prior['source_pins'] == pins and prior['binding'] == bound:
         return folder, None
     if not continue_day:
         raise RuntimeError('SAME_DAY_INPUT_MODE_CHANGED')
     parent = {'path': str(index), 'sha256': sha(index)}
-    generation = hashlib.sha256(json.dumps({'parent': parent, 'pins': pins}, sort_keys=True).encode()).hexdigest()
+    # binding() has already authenticated the new production chain. A changed
+    # base gets a NEW selection/packet namespace; prior packets are never replayed.
+    generation = hashlib.sha256(json.dumps({'parent': parent, 'pins': pins, 'binding': bound}, sort_keys=True).encode()).hexdigest()
     return root / 'continuations' / day / generation, parent
 
 

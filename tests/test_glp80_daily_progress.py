@@ -124,8 +124,12 @@ def test_successor_stage_preserves_immutable_original_and_reuses(tmp_path):
     assert parent == {'path': str(p), 'sha256': d.sha(p)}
     assert p.read_bytes() == before
     assert d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, True) == (folder, parent)
+    replacement = {'fixture': 'new-authenticated-base'}
+    next_folder, next_parent = d.stage_directory(tmp_path, '2026-10-02', replacement, pins, False, None, True)
+    assert next_folder != folder and next_parent == parent
+    assert p.read_bytes() == before  # Fresh namespace, NEVER replay old packets.
     with pytest.raises(RuntimeError, match='BASE_CHANGED'):
-        d.stage_directory(tmp_path, '2026-10-02', {}, pins, False, None, True)
+        d.stage_directory(tmp_path, '2026-10-02', replacement, pins, False, None, False)
     with pytest.raises(RuntimeError, match='INPUT_MODE_CHANGED'):
         d.stage_directory(tmp_path, '2026-10-02', bound, pins, False, None, False)
 
@@ -158,7 +162,11 @@ def test_composition_requires_the_actual_pricing_receiver(tmp_path, monkeypatch)
         if argv[0] == 'node':
             return types.SimpleNamespace(returncode=0, stdout='{"registry":{},"matrix":{}}', stderr='')
         assert argv[0] == 'bwrap' and '--unshare-net' in argv
-        assert argv[-1] == str(release / 'scripts/validate-provider-pricing-matrix.mjs')
+        assert argv[-1] == str(tmp_path / 'out/pricing-validation-root/scripts/validate-provider-pricing-matrix.mjs')
+        # The accepted baseline stays visible at its real path; overlay only a
+        # different candidate root, never the matrix the pointer authenticates.
+        assert str(release / 'data/provider-pricing-matrix.json') not in argv
+        assert str(release / 'data/program-registry.json') not in argv
         return types.SimpleNamespace(returncode=1, stdout='{"status":"FAIL","violations":["legacy_snapshot_drift"]}', stderr='')
     monkeypatch.setattr(c.subprocess, 'run', native)
     out = tmp_path / 'out'

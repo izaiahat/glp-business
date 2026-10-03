@@ -122,7 +122,10 @@ process.stdout.write(JSON.stringify({registry:r,matrix:m}));'''
     verified = json.loads(run.stdout)
     # The whole pricing receiver owns typed witnesses, historical retention and
     # exact legacy snapshots. Taxonomy/dynamic PASS cannot stand in for it.
-    overlays = []
+    validation_root = out / 'pricing-validation-root'
+    validation_root.mkdir(parents=True, exist_ok=True)
+    validation_root = validation_root.resolve()
+    overlays = ['--ro-bind', str(release), str(validation_root)]
     for name, value in [('program-registry.json', verified['registry']), ('provider-pricing-matrix.json', verified['matrix'])]:
         source = release / 'data' / name
         proposed = out / 'pricing-validation-inputs' / name
@@ -131,9 +134,9 @@ process.stdout.write(JSON.stringify({registry:r,matrix:m}));'''
             proposed.write_bytes(source.read_bytes())
         else:
             er.put(proposed, value)
-        overlays += ['--ro-bind', str(proposed.resolve()), str(source)]
+        overlays += ['--ro-bind', str(proposed.resolve()), str(validation_root / 'data' / name)]
     pricing = subprocess.run(['bwrap', '--unshare-net', '--die-with-parent', '--ro-bind', '/', '/',
-                              *overlays, 'node', str(release / 'scripts/validate-provider-pricing-matrix.mjs')],
+                              *overlays, 'node', str(validation_root / 'scripts/validate-provider-pricing-matrix.mjs')],
                              text=True, capture_output=True, timeout=90)
     d.unchanged(bound)
     for path, digest in consumed.items():
