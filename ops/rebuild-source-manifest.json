@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 633,
+  "tracked_count": 638,
   "files": {
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
