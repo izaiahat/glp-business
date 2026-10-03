@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 648,
+  "tracked_count": 650,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "afb5141315b8c418fa36b7e6e09f19c629e1f212b37e3603dd146a29f62b479a"
+      "sha256": "6dea8532caa9b30c49397331ae2a613962534d7bb22e84136ef4fa75007d6f54"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ab96cb5f8fb1111c0f048f72b748cc2d88fa32fd2c741cc547807cf123d3dc17"
+      "sha256": "2b728791aa88951baeca3c5862623bd94447a59559478cfc616965a7921ecbfb"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4353,6 +4353,20 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
+    },
+    "ops/pipeline-tool-contracts.json": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "tests/test_pipeline_tool_contracts.py"
+      ],
+      "sha256": "2769d3105d089272a25b6673ae88c85dc53e23d19e0ab4cfe6154e1e709778f2"
+    },
+    "tests/test_pipeline_tool_contracts.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "7042603db8fba0af20590f501eec988ded720793721714eaeb0a1ce4def11b8c"
     }
   }
 }

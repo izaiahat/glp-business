@@ -1,0 +1,1911 @@
+{
+  "schema": "glp-pipeline-tool-contracts-v1",
+  "linear": "GLP-339",
+  "generated_on": "2026-10-03",
+  "statuses": {
+    "wired": "required: consumer (repo path), job, readback_artifact, evidence",
+    "hold": "required: owner, reason",
+    "gap": "required: owner, reason",
+    "not_applicable": "required: reason"
+  },
+  "source_limits": [
+    "reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md and LINEAR-FOLD.json are not committed; this contract is derived from committed source only.",
+    "Only F01, F06, F07, F08, F09, F12 and F13 have committed definitions; F02-F05, F10 and F11 are UNKNOWN rows with every tool recorded as an owned gap.",
+    "wired means a committed consumer calls the provider; it does not prove the next scheduler receipt or live credentials."
+  ],
+  "permanent_exclusions": [
+    "fella_health"
+  ],
+  "tool_universe": {
+    "posthog": "PostHog product analytics (HogQL query API)",
+    "cogny": "Cogny SEO/ads data client (ops/glp/cogny_client.py)",
+    "ga4": "Google Analytics 4 Data API",
+    "gsc": "Google Search Console (webmasters v3 / URL inspection)",
+    "bing_webmaster": "Bing Webmaster Tools / IndexNow",
+    "n8n_mcp": "n8n MCP endpoint (ops/n8n_dt.py MCP_URL)",
+    "n8n_api": "n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE)",
+    "awin_api": "Awin publisher API",
+    "impact_api": "Impact media-partner API",
+    "cj_api": "CJ commissions API",
+    "partnerize_api": "Partnerize publisher API",
+    "affiliati_api": "Affiliati network reports API",
+    "katalys_api": "Katalys API",
+    "everflow_api": "Everflow tenant APIs",
+    "additional_reporting_apis": "PartnerStack, Admitad, ClickBank, Refersion, HealthTrader reporting rails",
+    "maxbounty_portal": "MaxBounty portal/API (held provider)",
+    "shareasale_legacy": "ShareASale legacy identity (canonical owner Awin)",
+    "firecrawl": "Firecrawl web discovery/scrape",
+    "google_sheets": "Google Sheets affiliate applications sheet",
+    "discord": "Discord delivery (Hermes cron route / discord_fmt)",
+    "linear": "Linear GraphQL / MCP",
+    "cloudflare_d1": "Cloudflare (D1 / Pages)",
+    "google_ads": "Google Ads API",
+    "meta_ads": "Meta Marketing (Graph) API",
+    "microsoft_ads": "Microsoft Advertising API",
+    "fella_health": "Fella Health provider (permanently excluded)"
+  },
+  "pipelines": {
+    "F01": {
+      "name": "Affiliate Monday supply discovery",
+      "definition_status": "defined",
+      "native_job_id": "58202b06bdc0",
+      "wrapper": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+      "definition_evidence": [
+        "ops/glp-ship.md:20",
+        "scripts/glp_ship_registry.py:54"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "Supply discovery has no site-analytics input."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Supply discovery has no SEO/ads data input."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "Supply discovery has no site-analytics input."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Supply discovery has no search-console input."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Supply discovery has no search-console input."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "F01 runs as a Hermes no-agent script; no n8n workflow involved."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "F01 runs as a Hermes no-agent script; no n8n workflow involved."
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "partnerize_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_supply_discovery.py",
+          "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/discovery/",
+          "evidence": "scripts/affiliate_supply_discovery.py:2030"
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "F01 only checks adapter credential presence and consumes the retained supply-sweep summary (enumeration-*/_sweep-summary.json, hermes:ecbe6fdc0163); catalog API reads belong to the sweep job (scripts/affiliate_supply_discovery.py:787-822)."
+        },
+        "maxbounty_portal": {
+          "status": "hold",
+          "owner": "operator (MaxBounty activation decision)",
+          "reason": "MaxBounty job 89cd7b766dba must stay disabled/paused; held provider (ops/maxbounty-pin-release.md, ops/maxbounty-fresh-probe.md)."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Merged into Awin; discovery treats it as Awin membership (scripts/affiliate_supply_discovery.py:1366)."
+        },
+        "firecrawl": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_supply_discovery.py",
+          "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/discovery/",
+          "evidence": "scripts/affiliate_supply_discovery.py:1772"
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "F01 reads only the retained backrun Sheet export (backrun-*/sheet-full-row-export.json) and never writes the Sheet; writes belong to the allowlisted CAS writer scripts/affiliate_sheet_batch_writer.py (scripts/affiliate_supply_discovery.py:35)."
+        },
+        "discord": {
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+          "job": "hermes:58202b06bdc0 via ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/monday-discovery/run-<RUN_ID>/ranked-card.json",
+          "evidence": "ops/hermes-cron-scripts/affiliate_supply_discovery_daily.sh:5 (CRON_DISCORD_OUTPUT_DECLARATION_V1 route 1487300132054765629)",
+          "note": "Card artifact is the local readback; native Discord delivery receipt lives on the host."
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "Candidates route to the existing queue/#decisions, not Linear."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "F01 performs no site deploy or D1 read."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "No paid-media input."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "No paid-media input."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "No paid-media input."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F02": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F02; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F03": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F03; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F04": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F04; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F05": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F05; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F06": {
+      "name": "Current-release acceptance binding (glp-clinic-scout:F06:lp-quiz-issued-version)",
+      "definition_status": "defined",
+      "native_job_id": null,
+      "wrapper": "systems/seo-blog-machine/scripts/accepted_failure_contract.py",
+      "definition_evidence": [
+        "ops/current-release-acceptance.md:1"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "partnerize_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "maxbounty_portal": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "discord": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "current-release acceptance owner",
+          "reason": "Independent reviewer designation/acceptance is exchanged by file; no Linear readback bound for the review handoff."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "F06 is an offline release-acceptance binding; the producer has no network, npm or deployment access (ops/current-release-acceptance.md)."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F07": {
+      "name": "Weekly affiliate network reporting (GLP-333/K3)",
+      "definition_status": "defined",
+      "native_job_id": "aadf6677c7f0",
+      "wrapper": "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+      "definition_evidence": [
+        "ops/glp-ship.md:18",
+        "scripts/glp_ship_registry.py:50"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "Affiliate network revenue only; site analytics belong to F08/SEO lanes."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Affiliate network revenue only."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "Affiliate network revenue only."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Affiliate network revenue only."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Affiliate network revenue only."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "Hermes no-agent script; no n8n workflow."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "Hermes no-agent script; no n8n workflow."
+        },
+        "awin_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
+        },
+        "impact_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
+        },
+        "cj_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
+        },
+        "partnerize_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494",
+          "note": "Stops PARTIAL at a next page rather than guessing a cursor."
+        },
+        "affiliati_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494"
+        },
+        "katalys_api": {
+          "status": "wired",
+          "consumer": "scripts/affiliate_network_access.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "ops/glp333-network-access-contract.md (six financial collectors); scripts/glp_affiliate_weekly_reporting.py:446-494",
+          "note": "Coverage remains PARTIAL per ops/glp333-network-access-contract.md."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "reason": "Tenant-bound Everflow remains PORTAL_ONLY where no authorized API-only read is bound (ops/glp333-network-access-contract.md)."
+        },
+        "additional_reporting_apis": {
+          "status": "wired",
+          "consumer": "scripts/glp_affiliate_weekly_reporting.py",
+          "job": "hermes:aadf6677c7f0 via ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh",
+          "readback_artifact": "reports/glp-clinic-scout/affiliate-machine/weekly-reporting/<run_id>/",
+          "evidence": "scripts/glp_affiliate_weekly_reporting.py:450-451 (affiliate_reporting_{partnerstack,admitad,clickbank,refersion,healthtrader}.py)"
+        },
+        "maxbounty_portal": {
+          "status": "hold",
+          "owner": "operator (MaxBounty activation decision)",
+          "reason": "MaxBounty job 89cd7b766dba must stay disabled/paused; held provider (ops/maxbounty-pin-release.md, ops/maxbounty-fresh-probe.md)."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Visible legacy row with canonical owner Awin; no duplicate read (scripts/affiliate_network_access.py:351-353)."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "Reporting uses provider APIs only."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "Read-only reporting; no Sheet or ledger writes (ops/glp333-network-access-contract.md)."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "reason": "Wrapper declares no CRON_DISCORD_OUTPUT_DECLARATION; weekly report delivery has no readback."
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "No Linear interaction in reporting."
+        },
+        "cloudflare_d1": {
+          "status": "hold",
+          "owner": "Kael (parent coordinator)",
+          "reason": "Weekly reporting consumes only the retained D1 capture reports/ops/f12-host-followthrough-20261002/reconciliation-input.json, not a fresh receiver export (glp_affiliate_weekly_reporting.sh:20-22); fresh D1 reads belong to GLP-334 reconciliation."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "Paid media is F08."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "Paid media is F08."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "Paid media is F08."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F08": {
+      "name": "Weekly ads analytics (GLP-345 A4)",
+      "definition_status": "defined",
+      "native_job_id": "ea5bad730e53",
+      "wrapper": "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+      "definition_evidence": [
+        "ops/registered-producers.json:46",
+        "ops/glp345-a4/README.md"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "wired",
+          "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+          "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
+          "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:182-193 (via ops/glp/seo_data_rails.py)",
+          "note": "Observed aggregates only; REAL consented funnel remains UNKNOWN."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Meta/Google/Microsoft are read directly; Cogny readback belongs to scripts/glp_ads_three_platform_monitor.py."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "F08 source owner",
+          "reason": "Ads analytics joins PostHog only; GA4 conversion read not bound."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Paid-media analytics; organic search is the SEO lane."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Paid-media analytics; organic search is the SEO lane."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "Hermes no-agent script; no n8n workflow."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "Hermes no-agent script; no n8n workflow."
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "partnerize_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate network rails are F07."
+        },
+        "maxbounty_portal": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate rails are F07."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Paid-media lane; affiliate rails are F07."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "No web discovery."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "No Sheet input or output."
+        },
+        "discord": {
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
+          "evidence": "ops/hermes-cron-scripts/glp_weekly_ads_analytics.py:4 (CRON_DISCORD_OUTPUT_DECLARATION_V1)",
+          "note": "Report states 'delivery not proven'; exact Discord target readback outstanding (weekly_ads_loop.py:325)."
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "No Linear interaction."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "No receiver/D1 input; revenue chain is PostHog aggregates."
+        },
+        "google_ads": {
+          "status": "wired",
+          "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+          "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
+          "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:84-88"
+        },
+        "meta_ads": {
+          "status": "wired",
+          "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+          "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
+          "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:119-129"
+        },
+        "microsoft_ads": {
+          "status": "wired",
+          "consumer": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py",
+          "job": "hermes:ea5bad730e53 via ops/hermes-cron-scripts/glp_weekly_ads_analytics.py",
+          "readback_artifact": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py --output (host-only entry; exact run path UNKNOWN)",
+          "evidence": "reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_ads_loop.py:31-32,236"
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F09": {
+      "name": "Scheduled job-health manager + daily installed-source drift",
+      "definition_status": "defined",
+      "native_job_id": "b86ec8937c20",
+      "wrapper": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+      "definition_evidence": [
+        "ops/registered-producers.json:46",
+        "ops/scheduled-source-drift.md:1"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "Public n8n MCP does not expose the account billing boundary the budget check needs (ops/n8n_execution_budget.py:44)."
+        },
+        "n8n_api": {
+          "status": "wired",
+          "consumer": "ops/n8n_execution_budget.py",
+          "job": "hermes:b86ec8937c20 via ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+          "readback_artifact": "ops/scheduled-job-health-state.json",
+          "evidence": "ops/n8n_execution_budget.py:50 (n8n_dt._native_http)"
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "partnerize_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "maxbounty_portal": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "discord": {
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+          "job": "hermes:b86ec8937c20 via ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+          "readback_artifact": "ops/scheduled-job-health-state.json",
+          "evidence": "ops/hermes-cron-scripts/scheduled_job_health_manager.py:29,1045 (discord_fmt report on stdout)"
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "Health manager inspects Hermes job state and n8n execution budget only; it never calls this provider."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F10": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F10; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F11": {
+      "name": "UNKNOWN",
+      "definition_status": "UNKNOWN",
+      "native_job_id": null,
+      "wrapper": null,
+      "definition_evidence": [],
+      "definition_gap": "No committed F01-F13 inventory defines F11; the GLP-339 research inputs (reports/ops/system-rationalization-20261001/research/tool-wiring/RESULT.md, LINEAR-FOLD.json) are not in the repository. Applicability of every tool is UNKNOWN until the row is defined.",
+      "tools": {
+        "posthog": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cogny": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "ga4": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "gsc": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "bing_webmaster": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_mcp": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "n8n_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "awin_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "impact_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cj_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "partnerize_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "affiliati_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "katalys_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "everflow_api": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "additional_reporting_apis": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "maxbounty_portal": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "shareasale_legacy": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "firecrawl": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_sheets": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "discord": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "linear": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "cloudflare_d1": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "google_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "meta_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "microsoft_ads": {
+          "status": "gap",
+          "owner": "Kael (parent coordinator)",
+          "applicability": "UNKNOWN",
+          "reason": "Pipeline definition absent from repo; tool applicability and wiring unverified."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F12": {
+      "name": "GLP-73 generator archiver (paired retention with F13)",
+      "definition_status": "defined",
+      "native_job_id": "f3d2db07d83f",
+      "wrapper": "ops/hermes-cron-scripts/glp73-predecessors/f12_generator_archiver.py",
+      "definition_evidence": [
+        "ops/glp-ship.md:19,23",
+        "scripts/glp73_paired_adoption.py:83"
+      ],
+      "label_conflict": "The F12 label is also used for GLP-334 conversion reconciliation (scripts/glp334_live_reconciliation.py, ops/glp334-conversion-reconciliation.md); this row binds the native paired-retention job. The reconciliation lane's Cloudflare D1 read is not covered here.",
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "partnerize_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "maxbounty_portal": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "discord": {
+          "status": "not_applicable",
+          "reason": "Composer is no_agent_script_local_only / privacy private-local-only (f12_generator_archiver.py:4)."
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    },
+    "F13": {
+      "name": "GLP-73 growth retention (paired with F12)",
+      "definition_status": "defined",
+      "native_job_id": "69a28f878ce3",
+      "wrapper": "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py",
+      "definition_evidence": [
+        "ops/glp-ship.md:19,23",
+        "scripts/glp73_paired_adoption.py:84"
+      ],
+      "tools": {
+        "posthog": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cogny": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "ga4": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "gsc": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "bing_webmaster": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "n8n_mcp": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "n8n_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "awin_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "impact_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cj_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "partnerize_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "affiliati_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "katalys_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "everflow_api": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "additional_reporting_apis": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "maxbounty_portal": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "shareasale_legacy": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "firecrawl": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "google_sheets": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "discord": {
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py",
+          "job": "hermes:69a28f878ce3",
+          "readback_artifact": "archive/f13-growth-retention/",
+          "evidence": "ops/hermes-cron-scripts/glp73-predecessors/f13_growth_retention.py:4 (alert, discord_fmt)"
+        },
+        "linear": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "cloudflare_d1": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "google_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "meta_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "microsoft_ads": {
+          "status": "not_applicable",
+          "reason": "Local archive/retention only; no external provider calls."
+        },
+        "fella_health": {
+          "status": "not_applicable",
+          "reason": "Fella Health is permanently excluded from every GLP pipeline (scripts/affiliate_payout_policy.py; ops/glp334-conversion-reconciliation.md)."
+        }
+      }
+    }
+  }
+}

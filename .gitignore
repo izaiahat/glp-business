@@ -500,3 +500,5 @@
 !/ops/glp/topic-supply-inputs/README.md
 !/ops/glp/topic-supply-inputs/strategy-queue.json
 !/ops/glp/topic-supply-inputs/cluster-map.json
+!/ops/pipeline-tool-contracts.json
+!/tests/test_pipeline_tool_contracts.py
