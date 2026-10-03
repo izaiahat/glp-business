@@ -8,6 +8,7 @@ window; old importer/direct-reader exclusion remains the install owner's duty.
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 import hashlib
 from pathlib import Path
 
@@ -295,8 +296,31 @@ def validate_review(review, proposal):
         raise RuntimeError('independent_source_and_runtime_review_required')
 
 
-def adopt(checkout, root, hermes, review, *, scheduler, window=None):
+@contextmanager
+def installation_session(window):
+    """Own source exclusion from pre-entry through review and supported exit.
+
+    Enter the fresh window and call adopt in this same thread with the yielded
+    _source_owner. Never launch an apply child under this non-inheritable lease.
+    Nonparticipating old writers still need the owner's separate exclusion.
+    """
     import maintenance_window as mw
+    import sync_from_repo as syncer
+    with syncer.source_session(window.backend.root) as owner:
+        mw.require(not window.journal.exists(), 'existing_window_reconcile_no_replay')
+        try:
+            yield owner
+        finally:
+            try:
+                if window.journal.exists() and mw.read_journal(window.journal)['state'] != 'closed':
+                    window.exit()
+            finally:
+                window.release_locks()
+
+
+def adopt(checkout, root, hermes, review, *, scheduler, window=None, _source_owner=None):
+    import maintenance_window as mw
+    import sync_from_repo as syncer
     if window is None:
         raise RuntimeError('active_maintenance_window_required')
     if not isinstance(review, dict) or not isinstance(review.get('proposal'), dict):
@@ -310,8 +334,9 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None):
     # the monitor alone, or call the scheduler saver for a second time.
     if intent.exists():
         raise RuntimeError('cutover_already_attempted_reconcile_no_replay')
-    with mw.require_active_window(window, root, hermes) as active:
-        return _adopt(checkout, root, hermes, review, scheduler, active, custody, intent)
+    with syncer.source_session(root, _source_owner):
+        with mw.require_active_window(window, root, hermes) as active:
+            return _adopt(checkout, root, hermes, review, scheduler, active, custody, intent)
 
 
 def _adopt(checkout, root, hermes, review, scheduler, active, custody, intent):
@@ -319,7 +344,6 @@ def _adopt(checkout, root, hermes, review, scheduler, active, custody, intent):
     from contextlib import ExitStack
     import maxbounty_pin_release as p
     import maintenance_window as mw
-    import sync_from_repo as syncer
     root, hermes = root.resolve(strict=True), hermes.resolve(strict=True)
     registry = hermes / 'cron/jobs.json'
     if (scheduler._current_cron_store().jobs_file != registry
@@ -328,7 +352,6 @@ def _adopt(checkout, root, hermes, review, scheduler, active, custody, intent):
     with ExitStack() as locks:
         mw.require(locks.enter_context(scheduler._fire_job_lock(JOB)), 'native_fire_fence_unavailable')
         locks.enter_context(mw.native_registry_lock(scheduler))
-        locks.enter_context(syncer.source_lock(root))
         if intent.exists():
             raise RuntimeError('cutover_already_attempted_reconcile_no_replay')
         proposal, observed, staged = plan(checkout, root, hermes,

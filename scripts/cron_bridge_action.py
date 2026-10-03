@@ -806,6 +806,33 @@ def liveness_repair_slot(prior, due_slot, payload_sha256):
     return due_slot + "|postrepair"
 
 
+def article_no_effect_hold(prior, observed, *, action, args, due_slot, digest, receipt_path):
+    """Recognize only the carrier's durable pre-dispatch hold receipt shape."""
+    required = {"action", "due_slot", "finished_utc", "invocation", "payload_sha256",
+                "rc", "reason", "receipt_path", "started_utc", "status"}
+    if (action != "article_carrier_consume" or args != {"mode": "consume"}
+            or not observed or type(observed.get("rc")) is not int or observed["rc"] != 0
+            or not required <= prior.keys()
+            or not prior.keys() <= required | {"run_type", "retried_no_effect_receipt"}
+            or prior.get("action") != action or prior.get("due_slot") != due_slot
+            or prior.get("payload_sha256") != digest or prior.get("receipt_path") != receipt_path
+            or type(prior.get("rc")) is not int or prior["rc"] != 0
+            or prior.get("status") != "DECLINED_RELEASE_HOLD"
+            or prior.get("reason") != "GLP-40 live release not yet complete; no publish dispatched"
+            or prior.get("invocation") not in ("scheduled", "manual_registered")
+            or ("run_type" in prior and prior["run_type"] != prior["invocation"])
+            or ("retried_no_effect_receipt" in prior and
+                (not isinstance(prior["retried_no_effect_receipt"], str)
+                 or not prior["retried_no_effect_receipt"]))):
+        return False
+    try:
+        start = datetime.fromisoformat(prior["started_utc"])
+        finish = datetime.fromisoformat(prior["finished_utc"])
+        return start.tzinfo is not None and finish.tzinfo is not None and finish >= start
+    except (TypeError, ValueError):
+        return False
+
+
 def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                notify=notify_failure, invocation="manual", poll_interval=3,
                finish=finish_action, due_slot=None, _following_slot=False):
@@ -866,6 +893,7 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                 if repair:
                     due_slot, invocation = repair, "manual_registered_repair"
         terminal_retry = False
+        no_effect_retry = None
         if invocation == "manual_registered" and not state.get("pending"):
             if not due_slot:
                 return {"status": "REFUSED_MANUAL_SLOT_REQUIRED", "rc": 64, "action": action}
@@ -887,6 +915,10 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                 except (OSError, ValueError, KeyError, TypeError):
                     return {"status": "BLOCKED_MANUAL_SLOT_READBACK", "rc": 125,
                             "action": action, "due_slot": due_slot, "receipt_path": prior_path}
+                if not common.get("pending") and article_no_effect_hold(
+                        prior, observed, action=action, args=args, due_slot=due_slot,
+                        digest=digest, receipt_path=prior_path):
+                    no_effect_retry = prior_path
                 if observed and observed["rc"] != 0:
                     job = prior.get("bridge", {})
                     terminal_job = (job.get("status") in ("done", "error") and job.get("rc") is not None
@@ -899,7 +931,8 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                     if not terminal_retry:
                         return {"status": "BLOCKED_MANUAL_SLOT_RECONCILIATION", "rc": 125,
                                 "action": action, "due_slot": due_slot, "receipt_path": prior_path}
-        if due_slot and due_slot in slots and not state.get("pending") and not terminal_retry:
+        if (due_slot and due_slot in slots and not state.get("pending")
+                and not terminal_retry and not no_effect_retry):
             return {"status": "SKIPPED_OBSERVED_SLOT", "rc": slots[due_slot]["rc"],
                     "action": action, "due_slot": due_slot,
                     "receipt_path": slots[due_slot]["receipt_path"]}
@@ -908,6 +941,8 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                   "payload_sha256": digest, "receipt_path": str(receipt_path), "due_slot": due_slot}
         if invocation in ("manual_registered", "manual_registered_repair"):
             result["run_type"] = invocation
+        if no_effect_retry:
+            result["retried_no_effect_receipt"] = no_effect_retry
         pending = state.get("pending")
         try:
             if args and common.get("pending"):

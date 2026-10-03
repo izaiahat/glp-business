@@ -34,7 +34,7 @@ KNOWN_TOOLS = {"posthog", "cogny", "ga4", "gsc", "bing_webmaster", "n8n_mcp",
                "healthtrader_api", "clickdealer_api", "digistore24_api", "rook",
                "cloudflare_pages", "host_filesystem", "stripe", "gtm", "indexnow",
                "pro_relay", "claude_cloud", "subscription_telemetry", "xentraffic_api",
-               "other_network_portals"}
+               "other_network_portals", "paypal", "wiki_filesystem"}
 
 
 def _contract():
@@ -103,6 +103,8 @@ def validate(contract, repo=REPO, readback_root=None):
                     problems.append((pid, tool, "missing", field))
             if status in ("gap", "hold") and not re.fullmatch(r"GLP-\d+", entry.get("existing_issue", "")):
                 problems.append((pid, tool, "existing_issue"))
+            if status in ("gap", "hold") and entry.get("existing_issue") == contract.get("linear"):
+                problems.append((pid, tool, "self_referenced_execution_owner"))
             if tool in excluded and status != "not_applicable":
                 problems.append((pid, tool, "excluded_provider_not_excluded"))
             if status != "wired":
@@ -165,6 +167,27 @@ def test_missing_denominator_unknown_definition_and_source_only_wiring_rejected(
         else:
             del d["pipelines"]["F12"]["tools"]["cloudflare_d1"]["existing_issue"]
         assert validate(d)["status"] == "FAIL", mutation
+
+
+def test_maintained_manual_dependencies_and_nonself_ownership_are_required():
+    d = _contract()
+    assert {"paypal", "wiki_filesystem"} <= set(d["tool_universe"])
+    assert d["pipelines"]["F13"]["tools"]["paypal"]["status"] == "hold"
+    assert d["pipelines"]["F11"]["tools"]["wiki_filesystem"]["status"] == "gap"
+    assert d["pipelines"]["F01"]["tools"]["maxbounty_portal"]["status"] == "hold"
+    for pid in ("F07", "F12"):
+        assert d["pipelines"][pid]["tools"]["maxbounty_portal"]["status"] == "gap"
+    assert not any(e.get("existing_issue") == d["linear"]
+                   for r in d["pipelines"].values() for e in r["tools"].values())
+    for tool in ("paypal", "wiki_filesystem"):
+        missing = copy.deepcopy(d)
+        del missing["tool_universe"][tool]
+        for row in missing["pipelines"].values():
+            del row["tools"][tool]
+        assert validate(missing)["status"] == "FAIL", tool
+    self_owned = copy.deepcopy(d)
+    self_owned["pipelines"]["F10"]["tools"]["host_filesystem"]["existing_issue"] = d["linear"]
+    assert validate(self_owned)["status"] == "FAIL"
 
 
 def test_receipt_validation_checks_real_bytes_and_literal_consumer_result(tmp_path):
