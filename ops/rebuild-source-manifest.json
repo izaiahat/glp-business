@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 675,
+  "tracked_count": 676,
   "files": {
     "scripts/glp_affiliate_registry_sync.py": {
       "kind": "script",
@@ -2196,7 +2196,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "ee6eab73a99a9cb35741cd5ec75f3d39ea588e986a7ddd9bc3ab2f52733680d1"
+      "sha256": "7362f45833b84d0ef542c6bf89bde9ee04e9f4ed4138540221554be9575b3890"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2223,7 +2223,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ca602961008f115bedd5dd83a41cc493a04a0eb43219f53c85e3bb897d5968eb"
+      "sha256": "471b5ed60ab8cef5b67304f1802eba1f46289904cfdeec84470a1d4b4ef923b1"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4542,6 +4542,13 @@
       ],
       "kind": "test",
       "sha256": "5721a635a2e6701a87d72dc8fead3dffcbbdcd5f48b3c0b84fadac213c46ea24"
+    },
+    "tests/test_glp110_prepared_authority_cache.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "b06b612aea2707c9a9c4fe686c50694899b287b257b31488060dab4a2b7b8677"
     }
   }
 }

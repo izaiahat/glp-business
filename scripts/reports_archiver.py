@@ -2962,11 +2962,92 @@ def _validate_predecessor_identity_evidence(
     return proved[0]
 
 
-def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -> dict[str, Any]:
-    """Delegate prepared custody to the maintained read-only producer consumer."""
-    from glp_price_index_weekly import _validate_base_evidence
+# Process-local only: kernel ctime/identity revalidation, never a TTL or persisted
+# trust bit. Retention rechecks prepared authority before every member unlink;
+# rehashing an unchanged entire site at each boundary makes that loop unbounded.
+_PREPARED_EVIDENCE_CACHE: dict[str, Any] | None = None
+_PREPARED_CACHE_MAX_ENTRIES = 100_000
 
-    return _validate_base_evidence(base, release)
+
+def _prepared_tree_identity(root: Path) -> tuple[Any, ...] | None:
+    """Complete path-set + lstat identity, or decline caching (not validation).
+
+    Include ctime: rewriting bytes and restoring mtime cannot reuse a proof.
+    Ancestor identities bind the namespace without treating unrelated sibling
+    writes as changes to this prepared tree. Symlinks/special files never cache.
+    """
+    try:
+        if not root.is_absolute() or root.resolve(strict=True) != root:
+            return None
+        rows: list[Any] = []
+        for parent in root.parents:
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode):
+                return None
+            rows.append((str(parent), info.st_dev, info.st_ino, info.st_mode,
+                         info.st_uid, info.st_gid))
+        pending = [root]
+        while pending:
+            path = pending.pop()
+            info = path.lstat()
+            if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                return None
+            rows.append((str(path), info.st_dev, info.st_ino, info.st_mode,
+                         info.st_uid, info.st_gid, info.st_nlink, info.st_size,
+                         info.st_mtime_ns, info.st_ctime_ns))
+            if len(rows) > _PREPARED_CACHE_MAX_ENTRIES:
+                return None
+            if stat.S_ISDIR(info.st_mode):
+                with os.scandir(path) as entries:
+                    for entry in entries:
+                        pending.append(Path(entry.path))
+                        if len(rows) + len(pending) > _PREPARED_CACHE_MAX_ENTRIES:
+                            return None
+        return tuple(sorted(rows))
+    except OSError:
+        return None
+
+
+def _prepared_dependencies_unchanged(evidence: dict[str, Any]) -> bool:
+    """Rehash every producer-returned external/small dependency on each use."""
+    try:
+        from glp_price_index_weekly import _read_bound_regular_file
+        files = evidence['prepared_binding']['files']
+        if not isinstance(files, dict) or not files:
+            return False
+        for path, (expected_sha, expected_identity) in files.items():
+            _path, body, identity = _read_bound_regular_file(path, 'retention_prepared_dependency')
+            if hashlib.sha256(body).hexdigest() != expected_sha or identity != expected_identity:
+                return False
+        return True
+    except (ImportError, KeyError, TypeError, ValueError, RuntimeError, OSError):
+        return False
+
+
+def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -> dict[str, Any]:
+    """Reuse a full native proof only while its whole content/namespace is unchanged."""
+    import copy
+    from glp_price_index_weekly import _validate_base_evidence
+    global _PREPARED_EVIDENCE_CACHE
+    key = (str(release), json.dumps(base, sort_keys=True, separators=(',', ':')))
+    before = _prepared_tree_identity(release.parent)
+    cached = _PREPARED_EVIDENCE_CACHE
+    if (before is not None and cached is not None and cached['key'] == key
+            and cached['identity'] == before
+            and _prepared_dependencies_unchanged(cached['evidence'])
+            and _prepared_tree_identity(release.parent) == before):
+        return copy.deepcopy(cached['evidence'])
+    # No stale fallback: every mismatch, unreadable path, membership change or
+    # unsupported shape invokes the unchanged native transitive validator.
+    _PREPARED_EVIDENCE_CACHE = None
+    evidence = _validate_base_evidence(base, release)
+    after = _prepared_tree_identity(release.parent)
+    if (before is not None and before == after
+            and _prepared_dependencies_unchanged(evidence)
+            and _prepared_tree_identity(release.parent) == after):
+        _PREPARED_EVIDENCE_CACHE = {'key': key, 'identity': after,
+                                    'evidence': copy.deepcopy(evidence)}
+    return evidence
 
 
 def load_site_tree_authority() -> dict[str, Any]:
