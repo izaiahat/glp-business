@@ -1,0 +1,193 @@
+"""GLP-268: affiliate portal callers use API first, then a fresh per-job browser.
+
+The portal-apply lane (Awin probe/join/commission capture, Katalys apply) may
+not attach to the persistent Chrome listeners (127.0.0.1:9324, 127.0.0.1:9325)
+or a saved ``browser-profiles`` directory. Offline: Playwright and host-only
+modules are replaced by recording fakes; no browser is launched.
+"""
+from __future__ import annotations
+
+import contextlib
+import importlib
+import re
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
+
+import affiliate_fresh_browser as fresh  # noqa: E402
+
+MIGRATED_CALLERS = (
+    "scripts/marketplace_adapters/portal_apply.py",
+    "scripts/affiliate_fresh_browser.py",
+)
+API_IDENTITY = {"verified": True, "publisher_id": "2979387",
+                "account_id": "2979387", "legal_name": "Tilton Group Ltd"}
+
+
+class FakeContext:
+    def __init__(self, log):
+        self.log = log
+
+    def new_page(self):
+        self.log.append("new_page")
+        return types.SimpleNamespace(set_default_timeout=lambda ms: None)
+
+    def close(self):
+        self.log.append("context.close")
+
+
+class FakeBrowser:
+    def __init__(self, log):
+        self.log = log
+
+    def new_context(self, **kwargs):
+        self.log.append(("new_context", sorted(kwargs)))
+        return FakeContext(self.log)
+
+    def close(self):
+        self.log.append("browser.close")
+
+
+class FakeChromium:
+    def __init__(self, log):
+        self.log = log
+
+    def launch(self, **kwargs):
+        self.log.append(("launch", sorted(kwargs)))
+        return FakeBrowser(self.log)
+
+    def connect_over_cdp(self, *args, **kwargs):  # pragma: no cover - must never run
+        raise AssertionError("persistent CDP attach attempted")
+
+    def launch_persistent_context(self, *args, **kwargs):  # pragma: no cover - must never run
+        raise AssertionError("saved profile launch attempted")
+
+
+FRESH_LIFECYCLE = [("launch", ["headless"]), ("new_context", ["viewport"]),
+                   "new_page", "context.close", "browser.close"]
+
+
+# --------------------------------------------------------------- acceptance
+
+def test_portal_apply_has_no_persistent_chrome_or_saved_profile_attach():
+    banned = re.compile(r"connect_over_cdp\(|launch_persistent_context\(|"
+                        r"\"http://127\.0\.0\.1:932[45]\"|browser-profiles/")
+    for relative in MIGRATED_CALLERS:
+        assert not banned.search((ROOT / relative).read_text(encoding="utf-8")), relative
+
+
+def test_fresh_context_launches_empty_browser_and_discards_it():
+    log: list = []
+    with fresh.fresh_context(types.SimpleNamespace(chromium=FakeChromium(log))) as context:
+        context.new_page()
+    assert log == FRESH_LIFECYCLE
+
+
+@pytest.mark.parametrize("value", ["http://127.0.0.1:9325", "http://127.0.0.1:9324",
+                                   "/home/ubuntu/.hermes/browser-profiles/awin-operator"])
+def test_persistent_endpoint_or_profile_is_refused(value):
+    with pytest.raises(fresh.PersistentBrowserRefused):
+        fresh.refuse_persistent(value)
+    fresh.refuse_persistent("")
+
+
+def test_login_wall_detects_redirect_and_login_paths():
+    assert fresh.login_wall("https://auth.katalys.com/login", "app.katalys.com")
+    assert fresh.login_wall("https://app.katalys.com/login?next=/pub", "app.katalys.com")
+    assert not fresh.login_wall("https://app.katalys.com/pub/org/explore/1", "app.katalys.com")
+
+
+# ------------------------------------------------------- portal-apply lane
+
+@pytest.fixture
+def portal_apply(monkeypatch):
+    """Import portal_apply with host-only dependencies replaced by fakes."""
+    class BaseDriver:
+        def __init__(self, profile_dir, **kwargs):
+            self.profile_dir, self.page, self._pw, self._ctx = profile_dir, None, None, None
+
+        def start(self):  # pragma: no cover - profile-backed lane is not exercised
+            raise AssertionError("profile-backed driver started")
+
+        def close(self):
+            pass
+
+    class Anything(types.ModuleType):
+        def __getattr__(self, name):
+            if name.startswith("__"):
+                raise AttributeError(name)
+            return lambda *args, **kwargs: None
+
+    portal_lane = Anything("scripts.marketplace_adapters.portal_lane")
+    portal_lane.PlaywrightDriver = BaseDriver
+    stubs = {"scripts.marketplace_adapters.portal_lane": portal_lane}
+    for name in ("affiliate_contract_policy", "affiliate_operator_rulings",
+                 "affiliate_blocker_completeness", "affiliate_niche_geo_filter",
+                 "awin_api_first_application", "glp_item_e_application_queue"):
+        stubs[f"scripts.{name}"] = Anything(f"scripts.{name}")
+    for name, module in stubs.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    import scripts
+    monkeypatch.setattr(scripts, "affiliate_operator_rulings",
+                        stubs["scripts.affiliate_operator_rulings"], raising=False)
+    monkeypatch.delitem(sys.modules, "scripts.marketplace_adapters.portal_apply", raising=False)
+    yield importlib.import_module("scripts.marketplace_adapters.portal_apply")
+    sys.modules.pop("scripts.marketplace_adapters.portal_apply", None)
+
+
+@pytest.fixture
+def fake_sync_playwright(monkeypatch):
+    log: list = []
+
+    @contextlib.contextmanager
+    def sync_playwright():
+        log.append("playwright.start")
+        yield types.SimpleNamespace(chromium=FakeChromium(log))
+        log.append("playwright.stop")
+
+    monkeypatch.setitem(sys.modules, "playwright", types.ModuleType("playwright"))
+    monkeypatch.setitem(sys.modules, "playwright.sync_api",
+                        types.SimpleNamespace(sync_playwright=sync_playwright))
+    return log
+
+
+def test_awin_transport_launches_fresh_browser_not_cdp_9325(portal_apply, fake_sync_playwright):
+    # Regression: the transport used to raise unless handed exactly 127.0.0.1:9325.
+    transport = portal_apply.AwinFreshBrowserTransport(api_identity=API_IDENTITY)
+    assert portal_apply.AwinPlaywrightCDPTransport is portal_apply.AwinFreshBrowserTransport
+    assert transport.driver.fresh is True
+    transport.close()
+    assert fake_sync_playwright == ["playwright.start", *FRESH_LIFECYCLE, "playwright.stop"]
+
+
+def test_awin_transport_refuses_legacy_cdp_endpoint(portal_apply):
+    with pytest.raises(portal_apply.AwinAuthFailure) as caught:
+        portal_apply.AwinFreshBrowserTransport("http://127.0.0.1:9325")
+    assert (caught.value.failed_step, caught.value.detail) == (
+        "launch_fresh_browser", "persistent_cdp_endpoint_refused")
+    with pytest.raises(RuntimeError, match="persistent_browser_endpoint_or_profile_refused"):
+        portal_apply.PlaywrightApplyDriver(cdp_url="http://127.0.0.1:9324")
+
+
+def test_awin_auth_report_names_fresh_browser_not_saved_profile(portal_apply):
+    transport = portal_apply.AwinFreshBrowserTransport(
+        driver=types.SimpleNamespace(close=lambda: None), api_identity=API_IDENTITY)
+    report = transport._api_verified_report(captcha_used=False)
+    assert report["browser"] == "fresh_per_job"
+    assert report["profile"] == "" and report["cdp_endpoint"] == ""
+
+
+def test_katalys_executor_uses_fresh_browser_and_blocks_on_login_wall(portal_apply):
+    login_page = types.SimpleNamespace(
+        goto=lambda url: {"http_status": 200}, wait=lambda ms: None,
+        body_text=lambda *a: "Sign in", current_url=lambda: "https://auth.katalys.com/login")
+    executor = portal_apply.KatalysApplicationExecutor(driver=login_page, profile={})
+    assert executor.make_driver().fresh is True
+    result = executor.capture({"program_id": "123", "name": "Example"})
+    assert result == {"status": "BLOCKED", "blocker": "katalys_fresh_login_required"}

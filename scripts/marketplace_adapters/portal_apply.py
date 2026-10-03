@@ -58,6 +58,9 @@ from scripts.affiliate_contract_policy import (
 from scripts import affiliate_operator_rulings as operator_rulings
 from scripts.affiliate_blocker_completeness import completeness_proof
 from scripts.affiliate_niche_geo_filter import choke_candidate
+from scripts.affiliate_fresh_browser import (
+    TRANSPORT as FRESH_BROWSER_TRANSPORT, fresh_context, login_wall, refuse_persistent,
+)
 from scripts.awin_api_first_application import (
     AuthenticatedAwinCDPAdapter, AwinApiFirstJoin, OfficialAwinReadClient,
 )
@@ -70,7 +73,6 @@ APPLY_ROOT = MACHINE_DIR / "portal-apply"
 AUTHORITY_PATH = BUSINESS / "reports/glp-affiliate-expansion-20260731/02-application-authority.json"
 GATE_SCRIPT = BUSINESS / "scripts/affiliate_application_executor_gate.py"
 KATALYS_ORG = "098e5455-ca72-4099-9ff9-a9dd014148e7"
-KATALYS_CDP = "http://127.0.0.1:9324"
 DECISIONS_CHANNEL = "1524254375453786294"
 
 QUEUED_STATUS = "queued_for_portal_execution"
@@ -96,8 +98,6 @@ AWIN_TERMS_PDF_MAX_BYTES = 5 * 1024 * 1024
 AWIN_TERMS_TEXT_MAX_BYTES = 1024 * 1024
 AWIN_LOGIN_SECRET = Path("/home/ubuntu/.hermes/secrets/glp-affiliate-portals/ui_login.json")
 AWIN_SHARED_ENV = Path("/home/ubuntu/.hermes/.env")
-AWIN_CDP_ENDPOINT = "http://127.0.0.1:9325"
-AWIN_CDP_PROFILE = "/home/ubuntu/.hermes/browser-profiles/awin-operator"
 AWIN_ACCOUNT_NAME = "Tilton Group"
 AWIN_CAPTCHA_KEY_ENV = (
     "AWIN_2CAPTCHA_API_KEY", "TWOCAPTCHA_API_KEY", "TWO_CAPTCHA_API_KEY", "CAPTCHA_API_KEY",
@@ -440,42 +440,45 @@ FORM_SCAN_JS = """
 class PlaywrightApplyDriver(pl.PlaywrightDriver):
     """`portal_lane.PlaywrightDriver` plus dialog scopes and form introspection.
 
-    Adds a CDP mode so an already-authenticated browser (the live Katalys
-    session) is REUSED instead of re-logging in — a reused session spends no
-    login attempt, which is exactly what the one-login-per-portal rule wants.
+    ``fresh=True`` launches one throwaway browser for this job (GLP-268): no
+    persistent Chrome/CDP listener and no saved profile, so the job performs
+    its own login inside it and everything is discarded on ``close``. A CDP
+    endpoint is refused outright.
     """
 
-    def __init__(self, profile_dir: Path | str = "", *, cdp_url: str = "", **kwargs):
+    def __init__(self, profile_dir: Path | str = "", *, fresh: bool = False,
+                 cdp_url: str = "", **kwargs):
+        refuse_persistent(cdp_url)
         super().__init__(Path(profile_dir or "/tmp/portal-apply-unused"), **kwargs)
-        self.cdp_url = cdp_url
+        self.fresh = fresh
         self._scopes: dict[str, Any] = {}
-        self._browser = None
+        self._fresh_stack: contextlib.ExitStack | None = None
 
     def start(self):
-        if not self.cdp_url:
+        if not self.fresh:
             return super().start()
         from playwright.sync_api import sync_playwright  # noqa: PLC0415 - lazy on purpose
 
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.connect_over_cdp(self.cdp_url)
-        if not self._browser.contexts:
-            raise RuntimeError("cdp_has_no_context")
-        self._ctx = self._browser.contexts[0]
-        self.page = self._ctx.new_page()
-        self.page.set_default_timeout(45000)
+        stack = contextlib.ExitStack()
+        try:
+            self._pw = stack.enter_context(sync_playwright())
+            self._ctx = stack.enter_context(fresh_context(self._pw))
+            self.page = self._ctx.new_page()
+            self.page.set_default_timeout(45000)
+        except BaseException:
+            stack.close()
+            raise
+        self._fresh_stack = stack
         return self
 
     def close(self) -> None:
-        if not self.cdp_url:
+        if not self.fresh:
             super().close()
             return
-        # A CDP browser belongs to whoever launched it: close only OUR page.
-        with contextlib.suppress(Exception):
-            if self.page:
-                self.page.close()
-        with contextlib.suppress(Exception):
-            if self._pw:
-                self._pw.stop()
+        stack, self._fresh_stack = self._fresh_stack, None
+        if stack is not None:
+            with contextlib.suppress(Exception):
+                stack.close()
 
     # -- scopes --------------------------------------------------------------
     def _scope(self, scope: str = ""):
@@ -587,19 +590,24 @@ class AwinAuthFailure(RuntimeError):
         self.detail = str(detail)
 
 
-class AwinPlaywrightCDPTransport:
-    """Persistent exact-CDP Awin transport with one run-level auth repair."""
+class AwinFreshBrowserTransport:
+    """Fresh per-job Awin browser with one run-level login (GLP-268).
+
+    The persistent 127.0.0.1:9325 listener and its saved profile are no longer
+    attached: each job launches an empty browser and authenticates in it once.
+    Any CDP endpoint a caller still passes is refused, never attached.
+    """
 
     PROFILE = AWIN_PROFILE_TEMPLATE
     PROGRAMS = "https://ui.awin.com" + AWIN_DIRECTORY_PATH
 
-    def __init__(self, endpoint: str, *, driver: Any | None = None,
+    def __init__(self, endpoint: str = "", *, driver: Any | None = None,
                  captcha_solver: Callable[[dict[str, str]], str] | None = None,
                  api_identity: dict[str, Any] | None = None):
-        if endpoint != AWIN_CDP_ENDPOINT:
-            raise ValueError("awin_cdp_endpoint_must_be_exact_9325")
-        self.endpoint = endpoint
-        self.driver = driver or PlaywrightApplyDriver(cdp_url=endpoint)
+        if endpoint:
+            raise AwinAuthFailure("launch_fresh_browser", "persistent_cdp_endpoint_refused")
+        self.endpoint = ""
+        self.driver = driver or PlaywrightApplyDriver(fresh=True)
         self.captcha_solver = captcha_solver or self._solve_captcha_via_2captcha
         self.api_identity = dict(api_identity or {})
         self._auth_report: dict[str, Any] | None = None
@@ -607,7 +615,7 @@ class AwinPlaywrightCDPTransport:
             try:
                 self.driver.start()
             except Exception as exc:  # noqa: BLE001 - safe class-only boundary detail
-                raise AwinAuthFailure("attach_persistent_cdp", f"cdp_attach_failed:{type(exc).__name__}") from exc
+                raise AwinAuthFailure("launch_fresh_browser", f"fresh_launch_failed:{type(exc).__name__}") from exc
 
     @staticmethod
     def _private_login(path: Path | None = None) -> dict[str, str]:
@@ -898,7 +906,8 @@ class AwinPlaywrightCDPTransport:
             "status": "API_VERIFIED", "reauthenticated": False,
             "publisher_id": api_id, "publisher_title": api_name,
             "account_name": api_name, "cdp_endpoint": self.endpoint,
-            "profile": AWIN_CDP_PROFILE, "captcha_used": bool(captcha_used),
+            "profile": "", "browser": FRESH_BROWSER_TRANSPORT,
+            "captcha_used": bool(captcha_used),
             "identity_source": "api",
         }
         return dict(self._auth_report)
@@ -920,7 +929,8 @@ class AwinPlaywrightCDPTransport:
                 "status": "HEALTHY", "reauthenticated": False,
                 "publisher_id": AWIN_PUBLISHER_ID, "publisher_title": str(observed.get("title") or ""),
                 "account_name": AWIN_ACCOUNT_NAME, "cdp_endpoint": self.endpoint,
-                "profile": AWIN_CDP_PROFILE, "captcha_used": False, "identity_source": "ui",
+                "profile": "", "browser": FRESH_BROWSER_TRANSPORT,
+                "captcha_used": False, "identity_source": "ui",
             }
             return dict(self._auth_report)
         route = _awin_identity_route(self.driver.current_url())
@@ -973,7 +983,8 @@ class AwinPlaywrightCDPTransport:
             "status": "REPAIRED", "reauthenticated": True,
             "publisher_id": AWIN_PUBLISHER_ID, "publisher_title": str(observed.get("title") or ""),
             "account_name": AWIN_ACCOUNT_NAME, "cdp_endpoint": self.endpoint,
-            "profile": AWIN_CDP_PROFILE, "captcha_used": captcha_used, "identity_source": "ui",
+            "profile": "", "browser": FRESH_BROWSER_TRANSPORT,
+            "captcha_used": captcha_used, "identity_source": "ui",
         }
         return dict(self._auth_report)
 
@@ -1091,7 +1102,7 @@ class AwinPlaywrightCDPTransport:
                 return {"authenticated": False, "publisher_id": "", "account_id": "",
                         "title": "", "website": "", "website_evidence": []}
             observations.append((str(classified["publisher_id"]), title,
-                                 AwinPlaywrightCDPTransport._observed_website(page)))
+                                 AwinFreshBrowserTransport._observed_website(page)))
         observed_ids = {value[0] for value in observations}
         observed_websites = {
             str(value[2].get("website") or "") for value in observations
@@ -1264,6 +1275,10 @@ class AwinPlaywrightCDPTransport:
                     "prepared_message_sha256": message_sha,
                     "row_authority_sha256": row_sha}
         raise ValueError(f"unsupported_awin_cdp_action:{action}")
+
+
+# Former name kept for existing importers; it no longer attaches to 9325.
+AwinPlaywrightCDPTransport = AwinFreshBrowserTransport
 
 
 # ---------------------------------------------------------------------- gate
@@ -1447,8 +1462,10 @@ class KatalysApplicationExecutor(ApplicationExecutor):
 
     Apply To Program -> traffic-source dialog -> legal confirmation (two
     checkboxes + publisher message) -> Apply Now, then a fresh reload to VERIFY
-    the relationship actually changed. Runs on the already-authenticated CDP
-    browser, so it spends no login attempt.
+    the relationship actually changed. Runs in a fresh per-job browser
+    (GLP-268); Katalys has no application API, and until a vault login stage
+    signs that browser in, the profile read blocks as a login wall instead of
+    riding the old 127.0.0.1:9324 session.
     """
 
     network = "katalys"
@@ -1457,12 +1474,8 @@ class KatalysApplicationExecutor(ApplicationExecutor):
     PRIMARY_LABELS = ("Apply To Program", "Join Program")
     EXISTING_LABELS = ("Manage", "Leave Program")
 
-    def __init__(self, *, cdp_url: str = KATALYS_CDP, **kwargs):
-        super().__init__(**kwargs)
-        self.cdp_url = cdp_url
-
     def make_driver(self):  # pragma: no cover - provider construction
-        return PlaywrightApplyDriver(cdp_url=self.cdp_url)
+        return PlaywrightApplyDriver(fresh=True)
 
     def program_url(self, program_id: str) -> str:
         return f"https://app.katalys.com/pub/{KATALYS_ORG}/explore/{program_id}"
@@ -1473,8 +1486,8 @@ class KatalysApplicationExecutor(ApplicationExecutor):
         response = driver.goto(url)
         driver.wait(3000)
         text = compact(driver.body_text())
-        if pl._host(driver.current_url()) != "app.katalys.com":
-            return {"status": "BLOCKED", "blocker": "katalys_session_lost_or_redirected"}
+        if login_wall(driver.current_url(), "app.katalys.com"):
+            return {"status": "BLOCKED", "blocker": "katalys_fresh_login_required"}
         if response.get("http_status") not in (None, 200):
             return {"status": "BLOCKED", "blocker": f"profile_http_{response.get('http_status')}"}
         if f"Program ID: {row['program_id']}" not in text:
@@ -3483,11 +3496,13 @@ def bind_exact_awin_ready_rows(rows: list[dict[str, Any]], authority: dict[str, 
     have exactly one current row with the same immutable identity; all other Awin
     rows are excluded before an effectful executor is constructed.
     """
+    # `cdp_port` is a field of the reviewed parent manifest and stays bound
+    # exactly; since GLP-268 it no longer selects or attaches to any browser.
     if (str(authority.get("publisher_id") or "") != AWIN_PUBLISHER_ID
             or str(authority.get("account_name") or "") != "Tilton Group"
             or str(authority.get("site") or "") != "https://glpclinicscout.com"
             or int(authority.get("cdp_port") or 0) != 9325
-            or AwinPlaywrightCDPTransport.PROFILE != AWIN_PROFILE_TEMPLATE):
+            or AwinFreshBrowserTransport.PROFILE != AWIN_PROFILE_TEMPLATE):
         raise ValueError("awin_parent_publisher_or_profile_authority_mismatch")
     ready = tuple(str(value) for value in authority.get("ready_awin_program_ids") or ())
     bindings = authority.get("row_bindings") or {}
@@ -3679,7 +3694,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="reviewed repaired exact-11 manifest; required for any Awin execution authority")
     parser.add_argument("--awin-token-fd", type=int, default=-1,
                         help="already-open fd containing the Awin token; execute mode only")
-    parser.add_argument("--awin-cdp-endpoint", default=AWIN_CDP_ENDPOINT)
+    parser.add_argument("--awin-cdp-endpoint", default="",
+                        help="retired (GLP-268): any value is refused; a fresh browser is used per job")
     parser.add_argument("--awin-auth-preflight-only", action="store_true",
                         help="verify exact Awin identity via UI or official GET /accounts; no rows")
     parser.add_argument("--json", action="store_true")
@@ -3697,12 +3713,12 @@ def main(argv: list[str] | None = None) -> int:
                 args.awin_token_fd, argv=sys.argv[1:] if argv is None else argv)
             api_identity = OfficialAwinReadClient(token, AWIN_PUBLISHER_ID).verify_account()
             token = ""
-            transport = AwinPlaywrightCDPTransport(
+            transport = AwinFreshBrowserTransport(
                 args.awin_cdp_endpoint, api_identity=api_identity)
             report = transport.authenticate_and_verify()
         except AwinAuthFailure as exc:
             print("AWIN_AUTH_FAILURE_V1 " + json.dumps(
-                AwinPlaywrightCDPTransport.failure_payload(exc),
+                AwinFreshBrowserTransport.failure_payload(exc),
                 sort_keys=True, separators=(",", ":")), file=sys.stderr)
             return 78
         finally:
@@ -3778,14 +3794,16 @@ def main(argv: list[str] | None = None) -> int:
                     args.awin_token_fd, argv=sys.argv[1:] if argv is None else argv)
                 ledger_binding.assert_current("before_cdp_transport_construction")
                 try:
-                    cdp_transport = AwinPlaywrightCDPTransport(args.awin_cdp_endpoint)
+                    # API first; the fresh per-job browser launches only after
+                    # the official account identity has been read.
                     api = OfficialAwinReadClient(token, authority["publisher_id"])
                     api_identity = api.verify_account()
-                    cdp_transport.api_identity = dict(api_identity)
+                    cdp_transport = AwinFreshBrowserTransport(
+                        args.awin_cdp_endpoint, api_identity=api_identity)
                     auth_preflight = cdp_transport.authenticate_and_verify()
                 except AwinAuthFailure as exc:
                     print("AWIN_AUTH_FAILURE_V1 " + json.dumps(
-                        AwinPlaywrightCDPTransport.failure_payload(exc),
+                        AwinFreshBrowserTransport.failure_payload(exc),
                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
                     return 78
                 ledger_binding.assert_current("before_authenticated_adapter_construction")
