@@ -356,6 +356,19 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
                 source['reviewed_sha256'] = launcher_pin
                 shared += 1
     assert shared == 20
+    # GLP-338: exact budget payload repin (digest headroom), F09 job only.
+    budget = 'ops/n8n_execution_budget.py'
+    budget_pin = 'f817de02a7c6659cd28767099a67edfab8411c20e095757142cd80ba66f42c10'
+    assert sha((ROOT/budget).read_bytes()) == budget_pin
+    repinned = 0
+    for row in expected['jobs']:
+        for payload in row.get('payloads', []):
+            if payload['path'] == '/home/ubuntu/business/' + budget:
+                assert row['id'] == 'b86ec8937c20'
+                assert payload['sha256'] == '988b05a8b9c9b8c0906d6c678b1d5ce10d87b9640fc2ead568bda7aaa102ee23'
+                payload['sha256'] = budget_pin
+                repinned += 1
+    assert repinned == 1
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 
