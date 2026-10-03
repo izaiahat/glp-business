@@ -1559,6 +1559,54 @@ def package_tree(root: Path) -> tuple[str, list[dict[str, str]]]:
     return sha_bytes(raw), rows
 
 
+def f06_receipt_evidence(receipt: dict[str, Any], rows: list[dict[str, str]]) -> None:
+    """Authenticate distributed evidence without relabeling it an old D1 gate.
+
+    The sole full suite deliberately precedes the main integration. Its scope
+    remains explicit; final independent acceptance binds this record and the
+    prepared bytes through current_approval, not an invented integrated-suite PASS.
+    """
+    if (receipt.get("scope") != "f06-distributed-evidence-with-reviewed-integration"
+            or receipt.get("suite_covers_integrated_head") is not False
+            or receipt.get("release_authorized") is not False):
+        fail("f06_evidence_scope_invalid")
+    evidence = receipt.get("evidence", {})
+    if set(evidence) != {"build", "full_suite", "full_tap", "source_review", "hosted_ci"}:
+        fail("f06_evidence_inventory_invalid")
+    values = {}
+    for role, binding in evidence.items():
+        path = package_plain_path(Path(binding["path"]))
+        require_regular(path)
+        raw = path.read_bytes()
+        if sha_bytes(raw) != binding.get("sha256"):
+            fail("f06_evidence_pin_mismatch:" + role)
+        values[role] = raw
+    build = json.loads(values["build"])
+    suite = json.loads(values["full_suite"])
+    ci = json.loads(values["hosted_ci"])
+    if (build.get("head") != receipt["head"] or build.get("exit_code") != 0
+            or sorted(build.get("files", []), key=lambda r: r["file"]) != sorted(rows, key=lambda r: r["file"])):
+        fail("f06_build_binding_invalid")
+    count_rows = re.findall(r"^# (tests|suites|pass|fail|cancelled|skipped|todo) ([0-9]+)$",
+                            values["full_tap"].decode(), re.M)
+    if len(count_rows) != 7 or len({k for k, _ in count_rows}) != 7:
+        fail("f06_suite_summary_ambiguous")
+    counts = {k: int(v) for k, v in count_rows}
+    if (counts != suite.get("counts") or counts.get("tests", 0) <= 0
+            or counts.get("pass", 0) + counts.get("skipped", 0) != counts["tests"]
+            or any(counts.get(k) != 0 for k in ("fail", "cancelled", "todo"))
+            or suite.get("public_unchanged") is not True
+            or suite.get("head") != receipt.get("tested_head")
+            or sha_bytes(values["full_tap"]) != suite.get("raw_tap_sha256")):
+        fail("f06_suite_binding_invalid")
+    checks = ci.get("statusCheckRollup", [])
+    if (ci.get("headRefOid") != receipt["head"] or not checks
+            or any(c.get("status") != "COMPLETED" or c.get("conclusion") != "SUCCESS" for c in checks)):
+        fail("f06_hosted_ci_nonpass")
+    if not values["source_review"].startswith(b"**APPROVE"):
+        fail("f06_source_review_nonpass")
+
+
 def package_build_receipt(args: argparse.Namespace, rows: list[dict[str, str]]) -> dict[str, str]:
     """Consume the site's existing gate receipt; never mint build evidence.
 
@@ -1576,8 +1624,10 @@ def package_build_receipt(args: argparse.Namespace, rows: list[dict[str, str]]) 
     if sha_bytes(raw) != args.expected_build_receipt_sha256:
         fail("package_build_receipt_hash_mismatch")
     receipt = json.loads(raw)
-    if not isinstance(receipt, dict) or receipt.get("schema") != "glp-d1-release-result-v1" or receipt.get("status") != "PASS":
+    if not isinstance(receipt, dict) or receipt.get("schema") not in ("glp-d1-release-result-v1", "glp-f06-distributed-release-result-v1") or receipt.get("status") != "PASS":
         fail("package_build_receipt_invalid")
+    if receipt.get("schema") == "glp-f06-distributed-release-result-v1":
+        f06_receipt_evidence(receipt, rows)
     if receipt.get("head") != args.site_head:
         fail("package_build_receipt_head_mismatch")
     for phase in ("output_before", "output_after"):
@@ -1705,15 +1755,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 # Current-head successor. Historical authority bodies above stay unchanged.
-CURRENT_ROLLBACK = "ca0251a2-dd4e-469c-be3b-79ee8805c5f3"
+CURRENT_ROLLBACK = "8291d24b-a1c6-4340-bd42-2efa9f2ba2b7"
 CURRENT_REPOSITORY = "izaiahat/glp-site-candidate"
 CURRENT_TOOLCHAIN = {"closure_sha256": "1af0afc423948202725ae9299b4803c46b68cbb053358943a17123c6dfbc4ad7",
                      "file_count": 1662, "directory_count": 258, "total_bytes": 621665046}
 CURRENT_AUTHORITIES = {
     "ops/linear/approvals/OPERATOR-DECISION-20260926-release-target-root-195.md":
         "f9ff3e92029b5fd6a3582ca7e7dc64fad9e699adc2b28f0b842d62d17a7870ec",
-    "ops/linear/approvals/OPERATOR-DECISION-20260926-release-review-astra.md":
-        "7d0d49def4254a19e088d4d6586c9963325311da17cfbd6054dd175876240fb0",
+    "ops/linear/approvals/OPERATOR-DECISION-20261002-approve-everything-ship.md":
+        "0b950cd8e1344ed5f6bc334a8ef437b677996c57e336627bf1010df9167b0740",
 }
 
 
@@ -1762,7 +1812,10 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
         if sorted(members) != sorted(f for f in files if f.startswith(name + "/")):
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
-    if closures["functions"]["file_count"] != 17:
+    expected_functions = 18 if gate.get("schema") == "glp-f06-distributed-release-result-v1" else 17
+    if (closures["functions"]["file_count"] != expected_functions
+            or (expected_functions == 18 and sha_file(source / "functions/api/postback/xentraffic.js") !=
+                "04e1205c2b3461d0ca8aa7106b94aea4885bdcaf3fa4ab059d0afe040d03fa77")):
         fail("current_functions_inventory_drift")
     for row in gate.get("authority_files", []):
         if row.get("file") not in ("data/go-runtime-selection.json", "data/go-runtime-promotion-authority.json",
@@ -1903,6 +1956,9 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
             if sha_file(release / name) != digest:
                 fail("current_release_copy_drift")
         compiled = current_compile(compile_root)
+        if (gate.get("schema") == "glp-f06-distributed-release-result-v1"
+                and not any(r["route"] == "/api/postback/xentraffic" and r["modules"] for r in compiled["routes"])):
+            fail("f06_compiled_xentraffic_route_missing")
         for name, closure in binding["runtime"].items():
             if file_closure(compile_root / name) != closure:
                 fail("current_compile_input_drift")
@@ -1968,7 +2024,7 @@ def current_approval(args: argparse.Namespace, prepared: dict[str, Any]) -> dict
             or review.get("blocking_findings") != []):
         fail("current_release_not_approved")
     reviewer = review.get("reviewer", {})
-    if (reviewer.get("model") != "gpt-6-astra-900k" or reviewer.get("provider") != "openai-codex"
+    if (reviewer.get("model") not in ("gpt-6-astra-900k", "gpt-6-astra") or reviewer.get("provider") != "openai-codex"
             or "not an author" not in reviewer.get("role", "")
             or reviewer.get("authority") != list(CURRENT_AUTHORITIES)[1]
             or reviewer.get("original_target_authority") != list(CURRENT_AUTHORITIES)[0]):
