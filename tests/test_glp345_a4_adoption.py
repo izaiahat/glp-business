@@ -110,7 +110,8 @@ def fixture_review(proposal):
 
 
 @pytest.mark.parametrize('outcome', ['ok', 'lost_ack', 'bad_readback'])
-def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch, outcome):
+def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch, outcome,
+                                                *, continuous=False, inspect_phase=lambda _: None):
     import os
     import glp345_a4_adoption as a4
     import maintenance_inventory as inv
@@ -164,16 +165,24 @@ def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch
     window = mw.MaintenanceWindow(backend, journal, locks)
     monkeypatch.setattr(mw, 'LinuxBackend', lambda *_: backend)
     monkeypatch.setattr(mw, 'default_locks', lambda *_: locks)
+    from contextlib import ExitStack
+    session = ExitStack()
+    source_args = {}
+    if continuous:
+        owner = session.enter_context(a4.installation_session(window))
+        source_args['_source_owner'] = owner
     window.enter()
     calls = []
     save = scheduler._save_jobs_unlocked
     try:
         with mw.require_active_window(journal, root, home) as active:
             proposal, before, stage = a4.plan(ROOT, root, home, 'fixture author', window=active)
+        inspect_phase('proposal_review')
         review = fixture_review(proposal)
         assert callable(getattr(a4, 'adopt', None)), 'missing reviewed paired A4 adoption'
         def apply(receipt=review):
-            return a4.adopt(ROOT, root, home, receipt, scheduler=scheduler, window=journal)
+            return a4.adopt(ROOT, root, home, receipt, scheduler=scheduler, window=journal,
+                            **source_args)
         for mutation in (lambda r: r.update(reviewer='fixture author'),
                          lambda r: r['runtime_review'].update(proposal_sha256='0' * 64),
                          lambda r: r['proposal']['outputs'].update({'outside': '0' * 64})):
@@ -206,7 +215,11 @@ def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch
             for path, body in stage.items():
                 assert path.read_bytes() == body and path.stat().st_mode & 511 == before[path][1]
             monkeypatch.setattr(scheduler, '_save_jobs_unlocked', save)
-            window.exit()
+            inspect_phase('before_restore')
+            if continuous:
+                session.close()  # maintained owner restores before releasing source EX
+            else:
+                window.exit()
             restored = json.loads(registry.read_bytes())['jobs']
             assert restored[0]['enabled'] is True and restored[0]['state'] == 'scheduled'
             assert restored[0]['schedule'] == jobs[0]['schedule']
@@ -219,7 +232,52 @@ def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch
         with pytest.raises(RuntimeError, match='no_replay'): apply()
         assert len(calls) == 1
     finally:
-        window.release_locks()
+        try:
+            session.close()
+        finally:
+            window.release_locks()
+
+
+def test_review_window_excludes_second_supported_importer(isolated, tmp_path, monkeypatch):
+    """Real competing CLI apply must not move shared state until restoration."""
+    import os
+    import glp345_a4_adoption as a4
+    import maintenance_window as mw
+    import sync_from_repo as syncer
+    from test_sync_from_repo import checkout
+    (tmp_path / 'importer').mkdir()
+    repo, _ = checkout(tmp_path / 'importer')
+    root, home, _, _ = isolated
+    command = [sys.executable, '-B', str(ROOT / 'scripts/sync_from_repo.py'),
+               '--root', str(root), '--checkout', str(repo), '--only',
+               'scripts/sample.py', '--apply', '--wait', '0']
+    def importer():
+        return subprocess.run(command, text=True, capture_output=True, timeout=10,
+                              env={**os.environ, 'GLP_SOURCE_LOCK_WAIT_S': '0'})
+    phases = []
+    def excluded(phase):
+        before = (root / syncer.STATE).read_bytes()
+        result = importer()
+        assert result.returncode == 2 and 'source_import_busy' in result.stderr, (
+            phase, result.returncode, result.stdout, result.stderr)
+        assert (root / syncer.STATE).read_bytes() == before
+        phases.append(phase)
+    restore = mw.MaintenanceWindow.exit
+    def checked_restore(window, *args, **kwargs):
+        excluded('restore')
+        result = restore(window, *args, **kwargs)
+        excluded('restored_still_owned')
+        return result
+    monkeypatch.setattr(mw.MaintenanceWindow, 'exit', checked_restore)
+    test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch,
+        'ok', continuous=True, inspect_phase=excluded)
+    assert phases == ['proposal_review', 'before_restore', 'restore', 'restored_still_owned']
+    journal = mw.read_journal(tmp_path / 'active.json')
+    assert journal['state'] == 'closed' and all(row['restored'] for row in journal['entries'])
+    before = (root / syncer.STATE).read_bytes()
+    result = importer()
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert (root / syncer.STATE).read_bytes() != before
 
 
 @pytest.mark.parametrize('mutation', ['monitor', 'map', 'wrapper', 'state', 'claim', 'schedule'])
