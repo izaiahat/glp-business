@@ -1003,7 +1003,11 @@ def _prepared_base_links(
     head = pointer["site_head"]
     prepared_dir = release.parent
     ops_root = BUSINESS / "reports/ops"
-    if (release.name != "release" or ops_root.resolve(strict=True) not in prepared_dir.parents
+    affiliate_runs = BUSINESS / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    affiliate_root = (prepared_dir.parent.parent == affiliate_runs
+                      and prepared_dir.name == 'prepared'
+                      and re.fullmatch(r'20\d{6}T\d{6}Z', prepared_dir.parent.name) is not None)
+    if (release.name != "release" or (ops_root.resolve(strict=True) not in prepared_dir.parents and not affiliate_root)
             or prepared_dir.resolve(strict=True) != prepared_dir
             or release.resolve(strict=True) != release
             or prepared_dir.is_symlink()):
