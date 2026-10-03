@@ -54,10 +54,47 @@ def adapters(core, *, state=STATE, now=None):
     return result
 
 
+def replay_pending(checkpoint, handlers, errors, *, safe_scrape=lambda url: True):
+    """Read the exact carried backlog before an evolving plan consumes its cap."""
+    for row in list(checkpoint.doc['operations'].values()):
+        if row.get('status') != 'pending' or row.get('kind') not in handlers:
+            continue
+        args = row['arguments']
+        if row['kind'] == 'scrape' and (len(args) != 1 or not safe_scrape(args[0])):
+            row.update(status='unavailable', reason='unsafe_legacy_scrape_url')
+            checkpoint.save()
+            continue
+        try:
+            handlers[row['kind']](*args)
+        except errors:
+            # The core wrapper durably distinguishes unavailable vs deferred.
+            continue
+
+
 def main(argv=None):
     sys.path.insert(0, str(BUSINESS / 'scripts'))
     import affiliate_supply_discovery as core
     original = core.live_platform_discovery_adapters
+    original_checkpoint = core.DiscoveryCheckpoint
+    class ResumingCheckpoint(original_checkpoint):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.read_handlers = {}
+        def wrap(self, kind, callback):
+            bounded = super().wrap(kind, callback)
+            self.read_handlers[kind] = bounded
+            if kind == 'scrape':
+                # Preserve a declared official catalog read even when a newer
+                # completed local catalog replaces that route in the plan.
+                for slug, reader in original().items():
+                    if callable(reader):
+                        self.read_handlers['catalog:' + slug] = super().wrap('catalog:' + slug, reader)
+                replay_pending(self, self.read_handlers,
+                               (core.SourceDeferred, core.SourceUnavailable),
+                               safe_scrape=lambda url: core.public_http_url(url)[0]
+                               and not core.is_tracking_url(url))
+            return bounded
+    core.DiscoveryCheckpoint = ResumingCheckpoint
     def api_first():
         # Official Partnerize discovery remains available where no complete
         # catalog checkpoint exists. Never construct a portal login session.
