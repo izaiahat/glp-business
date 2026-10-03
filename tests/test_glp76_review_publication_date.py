@@ -18,3 +18,15 @@ def fixture(tmp_path):
 def test_r2_date_is_bound_predecessor_not_draft(tmp_path):
     a,p=fixture(tmp_path)
     assert m.r2_publication_date(a)=='2026-07-23'
+
+def test_new_draft_date_stays_unbound():
+    assert m.r2_publication_date({'operation':'new_article','datePublished':'1999-01-01'}) is None
+
+@pytest.mark.parametrize('kind',['catalog','article','index','route'])
+def test_r2_chronology_tamper_refuses(tmp_path,kind):
+    a,p=fixture(tmp_path)
+    if kind=='catalog': p.write_bytes(p.read_bytes()+b' ')
+    elif kind=='article': a['existing_article']['article_sha256']='0'*64
+    elif kind=='index': a['existing_article']['article_index']=True
+    else: a['existing_article']['canonical_path']='/guides/other/'
+    with pytest.raises(RuntimeError): m.r2_publication_date(a)
