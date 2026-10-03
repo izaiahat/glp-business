@@ -139,3 +139,42 @@ def test_corrupt_state_is_unknown_and_not_silently_reset(tmp_path):
     r = m.health_check(path, get=lambda *a: {'data': []})
     assert r['snapshot']['status'] == 'UNKNOWN'
     assert path.read_text() == 'corrupt'
+
+def test_glp338_daily_digest_shows_actual_forecast_and_headroom(tmp_path):
+    m = module()
+    now = datetime(2026, 10, 11, tzinfo=timezone.utc)
+    rows = [{'id': str(i), 'workflowId': 'w', 'startedAt': '2026-10-10T12:00:00Z'} for i in range(100)]
+    get = lambda method, path: {'data': rows, 'nextCursor': None}
+    r = m.health_check(tmp_path / 'budget.json', now=now, get=get, audit=lambda get: {'status': 'PASS'})
+    s = r['snapshot']
+    assert s['headroom_to_cap'] == m.CAP - max(s['month_execution_high_water'], s['projected_month_end'])
+    line = r['daily_line']
+    assert '100/10000 actual month-to-date' in line
+    assert f"forecast month-end {s['projected_month_end']}/10000" in line
+    assert f"headroom {s['headroom_to_cap']} under 10000" in line
+    # Headroom never reads healthier than the forecast: over-cap forecasts go negative.
+    hot = m.summarize([{'id': str(i), 'workflowId': 'w', 'startedAt': '2026-10-10T12:00:00Z'} for i in range(600)], now)
+    assert hot['status'] == 'CAP_RISK' and hot['headroom_to_cap'] < 0
+
+
+def test_glp338_digest_tracks_batched_polling_set_and_heaviest_workflows():
+    m = module()
+    now = datetime(2026, 10, 11, tzinfo=timezone.utc)
+    rows = [{'id': f'{wid}-{i}', 'workflowId': wid, 'startedAt': '2026-10-10T12:00:00Z'}
+            for n, wid in ((3, m.TOP_FIVE[0]), (2, m.TOP_FIVE[4]), (7, 'postback'), (1, m.ARTICLE))
+            for i in range(n)]
+    s = m.summarize(rows, now)
+    assert s['top_five_polling_executions'] == 5
+    assert s['heaviest_workflows'][0] == {'workflow_id': 'postback', 'executions': 7}
+    line = m.daily_line(s, '2026-10')
+    assert 'batched polling set 5;' in line and f'heaviest postback=7,{m.TOP_FIVE[0]}=3' in line
+    assert 'heaviest none;' in m.daily_line(m.summarize([], now), '2026-10')
+
+
+def test_glp338_regression_snapshot_cached_before_upgrade_still_reports_headroom():
+    m = module()
+    old = {'status': 'PASS', 'month_execution_high_water': 1200, 'projected_month_end': 4000}
+    line = m.daily_line(old, '2026-10')
+    assert 'headroom 6000 under 10000' in line and 'heaviest UNKNOWN' in line
+    unknown = m.daily_line({'status': 'UNKNOWN', 'month_execution_high_water': None, 'projected_month_end': None}, '2026-10')
+    assert 'UNKNOWN/10000 actual' in unknown and 'headroom UNKNOWN' in unknown
