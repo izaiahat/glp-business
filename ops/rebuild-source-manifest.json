@@ -1693,7 +1693,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ac9ca9fda4b4c8bf41bf436f7dcf120aa7a98e3e29b498fdf5260709299f8043"
+      "sha256": "aaefd8523d5a024fd45834446bb27abed31c0fedebfa8efad1593833127efa72"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2929,7 +2929,7 @@
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ecd35d5833d9c5e3f6a4d2678482e24c08ae0dcc63ae61c4cde3e88e80797689"
+      "sha256": "fbcf1da99dfd20d605daa6a58a1f1f8e919bf2078a4b195f6382a2f84cf3ee7b"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
@@ -3560,7 +3560,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4f12aee58ebd6d1a929c377c07602da6e9088977723caaeeee7f8a0e61870669"
+      "sha256": "4ff5143775bc2e4828e6075f9e342b5fb847272f12060c99829528aec56cec09"
     },
     "tests/test_maintenance_native_admission.py": {
       "callers": [
@@ -3679,7 +3679,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "989cdcdb92971e6a6dbb920e7060724919e1da39abe36a3c94f0885adf10fa38"
+      "sha256": "6c4ae233d481c35b039cd519c72ed3aa85bbd7bfc80181e1023e4239e97f6541"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
