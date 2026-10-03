@@ -127,7 +127,7 @@ def test_supply_launch_excludes_held_network(machine, monkeypatch, tmp_path):
     from types import SimpleNamespace
     scripts = tmp_path / 'scripts'
     scripts.mkdir()
-    (scripts / 'marketplace_supply_sweep.py').touch()
+    (scripts / 'affiliate_catalog_batch.py').touch()
     monkeypatch.setattr(machine, 'SCRIPTS', scripts)
     monkeypatch.setattr(machine, 'collector_runtime_preflight', lambda: {'status': 'PASS'})
     def launched(command, **kwargs):

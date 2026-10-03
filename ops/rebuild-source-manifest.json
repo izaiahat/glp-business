@@ -2549,7 +2549,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "c9e64a1d6e827d701c08522f8f687220233c4d36e7a9cd0c32f2503d90c8a751"
+      "sha256": "c6b661d979ae95d651825eee97b2db8eda2bad0e4117d3db57b2ab6c001ce3dd"
     },
     "tests/test_affiliate_cancellation_intake.py": {
       "callers": [
@@ -3498,7 +3498,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "35becfb167b436ea666a3bff69f761fa20e6bca328d096e8f215a39ffbac1fdb"
+      "sha256": "9615c3bda41dc039dd453329a13b69d3e80aeea6a6e248adc8cc89b8fa3bc614"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3519,7 +3519,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "0aa058329cd59d9259659c77c0654b27f752dc767fc8cfbfb29be40dd293569c"
+      "sha256": "fe6fbbda807277c18e08bf5682a39fc7f3708979cee680a96f5319ecee729d36"
     },
     "scripts/maintenance_admission.py": {
       "callers": [

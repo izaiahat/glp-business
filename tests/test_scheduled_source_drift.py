@@ -308,7 +308,7 @@ def test_all_committed_host_cron_source_row_shapes_are_resolved(tmp_path):
     ('3c79a0b5f7b2', 'inbox_control_plane_cron.py',
      '7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc'),
     ('58202b06bdc0', 'affiliate_supply_discovery_daily.sh',
-     'ee80c755fc6ce7c058472867f4c7e030adc0f828c63d7d94d030946ca0f82cc3'),
+     'f4ece90b7c1b7421b498a53a50554dbb7766c5294c6d08e7b87309ebc07cdc74'),
     ('dc3649d3c84c', 'glp_relationship_hygiene_daily.sh',
      'f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7'),
 ])
@@ -334,7 +334,9 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
         '898b45e903dffcce4046aa5548fc3e6f23b60b78:' + path]))
     allowed = {
         '3c79a0b5f7b2': '7848ab2b52c79918f4977db37b3f1e2900c91f72d25384f45b8850cbbe30bbbc',
-        '58202b06bdc0': 'ee80c755fc6ce7c058472867f4c7e030adc0f828c63d7d94d030946ca0f82cc3',
+        '58202b06bdc0': 'f4ece90b7c1b7421b498a53a50554dbb7766c5294c6d08e7b87309ebc07cdc74',
+        'ecbe6fdc0163': '03b58a8a20af59181ba4b1c6a463e897891011b9b5265b265ff5afb624a291b8',
+        'd5d5b954f303': '87cb8b968fa2b8433f4a1105fe4f66e5b4cc0f2581121afc30a6412897afddab',
         'dc3649d3c84c': 'f64276e4c789527cfa7b23deb6d4de64c905a482c5af74397134757dc8a5e4c7',
     }
     seen = []
