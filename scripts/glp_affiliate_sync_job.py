@@ -50,6 +50,13 @@ def namespace(config,source,report):
 
 
 def ci(pr,report):
+    # PR creation and Actions registration are asynchronous. Poll read-only
+    # metadata until checks exist; never mistake that short gap for CI failure.
+    for attempt in range(60):
+        registered=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','headRefOid,statusCheckRollup']))
+        if registered.get('statusCheckRollup'):break
+        if attempt==59:raise RuntimeError('ci_registration_timeout')
+        time.sleep(2)
     # gh's watch is read-only; an exit/timeout never means merge.
     run(['gh','pr','checks',pr,'--repo',REPO,'--watch','--interval','10'],log=report/'ci-watch.log')
     evidence=json.loads(run(['gh','pr','view',pr,'--repo',REPO,'--json','url,state,headRefOid,mergeCommit,statusCheckRollup']))
@@ -105,7 +112,9 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     from glp_affiliate_release import package_and_publish
     source=report/'candidate'
     run(['git','clone','--quiet','--single-branch','git@github.com:'+REPO+'.git',str(source)])
-    if source_ref:run(['git','checkout','--detach',source_ref],cwd=source)
+    if source_ref:
+        run(['git','fetch','origin',source_ref],cwd=source,log=report/'resume-fetch.log')
+        run(['git','checkout','--detach',source_ref],cwd=source)
     outcome=sync(source,report/'registry',True)
     prior=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     prior_root=Path(prior['release_root'])
@@ -219,6 +228,15 @@ def main():
         # An uncertain prior publication blocks any later effect until exact native readback.
         for intent in root.glob('*/publish-intent.json'):
             if not (intent.parent/'PUBLISH.json').exists():raise RuntimeError('prior_publication_uncertain:'+str(intent))
+        if not a.source_ref and not a.source_pr and not a.resume_report:
+            completed={read(p).get('site_head') for p in root.glob('*/PUBLISH.json')
+                       if read(p).get('status')=='PASS_PRODUCTION_TERMINAL'}
+            pending=[]
+            for intent in sorted(root.glob('*/source-intent.json')):
+                data=read(intent);pr_path=intent.parent/'PR.json'
+                if data['head'] not in completed and pr_path.is_file():
+                    pending.append((data['head'],read(pr_path)['url']))
+            if pending:a.source_ref,a.source_pr=pending[-1]
         if a.resume_report:
             print(json.dumps(resume_prepared(a.resume_report.resolve(),config,a.publish)));return 0
         report=a.output or root/datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
