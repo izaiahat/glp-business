@@ -124,7 +124,7 @@ jobs:
       - name: GLP-320 registered carrier held-slot and release regressions (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PYTHONPATH: systems/analytics-brain:scripts:.
+          PYTHONPATH: systems/analytics-brain:scripts:ops:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py
