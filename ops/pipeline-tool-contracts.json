@@ -13,7 +13,9 @@
     "GLP ship/retention F-labels are a distinct namespace: F06 is publishing+deploy, F12 conversions, F13 sponsor sales here. No single unrelated job substitutes for a whole pipeline.",
     "Wired is only the explicitly scoped historical consumer operation and JSON readback below. It does not establish current scheduling, full pipeline acceptance, paid efficacy, REAL revenue, or a newly executed provider action.",
     "CI checks structure/consumer custody only; python3 tests/test_pipeline_tool_contracts.py --readback-root /home/ubuntu/business verifies retained receipt bytes and literal observed pointers. Offline regression fixtures are never live proof.",
-    "Unverified relevant edges are exact existing-issue gaps/holds. No capability/tool ticket, fresh control plane, forced wiring, account sweep or new external effect is authorized. Shared GLP44 recovery holds installs/jobs until designated owner completes supported reconciliation/restoration."
+    "Unverified relevant edges retain exact existing outcomes and accountable execution roles. No capability/tool ticket, new queue, forced wiring, account sweep or new external effect. Source/CI/retained-receipt verification is separate from installation. Installation requires a fresh explicit receiving-owner handoff and the real shared install lease; an older CLOSED journal is not admission. The original GLP339 11:06 import collided with GLP341 custody; parent restored that window at 12:28. Neither historical failure nor old receipt is rewritten.",
+    "PayPal is required by ops/sponsor-machine/README.md:13 and copy.json for reviewed sponsor orders, not affiliate payouts. F11 wiki is required by the canonical cleanup PLAN.md and maintained scripts/wiki_maintenance.py. That script uses stdlib filesystem/wikilink checks, not Enzyme/semantic API consumption; no additional speculative semantic tool is admitted.",
+    "Closed underlying outcomes remain provenance, not current execution handoffs. Scoped follow-up checks below name an existing receiving issue and accountable role; no reopening/admission/state change is inferred. Deferred GLP188 stays Backlog. Retained GLP342/343 reporting/learning success is consumed only by the matching F07/F05 consumer; F09 budget/delivery does not prove other pipelines or n8n parity."
   ],
   "permanent_exclusions": [
     "fella_health"
@@ -33,7 +35,7 @@
     "affiliati_api": "Affiliati network reports API",
     "katalys_api": "Katalys API",
     "everflow_api": "Everflow tenant APIs",
-    "maxbounty_portal": "MaxBounty portal/API (held provider)",
+    "maxbounty_portal": "MaxBounty authorized publisher read scope; application automation hold is a separate operation",
     "shareasale_legacy": "ShareASale legacy identity (canonical owner Awin)",
     "firecrawl": "Firecrawl web discovery/scrape",
     "google_sheets": "Google Sheets affiliate applications sheet",
@@ -67,7 +69,9 @@
     "claude_cloud": "Admitted Cloud implementation/review transport, not a scheduled pipeline capability",
     "subscription_telemetry": "Existing subscription/capacity read-only telemetry",
     "xentraffic_api": "Tenant-bound XenTraffic affiliate API/approved portal fallback",
-    "other_network_portals": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below"
+    "other_network_portals": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below",
+    "paypal": "Existing sponsor PayPal remittance route; manual confirmation/held public activation, no API integration asserted",
+    "wiki_filesystem": "Existing stdlib filesystem wiki-maintenance software (scripts/wiki_maintenance.py), not an Enzyme API"
   },
   "pipelines": {
     "F01": {
@@ -196,14 +200,31 @@
         },
         "maxbounty_portal": {
           "status": "hold",
-          "existing_issue": "GLP-339",
-          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
-          "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "existing_issue": "GLP-268",
+          "owner": "GLP268 existing affiliate-access/caller-migration owner; coordinator retains MaxBounty application activation authority",
+          "reason": "Application automation job 89cd7b766dba remains HELD. Fresh isolated vault-browser read access recovered (expected authenticated principal, dashboard/settings); capacity remains UNKNOWN. Read access is not application capacity or permission to resume the job; all application/provider holds and prior submissions remain untouched.",
+          "required_readback": "GLP268 current owner, after exact receiving gates permit, uses the existing guarded exact-ID reader to establish operation-specific capacity and caller migration without submissions; application job 89cd7b766dba remains held unless its actual designated owner explicitly authorizes that exact application operation. Do not turn read-access recovery into activation.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
           "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
           "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
-          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue",
+          "historical_scope": {
+            "status": "hold",
+            "existing_issue": "GLP-339",
+            "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
+            "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
+            "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+            "retained_scope_ref": "network_scope_limits.maxbounty",
+            "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+            "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+            "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
+          },
+          "evidence": "reports/ops/f01-lifecycle-continuation-20261003/BROWSER-ACCESS-RECOVERY.json; current GLP268 access/caller-migration ownership; GLP334 delivered reporting/reconciliation producer",
+          "execution_handoff": {
+            "receiving_issue": "GLP-268",
+            "accountable_role": "Current affiliate-access/caller-migration owner; Izaiah Tilton coordinates exact consumer handoff",
+            "operation": "Use existing authorized exact reader only when its current receiving gates permit; no application activation or reporting replay by contract owner"
+          }
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -458,6 +479,14 @@
             "webgains",
             "yepads"
           ]
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F01 Affiliate supply does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F01 Affiliate supply does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -894,6 +923,14 @@
             "webgains",
             "yepads"
           ]
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F02 Canonical inbox does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F02 Canonical inbox does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -1122,6 +1159,14 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F03 Sheet writer; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F03 Sheet writer does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F03 Sheet writer does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -1577,6 +1622,14 @@
             "webgains",
             "yepads"
           ]
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F04 Provider data does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F04 Provider data does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -1817,11 +1870,73 @@
           "reason": "Existing first-party provider registry is not a producer/consumer dependency of canonical F05 SEO + community research; no forced integration."
         },
         "host_scheduler": {
-          "status": "gap",
-          "existing_issue": "GLP-343",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-343 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F05/host_scheduler: authenticated target identity, actual source window and supported consume first-party search/neutral analytics receipts for topic/refresh scoring; draft-only research receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "systems/seo-blog-machine/scripts/learning_loop_actions.py",
+          "job": "Existing glp_weekly_seo_control / glp_seo_weekly_learning.sh registered learning subentry",
+          "authenticated_scope": "Existing host weekly-learning registered entry, no fresh external read",
+          "source_window": "2026-10-03T10:43:44Z weekly-learning run; readback13:16:58Z after current GLP341 restoration",
+          "operation": "Actual registered weekly learning subentry consumed the scored first-party sidecar and emitted P1-P6 work orders/P5 and R2 priority. Existing weekly cadence enabled at final readback; prior temporarily paused observation is retained separately.",
+          "limitations": "Learning subentry only, not full weekly-control or publishing. R2_CAPACITY_DEFICIT selected8/required9 remains; no invented ninth route, quota relaxation or actual article/R2 run. Neutral engagement remains null; no inference of health/GA4 join or current source-install authority.",
+          "readback_artifact": "reports/ops/glp343-closeout-20261003/FINAL-READBACK.json",
+          "readback": {
+            "sha256": "e90ccfa142010ca531081dc1804176965d5d2d11bc20799b574e20ba8371292b",
+            "observed": {
+              "/status": "PASS_WEEKLY_LEARNING_AND_ENABLED_CADENCE",
+              "/run_type": "manual_registered_learning_subentry",
+              "/entry": "/home/ubuntu/.hermes/scripts/glp_seo_weekly_learning.sh",
+              "/exit_code": 0,
+              "/schedule_enabled": true,
+              "/weekly_action_status": "PASS_AUTONOMOUS_ACTIONS_EMITTED",
+              "/first_party_demand": {
+                "age_hours": 1.6,
+                "degraded": [],
+                "max_age_hours": 96.0,
+                "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/topic-data-score/demand-multipliers.json",
+                "scored_routes": 70,
+                "sha256": "292a1805523fc739584d550fc575461ab3b94b5b4699213a7ecff2e45d5133bf",
+                "state": "applied",
+                "written_utc": "2026-10-03T09:08:59+00:00"
+              },
+              "/p5": {
+                "status": "PASS_P5_BUFFER_WORK_ORDERS",
+                "priority": {
+                  "duplicate_routes_removed": [],
+                  "scored": 1,
+                  "unscored": 2,
+                  "work_orders": 3
+                },
+                "scored_first_route": "/guides/wegovy-side-effects-evidence-guide/",
+                "score": 2.4098,
+                "pointer_verified": true
+              },
+              "/r2": {
+                "native_reader": "r2_update_carrier.load_learning_work_orders",
+                "native_reader_accepted": true,
+                "priority": {
+                  "scored": 8,
+                  "work_orders": 8
+                },
+                "within_tier_descending": true,
+                "selection_status": "R2_CAPACITY_DEFICIT",
+                "selected": 8,
+                "required": 9,
+                "capacity_deficit": 1,
+                "selection_as_of": "2026-09-29",
+                "current_learning_as_of": "2026-10-03",
+                "capacity_limitation": "Insufficient genuine eligible routes; quotas unchanged, no P5 backfill or invented ninth request."
+              },
+              "/counts": {
+                "P1": 2,
+                "P2": 0,
+                "P3": 0,
+                "P4": 6,
+                "P5": 3,
+                "P6": 0
+              },
+              "/scope": "Weekly learning only. No full weekly-control run, public article carrier, R2 publisher, sends, provider APIs or scoring/selector replay."
+            }
+          },
+          "evidence": "GLP343 Done; final readback and original weekly run/actions-run.json retained; F05 GSC/Bing edges already bound separately to scorer source identities, not overwritten"
         },
         "github": {
           "status": "not_applicable",
@@ -1876,6 +1991,14 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F05 SEO + community research; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F05 SEO + community research does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F05 SEO + community research does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -2170,6 +2293,14 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F06 Publishing + deploy; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F06 Publishing + deploy does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F06 Publishing + deploy does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -2188,11 +2319,62 @@
       "pipeline_operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain",
       "tools": {
         "posthog": {
-          "status": "gap",
-          "existing_issue": "GLP-342",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-342 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "Shared project aggregate is not exact production host/neutral-route or consented REAL funnel evidence. Legacy all-host rows cannot prove this consumer; no raw URL/person/health export.",
-          "required_readback": "Exact production host and approved neutral-route allowlist projection, source window and actual receiving consumer readback; privacy gates unchanged."
+          "status": "wired",
+          "consumer": "systems/analytics-brain/collector.py",
+          "job": "fbfb139b4aa640c1 registered analytics cadence/hourly",
+          "authenticated_scope": "Existing PostHog project508172 HogQL query scope",
+          "source_window": "Registered report 20261003T103508Z-hourly; exact production host glpclinicscout.com and only approved neutral routes; PostHog query three-day window 2026-09-30T10:35:04.070248Z to 2026-10-03T10:35:05.105772Z",
+          "operation": "Registered F07 report consumed successful complete schema-matching neutral host aggregate; eligible actual_rows=0, event watermark null; emits PASS_SEARCH_ONLY, preserving unmeasured click/health-route authority.",
+          "limitations": "Only GLP342 current report scope. Zero eligible aggregate rows are not ingestion, consent, click, quiz, identity, revenue or whole-pipeline proof. PostHog20 production-host/route-unknown and1 off-host/neutral observations are diagnostic-only; no event injection, source activation, joins or other pipeline promotion.",
+          "readback_artifact": "reports/ops/glp342-closeout-20261003/READBACK.json",
+          "readback": {
+            "sha256": "73a7259662f3087650e23561cef9ca88e3b01b0fcc259b15e8bfcfdbbfd637cd",
+            "observed": {
+              "/status": "PASS_TWO_GLP342_ACCEPTANCE_CLAUSES",
+              "/runtime_receipt": "/home/ubuntu/business/reports/glp-clinic-scout/analytics/runs/20261003T103508Z-hourly.json",
+              "/posthog/complete": true,
+              "/posthog/actual_rows": 0,
+              "/posthog/observed_schema": "posthog-hogql-v1",
+              "/posthog/last_successful_readback": "2026-10-03T10:35:06Z",
+              "/posthog/host_scope": "glpclinicscout.com",
+              "/posthog/event_watermark": null,
+              "/posthog/collection_window": {
+                "missing_route_identity": "unknown_not_homepage_or_consent_proof",
+                "scope": "exact_host_and_approved_neutral_routes",
+                "scope_counts": {
+                  "off_host_or_unknown/neutral_route": {
+                    "event_count": 1,
+                    "event_watermark": "2026-10-01T16:28:49.117000Z"
+                  },
+                  "production_host/route_unknown": {
+                    "event_count": 20,
+                    "event_watermark": "2026-10-03T10:26:23.861000Z"
+                  }
+                }
+              },
+              "/posthog/measurement_state": "unmeasured_by_design",
+              "/posthog/project": "508172",
+              "/posthog/provider_host_filter": {
+                "exact": "glpclinicscout.com",
+                "property": "$host"
+              },
+              "/posthog/neutral_route_paths": [
+                "/",
+                "/providers/",
+                "/compare/",
+                "/privacy/",
+                "/privacy/cookies/",
+                "/terms/",
+                "/about/"
+              ],
+              "/posthog/route_query_window": {
+                "basis": "capture_before_query_minus_3_days",
+                "end_utc": "2026-10-03T10:35:05.105772Z",
+                "start_utc": "2026-09-30T10:35:04.070248Z"
+              }
+            }
+          },
+          "evidence": "GLP342 Done current receipt; reports/ops/glp342-closeout-20261003/READBACK.json and verify_scope.py; original hourly receipt retained at runtime_receipt"
         },
         "cogny": {
           "status": "wired",
@@ -2218,11 +2400,51 @@
           "limitations": "Queue-empty operational acceptance only; no new analysis, task completion or earned revenue. Existing GLP336 closure guard remains independent."
         },
         "ga4": {
-          "status": "hold",
-          "existing_issue": "GLP-44",
-          "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
-          "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
-          "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
+          "status": "wired",
+          "consumer": "systems/analytics-brain/collector.py",
+          "job": "fbfb139b4aa640c1 registered analytics cadence/hourly",
+          "authenticated_scope": "Existing GA4 property541440529 aggregate Data API scope",
+          "source_window": "Registered report 20261003T103508Z-hourly; exact production host glpclinicscout.com and only approved neutral routes; PostHog query three-day window 2026-09-30T10:35:04.070248Z to 2026-10-03T10:35:05.105772Z",
+          "operation": "Registered F07 report consumed successful complete schema-matching neutral host aggregate; eligible actual_rows=0, event watermark null; emits PASS_SEARCH_ONLY, preserving unmeasured click/health-route authority.",
+          "limitations": "Only GLP342 current report scope. Zero eligible aggregate rows are not ingestion, consent, click, quiz, identity, revenue or whole-pipeline proof. PostHog20 production-host/route-unknown and1 off-host/neutral observations are diagnostic-only; no event injection, source activation, joins or other pipeline promotion.",
+          "readback_artifact": "reports/ops/glp342-closeout-20261003/READBACK.json",
+          "readback": {
+            "sha256": "73a7259662f3087650e23561cef9ca88e3b01b0fcc259b15e8bfcfdbbfd637cd",
+            "observed": {
+              "/status": "PASS_TWO_GLP342_ACCEPTANCE_CLAUSES",
+              "/runtime_receipt": "/home/ubuntu/business/reports/glp-clinic-scout/analytics/runs/20261003T103508Z-hourly.json",
+              "/ga4/complete": true,
+              "/ga4/actual_rows": 0,
+              "/ga4/observed_schema": "ga4-data-v1beta",
+              "/ga4/last_successful_readback": "2026-10-03T10:35:04Z",
+              "/ga4/host_scope": "glpclinicscout.com",
+              "/ga4/event_watermark": null,
+              "/ga4/collection_window": {
+                "click_identity": "not_collected_by_aggregate_contract",
+                "neutral_route_paths": [
+                  "/",
+                  "/about/",
+                  "/privacy/",
+                  "/privacy/cookies/",
+                  "/terms/"
+                ],
+                "scope": "exact_host_and_approved_neutral_routes"
+              }
+            }
+          },
+          "evidence": "GLP342 Done current receipt; reports/ops/glp342-closeout-20261003/READBACK.json and verify_scope.py; original hourly receipt retained at runtime_receipt",
+          "historical_scope": {
+            "status": "hold",
+            "existing_issue": "GLP-44",
+            "owner": "GLP-44 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
+            "reason": "GA4 neutral/host scope and receiving privacy controls are separate; retained F05 source measured_zero does not establish neutral engagement. No health-route join or new tracking. GLP44 guarded install/recovery remains separately owned.",
+            "required_readback": "Designated GLP44 owner completes supported recovery/install/manual readback; approved neutral scope consumed by this pipeline, receiving settings/privacy limits preserved."
+          },
+          "held_operations": {
+            "existing_issue": "GLP-44",
+            "owner": "Current designated GLP44 receiving/privacy/release owner",
+            "reason": "The retained neutral aggregate reporting receipt satisfies only this read. New install/measurement activation, health-route joins, tracking and full production-ingestion acceptance are not authorized or proven by GLP342; their existing receiving/privacy holds remain."
+          }
         },
         "gsc": {
           "status": "gap",
@@ -2330,15 +2552,33 @@
           "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "maxbounty_portal": {
-          "status": "hold",
-          "existing_issue": "GLP-339",
-          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
-          "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "GLP334 current reporting/reconciliation outcome owner (Izaiah Tilton); GLP268 current authorized read-access/caller-migration owner supplies the prerequisite",
+          "reason": "MaxBounty authenticated read access recovered, not network reporting/payout proof; capacity UNKNOWN. The hold on application job 89cd7b766dba does not establish a hold on this reporting/read operation. No exact reporting evidence was obtained, so this edge is GAP (unknown), not wired or app-held. Fresh native Linear readback shows GLP334 In Progress: its reporting/reconciliation owner retains consumer acceptance; GLP268 owns current access/caller checks. A retained PASS comment alone is not a state/ownership readback.",
+          "required_readback": "Current GLP268 access owner supplies operation-specific authorized read evidence for closed-window network reporting rows and completeness into the F07 reporting consumer; coordinator binds it to the existing GLP334 producer/schedule and verifies the real consumer output. Preserve any genuine operation-specific hold, SELFTEST exclusion, UNKNOWN and all application holds. No forced API, new credential, conversion injection, tracking visit or payment.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
           "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
           "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
-          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain",
+          "historical_scope": {
+            "status": "hold",
+            "existing_issue": "GLP-339",
+            "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
+            "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
+            "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+            "retained_scope_ref": "network_scope_limits.maxbounty",
+            "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+            "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+            "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
+          },
+          "evidence": "reports/ops/f01-lifecycle-continuation-20261003/BROWSER-ACCESS-RECOVERY.json; current GLP268 access/caller-migration ownership; GLP334 current reporting/reconciliation outcome",
+          "execution_handoff": {
+            "receiving_issue": "GLP-334",
+            "accountable_role": "GLP334 current reporting/reconciliation outcome owner (Izaiah Tilton); GLP268 current authorized read-access/caller-migration owner supplies the prerequisite",
+            "operation": "Use existing authorized exact reader only when its current receiving gates permit; no application activation or reporting replay by contract owner",
+            "access_prerequisite_issue": "GLP-268"
+          }
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -2590,6 +2830,14 @@
             "webgains",
             "yepads"
           ]
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F07 Analytics + revenue does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F07 Analytics + revenue does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -2886,6 +3134,14 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F08 Ads (parked); no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F08 Ads (parked) does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F08 Ads (parked) does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -2929,11 +3185,35 @@
           "required_readback": "F09/n8n_mcp: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
         },
         "n8n_api": {
-          "status": "gap",
-          "existing_issue": "GLP-337",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F09/n8n_api: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "ops/n8n_execution_budget.py",
+          "job": "b86ec8937c20 existing registered scheduled_job_health_manager.py",
+          "authenticated_scope": "Existing n8n native REST retained-execution/workflow inventory read scope",
+          "source_window": "Registered run2026-10-03T10:28:25Z to10:28:28Z; October UTC retained-execution lower-bound budget, existing15m health cadence",
+          "operation": "Existing registered health digest consumed native-REST budget high-water and emitted actual/forecast/headroom line, completed and delivered through the existing ops-alerts carrier.",
+          "limitations": "Only this F09 budget/health/delivery operation. Registered cached batched/heaviest breakdown UNKNOWN;0 observed/forecast is not vendor billed usage. Fresh follow-up API inventory is not claimed as this run input. Not8am whole-fleet digest, five-workflow parity, billing counter, MCP proof or any other pipeline readback; article-carrier remains inactive.",
+          "readback_artifact": "reports/ops/glp338-overnight-20261003/REGISTERED-LIVE-ACCEPTANCE.json",
+          "readback": {
+            "sha256": "7e34d0bfd0cd3dfaa41e0a8f481223766407ccc604166177b2dd2a5bd1228c6c",
+            "observed": {
+              "/execution/job_id": "b86ec8937c20",
+              "/execution/id": "a5c55b075a224bb5845e355ffbe351f1",
+              "/execution/status": "completed",
+              "/execution/delivery_outcome": "delivered",
+              "/output_sha256": "5b8f00f8de69aaa41e7bef7f6286f6aa7a1b2058b7d603cbf2b6a4e6fcc1fcc7",
+              "/real_budget_line": "n8n execution budget: 0/10000 actual month-to-date (observed high-water); forecast month-end 0/10000; headroom 10000 under 10000; batched polling set UNKNOWN; heaviest UNKNOWN; month=2026-10 UTC (billing boundary assumed); alert=70%; status=PASS; billing counter separate",
+              "/job/enabled": true,
+              "/job/script": "scheduled_job_health_manager.py",
+              "/job/schedule": {
+                "display": "every 15m",
+                "kind": "interval",
+                "minutes": 15
+              },
+              "/job/deliver": "discord:1487300132054765629",
+              "/scope_acceptance": "Registered digest metrics, delivery and live schedule verified; not billed usage or five-workflow business parity"
+            }
+          },
+          "evidence": "GLP338 current registered digest receipt; LIVE-API-AFTER-REGISTERED.json is separate corroborating read, not same-run input; no n8n activation/mutation/execution"
         },
         "awin_api": {
           "status": "not_applicable",
@@ -2980,11 +3260,35 @@
           "reason": "Google Sheets affiliate applications sheet is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
         },
         "discord": {
-          "status": "gap",
-          "existing_issue": "GLP-337",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F09/discord: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+          "job": "b86ec8937c20 existing registered scheduled_job_health_manager.py",
+          "authenticated_scope": "Existing Discord ops-alerts delivery route1487300132054765629",
+          "source_window": "Registered run2026-10-03T10:28:25Z to10:28:28Z; October UTC retained-execution lower-bound budget, existing15m health cadence",
+          "operation": "Existing registered health digest consumed native-REST budget high-water and emitted actual/forecast/headroom line, completed and delivered through the existing ops-alerts carrier.",
+          "limitations": "Only this F09 budget/health/delivery operation. Registered cached batched/heaviest breakdown UNKNOWN;0 observed/forecast is not vendor billed usage. Fresh follow-up API inventory is not claimed as this run input. Not8am whole-fleet digest, five-workflow parity, billing counter, MCP proof or any other pipeline readback; article-carrier remains inactive.",
+          "readback_artifact": "reports/ops/glp338-overnight-20261003/REGISTERED-LIVE-ACCEPTANCE.json",
+          "readback": {
+            "sha256": "7e34d0bfd0cd3dfaa41e0a8f481223766407ccc604166177b2dd2a5bd1228c6c",
+            "observed": {
+              "/execution/job_id": "b86ec8937c20",
+              "/execution/id": "a5c55b075a224bb5845e355ffbe351f1",
+              "/execution/status": "completed",
+              "/execution/delivery_outcome": "delivered",
+              "/output_sha256": "5b8f00f8de69aaa41e7bef7f6286f6aa7a1b2058b7d603cbf2b6a4e6fcc1fcc7",
+              "/real_budget_line": "n8n execution budget: 0/10000 actual month-to-date (observed high-water); forecast month-end 0/10000; headroom 10000 under 10000; batched polling set UNKNOWN; heaviest UNKNOWN; month=2026-10 UTC (billing boundary assumed); alert=70%; status=PASS; billing counter separate",
+              "/job/enabled": true,
+              "/job/script": "scheduled_job_health_manager.py",
+              "/job/schedule": {
+                "display": "every 15m",
+                "kind": "interval",
+                "minutes": 15
+              },
+              "/job/deliver": "discord:1487300132054765629",
+              "/scope_acceptance": "Registered digest metrics, delivery and live schedule verified; not billed usage or five-workflow business parity"
+            }
+          },
+          "evidence": "GLP338 current registered digest receipt; LIVE-API-AFTER-REGISTERED.json is separate corroborating read, not same-run input; no n8n activation/mutation/execution"
         },
         "linear": {
           "status": "gap",
@@ -3058,11 +3362,35 @@
           "reason": "Existing first-party provider registry is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
         },
         "host_scheduler": {
-          "status": "gap",
-          "existing_issue": "GLP-337",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-337 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F09/host_scheduler: authenticated target identity, actual source window and supported consume existing native source/job health and n8n billing/execution receipts into daily harm-only digest receipt with exact consumer result; otherwise retain this gap."
+          "status": "wired",
+          "consumer": "ops/hermes-cron-scripts/scheduled_job_health_manager.py",
+          "job": "b86ec8937c20 existing registered scheduled_job_health_manager.py",
+          "authenticated_scope": "Existing host scheduler job/execution/schedule scope",
+          "source_window": "Registered run2026-10-03T10:28:25Z to10:28:28Z; October UTC retained-execution lower-bound budget, existing15m health cadence",
+          "operation": "Existing registered health digest consumed native-REST budget high-water and emitted actual/forecast/headroom line, completed and delivered through the existing ops-alerts carrier.",
+          "limitations": "Only this F09 budget/health/delivery operation. Registered cached batched/heaviest breakdown UNKNOWN;0 observed/forecast is not vendor billed usage. Fresh follow-up API inventory is not claimed as this run input. Not8am whole-fleet digest, five-workflow parity, billing counter, MCP proof or any other pipeline readback; article-carrier remains inactive.",
+          "readback_artifact": "reports/ops/glp338-overnight-20261003/REGISTERED-LIVE-ACCEPTANCE.json",
+          "readback": {
+            "sha256": "7e34d0bfd0cd3dfaa41e0a8f481223766407ccc604166177b2dd2a5bd1228c6c",
+            "observed": {
+              "/execution/job_id": "b86ec8937c20",
+              "/execution/id": "a5c55b075a224bb5845e355ffbe351f1",
+              "/execution/status": "completed",
+              "/execution/delivery_outcome": "delivered",
+              "/output_sha256": "5b8f00f8de69aaa41e7bef7f6286f6aa7a1b2058b7d603cbf2b6a4e6fcc1fcc7",
+              "/real_budget_line": "n8n execution budget: 0/10000 actual month-to-date (observed high-water); forecast month-end 0/10000; headroom 10000 under 10000; batched polling set UNKNOWN; heaviest UNKNOWN; month=2026-10 UTC (billing boundary assumed); alert=70%; status=PASS; billing counter separate",
+              "/job/enabled": true,
+              "/job/script": "scheduled_job_health_manager.py",
+              "/job/schedule": {
+                "display": "every 15m",
+                "kind": "interval",
+                "minutes": 15
+              },
+              "/job/deliver": "discord:1487300132054765629",
+              "/scope_acceptance": "Registered digest metrics, delivery and live schedule verified; not billed usage or five-workflow business parity"
+            }
+          },
+          "evidence": "GLP338 current registered digest receipt; LIVE-API-AFTER-REGISTERED.json is separate corroborating read, not same-run input; no n8n activation/mutation/execution"
         },
         "github": {
           "status": "gap",
@@ -3117,6 +3445,14 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F09 Decisions + job health does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F09 Decisions + job health does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -3128,7 +3464,7 @@
         "C55-C58",
         "JOBS-RATIONALIZATION.json P13"
       ],
-      "existing_issue": "GLP-339",
+      "existing_issue": "GLP-110",
       "pipeline_operation": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects",
       "tools": {
         "posthog": {
@@ -3205,10 +3541,16 @@
         },
         "discord": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F10/discord: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-338",
+          "owner": "Existing decisions/job-health owner; Izaiah Tilton retains host-safety escalation",
+          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence. Historical GLP308 Done is not a current execution handoff; use the scoped receiving role below.",
+          "required_readback": "Existing host-safety alarm through the existing registered ops-alerts carrier, exact delivery readback or quiet/no-alarm result; no new channel/send.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-338",
+            "accountable_role": "Existing decisions/job-health owner; Izaiah Tilton retains host-safety escalation",
+            "operation": "existing host-safety alarm through the existing registered ops-alerts carrier, exact delivery readback or quiet/no-alarm result; no new channel/send",
+            "authority": "Current assigned runtime/retention scope only; no issue admission/state change or new job"
+          }
         },
         "linear": {
           "status": "not_applicable",
@@ -3280,10 +3622,16 @@
         },
         "host_scheduler": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F10/host_scheduler: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "Existing storage/housekeeping owner; Izaiah Tilton retains runtime host admission",
+          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence. Historical GLP308 Done is not a current execution handoff; use the scoped receiving role below.",
+          "required_readback": "Existing safety invoker/slot/lock and registered terminal result, active process/browser protection; no in-flight effect killed or overlapping cleanup.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "Existing storage/housekeeping owner; Izaiah Tilton retains runtime host admission",
+            "operation": "existing safety invoker/slot/lock and registered terminal result, active process/browser protection; no in-flight effect killed or overlapping cleanup",
+            "authority": "Current assigned runtime/retention scope only; no issue admission/state change or new job"
+          }
         },
         "github": {
           "status": "not_applicable",
@@ -3299,10 +3647,16 @@
         },
         "host_filesystem": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F10/host_filesystem: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "Existing storage/housekeeping owner",
+          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence. Historical GLP308 Done is not a current execution handoff; use the scoped receiving role below.",
+          "required_readback": "Actual non-destructive storage/pruning receipt with scope, reclaimed accounting and protected files/processes; never replay original held archive/disposal.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "Existing storage/housekeeping owner",
+            "operation": "actual non-destructive storage/pruning receipt with scope, reclaimed accounting and protected files/processes; never replay original held archive/disposal",
+            "authority": "Current assigned runtime/retention scope only; no issue admission/state change or new job"
+          }
         },
         "stripe": {
           "status": "not_applicable",
@@ -3326,10 +3680,16 @@
         },
         "subscription_telemetry": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing subscription/capacity read-only telemetry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F10/subscription_telemetry: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-308",
+          "owner": "Izaiah Tilton (existing native host-runtime/capacity owner); GLP110 receiving owner consumes only current protection/headroom scope",
+          "reason": "GLP308 Done retains the subscription-telemetry producer provenance, not current execution authority. Current GLP110 non-destructive runtime continuation may consume its existing protection/headroom readback only under its current assigned gates. Exact F10 consumer readback is missing. GLP188 host-admission/research scope remains Backlog and is neither substituted for subscription reporting nor admitted.",
+          "required_readback": "Coordinator hands the existing telemetry producer current protection/headroom readback to the GLP110 runtime owner: effective provider/model/effort/speed, current slot/headroom and guard response without paid fallback, quota purchase/reset or other-profile change. Retain missing usage fields as UNKNOWN. No new subscription reporting job, GLP308 reopen or GLP188 admission.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "Izaiah Tilton (existing native host-runtime/capacity owner); GLP110 receiving owner consumes only current protection/headroom scope",
+            "operation": "Coordinator hands the existing telemetry producer current protection/headroom readback to the GLP110 runtime owner: effective provider/model/effort/speed, current slot/headroom and guard response without paid fallback, quota purchase/reset or other-profile change. Retain missing usage fields as UNKNOWN. No new subscription reporting job, GLP308 reopen or GLP188 admission.",
+            "authority": "Only current non-destructive runtime protection/headroom dependency; no new issue or job"
+          }
         },
         "xentraffic_api": {
           "status": "not_applicable",
@@ -3338,8 +3698,17 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F10 Host safety; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F10 Host safety does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F10 Host safety does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
-      }
+      },
+      "ownership_scope": "Current GLP110 retained storage/backup/housekeeping is the primary outcome; per-tool handoffs retain separate reporting/alert/runtime roles. This does not broaden current execution authority or admit deferred work."
     },
     "F11": {
       "name": "Backup + housekeeping",
@@ -3347,9 +3716,10 @@
       "definition_evidence": [
         "retained cleanup PLAN.md F01-F13 table",
         "C59-C65/C67/C68",
-        "JOBS-RATIONALIZATION.json P14"
+        "JOBS-RATIONALIZATION.json P14",
+        "scripts/wiki_maintenance.py (stdlib filesystem, no Enzyme call)"
       ],
-      "existing_issue": "GLP-339",
+      "existing_issue": "GLP-110",
       "pipeline_operation": "consume existing backup/archive/wiki/Linear audit receipts; no new queue",
       "tools": {
         "posthog": {
@@ -3374,17 +3744,29 @@
         },
         "n8n_mcp": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds n8n MCP endpoint (ops/n8n_dt.py MCP_URL) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/n8n_mcp: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing n8n_mcp backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner records MCP-first target instance and retained workflow/data-table definition/queue schema inventory using the existing adapter; bind actual supported response/completeness to the existing backup manifest. A definition export is not queue/cursor/ACK/delivery backup or restore proof. If MCP does not expose required state, record that limitation and existing supported carrier, not invented MCP contents. No workflow execution/activation.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner records MCP-first target instance and retained workflow/data-table definition/queue schema inventory using the existing adapter; bind actual supported response/completeness to the existing backup manifest. A definition export is not queue/cursor/ACK/delivery backup or restore proof. If MCP does not expose required state, record that limitation and existing supported carrier, not invented MCP contents. No workflow execution/activation.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "n8n_api": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds n8n Cloud native REST API (ops/n8n_dt.py NATIVE_BASE) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/n8n_api: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing n8n_api backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner records native API fallback authority/instance, supported export response and actual backup manifest consumption only where MCP cannot supply the needed export. Match workflow/data-table scope and actual ledger sources; no credentials in output, no endpoint invention and no duplicate export/run for another tool. Separate definitions from queue/cursor/ACK/wait/callback/delivery state.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner records native API fallback authority/instance, supported export response and actual backup manifest consumption only where MCP cannot supply the needed export. Match workflow/data-table scope and actual ledger sources; no credentials in output, no endpoint invention and no duplicate export/run for another tool. Separate definitions from queue/cursor/ACK/wait/callback/delivery state.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "awin_api": {
           "status": "not_applicable",
@@ -3432,17 +3814,29 @@
         },
         "discord": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Discord delivery (Hermes cron route / discord_fmt) to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/discord: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing discord backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner binds the terminal backup/housekeeping receipt to its already registered delivery route and exact delivered message/readback, or retains a quiet-result/non-delivery limitation. No fresh channel, raw secret/archive upload or automatic new send from this contract.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner binds the terminal backup/housekeeping receipt to its already registered delivery route and exact delivered message/readback, or retains a quiet-result/non-delivery limitation. No fresh channel, raw secret/archive upload or automatic new send from this contract.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "linear": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Linear GraphQL / MCP to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/linear: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing linear backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Coordinator-owned existing Linear audit reads current native issue/dependency scope and ties its exact audit output/quiet-result to the F11 housekeeping receipt; paginate the actually consumed connection. Closed GLP102/GLP330 references are provenance, not ownership; no issue create/reopen/admission/state change.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Coordinator-owned existing Linear audit reads current native issue/dependency scope and ties its exact audit output/quiet-result to the F11 housekeeping receipt; paginate the actually consumed connection. Closed GLP102/GLP330 references are provenance, not ownership; no issue create/reopen/admission/state change.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "cloudflare_d1": {
           "status": "not_applicable",
@@ -3510,17 +3904,29 @@
         },
         "host_scheduler": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing native Hermes/systemd/cron registered entries to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/host_scheduler: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing host_scheduler backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner binds the already registered backup/archive/housekeeping invoker, singleton/overlap lock and source pins to its actual terminal receipt and current schedule readback. A dispatch or inspection exit alone is not terminal archive success. Keep current receiving lease, native UNKNOWN disposition and no-replay gates; no new schedule/window.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner binds the already registered backup/archive/housekeeping invoker, singleton/overlap lock and source pins to its actual terminal receipt and current schedule readback. A dispatch or inspection exit alone is not terminal archive success. Keep current receiving lease, native UNKNOWN disposition and no-replay gates; no new schedule/window.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "github": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing private source/CI API to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/github: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing github backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner binds the exact adopted reviewed source revision/source manifest and supported install readback to the backup manifest; then checks the same revision during isolated restore verification. PR/CI/merge alone is not installed backup/runtime proof; bad HEAD/source-pin refusals remain failures, not exceptions.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner binds the exact adopted reviewed source revision/source manifest and supported install readback to the backup manifest; then checks the same revision during isolated restore verification. PR/CI/merge alone is not installed backup/runtime proof; bad HEAD/source-pin refusals remain failures, not exceptions.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "cloudflare_pages": {
           "status": "not_applicable",
@@ -3532,10 +3938,16 @@
         },
         "host_filesystem": {
           "status": "gap",
-          "existing_issue": "GLP-339",
-          "owner": "GLP-339 native contract owner: exact evidence gap; GLP-339 remains the existing underlying outcome owner (no new dispatch/reopen)",
-          "reason": "consume existing backup/archive/wiki/Linear audit receipts; no new queue; no inspected receipt binds Existing disk/archive/backup outputs to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
-          "required_readback": "F11/host_filesystem: authenticated target identity, actual source window and supported consume existing backup/archive/wiki/Linear audit receipts; no new queue receipt with exact consumer result; otherwise retain this gap."
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+          "reason": "Canonical F11 needs the existing host_filesystem backup/housekeeping dependency, but no exact scoped consumer JSON readback is retained here. GLP110 is the currently admitted retained recovery/housekeeping outcome. Historical GLP102 Backlog/GLP330 Done references do not transfer current execution ownership or authorize a new export, restore, archive or effect.",
+          "required_readback": "Existing F11 owner verifies the retained backup manifests for typed queue/cursor/ACK/wait/callback/delivery ledgers and source revisions, and obtains a non-destructive isolated restore with actual hashes/natural-key counts. Archive continuation must have an actual terminal receipt under its exact current permitted F12 scope. Preserve original F13 UNKNOWN, eight missing-provenance items, 74-member archive/66 survivors, retry_allowed=false and all no-deletion/replay holds.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "GLP110 current backup/housekeeping owner; Izaiah Tilton retains protected restore, Linear-audit and recovery decisions",
+            "operation": "Existing F11 owner verifies the retained backup manifests for typed queue/cursor/ACK/wait/callback/delivery ledgers and source revisions, and obtains a non-destructive isolated restore with actual hashes/natural-key counts. Archive continuation must have an actual terminal receipt under its exact current permitted F12 scope. Preserve original F13 UNKNOWN, eight missing-provenance items, 74-member archive/66 survivors, retry_allowed=false and all no-deletion/replay holds.",
+            "authority": "Bounded non-destructive current recovery/backup scope only. F13 UNKNOWN/eight provenance gaps/retry_allowed=false survive; no replay, archive deletion, new window or schedule."
+          }
         },
         "stripe": {
           "status": "not_applicable",
@@ -3568,8 +3980,26 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F11 Backup + housekeeping; no forced integration."
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F11 Backup + housekeeping does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "gap",
+          "existing_issue": "GLP-110",
+          "owner": "GLP110 current backup/housekeeping owner; Izaiah Tilton coordinates the bounded wiki handoff",
+          "reason": "Canonical cleanup PLAN.md F11 explicitly retains wiki; maintained scripts/wiki_maintenance.py checks wikilinks/frontmatter/staleness and updates wiki index/log using stdlib filesystem. No exact registered wiki execution/output readback is retained in this contract. Enzyme is not called by this producer and is not asserted as its dependency.",
+          "required_readback": "On the existing housekeeping outcome, identify the existing wiki registered entry and retain its actual terminal receipt with wiki scope, orphan/broken-link/frontmatter/stale findings and exact index/log update readback. Respect existing recovery, archive and no-deletion holds; do not run another archive or new schedule to satisfy wiki evidence.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-110",
+            "accountable_role": "Existing backup/housekeeping outcome owner, coordinator scopes wiki check",
+            "operation": "Identify existing wiki entry/output and obtain bounded terminal housekeeping evidence; no new dispatch implied"
+          },
+          "evidence": "reports/ops/system-rationalization-20261001/PLAN.md F11; scripts/wiki_maintenance.py; scripts/business_ops_monitors.py wiki_maintenance monitor"
         }
-      }
+      },
+      "ownership_scope": "Current GLP110 retained storage/backup/housekeeping is the primary outcome; per-tool handoffs retain separate reporting/alert/runtime roles. This does not broaden current execution authority or admit deferred work."
     },
     "F12": {
       "name": "Conversions",
@@ -3698,15 +4128,33 @@
           "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "maxbounty_portal": {
-          "status": "hold",
-          "existing_issue": "GLP-339",
-          "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
-          "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "GLP334 current reporting/reconciliation outcome owner (Izaiah Tilton); GLP268 current authorized read-access/caller-migration owner supplies the prerequisite",
+          "reason": "MaxBounty authenticated read access recovered, not network reporting/payout proof; capacity UNKNOWN. The hold on application job 89cd7b766dba does not establish a hold on this reporting/read operation. No exact reporting evidence was obtained, so this edge is GAP (unknown), not wired or app-held. Fresh native Linear readback shows GLP334 In Progress: its reporting/reconciliation owner retains consumer acceptance; GLP268 owns current access/caller checks. A retained PASS comment alone is not a state/ownership readback.",
+          "required_readback": "Current GLP268 access owner supplies operation-specific authorized read evidence for REAL conversion-to-approved/pending/paid lineage into the F12 reconciliation consumer, including payout period/currency/linkage; coordinator binds it to the existing GLP334 producer/schedule and verifies the real consumer output. Preserve any genuine operation-specific hold, SELFTEST exclusion, UNKNOWN and all application holds. No forced API, new credential, conversion injection, tracking visit or payment.",
           "retained_scope_ref": "network_scope_limits.maxbounty",
           "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
           "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
-          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage",
+          "historical_scope": {
+            "status": "hold",
+            "existing_issue": "GLP-339",
+            "owner": "Operator: existing provider/send/spend/receiving authority; GLP-339 existing runtime/outcome owner; GLP-339 native owner retains held evidence without exercising it",
+            "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
+            "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+            "retained_scope_ref": "network_scope_limits.maxbounty",
+            "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+            "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+            "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
+          },
+          "evidence": "reports/ops/f01-lifecycle-continuation-20261003/BROWSER-ACCESS-RECOVERY.json; current GLP268 access/caller-migration ownership; GLP334 current reporting/reconciliation outcome",
+          "execution_handoff": {
+            "receiving_issue": "GLP-334",
+            "accountable_role": "GLP334 current reporting/reconciliation outcome owner (Izaiah Tilton); GLP268 current authorized read-access/caller-migration owner supplies the prerequisite",
+            "operation": "Use existing authorized exact reader only when its current receiving gates permit; no application activation or reporting replay by contract owner",
+            "access_prerequisite_issue": "GLP-268"
+          }
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -3955,6 +4403,14 @@
             "webgains",
             "yepads"
           ]
+        },
+        "paypal": {
+          "status": "not_applicable",
+          "reason": "Canonical F12 Conversions does not consume sponsor PayPal remittance. F13 reviewed-order/manual-confirmation boundary owns it; neither Stripe nor affiliate commission/payout evidence substitutes for PayPal."
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F12 Conversions does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     },
@@ -4210,6 +4666,23 @@
         "other_network_portals": {
           "status": "not_applicable",
           "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F13 Sponsor sales; no forced integration."
+        },
+        "paypal": {
+          "status": "hold",
+          "owner": "Izaiah Tilton (reviewed sponsor order and remittance confirmation); GLP327 sponsor public-activation/design owner",
+          "existing_issue": "GLP-327",
+          "reason": "Maintained ops/sponsor-machine/README.md:13 requires confirmed PayPal remittance before public activation; approved copy.json names the existing PayPal route after order/readiness checks. No order-bound cleared remittance receipt is retained here. Manual confirmation is supported; PayPal API support/authentication is unverified and not required. Outreach approval, Stripe TEST capability and affiliate earnings are not paid activation authority.",
+          "required_readback": "Existing GLP327 activation owner obtains the exact reviewed order/amount/currency and a private, verified cleared PayPal remittance receipt bound to that order and existing merchant route. Retain creative/link permission, independent outward-design acceptance and explicit release authority before any public activation. Unknown/unconfirmed payment stays HOLD; no invoice/payment/send/API/credential provisioning by GLP339.",
+          "execution_handoff": {
+            "receiving_issue": "GLP-327",
+            "accountable_role": "Izaiah Tilton for remittance/order; existing sponsor activation owner for release checks",
+            "operation": "Confirm existing order-bound remittance privately before activation; do not solicit/charge/activate from this contract"
+          },
+          "evidence": "ops/sponsor-machine/README.md:13; ops/sponsor-machine/copy.json sequence entries 0-2; current GLP327 In Progress and GLP328 Todo source ownership readback"
+        },
+        "wiki_filesystem": {
+          "status": "not_applicable",
+          "reason": "Canonical F13 Sponsor sales does not run wiki housekeeping; canonical F11 owns maintained scripts/wiki_maintenance.py. No forced wiki or semantic API integration."
         }
       }
     }
