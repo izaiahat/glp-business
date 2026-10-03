@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 667,
+  "tracked_count": 668,
   "files": {
     "scripts/f13_atop_retention_launcher.c": {
       "kind": "script",
@@ -125,7 +125,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "aba6edec8753643c39297691650b4e53779ba8ae932c389b47b3b2f812709d72"
+      "sha256": "06560723b1a542f214a4bc5d096a3adc9ceca9b22c27ce58b61055a6afbefe1a"
     },
     "scripts/glp331_carrier_adoption.py": {
       "kind": "script",
@@ -504,7 +504,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "139df795dbd5cdae19fecd71b9c77951b15e1e6ef99af2ee5849b10934fa1813"
+      "sha256": "09162f687751480205f679b897a61a4b093e7105e3977e20b7658ba39a3e4ffa"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1595,7 +1595,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "f1055dea298e8354bd61d9ccad084a2b33ab9c028ed7070b54e23d64ad023032"
+      "sha256": "1af61e20aef908c920fa3f28cd071e9ec2848fe05ef116364232e831bdb48c51"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -1912,7 +1912,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
+      "sha256": "85967d4ccbf1819218343faf5aa83deaf59f543fd2eec0b80821688b6d3f1642"
     },
     "scripts/glp_price_index_weekly_successor.py": {
       "callers": [
@@ -2725,7 +2725,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "09a133e325022503165fa5c6956c6ce6d23d0e13132b27474a8edf711e5e34e5"
+      "sha256": "aa85413a0cc45264c21eb1b4c9930c776fdbbb97a81b951f158dfd74c5ffd025"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
@@ -3512,7 +3512,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "ae053a3e2827bc758331c0a7ea14620c3c46f5836a3ec535022a3a5801d657f5"
+      "sha256": "e2e612f338f79da2f0e342681b617b5ad82326794a64f7072ac44b11d77d6988"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3533,7 +3533,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "39033c42d1c142d94198e329aec5a2524410233301f1640a1abed42a80af70ec"
+      "sha256": "119739b14e0f6f476c2676d16e2e9ff13517d209941eae7ceeba10a46b54cdf8"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4485,6 +4485,13 @@
       ],
       "kind": "test_fixture",
       "sha256": "96a7b60de1f3dd5d0d8f8618ba7b7c4caf7be9f12b5d1c0954d39157b9cf13d7"
+    },
+    "tests/test_glp76_native_terminal_base.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "ed2843c8287c6d6775205c75f810cf8b626e82678885d4e6cbca1619a0801bef"
     }
   }
 }
