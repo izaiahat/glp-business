@@ -61,6 +61,7 @@ POLICIES = {
     'rxspan-md-telehealth-program-review': {
         'url': 'https://www.rxspanmd.com/',
         'linked_url': 'https://www.rxspanmd.com/category/weight-loss',
+        'intermediate_url': 'https://www.rxspanmd.com/main-weight-loss',
         'finding': 'Homepage no longer names the retained drugs. Its linked first-party weight-loss catalog supplies the current medication assertions; old homepage bindings remain historical.',
         'quotes': {'molecule_tags': {'semaglutide': 'Semaglutide Injection', 'tirzepatide': 'Tirzepatide Injection'},
                    'brand_name_tags': {'wegovy': 'Wegovy®', 'zepbound': 'Zepbound®'}},
@@ -367,9 +368,14 @@ def main():
                     raise ValueError('reviewed_source_not_in_program')
                 primary = capture(policy['url'], run / (pid + '-primary.json'))
                 selected, url = primary, policy['url']
+                if policy.get('intermediate_url'):
+                    middle = policy['intermediate_url']
+                    if middle not in primary['response']['data'].get('links', []):
+                        raise ValueError('intermediate_no_longer_linked_by_program')
+                    selected = capture(middle, run / (pid + '-intermediate.json'))
                 if policy.get('linked_url'):
                     url = policy['linked_url']
-                    if url not in primary['response']['data'].get('links', []):
+                    if url not in selected['response']['data'].get('links', []):
                         raise ValueError('supplement_no_longer_linked_by_program')
                     selected = capture(url, run / (pid + '-linked.json'))
                 assertions = support(row, policy, selected['response']['data']['markdown'])

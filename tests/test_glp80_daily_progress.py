@@ -54,7 +54,7 @@ def test_stage_uses_retained_capture_and_resolves_declared_alias(tmp_path, monke
            'provider_dynamic_profiles': {'profiles': {'shedrx': {
                'aliases': [{'render_id': 'shed', 'program_id': 'member'}],
                'registry_program_ids': ['member'], 'source_urls': ['https://provider.example/']}}},
-           'therapeutic_taxonomy': {'programs': {'shed': {'registry_program_id': 'member'}}}}
+           'therapeutic_taxonomy': {'programs': {'shedrx': {}, 'shed': {'registry_program_id': 'member'}}}}
     put(tmp_path / 'release/data/program-registry.json', reg)
     put(tmp_path / 'release/data/provider-pricing-matrix.json', {'providers': {}})
     out = tmp_path / 'out'

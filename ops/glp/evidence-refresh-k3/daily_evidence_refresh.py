@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import time
+import types
 
 ROOT = Path('/home/ubuntu/business')
 HERE = Path(__file__).resolve().parent
@@ -32,6 +33,9 @@ NATIVE_EVIDENCE = ROOT / 'scripts/glp_price_index_weekly.py'
 NATIVE_PRODUCER = ROOT / 'scripts/glp_deploy_glp34_authority_v1.py'
 NATIVE_MATERIALIZER = ROOT / 'scripts/site_tree_materializer.py'
 NATIVE_BUILDER = ROOT / 'systems/seo-blog-machine/scripts/build_opus_article_release.py'
+TAXONOMY_PRODUCER = ROOT / 'site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py'
+TAXONOMY_POLICIES = TAXONOMY_PRODUCER.with_name('therapeutic-taxonomy-refresh-policies.json')
+TAXONOMY_REGISTRY = TAXONOMY_PRODUCER.parent.parent / 'data/program-registry.json'
 
 
 def sha(path):
@@ -63,7 +67,8 @@ def load(path, name):
 def check_pins(pin_file=PIN_FILE):
     pins = read(pin_file)
     required = {str(ENGINE), str(ENGINE.with_name('evidence_refresh_verify.mjs')), str(SCHEMA),
-                str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER)}
+                str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER),
+                str(TAXONOMY_PRODUCER), str(TAXONOMY_POLICIES)}
     if set(pins['sources']) != required:
         raise RuntimeError('SOURCE_PIN_SET_INVALID')
     for path, digest in pins['sources'].items():
@@ -73,6 +78,8 @@ def check_pins(pin_file=PIN_FILE):
         raise RuntimeError('RUNNER_PIN_DRIFT')
     if sha(HERE / 'compose_current_base.py') != pins['composer_sha256']:
         raise RuntimeError('COMPOSER_PIN_DRIFT')
+    if sha(HERE / 'registered_taxonomy.py') != pins['registered_taxonomy_sha256']:
+        raise RuntimeError('REGISTERED_TAXONOMY_PIN_DRIFT')
     return pins
 
 
@@ -306,11 +313,17 @@ def stage_program(er, release, pid, folder, captures, day, review=None):
             outcome = 'IMPORTED_RETAINED_AND_OPERATOR_CAPTURES'
     put(folder / 'CAPTURES.json', caps)
     command = [sys.executable, '-B', str(ENGINE), '--program', pid, '--candidate', str(release), '--out', str(folder), '--dry-run']
+    decision = {}
     if review:
         decision = read(review)
         if decision.get('captures') != caps:
             raise RuntimeError('REVIEW_CAPTURE_BINDING_MISMATCH')
         command += ['--adjudication', str(review)]
+    if not decision.get('review_complete'):
+        receiver = load(HERE / 'registered_taxonomy.py', 'k3_registered_taxonomy')
+        native = receiver.make_packet(types.SimpleNamespace(**globals()), er, release, pid, folder, caps, day, decision)
+        if native is not None:
+            return native
     try:
         run = subprocess.run(command, capture_output=True, text=True, timeout=90,
                              env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
@@ -352,6 +365,17 @@ def stage_directory(root, day, bound, pins, selector_only, capture_root, continu
     return root / 'continuations' / day / generation, parent
 
 
+def capture_input_snapshot(day):
+    paths = list((SUPPLEMENTS / day).glob('*/CAPTURES.json'))
+    if TAXONOMY_REGISTRY.is_file():
+        paths.append(TAXONOMY_REGISTRY)
+    lane = ROOT / 'reports/ops/glp38-20260915/taxonomy-refresh'
+    paths.extend(lane.glob('run-' + day.replace('-', '') + 'T*/*.json'))
+    if any(p.resolve() != p for p in paths):
+        raise RuntimeError('CAPTURE_INPUT_PATH_INVALID')
+    return {str(p): sha(p) for p in sorted(paths)}
+
+
 def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, continue_day=False):
     pins = check_pins()
     root = output_root(out_root)
@@ -361,7 +385,7 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, cont
     day = now.date().isoformat()  # UTC date namespace; scheduler may run in PT.
     with lock(root):
         bound = binding()
-        capture_inputs = {str(p): sha(p) for p in sorted((SUPPLEMENTS / day).glob('*/CAPTURES.json'))}
+        capture_inputs = capture_input_snapshot(day)
         folder, predecessor = stage_directory(root, day, bound, pins, selector_only, capture_root, continue_day, capture_inputs)
         index_path = folder / 'RUN.json'
         if index_path.exists():
@@ -399,22 +423,37 @@ def run_daily(out_root, as_of=None, capture_root=None, selector_only=False, cont
             except (ValueError, KeyError, OSError, RuntimeError) as exc:
                 rows.append({'program_id': pid, 'status': 'BLOCKED_INPUT', 'reason': str(exc)})
         unchanged(bound)
-        if capture_inputs != {str(p): sha(p) for p in sorted((SUPPLEMENTS / day).glob('*/CAPTURES.json'))}:
+        if capture_inputs != capture_input_snapshot(day):
             raise RuntimeError('SUPPLEMENT_CAPTURE_INPUT_DRIFT')
+        if check_pins() != pins:
+            raise RuntimeError('STAGE_PACKAGE_CHANGED')
+        composition = {'status': 'NO_REGISTERED_READY_PACKETS', 'combined_patch': None}
+        if any(r.get('status') == 'PACKET_READY' for r in rows):
+            composer = load(HERE / 'compose_current_base.py', 'stage_composer')
+            composition = composer.compose(types.SimpleNamespace(**globals()), er, bound, rows, folder)
+        put(folder / 'REGISTERED-TAXONOMY-HANDOFF.json', composition)
         put(folder / 'HANDOFF.json', {'schema': 'k3-evidence-adjudication-handoff-v1',
             'model': 'gpt-6-astra', 'reasoning_effort': 'low', 'dispatch_status': 'STAGED_NOT_DISPATCHED',
             'binding': bound, 'programs': rows, 'review_prompt': str(HERE / 'ASTRA-LOW-PROMPT.md'),
-            'candidate_writer_status': 'COMPOSER_AVAILABLE_PENDING_REVIEWED_PACKETS',
+            'candidate_writer_status': composition['status'],
             'composer': str(HERE / 'compose_current_base.py'),
-            'combined_patch': None, 'applied': False, 'release_accepted': False})
+            'combined_patch': composition['combined_patch'], 'applied': False, 'release_accepted': False})
         artifacts = {str(p.relative_to(folder)): sha(p) for p in sorted(folder.rglob('*')) if p.is_file()}
-        result = {'schema': 'k3-daily-evidence-stage-v1', 'status': 'STAGED_PENDING_ADJUDICATION' if selected else 'NO_STALE_IDENTITIES',
+        stage_status = 'STAGED_PENDING_ADJUDICATION' if selected else 'NO_STALE_IDENTITIES'
+        if composition['status'] == 'COMPOSED_PENDING_GOVERNED_ADOPTION':
+            stage_status = 'TAXONOMY_INTAKE_READY'
+        elif composition['status'].startswith('BLOCKED'):
+            stage_status = composition['status']
+        if check_pins() != pins:
+            raise RuntimeError('STAGE_PACKAGE_CHANGED')
+        result = {'schema': 'k3-daily-evidence-stage-v1', 'status': stage_status,
                   'as_of_utc': now.isoformat(), 'day_timezone': 'UTC', 'stale_within_days': 7,
                   'binding': bound, 'source_pins': pins, 'selector_only': selector_only,
                   'capture_root': capture_root, 'selected_count': len(selected), 'programs': rows,
                   'run_dir': str(folder), 'predecessor': predecessor, 'capture_inputs': capture_inputs,
                   'capture_gap_count': sum(r.get('capture_outcome') == 'UNKNOWN_CAPTURE_MANIFEST_MISSING' for r in rows),
                   'resolved_alias_count': sum('canonical_program_id' in r for r in rows),
+                  'registered_taxonomy_ready_count': sum(r.get('adjudication_scope') == 'taxonomy_only' for r in rows),
                   'artifacts': artifacts, 'network_requests': 0, 'candidate_writes': 0,
                   'scheduler_receipt': 'NOT_A_NATURAL_RUN', 'invocation': 'NEW_STAGE'}
         put(index_path, result)
@@ -431,7 +470,7 @@ def main():
     args = parser.parse_args()
     try:
         result = run_daily(args.out_root, args.as_of, args.capture_root, args.selector_only, args.continue_day)
-        print(json.dumps({k: result.get(k) for k in ('status', 'selected_count', 'as_of_utc', 'invocation', 'network_requests', 'run_dir', 'capture_gap_count', 'resolved_alias_count')}))
+        print(json.dumps({k: result.get(k) for k in ('status', 'selected_count', 'as_of_utc', 'invocation', 'network_requests', 'run_dir', 'capture_gap_count', 'resolved_alias_count', 'registered_taxonomy_ready_count')}))
     except (ValueError, KeyError, OSError, RuntimeError) as exc:
         print(json.dumps({'status': 'BLOCKED', 'reason': str(exc)}))
         return 2

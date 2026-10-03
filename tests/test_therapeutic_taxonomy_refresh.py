@@ -50,7 +50,7 @@ def policy_row(producer, pid):
             'evidence_bindings': [{'fixture': 'old'}]}
 
 
-def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False, markdown_overrides=None):
+def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, default=False, markdown_overrides=None, links_by_url=None):
     """Execute maintained main with only external effects replaced by fixtures."""
     monkeypatch.setattr(producer, 'BUSINESS', tmp_path)
     monkeypatch.setattr(producer, 'REPORTS', tmp_path / 'receipts')
@@ -84,7 +84,10 @@ def run_fixture(producer, monkeypatch, tmp_path, ids, missing=(), linked=False, 
         if markdown_overrides and url in markdown_overrides:
             receipt['response']['data']['markdown'] = markdown_overrides[url]
         if linked:
-            receipt['response']['data']['links'] = [p['linked_url'] for p in producer.POLICIES.values() if p.get('linked_url')]
+            receipt['response']['data']['links'] = [p[k] for p in producer.POLICIES.values()
+                                                   for k in ('intermediate_url', 'linked_url') if p.get(k)]
+        if links_by_url and url in links_by_url:
+            receipt['response']['data']['links'] = links_by_url[url]
         dest.write_bytes(producer.encoded(receipt))
         return receipt
     monkeypatch.setattr(producer, 'capture', fake_capture)
@@ -183,7 +186,7 @@ def test_multisource_uses_oldest_actual_capture_date(producer, monkeypatch, tmp_
 
 @pytest.mark.parametrize('pid,condition', [
     ('pallas-health-review', 'assertion_no_longer_supported:molecule_tags:semaglutide'),
-    ('rxspan-md-telehealth-program-review', 'supplement_no_longer_linked_by_program')])
+    ('rxspan-md-telehealth-program-review', 'intermediate_no_longer_linked_by_program')])
 def test_existing_real_refusal_classes_still_review_required(producer, monkeypatch, tmp_path, pid, condition):
     missing = {(pid, 'molecule_tags', 'semaglutide')}
     code, result, before, after, _ = run_fixture(producer, monkeypatch, tmp_path, [pid, 'breeze-meds-review'], missing)
@@ -246,6 +249,7 @@ def test_nine_original_policies_and_evidence_rules_are_unchanged(producer):
     pallas['quotes']['molecule_tags'] = {
         'semaglutide': 'Compounded semaglutide is $139 for your first month',
         'tirzepatide': 'compounded tirzepatide is $179 for your first month'}
+    assert old['rxspan-md-telehealth-program-review'].pop('intermediate_url') == 'https://www.rxspanmd.com/main-weight-loss'
     assert hashlib.sha256(json.dumps(old, sort_keys=True).encode()).hexdigest() == SNAPSHOT['original_policies_sha256']
     tree = ast.parse(SOURCE.read_text())
     for name, expected in SNAPSHOT['original_functions_source_sha256'].items():
@@ -281,8 +285,17 @@ def test_rxspan_linked_success_binding_stays_on_supplement(producer, monkeypatch
     code, result, _, after, calls = run_fixture(producer, monkeypatch, tmp_path, [pid], linked=True)
     p = producer.POLICIES[pid]
     assert code == 0 and result['status'] == 'PASS'
-    assert calls == [p['url'], p['linked_url']]
+    assert calls == [p['url'], p['intermediate_url'], p['linked_url']]
     assert after['therapeutic_taxonomy']['programs'][pid]['evidence_bindings'][0]['source_url'] == p['linked_url']
+
+
+def test_rxspan_missing_second_edge_refuses_without_clock_change(producer, monkeypatch, tmp_path):
+    pid = 'rxspan-md-telehealth-program-review'
+    p = producer.POLICIES[pid]
+    code, result, before, after, calls = run_fixture(producer, monkeypatch, tmp_path, [pid], linked=True, links_by_url={p['intermediate_url']: []})
+    assert code == 1 and result['written'] == [] and after == before
+    assert result['findings'][0]['condition'] == 'supplement_no_longer_linked_by_program'
+    assert calls == [p['url'], p['intermediate_url']]
 
 
 # Fixed adversarial excerpts, not derived from the current policy. The first two
