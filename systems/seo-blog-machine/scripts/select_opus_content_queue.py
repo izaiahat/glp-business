@@ -387,10 +387,10 @@ def load_targeting_policy(
 def load_demand_multipliers(path: Path = DEMAND_SIDECAR) -> tuple[dict[str, float], dict[str, Any]]:
     """Measured-demand multipliers written by ``scripts/glp_topic_data_score.py``.
 
-    GSC striking distance can only ever see queries we ALREADY rank for. The
-    sidecar adds the demand this site has never touched — DataForSEO volume, Bing
-    keyword impressions, and conversion by route family — so selection stops
-    defaulting to queue order on a site with no rankings yet.
+    These bounded multipliers come from cached first-party GSC/Bing query
+    aggregates and privacy-safe site-level context. No model scraping or user,
+    conversion, revenue, or health-path GA4 join is performed. Unknown metric
+    rows stay out of the measured table and use the existing neutral fallback.
 
     FAILS OPEN, always. Missing file, unreadable JSON, wrong schema, or a stale
     write all yield ``{}`` and the pre-existing ordering, because a scoring
@@ -418,7 +418,10 @@ def load_demand_multipliers(path: Path = DEMAND_SIDECAR) -> tuple[dict[str, floa
         out: dict[str, float] = {}
         for row in doc.get("multipliers") or []:
             key = normalize(str(row.get("keyword") or ""))
-            value = float(row.get("multiplier") or 1.0)
+            raw_value = row.get("multiplier")
+            if raw_value is None or isinstance(raw_value, bool):
+                continue
+            value = float(raw_value)
             if key and 0.1 <= value <= 5.0:
                 out[key] = value
         meta.update({"state": "applied", "count": len(out)})
@@ -832,7 +835,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
     sitemap_path = (release_root / "public/sitemap.xml").resolve(strict=True)
     live_routes = current_catalog_routes(config) | sitemap_routes(sitemap_path, config["vertical"]["domain"])
     gsc_rows, gsc_window = gsc_preference(database_path)
-    demand_table, demand_meta = load_demand_multipliers()
+    demand_table, demand_meta = load_demand_multipliers(getattr(args, "demand_sidecar", DEMAND_SIDECAR))
     configured_class_weights = {
         str(key): int(value)
         for key, value in ((config.get("topic_feed") or {}).get("class_weights") or {}).items()
@@ -1021,6 +1024,7 @@ def main() -> int:
     parser.add_argument("--article-buffer-root", type=Path, default=DEFAULT_BUFFER_ROOT)
     parser.add_argument("--keyword-gap-overlay", type=Path, default=DEFAULT_KEYWORD_GAP_OVERLAY)
     parser.add_argument("--database", type=Path, default=BUSINESS / "reports/glp-clinic-scout/operator-national-wow-20260723/data/glp-observability.sqlite")
+    parser.add_argument("--demand-sidecar", type=Path, default=DEMAND_SIDECAR)
     parser.add_argument("--output-receipt", type=Path, required=True)
     parser.add_argument("--generated-at-utc")
     parser.add_argument("--limit", type=int, default=1)

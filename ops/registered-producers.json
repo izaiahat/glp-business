@@ -3,6 +3,11 @@
  "why": "PERSISTENT PATH ONLY (operator 2026-09-14): every repair lands in the REGISTERED path. Until 2026-09-16 that was prose in three files and a receipt; nothing mechanical distinguished a registered producer from a one-off that appends a well-formed entry. On 2026-09-16 01:06Z a one-off adopted a pinned capture with check_successor disabled, and on the same day four dose_pricing rows were hand-written into the pricing matrix. Both were well-formed bytes. result_lint now refuses a RESULT that changes one of these artifacts without a producer.registered_command whose program is listed here.",
  "artifacts": [
   {
+   "glob": "reports/glp-clinic-scout/affiliate-machine/published-intake/*/RESULT.json",
+   "producers": ["scripts/glp_published_provider_intake.py", "scripts/affiliate_auto_apply.py"],
+   "scope": "GLP96 existing acquisition intake feeder. Complete first-party public observation and full existing Sheet/application/sheet-queue read; only the source-bound research_only_provider kind may be queued to the existing sole-writer consumer. Never approval, tracking-link activation, application submission, direct outreach, schedule change or provider deployment. Preserve Fella exclusion and every hold."
+  },
+  {
    "glob": "/home/ubuntu/.hermes/scripts/affiliate_supply_discovery_daily.sh",
    "producers": ["scripts/glp_ship_discovery.py"],
    "scope": "Only the exact committed F01 wrapper/source generation under independent proposal-bound review, separate owner exclusion, existing consumer locks, native fire/registry fences and maintained cohort custody. Unknown predecessors refuse. Ambiguous source or native save outcomes retain seals and require reconciliation; no retry or unrelated-job authority."

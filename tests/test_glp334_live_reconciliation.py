@@ -82,6 +82,47 @@ def test_full_roster_never_sums_overlapping_periods(monkeypatch):
                 sys.modules[name] = value
 
 
+def test_financial_only_network_rows_are_owned_not_silently_dropped():
+    class Reporter:
+        digest = staticmethod(lambda value: 'a' * 64)
+        _noncommercial = staticmethod(lambda value: 'TEST' if value.get('classification') == 'TEST' else None)
+
+    observations = [{'network': 'partnerstack', 'period_purpose': 'closed_month',
+        'start_inclusive': '2026-09-01T00:00:00+00:00', 'end_exclusive': '2026-10-01T00:00:00+00:00',
+        'records': [{'provider_event_id': 'fixture-payout', 'resource': 'payouts',
+                     'reported_amount': '0', 'amount_unit': 'UNKNOWN', 'currency': 'USD',
+                     'classification': 'UNKNOWN', 'customer_email': 'DO_NOT_COPY'},
+                    {'provider_event_id': 'fixture-test', 'classification': 'TEST'}]}]
+    rows = m.network_rows({'partnerstack'}, observations, {'conversions': []}, {'rows': []}, Reporter)
+    inputs = rows[0]['financial_input_records']
+    assert len(inputs) == 1
+    assert inputs[0]['provider_event_id'] == 'fixture-payout'
+    assert inputs[0]['reported_amount'] == '0' and inputs[0]['amount_unit'] == 'UNKNOWN'
+    assert inputs[0]['reconciliation_state'] == 'UNKNOWN' and inputs[0]['owner'] == 'GLP-334'
+    assert inputs[0]['source_pointer'] == '/records/0'
+    assert 'customer_email' not in inputs[0]
+    assert rows[0]['commission_minor'] is rows[0]['cash_minor'] is None
+    assert 'UNRECONCILED_NETWORK_FINANCIAL_RECORDS' in rows[0]['gaps']
+
+
+def test_latest_closed_month_uses_execution_clock_not_closed_week(monkeypatch):
+    monkeypatch.setattr(m, 'ROOT', ROOT)
+    import sys
+    old = {name: sys.modules.get(name) for name in m.DEPENDENCIES}
+    try:
+        reporter, _ = m.load_reconciler()
+        w = reporter.windows(datetime(2026, 10, 3, tzinfo=timezone.utc))
+        assert w['end_exclusive'] == '2026-09-28T00:00:00+00:00'
+        assert w['last_closed_month_start'] == '2026-09-01T00:00:00+00:00'
+        assert w['last_closed_month_end'] == '2026-10-01T00:00:00+00:00'
+    finally:
+        for name, value in old.items():
+            if value is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = value
+
+
 def test_read_transport_allowlist_and_redirect_refusal():
     reader = object.__new__(m.ReceiverReader)  # do not load credentials
     with pytest.raises(m.InputError, match='NON_ALLOWLISTED'):

@@ -306,6 +306,8 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
                     deadline_seconds=120):
     deadline = time.monotonic() + deadline_seconds
     client = queue_client
+    published_intake = None
+    live_admission = apply and dedupe_index is None and queue_client is None
     if dedupe_index is None:
         from scripts import glp_application_dedupe as dedupe
         dedupe_index = dedupe.build(require=dedupe.ALL_LEGS, check_live_manifest=False)
@@ -318,6 +320,9 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
     with lock as handle:
         if apply:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if live_admission:
+            from scripts.glp_published_provider_intake import run as published_run
+            published_intake = published_run(apply=True)
         # Freeze the complete supplied denominator before any queue effect.
         # Every observation of an exact rail must pass; first-seen positive
         # evidence cannot discard a later hold, unknown geography or conflict.
@@ -446,10 +451,15 @@ def admit_discovery(inventory_paths, *, queue_client=None, dedupe_index=None,
             remainder_path = journal_dir / 'deferred' / (digest(remainder) + '.json')
             write_json(remainder_path, {'schema': ADMISSION_SCHEMA, 'status': 'DEFERRED',
                                        'remainder': remainder})
-    return {'schema': ADMISSION_SCHEMA, 'mode': 'admit' if apply else 'dry_run',
+    report = {'schema': ADMISSION_SCHEMA, 'mode': 'admit' if apply else 'dry_run',
             'outcomes': outcomes, 'candidate_count': len(outcomes),
             'effects': {'applications_submitted': 0, 'sheet_writes': 0},
             'status': 'INCOMPLETE' if any(r['status'] in {'deferred', 'reconcile_required'} for r in outcomes) else 'COMPLETE'}
+    if published_intake is not None:
+        report['published_intake'] = {key: published_intake[key] for key in ('status', 'counts', 'effects', 'output')}
+        if published_intake['status'] != 'COMPLETE':
+            report['status'] = 'INCOMPLETE'
+    return report
 
 
 def main(argv=None):

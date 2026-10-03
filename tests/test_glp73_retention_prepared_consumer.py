@@ -1,4 +1,5 @@
 """Offline archiver authority regression; synthetic evidence is not live approval."""
+import base64
 import hashlib
 import json
 import os
@@ -120,6 +121,51 @@ class PreparedConsumer(unittest.TestCase):
 
         self.previous.rmdir()
         with self.assertRaisesRegex(archiver.SiteAuthorityError, "supersedes_release_root_invalid"):
+            archiver.load_site_tree_authority()
+
+    def prepared_predecessor(self):
+        legacy = self.previous
+        self.previous = self.reports / 'ops/previous-native/prepared/release'
+        self.previous.mkdir(parents=True)
+        evidence = self.base_path.parent / ('current-release-' + 'e' * 40)
+        manifest = evidence / '01-deployment-manifest.json'
+        receipt = evidence / '10-final-publication-receipt.json'
+        tree, public = 'b' * 64, 'c' * 64
+        prior_id = self.pointer['supersedes']['deployment_id']
+        manifest_sha = put(manifest, {'schema':'glp-opus-release-deployment-manifest-v1',
+            'release_root':str(self.previous), 'release_tree_sha256':tree})
+        receipt_sha = put(receipt, {'schema':'glp-opus-production-terminal-receipt-v1',
+            'status':'PASS_PRODUCTION_TERMINAL', 'deployment':{'deployment_id':prior_id},
+            'evidence_sha256':{manifest.name:manifest_sha},
+            'immutable_closure':{'release_tree_sha256':tree,'public_tree_sha256':public}})
+        prior = {**self.pointer, 'deployment_id':prior_id, 'release_root':str(self.previous),
+            'site_head':'e'*40, 'manifest':{'path':str(manifest),'sha256':manifest_sha},
+            'final_receipt':{'path':str(receipt),'sha256':receipt_sha},
+            'supersedes':{'deployment_id':'33333333-3333-3333-3333-333333333333','release_root':str(legacy)}}
+        raw = json.dumps(prior,sort_keys=True).encode()
+        snapshot = {'bytes_base64':base64.b64encode(raw).decode(), 'bytes':len(raw),
+            'sha256':hashlib.sha256(raw).hexdigest(),'deployment_id':prior_id,'release_root':str(self.previous)}
+        put(self.current.parent/'PREPARED.json',{'predecessor_pointer':snapshot})
+        self.pointer['supersedes']['release_root']=str(self.previous)
+        self.bound_digest=put(self.base_path,self.pointer)
+        return snapshot, manifest, receipt
+
+    def test_prepared_predecessor_uses_native_snapshot_and_pinned_terminal_pair(self):
+        self.prepared_predecessor()
+        result=archiver.load_site_tree_authority()
+        self.assertEqual(result['status'],'VALID')
+        self.assertIn(self.previous,result['refs'])
+        self.assertEqual(result['predecessor_identity_evidence']['method'],'native_prepared_predecessor_snapshot')
+
+    def test_prepared_predecessor_rejects_snapshot_and_receipt_drift(self):
+        snapshot, manifest, receipt=self.prepared_predecessor()
+        original=dict(snapshot); snapshot['sha256']='0'*64
+        put(self.current.parent/'PREPARED.json',{'predecessor_pointer':snapshot})
+        with self.assertRaisesRegex(archiver.SiteAuthorityError,'snapshot_digest_mismatch'):
+            archiver.load_site_tree_authority()
+        put(self.current.parent/'PREPARED.json',{'predecessor_pointer':original})
+        body=json.loads(receipt.read_bytes()); body['deployment']['deployment_id']='wrong';put(receipt,body)
+        with self.assertRaises(archiver.SiteAuthorityError):
             archiver.load_site_tree_authority()
 
     def test_legacy_or_unproved_root_cannot_acquire_reports_lane(self):

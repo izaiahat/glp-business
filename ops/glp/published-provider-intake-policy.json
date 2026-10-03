@@ -1,0 +1,1229 @@
+{
+  "schema": "glp.published-provider-policy.v1",
+  "source": "Source-bound publishing identities from current-complete GLP96 20260927 join; not relationship approval. New published detail/review pages are kept unresolved, never silently dropped.",
+  "providers": {
+    "domain:altrx.com": {
+      "provider_id": "domain:altrx.com",
+      "name": "altRx",
+      "aliases": [
+        "altRx",
+        "altrx"
+      ],
+      "slugs": [
+        "altrx-glp1-us-cps",
+        "altrx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/altrx-glp1-us-cps/",
+        "https://glpclinicscout.com/reviews/altrx-glp1-us-cps/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:coivas.com": {
+      "provider_id": "domain:coivas.com",
+      "name": "Coivas",
+      "aliases": [
+        "Coivas",
+        "coivas"
+      ],
+      "slugs": [
+        "awin-128761",
+        "coivas"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/awin-128761/",
+        "https://glpclinicscout.com/reviews/coivas/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:biltrx.com": {
+      "provider_id": "domain:biltrx.com",
+      "name": "BiltRx",
+      "aliases": [
+        "BiltRx",
+        "biltrx"
+      ],
+      "slugs": [
+        "biltrx",
+        "biltrx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/biltrx/",
+        "https://glpclinicscout.com/reviews/biltrx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:bbhealthplus.com": {
+      "provider_id": "domain:bbhealthplus.com",
+      "name": "Bodybuilding.com GLP-1 & Longevity",
+      "aliases": [
+        "Bodybuilding.com GLP-1 & Longevity",
+        "bodybuilding.com glp"
+      ],
+      "slugs": [
+        "bodybuilding-com-glp-1-longevity-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/bodybuilding-com-glp-1-longevity-review/",
+        "https://glpclinicscout.com/reviews/bodybuilding-com-glp-1-longevity-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:breezemeds.com": {
+      "provider_id": "domain:breezemeds.com",
+      "name": "Breeze Meds",
+      "aliases": [
+        "Breeze Meds",
+        "breeze meds"
+      ],
+      "slugs": [
+        "breeze-meds-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/breeze-meds-review/",
+        "https://glpclinicscout.com/reviews/breeze-meds-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:carebarerx.com": {
+      "provider_id": "domain:carebarerx.com",
+      "name": "Care Bare Rx",
+      "aliases": [
+        "Care Bare Rx",
+        "care bare rx"
+      ],
+      "slugs": [
+        "care-bare-rx-glp1-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-hsa-fsa-reimbursement-evidence/",
+        "https://glpclinicscout.com/guides/online-glp-1-intake-to-pharmacy-fulfillment/",
+        "https://glpclinicscout.com/providers/care-bare-rx-glp1-review/",
+        "https://glpclinicscout.com/reviews/care-bare-rx-glp1-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:coreagerx.com": {
+      "provider_id": "domain:coreagerx.com",
+      "name": "CoreAge Rx",
+      "aliases": [
+        "CoreAge Rx",
+        "coreage rx"
+      ],
+      "slugs": [
+        "coreage-rx-glp-1-1632",
+        "coreage-rx-glp-1-1632-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/coreage-rx-glp-1-1632/",
+        "https://glpclinicscout.com/reviews/coreage-rx-glp-1-1632/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:getcurex.com": {
+      "provider_id": "domain:getcurex.com",
+      "name": "Curex",
+      "aliases": [
+        "Curex",
+        "curex"
+      ],
+      "slugs": [
+        "curex-glp-1",
+        "curex-us-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/curex-glp-1/",
+        "https://glpclinicscout.com/reviews/curex-glp-1/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:drhouse.com": {
+      "provider_id": "domain:drhouse.com",
+      "name": "DrHouse",
+      "aliases": [
+        "DrHouse",
+        "drhouse"
+      ],
+      "slugs": [
+        "drhouse",
+        "drhouse-inc-us-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/drhouse/",
+        "https://glpclinicscout.com/reviews/drhouse/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:dudemeds.com": {
+      "provider_id": "domain:dudemeds.com",
+      "name": "DudeMeds",
+      "aliases": [
+        "DudeMeds",
+        "dudemeds"
+      ],
+      "slugs": [
+        "dudemeds-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/dudemeds-review/",
+        "https://glpclinicscout.com/reviews/dudemeds-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:tryeden.com": {
+      "provider_id": "domain:tryeden.com",
+      "name": "Eden",
+      "aliases": [
+        "Eden",
+        "eden"
+      ],
+      "slugs": [
+        "eden-everflow-offer-1",
+        "eden-everflow-offer-10",
+        "eden-everflow-offer-11",
+        "eden-glp-program-review",
+        "eden-xentraffic-offer-3051"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/eden-xentraffic-offer-3051/",
+        "https://glpclinicscout.com/reviews/eden-xentraffic-offer-3051/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": {
+        "published_fact_domain": "eden.health",
+        "sheet_contract_domain": "tryeden.com",
+        "unproven_alias": true,
+        "note": "Live profile/review sources point to eden.health, while exact XenTraffic3051 and Everflow-Eden Sheet contracts use tryeden.com. Katalys1435 is eden.health. Retain separate domain identities and all contract evidence; no legal-alias or cross-domain approval transfer is established."
+      }
+    },
+    "domain:enhance.md": {
+      "provider_id": "domain:enhance.md",
+      "name": "Enhance.MD",
+      "aliases": [
+        "Enhance.MD",
+        "enhance md",
+        "enhance.md"
+      ],
+      "slugs": [
+        "enhance-md",
+        "enhance-md-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/enhance-md/",
+        "https://glpclinicscout.com/reviews/enhance-md/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:enhanced.com": {
+      "provider_id": "domain:enhanced.com",
+      "name": "Enhanced",
+      "aliases": [
+        "Enhanced",
+        "enhanced tirzepatide"
+      ],
+      "slugs": [
+        "enhanced-tirzepatide-funnel-b",
+        "enhanced-tirzepatide-funnel-b-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/enhanced-tirzepatide-funnel-b/",
+        "https://glpclinicscout.com/reviews/enhanced-tirzepatide-funnel-b/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:joinfound.com": {
+      "provider_id": "domain:joinfound.com",
+      "name": "Found",
+      "aliases": [
+        "Found",
+        "found - glp",
+        "found - weight",
+        "found health"
+      ],
+      "slugs": [
+        "found-health",
+        "found-health-review",
+        "found-weight-loss-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/found-vs-trimi-insurance-self-pay/",
+        "https://glpclinicscout.com/guides/glp-1-insurance-support-vs-coverage/",
+        "https://glpclinicscout.com/guides/glp-1-subscription-cancellation-terms/",
+        "https://glpclinicscout.com/providers/found-health/",
+        "https://glpclinicscout.com/reviews/found-health/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:fh.co": {
+      "provider_id": "domain:fh.co",
+      "name": "FuturHealth",
+      "aliases": [
+        "FuturHealth",
+        "futurhealth"
+      ],
+      "slugs": [
+        "futurhealth-review",
+        "futurhealth-wegovy-pillform",
+        "futurhealth-wegovy-pillform-review",
+        "futurhealth-weight-loss-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/futurhealth-wegovy-pillform/",
+        "https://glpclinicscout.com/reviews/futurhealth-wegovy-pillform/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:g-plans.com": {
+      "provider_id": "domain:g-plans.com",
+      "name": "G-Plans",
+      "aliases": [
+        "G-Plans",
+        "g-plan",
+        "g-plans"
+      ],
+      "slugs": [
+        "g-plan",
+        "g-plan-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/g-plan/",
+        "https://glpclinicscout.com/reviews/g-plan/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:galaglp1.com": {
+      "provider_id": "domain:galaglp1.com",
+      "name": "Gala GLP-1",
+      "aliases": [
+        "Gala GLP-1",
+        "gala - glp",
+        "gala health",
+        "gala tirzepatide"
+      ],
+      "slugs": [
+        "gala-health",
+        "gala-health-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/gala-vs-shed/",
+        "https://glpclinicscout.com/guides/glp-1-insurance-support-vs-coverage/",
+        "https://glpclinicscout.com/providers/gala-health/",
+        "https://glpclinicscout.com/reviews/gala-health/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:gobymeds.com": {
+      "provider_id": "domain:gobymeds.com",
+      "name": "GobyMeds",
+      "aliases": [
+        "GobyMeds",
+        "goby meds",
+        "gobymeds"
+      ],
+      "slugs": [
+        "gobymeds",
+        "gobymeds-glp-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/gobymeds/",
+        "https://glpclinicscout.com/reviews/gobymeds/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:healthrx.com": {
+      "provider_id": "domain:healthrx.com",
+      "name": "HealthRX",
+      "aliases": [
+        "HealthRX",
+        "healthrx"
+      ],
+      "slugs": [
+        "healthrx",
+        "healthrx-affiliate-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-hsa-fsa-reimbursement-evidence/",
+        "https://glpclinicscout.com/guides/online-glp-1-intake-to-pharmacy-fulfillment/",
+        "https://glpclinicscout.com/providers/healthrx/",
+        "https://glpclinicscout.com/reviews/healthrx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:humecare.com": {
+      "provider_id": "domain:humecare.com",
+      "name": "HumeCare+",
+      "aliases": [
+        "HumeCare+",
+        "humecare"
+      ],
+      "slugs": [
+        "humecare-data-driven-glp-1-weight-loss-system",
+        "humecare-data-driven-glp-1-weight-loss-system-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/humecare-data-driven-glp-1-weight-loss-system/",
+        "https://glpclinicscout.com/reviews/humecare-data-driven-glp-1-weight-loss-system/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:joinskinny.com": {
+      "provider_id": "domain:joinskinny.com",
+      "name": "JoinSkinny",
+      "aliases": [
+        "JoinSkinny",
+        "joinskinny"
+      ],
+      "slugs": [
+        "joinskinny-semaglutide-glp-1-us",
+        "joinskinny-semaglutide-glp-1-us-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/joinskinny-semaglutide-glp-1-us/",
+        "https://glpclinicscout.com/reviews/joinskinny-semaglutide-glp-1-us/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:jrnys.com": {
+      "provider_id": "domain:jrnys.com",
+      "name": "JRNYS",
+      "aliases": [
+        "JRNYS",
+        "jrnys"
+      ],
+      "slugs": [
+        "jrnys-homepage-review",
+        "jrnys-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/jrnys-review/",
+        "https://glpclinicscout.com/reviews/jrnys-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:joinsprouthealth.com": {
+      "provider_id": "domain:joinsprouthealth.com",
+      "name": "Sprout Health",
+      "aliases": [
+        "Sprout Health",
+        "sprout health"
+      ],
+      "slugs": [
+        "katalys-1286",
+        "sprout-health",
+        "sprout-health-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/katalys-1286/",
+        "https://glpclinicscout.com/reviews/sprout-health/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:directmeds.com": {
+      "provider_id": "domain:directmeds.com",
+      "name": "Direct Meds",
+      "aliases": [
+        "Direct Meds",
+        "direct meds",
+        "directmeds"
+      ],
+      "slugs": [
+        "direct-meds",
+        "direct-meds-glp-1-offers-top-funnels-review",
+        "direct-meds-review",
+        "katalys-1304",
+        "prescription-weight-loss-pay-per-sale-ca-review",
+        "prescription-weight-loss-remarketing-ca-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/katalys-1304/",
+        "https://glpclinicscout.com/reviews/direct-meds/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:tryshed.com": {
+      "provider_id": "domain:tryshed.com",
+      "name": "Shed",
+      "aliases": [
+        "Shed",
+        "shed",
+        "shed rx",
+        "shedrx"
+      ],
+      "slugs": [
+        "katalys-1516",
+        "shed-review",
+        "shedrx",
+        "shedrx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/gala-vs-shed/",
+        "https://glpclinicscout.com/guides/glp-1-insurance-support-vs-coverage/",
+        "https://glpclinicscout.com/guides/glp-1-subscription-cancellation-terms/",
+        "https://glpclinicscout.com/providers/katalys-1516/",
+        "https://glpclinicscout.com/providers/shedrx/",
+        "https://glpclinicscout.com/reviews/shedrx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:mangorx.com": {
+      "provider_id": "domain:mangorx.com",
+      "name": "MangoRx",
+      "aliases": [
+        "MangoRx",
+        "mangorx"
+      ],
+      "slugs": [
+        "katalys-647",
+        "mangorx",
+        "mangorx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/katalys-647/",
+        "https://glpclinicscout.com/reviews/mangorx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:levelsrx.com": {
+      "provider_id": "domain:levelsrx.com",
+      "name": "LevelsRx",
+      "aliases": [
+        "LevelsRx",
+        "levelsrx"
+      ],
+      "slugs": [
+        "levelsrx-extra-cpa-home-page",
+        "levelsrx-extra-cpa-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/levelsrx-extra-cpa-home-page/",
+        "https://glpclinicscout.com/reviews/levelsrx-extra-cpa-home-page/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:livevital.io": {
+      "provider_id": "domain:livevital.io",
+      "name": "Live Vital",
+      "aliases": [
+        "Live Vital",
+        "live vital"
+      ],
+      "slugs": [
+        "live-vital-launch",
+        "live-vital-launch-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/live-vital-launch/",
+        "https://glpclinicscout.com/reviews/live-vital-launch/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:longevitymeds.com": {
+      "provider_id": "domain:longevitymeds.com",
+      "name": "Longevity Meds",
+      "aliases": [
+        "Longevity Meds",
+        "longevity meds"
+      ],
+      "slugs": [
+        "longevity-meds-glp-1-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/longevity-meds-glp-1-review/",
+        "https://glpclinicscout.com/reviews/longevity-meds-glp-1-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:lttl.com": {
+      "provider_id": "domain:lttl.com",
+      "name": "Lttl",
+      "aliases": [
+        "Lttl",
+        "lttl"
+      ],
+      "slugs": [
+        "lttl-glp-landing-page-2",
+        "lttl-glp-landing-page-2-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/lttl-glp-landing-page-2/",
+        "https://glpclinicscout.com/reviews/lttl-glp-landing-page-2/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:mademed.com": {
+      "provider_id": "domain:mademed.com",
+      "name": "MadeMed",
+      "aliases": [
+        "MadeMed",
+        "mademed"
+      ],
+      "slugs": [
+        "mademed",
+        "mademed-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/mademed/",
+        "https://glpclinicscout.com/reviews/mademed/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:trymeasured.com": {
+      "provider_id": "domain:trymeasured.com",
+      "name": "Measured",
+      "aliases": [
+        "Measured",
+        "measured"
+      ],
+      "slugs": [
+        "measured",
+        "measured-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/measured/",
+        "https://glpclinicscout.com/reviews/measured/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:medvi.org": {
+      "provider_id": "domain:medvi.org",
+      "name": "MEDVI",
+      "aliases": [
+        "MEDVI",
+        "medvi"
+      ],
+      "slugs": [
+        "medvi-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/medvi-review/",
+        "https://glpclinicscout.com/reviews/medvi-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:mydrhank.com": {
+      "provider_id": "domain:mydrhank.com",
+      "name": "MyDrHank",
+      "aliases": [
+        "MyDrHank",
+        "mydrhank"
+      ],
+      "slugs": [
+        "mydrhank",
+        "mydrhank-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/mydrhank/",
+        "https://glpclinicscout.com/reviews/mydrhank/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:joinnovi.com": {
+      "provider_id": "domain:joinnovi.com",
+      "name": "Novi",
+      "aliases": [
+        "Novi",
+        "novi - glp1",
+        "novi weight loss"
+      ],
+      "slugs": [
+        "novi-weight-loss-glp-1",
+        "novi-weight-loss-glp-1-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/novi-weight-loss-glp-1/",
+        "https://glpclinicscout.com/reviews/novi-weight-loss-glp-1/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:nuimagemedical.com": {
+      "provider_id": "domain:nuimagemedical.com",
+      "name": "Nu Image Medical",
+      "aliases": [
+        "Nu Image Medical",
+        "nu image medical",
+        "nuimage medical"
+      ],
+      "slugs": [
+        "nu-image-medical-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/nu-image-medical-review/",
+        "https://glpclinicscout.com/reviews/nu-image-medical-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:oaklovesyou.com": {
+      "provider_id": "domain:oaklovesyou.com",
+      "name": "Oak Longevity",
+      "aliases": [
+        "Oak Longevity",
+        "oak weight loss",
+        "oaklovesyou"
+      ],
+      "slugs": [
+        "oak-weight-loss-program",
+        "oak-weight-loss-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/oak-weight-loss-program/",
+        "https://glpclinicscout.com/reviews/oak-weight-loss-program/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:orderlymeds.com": {
+      "provider_id": "domain:orderlymeds.com",
+      "name": "OrderlyMeds",
+      "aliases": [
+        "OrderlyMeds",
+        "orderlymeds"
+      ],
+      "slugs": [
+        "orderlymeds",
+        "orderlymeds-glp-affiliate-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/orderlymeds/",
+        "https://glpclinicscout.com/reviews/orderlymeds/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:pallashealth.co": {
+      "provider_id": "domain:pallashealth.co",
+      "name": "Pallas Health",
+      "aliases": [
+        "Pallas Health",
+        "pallas health"
+      ],
+      "slugs": [
+        "pallas-health-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/pallas-health-review/",
+        "https://glpclinicscout.com/reviews/pallas-health-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:refills.com": {
+      "provider_id": "domain:refills.com",
+      "name": "Refills",
+      "aliases": [
+        "Refills",
+        "refills"
+      ],
+      "slugs": [
+        "refills",
+        "refills-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/refills/",
+        "https://glpclinicscout.com/reviews/refills/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:ro.co": {
+      "provider_id": "domain:ro.co",
+      "name": "Ro",
+      "aliases": [
+        "Ro",
+        "ro - weight",
+        "ro body",
+        "ro | wegovy",
+        "ro.co",
+        "roman health"
+      ],
+      "slugs": [
+        "ro-body-program-review",
+        "ro-co-review",
+        "ro-wegovy-glp1-quiz-us-cpl"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-cost-sensitivity/",
+        "https://glpclinicscout.com/providers/ro-wegovy-glp1-quiz-us-cpl/",
+        "https://glpclinicscout.com/reviews/ro-wegovy-glp1-quiz-us-cpl/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:rxspanmd.com": {
+      "provider_id": "domain:rxspanmd.com",
+      "name": "RxSpan MD",
+      "aliases": [
+        "RxSpan MD",
+        "rxspan md"
+      ],
+      "slugs": [
+        "rxspan-md-telehealth-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/rxspan-md-telehealth-program-review/",
+        "https://glpclinicscout.com/reviews/rxspan-md-telehealth-program-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:serenahealth.life": {
+      "provider_id": "domain:serenahealth.life",
+      "name": "Serena Health",
+      "aliases": [
+        "Serena Health",
+        "serena health"
+      ],
+      "slugs": [
+        "serena-health",
+        "serena-health-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-hsa-fsa-reimbursement-evidence/",
+        "https://glpclinicscout.com/guides/online-glp-1-intake-to-pharmacy-fulfillment/",
+        "https://glpclinicscout.com/providers/serena-health/",
+        "https://glpclinicscout.com/reviews/serena-health/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:skinnyrx.com": {
+      "provider_id": "domain:skinnyrx.com",
+      "name": "SkinnyRx",
+      "aliases": [
+        "SkinnyRx",
+        "skinnyrx"
+      ],
+      "slugs": [
+        "skinnyrx-1-glp-weight-loss-provider-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/skinnyrx-1-glp-weight-loss-provider-review/",
+        "https://glpclinicscout.com/reviews/skinnyrx-1-glp-weight-loss-provider-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:snagrx.com": {
+      "provider_id": "domain:snagrx.com",
+      "name": "SnagRX",
+      "aliases": [
+        "SnagRX",
+        "snagrx"
+      ],
+      "slugs": [
+        "snagrx",
+        "snagrx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/snagrx/",
+        "https://glpclinicscout.com/reviews/snagrx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:struthealth.com": {
+      "provider_id": "domain:struthealth.com",
+      "name": "Strut Health",
+      "aliases": [
+        "Strut Health",
+        "strut health"
+      ],
+      "slugs": [
+        "strut-health",
+        "strut-health-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/strut-health/",
+        "https://glpclinicscout.com/reviews/strut-health/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:sunlight.com": {
+      "provider_id": "domain:sunlight.com",
+      "name": "Sunlight.com",
+      "aliases": [
+        "Sunlight.com",
+        "sunlight glp",
+        "sunlight.com"
+      ],
+      "slugs": [
+        "sunlight-com-review",
+        "sunlight-glp1"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/sunlight-glp1/",
+        "https://glpclinicscout.com/reviews/sunlight-glp1/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:synergyrx.co": {
+      "provider_id": "domain:synergyrx.co",
+      "name": "Synergy Rx",
+      "aliases": [
+        "Synergy Rx",
+        "synergy rx"
+      ],
+      "slugs": [
+        "synergy-rx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/synergy-rx-review/",
+        "https://glpclinicscout.com/reviews/synergy-rx-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:telosrx.com": {
+      "provider_id": "domain:telosrx.com",
+      "name": "telos rx",
+      "aliases": [
+        "telos rx"
+      ],
+      "slugs": [
+        "telos-rx",
+        "telos-rx-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/telos-rx/",
+        "https://glpclinicscout.com/reviews/telos-rx/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:tmates.com": {
+      "provider_id": "domain:tmates.com",
+      "name": "TMates",
+      "aliases": [
+        "TMates",
+        "tmates"
+      ],
+      "slugs": [
+        "tmates-glp1-prescription-weight-loss-review",
+        "tmates-xentraffic-offer-3154"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/tmates-xentraffic-offer-3154/",
+        "https://glpclinicscout.com/reviews/tmates-xentraffic-offer-3154/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:trytrimi.com": {
+      "provider_id": "domain:trytrimi.com",
+      "name": "Trimi",
+      "aliases": [
+        "Trimi",
+        "trimi"
+      ],
+      "slugs": [
+        "trimi-glp-1",
+        "trimi-glp-1-review",
+        "trimi-health-glp-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/found-vs-trimi-insurance-self-pay/",
+        "https://glpclinicscout.com/guides/glp-1-insurance-support-vs-coverage/",
+        "https://glpclinicscout.com/guides/glp-1-subscription-cancellation-terms/",
+        "https://glpclinicscout.com/guides/trimi-vs-yourera/",
+        "https://glpclinicscout.com/providers/trimi-glp-1/",
+        "https://glpclinicscout.com/reviews/trimi-glp-1/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:trimrx.com": {
+      "provider_id": "domain:trimrx.com",
+      "name": "TrimRX",
+      "aliases": [
+        "TrimRX",
+        "trim rx",
+        "trimrx"
+      ],
+      "slugs": [
+        "trim-rx-review",
+        "trimrx-review",
+        "trimrx-xentraffic-offer-3014"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/trimrx-xentraffic-offer-3014/",
+        "https://glpclinicscout.com/reviews/trimrx-xentraffic-offer-3014/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:trtnation.com": {
+      "provider_id": "domain:trtnation.com",
+      "name": "TRT Nation",
+      "aliases": [
+        "TRT Nation",
+        "trt nation"
+      ],
+      "slugs": [
+        "trt-nation"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/trt-nation/",
+        "https://glpclinicscout.com/reviews/trt-nation/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:tryageless.com": {
+      "provider_id": "domain:tryageless.com",
+      "name": "Ageless (tryageless.com)",
+      "aliases": [
+        "Ageless (tryageless.com)",
+        "ageless"
+      ],
+      "slugs": [
+        "ageless-review",
+        "try-ageless"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-hsa-fsa-reimbursement-evidence/",
+        "https://glpclinicscout.com/providers/try-ageless/",
+        "https://glpclinicscout.com/reviews/try-ageless/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": {
+        "published_name": "AgelessRx",
+        "published_fact_domain": "tryageless.com",
+        "also_cited_domain": "agelessrx.com",
+        "unproven_alias": true,
+        "note": "Current public H1 says AgelessRx while profile facts point to tryageless.com and review also cites agelessrx.com. Current Sheet separates paused Ageless1538 row94 from pending AgelessRx1387 row119. No merger or approval transfer; both candidate rows retained separately."
+      }
+    },
+    "domain:wellmedr.com": {
+      "provider_id": "domain:wellmedr.com",
+      "name": "Wellmedr",
+      "aliases": [
+        "Wellmedr",
+        "wellmedr"
+      ],
+      "slugs": [
+        "wellmedr-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/wellmedr-review/",
+        "https://glpclinicscout.com/reviews/wellmedr-review/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:wellorithm.com": {
+      "provider_id": "domain:wellorithm.com",
+      "name": "Wellorithm",
+      "aliases": [
+        "Wellorithm",
+        "wellorithm"
+      ],
+      "slugs": [
+        "wellorithm",
+        "wellorithm-glp-1-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/wellorithm/",
+        "https://glpclinicscout.com/reviews/wellorithm/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:yourera.com": {
+      "provider_id": "domain:yourera.com",
+      "name": "yourEra",
+      "aliases": [
+        "yourEra",
+        "yourera"
+      ],
+      "slugs": [
+        "yourera-program",
+        "yourera-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-insurance-support-vs-coverage/",
+        "https://glpclinicscout.com/guides/glp-1-subscription-cancellation-terms/",
+        "https://glpclinicscout.com/guides/trimi-vs-yourera/",
+        "https://glpclinicscout.com/providers/yourera-program/",
+        "https://glpclinicscout.com/reviews/yourera-program/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:tryyucca.com": {
+      "provider_id": "domain:tryyucca.com",
+      "name": "Yucca Health",
+      "aliases": [
+        "Yucca Health",
+        "yucca health"
+      ],
+      "slugs": [
+        "yucca-health-affiliate-program-review",
+        "yucca-health-xentraffic-offer-3117"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/providers/yucca-health-xentraffic-offer-3117/",
+        "https://glpclinicscout.com/reviews/yucca-health-xentraffic-offer-3117/"
+      ],
+      "scope": "directory_provider",
+      "identity_conflict": null
+    },
+    "domain:goodrx.com": {
+      "provider_id": "domain:goodrx.com",
+      "name": "GoodRx Care Direct",
+      "aliases": [
+        "GoodRx Care Direct",
+        "goodrx"
+      ],
+      "slugs": [
+        "goodrx-glp-coupon-guide"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/best-company-to-get-glp-1/",
+        "https://glpclinicscout.com/guides/best-glp-1-online-providers/",
+        "https://glpclinicscout.com/guides/brand-vs-compounded-glp-1-cost/",
+        "https://glpclinicscout.com/guides/glp-1-cost-sensitivity/"
+      ],
+      "scope": "primary_service_example",
+      "identity_conflict": null
+    },
+    "domain:walgreens.com": {
+      "provider_id": "domain:walgreens.com",
+      "name": "Walgreens Weight Management",
+      "aliases": [
+        "Walgreens Weight Management",
+        "walgreens"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/best-company-to-get-glp-1/",
+        "https://glpclinicscout.com/guides/best-glp-1-online-providers/",
+        "https://glpclinicscout.com/guides/brand-vs-compounded-glp-1-cost/"
+      ],
+      "scope": "primary_service_example",
+      "identity_conflict": null
+    },
+    "domain:lemonaidhealth.com": {
+      "provider_id": "domain:lemonaidhealth.com",
+      "name": "Lemonaid Health",
+      "aliases": [
+        "Lemonaid Health",
+        "lemonaid health"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/best-company-to-get-glp-1/",
+        "https://glpclinicscout.com/guides/best-glp-1-online-providers/"
+      ],
+      "scope": "primary_service_example",
+      "identity_conflict": null
+    },
+    "domain:joinezra.com": {
+      "provider_id": "domain:joinezra.com",
+      "name": "Ezra legacy service",
+      "aliases": [
+        "Ezra legacy service",
+        "ezra"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/ezra-glp-1-reviews/"
+      ],
+      "scope": "historical_identity_unresolved",
+      "identity_conflict": null
+    },
+    "domain:mondae.com": {
+      "provider_id": "domain:mondae.com",
+      "name": "Mondae",
+      "aliases": [
+        "Mondae",
+        "mondae"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/ezra-glp-1-reviews/"
+      ],
+      "scope": "primary_service_subject",
+      "identity_conflict": null
+    },
+    "domain:noom.com": {
+      "provider_id": "domain:noom.com",
+      "name": "Noom",
+      "aliases": [
+        "Noom",
+        "noom"
+      ],
+      "slugs": [
+        "noom-med-glp-program-review"
+      ],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-cost-sensitivity/"
+      ],
+      "scope": "secondary_research_reference_only",
+      "identity_conflict": null
+    },
+    "domain:doctronic.ai": {
+      "provider_id": "domain:doctronic.ai",
+      "name": "Doctronic",
+      "aliases": [
+        "Doctronic",
+        "doctronic"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/glp-1-cost-sensitivity/"
+      ],
+      "scope": "secondary_research_reference_only",
+      "identity_conflict": null
+    },
+    "domain:rekulo.net": {
+      "provider_id": "domain:rekulo.net",
+      "name": "Rekulo",
+      "aliases": [
+        "Rekulo",
+        "rekulo"
+      ],
+      "slugs": [],
+      "pages": [
+        "https://glpclinicscout.com/guides/rekulo-glp-1-reviews/"
+      ],
+      "scope": "not_established_as_clinical_provider",
+      "identity_conflict": null
+    }
+  }
+}

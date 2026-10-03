@@ -9,6 +9,105 @@ import collector
 import analytics_brain as brain
 
 
+def test_posthog_collector_queries_only_fixed_scope_aggregates():
+    queries = []
+    class PostHog:
+        def page_conversion(self, **kwargs):
+            raise AssertionError('legacy arbitrary URL-derived route read forbidden')
+        def hogql(self, query):
+            queries.append(query)
+            assert all(word not in query for word in
+                       ('$current_url', 'cs_click_id', 'distinct_id', 'person', 'quiz'))
+            if 'AS host_bucket' in query:
+                return {'ok': True, 'rows': [
+                    ['production_host', 'neutral_route', 3, '2026-10-02T01:00:00Z'],
+                    ['production_host', 'route_unknown', 17, '2026-10-02T02:00:00Z'],
+                    ['off_host_or_unknown', 'neutral_route', 100, '2026-10-02T03:00:00Z']]}
+            assert "properties.$host = 'glpclinicscout.com'" in query
+            assert 'properties.$pathname IN' in query
+            return {'ok': True, 'rows': [['/', 2, 1]]}
+    data = {'posthog_rows': [{'path': '/old/'}], 'posthog_events': [{'cs_click_id': 'old'}]}
+    sources = {}
+    collector._collect_posthog(data, sources, type('Rails', (), {'PostHog': PostHog}))
+    assert sources['posthog']['state'] == 'healthy', sources['posthog']
+    assert len(queries) == 2
+    assert data['posthog_rows'] == [dict(path='/', host=brain.PRODUCTION_HOST,
+                                        views=2, affiliate_clicks=1)]
+    assert data['posthog_events'] == []
+    assert sources['posthog']['event_watermark'] == '2026-10-02T01:00:00Z'
+    assert sources['posthog']['host_distribution'] == {brain.PRODUCTION_HOST: 3}
+    assert sources['posthog']['non_allowlisted_event_count'] == 0  # excluded buckets are not selected-row pollution
+    scope = sources['posthog']['collection_window']['scope_counts']
+    assert scope['production_host/route_unknown']['event_count'] == 17
+    assert scope['off_host_or_unknown/neutral_route']['event_count'] == 100
+    # The natural machine receipt consumes the fixed buckets, not raw hosts.
+    health = brain.source_health({'sources': sources})
+    posthog_health = next(row for row in health['sources'] if row['source'] == 'posthog')
+    assert posthog_health['collection_window']['scope_counts'] == scope
+
+
+def test_ga4_collector_requests_only_reviewed_neutral_aggregate_dimensions():
+    requests = []
+    class Google:
+        def ga4_run_report(self, **kwargs):
+            requests.append(kwargs)
+            assert 'customEvent:cs_click_id' not in kwargs['dimensions']
+            if kwargs['dimensions'] == ['hostName']:
+                return {'ok': True, 'complete': True, 'rows': []}
+            assert kwargs['dimensions'] == ['dateHourMinute', 'hostName', 'pagePath', 'eventName']
+            expected = {'filter': {'fieldName': 'pagePath', 'inListFilter': {
+                'values': sorted(collector.GA4_APPROVED_NEUTRAL_PATHS), 'caseSensitive': True}}}
+            assert kwargs['dimension_filter'] == expected
+            return {'ok': True, 'complete': True, 'host_filtered': True,
+                    'host_filter': {'exact': brain.PRODUCTION_HOST}, 'pages': 1,
+                    'rows': [{'dimensions': ['202610020100', brain.PRODUCTION_HOST, '/', 'page_view'],
+                              'metrics': ['2', '1', '1']}]}
+    data, sources = {'ga4_events': [{'cs_click_id': 'old'}]}, {}
+    collector._collect_ga4(data, sources, Google())
+    assert sources['ga4']['state'] == 'healthy', sources['ga4']
+    assert len(requests) == 2
+    assert data['ga4_events'] == []
+    assert data['ga4_rows'][0]['path'] == '/'
+
+
+def test_posthog_off_host_or_unknown_route_totals_do_not_prove_production():
+    class PostHog:
+        def hogql(self, query):
+            if 'AS host_bucket' in query:
+                return {'ok': True, 'rows': [
+                    ['production_host', 'route_unknown', 500, '2026-10-02T02:00:00Z'],
+                    ['off_host_or_unknown', 'neutral_route', 1000, '2026-10-02T03:00:00Z']]}
+            return {'ok': True, 'rows': []}
+    data, sources = {}, {}
+    collector._collect_posthog(data, sources, type('Rails', (), {'PostHog': PostHog}))
+    source = sources['posthog']
+    assert source['state'] == 'measured_zero' and source['actual_rows'] == 0
+    assert source['event_watermark'] is None and source['host_distribution'] == {}
+    assert not data['posthog_rows'] and not data['posthog_events']
+    assert source['collection_window']['scope_counts']['production_host/route_unknown']['event_count'] == 500
+
+
+def test_scoped_collectors_fail_closed_without_cached_identity_or_route_rows():
+    for response in ({'ok': False, 'error': 'HTTP429'}, {'ok': True, 'rows': [['/not-allowed/', 1, 0]]}):
+        class PostHog:
+            def hogql(self, query):
+                return response
+        data = {'posthog_rows': [{'path': '/old/'}], 'posthog_events': [{'cs_click_id': 'old'}]}
+        sources = {}
+        collector._collect_posthog(data, sources, type('Rails', (), {'PostHog': PostHog}))
+        assert sources['posthog']['state'] == 'error'
+        assert data['posthog_rows'] == data['posthog_events'] == []
+    class Google:
+        def ga4_run_report(self, **kwargs):
+            return {'ok': True, 'complete': True, 'host_filtered': True,
+                    'rows': [{'dimensions': ['202610020100', brain.PRODUCTION_HOST, '/not-allowed/', 'page_view'],
+                              'metrics': ['2', '1', '1']}]}
+    data, sources = {'ga4_rows': [{'path': '/old/'}], 'ga4_events': [{'cs_click_id': 'old'}]}, {}
+    collector._collect_ga4(data, sources, Google())
+    assert sources['ga4']['state'] == 'error'
+    assert data['ga4_rows'] == data['ga4_events'] == []
+
+
 def test_published_neutral_scope_config_and_transport_fail_closed():
     control = json.loads((Path(__file__).resolve().parents[3] / 'ops/glp/analytics-brain-control.json').read_text())
     expected = control['measurement_expectations']['posthog']
@@ -241,13 +340,11 @@ def test_cached_posthog_query_window_is_not_report_generation_time(tmp_path):
         def now(cls, tz=None):
             return cls.current.astimezone(tz) if tz else cls.current.replace(tzinfo=None)
     class PostHog:
-        def page_conversion(self, *, days, host):
-            assert (days, host) == (3, brain.PRODUCTION_HOST)
-            return {'ok': True, 'rows': [{'path': '/', 'views': 25}]}
         def hogql(self, query):
-            if 'max(timestamp)' in query:
-                return {'ok': True, 'rows': [['2026-09-30T22:00:00Z', 25]]}
-            return {'ok': True, 'rows': []}
+            if 'AS host_bucket' in query:
+                return {'ok': True, 'rows': [['production_host', 'neutral_route', 25, '2026-09-30T22:00:00Z']]}
+            assert 'properties.$pathname IN' in query
+            return {'ok': True, 'rows': [['/', 25, 0]]}
     Rails = type('Rails', (), {'PostHog': PostHog})
     with patch.object(collector.dt, 'datetime', Clock):
         collector._collect_posthog(initial, initial['sources'], Rails)

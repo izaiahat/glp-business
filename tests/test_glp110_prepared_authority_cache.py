@@ -1,8 +1,14 @@
+import base64
 import hashlib
+import json
+import stat
+import tarfile
 import os
 from pathlib import Path
 import sys
 import types
+import time
+import statistics
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
@@ -23,6 +29,8 @@ def prepared(tmp_path, monkeypatch):
     external = tmp_path / 'receipt.json'; external.write_bytes(b'accepted')
     calls = []
     module = types.ModuleType('glp_price_index_weekly')
+    module.pointer = tmp_path / 'current.json'; module.pointer.write_text('{}')
+    monkeypatch.setattr(archiver, '_canonical_base_path', lambda: module.pointer)
     def read(path, label):
         path = Path(path)
         return path, path.read_bytes(), identity(path)
@@ -44,10 +52,12 @@ def prepared(tmp_path, monkeypatch):
 
 def test_reuses_only_complete_unchanged_proof_and_returns_copy(prepared):
     release, member, external, calls, module = prepared
+    module.pointer.write_text('{"deployment": "a"}')
     a = archiver._registered_prepared_release_evidence({'deployment': 'a'}, release)
     a['prepared_binding']['release'] = 'caller-mutated'
     b = archiver._registered_prepared_release_evidence({'deployment': 'a'}, release)
     assert len(calls) == 1 and b['prepared_binding']['release'] == 'validated'
+    module.pointer.write_text('{"deployment": "b"}')
     archiver._registered_prepared_release_evidence({'deployment': 'b'}, release)
     assert len(calls) == 2
 
@@ -67,6 +77,27 @@ def test_every_drift_reenters_native_validator_and_never_uses_stale_proof(prepar
     with pytest.raises(RuntimeError, match='native_authority_invalid'):
         archiver._registered_prepared_release_evidence({}, release)
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_added_member_with_directory_stat_collision_forces_native_validation(prepared, monkeypatch):
+    release, member, external, calls, module = prepared
+    archiver._registered_prepared_release_evidence({}, release)
+    old_directory_stat = release.lstat()
+    (release / 'late-member.bin').write_bytes(b'not approved')
+    original_lstat = os.lstat
+
+    def colliding_lstat(path, *args, **kwargs):
+        value = original_lstat(path, *args, **kwargs)
+        if str(path) == str(release):
+            # Model a finite-resolution directory-stat collision. All name
+            # enumeration and all other inode reads remain real syscalls.
+            return old_directory_stat
+        return value
+
+    monkeypatch.setattr(os, 'lstat', colliding_lstat)
+    with pytest.raises(RuntimeError, match='native_authority_invalid'):
+        archiver._registered_prepared_release_evidence({}, release)
+    assert len(calls) == 2
 
 
 def test_mutation_during_full_validation_cannot_seed_cache(prepared):
@@ -91,9 +122,305 @@ def test_missing_optional_identity_reader_retains_native_uncached_path(prepared)
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
 
 
+def test_semantically_identical_pointer_rewrite_rechecks_exact_native_binding(prepared):
+    release, member, external, calls, module = prepared
+    native = module._validate_base_evidence
+    def exact_pointer(base, directory):
+        proof = native(base, directory)
+        if module.pointer.read_bytes() != b'{}':
+            raise RuntimeError('native_pointer_binding_invalid')
+        return proof
+    module._validate_base_evidence = exact_pointer
+    archiver._registered_prepared_release_evidence({}, release)
+    module.pointer.write_bytes(b'{ }')
+    with pytest.raises(RuntimeError, match='native_pointer_binding_invalid'):
+        archiver._registered_prepared_release_evidence({}, release)
+    assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_pointer_changes_during_initial_proof_cannot_seed_cache(prepared):
+    release, member, external, calls, module = prepared
+    native = module._validate_base_evidence
+    def changed(base, directory):
+        proof = native(base, directory)
+        module.pointer.write_bytes(b'{ }')
+        return proof
+    module._validate_base_evidence = changed
+    archiver._registered_prepared_release_evidence({}, release)
+    assert archiver._PREPARED_EVIDENCE_CACHE is None
+
+
 def test_snapshot_limit_declines_cache_not_native_validation(prepared, monkeypatch):
     release, member, external, calls, module = prepared
     monkeypatch.setattr(archiver, '_PREPARED_CACHE_MAX_ENTRIES', 1)
     archiver._registered_prepared_release_evidence({}, release)
     archiver._registered_prepared_release_evidence({}, release)
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_complete_identity_equivalence_and_per_boundary_performance(tmp_path, monkeypatch):
+    """Every fast boundary still lstats ALL members; directory drift enumerates.
+
+    The oracle is the pre-repair implementation, not an expected mock result.
+    Timing is paired/median on a real fixture; coverage counts are deterministic.
+    """
+    root = tmp_path / 'prepared'
+    root.mkdir()
+    for directory in range(16):
+        folder = root / f'd{directory:02}'
+        folder.mkdir()
+        for member in range(128):
+            (folder / f'f{member:03}').write_bytes(b'approved')
+
+    def legacy_snapshot():
+        try:
+            if not root.is_absolute() or root.resolve(strict=True) != root:
+                return None
+            rows = []
+            for parent in root.parents:
+                info = parent.lstat()
+                if not stat.S_ISDIR(info.st_mode):
+                    return None
+                rows.append((str(parent), info.st_dev, info.st_ino, info.st_mode,
+                             info.st_uid, info.st_gid))
+            pending = [root]
+            while pending:
+                path = pending.pop()
+                info = path.lstat()
+                if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                    return None
+                rows.append((str(path), info.st_dev, info.st_ino, info.st_mode,
+                             info.st_uid, info.st_gid, info.st_nlink, info.st_size,
+                             info.st_mtime_ns, info.st_ctime_ns))
+                if len(rows) > archiver._PREPARED_CACHE_MAX_ENTRIES:
+                    return None
+                if stat.S_ISDIR(info.st_mode):
+                    with os.scandir(path) as entries:
+                        for entry in entries:
+                            pending.append(Path(entry.path))
+                            if len(rows) + len(pending) > archiver._PREPARED_CACHE_MAX_ENTRIES:
+                                return None
+            return tuple(sorted(rows))
+        except OSError:
+            return None
+
+    expected = legacy_snapshot()
+    assert expected is not None
+    assert archiver._prepared_tree_identity(root) == expected
+    lstat = archiver.os.lstat
+    seen = []
+    def counted(path, *args, **kwargs):
+        seen.append(str(path))
+        return lstat(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(archiver.os, 'lstat', counted)
+        # Each authorization has opening AND closing snapshots, no cross-unlink
+        # TTL. Every member and every ancestor must appear on both boundaries.
+        for _ in range(2):
+            seen.clear()
+            assert archiver._prepared_tree_identity(root, previous=expected) == expected
+            assert {row[0] for row in expected} <= set(seen)
+
+    legacy_times, fast_times = [], []
+    for _ in range(5):
+        start = time.perf_counter()
+        assert legacy_snapshot() == expected
+        legacy_times.append(time.perf_counter() - start)
+        start = time.perf_counter()
+        assert archiver._prepared_tree_identity(root, previous=expected) == expected
+        fast_times.append(time.perf_counter() - start)
+    ratio = statistics.median(fast_times) / statistics.median(legacy_times)
+    print(f'complete_identity_entries={len(expected)} legacy_median_s={statistics.median(legacy_times):.6f} '
+          f'fast_median_s={statistics.median(fast_times):.6f} ratio={ratio:.3f}')
+    assert ratio < 0.65, 'complete current lstat path must remove repeated walk overhead'
+
+    # Add an extra name AFTER its containing directory was observed. Closing
+    # directory ctime must force enumeration even if mtime was restored.
+    member = root / 'd00/f000'
+    scanned = []
+    scandir = archiver.os.scandir
+    injected = False
+    def inject(path, *args, **kwargs):
+        nonlocal injected
+        info = lstat(path, *args, **kwargs)
+        if str(path) == str(member) and not injected:
+            injected = True
+            before_directory = root.stat()
+            (root / 'late-name').write_bytes(b'extra')
+            os.utime(root, ns=(before_directory.st_atime_ns, before_directory.st_mtime_ns))
+        return info
+    def counted_scan(path):
+        scanned.append(str(path))
+        return scandir(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(archiver.os, 'lstat', inject)
+        patch.setattr(archiver.os, 'scandir', counted_scan)
+        assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+        assert scanned
+    (root / 'late-name').unlink()
+    expected = legacy_snapshot()
+    # Owner/group fields are independently compared even without privileged
+    # chown. Delegate every other real field to the actual kernel stat result.
+    real_stat = archiver.os.stat
+    def changed_owner(info):
+        class ChangedOwner:
+            def __getattr__(self, name):
+                return getattr(info, name) + (name == attribute)
+        return ChangedOwner()
+    for attribute in ('st_uid', 'st_gid'):
+        def ownership_changed(path, *args, **kwargs):
+            info = lstat(path, *args, **kwargs)
+            return changed_owner(info) if str(path) == str(member) else info
+        def stat_ownership_changed(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            return changed_owner(info) if str(path) == str(member) else info
+        with monkeypatch.context() as patch:
+            patch.setattr(archiver.os, 'lstat', ownership_changed)
+            patch.setattr(archiver.os, 'stat', stat_ownership_changed)
+            assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+
+    # Equivalence after each real mutation; new/renamed/deleted paths force full
+    # enumeration via directory identity/mtime/ctime, not just file membership.
+    before = member.stat()
+    member.write_bytes(b'corrupt!')
+    os.utime(member, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+    member.write_bytes(b'approved')
+    for change in ('new', 'rename', 'delete', 'mode', 'inode', 'symlink', 'ancestor_symlink'):
+        expected = legacy_snapshot()
+        if change == 'new':
+            (root / 'd00/new').write_bytes(b'extra')
+        elif change == 'rename':
+            (root / 'd00/new').rename(root / 'd01/renamed')
+        elif change == 'delete':
+            (root / 'd01/renamed').unlink()
+        elif change == 'mode':
+            member.chmod(0o600)
+        elif change == 'inode':
+            replacement = root / 'd00/replacement'
+            replacement.write_bytes(member.read_bytes())
+            os.replace(replacement, member)
+        elif change == 'symlink':
+            member.unlink()
+            member.symlink_to(root / 'd01/f000')
+        else:
+            member.unlink()
+            member.write_bytes(b'approved')
+            original = root.parent / 'original'
+            root.rename(original)
+            root.symlink_to(original, target_is_directory=True)
+        assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+        if change == 'symlink':
+            member.unlink()
+            member.write_bytes(b'approved')
+
+
+@pytest.mark.parametrize('changed', ['build', 'ci', 'design', 'absence', 'authority'])
+def test_transitive_affiliate_proof_drift_cannot_use_cached_authority(prepared, monkeypatch, changed):
+    release, member, external, calls, module = prepared
+    root=external.parent
+    monkeypatch.setattr(archiver,'BUSINESS',root)
+    paths={name:root/(name+'.json') for name in ('build','ci','design','absence','authority')}
+    for name,path in paths.items():path.write_bytes(name.encode())
+    def pin(path, relative=False):return {'path':path.name if relative else str(path),'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
+    paths['design'].write_text(json.dumps({'checks':['affiliate-relationship-sync','raw-held-output','native-build-validators'],
+        'unmapped_adverse_evidence':pin(paths['absence'])}))
+    external.write_text(json.dumps({'schema':'glp-affiliate-sync-release-result-v1',
+        'evidence':{name:pin(paths[name]) for name in ('build','ci','design')}}))
+    review=root/'review.json';review.write_text(json.dumps({'schema':'glp-affiliate-sync-operator-release-v1',
+        'operator_authority':pin(paths['authority'],True)}))
+    expected={path:hashlib.sha256(path.read_bytes()).hexdigest() for path in [external,review,*paths.values()]}
+    def native(base,directory):
+        calls.append(dict(base))
+        if any(hashlib.sha256(path.read_bytes()).hexdigest()!=digest for path,digest in expected.items()):
+            raise RuntimeError('native_transitive_proof_drift')
+        return {'prepared_binding':{'files':{str(path):(expected[path],identity(path)) for path in (external,review)},'release':'validated'}}
+    module._validate_base_evidence=native
+    archiver._registered_prepared_release_evidence({},release)
+    archiver._registered_prepared_release_evidence({},release)
+    assert len(calls)==1
+    paths[changed].write_bytes(b'altered')
+    with pytest.raises(RuntimeError,match='native_transitive_proof_drift'):
+        archiver._registered_prepared_release_evidence({},release)
+    assert len(calls)==2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_historical_preimage_is_not_a_live_dependency(prepared):
+    release, member, external, calls, module=prepared
+    external.write_text(json.dumps({'schema':'glp43-current-deploy-receipt-v1',
+        'predecessor_pointer':{'path':str(module.pointer),'sha256':'0'*64}}))
+    proof={'prepared_binding':{'files':{str(external):(hashlib.sha256(external.read_bytes()).hexdigest(),identity(external))}}}
+    assert archiver._prepared_dependencies_unchanged(proof)
+
+
+def test_unknown_gate_family_declines_cache(prepared):
+    release, member, external, calls, module=prepared
+    gate=external.with_name('gate.json');gate.write_text(json.dumps({'schema':'unregistered-future-gate'}))
+    proof={'prepared_binding':{'files':{str(gate):(hashlib.sha256(gate.read_bytes()).hexdigest(),identity(gate))}}}
+    assert not archiver._prepared_dependencies_unchanged(proof)
+
+
+@pytest.fixture
+def reuse(tmp_path, monkeypatch):
+    home = tmp_path/'home'; business=home/'business'; root=business/'archive/f12-disk-archival'
+    archive_dir=root/'20261003T003919Z'; archive_dir.mkdir(parents=True)
+    source=home/'source/log.txt';source.parent.mkdir();source.write_bytes(b'original')
+    heads=[]; puts=[]; remote={}
+    class Client:
+        def head_object(self, **kw): heads.append(kw);return remote.copy()
+    def offload(*args, **kw): puts.append(args);raise AssertionError('unexpected PUT')
+    monkeypatch.setattr(archiver,'HOME',home);monkeypatch.setattr(archiver,'BUSINESS',business)
+    monkeypatch.setattr(archiver,'ARCHIVE_ROOT',root)
+    monkeypatch.setattr(archiver,'r2_offload',types.SimpleNamespace(BUCKET='tilton-archives',_client=lambda:Client(),offload=offload))
+    monkeypatch.setattr(archiver,'run_loaded_worker_bounded',lambda f,**kw:(f(-1,kw['operation_deadline']),[]))
+    def build(cron=False):
+        archive=archive_dir/(('cron-output__fixture' if cron else 'source__log.txt')+'-20261003T003919Z.tar.gz')
+        relative=source.relative_to(home)
+        with tarfile.open(archive,'w:gz') as tf:tf.add(source,arcname=str(relative),recursive=False)
+        digest=hashlib.sha256(archive.read_bytes()).hexdigest();size=archive.stat().st_size
+        row={'r2_bucket':'tilton-archives','r2_key':str(archive.relative_to(business)),
+             'sha256':digest,'bytes':size,'get_sha256':digest,'verified':True}
+        (root/'verified-reuse-index.json').write_text(json.dumps({'schema':'f12-r2-verified-reuse-v1','objects':[row]}))
+        remote.update({'ResponseMetadata':{'HTTPStatusCode':200},'ContentLength':size,
+            'Metadata':{'sha256':digest},'ChecksumSHA256':base64.b64encode(bytes.fromhex(digest)).decode()})
+        content={'rows':[('.', 'regular_file',hashlib.sha256(source.read_bytes()).hexdigest())],'sha256':'b'*64}
+        batch={'job_id':'fixture','members':[{'path':str(source),'archive_path':str(relative),
+               'size':source.stat().st_size,'sha256':hashlib.sha256(source.read_bytes()).hexdigest()}]}
+        return archive,relative,content,batch,digest
+    return source,build,heads,puts,remote
+
+
+def test_source_archive_reused_with_fresh_head_and_no_put(reuse):
+    source,build,heads,puts,remote=reuse;archive,relative,content,batch,digest=build()
+    result=archiver._reuse_source_archive(relative,{'manifest_sha256':'a'*64},content,run_context=None,deadline=None)
+    assert result[0]==archive and result[1]['source_matches']
+    receipt=archiver._offload_archive(archive,digest)
+    assert receipt['r2_status']=='EXISTING_VERIFIED' and not receipt['r2_put_attempted']
+    assert archiver._offhost_verified(receipt,archive,digest) and len(heads)==1 and puts==[]
+    assert source.read_bytes()==b'original'
+
+
+def test_cron_archive_reuses_complete_current_member_manifest(reuse):
+    source,build,heads,puts,remote=reuse;archive,relative,content,batch,digest=build(cron=True)
+    assert archiver._reuse_cron_archive(batch,run_context=None,deadline=None)[0]==archive
+    batch['members'][0]['sha256']='0'*64
+    assert archiver._reuse_cron_archive(batch,run_context=None,deadline=None) is None
+    assert puts==[] and source.exists()
+
+
+@pytest.mark.parametrize('change',['content','mode'])
+def test_changed_source_cannot_reuse_old_archive(reuse,change):
+    source,build,heads,puts,remote=reuse;archive,relative,content,batch,digest=build()
+    if change=='content':
+        source.write_bytes(b'changed!');content['rows'][0]=('.', 'regular_file',hashlib.sha256(source.read_bytes()).hexdigest())
+    else:source.chmod(0o600 if stat.S_IMODE(source.stat().st_mode)!=0o600 else 0o644)
+    assert archiver._reuse_source_archive(relative,{'manifest_sha256':'a'*64},content,run_context=None,deadline=None) is None
+    assert hashlib.sha256(archive.read_bytes()).hexdigest()==digest and puts==[]
+
+
+def test_remote_checksum_mismatch_refuses_without_fallback_put(reuse):
+    source,build,heads,puts,remote=reuse;archive,relative,content,batch,digest=build()
+    remote['ChecksumSHA256']='wrong'
+    receipt=archiver._offload_archive(archive,digest)
+    assert receipt['r2_status']=='VERIFY_FAILED' and not archiver._offhost_verified(receipt,archive,digest)
+    assert puts==[] and source.exists()

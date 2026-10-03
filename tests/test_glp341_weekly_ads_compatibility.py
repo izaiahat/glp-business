@@ -95,6 +95,43 @@ class WeeklyCompatibilityTests(unittest.TestCase):
                 launcher.main()
             invoke.assert_not_called()
 
+    def test_registered_offslot_weekly_collects_report_without_emission_or_baseline_reset(self):
+        import contextlib
+        import io
+        import tempfile
+        weekly = load()
+        with tempfile.TemporaryDirectory() as directory:
+            here = Path(directory)
+            output = here / 'runtime/runs/manual'
+            baseline = here / 'runtime/baseline.json'
+            baseline.parent.mkdir(parents=True)
+            baseline.write_text('{"prior": "retained"}\n')
+            capture = {'windows': {'current': {'start': '2026-09-28'}}}
+            analysis = {'fresh': True, 'pause_review': [], 'active_campaign_counts': {},
+                        'daily_stop_loss': {'rules': []}}
+            formatter = SimpleNamespace(lint=lambda *args: {'status': 'fixture'})
+            stream = io.StringIO()
+            with patch.object(weekly, 'HERE', here), patch.object(weekly, 'due', return_value=False), \
+                 patch.object(weekly, 'dependencies', return_value={'formatter': formatter}), \
+                 patch.object(weekly, 'collect', return_value=capture) as collect, \
+                 patch.object(weekly, 'analyze', return_value=analysis), \
+                 patch.object(weekly, 'card', return_value='fixture report only'), \
+                 patch.object(weekly, 'reserve_week') as reserve, \
+                 patch('sys.argv', ['weekly_ads_loop', '--mode', 'weekly', '--output', str(output),
+                                    '--baseline', str(baseline)]), contextlib.redirect_stdout(stream):
+                self.assertEqual(weekly.main(), 0)
+            collect.assert_called_once()
+            reserve.assert_not_called()
+            self.assertEqual(stream.getvalue().strip(), '[SILENT]')
+            self.assertEqual(baseline.read_text(), '{"prior": "retained"}\n')
+            self.assertTrue((output / 'ANALYSIS.json').is_file())
+            self.assertTrue((output / 'WEEKLY-CARD.md').is_file())
+            run = json.loads((output / 'RUN.json').read_text())
+            self.assertTrue(run['off_schedule_manual'])
+            self.assertFalse(run['natural_execution_verified'])
+            self.assertEqual(run['platform_writes'], 0)
+            self.assertEqual(run['direct_sends'], 0)
+
     def test_schedule_unknown_and_campaign_scopes_stay_held(self):
         weekly = load()
         self.assertEqual(weekly.CAMPAIGNS, {'google': '24204737927',

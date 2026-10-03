@@ -1168,6 +1168,51 @@ def current_authority(
     }
 
 
+def rebind_packet_selection_metadata(
+    packet: Path,
+    packet_authority: dict[str, Any],
+    update_authority: dict[str, Any],
+) -> list[str]:
+    """Rebind brief identity only; keep evidence, authored prose and dates intact."""
+    binding = packet_authority["selection_binding"]
+    selected = packet_authority["selection_receipt"]
+    changed: list[str] = []
+    serp_path = packet / "02-serp-brief.json"
+    if serp_path.is_file():
+        serp = json.loads(serp_path.read_text(encoding="utf-8"))
+        serp["selection_binding"] = {
+            **binding,
+            "article_id": update_authority["article_id"],
+            "selection_path": selected["path"],
+            "selection_sha256": selected["sha256"],
+            "selection_receipt_sha256": selected["receipt_sha256"],
+        }
+        atomic_json(serp_path, serp)
+        changed.append(serp_path.name)
+    brief_path = packet / "03-editorial-brief.md"
+    if brief_path.is_file():
+        text = brief_path.read_text(encoding="utf-8")
+        fields = {
+            "Selection": selected["path"],
+            "Selection SHA-256": selected["sha256"],
+            "Selection receipt SHA-256": selected["receipt_sha256"],
+            "Operator directive ID": binding["operator_directive_id"],
+            "Queue SHA-256": binding["queue_sha256"],
+            "Strategy queue SHA-256": binding["strategy_queue_sha256"],
+            "Strategy map SHA-256": binding["strategy_map_sha256"],
+        }
+        for label, value in fields.items():
+            text = re.sub(r"^- " + re.escape(label) + r":.*$",
+                          lambda _m, line=f"- {label}: `{value}`": line, text, flags=re.M)
+        base = update_authority["inputs"]["current_content_base_state"]
+        text = re.sub(r"^- Current content base:.*$",
+                      lambda _m: f"- Current content base: `{base['path']}` SHA-256 `{base['sha256']}`",
+                      text, flags=re.M)
+        brief_path.write_text(text, encoding="utf-8")
+        changed.append(brief_path.name)
+    return changed
+
+
 def rebind_packet(
     source_packet: Path,
     target_packet: Path,
@@ -1210,6 +1255,7 @@ def rebind_packet(
     })
     packet_authority["queue_authority"] = queue
     atomic_json(packet_authority_path, packet_authority)
+    rebound_metadata = rebind_packet_selection_metadata(target_packet, packet_authority, authority)
     receipt = output_dir / "packet-authority-rebind.json"
     atomic_json(receipt, {
         "schema": "glp-seo-r2-packet-authority-rebind-v1",
@@ -1221,11 +1267,11 @@ def rebind_packet(
         "packet_authority_after_sha256": sha(packet_authority_path),
         "fresh_update_authority": {"path": str(authority_path), "sha256": sha(authority_path)},
         "fresh_selection": selection_spec(selection_path),
-        "authored_subject_files_changed": ["00-authority.json"],
+        "authored_subject_files_changed": ["00-authority.json", *rebound_metadata],
         "authored_content_files_preserved": [
-            "01-evidence-ledger.json", "02-serp-brief.json", "03-editorial-brief.md",
-            "04-draft.md", "05-claim-source-map.json",
+            "01-evidence-ledger.json", "04-draft.md", "05-claim-source-map.json",
         ],
+        "selection_metadata_only_rebound": rebound_metadata,
         "prioritization_changed": False,
     })
     return receipt

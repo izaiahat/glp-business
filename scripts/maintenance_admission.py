@@ -8,6 +8,31 @@ import os
 from pathlib import Path
 import shlex
 import re
+import hashlib
+
+
+# The authenticated serve mode stores intents only; it never drains, imports
+# action modules, or calls the bridge. Bind exact reviewed bytes and argv.
+RECEIVE_ONLY_INGRESS = (
+    '/home/ubuntu/business/scripts/glp_host_ingress.py',
+    '0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e')
+
+
+def receive_only_ingress(base, argv, row, owners):
+    path, digest = RECEIVE_ONLY_INGRESS
+    if (row['pid'] in owners or row.get('unreadable') or row['sources']
+            or row['tasks'] != {path}
+            or argv != ['/usr/bin/python3', '-B', path, 'serve']):
+        return False
+    try:
+        source = Path(path)
+        if source.is_symlink() or hashlib.sha256(source.read_bytes()).hexdigest() != digest:
+            return False
+        threads = list((base / 'task').iterdir())
+        return (len(threads) == 1 and threads[0].name == str(row['pid'])
+                and not (threads[0] / 'children').read_text().strip())
+    except OSError:
+        return False
 
 
 def source_aliases(paths):
@@ -72,6 +97,7 @@ def process_readers(paths, task_paths=(), owners=(), excluded=(), proc=Path('/pr
             else:
                 continue
         unreadable = False
+        argv = []
         try:
             argv = (base / 'cmdline').read_bytes().decode(errors='replace').rstrip('\0').split('\0')
             try:
@@ -102,6 +128,8 @@ def process_readers(paths, task_paths=(), owners=(), excluded=(), proc=Path('/pr
         if unreadable and (row['sources'] or row['tasks'] or pid in roots):
             row['unreadable'] = True
         records[pid] = row
+        if receive_only_ingress(base, argv, row, owners):
+            continue  # Exact idle receive-only resident, never a drain/action.
         if row['tasks'] or row['sources']:
             roots.add(pid)
     changed = True
