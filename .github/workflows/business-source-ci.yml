@@ -45,6 +45,13 @@ jobs:
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
+      - name: GLP338 durable error intake action contract (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py::CronBridgeTests tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py
       - name: GLP330 retained discovery migration (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

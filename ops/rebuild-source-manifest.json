@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 699,
+  "tracked_count": 703,
   "files": {
     "scripts/glp_host_ingress.py": {
       "kind": "script",
@@ -526,7 +526,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "274602e6431301af0d237e96692bfee05da721582be1932fb6ae061b6006f8c0"
+      "sha256": "3b864ea9048c29ccdb92e68fc849ce9f3e6ca5e0520a670b81472b30417abd60"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -536,7 +536,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a2a142f01f4f3f6a39648e3f765b9e87c7ee55378d2d83d73ce4e2963102e4f3"
+      "sha256": "f4c704241b005e1a2d70a266a18b7d70742fccac4714756ce45d881ff65dab5d"
     },
     ".hermes.md": {
       "callers": [],
@@ -1723,7 +1723,7 @@
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ac9ca9fda4b4c8bf41bf436f7dcf120aa7a98e3e29b498fdf5260709299f8043"
+      "sha256": "aaefd8523d5a024fd45834446bb27abed31c0fedebfa8efad1593833127efa72"
     },
     "scripts/glp73_paired_adoption.py": {
       "callers": [],
@@ -2189,7 +2189,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "a324098be367def2f8d81d57bf79317e83ee9563ab4fcd0bdd95730482943072"
+      "sha256": "5d206ccfa2177d62a1463a57e90af945d3d4b6018ab221eb1ba3a811b000861a"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -2216,7 +2216,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "45657639fb173d46841b91925f0112943f46b2b10f6cf79312d33281e6b02355"
+      "sha256": "3b141aa7a35a73821a75ce4abc81f4a5517f69ec08c4017f7336116bbc58039b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2747,7 +2747,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "82ca612349f21172b6ab2ba45655f2c4bc131b5b949187478ae1beee235a115c"
+      "sha256": "513b298d42c05214ca0fb00f9cfa7e62d7465b2c3581fc0c20f418de7f13d349"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
@@ -2959,7 +2959,7 @@
     "tests/test_glp44_scoped_adoption.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ecd35d5833d9c5e3f6a4d2678482e24c08ae0dcc63ae61c4cde3e88e80797689"
+      "sha256": "fbcf1da99dfd20d605daa6a58a1f1f8e919bf2078a4b195f6382a2f84cf3ee7b"
     },
     "tests/test_glp44_weekly_gsc_aggregate.py": {
       "callers": [
@@ -3590,7 +3590,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "4f12aee58ebd6d1a929c377c07602da6e9088977723caaeeee7f8a0e61870669"
+      "sha256": "4ff5143775bc2e4828e6075f9e342b5fb847272f12060c99829528aec56cec09"
     },
     "tests/test_maintenance_native_admission.py": {
       "callers": [
@@ -3695,7 +3695,7 @@
         ".github/workflows/glp333-reporting-generation.yml",
         "scripts/run_tests.sh"
       ],
-      "sha256": "0422f8f1b82004b674ea6101a5aaf54181cdc88def421651c193e0e5b06bf0a8"
+      "sha256": "fae042cedb7c1ae14afbc0363e5965ebf84ef138907903b6e6c2ef8a8ec5b82f"
     },
     "ops/glp/reporting-v2/CURRENT-GENERATION.md": {
       "kind": "documentation",
@@ -3709,7 +3709,7 @@
         ".github/workflows/glp333-reporting-generation.yml"
       ],
       "kind": "test",
-      "sha256": "989cdcdb92971e6a6dbb920e7060724919e1da39abe36a3c94f0885adf10fa38"
+      "sha256": "6c4ae233d481c35b039cd519c72ed3aa85bbd7bfc80181e1023e4239e97f6541"
     },
     "tests/test_glp80_eden_qualified_projection.py": {
       "callers": [
@@ -4555,7 +4555,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "56898704a60888af1e6eb0782d6b71a5e261ae64728b412b27558578ef033790"
+      "sha256": "bd31f088ae542eb546804105e94943635202a46678b998ffb8c0bc240cd4e42f"
     },
     "tests/test_glp76_packet_selection_metadata.py": {
       "callers": [
@@ -4714,6 +4714,33 @@
       ],
       "kind": "test",
       "sha256": "4ab1f223e354de0ac6520f5cd11c920b78e5a5f1a7309394d7ba43f3e6d6461b"
+    },
+    "ops/n8n-bridge/actions.json": {
+      "callers": [
+        "ops/n8n-bridge/bridge.py",
+        "scripts/cron_bridge_action.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47"
+    },
+    "ops/pipeline-tool-contracts.json": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "tests/test_pipeline_tool_contracts.py"
+      ],
+      "sha256": "3b7444b5ed38608171c2cf318450030ccda3c5f3f82e454d3893d15a61f255b0"
+    },
+    "tests/test_pipeline_tool_contracts.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "473e9869572be78f51b3387ab72fdc6ada9ce3a5b0c500083204fab7832475af"
+    },
+    "scripts/glp44_commit_recovery.py": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "43a1c971e181f5a6bf1f7d6d88296a3d84c22ab9f34919990031b1697ed71d8d"
     }
   }
 }

@@ -86,6 +86,42 @@ class CronBridgeTests(unittest.TestCase):
         self.assertEqual(second["status"], "SKIPPED_OBSERVED_SLOT")
         self.assertEqual(len([p for p, _ in self.calls if p == "/run"]), 1)
 
+    def test_error_fixer_durable_modes_use_exact_registered_flags_without_execution(self):
+        # Authentic error-handler execution 19080 failed Case Row before launch:
+        # the consolidated registry rejected intake even though the producer
+        # supports it. Exercise the maintained registry and real command builder,
+        # not a duplicated fixture action or an effectful error event replay.
+        actions = json.loads((ROOT / "ops/n8n-bridge/actions.json").read_text())
+        action = actions["error_fixer"]
+        base = ["python3", "ops/error-fixer/fixer_runtime.py"]
+        expected = {"full": [], "sweep": ["--sweep-only"],
+                    "tier2": ["--tier2-only"], "intake": ["--mode", "intake"],
+                    "notification-ack": ["--mode", "notification-ack"]}
+        self.assertEqual(action["allowed_args"],
+                         ["engine", "max-cases", "case-id", "cases-json", "mode"])
+        # This action stays global-only; intake does not widen manifest authority.
+        for mode, flags in expected.items():
+            payload = {"action": "script", "name": "error_fixer", "args": {"mode": mode}}
+            bridge.authorize_scope(payload, actions, bridge.GLOBAL_AUTH_SCOPE)
+            with self.assertRaises(bridge.BadRequest):
+                bridge.authorize_scope(payload, actions, bridge.ONBOARDING_AUTH_SCOPE)
+            self.assertEqual(bridge.build_script_command(payload, actions)["argv"], base + flags)
+        self.assertEqual(action["value_flags"]["mode"], expected)
+        self.assertEqual(bridge.build_script_command(
+            {"name": "error_fixer", "args": {}}, actions)["argv"], base)
+        for mode in ("intake", "notification-ack"):
+            # Forward evidence byte-for-byte; CLI validation/dedupe remain owned
+            # by error_intake, and no case, ACK, repair or send is executed here.
+            evidence = "[]"
+            payload = {"name": "error_fixer", "args": {"mode": mode, "cases-json": evidence}}
+            self.assertEqual(bridge.build_script_command(payload, actions)["argv"],
+                             base + ["--cases-json", evidence, "--mode", mode])
+        for bad_args in ({"mode": "not-a-mode"}, {"mode": "fix"},
+                         {"mode": "intake --sweep-only"}, {"mode": ["intake"]},
+                         {"mode": "intake", "unknown": "bad"}):
+            with self.assertRaises(bridge.BadRequest):
+                bridge.build_script_command({"name": "error_fixer", "args": bad_args}, actions)
+
     def test_unknown_action_refused_before_submission(self):
         result = self.run_action("not-allowlisted")
         self.assertNotEqual(result["rc"], 0)

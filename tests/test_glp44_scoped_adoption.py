@@ -1,6 +1,6 @@
 """Isolated GLP-44 importer and paired scheduler regressions; never touch host jobs."""
 import copy
-from contextlib import nullcontext
+from contextlib import nullcontext, contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -119,7 +119,17 @@ def fixture(tmp_path, monkeypatch):
             return registry.parent / '.jobs.lock'
         def _record_load_stamp(self, _):
             pass
+        @contextmanager
+        def _jobs_lock(self, *, require_cross_process=False):
+            assert require_cross_process
+            with self._jobs_file_lock:
+                self.native_lease = True
+                try:
+                    yield
+                finally:
+                    self.native_lease = False
         def _save_jobs_unlocked(self, jobs):
+            assert self.native_lease
             self.saves += 1
             registry.write_text(json.dumps({'jobs': jobs}))
     return repo, root, hermes, registry, Scheduler()
