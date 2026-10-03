@@ -2189,7 +2189,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "a324098be367def2f8d81d57bf79317e83ee9563ab4fcd0bdd95730482943072"
+      "sha256": "5d206ccfa2177d62a1463a57e90af945d3d4b6018ab221eb1ba3a811b000861a"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -4555,7 +4555,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "56898704a60888af1e6eb0782d6b71a5e261ae64728b412b27558578ef033790"
+      "sha256": "bd31f088ae542eb546804105e94943635202a46678b998ffb8c0bc240cd4e42f"
     },
     "tests/test_glp76_packet_selection_metadata.py": {
       "callers": [
