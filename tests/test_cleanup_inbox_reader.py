@@ -50,3 +50,14 @@ def test_duplicate_window_is_a_successful_continuation():
          mock.patch.object(w, 'run_best_terms_approval_trigger', return_value={
              'status': 'PASS_DUPLICATE_WINDOW', 'rc': 0}):
         assert w.run_locked() == 0
+
+
+def test_poll_identity_is_forwarded_to_continuation():
+    w = wrapper()
+    with mock.patch.object(w.subprocess, 'run', side_effect=[
+        subprocess.CompletedProcess([], 0, 'PASS', ''),
+        subprocess.CompletedProcess([], 0, '{"status":"pass","run_id":"inboxrun_fixture"}', '')]), \
+         mock.patch.object(w, 'run_best_terms_approval_trigger', return_value={
+             'status': 'PASS_NO_NEW_APPROVALS', 'rc': 0}) as continuation:
+        assert w.run_locked() == 0
+        continuation.assert_called_once_with('inboxrun_fixture')
