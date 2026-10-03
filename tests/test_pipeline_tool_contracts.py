@@ -33,7 +33,8 @@ KNOWN_TOOLS = {"posthog", "cogny", "ga4", "gsc", "bing_webmaster", "n8n_mcp",
                "github", "partnerstack_api", "admitad_api", "clickbank_api", "refersion_api",
                "healthtrader_api", "clickdealer_api", "digistore24_api", "rook",
                "cloudflare_pages", "host_filesystem", "stripe", "gtm", "indexnow",
-               "pro_relay", "claude_cloud", "subscription_telemetry"}
+               "pro_relay", "claude_cloud", "subscription_telemetry", "xentraffic_api",
+               "other_network_portals"}
 
 
 def _contract():
@@ -73,6 +74,17 @@ def validate(contract, repo=REPO, readback_root=None):
     excluded = contract.get("permanent_exclusions", [])
     if "fella_health" not in excluded:
         problems.append(("permanent_exclusions",))
+    scopes = contract.get("network_scope_limits", {})
+    retained = contract.get("retained_network_denominator", [])
+    if len(retained) != 56 or len(set(retained)) != 56 or set(retained) != set(scopes):
+        problems.append(("retained_network_scope_denominator",))
+    covered = {t[:-4].replace("_", "-") for t in universe if t.endswith("_api")}
+    covered.update({"maxbounty", "shareasale"})
+    residual = set(retained) - covered
+    for pid in ("F01", "F02", "F04", "F07", "F12"):
+        entry = rows.get(pid, {}).get("tools", {}).get("other_network_portals", {})
+        if set(entry.get("scopes", [])) != residual or entry.get("status") not in ("gap", "hold"):
+            problems.append((pid, "residual_network_scopes"))
     verified = []
     for pid, name in zip(PIPELINES, NAMES):
         row = rows.get(pid, {})

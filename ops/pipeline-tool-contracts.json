@@ -65,7 +65,9 @@
     "indexnow": "Existing changed-URL notification carrier",
     "pro_relay": "Existing source-bound Pro judgment relay",
     "claude_cloud": "Admitted Cloud implementation/review transport, not a scheduled pipeline capability",
-    "subscription_telemetry": "Existing subscription/capacity read-only telemetry"
+    "subscription_telemetry": "Existing subscription/capacity read-only telemetry",
+    "xentraffic_api": "Tenant-bound XenTraffic affiliate API/approved portal fallback",
+    "other_network_portals": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below"
   },
   "pipelines": {
     "F01": {
@@ -120,56 +122,88 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/awin_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/awin_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.awin",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.awin",
+          "source_window": "Retained fetch/request window in network_scope_limits.awin; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/impact_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/impact_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.impact",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.impact",
+          "source_window": "Retained fetch/request window in network_scope_limits.impact; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/cj_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/cj_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.cj",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.cj",
+          "source_window": "Retained fetch/request window in network_scope_limits.cj; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/partnerize_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/partnerize_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerize",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.partnerize",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerize; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/affiliati_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/affiliati_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.affiliati",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.affiliati",
+          "source_window": "Retained fetch/request window in network_scope_limits.affiliati; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/katalys_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/katalys_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.katalys",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.katalys",
+          "source_window": "Retained fetch/request window in network_scope_limits.katalys; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F01/everflow_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/everflow_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.everflow",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.everflow; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
           "owner": "Existing GLP-339 outcome owner; no new queue",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists."
+          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "retained_scope_ref": "network_scope_limits.maxbounty",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -225,49 +259,77 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/partnerstack_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/partnerstack_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerstack",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerstack; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/admitad_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/admitad_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.admitad",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.admitad; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/clickbank_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/clickbank_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickbank",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickbank; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/refersion_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/refersion_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.refersion",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.refersion; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F01/healthtrader_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/healthtrader_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.healthtrader",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.healthtrader; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F01/clickdealer_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/clickdealer_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickdealer",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickdealer; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F01/digistore24_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F01/digistore24_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.digistore24",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.digistore24; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
         },
         "gmail": {
           "status": "not_applicable",
@@ -337,6 +399,65 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F01 Affiliate supply; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F01 consumer proof; missing exact status/terms/link-to-consumer receipt",
+          "required_readback": "F01/xentraffic_api: authenticated target identity, actual source window and supported consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.xentraffic",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.xentraffic; missing request windows remain UNKNOWN",
+          "operation": "consume complete eligible-US marketplace/status/terms/link receipts through existing discovery/application queue"
+        },
+        "other_network_portals": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F01 consumer result is bound.",
+          "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F01 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
+          "scopes": [
+            "advidi",
+            "affise-reach",
+            "amazon-associates",
+            "archer-affiliates",
+            "avantlink",
+            "bixgrow",
+            "brandchamp",
+            "buygoods",
+            "daisycon",
+            "digital-media-solutions",
+            "direct",
+            "dr-cash",
+            "ebay-partner-network",
+            "flexoffers",
+            "giddyup",
+            "goaffpro",
+            "gurumedia",
+            "health-nutrition-affiliates",
+            "howl",
+            "levanta",
+            "linkconnector",
+            "linktrust",
+            "markethealth",
+            "maxweb",
+            "moreniche",
+            "perform-cb",
+            "rakuten",
+            "sellhealth",
+            "skimlinks",
+            "sovrn",
+            "takeads",
+            "target-partners",
+            "terraleads",
+            "trackdesk",
+            "tradedoubler",
+            "uppromote",
+            "walmart-affiliate-program",
+            "webgains",
+            "yepads"
+          ]
         }
       }
     },
@@ -390,49 +511,77 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/awin_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/awin_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.awin",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.awin",
+          "source_window": "Retained fetch/request window in network_scope_limits.awin; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/impact_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/impact_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.impact",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.impact",
+          "source_window": "Retained fetch/request window in network_scope_limits.impact; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/cj_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/cj_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.cj",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.cj",
+          "source_window": "Retained fetch/request window in network_scope_limits.cj; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/partnerize_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/partnerize_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerize",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.partnerize",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerize; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/affiliati_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/affiliati_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.affiliati",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.affiliati",
+          "source_window": "Retained fetch/request window in network_scope_limits.affiliati; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/katalys_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/katalys_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.katalys",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.katalys",
+          "source_window": "Retained fetch/request window in network_scope_limits.katalys; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Everflow tenant APIs: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/everflow_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/everflow_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.everflow",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.everflow; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "maxbounty_portal": {
           "status": "not_applicable",
@@ -495,49 +644,77 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/partnerstack_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/partnerstack_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerstack",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerstack; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/admitad_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/admitad_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.admitad",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.admitad; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/clickbank_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/clickbank_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickbank",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickbank; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/refersion_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/refersion_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.refersion",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.refersion; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/healthtrader_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/healthtrader_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.healthtrader",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.healthtrader; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickdealer publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/clickdealer_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/clickdealer_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickdealer",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickdealer; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Digistore24 publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F02/digistore24_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F02/digistore24_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.digistore24",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.digistore24; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
         },
         "gmail": {
           "status": "wired",
@@ -658,6 +835,65 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F02 Canonical inbox; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F02 consumer proof; missing exact status/terms/link-to-consumer receipt",
+          "required_readback": "F02/xentraffic_api: authenticated target identity, actual source window and supported poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.xentraffic",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.xentraffic; missing request windows remain UNKNOWN",
+          "operation": "poll canonical inbox metadata; consume classified approval/adverse/commission events without sends or duplicate replay"
+        },
+        "other_network_portals": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F02 consumer result is bound.",
+          "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F02 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
+          "scopes": [
+            "advidi",
+            "affise-reach",
+            "amazon-associates",
+            "archer-affiliates",
+            "avantlink",
+            "bixgrow",
+            "brandchamp",
+            "buygoods",
+            "daisycon",
+            "digital-media-solutions",
+            "direct",
+            "dr-cash",
+            "ebay-partner-network",
+            "flexoffers",
+            "giddyup",
+            "goaffpro",
+            "gurumedia",
+            "health-nutrition-affiliates",
+            "howl",
+            "levanta",
+            "linkconnector",
+            "linktrust",
+            "markethealth",
+            "maxweb",
+            "moreniche",
+            "perform-cb",
+            "rakuten",
+            "sellhealth",
+            "skimlinks",
+            "sovrn",
+            "takeads",
+            "target-partners",
+            "terraleads",
+            "trackdesk",
+            "tradedoubler",
+            "uppromote",
+            "walmart-affiliate-program",
+            "webgains",
+            "yepads"
+          ]
         }
       }
     },
@@ -878,6 +1114,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F03 Sheet writer; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F03 Sheet writer; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F03 Sheet writer; no forced integration."
         }
       }
     },
@@ -964,49 +1208,77 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Awin publisher API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/awin_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/awin_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.awin",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.awin",
+          "source_window": "Retained fetch/request window in network_scope_limits.awin; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Impact media-partner API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/impact_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/impact_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.impact",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.impact",
+          "source_window": "Retained fetch/request window in network_scope_limits.impact; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "CJ commissions API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/cj_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/cj_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.cj",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.cj",
+          "source_window": "Retained fetch/request window in network_scope_limits.cj; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerize publisher API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/partnerize_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/partnerize_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerize",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.partnerize",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerize; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Affiliati network reports API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/affiliati_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/affiliati_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.affiliati",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.affiliati",
+          "source_window": "Retained fetch/request window in network_scope_limits.affiliati; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Katalys API: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/katalys_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/katalys_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.katalys",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.katalys",
+          "source_window": "Retained fetch/request window in network_scope_limits.katalys; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Everflow tenant APIs: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/everflow_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/everflow_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.everflow",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.everflow; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "maxbounty_portal": {
           "status": "not_applicable",
@@ -1081,49 +1353,77 @@
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/partnerstack_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/partnerstack_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerstack",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerstack; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/admitad_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/admitad_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.admitad",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.admitad; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/clickbank_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/clickbank_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickbank",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickbank; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/refersion_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/refersion_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.refersion",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.refersion; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/healthtrader_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/healthtrader_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.healthtrader",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.healthtrader; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickdealer publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/clickdealer_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/clickdealer_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickdealer",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickdealer; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-333",
           "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Digistore24 publisher reporting/API or authorized portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
-          "required_readback": "F04/digistore24_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F04/digistore24_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.digistore24",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.digistore24; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
         },
         "gmail": {
           "status": "not_applicable",
@@ -1193,6 +1493,65 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F04 Provider data; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: existing four-function access/reporting scope is not whole F04 consumer proof; missing exact status/terms/link-to-consumer receipt",
+          "required_readback": "F04/xentraffic_api: authenticated target identity, actual source window and supported consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.xentraffic",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.xentraffic; missing request windows remain UNKNOWN",
+          "operation": "consume dated first-party price/taxonomy evidence through guarded provider-registry delta seam"
+        },
+        "other_network_portals": {
+          "status": "gap",
+          "existing_issue": "GLP-333",
+          "owner": "Existing GLP-333 outcome owner; no new queue",
+          "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F04 consumer result is bound.",
+          "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F04 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
+          "scopes": [
+            "advidi",
+            "affise-reach",
+            "amazon-associates",
+            "archer-affiliates",
+            "avantlink",
+            "bixgrow",
+            "brandchamp",
+            "buygoods",
+            "daisycon",
+            "digital-media-solutions",
+            "direct",
+            "dr-cash",
+            "ebay-partner-network",
+            "flexoffers",
+            "giddyup",
+            "goaffpro",
+            "gurumedia",
+            "health-nutrition-affiliates",
+            "howl",
+            "levanta",
+            "linkconnector",
+            "linktrust",
+            "markethealth",
+            "maxweb",
+            "moreniche",
+            "perform-cb",
+            "rakuten",
+            "sellhealth",
+            "skimlinks",
+            "sovrn",
+            "takeads",
+            "target-partners",
+            "terraleads",
+            "trackdesk",
+            "tradedoubler",
+            "uppromote",
+            "walmart-affiliate-program",
+            "webgains",
+            "yepads"
+          ]
         }
       }
     },
@@ -1484,6 +1843,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F05 SEO + community research; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F05 SEO + community research; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F05 SEO + community research; no forced integration."
         }
       }
     },
@@ -1729,6 +2096,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F06 Publishing + deploy; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F06 Publishing + deploy; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F06 Publishing + deploy; no forced integration."
         }
       }
     },
@@ -1816,56 +2191,88 @@
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Awin publisher API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/awin_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/awin_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.awin",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.awin",
+          "source_window": "Retained fetch/request window in network_scope_limits.awin; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Impact media-partner API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/impact_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/impact_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.impact",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.impact",
+          "source_window": "Retained fetch/request window in network_scope_limits.impact; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "CJ commissions API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/cj_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/cj_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.cj",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.cj",
+          "source_window": "Retained fetch/request window in network_scope_limits.cj; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerize publisher API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/partnerize_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/partnerize_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerize",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.partnerize",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerize; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Affiliati network reports API: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/affiliati_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/affiliati_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.affiliati",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.affiliati",
+          "source_window": "Retained fetch/request window in network_scope_limits.affiliati; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "September declared1/returned0 remains PARTIAL. No exhausted complete scope or settled cash consumer proof; keep commissions/cash unknown.",
-          "required_readback": "F07/katalys_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/katalys_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.katalys",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.katalys",
+          "source_window": "Retained fetch/request window in network_scope_limits.katalys; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F07/everflow_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/everflow_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.everflow",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.everflow; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
           "owner": "Existing GLP-339 outcome owner; no new queue",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists."
+          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "retained_scope_ref": "network_scope_limits.maxbounty",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -1918,49 +2325,77 @@
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/partnerstack_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/partnerstack_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerstack",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerstack; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/admitad_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/admitad_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.admitad",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.admitad; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/clickbank_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/clickbank_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickbank",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickbank; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/refersion_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/refersion_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.refersion",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.refersion; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F07/healthtrader_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/healthtrader_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.healthtrader",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.healthtrader; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F07/clickdealer_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/clickdealer_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickdealer",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickdealer; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F07/digistore24_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F07/digistore24_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.digistore24",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.digistore24; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
         },
         "gmail": {
           "status": "not_applicable",
@@ -2030,6 +2465,65 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F07 Analytics + revenue; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: missing exact F07 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
+          "required_readback": "F07/xentraffic_api: authenticated target identity, actual source window and supported consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.xentraffic",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.xentraffic; missing request windows remain UNKNOWN",
+          "operation": "consume scoped analytics and network financial receipts in hourly/weekly reporting; durable Cogny queue drain"
+        },
+        "other_network_portals": {
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F07 consumer result is bound.",
+          "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F07 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
+          "scopes": [
+            "advidi",
+            "affise-reach",
+            "amazon-associates",
+            "archer-affiliates",
+            "avantlink",
+            "bixgrow",
+            "brandchamp",
+            "buygoods",
+            "daisycon",
+            "digital-media-solutions",
+            "direct",
+            "dr-cash",
+            "ebay-partner-network",
+            "flexoffers",
+            "giddyup",
+            "goaffpro",
+            "gurumedia",
+            "health-nutrition-affiliates",
+            "howl",
+            "levanta",
+            "linkconnector",
+            "linktrust",
+            "markethealth",
+            "maxweb",
+            "moreniche",
+            "perform-cb",
+            "rakuten",
+            "sellhealth",
+            "skimlinks",
+            "sovrn",
+            "takeads",
+            "target-partners",
+            "terraleads",
+            "trackdesk",
+            "tradedoubler",
+            "uppromote",
+            "walmart-affiliate-program",
+            "webgains",
+            "yepads"
+          ]
         }
       }
     },
@@ -2318,6 +2812,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F08 Ads (parked); no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F08 Ads (parked); no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F08 Ads (parked); no forced integration."
         }
       }
     },
@@ -2541,6 +3043,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F09 Decisions + job health; no forced integration."
         }
       }
     },
@@ -2754,6 +3264,14 @@
           "owner": "Existing GLP-339 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects; no inspected receipt binds Existing subscription/capacity read-only telemetry to this exact consumer operation and authorized scope/window. API availability or source references alone are not wired evidence.",
           "required_readback": "F10/subscription_telemetry: authenticated target identity, actual source window and supported consume existing disk/RAM/swap/browser/capacity safety telemetry without clearing in-flight effects receipt with exact consumer result; otherwise retain this gap."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F10 Host safety; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F10 Host safety; no forced integration."
         }
       }
     },
@@ -2976,6 +3494,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F11 Backup + housekeeping; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F11 Backup + housekeeping; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F11 Backup + housekeeping; no forced integration."
         }
       }
     },
@@ -3033,56 +3559,88 @@
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Awin publisher API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/awin_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/awin_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.awin",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.awin",
+          "source_window": "Retained fetch/request window in network_scope_limits.awin; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "impact_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Impact media-partner API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/impact_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/impact_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.impact",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.impact",
+          "source_window": "Retained fetch/request window in network_scope_limits.impact; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "cj_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "CJ commissions API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/cj_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/cj_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.cj",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.cj",
+          "source_window": "Retained fetch/request window in network_scope_limits.cj; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "partnerize_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerize publisher API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/partnerize_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/partnerize_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerize",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.partnerize",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerize; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "affiliati_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Affiliati network reports API: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/affiliati_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/affiliati_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.affiliati",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.affiliati",
+          "source_window": "Retained fetch/request window in network_scope_limits.affiliati; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "katalys_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "September declared1/returned0 remains PARTIAL. No exhausted complete scope or settled cash consumer proof; keep commissions/cash unknown.",
-          "required_readback": "F12/katalys_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/katalys_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.katalys",
+          "authenticated_scope": "Retained named probe only; see network_scope_limits.katalys",
+          "source_window": "Retained fetch/request window in network_scope_limits.katalys; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "everflow_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F12/everflow_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/everflow_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.everflow",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.everflow; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "maxbounty_portal": {
           "status": "hold",
           "existing_issue": "GLP-339",
           "owner": "Existing GLP-339 outcome owner; no new queue",
           "reason": "MaxBounty 89cd7b766dba remains disabled/paused; activation/re-pin requires explicit operator decision. Do not probe to manufacture coverage.",
-          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists."
+          "required_readback": "Operator-approved held-provider release, then existing consumer exact-target receipt; absent approval hold persists.",
+          "retained_scope_ref": "network_scope_limits.maxbounty",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.maxbounty; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "shareasale_legacy": {
           "status": "not_applicable",
@@ -3135,49 +3693,77 @@
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Partnerstack publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/partnerstack_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/partnerstack_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.partnerstack",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.partnerstack; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "admitad_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Admitad publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/admitad_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/admitad_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.admitad",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.admitad; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "clickbank_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Clickbank publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/clickbank_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/clickbank_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickbank",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickbank; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "refersion_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Refersion publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/refersion_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/refersion_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.refersion",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.refersion; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "healthtrader_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
           "reason": "Healthtrader publisher reporting/API or authorized portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
-          "required_readback": "F12/healthtrader_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/healthtrader_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.healthtrader",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.healthtrader; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "clickdealer_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F12/clickdealer_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/clickdealer_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.clickdealer",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.clickdealer; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "digistore24_api": {
           "status": "gap",
           "existing_issue": "GLP-334",
           "owner": "Existing GLP-334 outcome owner; no new queue",
           "reason": "Tenant/direct portal rail lacks inspected authenticated exact-scope downstream consumer receipt. Use already authorized API/export/vault-browser route only; no guessed credentials, tracking visits or access purchase.",
-          "required_readback": "F12/digistore24_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap."
+          "required_readback": "F12/digistore24_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.digistore24",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.digistore24; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
         },
         "gmail": {
           "status": "not_applicable",
@@ -3244,6 +3830,65 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F12 Conversions; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "Existing GLP-334 assigned outcome owner (coordinator designates if unassigned; no new issue)",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback: missing exact F12 consumer readback bound to complete GLP REAL conversion/earnings/payout denominator; static collector or account access does not prove attribution/settlement.",
+          "required_readback": "F12/xentraffic_api: authenticated target identity, actual source window and supported consume real production receiver events and complete network conversion/earnings/payout lineage receipt with exact consumer result; otherwise retain this gap.",
+          "retained_scope_ref": "network_scope_limits.xentraffic",
+          "authenticated_scope": "UNKNOWN exact publisher/tenant consumer binding; retained availability is not authentication",
+          "source_window": "Retained fetch/request window in network_scope_limits.xentraffic; missing request windows remain UNKNOWN",
+          "operation": "consume real production receiver events and complete network conversion/earnings/payout lineage"
+        },
+        "other_network_portals": {
+          "status": "gap",
+          "existing_issue": "GLP-334",
+          "owner": "Existing GLP-334 outcome owner; no new queue",
+          "reason": "Every named residual retained rail remains an owned scope gap, not silently dropped: source/API/portal access and unresolved work are explicit in network_scope_limits. No authenticated exact downstream F12 consumer result is bound.",
+          "required_readback": "For each named residual rail: use supported authorized publisher API/export or fresh vault-browser route, exact source window/operation and F12 consumer readback; otherwise preserve its existing scope gap/hold. Do not infer missing credentials, create accounts or clear provider holds.",
+          "scopes": [
+            "advidi",
+            "affise-reach",
+            "amazon-associates",
+            "archer-affiliates",
+            "avantlink",
+            "bixgrow",
+            "brandchamp",
+            "buygoods",
+            "daisycon",
+            "digital-media-solutions",
+            "direct",
+            "dr-cash",
+            "ebay-partner-network",
+            "flexoffers",
+            "giddyup",
+            "goaffpro",
+            "gurumedia",
+            "health-nutrition-affiliates",
+            "howl",
+            "levanta",
+            "linkconnector",
+            "linktrust",
+            "markethealth",
+            "maxweb",
+            "moreniche",
+            "perform-cb",
+            "rakuten",
+            "sellhealth",
+            "skimlinks",
+            "sovrn",
+            "takeads",
+            "target-partners",
+            "terraleads",
+            "trackdesk",
+            "tradedoubler",
+            "uppromote",
+            "walmart-affiliate-program",
+            "webgains",
+            "yepads"
+          ]
         }
       }
     },
@@ -3491,6 +4136,14 @@
         "subscription_telemetry": {
           "status": "not_applicable",
           "reason": "Existing subscription/capacity read-only telemetry is not a producer/consumer dependency of canonical F13 Sponsor sales; no forced integration."
+        },
+        "xentraffic_api": {
+          "status": "not_applicable",
+          "reason": "Tenant-bound XenTraffic affiliate API/approved portal fallback is not a producer/consumer dependency of canonical F13 Sponsor sales; no forced integration."
+        },
+        "other_network_portals": {
+          "status": "not_applicable",
+          "reason": "Remaining named retained publisher rails; unsupported/portal fallback scopes explicitly retained below is not a producer/consumer dependency of canonical F13 Sponsor sales; no forced integration."
         }
       }
     }
@@ -3504,5 +4157,741 @@
   "namespace_limits": {
     "old_ship_F06": "offline issued-version release binding is only one publishing subconsumer",
     "old_ship_F12_F13": "GLP73 paired generator/growth retention IDs belong to backup/retention evidence, not canonical conversions or sponsor sales"
+  },
+  "retained_network_denominator": [
+    "admitad",
+    "advidi",
+    "affiliati",
+    "affise-reach",
+    "amazon-associates",
+    "archer-affiliates",
+    "avantlink",
+    "awin",
+    "bixgrow",
+    "brandchamp",
+    "buygoods",
+    "cj",
+    "clickbank",
+    "clickdealer",
+    "daisycon",
+    "digistore24",
+    "digital-media-solutions",
+    "direct",
+    "dr-cash",
+    "ebay-partner-network",
+    "everflow",
+    "flexoffers",
+    "giddyup",
+    "goaffpro",
+    "gurumedia",
+    "health-nutrition-affiliates",
+    "healthtrader",
+    "howl",
+    "impact",
+    "katalys",
+    "levanta",
+    "linkconnector",
+    "linktrust",
+    "markethealth",
+    "maxbounty",
+    "maxweb",
+    "moreniche",
+    "partnerize",
+    "partnerstack",
+    "perform-cb",
+    "rakuten",
+    "refersion",
+    "sellhealth",
+    "shareasale",
+    "skimlinks",
+    "sovrn",
+    "takeads",
+    "target-partners",
+    "terraleads",
+    "trackdesk",
+    "tradedoubler",
+    "uppromote",
+    "walmart-affiliate-program",
+    "webgains",
+    "xentraffic",
+    "yepads"
+  ],
+  "network_scope_limits": {
+    "admitad": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Documented/implemented publisher API; stored credential material; fresh bearer/read not tested",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "advidi": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "affiliati": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:46.115134+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 0,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+          "recorded_windows": []
+        },
+        {
+          "capability": "program_status",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:32:01.662957+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "terms_commission",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:33:03.183703+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "issued_tracking_link",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:34:05.777356+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "affise-reach": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "amazon-associates": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "archer-affiliates": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "avantlink": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "awin": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:44.565464+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "request:publisher:2979387",
+          "report_complete_period": true,
+          "record_count": 0,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "ACCOUNT_ROWS_ONLY_TEST_REAL_ATTRIBUTION_AND_CURRENCY_UNKNOWN",
+          "recorded_windows": [
+            {
+              "start_inclusive": "2026-09-21T00:00:00+00:00",
+              "end_exclusive": "2026-09-28T00:00:00+00:00"
+            }
+          ]
+        },
+        {
+          "capability": "program_status",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:51.447081+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "terms_commission",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:51.826742+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "issued_tracking_link",
+          "status": "UNKNOWN",
+          "fetched_at": "2026-10-01T07:29:51.828067+00:00",
+          "coverage": "UNKNOWN",
+          "account_binding": "UNKNOWN",
+          "report_complete_period": false,
+          "record_count": null,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "DETERMINISTIC_GRAMMAR_IS_NOT_PROVIDER_ISSUED_LINK_READ_NO_GENERATION",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "bixgrow": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "brandchamp": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "buygoods": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "cj": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:45.427308+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "request:publisher:8010186",
+          "report_complete_period": true,
+          "record_count": 0,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+          "recorded_windows": []
+        },
+        {
+          "capability": "program_status",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:52.906353+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "terms_commission",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:53.147144+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "issued_tracking_link",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:54.117682+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "clickbank": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "clickdealer": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "daisycon": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "digistore24": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "digital-media-solutions": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "direct": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "dr-cash": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "ebay-partner-network": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "everflow": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Documented affiliate API; tenant-specific usable key not established",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "flexoffers": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "giddyup": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "goaffpro": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "gurumedia": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "health-nutrition-affiliates": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "healthtrader": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "howl": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "impact": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:44.722980+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 0,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+          "recorded_windows": []
+        },
+        {
+          "capability": "program_status",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:52.197418+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PARTNER_API_CREDENTIAL",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_LEGAL_TERMS_OR_ELIGIBILITY_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "terms_commission",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:52.382633+00:00",
+          "coverage": "PARTIAL",
+          "account_binding": "UNKNOWN",
+          "report_complete_period": false,
+          "record_count": null,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_OR_CAPABILITY_FIELD_UNPROVEN",
+          "recorded_windows": []
+        },
+        {
+          "capability": "issued_tracking_link",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:52.567231+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PARTNER_API_CREDENTIAL",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_LEGAL_TERMS_OR_ELIGIBILITY_CLEARANCE",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "katalys": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:46.428953+00:00",
+          "coverage": "PARTIAL",
+          "account_binding": "request:profile:098e5455-ca72-4099-9ff9-a9dd014148e7;aff_id:13031;retained_profile_binding",
+          "report_complete_period": false,
+          "record_count": null,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "COUNT_PAGINATION_OR_PERIOD_PROOF_INCOMPLETE",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "levanta": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Izaiah/account admin: resolve existing creator-account approval/API enablement if commercially prioritized; preserve hold until verified.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "linkconnector": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "linktrust": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "markethealth": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "maxbounty": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "maxweb": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "moreniche": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "partnerize": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00; reports/ops/glp333-network-access-contract-20261001/LIVE-READS.json",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [
+        {
+          "capability": "conversions_earnings",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:29:47.005021+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 0,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "ACCOUNT_ROW_COVERAGE_ONLY_CURRENCY_CLASSIFICATION_CASH_UNKNOWN",
+          "recorded_windows": []
+        },
+        {
+          "capability": "program_status",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:34:43.268101+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "terms_commission",
+          "status": "SUPPORTED",
+          "fetched_at": "2026-10-01T07:34:44.155224+00:00",
+          "coverage": "COMPLETE",
+          "account_binding": "CONFIGURED_PUBLISHER_CREDENTIAL_NOT_RESPONSE_OWNED_IDENTITY",
+          "report_complete_period": false,
+          "record_count": 1,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "EXACT_RECORD_ONLY_NOT_FULL_TERMS_CATALOGUE_OR_HOLD_CLEARANCE",
+          "recorded_windows": []
+        },
+        {
+          "capability": "issued_tracking_link",
+          "status": "UNKNOWN",
+          "fetched_at": "2026-10-01T07:34:44.157231+00:00",
+          "coverage": "UNKNOWN",
+          "account_binding": "UNKNOWN",
+          "report_complete_period": false,
+          "record_count": null,
+          "commission_minor": null,
+          "cash_minor": null,
+          "reason": "DETERMINISTIC_GRAMMAR_IS_NOT_PROVIDER_ISSUED_LINK_READ_NO_GENERATION",
+          "recorded_windows": []
+        }
+      ],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "partnerstack": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "perform-cb": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "rakuten": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Documented/implemented publisher API; stored credential material; fresh bearer/read not tested",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "refersion": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Publisher read API authenticated for named probe; other operations only as qualified below",
+      "unresolved_access_or_scope": "No missing key for exercised read. Engineering must bind complete role/function/pagination and settlement contracts; do not request replacement credentials by default.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "sellhealth": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "shareasale": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Migrated to Awin per installed membership adapter; historical access separate",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "skimlinks": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "sovrn": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "takeads": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "target-partners": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "terraleads": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Historical no-action/declined disposition: preserve; no key request or portal remediation without explicit renewed scope.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "trackdesk": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "tradedoubler": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "uppromote": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "walmart-affiliate-program": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "webgains": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "xentraffic": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "Documented affiliate API; tenant-specific usable key not established",
+      "unresolved_access_or_scope": "Izaiah/network manager: provision or grant existing tenant affiliate API access, or continue approved fresh vault browser; never reuse another tenant key.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    },
+    "yepads": {
+      "source": "retained tool-wiring capture2026-10-01T02:50:35.213950+00:00",
+      "api_availability": "UNKNOWN for this publisher/account (not a vendor-wide claim of no API)",
+      "unresolved_access_or_scope": "Engineering: qualify exact publisher/tenant/function contract first. Izaiah only if existing vault lacks login/MFA or account admin must grant API/report access; no speculative account creation.",
+      "retained_probes": [],
+      "consumer_proof": "Not established by this API/access projection; use each canonical pipeline existing issue/gap. No credentials requested merely because scope is unknown."
+    }
   }
 }
