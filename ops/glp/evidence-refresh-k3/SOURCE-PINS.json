@@ -4,11 +4,12 @@
     "/home/ubuntu/business/tools/glp/evidence_refresh.py": "f14d0314a96ca27476c2fdd759049b75096052421c4cb3e812496638fdcb398b",
     "/home/ubuntu/business/tools/glp/evidence_refresh_verify.mjs": "27ddf9bec2ceb3f581ed3d9fcc7e68331b6c31926856514939d7f07191794565",
     "/home/ubuntu/business/scripts/glp_current_content_base_schema.py": "e1c2c57c90f08503742a1d0ad7256c10f89473e39f1feb7c717764e749bbc479",
-    "/home/ubuntu/business/scripts/glp_price_index_weekly.py": "85967d4ccbf1819218343faf5aa83deaf59f543fd2eec0b80821688b6d3f1642",
-    "/home/ubuntu/business/scripts/glp_deploy_glp34_authority_v1.py": "e0ccf829eedcfbc44b9e6577ee9d033b5dbaee01238cda0d13b31b7fb8449853",
+    "/home/ubuntu/business/scripts/glp_price_index_weekly.py": "0c8ebfde1b0339da58ce71926c900dca8c881b6609a0b274376738bb6f5ca7c1",
+    "/home/ubuntu/business/scripts/glp_deploy_glp34_authority_v1.py": "c466f6e6e73891e955de74015aaab7d994dae2a5c83ee27d180aaa92567481a8",
+    "/home/ubuntu/business/scripts/glp_affiliate_release.py": "3625911cbfbf89d158a096f258693034d97a7f1a7bfa0c1613b3d8d4f6b7db94",
     "/home/ubuntu/business/scripts/site_tree_materializer.py": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4",
     "/home/ubuntu/business/systems/seo-blog-machine/scripts/build_opus_article_release.py": "ad711878f8c6b6bc0ed198c977319fc0efa90d68f4c7922bda8514a33d15e858"
   },
-  "runner_sha256": "804e01703504fec54c652d76e6fa48c22d03247bb445f399f268daea694b1323",
+  "runner_sha256": "99bf3a80da344cd2cbdd4e47c177d9fe29382fabce33010cad895949a3712cb4",
   "composer_sha256": "0db2d0eccab90f843489618711afdbca24a58997fd0d357509e6a66af242fc3c"
 }
