@@ -414,7 +414,7 @@
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
       ],
       "kind": "test",
-      "sha256": "d584068e357d91c29a5e01f34280872f35147bde95409efb8672fbba1bc5425a"
+      "sha256": "64c1b3a46761723ce99bca18f0d11c7f9a246c67446d862743cc18fd0bace499"
     },
     ".github/workflows/glp341-weekly-ads-compatibility.yml": {
       "callers": [
@@ -428,7 +428,7 @@
         "hermes:ea5bad730e53 via weekly_cron_entry.py"
       ],
       "kind": "script",
-      "sha256": "05bda1aa7f23fc2dca94d35bbcf65276b8bd1e743a9c0e4eb21445867f306653"
+      "sha256": "5032dd52cb7069ffd99a2e17ea1d0efa9b8992c5901c3900abff4fe13687ad70"
     },
     "reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json": {
       "callers": [
