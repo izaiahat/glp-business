@@ -8,11 +8,13 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 633,
+  "tracked_count": 638,
   "files": {
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
-      "callers": ["systems/seo-blog-machine/scripts/existing_article_updates.py"],
+      "callers": [
+        "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      ],
       "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
     },
     "scripts/glp345_a4_adoption.py": {
@@ -466,7 +468,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6bb3b82094ceaa42e585c8f1f2a75a41cd093dd11a971aa16ae4ec054ac02f69"
+      "sha256": "0ee112ddda7d3856aa9a6c0c3350e143302e4d3d9adf783ea43a577a8e5ef068"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
