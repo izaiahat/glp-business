@@ -97,7 +97,7 @@ def test_awin_api_status_survives_normalizer_and_scheduled_bucket(monkeypatch, s
     raw = {'id': '001', 'name': 'Fixture GLP clinic', 'status': state,
            'primaryRegion': {'countryCode': 'US'}}
     transport = _base.RecordingTransport([
-        ('GET', '/advertisers', _base.json_response([raw]))])
+        ('GET', '/programmes', _base.json_response([raw]))])
     legacy = SimpleNamespace(awin=awin, SCHEMA='fixture')
     doc = batch.awin_inventory(legacy, transport)
     rows = doc['relationships'][str(awin.PUBLISHER_ID)]

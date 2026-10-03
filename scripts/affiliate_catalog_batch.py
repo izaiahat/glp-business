@@ -79,11 +79,11 @@ def awin_inventory(legacy, transport):
     class StatusTransport:
         def request(self, method, url, **kwargs):
             response = transport.request(method, url, **kwargs)
-            endpoint = f'https://api.awin.com/publishers/{legacy.awin.PUBLISHER_ID}/advertisers'
+            endpoint = f'https://api.awin.com/publishers/{legacy.awin.PUBLISHER_ID}/programmes'
             if method.upper() == 'GET' and url == endpoint and response.status == 200:
                 body = response.json()
-                rows = body if isinstance(body, list) else body.get('advertisers') or []
-                relationship = (kwargs.get('params') or {}).get('advertiserRelationship')
+                rows = body if isinstance(body, list) else []
+                relationship = (kwargs.get('params') or {}).get('relationship')
                 for row in rows:
                     states[(relationship, str(row.get('id') or ''))] = str(row.get('status') or '')
             return response
