@@ -15,13 +15,13 @@ BEST_TERMS = Path("/home/ubuntu/business/scripts/affiliate_best_terms_machine.py
 LOCK = Path("/home/ubuntu/.hermes/state/email-monitor-cron.lock")
 
 
-def run_best_terms_approval_trigger() -> dict:
+def run_best_terms_approval_trigger(poll_run_id: str = '') -> dict:
     """Re-evaluate only providers whose authoritative approval receipt is new."""
     try:
         proc = subprocess.run(
             [
                 sys.executable, str(BEST_TERMS), "--approval-events", "--stage",
-                "--send-discord", "--stdout", "json",
+                "--send-discord", "--stdout", "json", "--poll-run-id", poll_run_id,
             ],
             capture_output=True,
             text=True,
@@ -75,7 +75,11 @@ def run_locked() -> int:
     except json.JSONDecodeError:
         print("⚠️ **Inbox Control Plane** — invalid private poll receipt\n\nprovider mutations **0** · outbound sends **0** · no raw mail or secret printed\n→ Inspect the private cron logs and repair the local receipt path.\n-# source: canonical read-only inbox poll · restricted")
         return 1
-    best_terms = run_best_terms_approval_trigger()
+    best_terms = run_best_terms_approval_trigger(str(payload.get('run_id') or ''))
+    if best_terms.get('status') == 'DEFERRED_ACTIVE_OWNER' and proc.returncode == 0:
+        # A legitimate weekly holder keeps the exact pending cursor; next poll
+        # retries local evaluation only, without deleting a foreign lock.
+        return 0
     if best_terms.get("rc") != 0 or best_terms.get("status") not in {
         "PASS", "PASS_NO_NEW_APPROVALS", "PASS_DUPLICATE_WINDOW", "PARTIAL",
     }:
