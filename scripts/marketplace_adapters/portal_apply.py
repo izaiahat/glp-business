@@ -630,11 +630,16 @@ class AwinFreshBrowserTransport:
         if self.driver is None:
             raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
         page = self.driver.page
+        navigation_failure = ""
         try:
             self.driver.goto(self.PROGRAMS)
             self.driver.wait(1200)
         except Exception as exc:  # noqa: BLE001
-            raise AwinAuthFailure("navigate_publisher_directory", f"navigation_failed:{type(exc).__name__}") from exc
+            navigation_failure = type(exc).__name__
+        if navigation_failure:
+            # Leave the handler before raising: neither the raw cause nor its
+            # implicit context may enter a public authentication traceback.
+            raise AwinAuthFailure("navigate_publisher_directory", f"navigation_failed:{navigation_failure}")
         observed = self._identity_observation([page])
         if observed is not None and observed.get("authenticated") is True:
             self._auth_report = {

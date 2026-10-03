@@ -12,6 +12,7 @@ import importlib
 import re
 import sys
 import types
+import traceback
 from pathlib import Path
 
 import pytest
@@ -109,6 +110,14 @@ def test_login_wall_detects_redirect_and_login_paths():
 @pytest.fixture
 def portal_apply(monkeypatch):
     """Import portal_apply with host-only dependencies replaced by fakes."""
+    # Reduced source checkouts lack package markers. Bind the package paths so
+    # a regular package in the live workspace cannot win import precedence.
+    for name, relative in (("scripts", "scripts"),
+                           ("scripts.marketplace_adapters", "scripts/marketplace_adapters")):
+        package = types.ModuleType(name)
+        package.__path__ = [str(ROOT / relative)]
+        monkeypatch.setitem(sys.modules, name, package)
+
     class BaseDriver:
         def __init__(self, profile_dir, **kwargs):
             self.profile_dir, self.page, self._pw, self._ctx = profile_dir, None, None, None
@@ -255,6 +264,131 @@ def test_ai_bridge_requires_an_owned_runtime_and_refuses_mutations():
     driver.close()
     driver.close()
     assert events == ["https://ui.awin.com/protected", "closed"]
+
+
+def _recording_read_bridge():
+    events = []
+    protected = "https://ui.awin.com/awin/affiliate/2979387/merchant-directory/index/tab/active/page/1"
+
+    def js(expression):
+        events.append(("js", expression))
+        return protected if expression == "location.href" else "fixture body"
+
+    driver = fresh.FreshAIBrowserReadDriver(
+        js=js, goto_url=lambda url: events.append(("goto", url)),
+        wait_for_load=lambda: events.append(("wait",)),
+        allowed_hosts={"ui.awin.com"}, owned_session="offline-regression",
+        close_owned=lambda: events.append(("close",)))
+    return driver, events, protected
+
+
+def test_read_bridge_refuses_caller_javascript_and_value_selectors():
+    driver, events, _ = _recording_read_bridge()
+    for expression, arg in (
+        ("() => document.querySelector('button').click()", None),
+        ("() => document.querySelector('form').requestSubmit()", None),
+        ("() => fetch('/fixture', {method:'POST'})", None),
+        ("() => [document.querySelector('input').value, document.cookie]", None),
+        ("x => x", {"fixture": "not executable"}),
+        ("1 + 1", None),
+    ):
+        with pytest.raises(fresh.FreshAIBrowserRequired):
+            driver.evaluate(expression, arg)
+    # CSS value predicates must not become a secret-value oracle either.
+    with pytest.raises(fresh.FreshAIBrowserRequired):
+        driver.locator('input[value^="fixture"]').count()
+    with pytest.raises(fresh.FreshAIBrowserRequired):
+        driver.locator("input[type='password'], input[autocomplete='current-password']").inner_text()
+    assert events == []
+    assert driver.body_text() == "fixture body"
+
+
+def test_read_bridge_binds_scheme_host_and_effective_port():
+    driver, events, protected = _recording_read_bridge()
+    for url in (
+        protected.replace("ui.awin.com", "ui.awin.com:444"),
+        protected.replace("ui.awin.com", "ui.awin.com:not-a-port"),
+        protected.replace("https:", "http:"),
+        protected.replace("ui.awin.com", "foreign.invalid"),
+        protected.replace("ui.awin.com", ":fixture@ui.awin.com"),
+        protected.replace("ui.awin.com", "ui.awin.com\\t"),
+    ):
+        driver._js = lambda expression: url
+        with pytest.raises(fresh.FreshAIBrowserRequired):
+            driver.body_text()
+        with pytest.raises(fresh.FreshAIBrowserRequired):
+            driver.goto(url)
+    assert events == []  # no rejected target ever reaches navigation
+    for url in (protected, protected.replace("ui.awin.com", "UI.AWIN.COM:443")):
+        driver._js = lambda expression: url if expression == "location.href" else "body"
+        assert driver.body_text() == "body"
+        assert driver.goto(url) == {"http_status": None}
+    assert [event[0] for event in events] == ["goto", "wait", "goto", "wait"]
+
+
+def test_closed_read_bridge_refuses_before_any_helper_io(monkeypatch):
+    driver, events, protected = _recording_read_bridge()
+    button = driver.locator("button")
+    monkeypatch.setattr(fresh.time, "sleep", lambda seconds: events.append(("sleep", seconds)))
+    driver.close()
+    driver.close()
+    assert events == [("close",)]
+    events.clear()
+    for action in (lambda: driver.goto(protected), driver.start, driver.current_url,
+                   driver.body_text, driver.title, driver.buttons, driver.links,
+                   button.count, lambda: driver.wait(1)):
+        with pytest.raises(fresh.FreshAIBrowserRequired, match="owned_read_bridge_closed"):
+            action()
+    assert events == []
+    # A helper closing its bridge must not allow the next helper in a batch.
+    other, events, protected = _recording_read_bridge()
+    other._goto = lambda url: other.close()
+    with pytest.raises(fresh.FreshAIBrowserRequired, match="owned_read_bridge_closed"):
+        other.goto(protected)
+    assert events == [("close",)]
+
+
+def test_read_bridge_and_awin_errors_drop_raw_cause_and_context(portal_apply, monkeypatch):
+    sentinel = "FIXTURE_ONLY_PRIVATE_HELPER_DIAGNOSTIC"
+
+    def fail(*args):
+        raise RuntimeError(sentinel)
+
+    for stage in ("origin", "body_text", "locator", "navigate", "load", "wait", "close"):
+        driver, events, protected = _recording_read_bridge()
+        action = driver.body_text
+        if stage == "origin":
+            driver._js = fail
+        elif stage in ("body_text", "locator"):
+            driver._js = lambda expression: protected if expression == "location.href" else fail()
+            if stage == "locator":
+                action = driver.locator("button").count
+        elif stage in ("navigate", "load"):
+            setattr(driver, "_goto" if stage == "navigate" else "_wait", fail)
+            action = lambda: driver.goto(protected)
+        elif stage == "wait":
+            monkeypatch.setattr(fresh.time, "sleep", fail)
+            action = lambda: driver.wait(1)
+        else:
+            driver._close_owned = fail
+            action = driver.close
+        with pytest.raises(fresh.FreshAIBrowserRequired) as caught:
+            action()
+        assert str(caught.value) == f"browser_helper_failed:{stage}"
+        assert sentinel not in "".join(traceback.format_exception(caught.value))
+        assert caught.value.__cause__ is None and caught.value.__context__ is None
+        if stage == "close":
+            driver.close()  # failure still makes close terminal, not retryable
+            with pytest.raises(fresh.FreshAIBrowserRequired, match="owned_read_bridge_closed"):
+                driver.goto(protected)
+    # Test the outer wrapper independently; a safe bridge error must not mask
+    # whether a different injected driver's raw exception is still chained.
+    driver = types.SimpleNamespace(page=None, goto=fail)
+    with pytest.raises(portal_apply.AwinAuthFailure) as caught:
+        portal_apply.AwinFreshBrowserTransport(driver=driver).authenticate_and_verify()
+    assert sentinel not in "".join(traceback.format_exception(caught.value))
+    assert caught.value.__cause__ is None and caught.value.__context__ is None
+    assert caught.value.failed_step == "navigate_publisher_directory"
 
 
 def test_api_only_identity_cannot_authorize_terms_or_join(portal_apply):
