@@ -28,8 +28,10 @@ import socket
 import sqlite3
 import ssl
 import stat
+import struct
 import threading
 import time
+import zlib
 from urllib.parse import urlsplit, quote, unquote, parse_qs, parse_qsl, urlencode
 
 import jwt
@@ -80,6 +82,14 @@ CHANNEL_READ = 'rook.channel.read'
 CHANNEL_WRITE = 'rook.channel.write'
 FILE_LIMIT = 1048576
 FILE_HTTP_LIMIT = 1500000
+FINCH_PNG_LIMIT = 3 * FILE_LIMIT
+FINCH_PNG_ENCODED_LIMIT = 4194304
+FINCH_PNG_HTTP_LIMIT = FINCH_PNG_ENCODED_LIMIT + 32768
+PNG_DIMENSION_LIMIT = 4096
+PNG_PIXEL_LIMIT = 4194304
+PNG_INFLATED_LIMIT = 16781312  # 4 Mi pixels * RGBA plus at most 4096 filter bytes.
+PNG_METADATA_LIMIT = 262144  # Aggregate raw chunks plus expanded text.
+PNG_CHUNK_LIMIT = 1024
 MIME_EXTENSIONS = {'text/plain': {'.txt'}, 'application/json': {'.json'}, 'application/pdf': {'.pdf'},
                    'image/png': {'.png'}, 'image/jpeg': {'.jpg', '.jpeg'}, 'image/webp': {'.webp'}}
 
@@ -346,7 +356,7 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
         if file is not None:
             if method != 'POST' or not path.endswith('/messages'):
                 raise RpcError(-32602, 'InvalidFileRoute')
-            body, headers['Content-Type'] = multipart_body(payload, file)
+            body, headers['Content-Type'] = multipart_body(payload, file, finch=finch is not None)
         conn.request(method, '/api/v10' + path, body=body, headers=headers)
         response = conn.getresponse()
         maximum = 4194304 if guild_scoped else 262144
@@ -708,6 +718,16 @@ def file_send_request(body):
             and isinstance(arguments, dict) and 'file' in arguments) if isinstance(body, dict) and isinstance(params, dict) else False
 
 
+def finch_png_send_request(body):
+    if not file_send_request(body) or body['params']['name'] != 'reply_to_finch_request':
+        return False
+    value = body['params']['arguments']['file']
+    try:
+        return isinstance(value, dict) and file_media_type(value.get('content_type')) == 'image/png'
+    except RpcError:
+        return False
+
+
 def file_media_type(value):
     """Allowlisted media type plus at most one UTF-8 charset on UTF-8 text only.
 
@@ -735,14 +755,189 @@ def validate_filename(filename, mime):
     return mime
 
 
-def validate_file(filename, mime, data):
-    mime = validate_filename(filename, mime)
-    if not isinstance(data, bytes) or not 1 <= len(data) <= FILE_LIMIT:
-        raise RpcError(-32602, 'FileSizeRefused')
+def scan_file_markers(data):
     # Conservative markers, not a malware/PHI detector. Only non-sensitive files may be supplied.
     if re.search(rb'(PRIVATE KEY|Authorization\s*:|Bearer\s+|(?:password|api[_-]?key|client_secret)\s*[:=]|'
                  rb'\b(?:patient|dob|ssn|diagnosis|medical record)\b|<(?:html|script)\b|/(?:JavaScript|JS|Launch|OpenAction|AA|EmbeddedFile)\b)', data, re.I):
         raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+
+
+def file_limit(mime, *, finch=False):
+    return FINCH_PNG_LIMIT if finch and file_media_type(mime) == 'image/png' else FILE_LIMIT
+
+
+def bounded_png_inflate(parts, limit):
+    """One complete zlib stream; no unbounded decompress/flush or concatenated streams."""
+    decoder, total = zlib.decompressobj(), 0
+    for part in parts:
+        # Input and output windows cap transient allocations, including unconsumed_tail.
+        for offset in range(0, len(part), 65536):
+            pending = part[offset:offset + 65536]
+            while pending:
+                if decoder.eof:
+                    raise ValueError('trailing compressed bytes')
+                output = decoder.decompress(pending, min(65536, limit + 1 - total))
+                total += len(output)
+                if total > limit or decoder.unused_data:
+                    raise ValueError('expanded size or extra stream')
+                pending = decoder.unconsumed_tail
+                if output:
+                    yield output
+    if not decoder.eof:
+        raise ValueError('incomplete compressed stream')
+
+
+def png_decoded_rows(parts, width, height, channels):
+    """Real streaming 8-bit RGB/RGBA decoder: reconstruct samples, discard each row.
+
+    Work is bounded to 4 Mi pixels / 16 Mi sample operations. No bitmap allocation;
+    At most three 16 KiB row copies plus 64 KiB windows and a row assembly buffer.
+    """
+    if (channels not in (3, 4) or not 1 <= width <= PNG_DIMENSION_LIMIT
+            or not 1 <= height <= PNG_DIMENSION_LIMIT or width * height > PNG_PIXEL_LIMIT):
+        raise ValueError('dimensions')
+    stride, rows, pending = width * channels, 0, bytearray()
+    expected = (stride + 1) * height
+    if expected > PNG_INFLATED_LIMIT:
+        raise ValueError('expanded image size')
+    previous = bytes(stride)
+    for output in bounded_png_inflate(parts, expected):
+        pending.extend(output)
+        while len(pending) >= stride + 1:
+            mode, row = pending[0], bytearray(pending[1:stride + 1])
+            del pending[:stride + 1]
+            if mode > 4 or rows >= height:
+                raise ValueError('filter or row count')
+            if mode:
+                for i in range(stride):
+                    left = row[i - channels] if i >= channels else 0
+                    up = previous[i]
+                    upper_left = previous[i - channels] if i >= channels else 0
+                    if mode == 1:
+                        predictor = left
+                    elif mode == 2:
+                        predictor = up
+                    elif mode == 3:
+                        predictor = (left + up) // 2
+                    else:
+                        p = left + up - upper_left
+                        a, b, c = abs(p - left), abs(p - up), abs(p - upper_left)
+                        predictor = left if a <= b and a <= c else up if b <= c else upper_left
+                    row[i] = (row[i] + predictor) & 255
+            previous = bytes(row)
+            rows += 1
+            yield previous
+    if pending or rows != height:
+        raise ValueError('sample count')
+
+
+def png_text(kind, payload, remaining):
+    keyword, rest = payload.split(b'\x00', 1)
+    if (not 1 <= len(keyword) <= 79 or keyword.startswith(b' ') or keyword.endswith(b' ')
+            or b'  ' in keyword or any(not (32 <= c <= 126 or 161 <= c <= 255) for c in keyword)):
+        raise ValueError('keyword')
+    if kind == b'zTXt':
+        if not rest or rest[0] != 0:
+            raise ValueError('text compression method')
+        text = b''.join(bounded_png_inflate([rest[1:]], remaining))
+    elif kind == b'iTXt':
+        if len(rest) < 2 or rest[0] not in (0, 1) or rest[1] != 0:
+            raise ValueError('international text method')
+        language, translated, text = rest[2:].split(b'\x00', 2)
+        if not re.fullmatch(rb'[A-Za-z0-9-]*', language):
+            raise ValueError('language')
+        translated.decode('utf-8')
+        if rest[0]:
+            text = b''.join(bounded_png_inflate([text], remaining))
+        text.decode('utf-8')
+    else:
+        text = rest
+    if b'\x00' in text or len(text) > remaining:
+        raise ValueError('text bounds')
+    return text
+
+
+def validate_finch_png(data):
+    """Narrow PNG-only image-aware guard; unknown variants/chunks fail closed."""
+    try:
+        if len(data) > FINCH_PNG_LIMIT or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('signature')
+        offset, count, metadata_size = 8, 0, 0
+        seen, parts, ended_idat = set(), [], False
+        width = height = channels = 0
+        while offset < len(data):
+            count += 1
+            if count > PNG_CHUNK_LIMIT or len(data) - offset < 12:
+                raise ValueError('chunk bounds')
+            length = struct.unpack_from('>I', data, offset)[0]
+            kind = data[offset + 4:offset + 8]
+            end = offset + length + 12
+            if end > len(data) or not re.fullmatch(rb'[A-Za-z]{4}', kind) or kind[2] & 32:
+                raise ValueError('chunk length or type')
+            payload = data[offset + 8:end - 4]
+            crc = zlib.crc32(payload, zlib.crc32(kind))
+            if struct.unpack_from('>I', data, end - 4)[0] != crc:
+                raise ValueError('CRC')
+            if count == 1 and kind != b'IHDR':
+                raise ValueError('header first')
+            if kind == b'IHDR':
+                if count != 1 or length != 13:
+                    raise ValueError('header')
+                width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', payload)
+                if (depth != 8 or color not in (2, 6) or compression or filtering or interlace
+                        or not 1 <= width <= PNG_DIMENSION_LIMIT or not 1 <= height <= PNG_DIMENSION_LIMIT
+                        or width * height > PNG_PIXEL_LIMIT):
+                    raise ValueError('unsupported image or dimensions')
+                channels = 3 if color == 2 else 4
+            elif kind == b'IDAT':
+                if ended_idat:
+                    raise ValueError('nonconsecutive image data')
+                parts.append(payload)
+            elif kind == b'IEND':
+                if length or not parts or end != len(data):
+                    raise ValueError('end or trailing bytes')
+            else:
+                if parts:
+                    ended_idat = True
+                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'gAMA', b'cHRM', b'sRGB', b'pHYs'}:
+                    raise ValueError('unsupported chunk')
+                if kind not in {b'tEXt', b'zTXt', b'iTXt'}:
+                    sizes = {b'gAMA': 4, b'cHRM': 32, b'sRGB': 1, b'pHYs': 9}
+                    if parts or kind in seen or length != sizes[kind]:
+                        raise ValueError('metadata order or size')
+                    if ((kind == b'gAMA' and not int.from_bytes(payload, 'big'))
+                            or (kind == b'sRGB' and payload[0] > 3)
+                            or (kind == b'pHYs' and payload[8] > 1)):
+                        raise ValueError('metadata value')
+                metadata_size += length
+                if metadata_size > PNG_METADATA_LIMIT:
+                    raise ValueError('metadata bounds')
+                if kind in {b'tEXt', b'zTXt', b'iTXt'}:
+                    text = png_text(kind, payload, PNG_METADATA_LIMIT - metadata_size)
+                    # Count expanded text too; never hide compressed metadata from the guard.
+                    metadata_size += len(text)
+                    scan_file_markers(text)
+            # Only IDAT (validated by CRC and real decode below) is excluded.
+            if kind != b'IDAT':
+                scan_file_markers(data[offset:end])
+            seen.add(kind)
+            offset = end
+        if b'IEND' not in seen:
+            raise ValueError('missing end')
+        for _row in png_decoded_rows(parts, width, height, channels):
+            pass
+    except (ValueError, zlib.error, struct.error) as exc:
+        raise RpcError(-32602, 'InvalidOrUnsupportedPNG') from exc
+
+
+def validate_file(filename, mime, data, *, finch=False):
+    mime = validate_filename(filename, mime)
+    if not isinstance(data, bytes) or not 1 <= len(data) <= file_limit(mime, finch=finch):
+        raise RpcError(-32602, 'FileSizeRefused')
+    if finch and mime == 'image/png':
+        validate_finch_png(data)
+        return {'filename': filename, 'content_type': mime, 'data': data}
+    scan_file_markers(data)
     if mime in {'text/plain', 'application/json'}:
         try:
             text = data.decode('utf-8')
@@ -760,21 +955,22 @@ def validate_file(filename, mime, data):
     return {'filename': filename, 'content_type': mime, 'data': data}
 
 
-def upload_file(value):
+def upload_file(value, *, finch=False):
     if not isinstance(value, dict) or set(value) != {'filename', 'content_type', 'content_base64'}:
         raise RpcError(-32602, 'InvalidFileParams')
     encoded = value['content_base64']
-    if not isinstance(encoded, str) or len(encoded) > 1398104:
+    limit = file_limit(value['content_type'], finch=finch)
+    if not isinstance(encoded, str) or len(encoded) > 4 * ((limit + 2) // 3):
         raise RpcError(-32602, 'FileSizeRefused')
     try:
         data = base64.b64decode(encoded, validate=True)
     except (ValueError, TypeError) as exc:
         raise RpcError(-32602, 'InvalidFileBase64') from exc
-    return validate_file(value['filename'], value['content_type'], data)
+    return validate_file(value['filename'], value['content_type'], data, finch=finch)
 
 
-def multipart_body(payload, file):
-    file = validate_file(file['filename'], file['content_type'], file['data'])
+def multipart_body(payload, file, *, finch=False):
+    file = validate_file(file['filename'], file['content_type'], file['data'], finch=finch)
     boundary = 'rook-' + secrets.token_hex(24)
     data = (f'--{boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n'.encode()
             + canonical(payload).encode() +
@@ -783,11 +979,11 @@ def multipart_body(payload, file):
     return data, 'multipart/form-data; boundary=' + boundary
 
 
-def attachment_target(metadata, channel):
+def attachment_target(metadata, channel, *, finch=False):
     """Only a REST-verified attachment's canonical Discord CDN URL; no caller URL."""
-    validate_filename(metadata.get('filename'), metadata.get('content_type'))
+    mime = validate_filename(metadata.get('filename'), metadata.get('content_type'))
     size = metadata.get('size')
-    if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= FILE_LIMIT:
+    if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= file_limit(mime, finch=finch):
         raise RpcError(-32602, 'FileSizeRefused')
     identity = snowflake(metadata.get('id'))
     value = metadata.get('url')
@@ -808,8 +1004,8 @@ def attachment_target(metadata, channel):
     return value
 
 
-def download_attachment(metadata, channel):
-    target = attachment_target(metadata, channel)
+def download_attachment(metadata, channel, *, finch=False):
+    target = attachment_target(metadata, channel, finch=finch)
     host, address, path = callback_target(target)
     conn = PinnedHTTPSConnection(host, address)
     try:
@@ -823,30 +1019,30 @@ def download_attachment(metadata, channel):
         if (response.status != 200 or response_mime != file_media_type(metadata['content_type'])
                 or (declared is not None and (not declared.isdigit() or int(declared) != metadata['size']))):
             raise RpcError(-32030, 'AttachmentResponseRefused')
-        data = response.read(FILE_LIMIT + 1)
+        data = response.read(file_limit(metadata['content_type'], finch=finch) + 1)
         if len(data) != metadata['size']:
             raise RpcError(-32030, 'AttachmentSizeMismatch')
-        return validate_file(metadata['filename'], metadata['content_type'], data)['data']
+        return validate_file(metadata['filename'], metadata['content_type'], data, finch=finch)['data']
     finally:
         conn.close()
 
 
-def verified_file(message, identity, channel):
+def verified_file(message, identity, channel, *, finch=False):
     matches = [a for a in message.get('attachments', []) if a.get('id') == identity]
     if len(matches) != 1:
         raise RpcError(-32602, 'AttachmentNotOnMessage')
     metadata = matches[0]
-    attachment_target(metadata, channel)
-    data = download_attachment(metadata, channel)
+    attachment_target(metadata, channel, finch=finch)
+    data = download_attachment(metadata, channel, finch=True) if finch else download_attachment(metadata, channel)
     if len(data) != metadata['size']:
         raise RpcError(-32030, 'AttachmentSizeMismatch')
-    validate_file(metadata['filename'], metadata['content_type'], data)
+    validate_file(metadata['filename'], metadata['content_type'], data, finch=finch)
     return metadata, data
 
 
 def finch_attachment_custody(metadata, channel, sha256):
     """No bytes/URL in receipts; exact gateway metadata binds verified CDN bytes."""
-    target = attachment_target(metadata, channel)
+    target = attachment_target(metadata, channel, finch=True)
     if not isinstance(sha256, str) or not re.fullmatch(r'[a-f0-9]{64}', sha256):
         raise RpcError(-32602, 'InvalidAttachmentDigest')
     return {'id': metadata['id'], 'filename': metadata['filename'],
@@ -1362,7 +1558,15 @@ class Application:
         if config.finch:
             self.tools = json.loads(canonical([TOOL_DEFINITION, COMMUNICATION_TOOLS[0]]).replace('rook', 'finch').replace('Rook', 'Finch'))
             self.tools[0]['inputSchema']['properties']['file'] = json.loads(canonical(COMMUNICATION_TOOLS[1]['inputSchema']['properties']['file']))
+            schema = self.tools[0]['inputSchema']['properties']['file']
+            schema['properties']['content_base64']['maxLength'] = FINCH_PNG_ENCODED_LIMIT
+            schema['oneOf'] = [
+                {'properties': {'content_type': {'const': 'image/png'},
+                                'content_base64': {'maxLength': FINCH_PNG_ENCODED_LIMIT}}},
+                {'properties': {'content_type': {'enum': [mime for mime in MIME_EXTENSIONS if mime != 'image/png']},
+                                'content_base64': {'maxLength': 1398104}}}]
             self.tools[0]['description'] = ('Reply once in the delivered request origin channel only; optional one bounded non-sensitive file. '
+                'PNG only: up to 3MiB, 8-bit noninterlaced RGB/RGBA, 4096 per dimension / 4194304 pixels; other files 1MiB. '
                 'Requires verified JWT scope AND RBAC permission finch.replies.write. No destination override or uncertain resend.')
             security = [{'type': 'oauth2', 'scopes': ['finch.replies.write']}]
             self.tools[0].update(securitySchemes=security,
@@ -1897,7 +2101,7 @@ class Application:
                 or not arguments['text'].strip() or len(arguments['text']) > 1850):
             raise RpcError(-32602, 'InvalidParams')
         request_id, text = arguments['request_id'], arguments['text']
-        file = upload_file(arguments['file']) if self.config.finch and 'file' in arguments else None
+        file = upload_file(arguments['file'], finch=True) if self.config.finch and 'file' in arguments else None
         file_binding = ({'filename': file['filename'], 'content_type': file['content_type'], 'byte_length': len(file['data']),
                          'sha256': hashlib.sha256(file['data']).hexdigest()} if file else None)
         wire = f'{text}\n-# {REPLY_KIND} · {request_id}'
@@ -1960,7 +2164,7 @@ class Application:
                         if not isinstance(items, list) or len(items) != (1 if file else 0):
                             raise ValueError('attachment count mismatch')
                         if file:
-                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL)
+                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL, finch=True)
                             custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest())
                             if any(custody[key] != expected for key, expected in file_binding.items()):
                                 raise ValueError('attachment bytes or metadata mismatch')
@@ -2143,10 +2347,14 @@ def make_handler(application, allowed_hosts):
                     probe = application.config.metadata_only and self.path == '/mcp'
                     length = int(self.headers.get('Content-Length', '0' if probe else '-1'))
                     if not (probe and length == 0):
-                        if not 0 < length <= FILE_HTTP_LIMIT or self.headers.get_content_type() != 'application/json':
+                        maximum = FINCH_PNG_HTTP_LIMIT if application.config.finch else FILE_HTTP_LIMIT
+                        if not 0 < length <= maximum or self.headers.get_content_type() != 'application/json':
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})
                             return
                         body = json.loads(self.rfile.read(length))
+                        if length > FILE_HTTP_LIMIT and not (application.config.finch and finch_png_send_request(body)):
+                            self.respond(400, {}, {'error': 'bounded_json_body_required'})
+                            return
                         if length > 32768 and not (file_send_request(body) or discord_api_request(body)
                                                    or (length <= 250000 and github_comment_request(body))):
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})

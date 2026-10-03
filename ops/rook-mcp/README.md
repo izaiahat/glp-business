@@ -112,11 +112,57 @@ GitHub comments or GitHub/Linear read tools are added.
 
 Correlated reply arguments are `request_id`, bounded `text` and optionally **one**
 `file` with `filename`, `content_type`, `content_base64`; no destination or operation ID.
-Existing upload filters, MIME/extension pairs, 1MiB decoded limit, 1.5MB file-envelope
-limit, multipart encoding and pinned no-redirect verified CDN bytes are reused.
+Existing upload filters, MIME/extension pairs, multipart encoding and pinned
+no-redirect verified CDN bytes are reused. **Only Finch PNG** gains a 3MiB
+(3,145,728-byte) decoded-file cap / 4,194,304 base64-character cap. The HTTP
+JSON envelope is at most 4,227,072 bytes, and the >1,500,000-byte exception
+requires `reply_to_finch_request` with `image/png` on the Finch profile. Upload,
+multipart revalidation, verified CDN metadata/download and final custody use the
+same scoped cap. Finch non-PNG and all non-Finch files stay 1MiB; their existing
+1,500,000-byte envelope ceiling and raw marker/signature behavior remain intact.
 Ordinary HTTP JSON retains 32KiB. Use a genuine safe `.txt` report; HTML, `.md`, DOCX,
 ZIP and executable/sensitive bytes remain denied. Marker filters are not a complete
-malware/PHI safety guarantee. Mentions and embeds are suppressed on Finch replies.
+malware/PHI safety guarantee. Automatic mentions and embeds remain suppressed;
+the existing exact literal Kael-tag allowlist is unchanged.
+
+### Finch PNG validation restrictions (source only)
+
+The stdlib-only streaming decoder accepts **8-bit, noninterlaced RGB or RGBA**
+(color types 2/6, compression/filter methods 0). It validates every chunk length,
+CRC and reserved type bit; first/unique IHDR, consecutive IDAT, empty final IEND,
+no trailing bytes, a single complete zlib stream and exact decoded scanline count.
+All five PNG row filters really reconstruct samples, using the preceding row.
+It does not allocate a full bitmap or color-manage the image.
+
+Bounds: 4096 per dimension; 4,194,304 pixels; at most 16,781,312 inflated scanline
+bytes (including filter bytes); 1024 chunks; 64KiB compressed/output windows;
+at most three 16KiB decoded-row copies plus a bounded row-assembly buffer. At most
+16Mi sample reconstructions bound CPU work (no wall-clock deadline). The parser
+retains at most the 3MiB input's copied IDAT payloads; transport also holds bounded
+JSON/base64/multipart copies, so the decoder's sub-512KiB measured allocation is
+**not** a process-wide memory cap. No dependency or live environment install.
+
+Only supported ancillary chunks are `tEXt`, `zTXt`, `iTXt`, `gAMA`, `cHRM`, `sRGB`
+and `pHYs`; fixed-size chunks must be unique and precede IDAT. Text may occur before
+or after IDAT. Raw ancillary payload plus expanded text has a **shared 256KiB**
+budget (uncompressed text is conservatively counted twice). zTXt/iTXt expansion
+uses the same bounded single-stream inflater; text syntax/UTF-8 are checked.
+The unchanged sensitive/active marker regex scans every non-IDAT chunk and
+actual expanded text. Only successfully decoded IDAT image data avoids raw-byte
+marker scanning; invalid images and unsupported metadata fail closed.
+
+Grayscale/indexed/palette, 16-bit, interlaced and APNG files are refused, as are
+PLTE, transparency keys (`tRNS`), ICC profiles (`iCCP`), EXIF (`eXIf`), timestamps
+and any unknown chunks. These compatibility restrictions are deliberate: this is
+not a general PNG implementation, OCR or reliable PHI/secret/malware detection.
+The original avatar/banner bytes are unavailable locally; their formats, hashes,
+claimed compressed-byte marker offset and real compatibility are not verified.
+
+`FinchIdentity.policy_fields()` and stored request/receipt hashes are unchanged;
+its `correlated_file_limit` remains the generic 1MiB cap. The PNG-only source
+exception is explicit above and in the tool schema, not a state migration.
+Independent source review and future exact owner approval remain required;
+no existing requests, runtime files, deployment or publication are changed.
 
 The pre-effect digest binds origin, exact text/footer and normalized file metadata/bytes.
 POST and GET author/context/content plus attachment ID/name/type/size/URL and downloaded
