@@ -1624,8 +1624,11 @@ def package_build_receipt(args: argparse.Namespace, rows: list[dict[str, str]]) 
     if sha_bytes(raw) != args.expected_build_receipt_sha256:
         fail("package_build_receipt_hash_mismatch")
     receipt = json.loads(raw)
-    if not isinstance(receipt, dict) or receipt.get("schema") not in ("glp-d1-release-result-v1", "glp-f06-distributed-release-result-v1") or receipt.get("status") != "PASS":
+    if not isinstance(receipt, dict) or receipt.get("schema") not in ("glp-d1-release-result-v1", "glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") or receipt.get("status") != "PASS":
         fail("package_build_receipt_invalid")
+    if receipt.get('schema') == 'glp-affiliate-sync-release-result-v1':
+        from glp_affiliate_release import validate_build_evidence
+        validate_build_evidence(receipt, rows)
     if receipt.get("schema") == "glp-f06-distributed-release-result-v1":
         f06_receipt_evidence(receipt, rows)
     if receipt.get("head") != args.site_head:
@@ -1812,7 +1815,7 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
         if sorted(members) != sorted(f for f in files if f.startswith(name + "/")):
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
-    expected_functions = 18 if gate.get("schema") == "glp-f06-distributed-release-result-v1" else 17
+    expected_functions = 18 if gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") else 17
     if (closures["functions"]["file_count"] != expected_functions
             or (expected_functions == 18 and sha_file(source / "functions/api/postback/xentraffic.js") !=
                 "04e1205c2b3461d0ca8aa7106b94aea4885bdcaf3fa4ab059d0afe040d03fa77")):
@@ -1956,7 +1959,7 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
             if sha_file(release / name) != digest:
                 fail("current_release_copy_drift")
         compiled = current_compile(compile_root)
-        if (gate.get("schema") == "glp-f06-distributed-release-result-v1"
+        if (gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1")
                 and not any(r["route"] == "/api/postback/xentraffic" and r["modules"] for r in compiled["routes"])):
             fail("f06_compiled_xentraffic_route_missing")
         for name, closure in binding["runtime"].items():
@@ -2019,12 +2022,16 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
 
 def current_approval(args: argparse.Namespace, prepared: dict[str, Any]) -> dict[str, Any]:
     review = current_json(Path(args.approval), args.expected_approval_sha256)
-    if (review.get("schema") != "glp42-designated-astra-release-review-v1"
+    operator_sync = review.get('schema') == 'glp-affiliate-sync-operator-release-v1'
+    if operator_sync:
+        from glp_affiliate_release import validate_operator_release
+        validate_operator_release(review, prepared)
+    if (review.get("schema") not in ("glp42-designated-astra-release-review-v1", "glp-affiliate-sync-operator-release-v1")
             or review.get("verdict") != "APPROVE" or review.get("release_accepted") is not True
             or review.get("blocking_findings") != []):
         fail("current_release_not_approved")
     reviewer = review.get("reviewer", {})
-    if (reviewer.get("model") not in ("gpt-6-astra-900k", "gpt-6-astra") or reviewer.get("provider") != "openai-codex"
+    if not operator_sync and (reviewer.get("model") not in ("gpt-6-astra-900k", "gpt-6-astra") or reviewer.get("provider") != "openai-codex"
             or "not an author" not in reviewer.get("role", "")
             or reviewer.get("authority") != list(CURRENT_AUTHORITIES)[1]
             or reviewer.get("original_target_authority") != list(CURRENT_AUTHORITIES)[0]):

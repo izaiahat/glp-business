@@ -102,7 +102,7 @@ jobs:
           PYTHONPATH: systems/analytics-brain:scripts
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py tests/test_glp76_review_publication_date.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
@@ -116,7 +116,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cleanup_inbox_reader.py tests/test_cleanup_affiliate_decisions.py tests/test_glp113_imap_sent_classification.py
       - name: Host intent and continuation custody (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)

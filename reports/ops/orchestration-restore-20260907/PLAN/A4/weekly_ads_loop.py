@@ -385,9 +385,11 @@ def main():
     if args.baseline and not args.baseline.resolve().is_relative_to(HERE / 'runtime'):
         parser.error('baseline_must_remain_inside_A4_runtime')
     now = datetime.now(timezone.utc)
-    if args.mode == 'weekly' and not due(now):
-        print('[SILENT]')
-        return 0
+    scheduled_slot = due(now)
+    off_schedule_manual = args.mode == 'weekly' and not scheduled_slot
+    # Registered run-now still observes providers and writes the full report.
+    # Off-slot acceptance never reserves/emits the scheduled card or resets
+    # the daily stop-loss baseline; scheduler remains the sole delivery owner.
     # Pin verification is independent of monitor scheduler adoption, and fails closed.
     modules = dependencies()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -410,12 +412,13 @@ def main():
     (args.output / 'WEEKLY-CARD.md').write_text(text + '\n')
     save(args.output / 'CARD-LINT.json', modules['formatter'].lint(text, 'report'))
     save(args.output / 'RUN.json', {'mode': args.mode, 'captured_live': not bool(args.capture),
+         'off_schedule_manual': off_schedule_manual,
          'natural_execution_verified': False, 'delivery_verified': False,
          'platform_writes': 0, 'direct_sends': 0, 'finished_at_utc': datetime.now(timezone.utc).isoformat()})
-    if args.baseline and args.capture is None and args.mode != 'manual' and analysis['fresh']:
+    if args.baseline and args.capture is None and args.mode != 'manual' and not off_schedule_manual and analysis['fresh']:
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
         save(args.baseline, analysis['daily_stop_loss'])
-    emit = args.mode == 'weekly' and args.capture is None
+    emit = args.mode == 'weekly' and args.capture is None and scheduled_slot
     if emit:
         emit = reserve_week(HERE / 'weekly-emissions.json', capture['windows']['current']['start'], hashlib.sha256(text.encode()).hexdigest())
     print(text if emit else '[SILENT]')

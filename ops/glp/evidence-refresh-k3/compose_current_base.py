@@ -30,6 +30,10 @@ def merge_packets(er, release, rows):
         patch_path = packet_path.with_name('DATA-PATCH.json')
         consumed.update({str(p): er.sha(p) for p in (packet_path, patch_path)})
         packet, patch = er.read(packet_path), er.read(patch_path)
+        for path, digest in packet.get('registered_inputs', {}).items():
+            if er.sha(path) != digest:
+                raise RuntimeError('REGISTERED_TAXONOMY_INPUT_DRIFT')
+            consumed[path] = digest
         if packet.get('status') != 'PACKET_READY' or packet.get('program_id') != pid:
             raise RuntimeError('PACKET_NOT_READY:' + pid)
         if packet.get('depends_on'):

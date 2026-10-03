@@ -13,6 +13,9 @@ on:
       - systems/seo-blog-machine/scripts/build_opus_article_release.py
       - tests/test_glp80_k3_prepared_consumer.py
       - tests/test_glp80_daily_progress.py
+      - tests/test_glp80_registered_taxonomy_intake.py
+      - site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py
+      - site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json
       - .github/workflows/glp80-k3-source.yml
 permissions:
   contents: read
@@ -37,5 +40,5 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           printf 'K3_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
-          .venv/bin/python -B -m pytest --collect-only -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py
+          .venv/bin/python -B -m pytest --collect-only -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp80_k3_prepared_consumer.py tests/test_glp80_daily_progress.py tests/test_glp80_registered_taxonomy_intake.py

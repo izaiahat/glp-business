@@ -11,6 +11,20 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def test_affiliate_run_root_is_narrow_and_still_requires_publication_proof(tmp_path):
+    import re
+    source = ROOT/'scripts/glp_price_index_weekly.py'
+    node = next(n for n in ast.parse(source.read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='_prepared_base_links')
+    business=tmp_path/'business';(business/'reports/ops').mkdir(parents=True)
+    namespace={'Path':Path,'Any':object,'re':re,'BUSINESS':business,'CURRENT_BASE':business/'pointer.json'}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),namespace)
+    fn=namespace['_prepared_base_links'];pointer={'site_head':'a'*40}
+    for stamp,reason in [('20261003T030854Z','publication_path_invalid'),('arbitrary','prepared_root_invalid')]:
+        release=business/'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'/stamp/'prepared/release'
+        release.mkdir(parents=True)
+        with pytest.raises(RuntimeError,match=reason):fn(pointer,release,tmp_path/'wrong-manifest',tmp_path/'wrong-receipt',{},[])
+
+
 def fixture(tmp_path):
     source = (ROOT / 'scripts/glp_price_index_weekly.py').read_text()
     tree = ast.parse(source)
