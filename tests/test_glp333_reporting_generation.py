@@ -7,7 +7,7 @@ locks, cohort switch and receiving guards are always the maintained implementati
 """
 import ast
 import copy
-from contextlib import nullcontext
+from contextlib import nullcontext, contextmanager
 import hashlib
 import json
 import os
@@ -84,6 +84,17 @@ class PortableScheduler:
 
     def _jobs_lock_file(self):
         return self.registry.parent / '.jobs.lock'
+
+    @contextmanager
+    def _jobs_lock(self, *, require_cross_process=False):
+        # Labelled test double; native acceptance uses cron.jobs itself.
+        assert require_cross_process
+        with self._jobs_file_lock:
+            self.native_lease = True
+            try:
+                yield
+            finally:
+                self.native_lease = False
 
     def _fire_job_lock(self, jid):
         return nullcontext(True)
