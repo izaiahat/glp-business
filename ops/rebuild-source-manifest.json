@@ -2149,7 +2149,7 @@
         "GLP-317 Awin paused source review"
       ],
       "kind": "script",
-      "sha256": "e45c676a89e5d08389e4ad455db3f19ce546240562c1c7ed77ff6c1e96b9cbd4"
+      "sha256": "bd8093ecd1b048edcfe28719620b7dba06c23bc865c7bf792b1ec320885d303a"
     },
     "scripts/maxbounty_pin_release.py": {
       "callers": [],
@@ -4548,14 +4548,14 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "script",
-      "sha256": "88a5c3ef91e7c56d77a08f62cb06f5334a134fd11828fea3920706cdac01ed2b"
+      "sha256": "b5fb424e74b8cedce34117dd93db637da2f845e5597f26ade5ffd35bfa4b797d"
     },
     "tests/test_glp268_fresh_browser_callers.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "6a0056c76414755c2af65363769949de3e31a7e2c3dc020f814c95983bee3daa"
+      "sha256": "4b8fadfda0613940221217023ce3d9e3852fc8ed1738bc73859ed10dac6d126d"
     },
     "tests/test_glp341_native_registry_lock.py": {
       "callers": [

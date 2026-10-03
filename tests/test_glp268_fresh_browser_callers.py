@@ -183,6 +183,40 @@ def test_awin_auth_report_names_fresh_browser_not_saved_profile(portal_apply):
     assert report["profile"] == "" and report["cdp_endpoint"] == ""
 
 
+def _awin_login_wall_driver():
+    page = types.SimpleNamespace(url="https://id.awin.com/u/login/identifier")
+    page.locator = lambda selector: types.SimpleNamespace(
+        count=lambda: 1 if "email" in selector else 0,
+        nth=lambda index: types.SimpleNamespace(is_visible=lambda: True))
+    return types.SimpleNamespace(page=page, goto=lambda url: None, wait=lambda ms: None,
+                                 current_url=lambda: page.url, close=lambda: None)
+
+
+class NoOsAccess:
+    def __getattr__(self, name):
+        raise AssertionError(f"os.{name} used during fresh-browser auth")
+
+
+def test_awin_login_wall_uses_no_credential_file_or_captcha_solver(portal_apply, monkeypatch):
+    # Regression: a fresh browser at the login form must not fall back to the
+    # credential-file password or the paid CAPTCHA solver; vault stage only.
+    monkeypatch.setattr(portal_apply, "os", NoOsAccess())
+    transport = portal_apply.AwinFreshBrowserTransport(
+        driver=_awin_login_wall_driver(), api_identity=API_IDENTITY)
+    report = transport.authenticate_and_verify()
+    assert (report["status"], report["identity_source"]) == ("API_VERIFIED", "api")
+    assert not hasattr(transport, "_private_login")
+    assert not hasattr(transport, "captcha_solver")
+
+
+def test_awin_login_wall_without_api_identity_stops_for_vault_stage(portal_apply):
+    transport = portal_apply.AwinFreshBrowserTransport(driver=_awin_login_wall_driver())
+    with pytest.raises(portal_apply.AwinAuthFailure) as caught:
+        transport.authenticate_and_verify()
+    assert (caught.value.failed_step, caught.value.detail) == (
+        "vault_login_required", "fresh_vault_login_stage_not_integrated")
+
+
 def test_katalys_executor_uses_fresh_browser_and_blocks_on_login_wall(portal_apply):
     login_page = types.SimpleNamespace(
         goto=lambda url: {"http_status": 200}, wait=lambda ms: None,

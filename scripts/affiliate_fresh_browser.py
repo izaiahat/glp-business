@@ -6,7 +6,8 @@ Affiliate callers used to attach to long-lived Chrome listeners
 ``~/.hermes/browser-profiles``. A caller now uses the network's API first and,
 only where no API exists, this helper: one throwaway headless browser per job
 with an empty context (no ``user_data_dir``, no ``storage_state``), closed when
-the job ends. Whatever login the job needs happens inside that browser.
+the job ends. This helper never reads credentials: a login, where one is
+needed, comes only from the origin-bound vault stage.
 
 ``refuse_persistent`` is the guard: any CDP endpoint or saved-profile value a
 caller is still handed is refused rather than silently attached or ignored.
