@@ -2196,7 +2196,7 @@
         "scripts/f12_generator_archiver.py"
       ],
       "kind": "source",
-      "sha256": "0bccec6b6ee351d08a0ba635dbcb8b16897816d1bf50cef1bd464866a7fe4b0b"
+      "sha256": "eea1ace0e6541335e878ef09014c5332afc754be1aa1cce9228ac1614b39e01b"
     },
     "scripts/result_contract.py": {
       "callers": [],

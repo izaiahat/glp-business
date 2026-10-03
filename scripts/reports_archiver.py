@@ -9554,7 +9554,8 @@ def _reuse_source_archive(source_relative: Path, before: dict[str, Any], content
         archive = BUSINESS / row['r2_key']
         if not archive.exists():
             continue
-        if archive.resolve(strict=True) != archive or archive.is_symlink() or not archive.is_file():
+        if (archive.resolve(strict=True) != archive or archive.is_symlink()
+                or not archive.is_file() or archive.stat().st_nlink != 1):
             raise RuntimeError('archive_reuse_namespace_invalid')
         def check(write_fd, worker_deadline):
             try:
@@ -10535,7 +10536,8 @@ def _reuse_cron_archive(row: dict[str, Any], *, run_context: RunContext | None,
         archive = BUSINESS / cached['r2_key']
         if not archive.exists():
             continue
-        if archive.resolve(strict=True) != archive or archive.is_symlink() or not archive.is_file():
+        if (archive.resolve(strict=True) != archive or archive.is_symlink()
+                or not archive.is_file() or archive.stat().st_nlink != 1):
             raise RuntimeError('archive_reuse_namespace_invalid')
         def check(_fd, worker_deadline):
             try:
