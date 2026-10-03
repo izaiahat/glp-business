@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 750,
+  "tracked_count": 751,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -1235,7 +1235,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "2b03351bd524600f77d7d8579f0e96186bb236fc1f3342ac673c2a5cedf7c4fe"
+      "sha256": "a1e1a07dd9a7dae55c64d7807681223c79c79287a5934b5457f95e6c94b85a6e"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2185,7 +2185,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "e1fdb7358b7f2f0df15207bde163bee609879ada55a01172b2715d80b26871bd"
+      "sha256": "435d58aa46ab9fae2d2ec443212ec87f9fa11e1e6e7c2251ba50c5d775679fa9"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3369,7 +3369,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "e883b4c303acd8e95c27cf0043cf9bb9b0ec1f026c44f08ebcafa1f6d9ac729b"
+      "sha256": "a46e00c31cd0cb4b3d9c07b2042655fa1e74a015434d1b0d58d7c8110738f612"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -5059,6 +5059,13 @@
         "tests/test_rook_communication.py"
       ],
       "sha256": "43a55d276e14de6611c3a22c24c98c693e700046cffad23604d8b2589531eb94"
+    },
+    "tests/finch_cabx_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_rook_communication.py"
+      ],
+      "sha256": "157a0fd1b61a912063491227e5c000f5320168918525bb29b52f7367444714df"
     }
   }
 }

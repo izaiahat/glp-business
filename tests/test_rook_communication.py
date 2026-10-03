@@ -1,5 +1,6 @@
 """One focused communication acceptance group. No sockets or credentials."""
 from finch_png_acceptance import TestFinchPNGValidator, png_fixture
+from finch_cabx_acceptance import TestFinchCaBX
 import base64
 from copy import deepcopy
 import hashlib

@@ -142,14 +142,51 @@ retains at most the 3MiB input's copied IDAT payloads; transport also holds boun
 JSON/base64/multipart copies, so the decoder's sub-512KiB measured allocation is
 **not** a process-wide memory cap. No dependency or live environment install.
 
-Only supported ancillary chunks are `tEXt`, `zTXt`, `iTXt`, `gAMA`, `cHRM`, `sRGB`
-and `pHYs`; fixed-size chunks must be unique and precede IDAT. Text may occur before
-or after IDAT. Raw ancillary payload plus expanded text has a **shared 256KiB**
-budget (uncompressed text is conservatively counted twice). zTXt/iTXt expansion
-uses the same bounded single-stream inflater; text syntax/UTF-8 are checked.
-The unchanged sensitive/active marker regex scans every non-IDAT chunk and
-actual expanded text. Only successfully decoded IDAT image data avoids raw-byte
-marker scanning; invalid images and unsupported metadata fail closed.
+Supported ancillary chunks are `tEXt`, `zTXt`, `iTXt`, `gAMA`, `cHRM`, `sRGB`,
+`pHYs` and the narrowly framed `caBX` profile below. Fixed-size chunks must be
+unique and precede IDAT. Text and caBX may occur before or after IDAT, never
+between consecutive IDAT chunks. Raw ancillary payload plus expanded text has a
+**shared 256KiB** budget (uncompressed text is conservatively counted twice;
+caBX is counted once). zTXt/iTXt expansion uses the same bounded single-stream
+inflater; text syntax/UTF-8 are checked. The unchanged sensitive/active marker
+regex scans every non-IDAT chunk and actual expanded text. Only successfully
+decoded IDAT image data avoids raw-byte marker scanning; invalid images and
+unsupported metadata fail closed.
+
+`caBX` accepts one uncompressed, explicitly sized JUMBF `jumb` store per PNG,
+with first/unique `jumd`, root UUID `63327061-0011-0010-8000-00aa00389b71`
+and label `c2pa`. Supported type UUIDs use the same standard suffix: containers
+`c2pa`, `c2ma`, `c2um`, `c2as`; CBOR leaves `c2cl`, `c2cs`, `c2db`, `cbor`;
+JSON `json`; embedded-image `bfdb`. Actual boxes are `jumb`, `jumd`, `cbor`,
+`json`, paired `bfdb`/`bidb`, optional final `free`, and optional description
+private `c2sh` containing exactly 16 or 32 salt bytes. Description toggles must
+include requestable + labeled, with only optional 4-byte ID, 32-byte signature
+and private salt fields; labels are nonempty, valid UTF-8, at most 1024 bytes,
+with C2PA-forbidden characters refused. Maximum depth is 8 superboxes including
+the root; maximum count is 1024 boxes including descriptions, padding and salt.
+Every declared box must fit its immediate parent and consume exactly its range.
+Zero-to-EOF lengths, extended lengths, duplicate stores, unknown box/type UUIDs,
+compressed `brob`/`c2cm`, XML/codestream/custom UUID/protected content and external
+embedded references fail closed rather than being skipped.
+
+Embedded descriptors accept only `image/png` or `image/jpeg`, with an optional
+nonempty UTF-8 filename of at most 1024 bytes. CBOR, JSON and embedded image
+content bytes are **opaque**: this is a framing check, not a CBOR/JSON parser,
+embedded-image decoder, C2PA semantic validator or provenance-trust check.
+The complete raw caBX payload plus individual labels, salt and leaf payloads
+are marker-scanned (FourCC boundaries must not mask standalone word markers),
+including embedded image pixels; they gain **no** outer-image IDAT exemption.
+Inner image compressed metadata, escaped JSON and encoded CBOR values are not
+expanded/interpreted. Existing word-boundary regex limits remain; marker scans
+are not sanitization or a complete malware/PHI detector. No URL is fetched,
+signature trusted, bytes normalized, metadata stripped or image re-encoded.
+Fixtures are synthetic spec-shaped framing, not signed/verified provenance.
+Original avatar/banner bytes are unavailable. Finch has now reported the banner
+chunk-map (IHDR, caBX, 32 consecutive IDAT, IEND), matching this chunk profile;
+that report is not local verification of either original caBX payload. Both
+originals still require supported uncompressed box framing, metadata bounds
+and unchanged marker checks. Independent review and exact live-owner caBX scope
+confirmation are required before any separately authorized runtime use.
 
 Grayscale/indexed/palette, 16-bit, interlaced and APNG files are refused, as are
 PLTE, transparency keys (`tRNS`), ICC profiles (`iCCP`), EXIF (`eXIf`), timestamps
