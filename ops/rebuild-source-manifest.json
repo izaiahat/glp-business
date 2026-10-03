@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 696,
+  "tracked_count": 699,
   "files": {
     "tests/test_glp76_packet_selection_metadata.py": {
       "callers": [
@@ -506,7 +506,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ff91ddd54b7ad5db1539bb64013440b0449b8495af20cda811a6bd911c32cbb7"
+      "sha256": "a2a142f01f4f3f6a39648e3f765b9e87c7ee55378d2d83d73ce4e2963102e4f3"
     },
     ".hermes.md": {
       "callers": [],
@@ -2186,7 +2186,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d8327603366dc139f118df95c225596c8b17e9df59f5bed4216a6918b52ee8a1"
+      "sha256": "45657639fb173d46841b91925f0112943f46b2b10f6cf79312d33281e6b02355"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3756,7 +3756,7 @@
         "GLP75/76 Sunday workweek source admission; consumer/test review context"
       ],
       "kind": "script",
-      "sha256": "4c7c52fae0722a70a1f9519ca4cae600b6513ac99bb584f46a77b98c457d3512"
+      "sha256": "9e0723072de4619c0a535cf6937fa906c6339d72268a8b87ae77a6364c697b79"
     },
     "systems/seo-blog-machine/scripts/r2_update_carrier.py": {
       "callers": [
@@ -4303,7 +4303,7 @@
       "callers": [
         "registered topic_supply_mint producer"
       ],
-      "sha256": "e223db1b64cf7c272e0f019fdf05b682134ac93b2a14d73b856263af0eb7e2e2"
+      "sha256": "d1822b4ae58e65a71ed0ab727fa78380a084f7faebc3b9f60778445931641bbb"
     },
     "tests/test_glp75_topic_supply_inputs.py": {
       "kind": "test",
@@ -4691,6 +4691,29 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "542297faf9b8cf31ddb4a854f8e23b793bb6b20f21b4e05abcf612b19eda10dd"
+    },
+    "scripts/glp_topic_data_score.py": {
+      "callers": [
+        "n8n bridge action topic_data_score (cron_bridge_action after topic_supply_mint)",
+        "select_opus_content_queue.load_demand_multipliers sidecar producer",
+        "learning_loop_actions P5 first-party refresh ordering"
+      ],
+      "kind": "script",
+      "sha256": "86c4c1b5a93a3a4ad82dd52c03bcdabd8ae23a7c19d3051426777a368a5ffc8e"
+    },
+    "tests/test_glp343_integration_guards.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "a425dd111052629f6350401c5e33bb312a2a8055e9b4a3779d931204d2a883c8"
+    },
+    "tests/test_glp343_topic_first_party_scoring.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "4ab1f223e354de0ac6520f5cd11c920b78e5a5f1a7309394d7ba43f3e6d6461b"
     }
   }
 }
