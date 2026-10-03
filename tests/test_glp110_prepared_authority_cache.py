@@ -83,6 +83,14 @@ def test_mutation_during_full_validation_cannot_seed_cache(prepared):
         archiver._registered_prepared_release_evidence({}, release)
 
 
+def test_missing_optional_identity_reader_retains_native_uncached_path(prepared):
+    release, member, external, calls, module = prepared
+    del module._read_bound_regular_file
+    archiver._registered_prepared_release_evidence({}, release)
+    archiver._registered_prepared_release_evidence({}, release)
+    assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
 def test_snapshot_limit_declines_cache_not_native_validation(prepared, monkeypatch):
     release, member, external, calls, module = prepared
     monkeypatch.setattr(archiver, '_PREPARED_CACHE_MAX_ENTRIES', 1)

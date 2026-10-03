@@ -3010,8 +3010,8 @@ def _prepared_tree_identity(root: Path) -> tuple[Any, ...] | None:
 
 def _prepared_dependencies_unchanged(evidence: dict[str, Any]) -> bool:
     """Rehash every producer-returned external/small dependency on each use."""
-    from glp_price_index_weekly import _read_bound_regular_file
     try:
+        from glp_price_index_weekly import _read_bound_regular_file
         files = evidence['prepared_binding']['files']
         if not isinstance(files, dict) or not files:
             return False
@@ -3020,7 +3020,7 @@ def _prepared_dependencies_unchanged(evidence: dict[str, Any]) -> bool:
             if hashlib.sha256(body).hexdigest() != expected_sha or identity != expected_identity:
                 return False
         return True
-    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+    except (ImportError, KeyError, TypeError, ValueError, RuntimeError, OSError):
         return False
 
 
