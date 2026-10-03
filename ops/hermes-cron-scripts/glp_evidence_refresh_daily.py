@@ -15,7 +15,7 @@ PYTHON = '/home/ubuntu/.hermes/hermes-agent/venv/bin/python'
 PINS = {
     'daily_evidence_refresh.py': '99bf3a80da344cd2cbdd4e47c177d9fe29382fabce33010cad895949a3712cb4',
     'review_evidence.py': '5ae7911e00b33c96650e0cba182fa0e3eda474c0f95973cd5fc85310fef40d06',
-    'SOURCE-PINS.json': '1b85d4116ecad9962c73f2574fe7e5a8aba0bb1dfa7fdfc6087defdb0f96d871',
+    'SOURCE-PINS.json': 'acc21d145db7e0f71cf47f16abb85c7dc2b04ea2dd67f9df09a1fab1c10b09ce',
     'ASTRA-LOW-PROMPT.md': 'dd82f3885007de1d9f1fb01e4ddda49ca0253e23c3229ef6245bb1acca7f29e1',
     'compose_current_base.py': '0db2d0eccab90f843489618711afdbca24a58997fd0d357509e6a66af242fc3c',
 }
