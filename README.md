@@ -10,6 +10,36 @@ Private, curated code/instructions snapshot. This is not a copy of the live busi
 
 If the initial live workspace contains a curated file that differs from remote, sync refuses to overwrite it. Reconcile the delta into a PR or deliberately restore the reviewed bytes first. State is kept outside Git at `ops/.rebuild-sync-state.json`.
 
+## GLP320 host publication failure sensor
+
+`ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py` is the maintained
+source for the existing native wrapper's Python payload, not a second monitor.
+The first curation commit preserves the installed predecessor (`b6a8a6b7…`) at
+`scripts/glp_seo_publish_failure_alert.py`; the following commit relocates the
+snapshot into the existing native-script convention. The wrapper, native outer
+pin, schedule and notification transport remain unchanged. The drift inventory
+now includes this actual Python payload instead of declaring no payloads.
+
+The sensor follows the registered `article_carrier_consume` consume-branch
+state/receipt under its existing action lock. It binds action, payload, slot,
+path, PT date, terminal bridge identity and pending state. Held, ambiguous,
+malformed, stale or in-flight observations never fall back to a legacy success
+or authorize a replay. Genuine unmigrated native consumers retain the read-only
+execution-ledger fallback. Publication-lane/accepted-failure, daily dedupe and
+recovery rules are unchanged.
+
+`tests/test_glp320_host_failure_sensor.py` runs the real host receipt producer
+with fake transport into a disposable root, then the real sensor with a captured
+alert sink. This is source/fixture proof, **not** a failed production publication
+or registered live alert. The current wrapper/payload has no supported isolated
+native TEST mode; do not insert fake production receipts/events to test it.
+Independent exact-head review precedes merge and any installation. Native source
+snapshots are not installed by the ordinary business sync. Receiving must bind
+the exact source payload and inventory under fresh source/native admission and
+an independently accepted native-payload installation plan; never patch the
+installed payload, raw-repin jobs or reuse a closed window. Positive registered
+TEST delivery and clinical publication continuation remain separate acceptance.
+
 ## GLP331 dependency-only generation
 
 `glp44_scoped_adoption.py --generation glp331-dependencies-20261001` supports

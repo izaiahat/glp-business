@@ -10,7 +10,10 @@ urgent page per PT day, with an explicit recovery notice if the lanes recover.
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
+import hashlib
 import json
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -28,6 +31,11 @@ CARRIER_JOB = "b8948c536d31"
 EXEC_DB = Path("/home/ubuntu/.hermes/cron/executions.db")
 LEDGER = Path("/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/published-route-ledger.json")
 STATE = Path("/home/ubuntu/.hermes/state/glp-seo-publish-failure-alert.json")
+HOST_RUNS = Path("/home/ubuntu/business/reports/ops/n8n-to-cron-20260924/runs")
+HOST_ACTION = "article_carrier_consume"
+HOST_DIGEST = hashlib.sha256(json.dumps({
+    "action": "script", "name": HOST_ACTION, "args": {"mode": "consume"},
+}, sort_keys=True).encode()).hexdigest()
 
 
 def pt_today() -> str:
@@ -112,20 +120,79 @@ def format_summary(summary: dict[str, object]) -> str:
     )
 
 
+def host_carrier_terminal(day: str) -> str | None:
+    """Read only the registered consume branch under its existing writer lock.
+
+    Unknown/pending/held receipts are not terminal failures or retry authority.
+    Never scan glob/mtime for a convenient older successful or failed receipt.
+    """
+    try:
+        with (HOST_RUNS / f"{HOST_ACTION}.lock").open("rb") as lock:
+            fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            state = json.loads((HOST_RUNS / f"{HOST_ACTION}-{HOST_DIGEST}.state.json").read_text())
+            common_path = HOST_RUNS / f"{HOST_ACTION}.state.json"
+            common = json.loads(common_path.read_text()) if common_path.exists() else {}
+            if "pending" in state or "pending" in common:
+                return None
+            path = Path(state["last_receipt"])
+            if (path.parent != HOST_RUNS or path.is_symlink()
+                    or not re.fullmatch(r"article_carrier_consume-[0-9a-f]{32}\.json", path.name)):
+                return None
+            receipt = json.loads(path.read_text())
+            slot = receipt["due_slot"]
+            if (receipt["action"] != HOST_ACTION or receipt["payload_sha256"] != HOST_DIGEST
+                    or receipt["receipt_path"] != str(path)
+                    or receipt["invocation"] not in ("scheduled", "manual_registered")
+                    or receipt.get("run_type", receipt["invocation"]) != receipt["invocation"]
+                    or not isinstance(slot, str)
+                    or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T11:00:America/Los_Angeles", slot)
+                    or type(receipt["rc"]) is not int
+                    or state["slots"][slot] != {"rc": receipt["rc"], "receipt_path": str(path)}):
+                return None
+            start = dt.datetime.fromisoformat(receipt["started_utc"])
+            finish = dt.datetime.fromisoformat(receipt["finished_utc"])
+            boundary = dt.datetime.fromisoformat(slot[:16]).replace(tzinfo=PT)
+            if (start.tzinfo is None or finish.tzinfo is None or finish < start
+                    or start.astimezone(PT).date().isoformat() != day
+                    or boundary.weekday() not in (0, 2, 4) or start < boundary):
+                return None
+            bridge = receipt.get("bridge") or {}
+            terminal = (bridge.get("status") in ("done", "error")
+                        and isinstance(bridge.get("job_id"), str) and bool(bridge["job_id"])
+                        and type(bridge.get("rc")) is int
+                        and not bridge.get("timed_out") and not bridge.get("interrupted")
+                        and (bridge.get("termination") or {}).get("classification") != "BRIDGE_INTERRUPTED")
+            rejected = receipt.get("reason") in {
+                f"bridge_rejected_http_{code}" for code in (400, 401, 403, 404, 413, 429)}
+            if receipt["status"] == "FAIL" and receipt["rc"] != 0 and (terminal or rejected):
+                return "failed"
+            if (receipt["status"] == "PASS" and receipt["rc"] == 0 and terminal
+                    and bridge["status"] == "done" and bridge["rc"] == 0):
+                return "completed"
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+    return None
+
+
 def carrier_terminal(day: str) -> str | None:
-    """The day's latest carrier execution status, or None if it has not run."""
-    db = sqlite3.connect(EXEC_DB)
-    table = [r[0] for r in db.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")][0]
-    row = db.execute(
-        f"SELECT status, started_at FROM {table} WHERE job_id=? "
-        f"ORDER BY rowid DESC LIMIT 1", (CARRIER_JOB,)).fetchone()
-    if not row:
+    """Prefer host custody; native fallback only before host-state migration."""
+    if ((HOST_RUNS / f"{HOST_ACTION}-{HOST_DIGEST}.state.json").exists()
+            or (HOST_RUNS / f"{HOST_ACTION}.state.json").exists()):
+        return host_carrier_terminal(day)
+    # Retain genuine legacy consumers, without creating a missing database.
+    try:
+        with sqlite3.connect(f"file:{EXEC_DB}?mode=ro", uri=True) as db:
+            row = db.execute(
+                "SELECT status, started_at FROM executions WHERE job_id=? "
+                "ORDER BY rowid DESC LIMIT 1", (CARRIER_JOB,)).fetchone()
+        if not row:
+            return None
+        started = dt.datetime.fromisoformat(row[1])
+        if started.tzinfo is None or started.astimezone(PT).date().isoformat() != day:
+            return None
+        return str(row[0])
+    except (sqlite3.Error, TypeError, ValueError):
         return None
-    started = dt.datetime.fromisoformat(row[1]).astimezone(PT)
-    if started.date().isoformat() != day:
-        return None
-    return str(row[0])
 
 
 def load_state() -> dict:
@@ -179,7 +246,7 @@ def main() -> int:
                          f"{format_summary(summary)}."),
                 "action": ("Bridge/autopilot are on it; the run receipt names the exact "
                            "gate. Restore only the failed scheduled lane(s)."),
-                "where": "/home/ubuntu/.hermes/cron/output/b8948c536d31/ · #ops-alerts",
+                "where": f"{HOST_RUNS}/ · native fallback {CARRIER_JOB} · #ops-alerts",
                 "evidence_codes": [], "url": None, "url_title": None,
                 "dedup_key": f"SEO Publish:publication-lanes:{day}",
                 "emergency": False, "recovery": False,

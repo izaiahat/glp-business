@@ -65,5 +65,5 @@ suites+=(tests/test_glp75_topic_supply_inputs.py)
 suites+=(tests/test_glp343_topic_first_party_scoring.py tests/test_glp343_integration_guards.py)
 suites+=(tests/test_affiliate_catalog_batch.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
-suites+=(tests/test_glp109_scheduler_health.py)
+suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)
 python3 -m pytest -q "${suites[@]}"

@@ -369,6 +369,16 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
                 payload['sha256'] = budget_pin
                 repinned += 1
     assert repinned == 1
+    # GLP-320: unchanged native wrapper now covers its reviewed Python payload.
+    sensor = 'ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py'
+    sensor_pin = '5c10a1615c530ba61d0a8f6cf9f986d866168e82fce29ae33b51ad455975d98e'
+    assert sha((ROOT/sensor).read_bytes()) == sensor_pin
+    sensor_rows = [row for row in expected['jobs'] if row['id'] == '76de44046a9b']
+    assert len(sensor_rows) == 1 and sensor_rows[0]['payloads'] == []
+    sensor_rows[0]['payloads'] = [{
+        'path': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py',
+        'sha256': sensor_pin,
+        'owner': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh'}]
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 
