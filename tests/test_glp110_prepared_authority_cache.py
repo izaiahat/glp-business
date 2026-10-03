@@ -23,6 +23,8 @@ def prepared(tmp_path, monkeypatch):
     external = tmp_path / 'receipt.json'; external.write_bytes(b'accepted')
     calls = []
     module = types.ModuleType('glp_price_index_weekly')
+    module.pointer = tmp_path / 'current.json'; module.pointer.write_text('{}')
+    monkeypatch.setattr(archiver, '_canonical_base_path', lambda: module.pointer)
     def read(path, label):
         path = Path(path)
         return path, path.read_bytes(), identity(path)
@@ -44,10 +46,12 @@ def prepared(tmp_path, monkeypatch):
 
 def test_reuses_only_complete_unchanged_proof_and_returns_copy(prepared):
     release, member, external, calls, module = prepared
+    module.pointer.write_text('{"deployment": "a"}')
     a = archiver._registered_prepared_release_evidence({'deployment': 'a'}, release)
     a['prepared_binding']['release'] = 'caller-mutated'
     b = archiver._registered_prepared_release_evidence({'deployment': 'a'}, release)
     assert len(calls) == 1 and b['prepared_binding']['release'] == 'validated'
+    module.pointer.write_text('{"deployment": "b"}')
     archiver._registered_prepared_release_evidence({'deployment': 'b'}, release)
     assert len(calls) == 2
 
@@ -89,6 +93,34 @@ def test_missing_optional_identity_reader_retains_native_uncached_path(prepared)
     archiver._registered_prepared_release_evidence({}, release)
     archiver._registered_prepared_release_evidence({}, release)
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_semantically_identical_pointer_rewrite_rechecks_exact_native_binding(prepared):
+    release, member, external, calls, module = prepared
+    native = module._validate_base_evidence
+    def exact_pointer(base, directory):
+        proof = native(base, directory)
+        if module.pointer.read_bytes() != b'{}':
+            raise RuntimeError('native_pointer_binding_invalid')
+        return proof
+    module._validate_base_evidence = exact_pointer
+    archiver._registered_prepared_release_evidence({}, release)
+    module.pointer.write_bytes(b'{ }')
+    with pytest.raises(RuntimeError, match='native_pointer_binding_invalid'):
+        archiver._registered_prepared_release_evidence({}, release)
+    assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_pointer_changes_during_initial_proof_cannot_seed_cache(prepared):
+    release, member, external, calls, module = prepared
+    native = module._validate_base_evidence
+    def changed(base, directory):
+        proof = native(base, directory)
+        module.pointer.write_bytes(b'{ }')
+        return proof
+    module._validate_base_evidence = changed
+    archiver._registered_prepared_release_evidence({}, release)
+    assert archiver._PREPARED_EVIDENCE_CACHE is None
 
 
 def test_snapshot_limit_declines_cache_not_native_validation(prepared, monkeypatch):

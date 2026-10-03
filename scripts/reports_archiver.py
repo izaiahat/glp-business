@@ -3029,13 +3029,20 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
     import copy
     from glp_price_index_weekly import _validate_base_evidence
     global _PREPARED_EVIDENCE_CACHE
-    key = (str(release), json.dumps(base, sort_keys=True, separators=(',', ':')))
+    pointer, pointer_raw = _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')
+    if pointer != base:
+        raise SiteAuthorityError('prepared_pointer_input_changed')
+    # The native producer binds exact canonical-pointer bytes, not merely its
+    # parsed JSON. Formatting-only rewrites must also force native validation.
+    key = (str(release), json.dumps(base, sort_keys=True, separators=(',', ':')),
+           hashlib.sha256(pointer_raw).hexdigest())
     before = _prepared_tree_identity(release.parent)
     cached = _PREPARED_EVIDENCE_CACHE
     if (before is not None and cached is not None and cached['key'] == key
             and cached['identity'] == before
             and _prepared_dependencies_unchanged(cached['evidence'])
-            and _prepared_tree_identity(release.parent) == before):
+            and _prepared_tree_identity(release.parent) == before
+            and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         return copy.deepcopy(cached['evidence'])
     # No stale fallback: every mismatch, unreadable path, membership change or
     # unsupported shape invokes the unchanged native transitive validator.
@@ -3044,7 +3051,8 @@ def _registered_prepared_release_evidence(base: dict[str, Any], release: Path) -
     after = _prepared_tree_identity(release.parent)
     if (before is not None and before == after
             and _prepared_dependencies_unchanged(evidence)
-            and _prepared_tree_identity(release.parent) == after):
+            and _prepared_tree_identity(release.parent) == after
+            and _read_json_bytes(_canonical_base_path(), label='prepared_cache_pointer')[1] == pointer_raw):
         _PREPARED_EVIDENCE_CACHE = {'key': key, 'identity': after,
                                     'evidence': copy.deepcopy(evidence)}
     return evidence
