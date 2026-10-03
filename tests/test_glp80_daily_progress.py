@@ -140,3 +140,30 @@ def test_pallas_policy_matches_captured_wording_without_adding_tags():
     text = 'Compounded semaglutide injection is $139 for your first month, then $199 every 4 weeks, or $139/mo average forever on the annual plan; compounded tirzepatide injection is $179 for your first month, then $299 every 4 weeks, or $239/mo average forever on the annual plan.'
     assert set(p['quotes']['molecule_tags']) == {'semaglutide', 'tirzepatide'}
     assert all(q in text for q in p['quotes']['molecule_tags'].values())
+
+
+def test_composition_requires_the_actual_pricing_receiver(tmp_path, monkeypatch):
+    import types
+    c = load('compose_current_base')
+    d = load('daily_evidence_refresh')
+    er = d.load(ROOT / 'tools/glp/evidence_refresh.py', 'pricing_engine')
+    release = tmp_path / 'release'
+    for name in ['program-registry.json', 'provider-pricing-matrix.json']:
+        put(release / 'data' / name, {})
+    monkeypatch.setattr(d, 'unchanged', lambda bound: None)
+    monkeypatch.setattr(c, 'merge_packets', lambda *a: ({}, {}, {}))
+    calls = []
+    def native(argv, **kw):
+        calls.append(argv)
+        if argv[0] == 'node':
+            return types.SimpleNamespace(returncode=0, stdout='{"registry":{},"matrix":{}}', stderr='')
+        assert argv[0] == 'bwrap' and '--unshare-net' in argv
+        assert argv[-1] == str(release / 'scripts/validate-provider-pricing-matrix.mjs')
+        return types.SimpleNamespace(returncode=1, stdout='{"status":"FAIL","violations":["legacy_snapshot_drift"]}', stderr='')
+    monkeypatch.setattr(c.subprocess, 'run', native)
+    out = tmp_path / 'out'
+    result = c.compose(d, er, {'pointer': {'release_root': str(release)}}, [{'program_id': 'fixture', 'status': 'PACKET_READY'}], out)
+    assert result['status'] == 'BLOCKED_PRICING_VALIDATION'
+    assert result['combined_patch'] is None
+    assert not (out / 'COMBINED-PATCH.json').exists()
+    assert len(calls) == 2
