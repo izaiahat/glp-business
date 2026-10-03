@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 import sys
 import types
+import time
+import statistics
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / 'scripts'))
@@ -133,6 +135,163 @@ def test_snapshot_limit_declines_cache_not_native_validation(prepared, monkeypat
     archiver._registered_prepared_release_evidence({}, release)
     archiver._registered_prepared_release_evidence({}, release)
     assert len(calls) == 2 and archiver._PREPARED_EVIDENCE_CACHE is None
+
+
+def test_complete_identity_equivalence_and_per_boundary_performance(tmp_path, monkeypatch):
+    """Every fast boundary still lstats ALL members; directory drift enumerates.
+
+    The oracle is the pre-repair implementation, not an expected mock result.
+    Timing is paired/median on a real fixture; coverage counts are deterministic.
+    """
+    root = tmp_path / 'prepared'
+    root.mkdir()
+    for directory in range(16):
+        folder = root / f'd{directory:02}'
+        folder.mkdir()
+        for member in range(128):
+            (folder / f'f{member:03}').write_bytes(b'approved')
+
+    def legacy_snapshot():
+        try:
+            if not root.is_absolute() or root.resolve(strict=True) != root:
+                return None
+            rows = []
+            for parent in root.parents:
+                info = parent.lstat()
+                if not stat.S_ISDIR(info.st_mode):
+                    return None
+                rows.append((str(parent), info.st_dev, info.st_ino, info.st_mode,
+                             info.st_uid, info.st_gid))
+            pending = [root]
+            while pending:
+                path = pending.pop()
+                info = path.lstat()
+                if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                    return None
+                rows.append((str(path), info.st_dev, info.st_ino, info.st_mode,
+                             info.st_uid, info.st_gid, info.st_nlink, info.st_size,
+                             info.st_mtime_ns, info.st_ctime_ns))
+                if len(rows) > archiver._PREPARED_CACHE_MAX_ENTRIES:
+                    return None
+                if stat.S_ISDIR(info.st_mode):
+                    with os.scandir(path) as entries:
+                        for entry in entries:
+                            pending.append(Path(entry.path))
+                            if len(rows) + len(pending) > archiver._PREPARED_CACHE_MAX_ENTRIES:
+                                return None
+            return tuple(sorted(rows))
+        except OSError:
+            return None
+
+    expected = legacy_snapshot()
+    assert expected is not None
+    assert archiver._prepared_tree_identity(root) == expected
+    lstat = archiver.os.lstat
+    seen = []
+    def counted(path, *args, **kwargs):
+        seen.append(str(path))
+        return lstat(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(archiver.os, 'lstat', counted)
+        # Each authorization has opening AND closing snapshots, no cross-unlink
+        # TTL. Every member and every ancestor must appear on both boundaries.
+        for _ in range(2):
+            seen.clear()
+            assert archiver._prepared_tree_identity(root, previous=expected) == expected
+            assert {row[0] for row in expected} <= set(seen)
+
+    legacy_times, fast_times = [], []
+    for _ in range(5):
+        start = time.perf_counter()
+        assert legacy_snapshot() == expected
+        legacy_times.append(time.perf_counter() - start)
+        start = time.perf_counter()
+        assert archiver._prepared_tree_identity(root, previous=expected) == expected
+        fast_times.append(time.perf_counter() - start)
+    ratio = statistics.median(fast_times) / statistics.median(legacy_times)
+    print(f'complete_identity_entries={len(expected)} legacy_median_s={statistics.median(legacy_times):.6f} '
+          f'fast_median_s={statistics.median(fast_times):.6f} ratio={ratio:.3f}')
+    assert ratio < 0.65, 'complete current lstat path must remove repeated walk overhead'
+
+    # Add an extra name AFTER its containing directory was observed. Closing
+    # directory ctime must force enumeration even if mtime was restored.
+    member = root / 'd00/f000'
+    scanned = []
+    scandir = archiver.os.scandir
+    injected = False
+    def inject(path, *args, **kwargs):
+        nonlocal injected
+        info = lstat(path, *args, **kwargs)
+        if str(path) == str(member) and not injected:
+            injected = True
+            before_directory = root.stat()
+            (root / 'late-name').write_bytes(b'extra')
+            os.utime(root, ns=(before_directory.st_atime_ns, before_directory.st_mtime_ns))
+        return info
+    def counted_scan(path):
+        scanned.append(str(path))
+        return scandir(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(archiver.os, 'lstat', inject)
+        patch.setattr(archiver.os, 'scandir', counted_scan)
+        assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+        assert scanned
+    (root / 'late-name').unlink()
+    expected = legacy_snapshot()
+    # Owner/group fields are independently compared even without privileged
+    # chown. Delegate every other real field to the actual kernel stat result.
+    real_stat = archiver.os.stat
+    def changed_owner(info):
+        class ChangedOwner:
+            def __getattr__(self, name):
+                return getattr(info, name) + (name == attribute)
+        return ChangedOwner()
+    for attribute in ('st_uid', 'st_gid'):
+        def ownership_changed(path, *args, **kwargs):
+            info = lstat(path, *args, **kwargs)
+            return changed_owner(info) if str(path) == str(member) else info
+        def stat_ownership_changed(path, *args, **kwargs):
+            info = real_stat(path, *args, **kwargs)
+            return changed_owner(info) if str(path) == str(member) else info
+        with monkeypatch.context() as patch:
+            patch.setattr(archiver.os, 'lstat', ownership_changed)
+            patch.setattr(archiver.os, 'stat', stat_ownership_changed)
+            assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+
+    # Equivalence after each real mutation; new/renamed/deleted paths force full
+    # enumeration via directory identity/mtime/ctime, not just file membership.
+    before = member.stat()
+    member.write_bytes(b'corrupt!')
+    os.utime(member, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+    member.write_bytes(b'approved')
+    for change in ('new', 'rename', 'delete', 'mode', 'inode', 'symlink', 'ancestor_symlink'):
+        expected = legacy_snapshot()
+        if change == 'new':
+            (root / 'd00/new').write_bytes(b'extra')
+        elif change == 'rename':
+            (root / 'd00/new').rename(root / 'd01/renamed')
+        elif change == 'delete':
+            (root / 'd01/renamed').unlink()
+        elif change == 'mode':
+            member.chmod(0o600)
+        elif change == 'inode':
+            replacement = root / 'd00/replacement'
+            replacement.write_bytes(member.read_bytes())
+            os.replace(replacement, member)
+        elif change == 'symlink':
+            member.unlink()
+            member.symlink_to(root / 'd01/f000')
+        else:
+            member.unlink()
+            member.write_bytes(b'approved')
+            original = root.parent / 'original'
+            root.rename(original)
+            root.symlink_to(original, target_is_directory=True)
+        assert archiver._prepared_tree_identity(root, previous=expected) == legacy_snapshot() != expected
+        if change == 'symlink':
+            member.unlink()
+            member.write_bytes(b'approved')
 
 
 @pytest.mark.parametrize('changed', ['build', 'ci', 'design', 'absence', 'authority'])
