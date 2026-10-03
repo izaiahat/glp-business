@@ -743,7 +743,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "28c70ab318adac63d64ee5ebfcb863f77c9ee6e02bc7c8f91e02ff5b2a9f18dd"
+      "sha256": "77f12f10a9a38a228c3e8033ca8b538be37a1c799aa2c9d6ceef7b8b792d7fbb"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -3504,7 +3504,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "11085e5c16b7b66bba68838cff92dd998d4ffb76d0360ca3878604446876a596"
+      "sha256": "42b55639874a68425e58e0fd3e1dc4b473f219343a194a8dbd806f8abf54b86c"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3525,7 +3525,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "bf4bd28f14348677da45fce2091c60b22ae2ae4316d702617c16a81a5f753d3b"
+      "sha256": "c297d3a5f5855153f205a3ced49390c60cb11042d085d89ede5582f6c1fe215f"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4346,7 +4346,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "3643cf64d3575a4bf13537058f088d37aaf1b2abb98aa69c22af459abad75e96"
+      "sha256": "872f9bc34af23fab89a47f594719e6054007265c92510fea8c8a20c57e7615f7"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
@@ -4360,7 +4360,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "450a84ae045b7d84ad49204210c6fa133a23eb88d0671c941323448cd0f13e3d"
+      "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
     },
     "scripts/glp110_restore_pruned_execution.py": {
       "kind": "script",
