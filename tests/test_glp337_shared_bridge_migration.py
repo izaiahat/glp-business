@@ -37,8 +37,12 @@ def fixture(tmp_path):
     git(repo, 'config', 'user.name', 'Offline fixture')
     put(repo, CADENCE, prior_cadence)
     git(repo, 'add', CADENCE); git(repo, 'commit', '-qm', 'authentic cadence predecessor')
-    for p in (LAUNCHER, CADENCE):
-        put(repo, p, (ROOT / p).read_bytes(), 0o755)
+    # This migration accepts one fixed historical pair, not later carrier guards.
+    for p, expected in ((LAUNCHER, 'f1055dea298e8354bd61d9ccad084a2b33ab9c028ed7070b54e23d64ad023032'),
+                        (CADENCE, '4d51a627d7a5208238ab7ce7622772c118d9b141497942bf9ed8bd6d4587bcb2')):
+        body = git(ROOT, 'show', '898b45e903dffcce4046aa5548fc3e6f23b60b78:' + p)
+        assert hashlib.sha256(body).hexdigest() == expected
+        put(repo, p, body, 0o755)
     manifest = {'schema': 'GLP_BUSINESS_SOURCE_V1', 'tracked_count': 3,
                 'files': {p: {'sha256': hashlib.sha256((repo / p).read_bytes()).hexdigest()}
                           for p in (LAUNCHER, CADENCE)}}

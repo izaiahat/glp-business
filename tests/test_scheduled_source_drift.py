@@ -345,8 +345,18 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             row['reviewed_sha256'] = allowed[row['id']]
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
-    # Retains full-document equality: held rows, payloads and shared pair pins
-    # cannot drift just because the original migration is now a frozen fixture.
+    launcher = 'scripts/cron_bridge_action.py'
+    launcher_pin = '1af61e20aef908c920fa3f28cd071e9ec2848fe05ef116364232e831bdb48c51'
+    assert sha((ROOT/launcher).read_bytes()) == launcher_pin
+    shared = 0
+    for row in expected['jobs']:
+        for source in row.get('sources', []):
+            if source.get('source') == launcher:
+                assert source['reviewed_sha256'] == 'f1055dea298e8354bd61d9ccad084a2b33ab9c028ed7070b54e23d64ad023032'
+                source['reviewed_sha256'] = launcher_pin
+                shared += 1
+    assert shared == 20
+    # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 
 
