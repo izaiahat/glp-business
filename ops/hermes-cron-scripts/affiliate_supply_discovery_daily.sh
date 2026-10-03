@@ -17,6 +17,7 @@ expected_card_sha256='30d152f78c8729a67c148d2972ef1ba3ecebab732c01929c5313998708
 [[ "$(sha256sum scripts/affiliate_supply_expansion.py | cut -d' ' -f1)" == "$expected_expansion_sha256" ]]
 [[ "$(sha256sum scripts/affiliate_monday_marketplace_receipt.py | cut -d' ' -f1)" == "$expected_coverage_sha256" ]]
 [[ "$(sha256sum scripts/affiliate_monday_discovery_card.py | cut -d' ' -f1)" == "$expected_card_sha256" ]]
+[[ "$(sha256sum scripts/affiliate_catalog_discovery.py | cut -d' ' -f1)" == 'b419913e1f2cdd40aae28a002599d1ad4ada184a842f9cfb5dfaafeb7c93d556' ]]
 [[ "${AFFILIATE_CRON_VERIFY_ONLY:-0}" == "1" ]] && exit 0
 
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -30,7 +31,7 @@ fi
 python3 scripts/affiliate_monday_marketplace_receipt.py \
   --local-summary "$LATEST_SWEEP" --output "$RUN_DIR/marketplace-coverage.json" >/dev/null
 discovery_exit=0
-python3 scripts/affiliate_supply_discovery.py --json --target "${AFFILIATE_MONDAY_TARGET:-10}" \
+python3 scripts/affiliate_catalog_discovery.py --json --target "${AFFILIATE_MONDAY_TARGET:-10}" \
   --limit 10 --time-budget-seconds "${AFFILIATE_MONDAY_TIME_BUDGET_SECONDS:-360}" \
   --source-timeout-seconds 20 --admit-applications \
   --checkpoint reports/glp-clinic-scout/affiliate-machine/supply-discovery/checkpoint.json \
