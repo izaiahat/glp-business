@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 686,
+  "tracked_count": 687,
   "files": {
     "scripts/glp_affiliate_absence_audit.py": {
       "kind": "script",
@@ -557,7 +557,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c0931b1c8bc5ec347497618349307c37044d30175cfd2e8778f2b2fb054ff665"
+      "sha256": "8100485bb26a5b3c4761188ebff210ca5477c1a5ce45fcccd254e6aba5238246"
     },
     ".hermes.md": {
       "callers": [],
@@ -1582,7 +1582,7 @@
         "wrapper:ops/hermes-cron-scripts/business_output_health_cron.sh"
       ],
       "kind": "script",
-      "sha256": "47da490e7d110e3640d4458762db6a67797b98cd683d4fbf8cb50ad19ad8ded9"
+      "sha256": "edc2b9066940bfa272b7cb3d1ae89480b460897e902fb2312b684d598321bdb8"
     },
     "scripts/candidate_freshness_coverage.json": {
       "callers": [],
@@ -2237,7 +2237,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "01a6d0ab79a84c49923d4d44f8fa55f43715aaeb72d923493a1a139998cf10e8"
+      "sha256": "67d278ecd7f59b39d2897e5c9b97068b5145d4bd374a9aafc9a223f1f1f7951a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4620,6 +4620,13 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "32a9b26763e96e0067eaaf4ae388dc4a8b45ebff205c3ad1e2aeb9a53e264f6a"
+    },
+    "tests/test_glp109_scheduler_health.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "ebafcce600fadbb3118345f4738e658dda1c6e4818bb391cfe65ba5c9c42fca0"
     }
   }
 }
