@@ -51,6 +51,8 @@
 /ops/glp/evidence-refresh-k3/*
 !/ops/glp/evidence-refresh-k3/daily_evidence_refresh.py
 !/ops/glp/evidence-refresh-k3/review_evidence.py
+!/ops/glp/evidence-refresh-k3/compose_current_base.py
+!/tests/test_glp80_daily_progress.py
 !/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
 !/ops/glp/evidence-refresh-k3/SOURCE-CUSTODY.md

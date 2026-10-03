@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 
 # Opaque process-local leases are registered only while a kernel flock is live.
@@ -83,10 +84,17 @@ def source_lock(root):
     root = Path(root).resolve(strict=True)
     fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise ValueError('source_import_busy') from exc
+        deadline = time.monotonic() + max(0.0, float(os.environ.get('GLP_SOURCE_LOCK_WAIT_S', '0') or 0))
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError as exc:
+                # Opt-in queueing lets parallel install lanes wait their turn on the
+                # same flock instead of failing; default (0) keeps fail-fast refusal.
+                if time.monotonic() >= deadline:
+                    raise ValueError('source_import_busy') from exc
+                time.sleep(0.5)
         held, current = os.fstat(fd), root.stat()
         if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
             raise ValueError('source_import_root_moved')
@@ -303,6 +311,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    parser.add_argument("--wait", type=float, default=None, metavar="SECONDS",
+                        help="queue up to SECONDS for a concurrent import instead of refusing busy")
     parser.add_argument("--checkout", type=Path, help="local reviewed Git checkout for offline verification")
     parser.add_argument("--adopt-reviewed-baseline", action="append", default=[], metavar="PATH",
                         help="adopt a preexisting file only if bytes match a prior committed revision")
@@ -313,6 +323,8 @@ def main():
     parser.add_argument("--discovery-adoption-authority", type=Path,
                         help="separate exact migration authority; consuming locks and owner exclusion required")
     args = parser.parse_args()
+    if args.wait is not None:
+        os.environ["GLP_SOURCE_LOCK_WAIT_S"] = str(args.wait)
     if args.apply == args.dry_run:
         parser.error("choose exactly one of --dry-run or --apply")
     if args.checkout:
