@@ -78,6 +78,22 @@ def test_weekly_plan_refuses_unresolved_dependencies_before_writes(isolated, mon
     assert all(p.read_bytes() == raw for p, raw in baseline.items())
 
 
+def test_manual_successor_changes_only_the_authenticated_weekly_leaf_pin():
+    before, wrapper = a4.stage_pins((ROOT / a4.MAP_SNAPSHOT).read_bytes(),
+                                   (ROOT / a4.WRAPPER_SNAPSHOT).read_bytes())
+    old_map, old_wrapper = a4.stage_weekly_pins(before, wrapper)
+    new_map, new_wrapper = a4.stage_weekly_pins(before, wrapper,
+                                             generation=a4.MANUAL_WEEKLY_GENERATION)
+    assert new_map == old_map
+    old_pins, new_pins = map(a4.wrapper_pins, (old_wrapper, new_wrapper))
+    leaf = str(a4.BUSINESS / a4.WEEKLY)
+    assert {p for p in new_pins if new_pins[p] != old_pins[p]} == {leaf}
+    assert old_pins[leaf] == a4.WEEKLY_AFTER
+    assert new_pins[leaf] == a4.MANUAL_WEEKLY_AFTER == a4.sha((ROOT / a4.WEEKLY).read_bytes())
+    with pytest.raises(RuntimeError, match='unknown_a4_generation'):
+        a4.stage_weekly_pins(before, wrapper, generation='arbitrary')
+
+
 def test_reviewed_weekly_successor_closes_three_incompatibilities():
     # Genuine PR165 outputs, reconstructed from its authenticated predecessors.
     before, wrapper = a4.stage_pins((ROOT / a4.MAP_SNAPSHOT).read_bytes(),
@@ -92,7 +108,10 @@ def test_reviewed_weekly_successor_closes_three_incompatibilities():
     pins = a4.wrapper_pins(carrier)
     old = a4.wrapper_pins(wrapper)
     assert not any('result_contract' in p or 'briefs/' in p for p in pins)
-    assert pins[str(a4.BUSINESS / a4.WEEKLY)] == a4.sha((ROOT / a4.WEEKLY).read_bytes())
+    import subprocess
+    approved_old = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                                           a4.WEEKLY_SOURCE + ':' + a4.WEEKLY])
+    assert pins[str(a4.BUSINESS / a4.WEEKLY)] == a4.sha(approved_old)
     assert pins[str(a4.BUSINESS / a4.MAP)] == a4.sha(emitted)
     assert pins[str(a4.BUSINESS / a4.A3)] == a4.sha((ROOT / 'tests/fixtures/glp341-a3-result.json').read_bytes())
     entry = str(a4.BUSINESS / 'reports/ops/orchestration-restore-20260907/PLAN/A4/weekly_cron_entry.py')

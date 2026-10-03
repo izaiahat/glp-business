@@ -1003,7 +1003,11 @@ def _prepared_base_links(
     head = pointer["site_head"]
     prepared_dir = release.parent
     ops_root = BUSINESS / "reports/ops"
-    if (release.name != "release" or ops_root.resolve(strict=True) not in prepared_dir.parents
+    affiliate_runs = BUSINESS / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    affiliate_root = (prepared_dir.parent.parent == affiliate_runs
+                      and prepared_dir.name == 'prepared'
+                      and re.fullmatch(r'20\d{6}T\d{6}Z', prepared_dir.parent.name) is not None)
+    if (release.name != "release" or (ops_root.resolve(strict=True) not in prepared_dir.parents and not affiliate_root)
             or prepared_dir.resolve(strict=True) != prepared_dir
             or release.resolve(strict=True) != release
             or prepared_dir.is_symlink()):
@@ -1078,6 +1082,10 @@ def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, produc
     _path, receipt_raw, receipt_identity = _read_bound_regular_file(str(original_path), "current_deploy")
     terminal = json.loads(receipt_raw)
     approval_path = root.parent / "astra-final-review/RESPONSE.md"
+    gate_path = root / 'gate.json'
+    if (gate_path.is_file() and sha_bytes(gate_path.read_bytes()) == prepared['build_receipt']['sha256']
+            and json.loads(gate_path.read_bytes()).get('schema') == 'glp-affiliate-sync-release-result-v1'):
+        approval_path = root.parent / 'OPERATOR-RELEASE.json'
     _path, approval_raw, approval_identity = _read_bound_regular_file(str(approval_path), "current_approval")
     binding = {"prepared_manifest_sha256": sha_bytes(raw), "approval_sha256": sha_bytes(approval_raw)}
     producer.current_approval(argparse.Namespace(approval=str(approval_path),
@@ -1120,7 +1128,22 @@ def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, produc
             str(approval_path): (sha_bytes(approval_raw), approval_identity)}
 
 
-def _registered_prepared_binding(
+def _registered_prepared_binding(pointer, root, prepared, raw, manifest_path):
+    """Keep later authorized native affiliate releases consumable by F04/F06."""
+    import glp_deploy_glp34_authority_v1 as producer
+    gate_path = root / 'gate.json'
+    if (gate_path.is_file() and sha_bytes(gate_path.read_bytes()) == prepared.get('build_receipt', {}).get('sha256')
+            and json.loads(gate_path.read_bytes()).get('schema') == 'glp-affiliate-sync-release-result-v1'):
+        previous = producer.CURRENT_ROLLBACK
+        producer.CURRENT_ROLLBACK = prepared['rollback_deployment_id']
+        try:
+            return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path)
+        finally:
+            producer.CURRENT_ROLLBACK = previous
+    return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path)
+
+
+def _registered_prepared_binding_impl(
     pointer: dict[str, Any], root: Path, prepared: dict[str, Any], raw: bytes, manifest_path: Path,
 ) -> dict[str, Any]:
     """Consume the registered producer's read-only preparation and publication validators."""

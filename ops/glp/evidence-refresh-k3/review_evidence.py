@@ -40,17 +40,17 @@ def review(day_dir, decisions, out):
                 rows.append(d.stage_program(er, release, pid, out / pid, str(day_dir), run['as_of_utc'][:10]))
                 continue
             decision = decisions / pid / 'ADJUDICATION.json'
-            if not decision.is_file():
-                rows.append({'program_id': pid, 'status': 'UNRESOLVED_MISSING_ADJUDICATION'})
-                continue
-            decision_sha = d.sha(decision)
+            decision_sha = d.sha(decision) if decision.is_file() else None
             try:
-                row = d.stage_program(er, release, pid, out / pid, str(day_dir), run['as_of_utc'][:10], decision)
+                row = d.stage_program(er, release, pid, out / pid, str(day_dir), run['as_of_utc'][:10], decision if decision_sha else None)
             except (RuntimeError, ValueError, KeyError, OSError) as exc:
                 row = {'program_id': pid, 'status': 'BLOCKED_REVIEW', 'reason': str(exc)}
-            if d.sha(decision) != decision_sha:
-                raise RuntimeError('ADJUDICATION_CHANGED_DURING_REVIEW')
-            row.update(adjudication_path=str(decision), adjudication_sha256=decision_sha)
+            if decision_sha:
+                if d.sha(decision) != decision_sha:
+                    raise RuntimeError('ADJUDICATION_CHANGED_DURING_REVIEW')
+                row.update(adjudication_path=str(decision), adjudication_sha256=decision_sha)
+            elif row['status'] != 'PACKET_READY':
+                row['missing_review'] = 'No complete review; no fact or clock adoption for this identity'
             rows.append(row)
         d.unchanged(bound)
         composer = d.load(HERE / 'compose_current_base.py', 'k3_composer')

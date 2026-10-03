@@ -34,6 +34,7 @@
 !/tests/test_maintenance_keeper_contention.py
 !/tests/test_n8n_execution_budget.py
 !/tests/test_rook_communication.py
+!/tests/test_glp109_scheduler_health.py
 !/.github/workflows/
 /.github/workflows/*
 !/.github/workflows/maintenance-pause-cursor-race.yml
@@ -52,6 +53,8 @@
 !/ops/glp/evidence-refresh-k3/daily_evidence_refresh.py
 !/ops/glp/evidence-refresh-k3/review_evidence.py
 !/ops/glp/evidence-refresh-k3/compose_current_base.py
+!/ops/glp/evidence-refresh-k3/registered_taxonomy.py
+!/tests/test_glp80_registered_taxonomy_intake.py
 !/tests/test_glp80_daily_progress.py
 !/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
 !/ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md
@@ -433,6 +436,7 @@
 !/inbox_control_plane/affiliate_decision_queue.py
 !/tests/test_cleanup_inbox_reader.py
 !/tests/test_cleanup_affiliate_decisions.py
+!/tests/test_glp113_imap_sent_classification.py
 
 # GLP330 exact retained discovery predecessor; non-executable byte fixture
 !/scripts/discovery_predecessor_migration.py
@@ -501,6 +505,11 @@
 !/ops/glp/topic-supply-inputs/README.md
 !/ops/glp/topic-supply-inputs/strategy-queue.json
 !/ops/glp/topic-supply-inputs/cluster-map.json
+
+# GLP343 first-party topic/refresh scoring (registered topic_data_score action)
+!/scripts/glp_topic_data_score.py
+!/tests/test_glp343_topic_first_party_scoring.py
+!/tests/test_glp343_integration_guards.py
 # GLP344 F04 price-evidence -> registry-delta seam (source only)
 !/tools/glp/price_evidence_delta.py
 !/tests/test_glp344_price_evidence_delta.py
