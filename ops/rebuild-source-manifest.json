@@ -898,7 +898,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "94c27c13d1773d48d7e71b1c187ceb71446c19e38b0d92eb7ae6efec7613e5b2"
+      "sha256": "0292c5ca4c278aafd904fa65a3fcd11ede003534496e9e1d24cf6cd2f4d8d4c9"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1897,7 +1897,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "14f9777dc7fea07cc3226d7a89c2666f9b5293d5592ed484e9efa5f48dca7aed"
+      "sha256": "ebdc42a1f26109e82fa3c73eedeaf9cab04436d0fa59e1224e1b5f03e4261c11"
     },
     "scripts/glp_price_index_weekly_successor.py": {
       "callers": [
@@ -3861,7 +3861,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "7ffe6033d05f75f26f3d01c2d680c8281380c89cd2531e6f81b7fcde2d07dc85"
+      "sha256": "54f3aa77e05ff450e418da564bf2684165844f96910dc8eb0012c2e434ae12e7"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -3873,12 +3873,12 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3fdff4a2ebb53f4f86ecee1976bcb182f4d1e7876be223ab3a0eaad76759b515"
+      "sha256": "509b1be48e4c8e71fac79d753330bbf4be5560fad042a1063bfd70e84ff2d09b"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "bf69bcd949d0219e2aad3622f05c152b47bee60e3e3aed87420716a1a85fd8ac"
+      "sha256": "d50092c917f4ba66425f4b8c0112d277a04fda3ad3f4f08559b4f5f254f59ba6"
     },
     "tools/glp/evidence_refresh.py": {
       "callers": [
