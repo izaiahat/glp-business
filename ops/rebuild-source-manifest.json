@@ -8,11 +8,27 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 633,
+  "tracked_count": 640,
   "files": {
+    "scripts/glp110_restore_pruned_execution.py": {
+      "kind": "script",
+      "callers": [
+        "operator-approved GLP110 recovery"
+      ],
+      "sha256": "9497f31657ffe42db28d7a190d7a21675ae779e97b868da116bd6782324b5672"
+    },
+    "tests/test_glp110_restore_pruned_execution.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
+    },
     "systems/analytics-brain/decision_policy.py": {
       "kind": "script",
-      "callers": ["systems/seo-blog-machine/scripts/existing_article_updates.py"],
+      "callers": [
+        "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      ],
       "sha256": "e187a0eb930295ae4f0c631352578d3c446e72c41a3da8c75eb13e8106d75641"
     },
     "scripts/glp345_a4_adoption.py": {
@@ -2156,7 +2172,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b95e956095837ee12eefd76e9ed42ffa6322865f06d9f0b99efecb256fa6a7e3"
+      "sha256": "ab96cb5f8fb1111c0f048f72b748cc2d88fa32fd2c741cc547807cf123d3dc17"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
