@@ -8,8 +8,37 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 687,
+  "tracked_count": 691,
   "files": {
+    "scripts/glp_published_provider_intake.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_auto_apply.py",
+        "registered manual GLP96 intake"
+      ],
+      "sha256": "fdbe5c5b41982decb2e7fb718e0f302547dd906af113daad29cb7cba7015dd06"
+    },
+    "ops/glp/published-provider-intake-policy.json": {
+      "kind": "configuration",
+      "callers": [
+        "scripts/glp_published_provider_intake.py"
+      ],
+      "sha256": "21263fa8d039bc3757b2778b295208c52100a7525e89daec46f42b30bc8b4549"
+    },
+    "ops/glp96-published-intake.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "GLP96 owner"
+      ],
+      "sha256": "d76d92682e817ff72aecf2e9a250030af4aae8aeba8f1d1ea5469ef1382f2eb7"
+    },
+    "tests/test_glp96_published_intake.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "e0bb9d8232b4c0d65837764d131499d5f2c05b4217730e7ad33582155ff9eccb"
+    },
     "tests/test_glp76_review_publication_date.py": {
       "kind": "test",
       "callers": [
@@ -1200,7 +1229,7 @@
     "ops/registered-producers.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "efa9d2a44b01b6cc1c38e37ed00ad9fb9ccf49d79e232a56a20850a0acf617c2"
+      "sha256": "80816538e0f420602c53a0f3dd80975f657683e205ebe200c25c36970d8cadce"
     },
     "ops/rook-mcp/README.md": {
       "callers": [
@@ -1354,7 +1383,7 @@
         "GLP affiliate front-half runtime source import"
       ],
       "kind": "script",
-      "sha256": "10b276852fe65504525c49bf3e1f4c064c23c0e7400c3f024ed1eff3b9a18a63"
+      "sha256": "c4aa616430ed050473a328fc9bb817111b9ed960e3fd4eff7a6e2c3fbebcad6b"
     },
     "scripts/affiliate_best_terms_machine.py": {
       "callers": [
@@ -2186,7 +2215,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "67d278ecd7f59b39d2897e5c9b97068b5145d4bd374a9aafc9a223f1f1f7951a"
+      "sha256": "1c2cfd9d361129a97ffcfff468646a38f048aba2f938aab042f706c351aee0f2"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
