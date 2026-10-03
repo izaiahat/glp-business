@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 648,
+  "tracked_count": 650,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "afb5141315b8c418fa36b7e6e09f19c629e1f212b37e3603dd146a29f62b479a"
+      "sha256": "5b7bdf5ee4af7094fc350fd05b592432a9eb59e54b63a68c57cba0f68fc1f02f"
     },
     ".hermes.md": {
       "callers": [],
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ab96cb5f8fb1111c0f048f72b748cc2d88fa32fd2c741cc547807cf123d3dc17"
+      "sha256": "532a39c6bb9c4ba6fb4f387e1caa6a1329e403b6d77d9bfc27e63144d364ad42"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3718,10 +3718,11 @@
     },
     "systems/seo-blog-machine/scripts/learning_loop_actions.py": {
       "callers": [
-        "GLP75/76 Sunday workweek source admission; consumer/test review context"
+        "GLP75/76 Sunday workweek source admission; consumer/test review context",
+        "GLP343 first-party refresh score consumer (fail-open)"
       ],
       "kind": "script",
-      "sha256": "4c7c52fae0722a70a1f9519ca4cae600b6513ac99bb584f46a77b98c457d3512"
+      "sha256": "79dbadf3cc30a8e3413a17e396b1740f57540a44d84a6d165a71b3d547b38e39"
     },
     "systems/seo-blog-machine/scripts/r2_update_carrier.py": {
       "callers": [
@@ -4353,6 +4354,22 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "56c8fd8e90a7e974d95fc8847229d46c12ee3fc6ff4d29dd749864fc27759c7a"
+    },
+    "scripts/glp_topic_data_score.py": {
+      "callers": [
+        "n8n bridge action topic_data_score (cron_bridge_action after topic_supply_mint)",
+        "select_opus_content_queue.load_demand_multipliers sidecar producer",
+        "learning_loop_actions P5 first-party refresh ordering"
+      ],
+      "kind": "script",
+      "sha256": "158609c1bd2855c6430a71addc35e57288716ce81352bffe81d40df9501b45d5"
+    },
+    "tests/test_glp343_topic_first_party_scoring.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "6a7cc8d567ff0ab21de0583306fa420c7570d87df41b3f423f8195621e06279a"
     }
   }
 }
