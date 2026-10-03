@@ -4457,14 +4457,14 @@
       "callers": [
         "host:cogny-task-drain"
       ],
-      "sha256": "c4d13b0d981a281ce7e9846a27af6173e96c64d96699a29b4aab5b11e7fd4b21"
+      "sha256": "630570a8fe3f24afc088ff49e0da2af9c73d8fc5c1f7c1e8aa8cd2351bab0177"
     },
     "ops/glp/cogny_client.py": {
       "kind": "script",
       "callers": [
         "host:cogny-task-drain"
       ],
-      "sha256": "a792b007cd72661833db60c7f14e9def77cc5d5f6922194472e97af1f93025e1"
+      "sha256": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f"
     },
     "tests/test_glp76_native_terminal_base.py": {
       "kind": "test",

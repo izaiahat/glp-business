@@ -638,7 +638,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         from ops.glp.cogny_client import connect
-        client = connect()
+        # One transport attempt: claims/completions cannot be blindly retried.
+        client = connect(retries=1)
     except Exception as exc:  # noqa: BLE001
         out = {"schema": SCHEMA, "mode": ns.mode, "ok": False,
                "reason": "cogny_unreachable", "error": str(exc)[:300], "output_count": 0}
