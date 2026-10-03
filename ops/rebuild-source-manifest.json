@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 656,
+  "tracked_count": 662,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ab96cb5f8fb1111c0f048f72b748cc2d88fa32fd2c741cc547807cf123d3dc17"
+      "sha256": "d46d6208a2d5b4b6c913722c65d551375a02b96f1a14530f7b4e8865ed48d35e"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4409,6 +4409,46 @@
       ],
       "kind": "test_fixture",
       "sha256": "96a7b60de1f3dd5d0d8f8618ba7b7c4caf7be9f12b5d1c0954d39157b9cf13d7"
+    },
+    "scripts/glp_sponsor_campaign.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
+      ],
+      "sha256": "4cdc790946b80986a4f995c04115b1c1c1da8a23e670e83fe1fe65d7775ff354"
+    },
+    "ops/sponsor-machine/campaign.json": {
+      "kind": "source_control",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "466d9be7c70528cd5176ab885176316e84d2c41ad18418f0e401058fb6042592"
+    },
+    "ops/sponsor-machine/copy.json": {
+      "kind": "source_control",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "e061550f0197c2986220aa2a98d17bffa8f9e214a7c0139d84c120a22ef901d9"
+    },
+    "ops/sponsor-machine/README.md": {
+      "kind": "source_control",
+      "callers": [],
+      "sha256": "4e9dc0561b7a3971fb689f134ee073225a8f68129d80ddb31f7720f6c5171ab6"
+    },
+    "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
+      "kind": "source_control",
+      "callers": [
+        "hermes cron sponsor outreach"
+      ],
+      "sha256": "8585c6f89acec1e6023f67d840cd4ebc792a96ce424fdc93ed415b21306bb146"
+    },
+    "tests/test_glp_sponsor_campaign.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "f73b7039034f6c0648db216ff4fbe07d3312eeaedede531af07833d9378dfd62"
     }
   }
 }
