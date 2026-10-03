@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 703,
+  "tracked_count": 704,
   "files": {
     "scripts/glp_host_ingress.py": {
       "kind": "script",
@@ -536,7 +536,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f4c704241b005e1a2d70a266a18b7d70742fccac4714756ce45d881ff65dab5d"
+      "sha256": "01bef65bf29c461ef526cfb59227009a646aca5a699d0bb02160970f4f5b272f"
     },
     ".hermes.md": {
       "callers": [],
@@ -1515,6 +1515,9 @@
         "scripts/affiliate_terms_fanout.py --build-candidate"
       ],
       "sha256": "fa39dce69e424a23b5514b1781c7644d39338764d65204580ba2bb4e667029d7"
+    },
+    "scripts/glp_seo_publish_failure_alert.py": {
+      "sha256": "b6a8a6b76d3cab9470fd4eaf91e434adffd8795ad42398ec0a5392f9c8ea9de7"
     },
     "scripts/article_carrier_gate_health.py": {
       "callers": [

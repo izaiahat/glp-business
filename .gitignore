@@ -12,6 +12,8 @@
 !/scripts/
 /scripts/*
 !/scripts/agent_exec.py
+!/scripts/glp_seo_publish_failure_alert.py
+!/tests/test_glp320_host_failure_sensor.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
