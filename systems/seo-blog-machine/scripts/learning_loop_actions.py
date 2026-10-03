@@ -22,6 +22,7 @@ from existing_article_updates import (
     canonical_route,
     load_observability,
     load_release_articles,
+    payload_hash as selection_payload_hash,
 )
 from machine_config import load_config
 
@@ -33,6 +34,12 @@ DEFAULT_AUTHORITY = BUSINESS / "reports/glp-clinic-scout/seo-machine/A7-LEARNING
 DEFAULT_ACTION_ROOT = BUSINESS / "reports/glp-clinic-scout/seo-machine/weekly-learning-actions"
 DEFAULT_BUFFER_INTAKE = BUSINESS / "reports/glp-clinic-scout/seo-machine/article-buffer/action-intake/latest-learning-work-orders.json"
 DEFAULT_CONSOLIDATION_INTAKE = BUSINESS / "reports/glp-clinic-scout/seo-machine/consolidation-carrier/inbox/latest-learning-tasks.json"
+# First-party demand sidecar written by scripts/glp_topic_data_score.py (the
+# registered topic_data_score action) from GSC/Bing/GA4 receipts; same file the
+# strategy selector reads. Consumed fail-open here: it orders P5 spokes, never
+# gates them.
+DEFAULT_DEMAND_SIDECAR = BUSINESS / "reports/glp-clinic-scout/seo-machine/topic-data-score/demand-multipliers.json"
+DEMAND_SIDECAR_SCHEMA = "glp-topic-demand-multiplier-v1"
 REQUIRED_ACTIONS = {
     "retarget_keywords",
     "deprioritize_losers",
@@ -231,6 +238,109 @@ def loop_consolidation_tasks(loops: dict[str, Any], *, as_of: dt.date) -> list[d
     return tasks
 
 
+def load_first_party_refresh_scores(
+    path: Path = DEFAULT_DEMAND_SIDECAR, *, now: dt.datetime | None = None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Route-keyed refresh scores from the first-party demand sidecar.
+
+    FAILS OPEN, always: absent, unreadable, wrong-schema or stale sidecars yield
+    an empty table and the pre-existing P5 order, with the reason receipted. A
+    route whose score the scorer left ``null`` (no first-party source reported)
+    stays unscored here; it is never treated as zero demand.
+    """
+    meta: dict[str, Any] = {"path": str(path), "state": "absent", "scored_routes": 0}
+    try:
+        if not path.is_file():
+            return {}, meta
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if document.get("schema") != DEMAND_SIDECAR_SCHEMA:
+            meta["state"] = "schema_mismatch"
+            return {}, meta
+        written = dt.datetime.fromisoformat(str(document.get("written_utc")).replace("Z", "+00:00"))
+        if written.tzinfo is None:
+            written = written.replace(tzinfo=dt.timezone.utc)
+        current = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+        age_hours = (current - written).total_seconds() / 3600.0
+        max_age = float(document.get("max_age_hours") or 96)
+        meta.update({"written_utc": document.get("written_utc"), "age_hours": round(age_hours, 2),
+                     "max_age_hours": max_age, "degraded": list(document.get("degraded") or []),
+                     "sha256": sha(path)})
+        if age_hours < -1 or age_hours > max_age:
+            meta["state"] = "stale"
+            return {}, meta
+        scores: dict[str, dict[str, Any]] = {}
+        for row in document.get("refreshes") or []:
+            if not isinstance(row, dict):
+                continue
+            route = str(row.get("route") or "")
+            score = row.get("refresh_score")
+            if (not SAFE_ROUTE.fullmatch(route) or isinstance(score, bool)
+                    or not isinstance(score, (int, float)) or score != score):
+                continue
+            scores[route] = {"refresh_score": float(score), "rank": row.get("rank"),
+                             "state": row.get("state"), "search_impressions": row.get("search_impressions"),
+                             "engagement_fraction": row.get("engagement_fraction")}
+        meta.update({"state": "applied", "scored_routes": len(scores)})
+        return scores, meta
+    except Exception as exc:  # noqa: BLE001 — never block the weekly learning emit
+        meta.update({"state": "error", "error": str(exc)[:200]})
+        return {}, meta
+
+
+def prioritize_p5_spokes(
+    rows: list[dict[str, Any]], scores: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One work order per route, first-party demand first, then GSC position.
+
+    Routes the sidecar scored lead in score order; unscored routes keep their
+    existing position order behind them (unknown demand is not zero demand).
+    """
+    unique: dict[str, dict[str, Any]] = {}
+    duplicates: list[str] = []
+    for row in rows:
+        route = str(row.get("route") or "")
+        if route in unique:
+            duplicates.append(route)
+            continue
+        signal = scores.get(route)
+        unique[route] = {
+            **row,
+            "first_party_demand": (
+                {"state": "SOURCE_REPORTED", **signal} if signal is not None
+                else {"state": "UNKNOWN_NOT_SCORED", "refresh_score": None, "rank": None}
+            ),
+        }
+    ordered = sorted(unique.values(), key=lambda row: (
+        row["first_party_demand"]["refresh_score"] is None,
+        -(row["first_party_demand"]["refresh_score"] or 0.0),
+        float(row.get("position") or float("inf")),
+        str(row.get("route") or ""),
+    ))
+    scored = sum(1 for row in ordered if row["first_party_demand"]["refresh_score"] is not None)
+    return ordered, {"work_orders": len(ordered), "scored": scored, "unscored": len(ordered) - scored,
+                     "duplicate_routes_removed": sorted(duplicates)}
+
+
+def prioritize_r2_work_orders(rows, scores):
+    """Order within existing tier/authority slots; keep selection and quotas."""
+    if not scores:
+        return list(rows), {"work_orders": len(rows), "scored": 0}
+    groups = {}
+    def group(row):
+        return row.get("priority"), bool(row.get("operator_freshness_cadence_authority"))
+    for row in rows:
+        signal = scores.get(row["route"])
+        annotated = {**row, "first_party_demand": signal}
+        groups.setdefault(group(row), []).append(annotated)
+    for values in groups.values():
+        values.sort(key=lambda row: (
+            row["first_party_demand"] is None,
+            -(row["first_party_demand"] or {}).get("refresh_score", 0),
+        ))
+    ordered = [groups[group(row)].pop(0) for row in rows]
+    return ordered, {"work_orders": len(rows), "scored": sum(row["first_party_demand"] is not None for row in ordered)}
+
+
 def week_start(day: dt.date) -> str:
     # Sunday's learning prepares the following Monday's carrier workweek.
     if day.weekday() == 6:
@@ -250,6 +360,7 @@ def emit(
     buffer_intake: Path,
     consolidation_intake: Path,
     as_of: dt.date,
+    demand_sidecar: Path = DEFAULT_DEMAND_SIDECAR,
 ) -> dict[str, Any]:
     authority = validate_authority(authority_path)
     loops = read_object(loops_path.resolve(strict=True), "learning_loops")
@@ -277,7 +388,14 @@ def emit(
         if row.get("canonical_path") and row.get("article_id")
     }
 
-    p5_rows = list(selection.get("p5_net_new_spokes") or [])
+    refresh_scores, demand_meta = load_first_party_refresh_scores(demand_sidecar)
+    selected, refresh_priority = prioritize_r2_work_orders(selection["weekly_plan"]["selected"], refresh_scores)
+    if refresh_scores:
+        selection["weekly_plan"]["selected"] = selected
+        selection["first_party_demand"] = {"sidecar": demand_meta, "priority": refresh_priority}
+        selection.pop("receipt_sha256", None)
+        selection["receipt_sha256"] = selection_payload_hash(selection)
+    p5_rows, p5_priority = prioritize_p5_spokes(list(selection.get("p5_net_new_spokes") or []), refresh_scores)
     p6_rows = p6_duplicate_query_tasks(metrics, article_ids, as_of=as_of)
     p6_rows.extend(loop_consolidation_tasks(loops, as_of=as_of))
     unique_p6 = {row["task_id"]: row for row in p6_rows}
@@ -292,6 +410,7 @@ def emit(
         "week_start": week_start(as_of),
         "authority": authority_spec,
         "work_orders": p5_rows,
+        "first_party_demand": {**demand_meta, "priority": p5_priority},
         "effects": {"page_mutations": 0, "publishes": 0, "deployments": 0},
     }
     p5_payload["receipt_sha256"] = payload_hash(p5_payload, "receipt_sha256")
@@ -325,6 +444,7 @@ def emit(
             "loops": file_spec(loops_path),
             "topic_queue": file_spec(topic_queue_path),
             "current_release": {"path": str(release_root)},
+            "first_party_demand": demand_meta,
         },
         "work_orders": {
             "r2": file_spec(selection_path),
@@ -332,7 +452,8 @@ def emit(
             "consolidation": file_spec(p6_path),
         },
         "counts": counts,
-        "queue_actions": {"retargeted_or_reprioritized": retargeted, "total_ranked": len(queue_rows)},
+        "queue_actions": {"retargeted_or_reprioritized": retargeted, "total_ranked": len(queue_rows),
+                          "p5_first_party_prioritized": p5_priority["scored"]},
         "reporting": "weekly_counts_only",
         "effects": {"page_mutations": 0, "redirects": 0, "publishes": 0, "deployments": 0},
     }
@@ -382,6 +503,7 @@ def main() -> int:
     parser.add_argument("--buffer-intake", type=Path, default=DEFAULT_BUFFER_INTAKE)
     parser.add_argument("--consolidation-intake", type=Path, default=DEFAULT_CONSOLIDATION_INTAKE)
     parser.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
+    parser.add_argument("--demand-sidecar", type=Path, default=DEFAULT_DEMAND_SIDECAR)
     args = parser.parse_args()
     result = emit(
         config_path=args.config,
@@ -394,6 +516,7 @@ def main() -> int:
         buffer_intake=args.buffer_intake,
         consolidation_intake=args.consolidation_intake,
         as_of=args.as_of,
+        demand_sidecar=args.demand_sidecar,
     )
     print(json.dumps({"status": result["status"], "counts": result["counts"], "latest": result["latest"]}, sort_keys=True))
     return 0
