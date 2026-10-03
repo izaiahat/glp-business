@@ -1227,6 +1227,90 @@ def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) 
     return href
 
 
+def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
+                                programs: dict[str, Any], authority: dict[str, Any],
+                                runtime: dict[str, Any], current_holds: set[str]) -> dict[str, Any]:
+    """Bind active direct fastpaths separately; never invent /go membership.
+
+    Measured's accepted direct CTA intentionally has no public redirect entry.
+    Its own provider/review pages still require the exact issued direct URL.
+    Read only sealed publication inputs; unknown/inactive terms stay link-dark.
+    """
+    candidates = {pid: program for pid, program in programs.items()
+                  if pid != 'fella-health' and pid not in runtime and program.get('commercial_state') == 'live'
+                  and (authority.get(pid) or {}).get('promotion_authorized') is True
+                  and (authority.get(pid) or {}).get('status') == 'VERIFIED'
+                  and (program.get('profiles', {}).get('glp-clinic-scout') or {}).get('wired') is True
+                  and (program.get('profiles', {}).get('glp-clinic-scout') or {}).get('vertical_fit') is True
+                  and (program.get('profiles', {}).get('glp-clinic-scout', {}).get('surfaces') or {}).get('review') is True}
+    if not candidates:
+        return {}
+    pointer = read_json(BUSINESS / control['affiliate_obligations']['release_pointer'])
+    if Path(pointer['release_root']).resolve(strict=True) != release:
+        raise RuntimeError('affiliate_fastpath_release_changed')
+    seals = {row['path']: row['sha256'] for row in read_json(Path(pointer['manifest']['path']))['release_rows']}
+    docs = []
+    for name, schema in (
+        ('data/provider-page-contracts.json', 'glp-provider-fastpath-contracts-v1'),
+        ('data/provider-fastpath-contract.json', 'glp-provider-fastpath-integration-v1'),
+        ('data/affiliate-wire-in-approvals.json', 'glp-affiliate-wire-in-approvals-v1'),
+    ):
+        path = release / name
+        if (path.is_symlink() or not path.is_file() or not seals.get(name)
+                or hashlib.sha256(path.read_bytes()).hexdigest() != seals[name]):
+            raise RuntimeError('affiliate_fastpath_authority_drift:' + name)
+        doc = read_json(path)
+        if doc.get('schema') != schema:
+            raise RuntimeError('affiliate_fastpath_authority_invalid:' + name)
+        docs.append(doc)
+    contracts, fastpaths, approvals = docs
+    terms = (approvals.get('current_terms_reassessment') or {}).get('programs') or []
+    permissions = {}
+    for pid, program in candidates.items():
+        active = [row for row in fastpaths.get('providers', []) if row.get('program_id') == pid]
+        matching = [row for row in contracts.get('providers', []) if row.get('program_id') == pid]
+        if (len(active) != 1 or len(matching) != 1
+                or active[0].get('affiliate_cta_state') != 'ACTIVE_PROVIDER_ISSUED_DIRECT'
+                or active[0].get('route_state') != 'LIVE_EDITORIAL_AFFILIATE_ACTIVE'):
+            continue
+        contract = matching[0]
+        row, network = contract.get('row_contract') or {}, contract.get('network_contract') or {}
+        promotion = authority[pid]
+        term = [entry for entry in terms if entry.get('existing_release_alias') == pid
+                and str(entry.get('provider_program_id')) == str(network.get('immutable_offer_id'))]
+        href = network.get('tracking_url')
+        if (len(term) != 1 or term[0].get('status') != 'operator_accepted_terms'
+                or term[0].get('verdict') != 'operator_accepted_terms'
+                or term[0].get('live_link_disposition') != 'preserve_existing_live'
+                or term[0].get('future_change_terms_gate_open') is not True
+                or not term[0].get('existing_live_surfaces')
+                or contract.get('review_path') != program.get('review_path')
+                or row.get('program_id') != pid or row.get('promotion_authorized') is not True
+                or row.get('live_link_allowed') is not True or row.get('affiliate_link_mode') != 'transparent_direct'
+                or network.get('activation_blocker') is not None
+                or network.get('relationship_state') != 'approved_or_active'
+                or network.get('transparent_direct_supported_by_current_renderer') is not True
+                or not isinstance(href, str) or urlsplit(href).scheme != 'https'
+                or not urlsplit(href).hostname or row.get('affiliate_href') != href
+                or str(network.get('network') or '').lower() != str(promotion.get('network') or '').lower()
+                or row.get('affiliate_network') != network.get('network')):
+            continue
+        if term[0].get('rescission_note'):
+            risk = term[0].get('risk_acceptance') or {}
+            decision = risk.get('operator_decision_receipt') or {}
+            if (risk.get('risk_accepted') is not True
+                    or term[0].get('decision_receipt_sha256') != decision.get('sha256')
+                    or hashlib.sha256(Path(decision['path']).read_bytes()).hexdigest() != decision.get('sha256')):
+                raise RuntimeError('affiliate_fastpath_rescission_invalid:' + pid)
+        _assert_direct_decision(promotion)
+        held = str(network['network']).lower() in current_holds
+        permissions[pid] = {'obligation': 'forbidden' if held else 'required',
+                            'allowed': not held, 'direct_target': None if held else href,
+                            'go_allowed': False, 'network': str(network['network']).lower(),
+                            'direct_paths': [f'/providers/{pid}/', program['review_path']]}
+    return permissions
+
+
 def _approved_directory_target(target: dict[str, Any], path: str, authority: dict[str, Any],
                                approved: dict[str, Any], current_holds: set[str]) -> bool:
     """Accepted directory-only direct rails are not /go registry members."""
@@ -1478,6 +1562,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
     programs = {row["program_id"]: row for row in registry["programs"]}
     reviews = {row["review_path"]: row["program_id"] for row in registry["programs"]
                if row.get("review_path")}
+    current_holds = _current_network_holds(control)
+    fastpath_permissions = _bound_fastpath_permissions(
+        release, control, programs, authority.get("programs") or {}, runtime_programs, current_holds)
     covered = set(control["affiliate_routes"])
     observed = set(observed_routes or ())
     for program_id, program in programs.items():
@@ -1489,18 +1576,17 @@ def derive_affiliate_obligations(control: dict[str, Any],
                     covered.add(route)
             continue
         allowed = promotion.get("promotion_authorized")
-        published_provider = program_id in public_ids
+        published_provider = program_id in public_ids or program_id in fastpath_permissions
         published_review = bool(review and review.strip("/").split("/")[-1] in public_ids)
         if allowed is False or (allowed is True and published_provider):
             covered.add(f"/providers/{program_id}/")
         if review and (allowed is False or (allowed is True and (published_provider or published_review))):
             covered.add(review)
-    current_holds = _current_network_holds(control)
     approved = read_json(release / "data/approved-program-registry.json")
     if (approved.get("schema") != "approved-program-successor-registry-v1"
             or not isinstance(approved.get("programs"), list)):
         raise RuntimeError("affiliate_directory_authority_invalid")
-    permissions: dict[str, dict[str, Any]] = {}
+    permissions: dict[str, dict[str, Any]] = dict(fastpath_permissions)
     static = {row["path"]: row for row in static_routes or []}
     listing_policy = control["affiliate_obligations"].get("duration_listing_contract") or {}
     listing_routes = set(listing_policy.get("routes") or []) & covered
@@ -1524,6 +1610,9 @@ def derive_affiliate_obligations(control: dict[str, Any],
             obligations[route] = (_listing_obligation(listings.get(route),
                                                       static.get(route, {}).get("listing_contract"))
                                   if route in listing_routes else "required")
+            continue
+        if program_id in fastpath_permissions:
+            obligations[route] = fastpath_permissions[program_id]["obligation"]
             continue
         program = programs.get(program_id)
         promotion = (authority.get("programs") or {}).get(program_id)
@@ -1608,6 +1697,7 @@ def derive_affiliate_obligations(control: dict[str, Any],
                         and parsed.hostname in (None, PRODUCTION_HOST)
                         and parsed.scheme in ("", "https"))
             valid_direct = (permission.get("allowed") is True
+                            and ("direct_paths" not in permission or row["path"] in permission["direct_paths"])
                             and target.get("href") == permission.get("direct_target")
                             and target.get("link_mode") == "transparent-direct"
                             and str(target.get("network") or "").lower() == permission.get("network"))
