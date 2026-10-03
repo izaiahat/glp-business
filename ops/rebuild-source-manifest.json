@@ -3435,7 +3435,7 @@
         "scripts/glp73_paired_adoption.py"
       ],
       "kind": "repository_control",
-      "sha256": "23a4a9d40b54b7f41dbb7d0dba3ce775fbc05b87a160a5617af18448d804f9bb"
+      "sha256": "15f8c97c5069cdbf7ace819d2ad2e5b7e4e942424dda65fca42df4f18604ff83"
     },
     "tests/test_maintenance_adoptions.py": {
       "callers": [
