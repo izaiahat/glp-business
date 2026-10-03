@@ -49,3 +49,16 @@ def test_owner_detects_root_inode_replacement(tmp_path):
         with pytest.raises(ValueError, match='source_import_root_moved'):
             with syncer.source_session(root, owner):
                 pass
+
+
+def test_source_lock_wait_queues_until_released(tmp_path, monkeypatch):
+    import threading, time
+    from scripts.sync_from_repo import source_lock
+    monkeypatch.setenv('GLP_SOURCE_LOCK_WAIT_S', '5')
+    got = []
+    with source_lock(tmp_path):
+        th = threading.Thread(target=lambda: got.append(source_lock(tmp_path).__enter__() is not None))
+        th.start(); time.sleep(0.8)
+        assert got == []  # still queued while held
+    th.join(5)
+    assert got == [True]
