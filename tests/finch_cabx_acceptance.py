@@ -1,6 +1,7 @@
-"""Synthetic spec-shaped JUMBF framing; not signed provenance or original art."""
+"""Synthetic framing plus a pinned published assertion; no provenance trust."""
 import base64
 import hashlib
+from pathlib import Path
 import socket
 import struct
 
@@ -9,6 +10,8 @@ from finch_png_acceptance import png_chunk, png_fixture
 from test_rook_mcp_events import module
 
 UUID_SUFFIX = bytes.fromhex('00110010800000aa00389b71')
+# c2pa-rs JUMBF_EMBEDDED_FILE_UUID; bfdb is a child box, not this content type.
+EMBEDDED_FILE_UUID = bytes.fromhex('40cb0c32bb8a489da70b2ad6f47f4369')
 
 
 def box(kind, data=b''):
@@ -16,7 +19,9 @@ def box(kind, data=b''):
 
 
 def description(kind, label, toggles=3, optional=b''):
-    return box(b'jumd', kind + UUID_SUFFIX + bytes([toggles]) + label + b'\0' + optional)
+    uuid = kind + UUID_SUFFIX if len(kind) == 4 else kind
+    assert len(uuid) == 16
+    return box(b'jumd', uuid + bytes([toggles]) + label + b'\0' + optional)
 
 
 def superbox(kind, label, children, toggles=3, optional=b''):
@@ -116,10 +121,46 @@ class TestFinchCaBX:
 
     @pytest.mark.parametrize('kind,children', [(b'cbor', [box(b'cbor', b'\xa0')]),
         (b'json', [box(b'json', b'{"note":"safe"}')]),
-        (b'bfdb', [box(b'bfdb', b'\x00image/png\0'), box(b'bidb', png_fixture())]),
-        (b'bfdb', [box(b'bfdb', b'\x01image/jpeg\0thumb.jpg\0'), box(b'bidb', b'\xff\xd8\xff\xd9')])])
+        (EMBEDDED_FILE_UUID, [box(b'bfdb', b'\x00image/png\0'), box(b'bidb', png_fixture())]),
+        (EMBEDDED_FILE_UUID, [box(b'bfdb', b'\x01image/jpeg\0thumb.jpg\0'), box(b'bidb', b'\xff\xd8\xff\xd9')])])
     def test_supported_content_and_embedded_file_framing(self, kind, children):
         self.validate(manifest(superbox(kind, b'example', children + [box(b'free', bytes(16))])))
+
+    @pytest.mark.parametrize('filename', [b'', b'thumb.png'])
+    @pytest.mark.parametrize('salt', [b'', bytes(16), bytes(32)])
+    def test_standard_embedded_file_uuid_preserves_bytes_with_filename_and_salt(self, filename, salt):
+        fields = bytes([bool(filename)]) + b'image/png\0' + (filename + b'\0' if filename else b'')
+        assertion = superbox(EMBEDDED_FILE_UUID, b'c2pa.thumbnail.claim',
+            [box(b'bfdb', fields), box(b'bidb', png_fixture())],
+            19 if salt else 3, box(b'c2sh', salt) if salt else b'')
+        data = png_fixture(extra=[(b'caBX', manifest(assertion))])
+        assert self.m.validate_file('art.png', 'image/png', data, finch=True)['data'] == data
+
+    @pytest.mark.parametrize('uuid', [b'bfdb' + UUID_SUFFIX, b'bidb' + UUID_SUFFIX,
+        EMBEDDED_FILE_UUID[:-1] + b'\x68', b'json' + UUID_SUFFIX[:-1] + b'\x70'])
+    def test_substituted_or_near_match_content_uuid_is_refused(self, uuid):
+        assertion = superbox(uuid, b'c2pa.thumbnail.claim',
+            [box(b'bfdb', b'\0image/png\0'), box(b'bidb', png_fixture())])
+        with pytest.raises(self.m.RpcError, match='InvalidOrUnsupportedPNG'):
+            self.validate(manifest(assertion))
+
+    @pytest.mark.parametrize('substituted', [False, True])
+    def test_published_c2pa_rs_embedded_file_assertion(self, substituted):
+        # Independently published bytes, NOT produced by description()/superbox().
+        # Exact upstream URL, SHA-256 and extraction range are in the Rook README.
+        assertion = (Path(__file__).parent / 'fixtures/finch_cabx_embedded_file.jumb').read_bytes()
+        assert len(assertion) == 12628
+        assert hashlib.sha256(assertion).hexdigest() == '9fdd17837a0aa7ba7ab60c974011a3cee9ecaae2a94d868504c184942204cd61'
+        assert assertion[16:32] == bytes.fromhex('40cb0c32bb8a489da70b2ad6f47f4369')
+        if substituted:
+            # Change only the enclosing type; all published child bytes stay exact.
+            assertion = assertion[:16] + b'bfdb' + UUID_SUFFIX + assertion[32:]
+            with pytest.raises(self.m.RpcError, match='InvalidOrUnsupportedPNG'):
+                self.validate(manifest(assertion))
+        else:
+            # Outer PNG and store/claim wrappers remain synthetic and unsigned.
+            data = png_fixture(extra=[(b'caBX', manifest(assertion))])
+            assert self.m.validate_file('art.png', 'image/png', data, finch=True)['data'] == data
 
     @pytest.mark.parametrize('marker', [b'PRIVATE KEY', b'Authorization: example', b'Bearer example',
         b'password=example', b'api_key=example', b'client_secret=example', b'patient', b'dob', b'ssn',
@@ -130,7 +171,7 @@ class TestFinchCaBX:
         if location == 'label':
             assertion = superbox(b'json', marker, [box(b'json', b'{}')])
         elif location == 'embedded':
-            assertion = superbox(b'bfdb', b'example', [box(b'bfdb', b'\0image/png\0'), box(b'bidb', png_fixture(extra=[(b'tEXt', b'Note\0 ' + marker + b' ')]))])
+            assertion = superbox(EMBEDDED_FILE_UUID, b'example', [box(b'bfdb', b'\0image/png\0'), box(b'bidb', png_fixture(extra=[(b'tEXt', b'Note\0 ' + marker + b' ')]))])
         else:
             children = [box(b'json', b'{}')]
             if location == 'padding': children.append(box(b'free', marker))
@@ -182,7 +223,7 @@ class TestFinchCaBX:
         [box(b'bfdb', b'\0application/zip\0'), box(b'bidb', b'raw')],
         [box(b'bfdb', b'\0image/png\0extra'), box(b'bidb', b'raw')]])
     def test_embedded_framing_external_and_unsupported_media(self, children):
-        with pytest.raises(self.m.RpcError): self.validate(manifest(superbox(b'bfdb', b'example', children)))
+        with pytest.raises(self.m.RpcError): self.validate(manifest(superbox(EMBEDDED_FILE_UUID, b'example', children)))
 
     def test_single_cabx_crc_and_existing_aggregate_metadata_budget(self):
         payload = manifest()
@@ -207,7 +248,7 @@ class TestFinchCaBX:
         between = data[:33] + png_chunk(b'IDAT', packed[:3]) + png_chunk(b'caBX', payload) + png_chunk(b'IDAT', packed[3:]) + data[-12:]
         with pytest.raises(self.m.RpcError): self.m.validate_file('art.png', 'image/png', between, finch=True)
         thumbnail = png_fixture(raw=b'\x00 patient ', compressed=zlib.compress(b'\x00 patient ', level=0))
-        assertion = superbox(b'bfdb', b'example', [box(b'bfdb', b'\0image/png\0'), box(b'bidb', thumbnail)])
+        assertion = superbox(EMBEDDED_FILE_UUID, b'example', [box(b'bfdb', b'\0image/png\0'), box(b'bidb', thumbnail)])
         with pytest.raises(self.m.RpcError, match='SensitiveOrActiveFileRefused'): self.validate(manifest(assertion))
 
     def test_depth_box_count_and_label_limits_at_boundary(self):

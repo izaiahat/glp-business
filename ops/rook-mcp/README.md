@@ -155,9 +155,16 @@ unsupported metadata fail closed.
 
 `caBX` accepts one uncompressed, explicitly sized JUMBF `jumb` store per PNG,
 with first/unique `jumd`, root UUID `63327061-0011-0010-8000-00aa00389b71`
-and label `c2pa`. Supported type UUIDs use the same standard suffix: containers
+and label `c2pa`. The explicit full-UUID allowlist uses that suffix for containers
 `c2pa`, `c2ma`, `c2um`, `c2as`; CBOR leaves `c2cl`, `c2cs`, `c2db`, `cbor`;
-JSON `json`; embedded-image `bfdb`. Actual boxes are `jumb`, `jumd`, `cbor`,
+and JSON `json`. Embedded-file content instead uses the standard UUID
+`40cb0c32-bb8a-489d-a70b-2ad6f47f4369`; the `bfdb`-prefix/suffix substitute
+`62666462-0011-0010-8000-00aa00389b71` is refused as an enclosing content type.
+The content/child distinction follows [C2PA 2.4 assertion stores](https://spec.c2pa.org/specifications/specifications/2.4/specs/C2PA_Specification.html#_assertion_store)
+(ISO 19566-5:2023 Annex B); the exact identifier is cross-checked against the
+[pinned c2pa-rs JUMBF reference implementation](https://github.com/contentauth/c2pa-rs/blob/e4f63a233c3b5bd6f5fcd308a0d0db95ab35eae4/sdk/src/jumbf/boxes.rs)
+(`JUMBF_EMBEDDED_FILE_UUID`, `JumbfEmbeddedFileBox::new`/`add_data`).
+Actual boxes are `jumb`, `jumd`, `cbor`,
 `json`, paired `bfdb`/`bidb`, optional final `free`, and optional description
 private `c2sh` containing exactly 16 or 32 salt bytes. Description toggles must
 include requestable + labeled, with only optional 4-byte ID, 32-byte signature
@@ -177,10 +184,29 @@ The complete raw caBX payload plus individual labels, salt and leaf payloads
 are marker-scanned (FourCC boundaries must not mask standalone word markers),
 including embedded image pixels; they gain **no** outer-image IDAT exemption.
 Inner image compressed metadata, escaped JSON and encoded CBOR values are not
-expanded/interpreted. Existing word-boundary regex limits remain; marker scans
+expanded/interpreted: an escaped JSON or chunked CBOR semantic marker can pass
+if it has no matching raw-byte marker. Even invalid JSON/CBOR or invalid embedded
+image content can pass supported framing. Existing word-boundary regex limits remain; marker scans
 are not sanitization or a complete malware/PHI detector. No URL is fetched,
 signature trusted, bytes normalized, metadata stripped or image re-encoded.
-Fixtures are synthetic spec-shaped framing, not signed/verified provenance.
+Most fixtures are synthetic spec-shaped framing, not signed/verified provenance.
+The independently published regression bytes in
+`tests/fixtures/finch_cabx_embedded_file.jumb` are an unchanged 12,628-byte
+embedded-file assertion extracted from the upstream
+[c2pa-rs exp-test1.png](https://raw.githubusercontent.com/contentauth/c2pa-rs/e4f63a233c3b5bd6f5fcd308a0d0db95ab35eae4/sdk/tests/fixtures/exp-test1.png).
+The complete upstream PNG is 5,884,439 bytes with SHA-256
+`8794b09652ab0585b9337f9c85981407ee297eda20f5885964057fca59648bd3`.
+Its caBX payload begins at absolute offset 41; extract caBX-relative range
+`[23216,35844)` (PNG-absolute `[23257,35885)`). The resulting fixture SHA-256 is
+`9fdd17837a0aa7ba7ab60c974011a3cee9ecaae2a94d868504c184942204cd61`.
+It retains the published `jumd` UUID/label, `bfdb` image/jpeg descriptor, and
+`bidb` bytes. Tests pin its length/hash, accept it in synthetic PNG/store wrappers
+and refuse a variant changing only the enclosing UUID to the erroneous substitute.
+The original PNG is **not** accepted whole: it exceeds the Finch 3MiB file limit
+and its caBX exceeds the 256KiB metadata limit. Extraction is a test-only bounded
+assertion fixture, not normalization of upload bytes or verification of the
+original PNG's signature/provenance. The upstream MIT notice is retained beside
+the fixture; optional filename/salt coverage remains explicitly synthetic.
 Original avatar/banner bytes are unavailable. Finch has now reported the banner
 chunk-map (IHDR, caBX, 32 consecutive IDAT, IEND), matching this chunk profile;
 that report is not local verification of either original caBX payload. Both

@@ -868,10 +868,23 @@ def png_cabx(payload):
         raise ValueError('JUMBF bounds')
     scan_file_markers(payload)
     count = 0
-    suffix = bytes.fromhex('00110010800000aa00389b71')
+    # Full content-type UUIDs, not FourCC-derived identities. The embedded-file
+    # type is distinct from its bfdb description and bidb data child boxes.
+    content_types = {
+        bytes.fromhex('6332706100110010800000aa00389b71'): b'c2pa',
+        bytes.fromhex('63326d6100110010800000aa00389b71'): b'c2ma',
+        bytes.fromhex('6332756d00110010800000aa00389b71'): b'c2um',
+        bytes.fromhex('6332617300110010800000aa00389b71'): b'c2as',
+        bytes.fromhex('6332636c00110010800000aa00389b71'): b'c2cl',
+        bytes.fromhex('6332637300110010800000aa00389b71'): b'c2cs',
+        bytes.fromhex('6332646200110010800000aa00389b71'): b'c2db',
+        bytes.fromhex('63626f7200110010800000aa00389b71'): b'cbor',
+        bytes.fromhex('6a736f6e00110010800000aa00389b71'): b'json',
+        bytes.fromhex('40cb0c32bb8a489da70b2ad6f47f4369'): b'embedded_file',
+    }
     containers = {b'c2pa', b'c2ma', b'c2um', b'c2as'}
     contents = {b'c2cl': b'cbor', b'c2cs': b'cbor', b'c2db': b'cbor',
-                b'cbor': b'cbor', b'json': b'json', b'bfdb': b'bfdb'}
+                b'cbor': b'cbor', b'json': b'json'}
 
     def box(start, limit):
         nonlocal count
@@ -894,8 +907,8 @@ def png_cabx(payload):
         if kind != b'jumd' or next_pos - desc < 18:
             raise ValueError('JUMBF description required')
         uuid = payload[desc:desc + 16]
-        content = uuid[:4]
-        if uuid[4:] != suffix or content not in containers | contents.keys():
+        content = content_types.get(uuid)
+        if content is None:
             raise ValueError('unsupported JUMBF content type')
         toggles = payload[desc + 16]
         if toggles & 3 != 3 or toggles & ~31:
@@ -937,7 +950,7 @@ def png_cabx(payload):
             elif content in containers:
                 if child != b'jumb':
                     raise ValueError('unsupported JUMBF container child')
-            elif content == b'bfdb':
+            elif content == b'embedded_file':
                 if child == b'bfdb' and not children:
                     fields = payload[begin:finish]
                     if not fields or fields[0] not in {0, 1}:
@@ -956,7 +969,7 @@ def png_cabx(payload):
                 raise ValueError('unsupported JUMBF content box')
             children.append(child)
             pos = finish
-        if not children or children == [b'free'] or (content == b'bfdb' and children[:2] != [b'bfdb', b'bidb']):
+        if not children or children == [b'free'] or (content == b'embedded_file' and children[:2] != [b'bfdb', b'bidb']):
             raise ValueError('missing JUMBF content')
         return end
 
