@@ -12,8 +12,8 @@
       "sha256": "3ac87b3d008a214b11df4fa540817435d6962e82a5887076c2ab9486cf390c3b"
     },
     "dry_run_receipt": {
-      "path": "/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/pr231-qualification-20261004T031231Z-96290/dry-run-images.json",
-      "sha256": "632ed056c4b5c69a07ce5c1f309b531de095f1a234f0d9f2d55074b753920212"
+      "path": "/home/ubuntu/business/reports/ops/host-disk-pruner-screenshots-v2-20261001/pr233-qualification-20261004T075713Z-231834/dry-run-images.json",
+      "sha256": "b99d3c4244402a18217ac39b210dd5fcefe06ee4e6391d4520a9f035bdd369c4"
     },
     "notes": "D alone retires allowlisted untracked images per file in top-level QA/candidate runs whose ordinary images are ALL older than 30 days. Recent text/log/index mtimes do not rejuvenate old images; any recent ordinary image still vetoes the entire run. Financial/secret/state/database/.git files and protected sibling subtrees remain untouched without vetoing safe siblings. A sealed QA name alone is not a live pointer. Live-release/deploy-pointer policy entries and script/config consumers retain protection; narrative reports and copied report current*.json are not consumers. The operator decision supersedes the blanket QA protected_root ONLY for D; keep it for every other rule. Baselines/fixtures/tests/ws-v/scripts/quarantine remain outside run scope. Keep all non-image originals, content/roundtrip-verified compressed text copies, checksum MANIFEST-DELETED-IMAGES.json, and journal every unlink. D requires a complete checksum-pinned dry receipt bound to scope and source hashes. Gross reclaim counts unique allocated inodes only when all hardlinks are eligible; manifest/text-copy overhead is not deducted."
   },
