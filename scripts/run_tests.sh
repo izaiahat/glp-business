@@ -20,6 +20,7 @@ suites+=(tests/test_pr148_reporting_followups.py tests/test_api_collectors_partn
 suites+=(tests/test_api_collectors_everflow.py)
 suites+=(tests/test_glp345_a4_adoption.py)
 suites+=(tests/test_glp331_dependency_generation.py tests/test_glp331_carrier_generation.py tests/test_glp337_shared_bridge_generation.py)
+suites+=(tests/test_glp44_neutral_commercial_clocks.py)
 suites+=(tests/test_glp44_reader_exclusion.py)
 suites+=(tests/test_glp44_collector_release.py tests/test_glp44_collector_successor.py)
 suites+=(tests/test_glp341_native_registry_lock.py)

@@ -565,6 +565,7 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
             "SELECT properties.$pathname, countIf(event = '$pageview'), "
             "countIf(event = 'affiliate_click') FROM events "
             "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1') "
             "AND properties.$host = 'glpclinicscout.com' "
             f"AND properties.$pathname IN ({paths}) "
             "GROUP BY properties.$pathname ORDER BY properties.$pathname LIMIT 7"
@@ -592,6 +593,7 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
             "empty(ifNull(properties.$pathname, '')), 'route_unknown', 'other_route') AS route_bucket, "
             "count(), max(timestamp) FROM events "
             "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1') "
             "GROUP BY host_bucket, route_bucket ORDER BY host_bucket, route_bucket LIMIT 6"
         )
         if not buckets.get("ok"):

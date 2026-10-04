@@ -444,6 +444,7 @@ def click_join_readback(control: dict[str, Any]) -> dict[str, Any]:
             "SELECT count(), countIf(properties.cs_click_id IS NOT NULL "
             "AND properties.cs_click_id != ''), max(timestamp) FROM events "
             "WHERE event = 'affiliate_click' AND timestamp > now() - INTERVAL 30 DAY "
+            "AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1') "
             f"AND properties.$host = '{PRODUCTION_HOST}'"
         )
         if not canary.get("ok"):
