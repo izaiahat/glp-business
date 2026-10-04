@@ -512,6 +512,10 @@
 !/ops/pipeline-tool-contracts.json
 !/tests/test_pipeline_tool_contracts.py
 
+# GLP110 authenticated host archive producer predecessor (source only)
+!/scripts/evidence_preserving_pruner.py
+!/scripts/bounded_pruner.py
+
 # GLP343 first-party topic/refresh scoring (registered topic_data_score action)
 !/scripts/glp_topic_data_score.py
 !/tests/test_glp343_topic_first_party_scoring.py

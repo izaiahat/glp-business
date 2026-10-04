@@ -8,8 +8,18 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 709,
+  "tracked_count": 711,
   "files": {
+    "scripts/evidence_preserving_pruner.py": {
+      "kind": "script",
+      "callers": ["scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"],
+      "sha256": "ccd686864c9a589ae1e434978d0162e9639b70c2b602c5319d5e16410a1aa6d0"
+    },
+    "scripts/bounded_pruner.py": {
+      "kind": "script",
+      "callers": ["scripts/evidence_preserving_pruner.py"],
+      "sha256": "ec8eab96698faf8ab835c0ab7d4c6ef9e0d85421321b1a84ce0ed68d31e5b91e"
+    },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
       "callers": [
@@ -485,7 +495,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0447d81d7355a7b837241caf665bf64f53bdf5a43b8d879cbff14e8e56f3077b"
+      "sha256": "bdc275139772061da45fdad39798ec0d0aa5672abfff2f8debe8d08431d43c62"
     },
     ".hermes.md": {
       "callers": [],
