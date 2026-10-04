@@ -117,16 +117,139 @@ def test_budget_does_not_turn_old_cached_paths_into_completed_work(owner):
     assert owner.state['full_pass_complete'] is False
 
 
+def scheduler_heartbeat(owner):
+    """Nine-field fixture from engine.py:642-652; instants are fixture labels."""
+    path = owner.source.parent / 'email_flows' / 'scheduler-heartbeat.json'
+    path.parent.mkdir()
+    payload = dict(monitor='shared_email_flow_scheduler', ran_at='2026-10-04T07:07:28Z',
+                   upstream_ok=True, auth_valid=True, items_seen=0, sent_count=0,
+                   draft_count=0, cadence_s=1800, secret_printed=False)
+    path.write_text(json.dumps(payload))
+    return path, payload
+
+
+def replace_heartbeat(path, payload):
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(payload, sort_keys=True, separators=(',', ':'))+'\n')
+    temporary.replace(path)  # same atomic replacement shape as the maintained writer
+
+
+@pytest.mark.parametrize('rule_D', [False, True])
+def test_scheduler_telemetry_change_does_not_invalidate_consumers(owner, rule_D):
+    path, payload = scheduler_heartbeat(owner)
+    assert ep.reference_source_allowed(path), 'keep heartbeat inventory and identity guards'
+    index = ep.ReferenceIndex([path], ep.BUS,
+                              rule_D_qa_root=owner.root.parent if rule_D else None)
+    assert not index.references(owner.root)
+    payload.update(ran_at='2026-10-04T07:37:28Z', upstream_ok=False,
+                   items_seen=3, sent_count=1, draft_count=2)
+    replace_heartbeat(path, payload)
+    assert not index.references(owner.root), 'telemetry-only replacement gated every scope'
+    assert not hasattr(index, 'last_changed_source')
+    assert index.references(path.parent), 'reference-source ancestor guard must survive'
+
+
+def test_scheduler_telemetry_reaches_owning_fresh_admission(owner, monkeypatch):
+    path, payload = scheduler_heartbeat(owner)
+    monkeypatch.setattr(ep, 'reference_files', lambda *a: [path])
+    def telemetry_discovery(*args, **kwargs):
+        result = owner.discovery(*args, **kwargs)
+        payload['ran_at'] = '2026-10-04T07:37:28Z'
+        replace_heartbeat(path, payload)
+        return result
+    monkeypatch.setattr(ep, 'archive_candidates', telemetry_discovery)
+    rows, candidates = execute(owner)
+    assert candidates[0]['status'] == 'GATED_YOUNG_FILE', 'telemetry blocked real age admission'
+    assert rows[-1]['archive_progress']['evaluated'] == 1
+    assert (owner.root / 'evidence.txt').exists()
+
+
+@pytest.mark.parametrize('field', ['script', 'workdir', 'prompt', 'policy', 'pin',
+                                   'live_root', 'deploy_root', 'protected_roots', 'unknown'])
+def test_scheduler_consumer_addition_still_refuses(owner, field):
+    path, payload = scheduler_heartbeat(owner)
+    index = ep.ReferenceIndex([path], ep.BUS)
+    payload[field] = str(owner.root)
+    replace_heartbeat(path, payload)
+    assert index.references(owner.root)
+    assert index.last_changed_source == str(path)
+    # A fresh index must also recognize actual references, not merely drift.
+    assert ep.ReferenceIndex([path], ep.BUS).references(owner.root)
+
+
+@pytest.mark.parametrize('change', ['malformed', 'duplicate', 'missing', 'monitor',
+                                    'timestamp', 'boolean_count', 'string_count',
+                                    'nested_count', 'cadence', 'auth', 'secret', 'deleted', 'symlink'])
+def test_scheduler_unknown_or_changed_schema_still_refuses(owner, change):
+    path, payload = scheduler_heartbeat(owner)
+    index = ep.ReferenceIndex([path], ep.BUS)
+    if change == 'malformed':
+        path.write_text('{broken')
+    elif change == 'duplicate':
+        path.write_text(json.dumps(payload)[:-1]+',"ran_at":"other"}')
+    elif change == 'missing':
+        payload.pop('draft_count')
+        replace_heartbeat(path, payload)
+    elif change == 'deleted':
+        path.unlink()
+    elif change == 'symlink':
+        path.unlink()
+        path.symlink_to(owner.source)
+    else:
+        key, value = {'monitor': ('monitor', 'other'), 'timestamp': ('ran_at', str(owner.root)),
+                      'boolean_count': ('items_seen', True), 'string_count': ('items_seen', str(owner.root)),
+                      'nested_count': ('items_seen', {'live_root': str(owner.root)}),
+                      'cadence': ('cadence_s', 3600), 'auth': ('auth_valid', False),
+                      'secret': ('secret_printed', True)}[change]
+        payload[key] = value
+        replace_heartbeat(path, payload)
+    assert index.references(owner.root)
+    assert index.last_changed_source == str(path)
+
+
+def test_scheduler_named_unrelated_file_remains_raw_consumer(owner):
+    path, payload = scheduler_heartbeat(owner)
+    other = owner.source.parent / path.name
+    other.write_text(json.dumps(payload))
+    index = ep.ReferenceIndex([other], ep.BUS)
+    payload['ran_at'] = '2026-10-04T07:37:28Z'
+    replace_heartbeat(other, payload)
+    assert index.references(owner.root)
+    assert index.last_changed_source == str(other)
+
+
+@pytest.mark.parametrize('field', ['script', 'workdir', 'prompt', 'policy', 'pin',
+                                   'live_root', 'deploy_root', 'protected_roots'])
+def test_real_consumer_change_still_refuses(owner, field):
+    index = ep.ReferenceIndex([owner.source], ep.BUS)
+    owner.source.write_text(json.dumps({field: str(owner.root)}))
+    assert index.references(owner.root)
+    assert index.last_changed_source == str(owner.source)
+    assert ep.ReferenceIndex([owner.source], ep.BUS).references(owner.root)
+
+
 def test_safety_oracles_equal_authenticated_installed_predecessor():
     """Content/metadata/hardlink/retention/lifecycle guards are byte-unchanged.
 
     This is a source invariance assertion, not a live effect verification.
     Digest derives from authenticated predecessor commit 8f30fd7, not a mock.
+    The one new exact-path telemetry branch is separately regression-tested;
+    project only that branch out, retaining byte protection for jobs projection,
+    reference matching/inventory and all other authenticated safety oracles.
     """
     import ast
     import hashlib
     source = (Path(__file__).resolve().parents[1] / 'scripts' /
               'evidence_preserving_pruner.py').read_text()
+    index = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef)
+                 and n.name == 'ReferenceIndex')
+    consumer = next(n for n in index.body if isinstance(n, ast.FunctionDef)
+                    and n.name == 'consumer_text')
+    branch = consumer.body[1]
+    assert isinstance(branch, ast.If)
+    assert ast.unparse(branch.test) == "p == self.business / 'ops/email_flows/scheduler-heartbeat.json'"
+    lines = source.splitlines(keepends=True)
+    source = ''.join(lines[:branch.lineno-1] + lines[branch.end_lineno:])
     names = {'ReferenceIndex', 'archive_candidates', 'archive_tree', 'dedupe',
              'git_veto', 'inventory', 'protected', 'recover_retirements',
              'reference_files', 'regenerable', 'sig', 'verify_archive'}
