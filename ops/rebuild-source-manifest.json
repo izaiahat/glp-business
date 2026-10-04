@@ -15,12 +15,12 @@
       "callers": [
         ".github/workflows/glp110-archive-admission.yml"
       ],
-      "sha256": "605761500a0dfce0b987bf85f461676f44778867f01f9c188b34a1cb0f67117f"
+      "sha256": "fe77eebb07287f934471b58b78cb36b009ef6b6851adaf5bf75ec26d543c4143"
     },
     "ops/glp110-host-archive-admission.md": {
       "kind": "documentation",
       "callers": [],
-      "sha256": "05dceabdc15c964d779af4ff944e8a5aa94f4a2a38460338862e562dce206976"
+      "sha256": "edc90bfa7bfd0da80223bec17ff31879418154ef9d89d18909d10d94c3ce8dd4"
     },
     ".github/workflows/glp110-archive-admission.yml": {
       "kind": "repository_control",
@@ -34,7 +34,7 @@
       "callers": [
         "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
       ],
-      "sha256": "0ab8fd1dbbcebe3e716e4d915778e29626527c0a2f86af92f826e7ccf582be6a"
+      "sha256": "baa4332c899fa41c0ef97215dc3d5419f93daf0b2d494fad9fd9edbbb6386008"
     },
     "scripts/bounded_pruner.py": {
       "kind": "script",

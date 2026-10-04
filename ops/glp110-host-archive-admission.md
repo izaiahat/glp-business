@@ -64,3 +64,35 @@ retention-policy relaxation. Parent must obtain exact next-scope admission and
 focused independent review before any changed-guard adoption/effect. GLP110
 remains open through actual registered runtime acceptance; public release also
 retains its separate Fable hold.
+
+## Scheduler telemetry successor (source only)
+
+The registered `ops/hermes-cron-scripts/shared_email_flow_scheduler.py` calls
+`ops/email_flows/scheduler.py:104`, whose `append_scheduler_heartbeat` writer
+(`engine.py:635-658`) atomically replaces the canonical nine-field heartbeat.
+The monitor registry is explicitly not wired to consume it yet. Reference
+inventory admitted it because its JSON basename contains `schedule`; C and D
+both consume `ReferenceIndex`, so a telemetry clock change correctly triggered
+raw-digest drift refusal. The reconciled run retained 82 D and 107 C such gates.
+
+The successor projects only `business/ops/email_flows/scheduler-heartbeat.json`
+with the exact writer schema, unique keys, typed counters/booleans, fixed
+monitor/cadence/security constants and a canonical UTC timestamp. Valid
+telemetry has a stable monitor-only consumer projection. Missing/extra/duplicate
+keys, malformed timestamps/data, injected references or any unrelated path stay
+raw consumers. Inventory, source identity/symlink/ancestor checks, real consumer
+matching and native script/workdir/prompt projection are unchanged. Regression
+fixtures deny subprocess/cleanup effects; the authenticated oracle digest still
+protects all predecessor bytes after projecting out just the reviewed new branch.
+
+Independent review must accept this exact reference-boundary change, not merely
+CI. D's `screenshot_pruner.rule_contract()` hashes this producer, so adoption
+requires a newly admitted genuine installed `--dry-run --images-only --report
+<unique allowed receipt> --max-seconds 1050` qualification, complete D summary
+and new contract, then the existing effect-denied receiving validator and a
+separately reviewed two-string `rule_D.dry_run_receipt` pointer change. Preserve
+old receipts and policy; source acceptance is no permission to repin them. The
+retained installer/receiving-guard paths in `glp110-pr231-install-20261004` show
+that supported path but their consumed authority must not be rerun. No new
+framework, qualification, install, cleanup, service start or lifecycle change
+is part of this source PR; parent owns all later admission and GLP110 closure.

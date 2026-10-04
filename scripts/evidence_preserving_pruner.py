@@ -158,6 +158,31 @@ def dedupe(roots,state,*,dry_run,deadline,protected_roots=()):
 class ReferenceIndex:
     def consumer_text(self,p):
         text=p.read_text(errors='replace')
+        if p == self.business/'ops/email_flows/scheduler-heartbeat.json':
+            # engine.append_scheduler_heartbeat emits only these nine telemetry
+            # fields. Keep the source in inventory; unknown shapes remain raw
+            # consumers so drift, path references and identity guards still veto.
+            try:
+                pairs=json.loads(text,object_pairs_hook=lambda items: items)
+                if isinstance(pairs,list) and all(isinstance(item,tuple) for item in pairs):
+                    data=dict(pairs)
+                    keys={'monitor','ran_at','upstream_ok','auth_valid','items_seen',
+                          'sent_count','draft_count','cadence_s','secret_printed'}
+                    if (len(pairs)==len(keys) and set(data)==keys
+                            and data['monitor']=='shared_email_flow_scheduler'
+                            and type(data['ran_at']) is str
+                            and data['ran_at'].endswith('Z')
+                            and type(data['upstream_ok']) is bool
+                            and data['auth_valid'] is True and data['secret_printed'] is False
+                            and type(data['cadence_s']) is int and data['cadence_s']==1800
+                            and all(type(data[k]) is int and data[k]>=0
+                                    for k in ('items_seen','sent_count','draft_count'))):
+                        from datetime import datetime
+                        instant=datetime.fromisoformat(data['ran_at'][:-1]+'+00:00')
+                        if instant.isoformat().replace('+00:00','Z')==data['ran_at']:
+                            return '{"monitor":"shared_email_flow_scheduler"}'
+            except (ValueError,TypeError):
+                pass
         if p==Path('/home/ubuntu/.hermes/cron/jobs.json'):
             data=json.loads(text)
             jobs=data.get('jobs',[]) if isinstance(data,dict) else data
