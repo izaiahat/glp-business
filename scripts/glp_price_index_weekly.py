@@ -1081,13 +1081,19 @@ def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, produc
     original_path = run_dir / "CURRENT-RECEIPT.json"
     _path, receipt_raw, receipt_identity = _read_bound_regular_file(str(original_path), "current_deploy")
     terminal = json.loads(receipt_raw)
-    approval_path = root.parent / "astra-final-review/RESPONSE.md"
+    produced_approval_path = terminal.get("binding", {}).get("approval_path")
+    approval_path = Path(produced_approval_path) if produced_approval_path is not None else root.parent / "astra-final-review/RESPONSE.md"
     gate_path = root / 'gate.json'
-    if (gate_path.is_file() and sha_bytes(gate_path.read_bytes()) == prepared['build_receipt']['sha256']
+    if (produced_approval_path is None and gate_path.is_file()
+            and sha_bytes(gate_path.read_bytes()) == prepared['build_receipt']['sha256']
             and json.loads(gate_path.read_bytes()).get('schema') == 'glp-affiliate-sync-release-result-v1'):
         approval_path = root.parent / 'OPERATOR-RELEASE.json'
     _path, approval_raw, approval_identity = _read_bound_regular_file(str(approval_path), "current_approval")
     binding = {"prepared_manifest_sha256": sha_bytes(raw), "approval_sha256": sha_bytes(approval_raw)}
+    if (json.loads(approval_raw).get("schema") == "glp44-designated-fable-release-review-v1") != (produced_approval_path is not None):
+        raise RuntimeError("current_content_base_current_approval_schema_invalid")
+    if produced_approval_path is not None:
+        binding["approval_path"] = str(approval_path)
     producer.current_approval(argparse.Namespace(approval=str(approval_path),
         expected_approval_sha256=binding["approval_sha256"],
         expected_prepared_manifest_sha256=binding["prepared_manifest_sha256"],

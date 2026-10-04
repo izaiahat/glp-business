@@ -276,6 +276,7 @@ class CurrentReleaseTests(unittest.TestCase):
         for name, value in {"BUSINESS": self.root, "POINTER": self.pointer, "SEO_REPORT_ROOT": self.root / "receipts",
                             "LOCK_PATH": self.root / "weekly.lock", "CURRENT_AUTHORITIES": self.authorities}.items():
             self.stack.enter_context(mock.patch.object(c, name, value))
+        self.stack.enter_context(mock.patch.object(c, "CURRENT_LEGACY_ASTRA_REVIEWS", set()))
         self.stack.enter_context(mock.patch.object(c, "verify_immutable_tree", return_value=c.CURRENT_TOOLCHAIN))
         self.stack.enter_context(mock.patch.object(c, "read_token", return_value="synthetic-fixture-not-a-credential"))
         self.stack.enter_context(mock.patch.object(c.subprocess, "run", side_effect=self.process))
@@ -510,6 +511,8 @@ class CurrentReleaseTests(unittest.TestCase):
 
     def save_review(self):
         self.approval.write_bytes(c.json_bytes(self.review))
+        if self.review.get("schema") == "glp42-designated-astra-release-review-v1":
+            c.CURRENT_LEGACY_ASTRA_REVIEWS.add(c.sha_file(self.approval))  # OFFLINE fixtures only.
 
     def publish(self, authorize=True, approval_pin=None):
         args = {"prepared-dir": self.prepared, "expected-prepared-manifest-sha256": c.sha_file(self.prepared / "PREPARED.json"),

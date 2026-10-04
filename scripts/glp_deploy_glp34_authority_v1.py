@@ -2125,18 +2125,43 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     return value
 
 
+CURRENT_FABLE_AUTHORITY = {
+    "ops/linear/approvals/OPERATOR-DEPLOY-COPY-FDA-QA-20261003.md":
+        "4d8e6f316fc4c75deb17d5118994c13517eeffd12dabb81be817daa6f5fc4ac0",
+}
+# Retain actual historical approvals, not their old reviewer grant for new heads.
+CURRENT_LEGACY_ASTRA_REVIEWS = frozenset({
+    "e316c8253f3d7fbab38c4e39fc007e0a646a3c11ea8b13b4a7d719dec47511ab",
+    "7bb801fb13be11fe848583f9823520c5f94b2f43643699fcc2eea929ee4624aa",
+    "d576411778976d0f1abef9c1bde18479bcde03aa8dc50bb0127e4fa4d8da794d",
+})
+
+
+def current_fable_guard():
+    """Use the existing guard-owned issuer and authenticated Fable readback."""
+    import importlib.util
+    path = package_plain_path(BUSINESS / "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py")
+    spec = importlib.util.spec_from_file_location("current_release_fable_guard", path)
+    if spec is None or spec.loader is None:
+        fail("current_fable_guard_unavailable")
+    guard = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(guard)
+    return guard
+
+
 def current_approval(args: argparse.Namespace, prepared: dict[str, Any]) -> dict[str, Any]:
     review = current_json(Path(args.approval), args.expected_approval_sha256)
+    fable = review.get('schema') == 'glp44-designated-fable-release-review-v1'
     operator_sync = review.get('schema') == 'glp-affiliate-sync-operator-release-v1'
     if operator_sync:
         from glp_affiliate_release import validate_operator_release
         validate_operator_release(review, prepared)
-    if (review.get("schema") not in ("glp42-designated-astra-release-review-v1", "glp-affiliate-sync-operator-release-v1")
+    if (review.get("schema") not in ("glp42-designated-astra-release-review-v1", "glp-affiliate-sync-operator-release-v1", "glp44-designated-fable-release-review-v1")
             or review.get("verdict") != "APPROVE" or review.get("release_accepted") is not True
             or review.get("blocking_findings") != []):
         fail("current_release_not_approved")
     reviewer = review.get("reviewer", {})
-    if not operator_sync and (reviewer.get("model") not in ("gpt-6-astra-900k", "gpt-6-astra") or reviewer.get("provider") != "openai-codex"
+    if not operator_sync and not fable and (reviewer.get("model") not in ("gpt-6-astra-900k", "gpt-6-astra") or reviewer.get("provider") != "openai-codex"
             or "not an author" not in reviewer.get("role", "")
             or reviewer.get("authority") != list(CURRENT_AUTHORITIES)[1]
             or reviewer.get("original_target_authority") != list(CURRENT_AUTHORITIES)[0]):
@@ -2153,7 +2178,42 @@ def current_approval(args: argparse.Namespace, prepared: dict[str, Any]) -> dict
         fail("current_approval_subject_mismatch")
     if review.get("reused_technical_acceptance", {}).get("gate_sha256") != prepared["build_receipt"]["sha256"]:
         fail("current_approval_gate_mismatch")
-    for name, pin in CURRENT_AUTHORITIES.items():
+    if fable:
+        if (reviewer.get("name") != "Fable" or reviewer.get("authority") != next(iter(CURRENT_FABLE_AUTHORITY))
+                or reviewer.get("original_target_authority") != next(iter(CURRENT_AUTHORITIES))):
+            fail("current_designated_independent_reviewer_required")
+        artifact = review.get("review_artifact", {})
+        bridge = review.get("bridge_acceptance", {})
+        if (set(artifact) != {"path", "sha256"}
+                or set(bridge) != {"request_message_id", "acceptance_message_id", "issue_record_path"}):
+            fail("current_fable_binding_missing")
+        packet_path = package_plain_path(Path(artifact["path"]))
+        packet = current_json(packet_path, artifact["sha256"])
+        if (str(packet_path) != artifact["path"]
+                or packet != {"schema": "glp44-current-release-review-request-v1", "subject": required,
+                              "reused_technical_acceptance": review["reused_technical_acceptance"],
+                              "authority": reviewer["authority"]}):
+            fail("current_fable_artifact_subject_mismatch")
+        subject_id = "glp:GLP-44:current-release:" + prepared["site_head"] + ":" + args.expected_prepared_manifest_sha256
+        guard = current_fable_guard()
+        try:
+            _, issue = guard.load_issue_record(bridge["issue_record_path"], expected_subject_id=subject_id,
+                                              expected_tuple_sha256=artifact["sha256"])
+            if (issue.get("schema") != guard.BRIDGE_ISSUE_SCHEMA_V2
+                    or issue.get("review_artifact_path") != str(packet_path)
+                    or issue.get("review_artifact_sha256") != artifact["sha256"]
+                    or "reviewer_designation" in issue):
+                fail("current_fable_issue_artifact_mismatch")
+            live = guard.validate_live_acceptance(**bridge, subject_id=subject_id, tuple_sha256=artifact["sha256"])
+        except guard.BridgeAuthorityError as exc:
+            fail(str(exc))
+        if reviewer.get("author_id") != live["acceptance_author_id"]:
+            fail("current_fable_reviewer_identity_mismatch")
+    elif not operator_sync and args.expected_approval_sha256 not in CURRENT_LEGACY_ASTRA_REVIEWS:
+        fail("current_legacy_astra_review_not_retained")
+    authorities = ({next(iter(CURRENT_AUTHORITIES)): next(iter(CURRENT_AUTHORITIES.values())),
+                    **CURRENT_FABLE_AUTHORITY} if fable else CURRENT_AUTHORITIES)
+    for name, pin in authorities.items():
         require_regular(package_plain_path(BUSINESS / name))
         if sha_file(BUSINESS / name) != pin:
             fail("current_operator_authority_drift")
@@ -2437,7 +2497,7 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
     root = package_plain_path(Path(args.prepared_dir))
     prepared = current_prepared(root, args.expected_prepared_manifest_sha256)
     rollback = prepared["rollback_deployment_id"]
-    current_approval(args, prepared)  # No lock, client, credential, or output before approval.
+    review = current_approval(args, prepared)  # No lock, client, credential, or output before approval.
     verify_immutable_tree(TOOLCHAIN, CURRENT_TOOLCHAIN, toolchain=True)
     lock_fd = acquire_lock()
     try:
@@ -2445,6 +2505,8 @@ def run_publish_current(args: argparse.Namespace) -> dict[str, Any]:
         receipt_path = run_dir / "CURRENT-RECEIPT.json"
         binding = {"prepared_manifest_sha256": args.expected_prepared_manifest_sha256,
                    "approval_sha256": args.expected_approval_sha256}
+        if review.get("schema") == "glp44-designated-fable-release-review-v1":
+            binding["approval_path"] = str(package_plain_path(Path(args.approval)))
         if receipt_path.exists():
             receipt = load_json(receipt_path)
             if receipt.get("binding") != binding or receipt.get("status") != "ACTIVE":

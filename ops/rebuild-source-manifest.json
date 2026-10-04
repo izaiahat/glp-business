@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 709,
+  "tracked_count": 711,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -884,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "ee3f188dc1c069ef40662a1aa93268ee2dbcce129433cb1a1ca1e0a5cc555993"
+      "sha256": "2cd11c00f1863e5d4cfe3a3198e43255fe7862e1d2575a86c8507eff9123993c"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1646,7 +1646,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "23e97328c655cfdec4109179c57278f46730624ee1567ee5473e35f9db4a760b"
+      "sha256": "1d6dc153b396ab59168a2d22f4968f4f4f31d09ae458485c6b46331fbf1d6739"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1784,7 +1784,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "1df7f69e343f2ed9eeb40648a1e7aeb612656cbdd53534dcfa493de83ffffdb4"
+      "sha256": "349a50c349828c533a77ebdffb50e888694d74479026e61b9c79cdb8be60a600"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -1869,7 +1869,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "5000e315190dc884aa13bdd787c417a5fb4c996b20ae74ac95c67a3d2cd82766"
+      "sha256": "b62d5eb5623e00da0c4f2b5ddd8c58f76a13fc196c3aac510d3d5839a31372e7"
     },
     "scripts/glp_price_index_weekly_successor.py": {
       "callers": [
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
+      "sha256": "310a0f6bcf099500825a8c22d4a258c8e5aafcdab9fe00a9f172be8cc39c3247"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2851,7 +2851,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "b597ec56b7613358c24b656da3180f1773bb686ffd03382a966a91bcca2e3e05"
+      "sha256": "9de59ab7e9092a1d303eac672aa7187a68dfcc799f214573fc92ac2cf82048b2"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
@@ -3381,7 +3381,8 @@
     },
     "ventures/boring-ai/holistic-machine/scripts/bridge_authority_guard.py": {
       "callers": [
-        "scripts/fable_bridge.py"
+        "scripts/fable_bridge.py",
+        "scripts/glp34_package_only.inc.py::current_approval"
       ],
       "kind": "script",
       "sha256": "3ad7c99968d0d243dd08c4f0ad96351e9d0f33a49d8eda55df535b250bda9266"
@@ -3805,7 +3806,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "1839413bbc05e55b92799d7a989d612c3262051bdb2bd264c0852c6bb36b2afd"
+      "sha256": "acf059ffdf1191b9287d2a7a56c17e5f531d5301046e8f3adc2ddb4e64758405"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4776,6 +4777,20 @@
         "disposable native home"
       ],
       "sha256": "25bb3eb57f34aafbfdade08d94d21d31f1961581479a2e3bdeed001a2fe98a46"
+    },
+    "tests/test_glp44_fable_current_release.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5d7c109444d187998b08f695309f587ee9c61cbbb52cea57a467d97d22d5805c"
+    },
+    "ops/linear/approvals/OPERATOR-DEPLOY-COPY-FDA-QA-20261003.md": {
+      "kind": "authority",
+      "callers": [
+        "scripts/glp34_package_only.inc.py"
+      ],
+      "sha256": "4d8e6f316fc4c75deb17d5118994c13517eeffd12dabb81be817daa6f5fc4ac0"
     }
   }
 }
