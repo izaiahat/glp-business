@@ -12,7 +12,9 @@
   "files": {
     "tests/test_glp110_archive_admission.py": {
       "kind": "test",
-      "callers": [".github/workflows/glp110-archive-admission.yml"],
+      "callers": [
+        ".github/workflows/glp110-archive-admission.yml"
+      ],
       "sha256": "605761500a0dfce0b987bf85f461676f44778867f01f9c188b34a1cb0f67117f"
     },
     "ops/glp110-host-archive-admission.md": {
@@ -22,17 +24,23 @@
     },
     ".github/workflows/glp110-archive-admission.yml": {
       "kind": "repository_control",
-      "callers": ["github-actions"],
+      "callers": [
+        "github-actions"
+      ],
       "sha256": "c49102d7e1b6d4e510d076e671fd9b1bdcb2cdd4658e1bce05726a334543536e"
     },
     "scripts/evidence_preserving_pruner.py": {
       "kind": "script",
-      "callers": ["scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"],
+      "callers": [
+        "scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"
+      ],
       "sha256": "0ab8fd1dbbcebe3e716e4d915778e29626527c0a2f86af92f826e7ccf582be6a"
     },
     "scripts/bounded_pruner.py": {
       "kind": "script",
-      "callers": ["scripts/evidence_preserving_pruner.py"],
+      "callers": [
+        "scripts/evidence_preserving_pruner.py"
+      ],
       "sha256": "ec8eab96698faf8ab835c0ab7d4c6ef9e0d85421321b1a84ce0ed68d31e5b91e"
     },
     "tests/test_glp341_weekly_adoption.py": {
@@ -657,7 +665,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "b4a0f4aafa6941daa34ea0af21bf5cdba39ca44daafdf20be8d8e8e5cf495e84"
+      "sha256": "37e38aa36d351b6feec5a1786992a0904fece0d9ad8487ae08ca663194605dce"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
