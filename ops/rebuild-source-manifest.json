@@ -665,7 +665,7 @@
     "ops/disk-retention-policy.json": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "149346ca6ab95b2f0e0e499c91db146d8d6ed195509f54bfe54b57a8675b4620"
+      "sha256": "37e38aa36d351b6feec5a1786992a0904fece0d9ad8487ae08ca663194605dce"
     },
     "ops/fable-mention-recovery.md": {
       "callers": [],
