@@ -681,7 +681,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
+      "sha256": "2efb3eaa258f0a7cbfe04c46ed3be7ef50ffa757b7ca7c511a1adc4aa77a78f1"
     },
     "ops/glp250-partner-email-hold.md": {
       "callers": [],
@@ -1670,7 +1670,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180"
+      "sha256": "e3f463738757e985812870976099da8d585c19df7f8a73f753da61da34bf3bd1"
     },
     "scripts/glp_affiliate_link_rails.py": {
       "callers": [
@@ -2983,7 +2983,7 @@
         "glp_ads_three_platform_monitor"
       ],
       "kind": "test",
-      "sha256": "9d7820433b8a60bb328a511c120b4c4f69e250084dd51ca6a84459cf92047f2b"
+      "sha256": "9a3c8d2ef8207d4bcb4b29184f8953ce1c93181d584b3689ba9b11d8741335cc"
     },
     "tests/test_glp_affiliate_daily_decisions_report.py": {
       "callers": [

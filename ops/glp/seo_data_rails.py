@@ -951,6 +951,7 @@ class PostHog:
         FROM events
         WHERE timestamp > now() - INTERVAL {int(days)} DAY
           AND domain(properties.$current_url) = '{host}'
+          AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1')
         GROUP BY page_path
         HAVING views > 0
         ORDER BY views DESC
