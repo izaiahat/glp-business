@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 709,
+  "tracked_count": 710,
   "files": {
+    "systems/analytics-brain/ads_monitor.py": {
+      "kind": "source",
+      "callers": [
+        "scripts/glp_analytics_brain_cadence.py:phase=ads"
+      ],
+      "sha256": "2382c134dd95d2b61716f948ff1ceb34215a6a815fe94435af6fc0569278f798"
+    },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
       "callers": [
