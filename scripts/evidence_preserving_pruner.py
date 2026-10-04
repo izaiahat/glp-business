@@ -661,7 +661,11 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
     # Complete manageable trees first, then advance larger resumable archives.
     estimates=state.setdefault('C_sizes',{})
     candidates.sort(key=lambda p:(estimates.get(str(p),0)>4*GIB,-estimates.get(str(p),0),str(p)))
-    done=state.setdefault('C_done',[])
+    # Legacy C_done is historical path-only telemetry, not fresh admission.
+    # Held candidates can change between runs; successfully retired source
+    # trees naturally disappear from discovery. Preserve the old ledger but
+    # derive completion solely from guards evaluated during THIS invocation.
+    done=[]
     pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
     save('C_cold_evidence_archive')
     for p in candidates:
@@ -673,7 +677,7 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
         rows.append(result)
         if result.get('status') not in pending_statuses:
             done.append(str(p))
-        archive_progress['evaluated']=sum(str(p) in done for p in candidates)
+        archive_progress['evaluated']+=1
         archive_progress['roots_evaluated']=[str(root) for root in roots
                 if all(str(p) in done for p in candidates if root in p.parents)]
         save('C_cold_evidence_archive')

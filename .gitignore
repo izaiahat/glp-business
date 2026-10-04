@@ -515,6 +515,9 @@
 # GLP110 authenticated host archive producer predecessor (source only)
 !/scripts/evidence_preserving_pruner.py
 !/scripts/bounded_pruner.py
+!/tests/test_glp110_archive_admission.py
+!/ops/glp110-host-archive-admission.md
+!/.github/workflows/glp110-archive-admission.yml
 
 # GLP343 first-party topic/refresh scoring (registered topic_data_score action)
 !/scripts/glp_topic_data_score.py

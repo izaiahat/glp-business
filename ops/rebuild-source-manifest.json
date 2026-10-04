@@ -8,12 +8,27 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 711,
+  "tracked_count": 714,
   "files": {
+    "tests/test_glp110_archive_admission.py": {
+      "kind": "test",
+      "callers": [".github/workflows/glp110-archive-admission.yml"],
+      "sha256": "605761500a0dfce0b987bf85f461676f44778867f01f9c188b34a1cb0f67117f"
+    },
+    "ops/glp110-host-archive-admission.md": {
+      "kind": "documentation",
+      "callers": [],
+      "sha256": "05dceabdc15c964d779af4ff944e8a5aa94f4a2a38460338862e562dce206976"
+    },
+    ".github/workflows/glp110-archive-admission.yml": {
+      "kind": "repository_control",
+      "callers": ["github-actions"],
+      "sha256": "c49102d7e1b6d4e510d076e671fd9b1bdcb2cdd4658e1bce05726a334543536e"
+    },
     "scripts/evidence_preserving_pruner.py": {
       "kind": "script",
       "callers": ["scripts/host_disk_cleanup_unit.py --full-pass (registered detached owner)"],
-      "sha256": "ccd686864c9a589ae1e434978d0162e9639b70c2b602c5319d5e16410a1aa6d0"
+      "sha256": "0ab8fd1dbbcebe3e716e4d915778e29626527c0a2f86af92f826e7ccf582be6a"
     },
     "scripts/bounded_pruner.py": {
       "kind": "script",
@@ -495,7 +510,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bdc275139772061da45fdad39798ec0d0aa5672abfff2f8debe8d08431d43c62"
+      "sha256": "9549fe9005fbe8b76a9643561c2fc86cd7ace4acb88ef931ed9b0469a552a3f8"
     },
     ".hermes.md": {
       "callers": [],
