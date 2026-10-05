@@ -8,8 +8,22 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 714,
+  "tracked_count": 716,
   "files": {
+    "scripts/hermes_active_work_gate.py": {
+      "kind": "source",
+      "callers": [
+        "hermes_update_auto_apply.py"
+      ],
+      "sha256": "2baf1f38cd6c90bd8410c5c5ff89e7098611785acb2290861371967fc96a453b"
+    },
+    "tests/test_hermes_active_work_gate.py": {
+      "kind": "test",
+      "callers": [
+        "python3 -m unittest discover -s tests -p test_hermes_active_work_gate.py"
+      ],
+      "sha256": "bc460d3560f3678586a20aa2b2f0cd6d8cad7f5f7c6181312ea09810eda9a1cd"
+    },
     "tests/test_glp110_archive_admission.py": {
       "kind": "test",
       "callers": [
@@ -518,7 +532,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9549fe9005fbe8b76a9643561c2fc86cd7ace4acb88ef931ed9b0469a552a3f8"
+      "sha256": "c19bcdfd3eea406fef82c0f83eea67f7cdf33303f8deae299ecf8c9c7b1df6ce"
     },
     ".hermes.md": {
       "callers": [],
