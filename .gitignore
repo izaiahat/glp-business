@@ -532,3 +532,7 @@
 !/tests/fixtures/glp344-price-evidence/claims.json
 !/tests/fixtures/glp344-price-evidence/claims-conflict.json
 !/tests/fixtures/glp344-price-evidence/provider-pricing-matrix.json
+
+# Hermes active-work gate: exact maintained predecessor and owning tests
+!/scripts/hermes_active_work_gate.py
+!/tests/test_hermes_active_work_gate.py
