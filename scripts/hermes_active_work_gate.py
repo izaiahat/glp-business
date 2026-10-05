@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import socket
 import sqlite3
@@ -580,8 +581,77 @@ def inspect_process_registry(
     return result
 
 
-def inspect_active_session_registry(path: Path, *, proc_root: Path) -> dict[str, Any]:
-    result: dict[str, Any] = {"path": str(path), "blockers": [], "stale": [], "counts": {"rows": 0}}
+def _is_idle_tui_lifecycle_registration(
+    row: dict[str, Any], idle_tuis: Iterable[dict[str, Any]], *, proc_root: Path,
+) -> bool:
+    """Only positively proven idle TUI ownership, never mere PID liveness."""
+    metadata = row.get("metadata")
+    if (not isinstance(row.get("surface"), str) or not row["surface"].strip()
+            or not isinstance(metadata, dict)
+            or metadata.get("bot_live_delivery_consumer") is not True
+            or not isinstance(metadata.get("live_session_id"), str)
+            or not metadata["live_session_id"].strip()
+            or not isinstance(row.get("session_id"), str)
+            or not row["session_id"].strip()
+            or not isinstance(row.get("lease_id"), str)
+            or not row["lease_id"].strip()):
+        return False
+    try:
+        # Do not truncate fractional/bool identities or choose one of two
+        # contradictory clocks. Every supplied identity field must agree.
+        pid_value = row["pid"]
+        if isinstance(pid_value, bool) or str(pid_value) != str(int(pid_value)):
+            return False
+        pid = int(pid_value)
+        owner_ticks = process_start_ticks(pid, proc_root=proc_root)
+        if owner_ticks is None:
+            return False
+        tick_values = [row[key] for key in ("process_start_ticks", "host_start_time") if key in row]
+        for value in tick_values:
+            if isinstance(value, bool) or str(value) != str(int(value)) or int(value) != owner_ticks:
+                return False
+        # Registry create_time is wall-clock seconds, not kernel ticks.
+        if "process_start_time" in row:
+            boot = next(int(line.split()[1]) for line in (proc_root / "stat").read_text().splitlines()
+                        if line.startswith("btime "))
+            epoch = float(row["process_start_time"])
+            if (isinstance(row["process_start_time"], bool) or not math.isfinite(epoch)
+                    or abs(epoch - (boot + owner_ticks / os.sysconf("SC_CLK_TCK"))) >= 0.001):
+                return False
+        elif not tick_values:
+            return False
+        argv = _read_cmdline(pid, proc_root=proc_root)
+        if not any(argv[i:i + 2] == ["-m", "tui_gateway.entry"] for i in range(len(argv))):
+            return False
+        parents = _proc_parents(proc_root)
+        matching = [seat for seat in idle_tuis
+                    if seat.get("resume_id") == row["session_id"]
+                    and _descends_from(pid, int(seat["pid"]), parents)]
+        if len(matching) != 1:
+            return False
+        seat = matching[0]
+        root_pid = int(seat["pid"])
+        signals = seat.get("signals")
+        if not isinstance(signals, dict):
+            return False
+        root_argv = _read_cmdline(root_pid, proc_root=proc_root)
+        root_ticks = process_start_ticks(root_pid, proc_root=proc_root)
+        return bool(is_hermes_tui_argv(root_argv)
+                    and _argv_option(root_argv, "--resume") == row["session_id"]
+                    and seat.get("state") == TUI_IDLE
+                    and seat.get("pane_id") and seat.get("session_name")
+                    and seat.get("start_ticks") is not None
+                    and root_ticks == seat["start_ticks"]
+                    and not signals.get("seat_turn_pids")
+                    and signals.get("unexpired_turn_lease") is False
+                    and signals.get("pane_activity_state") == "idle_ready"
+                    and process_start_ticks(pid, proc_root=proc_root) == owner_ticks)
+    except (KeyError, ValueError, TypeError, OSError, StopIteration):
+        return False
+
+
+def inspect_active_session_registry(path: Path, *, proc_root: Path, idle_tuis: Iterable[dict[str, Any]] = ()) -> dict[str, Any]:
+    result: dict[str, Any] = {"path": str(path), "blockers": [], "stale": [], "idle_lifecycle": [], "counts": {"rows": 0}}
     if not path.is_file():
         return result
     try:
@@ -593,11 +663,13 @@ def inspect_active_session_registry(path: Path, *, proc_root: Path) -> dict[str,
         for row in rows:
             if not isinstance(row, dict):
                 raise RuntimeError("active-session registry contains a non-object row")
+            if isinstance(row.get("pid"), (bool, float)):
+                raise RuntimeError("active-session registry contains a malformed owner PID")
             # Older registries use wall-clock process_start_time rather than
             # kernel ticks. A missing tick value no longer blocks: _record_owner
             # falls back to plain PID liveness, which is always knowable.
             ticks = row.get("process_start_ticks") or row.get("host_start_time")
-            _record_owner(
+            item = _record_owner(
                 result["blockers"], result["stale"],
                 kind="active_session",
                 identifier=str(row.get("lease_id") or row.get("session_id") or "unknown"),
@@ -606,9 +678,15 @@ def inspect_active_session_registry(path: Path, *, proc_root: Path) -> dict[str,
                 source=str(path),
                 finite=True,
                 proc_root=proc_root,
+                extra={"session_id": str(row.get("session_id") or "")},
             )
+            if item in result["blockers"] and _is_idle_tui_lifecycle_registration(row, idle_tuis, proc_root=proc_root):
+                result["blockers"].remove(item)
+                item.update(classification="IDLE_LIFECYCLE_REGISTRATION", reason="exact_owner_known_idle_tui")
+                result["idle_lifecycle"].append(item)
     except Exception as exc:
         result["blockers"].append(_unreadable(path, "active_session_registry", exc))
+    result["live_session_keys"] = [item["session_id"] for item in result["blockers"] + result["idle_lifecycle"] if item.get("owner_state") in {"live", "live_pid_start_ticks_unverified"} and item.get("session_id")]
     return result
 
 
@@ -819,6 +897,7 @@ def tui_census(
             "resume_id": proc["resume_id"],
             "workdir": proc["workdir"],
             "argv_shape": proc["argv_shape"],
+            "start_ticks": proc["start_ticks"],
             "state": state,
             "signals": {
                 "seat_turn_pids": owned_turns,
@@ -861,6 +940,18 @@ def collect_active_work(
         proc_root=proc_root,
         local_host=local_host,
     )
+    census = (
+        tui_census(
+            proc_root=proc_root,
+            live_session_keys=live_session_keys,
+            tmux_runner=tmux_runner,
+            capture_runner=capture_runner,
+        )
+        if include_tui_census
+        else {"tuis": [], "tui_count": 0, "tui_active_count": 0, "tui_idle_count": 0, "unclassified_count": 0}
+    )
+    active_registry = inspect_active_session_registry(home / "runtime" / "active_sessions.json", proc_root=proc_root, idle_tuis=census["tuis"])
+    namespace_session_keys = live_session_keys | set(active_registry.get("live_session_keys") or ())
     observations.extend([
         inspect_cron_executions(
             home / "cron" / "executions.db",
@@ -873,9 +964,9 @@ def collect_active_work(
         inspect_process_registry(
             home / "processes.json",
             proc_root=proc_root,
-            live_session_keys=live_session_keys,
+            live_session_keys=namespace_session_keys,
         ),
-        inspect_active_session_registry(home / "runtime" / "active_sessions.json", proc_root=proc_root),
+        active_registry,
     ])
     blockers = [item for observation in observations for item in observation.get("blockers", [])]
     stale = [item for observation in observations for item in observation.get("stale", [])]
@@ -885,16 +976,6 @@ def collect_active_work(
     active_finite = [item for item in active if item.get("classification") == ACTIVE_FINITE]
     active_indefinite = [item for item in active if item.get("classification") == ACTIVE_INDEFINITE]
 
-    census = (
-        tui_census(
-            proc_root=proc_root,
-            live_session_keys=live_session_keys,
-            tmux_runner=tmux_runner,
-            capture_runner=capture_runner,
-        )
-        if include_tui_census
-        else {"tuis": [], "tui_count": 0, "tui_active_count": 0, "tui_idle_count": 0, "unclassified_count": 0}
-    )
     active_tuis = [row for row in census["tuis"] if row["state"] == TUI_ACTIVE]
 
     if unreadable:
@@ -922,6 +1003,7 @@ def collect_active_work(
         "blockers": blockers,
         "stale_proven": stale,
         "detached_services": detached,
+        "idle_lifecycle_registrations": [item for observation in observations for item in observation.get("idle_lifecycle", [])],
         "observations": observations,
         "tui_census": census,
         "cron_claim_ttl_seconds": ttl_seconds,

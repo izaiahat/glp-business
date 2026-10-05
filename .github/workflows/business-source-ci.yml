@@ -32,6 +32,12 @@ jobs:
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
           persist-credentials: false
+      - name: Hermes active-work gate (offline proc/tmux fixtures, exact head; no activation)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_hermes_active_work_gate.py -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv

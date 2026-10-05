@@ -15,14 +15,14 @@
       "callers": [
         "hermes_update_auto_apply.py"
       ],
-      "sha256": "2baf1f38cd6c90bd8410c5c5ff89e7098611785acb2290861371967fc96a453b"
+      "sha256": "381b08fd0261a57532b4c85f726c16336d29bc3eb88db5b9a04510ca71712858"
     },
     "tests/test_hermes_active_work_gate.py": {
       "kind": "test",
       "callers": [
         "python3 -m unittest discover -s tests -p test_hermes_active_work_gate.py"
       ],
-      "sha256": "bc460d3560f3678586a20aa2b2f0cd6d8cad7f5f7c6181312ea09810eda9a1cd"
+      "sha256": "82b6660b671f1a3c4bec13221f687eaffd894a984358e4a232e26b55dcf9e0f9"
     },
     "tests/test_glp110_archive_admission.py": {
       "kind": "test",
@@ -522,7 +522,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "614c33259617fcbb543c296cd38bcd6f3cbbb53b57d7d37b337dcfdc7be4965a"
+      "sha256": "b48e66c115fc86e2bcd148cd43b67535f4e830088ab68fe62d5ef9293ce532a7"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],

@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
+import copy
 import importlib.util
 import json
+import os
 import re
 import socket
 import sqlite3
@@ -10,9 +13,51 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
-SCRIPT = Path("/home/ubuntu/business/scripts/hermes_active_work_gate.py")
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/hermes_active_work_gate.py"
+
+# Portable fixture: exact pure classifier/constants from the uncurated continuity
+# producer, not a fake idle result or a production adapter. No relaunch code is
+# curated just to test this gate. Host acceptance authenticates these AST nodes.
+READY_MARKERS = (" ready │", "─ ready", "│ ready ", " ready ─")
+ACTIVE_MARKERS = ("esc to interrupt", "Running tool", "Thinking…", "Working…")
+BAD_MARKERS = (
+    "error: session not found",
+    "[Hermes TUI exited rc=",
+    "Traceback (most recent call last)",
+    "SyntaxError:",
+    "missing state DB",
+)
+
+
+def activity_from_capture(capture: str) -> dict[str, Any]:
+    lines = [line.rstrip() for line in capture.splitlines() if line.strip()]
+    tail = "\n".join(lines[-8:])
+    bad = [marker for marker in BAD_MARKERS if marker.lower() in tail.lower()]
+    ready_pos = max((tail.rfind(marker) for marker in READY_MARKERS), default=-1)
+    active_pos = max((tail.lower().rfind(marker.lower()) for marker in ACTIVE_MARKERS), default=-1)
+    if bad:
+        state = "error"
+    elif ready_pos >= 0 and ready_pos > active_pos:
+        state = "idle_ready"
+    elif active_pos >= 0:
+        state = "active"
+    else:
+        state = "unknown"
+    return {
+        "state": state,
+        "evidence": {"ready_marker": ready_pos >= 0, "active_marker": active_pos >= 0, "bad_markers": bad},
+    }
+
+
+def setUpModule():
+    # Existing owning tests must not enumerate/capture live panes. Every TUI
+    # test supplies a fake runner; incidental default tmux calls fail closed.
+    denied = mock.patch("subprocess.run", side_effect=AssertionError("live subprocess denied in gate fixtures"))
+    denied.start()
+    unittest.addModuleCleanup(denied.stop)
 
 
 def load_module():
@@ -20,6 +65,8 @@ def load_module():
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    if not (SCRIPT.parent / "hermes_tui_continuity.py").is_file():
+        setattr(mod, "_ACTIVITY_CLASSIFIER", activity_from_capture)
     return mod
 
 
@@ -200,15 +247,16 @@ class ActiveWorkGateTests(unittest.TestCase):
         source = self.mod.FORK_CRON_JOBS_SOURCE
         if not source.is_file():
             self.skipTest("fork cron/jobs.py is not present on this host")
-        text = source.read_text(encoding="utf-8")
-        for name, value in (
-            ("ONESHOT_RUN_CLAIM_TTL_SECONDS", int(self.mod.CRON_CLAIM_TTL_FALLBACK_SECONDS)),
-            ("_ONESHOT_RUN_CLAIM_TTL_HEADROOM", self.mod.CRON_CLAIM_TTL_HEADROOM),
-            ("_DEFAULT_CRON_INACTIVITY_TIMEOUT", self.mod.DEFAULT_CRON_INACTIVITY_TIMEOUT),
+        constants = source.with_name("constants.py")
+        for name, value, maintained in (
+            ("ONESHOT_RUN_CLAIM_TTL_SECONDS", int(self.mod.CRON_CLAIM_TTL_FALLBACK_SECONDS), source),
+            ("CLAIM_TTL_INACTIVITY_HEADROOM", self.mod.CRON_CLAIM_TTL_HEADROOM, constants),
+            ("_DEFAULT_CRON_INACTIVITY_TIMEOUT", self.mod.DEFAULT_CRON_INACTIVITY_TIMEOUT, source),
         ):
-            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", text, re.MULTILINE)
-            self.assertIsNotNone(match, f"{name} not found in {source}")
+            match = re.search(rf"^{re.escape(name)} = ([0-9.]+)$", maintained.read_text(encoding="utf-8"), re.MULTILINE)
+            self.assertIsNotNone(match, f"{name} not found in {maintained}")
             self.assertEqual(float(match.group(1)), float(value), name)
+        self.assertIn("timeout * CLAIM_TTL_INACTIVITY_HEADROOM", source.read_text(encoding="utf-8"))
 
     def test_process_registry_blocks_without_emitting_command(self):
         write_proc_stat(self.proc, 777, 888)
@@ -526,6 +574,160 @@ class TuiCensusTests(unittest.TestCase):
             capture_runner=self.fake_tmux(["fable-operator\t%0\t100"], "─ ready │\n"),
         )
         self.assertEqual(census["tui_count"], 0)
+
+
+class IdleLifecycleRegistrationTests(unittest.TestCase):
+    """One changed-boundary group: real census, fake proc/tmux and scratch DBs."""
+
+    write_proc = TuiCensusTests.write_proc
+    fake_tmux = TuiCensusTests.fake_tmux
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.proc = self.home / "proc"
+        self.proc.mkdir()
+        (self.proc / "stat").write_text("btime 1000\n")
+        self.mod = load_module()
+        self.write_proc(10, ["hermes", "--tui", "--resume", "exact"], ticks=100)
+        self.write_proc(11, ["python", "-m", "tui_gateway.entry"], ppid=10, ticks=200)
+        self.registry = self.home / "runtime/active_sessions.json"
+        self.registry.parent.mkdir()
+        self.row = {
+            "session_id": "exact", "lease_id": "lease", "pid": 11,
+            "process_start_time": 1000 + 200 / os.sysconf("SC_CLK_TCK"),
+            "surface": "tui",
+            "metadata": {"bot_live_delivery_consumer": True, "live_session_id": "live"},
+        }
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def collect(self, *, row=None, capture="─ ready │\n", census=True):
+        self.registry.write_text(json.dumps({"entries": [self.row if row is None else row]}))
+        runner = self.fake_tmux(["fake\t%fake\t10"], capture)
+        return self.mod.collect_active_work(
+            home=self.home, proc_root=self.proc, now_epoch=100,
+            include_tui_census=census, tmux_runner=runner, capture_runner=runner,
+        )
+
+    def test_proven_idle_registration_is_visible_not_active_or_stale(self):
+        before = self.collect()
+        self.assertEqual(before["status"], "IDLE_SAFE")
+        self.assertEqual(before["blockers"], [])
+        self.assertEqual(before["stale_proven"], [])
+        self.assertEqual(len(before["idle_lifecycle_registrations"]), 1)
+        self.assertEqual(before["idle_lifecycle_registrations"][0]["classification"], "IDLE_LIFECYCLE_REGISTRATION")
+        original = self.registry.read_bytes()
+        self.mod.inspect_active_session_registry(self.registry, proc_root=self.proc, idle_tuis=before["tui_census"]["tuis"])
+        self.assertEqual(original, self.registry.read_bytes())
+        # Persisted custom source is transport identity, not a non-Hermes veto.
+        row = copy.deepcopy(self.row)
+        row["surface"] = "claude-code"
+        self.assertEqual(self.collect(row=row)["status"], "IDLE_SAFE")
+
+    def test_missing_malformed_or_contradictory_evidence_never_exempts(self):
+        mutations = [
+            ("missing_surface", lambda r: r.pop("surface")),
+            ("missing_lease", lambda r: r.pop("lease_id")),
+            ("fractional_pid", lambda r: r.update(pid=11.5)),
+            ("boolean_pid", lambda r: r.update(pid=True)),
+            ("missing_metadata", lambda r: r.update(metadata={})),
+            ("nonboolean_delivery", lambda r: r["metadata"].update(bot_live_delivery_consumer=1)),
+            ("invalid_live_id", lambda r: r["metadata"].update(live_session_id=True)),
+            ("wrong_session", lambda r: r.update(session_id="other")),
+            ("missing_epoch", lambda r: r.pop("process_start_time")),
+            ("wrong_epoch", lambda r: r.update(process_start_time=999)),
+            ("nan_epoch", lambda r: r.update(process_start_time="nan")),
+            ("inf_epoch", lambda r: r.update(process_start_time="inf")),
+            ("fractional_ticks", lambda r: r.update(process_start_ticks=200.5)),
+            ("contradictory_epoch", lambda r: r.update(process_start_ticks=200, process_start_time=999)),
+        ]
+        for label, mutate in mutations:
+            with self.subTest(label=label):
+                row = copy.deepcopy(self.row)
+                mutate(row)
+                result = self.collect(row=row)
+                self.assertNotEqual(result["status"], "IDLE_SAFE")
+                self.assertEqual(result["idle_lifecycle_registrations"], [])
+        for capture in ("unknown", "Running tool esc to interrupt", "Traceback (most recent call last)"):
+            with self.subTest(capture=capture):
+                self.assertTrue(self.collect(capture=capture)["blockers"])
+        self.assertTrue(self.collect(census=False)["blockers"])
+        with mock.patch.object(self.mod, "_pane_activity", return_value={"state": "capture_failed", "evidence": {}}):
+            self.assertTrue(self.collect()["blockers"])
+        self.registry.write_text("{broken")
+        observed = self.mod.inspect_active_session_registry(self.registry, proc_root=self.proc)
+        self.assertEqual(observed["blockers"][0]["classification"], "SOURCE_UNREADABLE")
+
+    def test_owner_backend_root_and_unique_binding_are_required(self):
+        result = self.collect()
+        seats = result["tui_census"]["tuis"]
+        # Kernel identity of both backend and root is required, not PID-only.
+        for mutation in (lambda s: s.update(start_ticks=99), lambda s: s.update(pane_id="")):
+            seat = copy.deepcopy(seats[0])
+            mutation(seat)
+            self.assertTrue(self.mod.inspect_active_session_registry(self.registry, proc_root=self.proc, idle_tuis=[seat])["blockers"])
+        self.assertTrue(self.mod.inspect_active_session_registry(self.registry, proc_root=self.proc, idle_tuis=seats + seats)["blockers"])
+        for argv, parent in ((["python", "-m", "foreign.entry"], 10), (["python", "-m", "tui_gateway.entry"], 1)):
+            self.write_proc(11, argv, ppid=parent, ticks=200)
+            self.assertTrue(self.collect()["blockers"])
+        self.write_proc(11, ["python", "-m", "tui_gateway.entry"], ppid=10, ticks=201)
+        self.assertTrue(self.collect()["blockers"])
+
+    def test_turns_leases_and_running_work_remain_blocking(self):
+        self.write_proc(12, ["python", "-m", "hermes_seat_turn"], ppid=11)
+        self.assertEqual(self.collect()["status"], "SKIPPED_ACTIVE_HERMES_WORK")
+        (self.proc / "12/cmdline").write_bytes(b"python\0worker")
+        create_state_db(self.home / "state.db")
+        with sqlite3.connect(self.home / "state.db") as conn:
+            conn.execute("INSERT INTO session_turn_leases VALUES ('exact', 'h', 1, 200)")
+        self.assertEqual(self.collect()["status"], "SKIPPED_ACTIVE_HERMES_WORK")
+        with sqlite3.connect(self.home / "state.db") as conn:
+            conn.execute("DELETE FROM session_turn_leases")
+            conn.execute("INSERT INTO async_delegations VALUES ('child', 'running', 11, 200)")
+        result = self.collect()
+        self.assertEqual({row["kind"] for row in result["blockers"]}, {"async_delegation"})
+        with sqlite3.connect(self.home / "state.db") as conn:
+            conn.execute("DELETE FROM async_delegations")
+        (self.home / "processes.json").write_text(json.dumps([{
+            "session_id": "awaited", "pid": 11, "host_start_time": 200,
+            "notify_on_complete": True, "session_key": "exact",
+        }]))
+        self.assertEqual(self.collect()["status"], "SKIPPED_ACTIVE_HERMES_WORK")
+        (self.home / "processes.json").unlink()
+        (self.home / "cron").mkdir()
+        (self.home / "cron/jobs.json").write_text(json.dumps({"jobs": [{
+            "id": "cron", "run_claim": {"at": datetime.fromtimestamp(99, timezone.utc).isoformat(), "by": f"{socket.gethostname()}:11"},
+        }]}))
+        self.assertEqual(self.collect()["status"], "SKIPPED_ACTIVE_HERMES_WORK")
+
+    def test_idle_owner_remains_live_for_namespace_without_becoming_turn(self):
+        (self.home / "processes.json").write_text(json.dumps([{
+            "session_id": "namespace", "pid": 999, "pid_scope": "remote",
+            "notify_on_complete": False, "session_key": "exact",
+        }]))
+        result = self.collect()
+        self.assertEqual(result["status"], "BLOCKED_ACTIVE_HERMES_WORK")
+        self.assertEqual(result["blockers"][0]["reason"], "unverifiable_pid_scope_with_live_owning_session")
+        self.assertFalse(result["tui_census"]["tuis"][0]["signals"]["unexpired_turn_lease"])
+        self.assertEqual(len(result["idle_lifecycle_registrations"]), 1)
+
+    def test_portable_classifier_is_exact_maintained_pure_source(self):
+        producer = Path("/home/ubuntu/business/scripts/hermes_tui_continuity.py")
+        if not producer.is_file():
+            self.skipTest("host continuity producer absent; portable pure fixture only")
+        names = {"activity_from_capture", "READY_MARKERS", "ACTIVE_MARKERS", "BAD_MARKERS"}
+        def selected(path):
+            nodes = []
+            for node in ast.parse(path.read_text()).body:
+                name = getattr(node, "name", None)
+                if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+                    name = node.targets[0].id
+                if name in names:
+                    nodes.append(ast.dump(node, include_attributes=False))
+            return nodes
+        self.assertEqual(selected(producer), selected(Path(__file__)))
 
 
 class WaitForIdleTests(unittest.TestCase):
