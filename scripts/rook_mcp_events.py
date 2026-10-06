@@ -55,6 +55,7 @@ FINCH_REVIEW_ROOT = Path('/etc/finch-file-reviews')
 FINCH_CONFINEMENT_LABEL = 'finch-mcp-receiving-v1 (enforce)'
 FINCH_RECEIVING_CONTRACT = Path('/etc/finch-mcp/receiving.json')
 FINCH_APPARMOR_POLICY = Path('/etc/apparmor.d/finch-mcp-receiving-v1')
+FINCH_APPARMOR_ABI = Path('/etc/apparmor.d/abi/4.0')
 FINCH_LAUNCHER = Path('/home/ubuntu/.hermes/scripts/finch_adapter_launch.py')
 
 GUILD = '1486887661099815126'
@@ -1284,16 +1285,17 @@ def _finch_receiving_contract():
     raw = _finch_root_bytes(FINCH_RECEIVING_CONTRACT, 4096)
     contract = json.loads(raw.decode('ascii'), object_pairs_hook=_review_json)
     if (not isinstance(contract, dict) or set(contract) != {'schema', 'source_commit', 'source_sha256',
-            'launcher_sha256', 'profile_sha256', 'receiver_sha256', 'poster_sha256'} or contract['schema'] != 'finch-receiving-contract-v1'
+            'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256'} or contract['schema'] != 'finch-receiving-contract-v1'
             or not isinstance(contract['source_commit'], str)
             or not re.fullmatch(r'[a-f0-9]{40}', contract['source_commit'])
             or any(not isinstance(contract[key], str) or not re.fullmatch(r'[a-f0-9]{64}', contract[key])
-                   for key in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'receiver_sha256', 'poster_sha256'))
+                   for key in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256'))
             or not _FINCH_SOURCE_BOOTSTRAP_OK or contract['source_sha256'] != FINCH_SOURCE_SHA256
             or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != contract['source_sha256']
             or hashlib.sha256(Path(__file__).with_name('receive_one_discord_message.py').read_bytes()).hexdigest() != contract['receiver_sha256']
             or hashlib.sha256(Path(__file__).with_name('post_discord_message.py').read_bytes()).hexdigest() != contract['poster_sha256']
             or hashlib.sha256(FINCH_LAUNCHER.read_bytes()).hexdigest() != contract['launcher_sha256']
+            or hashlib.sha256(_finch_root_bytes(FINCH_APPARMOR_ABI, 16384)).hexdigest() != contract['profile_abi_sha256']
             or hashlib.sha256(_finch_root_bytes(FINCH_APPARMOR_POLICY, 16384)).hexdigest() != contract['profile_sha256']):
         raise ValueError('receiving contract/source/policy mismatch')
     return contract, hashlib.sha256(raw).hexdigest()

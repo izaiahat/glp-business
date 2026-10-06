@@ -1235,7 +1235,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "b70c59ab69a8fed34122be2c0c5fa522d75b7f804ae8bf2b55a56a063b471d79"
+      "sha256": "fc19813089d1a21655b0dd5025fe6bf696d0fcb390caa441d3855ac4362aef53"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2185,7 +2185,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "a5c0e787c79f57b91bc0c2935e3b9739656474e6eeb57674bfcef711b17417c6"
+      "sha256": "db19c5b90b866144000831d801b7f56428bcb48370b90db04db3636be1b6cbcd"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -5101,14 +5101,14 @@
       "callers": [
         "manual:parent-approved receiving launcher; no auto-install"
       ],
-      "sha256": "3fdb69143177ed6a2d4a8ccc0310b15310ee557b33c4e1b7e82195fc80256a23"
+      "sha256": "7015f7fe938b22581884bb990d1b57bf292ff33a186f28b9b553f72e61be2555"
     },
     "ops/rook-mcp/finch-mcp-receiving-v1.apparmor": {
       "kind": "instruction_or_policy",
       "callers": [
         "manual:independent receiving MAC acceptance; not loaded"
       ],
-      "sha256": "355e4cdc78adce92c25644438979b6f643269cd8d9c0502c9d953c21963a3c87"
+      "sha256": "08dc932b2a852430b81b942c17d83391d7adf3f291b8b438c356eb3011101f0e"
     },
     "tests/test_finch_receiving_sandbox.py": {
       "kind": "test",
@@ -5116,7 +5116,7 @@
         "scripts/run_tests.sh",
         ".github/workflows/finch-file-review.yml"
       ],
-      "sha256": "f92c8a047453689893fd0a33d1df3b16fc440e8f1f9d68542921c34bc68b095b"
+      "sha256": "7e2b88d062be404d8286eedd2472842100a479ad255371f27ef39df8f75d013d"
     },
     "ops/rook-mcp/finch-mcp-adapter.system.service": {
       "kind": "instruction_or_policy",

@@ -102,11 +102,13 @@ def contract_fixture(monkeypatch):
     value = {'schema': 'finch-receiving-contract-v1', 'source_commit': 'a' * 40,
              'source_sha256': m.FINCH_SOURCE_SHA256, 'launcher_sha256': hashlib.sha256(LAUNCH.read_bytes()).hexdigest(),
              'profile_sha256': hashlib.sha256(PROFILE.read_bytes()).hexdigest(),
+             'profile_abi_sha256': hashlib.sha256(b'synthetic-feature-abi').hexdigest(),
              'receiver_sha256': hashlib.sha256((ROOT / 'scripts/receive_one_discord_message.py').read_bytes()).hexdigest(),
              'poster_sha256': hashlib.sha256((ROOT / 'scripts/post_discord_message.py').read_bytes()).hexdigest()}
     monkeypatch.setattr(m, 'FINCH_LAUNCHER', LAUNCH)
     monkeypatch.setattr(m, '_finch_root_bytes', lambda path, limit:
-                        PROFILE.read_bytes() if path == m.FINCH_APPARMOR_POLICY else json.dumps(value).encode())
+                        PROFILE.read_bytes() if path == m.FINCH_APPARMOR_POLICY else
+                        b'synthetic-feature-abi' if path == m.FINCH_APPARMOR_ABI else json.dumps(value).encode())
     return m, value
 
 
@@ -116,7 +118,7 @@ def test_receiving_contract_binds_source_closure_launcher_and_policy(monkeypatch
     assert actual == value and digest == hashlib.sha256(json.dumps(value).encode()).hexdigest()
 
 
-@pytest.mark.parametrize('field', ['source_sha256', 'launcher_sha256', 'profile_sha256', 'receiver_sha256', 'poster_sha256'])
+@pytest.mark.parametrize('field', ['source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256'])
 def test_receiving_byte_drift_denied(monkeypatch, field):
     m, value = contract_fixture(monkeypatch); value[field] = '0' * 64
     with pytest.raises(ValueError): m._finch_receiving_contract()
@@ -233,6 +235,7 @@ def test_policy_has_no_privilege_transition_or_external_unix_allowance():
     lines = [line.strip() for line in PROFILE.read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
     policy = '\n'.join(lines)
     assert '#include' not in policy and 'ux' not in policy and 'Ux' not in policy and 'change_profile' not in policy
+    assert 'abi <abi/4.0>,' in lines and '/etc/apparmor.d/abi/4.0 r,' in lines
     assert 'deny capability,' in policy and 'deny dbus,' in policy and 'deny ptrace (read, trace),' in policy
     assert 'peer=(label=finch-mcp-receiving-v1,addr=none)' in policy
     assert '/run/systemd/journal/stdout rw,' in policy
@@ -245,7 +248,7 @@ def test_policy_has_no_privilege_transition_or_external_unix_allowance():
 
 def test_policy_allows_exact_readonly_ancestry_used_by_descriptor_pinning():
     lines = {line.strip() for line in PROFILE.read_text().splitlines()}
-    for leaf in ('/etc/finch-mcp/receiving.json', '/etc/apparmor.d/finch-mcp-receiving-v1',
+    for leaf in ('/etc/finch-mcp/receiving.json', '/etc/apparmor.d/finch-mcp-receiving-v1', '/etc/apparmor.d/abi/4.0',
                  '/etc/finch-file-reviews/discord-301.json'):
         for parent in Path(leaf).parents:
             directory = str(parent).rstrip('/') + '/'

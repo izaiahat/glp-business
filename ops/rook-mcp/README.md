@@ -79,7 +79,7 @@ Maintained proposal files:
 - `ops/rook-mcp/finch_adapter_launch.py`, based on the exact 5,871-byte host
   launcher SHA256 `ec64deecf03affc6c86d59184ea24c72687a74f6c098e3d07c9d4db9d6642a72`
 - `ops/rook-mcp/finch-mcp-receiving-v1.apparmor`, a complete named profile with no
-  external include expansion
+  rule includes and one explicit root-owned, hash-bound AppArmor 4.0 ABI leaf
 - `ops/rook-mcp/finch-mcp-adapter.system.service`, a proposed system-managed
   service using the existing UID/GID 1000, preserving restart, resource and
   infinite graceful-stop settings; this requires a separately approved migration
@@ -153,8 +153,9 @@ fields fail closed. It contains exactly:
 - `schema: finch-receiving-contract-v1`
 - `source_commit`: exact accepted 40-character commit SHA, never a branch name
 - SHA256 fields `source_sha256`, `receiver_sha256`, `poster_sha256`,
-  `launcher_sha256`, `profile_sha256`, pinning the adapter, two local imports,
-  installed launcher and complete installed AppArmor source
+  `launcher_sha256`, `profile_sha256`, `profile_abi_sha256`, pinning the adapter,
+  two local imports, installed launcher, complete AppArmor source and its exact
+  `/etc/apparmor.d/abi/4.0` feature-ABI dependency
 
 The existing nonsecret setup's `source_commit`, clean checkout HEAD and all
 source hashes must agree. This replaces the host launcher's literal deployed
@@ -171,6 +172,12 @@ unconfined receiving state refuses the exception; PR237 hard denials and
 reviewer/operator/expiry/no-replay rules remain intact. Compiled kernel policy
 identity and the absence of outside privilege brokers require independent
 receiver-side verification, not trust in the on-disk policy name or JSON alone.
+The profile declares its 4.0 policy ABI explicitly rather than inheriting a
+legacy compiler default. The ABI file must have the same root-owned nonsymlink
+custody as the policy; its exact bytes require independent receiving acceptance.
+CI retains its strict native-kernel rule-enforcement warning gate. A diagnostic
+reference-ABI compile is labeled separately and cannot replace that gate or
+claim that the receiving kernel enforces the policy.
 
 ### Mandatory receiving acceptance still outstanding
 

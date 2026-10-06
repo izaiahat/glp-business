@@ -1,6 +1,8 @@
 # Source proposal only. Parent must compile, independently review and explicitly
 # authorize loading this exact policy before the separately approved system-service migration.
-# No includes: the reviewed text is the complete policy, not an include closure.
+# No rule includes. The one explicit ABI leaf is separately root-owned and
+# hash-bound by the receiving contract; implicit legacy ABI selection is refused.
+abi <abi/4.0>,
 profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
   # Descriptor-pinned O_RDONLY|O_DIRECTORY custody opens need explicit reads;
   # file rules alone do not grant opening their ancestor directories.
@@ -8,6 +10,8 @@ profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
   /etc/ r,
   /etc/finch-mcp/ r,
   /etc/apparmor.d/ r,
+  /etc/apparmor.d/abi/ r,
+  /etc/apparmor.d/abi/4.0 r,
   /etc/finch-file-reviews/ r,
   # Preserve the existing dedicated interpreter; every exec inherits confinement.
   /home/ubuntu/.hermes/venvs/finch-mcp/bin/python ixr,
