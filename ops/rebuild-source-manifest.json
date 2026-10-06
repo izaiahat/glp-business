@@ -15,7 +15,7 @@
       "callers": [
         ".github/workflows/glp341-weekly-ads-compatibility.yml"
       ],
-      "sha256": "6a812d3ba6f8cbc7be862405c705be6262b7c5c0e57e3072d59ecd6523f642f5"
+      "sha256": "1b401e51781f6d2b9e46c37e3a6e95366e7ab91838ccbe8617bdc9df465a4d27"
     },
     "ops/glp345-a4/weekly.predecessor.py": {
       "kind": "source_control",
@@ -29,14 +29,14 @@
       "callers": [
         "authorized parent install owner"
       ],
-      "sha256": "1dec66d7d406127e4984bac9a8ad823c91b0c4d7b7b7110d0724c17df8a9eea6"
+      "sha256": "da4bdc3783489fb145a4fccb503c74a5bdcbf04dfd9ae0af534ca828e19395e1"
     },
     "tests/test_glp345_a4_adoption.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "c4d3e5e40f357a9eb0f8e0bcb9f90b68211538172d4d90be530bd0d26c5e400f"
+      "sha256": "d6961e92e191087b48080ef593df6132206e3df04d019cf9889495e13e1a3005"
     },
     "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
       "kind": "source_control",
@@ -666,7 +666,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "467b074c657fcc07f00bd081bdc6a6904ccf73ac113c48d140107822073fc90f"
+      "sha256": "b0938ebf5a3c8b3e0f88539f036ec54dbc4cfc7cc63f715c6fe613455d1653ce"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -1945,7 +1945,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "469d5655c6b4e0c02e56feb6af95629adde37019dfecf6d4d93ab8528c8aece2"
+      "sha256": "88176d7b67c4b52b2119d66e9bd80988cedf496773d8ae48a881007213450afb"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -3398,7 +3398,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "57203935c708e6317dd829654f74a6c7ce8b5a9def9eeb67cae84fb005804411"
+      "sha256": "52bec731ba3e2bf5c0abffcd257c6814781bf942e692f14431f873b429e2813c"
     },
     "scripts/maintenance_window.py": {
       "callers": [
