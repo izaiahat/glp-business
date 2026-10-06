@@ -606,9 +606,21 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
     base = Path(job["base_release_root"]).resolve()
     manifest_path = checked(job["base_manifest"], "base_manifest")
     receipt_path = checked(job["base_final_receipt"], "base_final_receipt")
-    descriptor = lambda p: tuple(getattr(os.lstat(p), k) for k in (
-        "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns"))
+    def descriptor(path: Path) -> tuple[int, ...]:
+        info = os.lstat(path)
+        return tuple(getattr(info, k) for k in (
+            "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns"))
     descriptors = (descriptor(manifest_path), descriptor(receipt_path))
+
+    def recheck_evidence() -> None:
+        # Authenticate the CURRENT lexical selection, including aliases/ancestors,
+        # against the original resolved paths and descriptors. Hash equality alone
+        # must not bless a same-byte retarget while the old resolved file survives.
+        selected = (checked(job["base_manifest"], "base_manifest"),
+                    checked(job["base_final_receipt"], "base_final_receipt"))
+        if selected != (manifest_path, receipt_path) or descriptors != tuple(map(descriptor, selected)):
+            raise RuntimeError("base_evidence_descriptor_drift")
+
     manifest = json.loads(manifest_path.read_text())
     receipt = json.loads(receipt_path.read_text())
     if receipt.get("status") == "PASS_LIVE_GSC_READBACK_PASS":
@@ -643,11 +655,13 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
             raise RuntimeError("base_native_terminal_identity_invalid")
     else:
         # The legacy repair authenticates its own bytes-order digest only.
+        recheck_evidence()
         ensure_accepted_base_sealed(base, actual_rows, release_tree)
     values = load_env()
     token = values.get("CLOUDFLARE_API_TOKEN") or values.get("CF_API_TOKEN")
     if not token:
         raise RuntimeError("cloudflare_token_missing")
+    recheck_evidence()
     response = requests.get(CF_API, headers={"Authorization": f"Bearer {token}"}, timeout=60)
     response.raise_for_status()
     body = response.json()
@@ -656,12 +670,6 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
     canonical = (body.get("result") or {}).get("canonical_deployment") or {}
     if canonical.get("id") != deployment_id:
         raise RuntimeError("production_head_changed")
-
-    def recheck_evidence() -> None:
-        checked(job["base_manifest"], "base_manifest")
-        checked(job["base_final_receipt"], "base_final_receipt")
-        if descriptors != (descriptor(manifest_path), descriptor(receipt_path)):
-            raise RuntimeError("base_evidence_descriptor_drift")
 
     recheck_evidence()
     if representation == "size" and unsealed_base_entries(base):

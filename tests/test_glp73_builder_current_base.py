@@ -156,6 +156,43 @@ def test_descriptor_drift_during_canonical_read_refused(base, field):
     with pytest.raises(RuntimeError): scope['require_current_base'](job)
 
 
+@pytest.mark.parametrize('field', ['base_manifest', 'base_final_receipt'])
+@pytest.mark.parametrize('alias_kind', ['symlink', 'ancestor'])
+@pytest.mark.parametrize('boundary', ['canonical-get', 'materialize'])
+def test_same_byte_evidence_alias_rebinding_is_refused(base, field, alias_kind, boundary):
+    scope, release, _, _, job, _ = base
+    target = Path(job[field]['path'])
+    original_info = target.stat()
+    alternate_dir = release.parent / 'alternate'
+    alternate_dir.mkdir()
+    alternate = alternate_dir / target.name
+    alternate.write_bytes(target.read_bytes())
+    alias = release.parent / ('evidence-alias' if alias_kind == 'ancestor' else 'evidence-alias.json')
+    alias.symlink_to(target.parent if alias_kind == 'ancestor' else target,
+                     target_is_directory=alias_kind == 'ancestor')
+    job[field]['path'] = str(alias / target.name if alias_kind == 'ancestor' else alias)
+    def rebind():
+        alias.unlink()
+        alias.symlink_to(alternate_dir if alias_kind == 'ancestor' else alternate,
+                         target_is_directory=alias_kind == 'ancestor')
+    if boundary == 'canonical-get':
+        original = scope['requests'].get
+        def get(*args, **kwargs):
+            rebind()
+            return original(*args, **kwargs)
+        scope['requests'].get = get
+    else:
+        scope['unsealed_base_entries'] = lambda *args: ['.']
+        def materialize(source, destination, inventory):
+            rebind()
+            return destination
+        scope['materialize_accepted_prepared_base'] = materialize
+    with pytest.raises(RuntimeError, match='^base_evidence_descriptor_drift$'):
+        scope['require_current_base'](job)
+    assert target.stat() == original_info
+    assert alternate.read_bytes() == target.read_bytes()
+
+
 def test_native_writable_base_uses_supported_producer_not_legacy_reseal(base):
     scope, release, _, _, job, _ = base
     scope['unsealed_base_entries'] = lambda *args: ['.']
@@ -251,6 +288,64 @@ def producer(tmp_path):
     scope['os'] = types.SimpleNamespace(**{name: getattr(os, name) for name in dir(os)})
     scope['os'].geteuid = lambda: 1000
     return scope, source, destination, inventory, handoff
+
+
+@pytest.mark.parametrize('relative', ['.', 'public'])
+@pytest.mark.parametrize('donor_mode', [0o700, 0o755])
+def test_mkdir_open_namespace_substitution_refused_before_target_effects(producer, relative, donor_mode):
+    """Real rename/metadata/readback; ownership remains explicitly synthetic."""
+    import resource
+    scope, source, destination, inventory, handoff = producer
+    target = destination if relative == '.' else destination / relative
+    donor = source.parent / 'unrelated-donor'
+    donor.mkdir(mode=donor_mode)
+    donor_before = donor.stat()
+    displaced = destination.parent / 'displaced-invocation-directory'
+    before_fds = len(os.listdir('/proc/self/fd'))
+    before_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    source_before = {p: p.stat() for p in [source, *source.rglob('*')]}
+    native_mkdir = os.mkdir
+    def mkdir(path, mode=0o777, *, dir_fd=None):
+        native_mkdir(path, mode, dir_fd=dir_fd)
+        if path == target.name and dir_fd is not None:
+            os.rename(target, displaced)
+            os.rename(donor, target)
+    scope['os'].mkdir = mkdir
+    with pytest.raises(RuntimeError, match='^accepted_prepared_creation_custody_lost$'):
+        scope['materialize_accepted_prepared_base'](source, destination, inventory)
+    assert not handoff
+    after = target.stat()
+    assert (after.st_dev, after.st_ino) == (donor_before.st_dev, donor_before.st_ino)
+    # Rename changes ctime, but no copy/chmod/chown may touch the donor.
+    assert (after.st_mode, after.st_uid, after.st_gid, after.st_mtime_ns) == (
+        donor_before.st_mode, donor_before.st_uid, donor_before.st_gid, donor_before.st_mtime_ns)
+    assert list(target.iterdir()) == []
+    assert list(displaced.iterdir()) == []
+    assert all(p.stat() == info for p, info in source_before.items())
+    assert len(os.listdir('/proc/self/fd')) == before_fds
+    assert resource.getrlimit(resource.RLIMIT_NOFILE) == before_limit
+
+
+@pytest.mark.parametrize('fault', ['overflow', 'watch-loss', 'truncated'])
+def test_creation_watch_uncertainty_refuses_before_target_effects(producer, fault):
+    import resource
+    import struct
+    scope, source, destination, inventory, handoff = producer
+    before_fds = len(os.listdir('/proc/self/fd'))
+    before_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    native_read = os.read
+    def read(fd, count):
+        if os.readlink(f'/proc/self/fd/{fd}') == 'anon_inode:inotify':
+            return {'overflow': struct.pack('iIII', -1, 0x4000, 0, 0),
+                    'watch-loss': struct.pack('iIII', 1, 0x8000, 0, 0),
+                    'truncated': b'x'}[fault]
+        return native_read(fd, count)
+    scope['os'].read = read
+    with pytest.raises(RuntimeError, match='^accepted_prepared_creation_custody_lost$'):
+        scope['materialize_accepted_prepared_base'](source, destination, inventory)
+    assert not handoff and list(destination.iterdir()) == []
+    assert len(os.listdir('/proc/self/fd')) == before_fds
+    assert resource.getrlimit(resource.RLIMIT_NOFILE) == before_limit
 
 
 def test_prepared_ingestion_produces_private_immutable_bytes_and_keeps_source(producer):

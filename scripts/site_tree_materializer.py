@@ -833,6 +833,82 @@ def prepare_clean_build_trees(
     }
 
 
+def _mkdir_custodied_fd(parent_fd: int, name: str) -> tuple[int, bool]:
+    """Bind mkdir's creation to the opened inode before any write or seal.
+
+    mkdirat does not return an FD. A name/FD check alone can adopt a donor
+    swapped in before openat. Watch the retained parent BEFORE mkdir and drain
+    the kernel's ordered namespace events AFTER open: exactly one directory
+    create, with no move/delete for this name, establishes creation custody.
+    Overflow/watch loss is refusal, never a fallback. Later swaps cannot change
+    this retained inode; callers still verify final canonical name binding.
+    """
+    import ctypes
+    import struct
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.inotify_init1.argtypes = [ctypes.c_int]
+    libc.inotify_init1.restype = ctypes.c_int
+    libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+    libc.inotify_add_watch.restype = ctypes.c_int
+    watcher = libc.inotify_init1(os.O_CLOEXEC | os.O_NONBLOCK)
+    if watcher < 0:
+        raise OSError(ctypes.get_errno(), "accepted_prepared_creation_watch_unavailable")
+    fd = -1
+    try:
+        # IN_CREATE|DELETE|MOVED_FROM|MOVED_TO|DELETE_SELF|MOVE_SELF|UNMOUNT,
+        # plus IN_ONLYDIR. /proc binds the watch to our retained parent inode.
+        wd = libc.inotify_add_watch(watcher, os.fsencode(f"/proc/self/fd/{parent_fd}"), 0x01002fc0)
+        if wd < 0:
+            raise OSError(ctypes.get_errno(), "accepted_prepared_creation_watch_unavailable")
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            return os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd), False
+        fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+        # A second mkdir must report EEXIST. Besides checking presence, this
+        # takes the parent's directory mutation lock: any rename that selected
+        # the opened inode has completed its synchronous fsnotify enqueue before
+        # we drain. A read alone could run while that rename is still finishing.
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+        else:
+            raise RuntimeError("accepted_prepared_creation_custody_lost")
+        creates = 0
+        while True:
+            try:
+                events = os.read(watcher, 65536)
+            except BlockingIOError:
+                break
+            if not events:
+                raise RuntimeError("accepted_prepared_creation_custody_lost")
+            offset = 0
+            while offset < len(events):
+                if len(events) - offset < 16:
+                    raise RuntimeError("accepted_prepared_creation_custody_lost")
+                event_wd, mask, _, length = struct.unpack_from("iIII", events, offset)
+                end = offset + 16 + length
+                if end > len(events) or event_wd != wd or mask & 0xec00:
+                    # Includes queue overflow, ignored watch and parent loss/move.
+                    raise RuntimeError("accepted_prepared_creation_custody_lost")
+                entry = events[offset + 16:end].split(b"\0", 1)[0]
+                if entry == os.fsencode(name):
+                    if mask != 0x40000100:  # IN_ISDIR | IN_CREATE only
+                        raise RuntimeError("accepted_prepared_creation_custody_lost")
+                    creates += 1
+                offset = end
+        if creates != 1 or not _destination_binding_matches(parent_fd, name, fd):
+            raise RuntimeError("accepted_prepared_creation_custody_lost")
+        result, fd = fd, -1
+        return result, True
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(watcher)
+
+
 def materialize_accepted_prepared_base(
     source: Path, destination: Path, expected_rows: list[dict[str, Any]],
 ) -> Path:
@@ -874,12 +950,7 @@ def materialize_accepted_prepared_base(
         before = _tree_manifest_fd(source_fd, require_immutable=False)
         if set(before["files"]) != set(indexed):
             raise RuntimeError("accepted_prepared_source_inventory_drift")
-        try:
-            os.mkdir(destination.name, 0o700, dir_fd=parent_fd)
-            created = True
-        except FileExistsError:
-            created = False
-        destination_fd = os.open(destination.name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+        destination_fd, created = _mkdir_custodied_fd(parent_fd, destination.name)
         if created:
             previous_limit = _raise_bounded_fd_limit(
                 len(before["directories"]) + len(before["files"]) + 32, "accepted_prepared_base")
@@ -896,10 +967,12 @@ def materialize_accepted_prepared_base(
                     child_target = -1
                     try:
                         if created:
-                            os.mkdir(name, 0o700, dir_fd=target_dir)
-                        child_target = os.open(name, _DIRECTORY_FLAGS, dir_fd=target_dir)
-                        if created:
+                            child_target, child_created = _mkdir_custodied_fd(target_dir, name)
+                            if not child_created:
+                                raise RuntimeError("accepted_prepared_creation_custody_lost")
                             retained.append(os.dup(child_target))
+                        else:
+                            child_target = os.open(name, _DIRECTORY_FLAGS, dir_fd=target_dir)
                         walk(child_source, child_target, prefix / name)
                     finally:
                         os.close(child_source)
