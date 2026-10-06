@@ -22,7 +22,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_network.py tests/test_finch_receiving_sandbox.py tests/test_finch_file_review.py tests/test_rook_communication.py tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_kernel_harness.py tests/test_finch_network.py tests/test_finch_receiving_sandbox.py tests/test_finch_file_review.py tests/test_rook_communication.py tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py
       - name: Compile proposed AppArmor source without kernel load or cache writes
         run: |
           test -x /usr/sbin/apparmor_parser

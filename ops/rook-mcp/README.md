@@ -319,6 +319,144 @@ References: [systemd v255 NFTSet lifecycle](https://github.com/systemd/systemd/b
 [nft socket/conntrack/FIB expressions](https://netfilter.org/projects/nftables/manpage.html),
 [kernel socket-cgroup evaluation](https://github.com/torvalds/linux/blob/v6.12/net/netfilter/nft_socket.c).
 
+### Opt-in target-kernel harness (source only; separate runtime approval)
+
+`finch_kernel_harness.py` is a bounded executable fixture, not a service, grant,
+installer, background monitor or ordinary CI job. Its two phases make different
+claims. Neither has been executed by this source task. For the accepted d04eed63
+baseline, the parent has reported full generated-policy `nft --check` and strict
+receiving AppArmor compilation; neither is packet/startup/restart evidence.
+A successful source test
+or a printed plan is not target-kernel evidence. Its flags and approval-reference
+string record opt-in intent; they do not supply the actual required approval.
+
+The ordinary offline invocation now includes:
+
+```sh
+.venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_kernel_harness.py
+/usr/bin/python3 -I -S -B ops/rook-mcp/finch_kernel_harness.py plan
+```
+
+These tests mock every vendor/process/network effect. They exercise orchestration,
+evidence requirements, namespace/worker binding, skip semantics, source pins,
+preimage/ownership checks and refusal/cleanup branches. CI must NEVER invoke
+`packet-fixture`, `admission-fixture` or `_worker`.
+
+Before either real phase, the parent needs **new exact approval for that phase's
+privileged fixture effects**, exclusive control of the affected resources and
+verified root-owned native/import closure. Stage the accepted source at
+`/usr/local/libexec/finch-mcp/finch_kernel_harness.py` through the approved root
+publication path, without running code from an app-owned checkout. Verify the
+root custody of that file, the unchanged accepted `finch_network.py`, all
+ancestors, system Python/stdlib/loader and the native `ip`, `nft`, `openssl`,
+`systemctl`, `journalctl`, `stat`, `env` and `sha256sum` binaries. Publish the
+independently accepted helper/harness hashes and fixed paths in the root-owned
+`/etc/finch-mcp/kernel-harness.sha256`. No such manifest is supplied by this PR.
+Use an isolated environment with no injected loader/Python variables:
+
+```sh
+/usr/bin/sha256sum --check --status /etc/finch-mcp/kernel-harness.sha256
+/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S -B \
+  /usr/local/libexec/finch-mcp/finch_kernel_harness.py packet-fixture \
+  --approved-fixture --approval-reference 'EXACT-APPROVED-PACKET-FIXTURE-REFERENCE'
+```
+
+The packet phase creates only two uniquely named disposable network namespaces,
+a veth between them, a uniquely named fixture cgroup with a level-two `app`
+child, and private temporary TLS files. It installs the exact accepted renderer's
+OUTPUT policy **inside the client namespace**, with fixture-only membership;
+it does not alter the production host table or claim real service admission.
+Neither namespace has a default/external route or physical interface. Namespace
+and cgroup creation identities are recorded and checked before use/removal.
+Workers receive a one-shot inherited root FIFO context bound to the actual
+controller PID/start identity, explicit approved packet-phase command, exact
+namespace and cgroup, and source hash before reading a job or opening a socket.
+Standalone/unisolated `_worker` invocation is refused.
+
+Nineteen cases cover actual TCP and unconnected UDP DNS53, self-signed fixture
+TLS443 over IPv4/IPv6, the selected listener's incoming127.0.0.1:18806 replies,
+and denied loopback/private/tailnet/link-local/metadata addresses, IPv4-mapped
+forms and outbound source-port18806 bypass attempts. Every sink is synthetic and
+owned by the fixture. Each case first proves unrelated-cgroup sink reachability.
+A denial requires the expected OUTPUT rule counter to increase AND zero new
+packets in the sink's INPUT counter, in addition to a failed socket exchange.
+Positive cases require rule and sink counts plus a successful exchange. The
+throwaway certificate/key authenticates only `finch.invalid` inside the isolated
+fixture; it is generated there and deleted on cleanup. This is not production
+Auth0/Discord TLS, DNS/NSS, tunnel or application compatibility proof.
+
+The real admission phase is a different, explicitly consequential fixture:
+
+```sh
+/usr/bin/sha256sum --check --status /etc/finch-mcp/kernel-harness.sha256
+/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S -B \
+  /usr/local/libexec/finch-mcp/finch_kernel_harness.py admission-fixture \
+  --approved-fixture --approved-stopped-production-unit \
+  --approval-reference 'EXACT-APPROVED-STOPPED-SYSTEM-UNIT-FIXTURE-REFERENCE'
+```
+
+It **refuses unless the exact already provisioned SYSTEM unit is inactive**, its
+old process/cgroup/membership is gone, and no drop-ins exist. The parent must
+first gracefully drain and disable the legacy user service under the existing
+approved migration plan; the harness does not stop an active Finch or perform
+that migration. Real root receiving facts, installed-policy receipt, source
+pins, host boot/namespaces and original guard checks must already be valid.
+A differently named transient unit cannot satisfy the guard's hard-pinned real
+cgroup, so there is no test bypass or relaxed guard for an isolated namespace.
+
+Under that separately approved stopped-unit fixture, it creates one temporary
+runtime drop-in, retains the original native checksum and real admission
+conditions, and replaces only downstream launcher/application commands with a
+credential-free marker. The existing UID/GID, AppArmor, NNP/seccomp and resource
+settings remain inherited. An extra native observer records the actual cgroup
+ID before the guard. Bounded fault conditions test absent table, empty/stale/
+extra membership and changed fingerprint. All must show the **real guard's
+exit78**, no later application/packet marker, unchanged admission receipt, zero
+counted application packets where the table exists, and zero packets at the
+harness-owned denied sink. ExecCondition78 can mean a skipped inactive unit with
+`Result=success`; it is not reported as necessarily `failed`.
+
+Two positive starts require fresh admission nonces and equality with each start's
+actual SYSTEM cgroup ID/set membership. ID changes are not assumed. The marker
+attempts one datagram to a harness-owned host-loopback UDP socket on an exclusively
+bound ephemeral port, never an existing listener or external address. The deny
+rule must count it while the owned sink receives zero packets. After each stop,
+the actual service cgroup and its membership must be removed. Journal evidence
+is restricted to the exact current invocation ID. The real Finch launcher, its
+auth/token loading, SQLite/pending requests and report handling never run in
+this fixture. Thus this proves the exact retained pre-application admission
+chain, not the substituted launcher check or actual production startup.
+
+The controller has a180-second work budget and a separate30-second cleanup
+budget; namespace workers alarm after160 seconds and each SYSTEM marker alarms
+after120 seconds, even if the controller disappears. It captures the validated baseline policy
+before effects, so facts expiry does not block restoration of that stopped-service
+baseline. Before each start it rechecks base-unit bytes, singleton owned drop-in
+and exact effective executable/argument composition. Before restoration it
+recognizes only its exact planned table mutations and owned drop-in/resource
+identities. Unknown administrator changes, foreign/uncertain control processes
+or restoration uncertainty cause a manual-recovery hold, not a blind overwrite,
+retry or production restart. Partial uncertain files are not treated as safely
+owned complete artifacts. Successful cleanup restores the accepted table and
+original unit configuration, leaves the service stopped, and removes only this
+invocation's resources. The last nonsecret test admission is left bound to its
+removed cgroup; a future approved start must obtain a new admission.
+
+**All other root network/unit writers must be quiescent for the approved test
+window.** Preimage checks detect observed changes, but native CLI readback plus
+apply is not a caller-pinned atomic compare-and-swap against an arbitrary
+concurrent root administrator. This remains an explicit receiving prerequisite.
+A root-only singleton `/run/finch-kernel-harness.lock` prevents overlapping copies;
+on any failed fixture it remains as a recovery hold. The parent must inspect
+actual processes, namespaced resources, table and unit state before any approved
+cleanup or retry. Do not blindly remove the lock, replay the harness, start real
+Finch, or infer authorization from a PASS report.
+
+References: [iproute2 network namespaces](https://man7.org/linux/man-pages/man8/ip-netns.8.html),
+[Linux cgroupv2 process membership](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html),
+[systemd v255 service/ExecCondition semantics](https://github.com/systemd/systemd/blob/v255/man/systemd.service.xml),
+[exact invocation journal filtering](https://www.freedesktop.org/software/systemd/man/255/journalctl.html).
+
 ### Mandatory receiving acceptance still outstanding
 
 1. Compile this exact AppArmor source with the receiving parser without loading

@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 761,
+  "tracked_count": 763,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -1235,7 +1235,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "35e989d96e3bfaf264508112535d21ab17eee89d6d4dfaae3f86bfd4a04120db"
+      "sha256": "d9cc1da1f358c6b4e53d56f54f541157cab98a7cbd087fb23c98251f17b4a5ca"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -5094,7 +5094,7 @@
       "callers": [
         "manual:source-only exact-head Finch PR review"
       ],
-      "sha256": "9df06f5fe6a9dd177f4f79d13e575effa51389014aa828ee4ae29ffdffc090ab"
+      "sha256": "3d9f814a6825329f49a9b556240cecd31ac638aa7b4f2408ae3263847cbb2c6d"
     },
     "ops/rook-mcp/finch_adapter_launch.py": {
       "kind": "script",
@@ -5138,6 +5138,20 @@
         ".github/workflows/finch-file-review.yml"
       ],
       "sha256": "714919ccf926f8a8e64c045308e929bf16e4e4c3e5dcb06ffa9a5e3a63b13547"
+    },
+    "ops/rook-mcp/finch_kernel_harness.py": {
+      "kind": "script",
+      "callers": [
+        "manual:separately approved target-kernel fixtures only; never CI or runtime startup"
+      ],
+      "sha256": "b0d11625b25f02347d698c103656d8c8c80c0a6645dbf8d1666403f36aa21c77"
+    },
+    "tests/test_finch_kernel_harness.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "92e42a5f683f4e55b1348ff8f14ee321df5609096b21505a23bff48cad1d6224"
     }
   }
 }
