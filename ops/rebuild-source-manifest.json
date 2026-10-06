@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 717,
+  "tracked_count": 718,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -884,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "6500509934958dec0bae7b6008e1bb43e1feed0b53cafbb225b51ba2fb5cc690"
+      "sha256": "6cc330c8a2e81f7e18e123d72dfd9520102b5ff22a6867a814f693e31b1dabf2"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2151,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
+      "sha256": "b8cdcf7e1844be347f31de2e96b0803813cd3cb31e7565489bc684d77d1e219c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2172,7 +2172,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4"
+      "sha256": "f977996bec328b009251d06c3fef1fa37266baba60d197f15e3d8572fe54671e"
     },
     "scripts/skill_router.py": {
       "callers": [],
@@ -2297,7 +2297,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "9359b21440ebf8abd5f3b4912b8f5792f7bc8273cae3605f40db203464f21640"
+      "sha256": "deb7b35f9a3dd836ae2c107a00de0749aa3b73b40b53da4b48f3a0aeccf296c9"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -2909,6 +2909,14 @@
       ],
       "kind": "test",
       "sha256": "9d9446b403753cb58157d032b3037cc3457d62d5348a9ad52f38f45ca2940424"
+    },
+    "tests/test_glp73_builder_current_base.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp80-k3-source.yml"
+      ],
+      "kind": "test",
+      "sha256": "e1d843b994c687e0f4a65a9fe5ff1e1e4512e10f75a70cbd76f7a738464c2f22"
     },
     "tests/test_glp73_current_pointer_consumer.py": {
       "callers": [
@@ -3805,7 +3813,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a90ffe89d8ec95a459b5e0ce875a87f243bdd2ae7d4c56424342d3525a5eacca"
+      "sha256": "f8b894294fafe4907f5b2bb360c9816daa554fd7e45f8447878f3c5311ff18a1"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -3817,7 +3825,7 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "775e44bc5e936dc3e19cb4c1ad3109e00426d70d53fccb60d5d2fc359c043bfa"
+      "sha256": "0b2bc9516ba0f81a502920ae5057a9ca4b8388304b3e60db29b2b8b834f6a078"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
