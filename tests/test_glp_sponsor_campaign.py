@@ -14,6 +14,7 @@ import glp328_outreach_policy as policy
 @pytest.fixture(autouse=True)
 def isolated_inbox(tmp_path,monkeypatch):
  monkeypatch.setattr(m,'INBOX_DB',tmp_path/'no-live-inbox.sqlite')
+ monkeypatch.setattr(m,'ROOT',tmp_path/'no-live-source')
 
 NOW=dt.datetime(2026,10,3,tzinfo=dt.timezone.utc)
 
