@@ -33,17 +33,19 @@ def professional_contact(host,rows,at):
 
 
 def relationship(host,evidence,at):
-    if (evidence.get('provider_host')==host and evidence.get('status')=='approved'
-        and evidence.get('network') and evidence.get('program_id') and current_evidence(evidence,at)):
-        return {'variant':'established_affiliate','network':evidence['network'],'evidence':evidence}
-    return {'variant':'cold'}
+    # No authenticated network producer is registered for this campaign. Digest
+    # shape or caller-authored approval text cannot establish a relationship.
+    return {'variant':'cold','reason':'authenticated_network_relationship_not_bound'}
 
 
 def apollo_transport(method,path,payload):
-    # Allowlist the one documented zero-credit search operation. Never reveal,
-    # enrich, export, waterfall, phone lookup or silently try another endpoint.
-    if method!='POST' or path!='/api/v1/mixed_people/api_search':
-        raise RuntimeError('apollo_credit_operation_not_authorized')
+    # Documented account operations only; caller gates credit-consuming match.
+    # Personal email, phone and waterfall products are never enabled.
+    if method!='POST' or path not in {'/api/v1/mixed_people/api_search','/api/v1/people/match'}:
+        raise RuntimeError('apollo_operation_not_authorized')
+    if path.endswith('/people/match') and any(payload.get(k) is not False for k in
+            ('reveal_personal_emails','reveal_phone_number','run_waterfall_email','run_waterfall_phone')):
+        raise RuntimeError('apollo_personal_phone_or_waterfall_not_authorized')
     key=os.environ.get('APOLLO_API_KEY')
     if not key:raise RuntimeError('apollo_account_unavailable')
     request=urllib.request.Request('https://api.apollo.io'+path,data=json.dumps(payload).encode(),method=method,
@@ -75,29 +77,11 @@ def paypal_capture_readback(capture_id):
 
 
 def payment_readiness(order,transport=None):
-    from decimal import Decimal,InvalidOperation
-    result={'status':'unknown','payment_verified':False,'placement_allowed':False,'reason':'authenticated_payment_not_checked'}
-    if not order.get('reviewed_order') or not order.get('order_reference') or not order.get('capture_id') or not order.get('merchant_id'):
-        return dict(result,reason='reviewed_order_or_exact_account_missing')
-    if transport is None:return result
-    try:
-        response=transport(order['capture_id']);capture=response.get('capture',{})
-        payee=capture.get('payee',{});amount=capture.get('amount',{})
-        valid=(response.get('authenticated') is True and response.get('http_status')==200 and response.get('environment')=='live'
-               and capture.get('id')==order['capture_id'] and capture.get('status')=='COMPLETED'
-               and capture.get('invoice_id')==order['order_reference']
-               and payee.get('email_address','').lower()=='ops@glpclinicscout.com'
-               and order.get('payee','').lower()=='ops@glpclinicscout.com' and payee.get('merchant_id')==order['merchant_id']
-               and amount.get('currency_code')==order.get('currency')=='USD'
-               and Decimal(amount.get('value','NaN'))==Decimal(order.get('amount','NaN'))>0)
-    except (KeyError,TypeError,ValueError,InvalidOperation):
-        return dict(result,status='blocked',reason='malformed_payment_readback')
-    if not valid:return dict(result,status='blocked',reason='payment_order_account_or_status_mismatch')
-    exact=json.dumps(response,sort_keys=True,separators=(',',':')).encode()
-    return dict(result,status='verified',payment_verified=True,reason='authenticated_matching_completed_capture',
-                capture_id=order['capture_id'],order_reference=order['order_reference'],payee='ops@glpclinicscout.com',
-                amount=amount['value'],currency='USD',merchant_id=order['merchant_id'],receipt_json=exact.decode(),receipt_sha256=hashlib.sha256(exact).hexdigest(),
-                source='paypal_live_authenticated_capture_readback')
+    # The raw GET client is diagnostic only: no maintained allocation/reversal
+    # producer binds capture, provider, payer, reviewed gross/tax/order, freshness
+    # and replay custody. Never promote a transport dictionary to verification.
+    return {'status':'unknown','payment_verified':False,'placement_allowed':False,
+            'reason':'authenticated_paypal_allocation_producer_not_installed'}
 
 
 BOUNCER_LEDGER = Path('/home/ubuntu/business/reports/bouncer-shared-credit-ledger-2026-06-25.jsonl')

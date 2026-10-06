@@ -82,7 +82,7 @@ def test_professional_contact_and_relationship_require_exact_current_evidence():
  assert len(result['recipients'])==1
  professional['title']='Patient Support';assert not m.recipients(sheet,discovery,local)['recipients']
  evidence={'provider_host':'example.com','network':'Impact','program_id':'p1','status':'approved','captured_at_utc':NOW.isoformat(),'evidence_sha256':'c'*64}
- assert ready.relationship('example.com',evidence,NOW)['variant']=='established_affiliate'
+ assert ready.relationship('example.com',evidence,NOW)['variant']=='cold' # caller-created digest is not authenticated network custody
  assert ready.relationship('elsewhere.com',evidence,NOW)['variant']=='cold'
  assert ready.relationship('example.com',evidence,NOW+dt.timedelta(days=31))['variant']=='cold'
 
@@ -104,7 +104,7 @@ def test_paypal_readiness_requires_authenticated_matching_completed_capture():
  assert ready.payment_readiness(order)['status']=='unknown'
  capture=dict(id='CAPTURE1',status='COMPLETED',amount=dict(value='500.00',currency_code='USD'),invoice_id='GLP-001',payee=dict(email_address='ops@glpclinicscout.com',merchant_id='MERCHANT1'))
  transport=lambda cid:dict(http_status=200,authenticated=True,environment='live',capture=capture)
- assert ready.payment_readiness(order,transport)['payment_verified'] is True
+ assert ready.payment_readiness(order,transport)['payment_verified'] is False # synthetic authenticated flag is not provider allocation evidence
  capture['amount']['value']='250.00'
  assert ready.payment_readiness(order,transport)['payment_verified'] is False
  capture['amount']['value']='500.00';capture['status']='REFUNDED'

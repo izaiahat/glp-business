@@ -136,8 +136,23 @@ def approval_ready(config):
  packet=ROOT/'reports/ops/sponsor-machine-20261003/sponsor-review-packet.zip'
  if digest(packet)!=config['packet_sha256']:raise RuntimeError('packet_bytes_changed')
  manifest=load(ROOT/'ops/sponsor-machine/assets.json')
+ import zipfile
+ try:
+  with zipfile.ZipFile(packet) as archive:
+   names=archive.namelist()
+   if len(names)!=len(set(names)) or any(Path(n).is_absolute() or '..' in Path(n).parts for n in names):
+    raise RuntimeError('approved_packet_member_ambiguous')
+   sealed=json.loads(archive.read('ops/sponsor-machine/assets.json'))
+   if manifest!=sealed:raise RuntimeError('approved_manifest_not_in_packet')
+   for rel,sha in sealed.items():
+    target=(ROOT/rel).resolve()
+    if not target.is_relative_to(ROOT.resolve()) or hashlib.sha256(archive.read(rel)).hexdigest()!=sha:
+     raise RuntimeError('approved_packet_source_changed:'+rel)
+ except (zipfile.BadZipFile,KeyError,ValueError,TypeError) as error:
+  raise RuntimeError('approved_packet_binding_missing') from error
  if config.get('require_full_source_binding') is True:
   required={'scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py'}
+  if config.get('bouncer_debits_enabled') is True:required.add('scripts/bouncer_shared_account_guard.py')
   if not required.issubset(manifest):raise RuntimeError('current_sponsor_source_binding_missing')
  for rel,sha in manifest.items():
   if digest(ROOT/rel)!=sha:raise RuntimeError('approved_asset_changed:'+rel)
@@ -238,26 +253,132 @@ def refresh_apollo_sources(plan,at,transport=None):
          'provider_records':len(cache),'email_verification':'unknown','enrichment_debits':0,'verification_debits':0}
 
 
-def consume_reply_stops(ledger):
- """Read durable stops from the existing canonical inbox, without another poller."""
- import sqlite3
+def refresh_professional_sources(plan,discovery,at,config,transport=None,bouncer_runner=None):
+ """Actual supported Apollo match + shared Bouncer guard in this existing job.
+
+ The caller enters only after exact approval; flags remain disabled in source.
+ Retain requests/results in the existing sourcing cache. Uncertain debits are
+ held for manual reconciliation, never automatically repeated or upgraded.
+ """
+ import glp_sponsor_readiness as readiness,subprocess
+ if config.get('professional_enrichment_enabled') is not True or config.get('bouncer_debits_enabled') is not True:
+  return {'status':'disabled_pending_approval','enrichment_requests':0,'verification_requests':0}
+ transport=transport or readiness.apollo_transport
+ runner=bouncer_runner or subprocess.run
+ cache_path=STATE/'apollo-sourcing.private.json'
+ cache=load(cache_path) if cache_path.exists() else {}
+ gaps={'no_verified_business_purpose_contact','contact_purpose_unverified','contact_evidence_incomplete'}
+ targets=sorted({r['host'] for r in plan['exclusions'] if r.get('reason') in gaps})[:25]
+ counts={'status':'completed_bounded','enrichment_requests':0,'verification_requests':0,'verified':0,'unknown_or_blocked':0}
+ for host in targets:
+  if host in ('nuimage.com','nuimagemedical.com'):continue
+  row=cache.setdefault(host,{})
+  if row.get('enrichment_claim') or row.get('verification_claim'):
+   counts['unknown_or_blocked']+=1;continue
+  contacts=row.get('professional_contacts',[])
+  contact=readiness.professional_contact(host,contacts,at)
+  if not contact:
+   if row.get('attempted_at'):
+    counts['unknown_or_blocked']+=1;continue
+   row['attempted_at']=stamp(at);save(cache_path,cache)
+   try:
+    search=transport('POST','/api/v1/mixed_people/api_search',{'q_organization_domains_list':[host],
+       'person_locations':['United States'],'person_titles':['partnerships','marketing','business development','founder','CEO','COO'],
+       'page':1,'per_page':25})
+    row['search_response']=search;save(cache_path,cache)
+    person=next((p for p in search.get('people',[]) if p.get('id') and readiness.PROFESSIONAL.search(p.get('title',''))),None)
+    if not person:counts['unknown_or_blocked']+=1;continue
+    payload={'id':person['id'],'domain':host,'reveal_personal_emails':False,'reveal_phone_number':False,
+             'run_waterfall_email':False,'run_waterfall_phone':False}
+    row['enrichment_claim']={'person_id':person['id'],'at':stamp(at)};save(cache_path,cache)
+    response=transport('POST','/api/v1/people/match',payload);counts['enrichment_requests']+=1
+    row['enrichment_response']=response;row.pop('enrichment_claim');save(cache_path,cache)
+    p=response.get('person') or {}
+    country=p.get('country')
+    candidate={'source':'apollo','person_id':p.get('id'),'email':p.get('email'),'title':p.get('title',''),
+        'country':'US' if country in ('United States','US') else country,
+        'organization_domain':(p.get('organization') or {}).get('primary_domain',''),
+        'captured_at_utc':stamp(at),'evidence_sha256':hashlib.sha256(json.dumps(response,sort_keys=True).encode()).hexdigest()}
+    contact=readiness.professional_contact(host,[candidate],at)
+    if not contact:counts['unknown_or_blocked']+=1;continue
+    row['professional_contacts']=[contact];save(cache_path,cache)
+   except (RuntimeError,OSError,ValueError,TypeError):
+    counts['unknown_or_blocked']+=1;counts['status']='account_or_credit_access_unconfirmed';break
+  discovery.setdefault('organizations',{}).setdefault(host,{})['professional_contacts']=[contact]
+  shared=ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl'
+  verified=readiness.bouncer_readiness(contact['email'],shared,at)
+  if verified['send_eligible'] is not True and not row.get('verification_attempted_at'):
+   row['verification_claim']={'email_hash':readiness.email_hash(contact['email']),'at':stamp(at)};save(cache_path,cache)
+   try:
+    outcome=runner([sys.executable,str(ROOT/'scripts/bouncer_shared_account_guard.py'),'verify-email',
+       '--venture','glp-scout','--email',contact['email'],'--ref',CAMPAIGN+':'+host,'--timeout','10'],
+       capture_output=True,text=True,timeout=90)
+    counts['verification_requests']+=1
+    if outcome.returncode not in (0,3):raise RuntimeError('bouncer_guard_access_unconfirmed')
+    row['verification_attempted_at']=stamp(at);row.pop('verification_claim');save(cache_path,cache)
+    # CLI output alone cannot verify: require the actual shared guard receipt.
+    verified=readiness.bouncer_readiness(contact['email'],shared,at)
+   except (RuntimeError,OSError,subprocess.TimeoutExpired):
+    counts['unknown_or_blocked']+=1;counts['status']='account_or_credit_access_unconfirmed';break
+  counts['verified' if verified['send_eligible'] else 'unknown_or_blocked']+=1
+ save(cache_path,cache)
+ return counts
+
+
+def consume_reply_stops(ledger,db=None,at=None):
+ """Consume stops and require fresh canonical cursor proof, never table emptiness."""
+ import sqlite3,contextlib
  result={'status':'unknown','applied':0}
- if not INBOX_DB.exists():return result
+ if db is None and not INBOX_DB.exists():return result
+ at=at or now()
  try:
-  with sqlite3.connect(INBOX_DB.as_uri()+'?mode=ro',uri=True) as db:
-   rows=db.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified' ORDER BY created_at,action_id").fetchall()
-  result['status']='read_complete'
-  for (raw,) in rows:
-   stop=json.loads(raw)
-   for email,entry in ledger.items():
-    host=entry.get('host',email.split('@')[-1])
-    if email in stop['enrolled_addresses'] or any(same(host,h) for h in stop['provider_hosts']):
-     if entry.get('stop_event_id')==stop['event_id']:continue
-     entry.update(stopped=stop['kind'],stop_event_id=stop['event_id'],reply_state=stop)
-     result['applied']+=1
+  manager=contextlib.nullcontext(db) if db is not None else contextlib.closing(sqlite3.connect(INBOX_DB.as_uri()+'?mode=ro',uri=True))
+  with manager as connection:
+   rows=connection.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified' ORDER BY created_at,action_id").fetchall()
+   for (raw,) in rows:
+    stop=json.loads(raw)
+    for email,entry in ledger.items():
+     host=entry.get('host',email.split('@')[-1])
+     if email in stop['enrolled_addresses'] or any(same(host,h) for h in stop['provider_hosts']):
+      if entry.get('stop_event_id')==stop['event_id']:continue
+      entry.update(stopped=stop['kind'],stop_event_id=stop['event_id'],reply_state=stop)
+      result['applied']+=1
+   try:
+    cursors=connection.execute("SELECT m.mailbox_id,m.lifecycle,m.freshness_sla_seconds,c.last_auth_success_at,c.last_read_success_at,c.last_complete_poll_at,c.unhealthy_reason,c.poll_receipt_id,r.finished_at,r.exit_status,r.discovered_count,r.persisted_count,r.duplicate_count FROM mailboxes m JOIN provider_cursors c USING(mailbox_id) JOIN inbox_runs r ON r.run_id=c.poll_receipt_id WHERE m.mailbox_id IN ('glp_ops_gmail','glp_izaiah_gmail')").fetchall()
+    if {r[0] for r in cursors}!={'glp_ops_gmail','glp_izaiah_gmail'}:return result
+    # Current canonical adapter uses last_complete_poll_at as its watermark;
+    # its cursor column is not populated. Backlog_count counts discovered mail,
+    # so verify the finished run's persisted+duplicate closure instead.
+    for box,lifecycle,sla,auth,read,complete,unhealthy,receipt,finished,status,found,persisted,duplicates in cursors:
+     if lifecycle!='active' or not receipt or status!='pass' or not finished or unhealthy or found!=persisted+duplicates:return result
+     for timestamp in (auth,read,complete,finished):
+      age=at-dt.datetime.fromisoformat(timestamp)
+      if not dt.timedelta(0)<=age<=dt.timedelta(seconds=min(int(sla),900)):return result
+    result.update(status='read_complete',mailboxes=[r[0] for r in cursors])
+   except (sqlite3.Error,ValueError,TypeError):
+    return result
  except (sqlite3.Error,ValueError,KeyError,TypeError):
   raise RuntimeError('canonical_sponsor_reply_coverage_incomplete')
  return result
+
+
+from contextlib import contextmanager
+@contextmanager
+def canonical_send_boundary(ledger,at,required):
+ """Serialize canonical stop commits with the durable claim and send receipt."""
+ if not required:
+  yield
+  return
+ import sqlite3
+ db=sqlite3.connect(INBOX_DB.as_uri()+'?mode=rw',uri=True,timeout=5)
+ try:
+  with db:
+   db.execute('BEGIN IMMEDIATE')
+   readiness=consume_reply_stops(ledger,db=db,at=at)
+   if readiness['applied']:save(STATE/'ledger.json',ledger)
+   if readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
+   yield
+ finally:db.close()
 
 
 def run(config,dry_run=False):
@@ -270,6 +391,11 @@ def run(config,dry_run=False):
   values=read_values();discovery=load(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json');local=read_local()
   plan=recipients(values,discovery,local)
   sourcing_readiness=refresh_apollo_sources(plan,at) if config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
+  if enabled:
+   sourcing_readiness['professional']=refresh_professional_sources(plan,discovery,at,config)
+   if sourcing_readiness['professional']['status']!='disabled_pending_approval':
+    save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
+    plan=recipients(values,discovery,local)
   import glp_sponsor_readiness as readiness
   orders=load(STATE/'orders.json') if (STATE/'orders.json').exists() else {}
   payment_readiness={key:readiness.payment_readiness(order) for key,order in orders.items()}
@@ -325,10 +451,13 @@ def run(config,dry_run=False):
    if not allowed:previous['stopped']=reason;save(STATE/'ledger.json',ledger);continue
    # Re-read suppression immediately before effect, unioned with all own stops.
    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
-   previous.update(host=recipient['host'],organization=recipient['organization'],contact_source=recipient.get('contact_source','published_business_contact'),variant=rendered['variant'])
-   previous['claimed']={'stage':stage,'at':stamp(),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
-   receipt=send_message(service('send'),rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
-   previous.setdefault('sent',[]).append(receipt);previous.pop('claimed');save(STATE/'ledger.json',ledger);sent_count+=1;sent_by_kind[kind]+=1
+   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True):
+    # Stops committed during contact/mail/suppression reads win before claim.
+    if due(recipient,ledger,at)!=stage:continue
+    previous.update(host=recipient['host'],organization=recipient['organization'],contact_source=recipient.get('contact_source','published_business_contact'),variant=rendered['variant'])
+    previous['claimed']={'stage':stage,'at':stamp(),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
+    receipt=send_message(service('send'),rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
+    previous.setdefault('sent',[]).append(receipt);previous.pop('claimed');save(STATE/'ledger.json',ledger);sent_count+=1;sent_by_kind[kind]+=1
   verification_counts={}
   for recipient in plan['recipients']:
    status=recipient.get('verification',{}).get('status','unknown')

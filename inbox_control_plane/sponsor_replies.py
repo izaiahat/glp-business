@@ -45,7 +45,7 @@ def stage(store,*,event_id,mailbox,parsed,raw,thread_id,now,newest_body):
         if not row.get('sent') and not row.get('claimed'):continue
         host=row.get('host',address.split('@')[-1])
         domain=sender.split('@')[-1]
-        exact_sender=sender==address or domain==host
+        exact_sender=sender==address.lower()
         exact_thread=bool(thread_id and any(s.get('thread_id')==thread_id for s in row.get('sent',[])))
         # Thread IDs are scoped to a mailbox. Only ops owns sponsor sends.
         if exact_sender or (mailbox['mailbox_id']=='glp_ops_gmail' and exact_thread):matches.append((address,host))

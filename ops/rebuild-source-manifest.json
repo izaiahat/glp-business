@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 720,
+  "tracked_count": 722,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "87dde64f8cce0a556945320b15d1f40b33875e7c3e459973f6811f8e19c29d38"
+      "sha256": "18c787d57dd9d855b87a05bb860f1b74f66472ef15bc1e17a76b5daf69a91e73"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -537,7 +537,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "0c16b234cafe01f9adf2b94d873d7105e85deb1fcab97037de03f8f65350a729"
+      "sha256": "197226f14c9b983c9d6ce499ebd3f1e36fbb4ad66b064b7aba0040ad5a24a64d"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -4388,7 +4388,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "a4e36c6ba72a30b6ac645b0fc51e2853812b9d2aff133b3893864e4d0149ea90"
+      "sha256": "d08b7b1327b1e1b375fdaa0c6b24cdb0da12feddd0204a96c24119cd983af4d1"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4421,7 +4421,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "c8667289077dd3b36d3fa2c812ba2c12819c35d4e791aeede06e37ee2f931ab2"
+      "sha256": "593dab8beee2f94fd0140600989d73b6f533f9bc7257055017b60bc8a08b89b7"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "kind": "script",
@@ -4836,14 +4836,14 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "5734001bca5f6affbf46e4772b889310129cbe10dd524f1eff2a9f731244a573"
+      "sha256": "f31a59a9034d6c9b7dd7aff257643779431312cc1c52276db4ab03faed602445"
     },
     "inbox_control_plane/sponsor_replies.py": {
       "kind": "source_control",
       "callers": [
         "inbox_control_plane/control_plane.py"
       ],
-      "sha256": "aba2b19e32c6c94c2dca8efeb22456ee9163748c7bf57ec8b9e695f9feba070a"
+      "sha256": "53e115bd02aa9264c28ffc01b8ee7a3be7dfb298fe679399f4cc88501f96c39b"
     },
     "tests/test_glp_sponsor_continuation.py": {
       "kind": "test",
@@ -4851,6 +4851,20 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "3e6a49a8dcfa7cacb2b112cdb9ce37dce55541aa00109e2884db2a9198521f56"
+    },
+    "scripts/bouncer_shared_account_guard.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "fcf3bb032b213ddfaf751082c8e69fc9b04b5089cbfbc9beb96a4fc344144798"
+    },
+    "tests/test_glp_sponsor_boundary_repairs.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "f5472bd562979e943709dac2b191be5739ef08f8c4c050e485e1e38e533d2ef7"
     }
   }
 }

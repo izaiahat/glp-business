@@ -2485,7 +2485,9 @@ class Ledger:
                 thread_id=provider_thread_id, now=now,
                 newest_body=newest_unquoted_human_reply(parsed['body_text']),
             )
-            if sponsor_disposition is not None:
+            if (sponsor_disposition is not None
+                and classification['category'] in {'human_lead_reply','partner_vendor_action','unknown'}
+                and classification['reason_code'] not in {'financial_account_integrity_signal','legal_contract_action_signal','operator_authorization_required'}):
                 # Persist the silent disposition before append-only classification.
                 route = 'silent'
             classification.update({
