@@ -4420,7 +4420,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "4cdc790946b80986a4f995c04115b1c1c1da8a23e670e83fe1fe65d7775ff354"
+      "sha256": "209a605d37443ffe2aea9e0ca4c3b9c4024781c8841f090eb113bccf19a87c70"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4439,7 +4439,7 @@
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "4e9dc0561b7a3971fb689f134ee073225a8f68129d80ddb31f7720f6c5171ab6"
+      "sha256": "290870e70aa0608fc34ac412750c9500f69bf4211695bedb982e823dd05e931e"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4453,7 +4453,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "f73b7039034f6c0648db216ff4fbe07d3312eeaedede531af07833d9378dfd62"
+      "sha256": "aa884aa77d913a60cc22dc0cfa396e871964199b96f46dc9ddcbf6e686034fc1"
     },
     "scripts/affiliate_catalog_batch.py": {
       "kind": "script",
