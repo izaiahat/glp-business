@@ -100,6 +100,13 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
+      - name: GLP-73 exact-head image fallback (offline synthetic pixels, no generation or publication)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pip install 'Pillow==11.3.0'
+          .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_image_lineage_fallback.py systems/seo-blog-machine/tests/test_text_only_image_fallback.py
       - name: GLP-76 host transport acceptance (no network or updater execution)
         run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py
       - name: GLP-85 CJ parent existing-account evidence mapping (offline, no financial event)

@@ -392,6 +392,7 @@
 !/systems/seo-blog-machine/scripts/r2_update_carrier.py
 !/systems/seo-blog-machine/tests/test_learning_loop_actions.py
 !/systems/seo-blog-machine/tests/test_workweek_boundary.py
+!/systems/seo-blog-machine/tests/test_glp73_image_lineage_fallback.py
 !/.codex-task/
 /.codex-task/*
 !/.codex-task/RESULT.md
