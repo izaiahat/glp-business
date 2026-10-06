@@ -16,6 +16,13 @@ def test_canonical_ingest_persists_reply_stop_and_idempotent_agreement_notice(tm
  state=tmp_path/'sponsor';state.mkdir()
  (state/'ledger.json').write_text(json.dumps({'partners@example.com':{'host':'example.com','sent':[{'sent_at':'2026-10-01T00:00:00+00:00','thread_id':'sponsor-thread'}]}}))
  monkeypatch.setattr(sr,'LEDGER_PATH',state/'ledger.json')
+ for name in ('PRIVATE_ROOT','BACKUP_ROOT','REPORT_ROOT','DAILY_AUDIT_DIR','STATE_ROOT'):
+  monkeypatch.setattr(cp,name,tmp_path/name.lower())
+ original_private_dir=cp.private_dir
+ def confined_private_dir(path):
+  assert Path(path).is_relative_to(tmp_path),'Fixture must not touch installed directories'
+  return original_private_dir(path)
+ monkeypatch.setattr(cp,'private_dir',confined_private_dir)
  monkeypatch.setattr(cp,'RAW_ROOT',tmp_path/'raw')
  monkeypatch.setattr(cp,'ATTACHMENT_ROOT',tmp_path/'attachments')
  monkeypatch.setattr(cp,'run_fable_email_drafter',lambda *a,**k:pytest.fail('No draft for sponsor reply'))
