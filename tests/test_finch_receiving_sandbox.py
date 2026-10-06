@@ -104,7 +104,9 @@ def contract_fixture(monkeypatch):
              'profile_sha256': hashlib.sha256(PROFILE.read_bytes()).hexdigest(),
              'profile_abi_sha256': hashlib.sha256(b'synthetic-feature-abi').hexdigest(),
              'receiver_sha256': hashlib.sha256((ROOT / 'scripts/receive_one_discord_message.py').read_bytes()).hexdigest(),
+             'network_guard_sha256': 'c' * 64, 'network_facts_sha256': 'd' * 64,
              'poster_sha256': hashlib.sha256((ROOT / 'scripts/post_discord_message.py').read_bytes()).hexdigest()}
+    monkeypatch.setattr(m, '_finch_network_admission', lambda *a: None)
     monkeypatch.setattr(m, 'FINCH_LAUNCHER', LAUNCH)
     monkeypatch.setattr(m, '_finch_root_bytes', lambda path, limit:
                         PROFILE.read_bytes() if path == m.FINCH_APPARMOR_POLICY else

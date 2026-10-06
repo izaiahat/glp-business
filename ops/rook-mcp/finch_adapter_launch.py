@@ -55,12 +55,12 @@ def receiving_contract():
             return result
         contract = json.loads(raw.decode('ascii'), object_pairs_hook=closed)
         import re
-        if (set(contract) != {'schema', 'source_commit', 'source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256'}
+        if (set(contract) != {'schema', 'source_commit', 'source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256', 'network_guard_sha256', 'network_facts_sha256'}
                 or contract['schema'] != 'finch-receiving-contract-v1'
                 or not isinstance(contract['source_commit'], str)
                 or not re.fullmatch(r'[a-f0-9]{40}', contract['source_commit'])
                 or any(not isinstance(contract[k], str) or not re.fullmatch(r'[a-f0-9]{64}', contract[k])
-                       for k in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256'))):
+                       for k in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256', 'network_guard_sha256', 'network_facts_sha256'))):
             raise ValueError('receiving_contract_invalid')
         for fd, parent, name, _ in fds:
             a, b = os.fstat(fd), os.stat(name, dir_fd=parent, follow_symlinks=False)

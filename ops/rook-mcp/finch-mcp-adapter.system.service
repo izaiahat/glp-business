@@ -8,6 +8,8 @@ StartLimitIntervalSec=15min
 StartLimitBurst=5
 
 [Service]
+# v255 ignores NFTSet failures; the root admission guard below must succeed.
+NFTSet=cgroup:inet:finch_mcp_egress:finch_cgroups
 Type=simple
 User=1000
 Group=1000
@@ -39,6 +41,12 @@ RestrictSUIDSGID=yes
 RestrictRealtime=yes
 LockPersonality=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Only these fixed root-owned vendor/helper paths run privileged. The checksum
+# manifest, helper, interpreter/stdlib and all ancestors require verified root
+# custody BEFORE adoption. No app-owned venv/code/config is executed as root.
+ExecCondition=+/usr/bin/sha256sum --check --status /etc/finch-mcp/network-helper.sha256
+ExecCondition=+/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S -B /usr/local/libexec/finch-mcp/finch_network.py admit
 
 # The profile is applied by systemd before the first interpreter instruction.
 # -I -S additionally prohibit cwd/user-site, .pth and sitecustomize startup.

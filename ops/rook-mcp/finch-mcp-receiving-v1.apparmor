@@ -37,6 +37,15 @@ profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
   /home/ubuntu/.hermes/state/finch-setup/public-auth-readback.json r,
   /home/ubuntu/.hermes/secrets/dot-bots/finch.token r,
   /etc/finch-mcp/receiving.json r,
+  /etc/finch-mcp/network-facts.json r,
+  /run/ r,
+  /run/finch-mcp/ r,
+  /run/finch-mcp/network-admission.json r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/libexec/ r,
+  /usr/local/libexec/finch-mcp/ r,
+  /usr/local/libexec/finch-mcp/finch_network.py r,
   /etc/apparmor.d/finch-mcp-receiving-v1 r,
   /etc/finch-file-reviews/discord-[0-9]*.json r,
 
@@ -46,9 +55,12 @@ profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
 
   /dev/null rw,
   /dev/{random,urandom} r,
-  /proc/[0-9]*/{status,attr/apparmor/current} r,
+  /proc/[0-9]*/{status,cgroup,attr/apparmor/current} r,
   /proc/[0-9]*/fd/ r,
   /proc/self/fd/ r,
+  /proc/[0-9]*/ns/{net,cgroup} r,
+  /proc/sys/kernel/random/boot_id r,
+  /sys/fs/cgroup/system.slice/finch-mcp-adapter.service/ r,
 
   # Preserve the already verified journal stream only. No user-manager/system
   # bus, ssh-agent, sudo, Docker or arbitrary filesystem socket path is granted.
@@ -57,9 +69,8 @@ profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
   unix (connect, send, receive) type=stream addr=none peer=(label=finch-mcp-receiving-v1,addr=none),
 
   # DNS and public HTTPS/gateway plus the existing loopback HTTP listener.
-  # These are coarse AppArmor INET rules. Receiving acceptance must separately
-  # exclude reachable privileged TCP/UDP control endpoints; no such audit is
-  # inferred from this source policy or from a single observed HTTPS socket.
+  # These coarse INET grants require the separately installed, admitted service
+  # cgroup nft OUTPUT policy. Actual receiving denial proof remains mandatory.
   /etc/{hosts,host.conf,nsswitch.conf,resolv.conf,gai.conf,services,protocols} r,
   /run/systemd/resolve/{stub-resolv.conf,resolv.conf} r,
   /etc/ssl/** r,

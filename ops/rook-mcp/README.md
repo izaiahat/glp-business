@@ -153,16 +153,18 @@ fields fail closed. It contains exactly:
 - `schema: finch-receiving-contract-v1`
 - `source_commit`: exact accepted 40-character commit SHA, never a branch name
 - SHA256 fields `source_sha256`, `receiver_sha256`, `poster_sha256`,
-  `launcher_sha256`, `profile_sha256`, `profile_abi_sha256`, pinning the adapter,
+  `launcher_sha256`, `profile_sha256`, `profile_abi_sha256`, `network_guard_sha256`,
+  `network_facts_sha256`, pinning the adapter,
   two local imports, installed launcher, complete AppArmor source and its exact
-  `/etc/apparmor.d/abi/4.0` feature-ABI dependency
+  `/etc/apparmor.d/abi/4.0` feature-ABI dependency, root-owned network helper and
+  exact independently verified receiving network facts
 
 The existing nonsecret setup's `source_commit`, clean checkout HEAD and all
 source hashes must agree. This replaces the host launcher's literal deployed
 HEAD pin without embedding a commit SHA into the commit that defines it. The
 parent must separately authorize the source-pin/config update; other setup or
-authentication fields must not change. No contract-generation or installation
-tool is included. The launcher compiles already hash-verified local module
+authentication fields must not change. No contract-generation tool is included. The separate narrowly scoped network
+installer below requires already approved root provisioning. The launcher compiles already hash-verified local module
 bytes so path reopening or stale bytecode cannot substitute another module.
 
 The adapter checks kernel confinement and all contract hashes at every local
@@ -178,6 +180,144 @@ custody as the policy; its exact bytes require independent receiving acceptance.
 CI retains its strict native-kernel rule-enforcement warning gate. A diagnostic
 reference-ABI compile is labeled separately and cannot replace that gate or
 claim that the receiving kernel enforces the policy.
+
+### Finch-only network boundary and reproducible source invocations
+
+`finch_network.py` renders one `inet finch_mcp_egress` OUTPUT table. The only
+selector is the current **service cgroup**, never UID1000 or all host traffic.
+Systemd v255 manages the `cgroupsv2` set across starts; because it ignores NFTSet
+failures, a privileged admission condition independently reads back the entire
+managed table and requires exactly the current cgroup ID before either launcher
+condition or application starts. Duplicate/stale IDs, policy edits, a namespace
+or boot change, stale facts, missing tables and ignored NFTSet failures refuse
+startup. The adapter rechecks root custody, helper/facts hashes, current cgroup,
+boot, namespaces and the admission expiry at every reviewed-file stage. It does
+not receive NET_ADMIN, nft access, a service-manager connection or a root helper
+execution rule. Root administrators remain trusted; changing the live rules
+behind a running admitted process is prohibited outside the approved stop/drain
+flow. There is no automatic reinstall or fallback to an unfiltered process.
+
+Rule order is deliberately narrow:
+
+1. Drop invalid traffic. Permit TCP replies only with conntrack direction REPLY,
+   ORIGINAL destination `127.0.0.1:18806`, source `127.0.0.1:18806` and an exact
+   independently verified loopback tunnel peer. Source port alone is insufficient
+2. Deny both metadata addresses `169.254.169.254` and `fd00:ec2::254`, including
+   before any resolver exception. Allow ORIGINAL new/established DNS only to
+   verified exact IPs, port53 and the recorded UDP/TCP transports
+3. Deny non-unicast/local routes (including a public IP routed to this host),
+   all inventoried host/control addresses, IPv4 private/loopback/link-local,
+   tailnet/CGNAT and reserved ranges; IPv6 must be global `2000::/3` with special
+   ranges and inventoried addresses excluded. Mapped IPv4 uses its IPv4 route;
+   no generic loopback, tailnet, established/related or port443 bypass exists
+4. Permit remaining ORIGINAL new/established TCP443. Reject everything else in
+   the Finch chain. Other service cgroups keep their existing host policy
+
+There is no claim that port443 alone authenticates TLS. Existing application
+TLS verification/URL pinning remains required. DNS replies and incoming MCP
+traffic are not blocked by this OUTPUT-only table; only Finch's outgoing side
+is selected. This is not a replacement for the AppArmor IPC/exec/ptrace boundary.
+
+**Required receiving facts must not be guessed.** Parent readback on2026-10-06
+verified systemd255.4, nftables1.0.9, configured resolver127.0.0.53 with TCP/UDP53
+listeners, and a no-effect `nft --check` acceptance of the cgroupsv2 OUTPUT
+selector. This is not set-population or enforcement proof, nor a compile of
+this entire generated policy. The proxy is configured127.0.0.1:18807 to
+127.0.0.1:18806; the actual live tunnel peer remains unobserved. No complete
+root facts record exists here. A
+separately authorized root publisher must create `/etc/finch-mcp/network-facts.json`
+with exactly the closed `validate_facts` schema: `schema=finch-network-facts-v1`,
+`verified_by`, `evidence`, numeric `verified_at`/`valid_until` (at most24h), exact
+`boot_id`, true `unified_cgroup_v2`, `nft_socket_cgroupv2`, `nft_inet`,
+`conntrack_direction`, `legacy_user_unit_disabled`, exact positive `namespace_ids`
+for `net` and `cgroup`, exact `nft_version`, and explicit lists `dns`,
+`ingress_peers`, `host_addresses`, `control_networks`. Each DNS entry is exactly
+`address`, `port=53`, `transports` (UDP/TCP subset). Tunnel peers must be exact
+IPv4 loopback addresses because the existing listener is127.0.0.1. Inventory
+must include all IPv4/IPv6 local, public, Tailscale and other control addresses;
+an empty control-prefix list is only valid if the independent inventory actually
+found none. Provenance strings are root-publisher attestations, not identity
+verification performed by code. No fact or approval record is supplied by this PR.
+
+The receiving contract additionally pins `network_guard_sha256` to the exact
+installed helper and `network_facts_sha256` to the exact facts bytes. These are
+separate receiving prerequisites, not file-review grants. Facts renewal, helper
+updates and boot changes require the approved stopped-service install path and
+new contract/hash acceptance; a grant bound to an old contract cannot silently
+follow these changes. Cached successful or uncertain operation receipts retain
+the existing reconciliation/no-resend behavior even after facts/grants expire.
+
+**Offline denial/compatibility invocation, safe in the checkout:**
+
+```sh
+.venv/bin/python -B -m pytest -q -p no:cacheprovider \
+  tests/test_finch_network.py tests/test_finch_receiving_sandbox.py \
+  tests/test_finch_file_review.py tests/test_rook_communication.py \
+  tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py
+```
+
+These are modeled synthetic positive/denial tests. They make no network,
+credential, nft, service, profile or receiving-host calls. They are NOT actual
+kernel-denial evidence. Numeric `nft --check` is also only syntax/admission,
+not evidence that forbidden traffic was blocked. The parent must independently
+verify actual socket-cgroup coverage for IPv4/IPv6, DNS/TLS/MCP compatibility,
+control/metadata denial, before-first-network ordering and restart membership.
+Unsupported features/readback formats are blockers, not a reason to loosen rules.
+
+**Installation invocation, NOT run by this source task:** this is a privileged
+security-setting operation requiring the existing separately approved runtime
+flow. First drain and disable the legacy user service and stop the system
+service, preserving its state/lock/sidecars/pending requests/receipts. Independently
+verify native `/usr/bin/{env,sha256sum,python3,systemctl}`, `/usr/sbin/nft`, dynamic
+loader, Python standard library and their root-controlled import/library closure.
+Stage the accepted helper at `/usr/local/libexec/finch-mcp/finch_network.py` with
+root-owned nonwritable ancestry and a single-link root-owned0644 leaf. Never run
+an application-owned checkout, virtualenv, `.pth`, sitecustomize, Git helper or
+writable config as root. Publish the accepted facts/receiving contract under the
+same root custody. Provision `/run/finch-mcp` root0755 and its `network.lock`
+root0600 at every boot before install. Publish a root-owned0644
+`/etc/finch-mcp/network-helper.sha256` containing exactly the independently
+accepted helper SHA256, two spaces, and the fixed installed helper path. Verify
+this manifest's root custody and exact content BEFORE enabling the unit. This
+native checksum condition precedes any privileged Python instruction; isolated
+system Python uses `-I -S -B` and a cleared environment. `+` privilege prefixes
+are limited to those two fixed condition commands, never the Finch launcher.
+The unit and all drop-ins must be root-owned and independently accepted.
+
+After that approved provisioning, the parent may use the exact commands:
+
+```sh
+/usr/bin/sha256sum --check --status /etc/finch-mcp/network-helper.sha256
+/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I -S -B \
+  /usr/local/libexec/finch-mcp/finch_network.py install \
+  --approval-reference 'EXACT-EXISTING-APPROVED-RUNTIME-FLOW-REFERENCE'
+```
+
+The reference is an audit input, not an approval mechanism; replace it only with
+actual prior authorization. The helper refuses absent/stale facts, wrong boot or
+namespace, untrusted custody, an active system service, missing legacy exclusion,
+unowned table collisions, old-policy drift or live membership. It checks then
+atomically installs/replaces ONLY its own table, and records exact kernel
+readback. It never flushes the host ruleset, changes credentials/permissions,
+loads AppArmor, enables/starts/stops services or edits adapter state. A failure
+is not automatically retried: inspect actual table/receipt state before any
+separately authorized recovery. Normal parent-owned profile/unit installation,
+verified effective settings and the approved single-owner migration remain
+separate; starting the unit runs the read-only kernel admission guard and writes
+only its root-owned admission receipt before Finch's confined code. No network
+installation is automatically performed by service startup. After a verified
+boot change, the explicit install command can recreate an absent table only
+with fresh current-boot facts and a new approval reference (the previous boot
+reference is refused). The privileged operator must independently verify the
+current approval itself; a different string alone grants no authority. Missing
+tables on the same boot remain unexplained drift and are refused.
+
+References: [systemd v255 NFTSet lifecycle](https://github.com/systemd/systemd/blob/v255/man/systemd.resource-control.xml),
+[v255 directive parser](https://github.com/systemd/systemd/blob/v255/src/core/load-fragment-gperf.gperf.in)
+(the service directive belongs in `[Service]`, despite the documentation example's
+`[Unit]`), [privileged executable prefixes](https://github.com/systemd/systemd/blob/v255/man/systemd.service.xml),
+[nft socket/conntrack/FIB expressions](https://netfilter.org/projects/nftables/manpage.html),
+[kernel socket-cgroup evaluation](https://github.com/torvalds/linux/blob/v6.12/net/netfilter/nft_socket.c).
 
 ### Mandatory receiving acceptance still outstanding
 
@@ -197,8 +337,9 @@ claim that the receiving kernel enforces the policy.
    root-record mutation and inherited-descriptor substitution must be denied
 4. AppArmor INET rules here are coarse. They preserve DNS, public HTTPS/gateway
    and loopback HTTP, but **do not prove exclusion of privileged TCP/UDP brokers**.
-   The parent must inventory and exclude reachable privileged endpoints,
-   including localhost SSH/control APIs, using supported receiving controls.
+   The proposed service-cgroup nft layer above supplies this source mechanism;
+   the parent must independently verify its actual exclusion of inventoried
+   local/SSH/control/metadata routes and its compatibility on the receiving host.
    Any unresolved route blocks adoption; no source-only or current socket
    observation waives this prerequisite
 5. Verify actual DNS/NSS/TLS, journal peer, dedicated venv imports, Git checks,
