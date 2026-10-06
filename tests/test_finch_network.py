@@ -311,3 +311,21 @@ def test_prior_boot_cannot_reuse_previous_approval_reference(monkeypatch, guarde
     monkeypatch.setattr(n, 'run', lambda argv, **kw: 'inactive' if argv[0] == '/usr/bin/systemctl' else '{"nftables": []}')
     with pytest.raises(ValueError, match='current explicit adoption'): n.install('synthetic-prior-approval')
     assert not writes
+
+
+def test_nonsecret_admission_is_readable_under_actual_service_umask(monkeypatch, tmp_path):
+    target = tmp_path / 'network-admission.json'
+    monkeypatch.setattr(n, 'ADMISSION', target)
+    original = n.Path.lstat
+    # Synthetic root ancestry only; file creation/mode/umask/fsync are real in
+    # an isolated temporary directory, never /run or an actual approval store.
+    parents = {target.parent, *target.parent.parents}
+    def ancestry(path):
+        value = original(path)
+        return SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_uid=0) if path in parents else value
+    monkeypatch.setattr(n.Path, 'lstat', ancestry)
+    old = n.os.umask(0o077)
+    try: n.write_root(target, {'schema': 'synthetic-nonsecret-admission'})
+    finally: n.os.umask(old)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+    assert json.loads(target.read_text()) == {'schema': 'synthetic-nonsecret-admission'}

@@ -5130,14 +5130,14 @@
       "callers": [
         "manual:approved scoped network installation; system-service readback admission"
       ],
-      "sha256": "552aec97841039d83ebc6ec1a3e0961e6174f8d9e7b7d66fa75431fa8d0985f6"
+      "sha256": "f006d767cb4bae30ad4fb919c4ac06104dc72fe2b61bfc894052b7f051669155"
     },
     "tests/test_finch_network.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/finch-file-review.yml"
       ],
-      "sha256": "8ce6d10eef94da5530a1457c57df28ec6dd2624d60e82a0fcc1f25ec6ec965ef"
+      "sha256": "714919ccf926f8a8e64c045308e929bf16e4e4c3e5dcb06ffa9a5e3a63b13547"
     }
   }
 }

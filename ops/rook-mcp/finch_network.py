@@ -287,6 +287,10 @@ def write_root(path, value):
     fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
     try:
         with os.fdopen(fd, 'wb') as output:
+            # The service UMask=0077 also applies to the privileged condition.
+            # These receipts contain only nonsecret hashes/facts; UID1000 must
+            # read the root-owned admission. Set mode on this new O_EXCL fd.
+            os.fchmod(output.fileno(), 0o644)
             output.write(canonical(value).encode()); output.flush(); os.fsync(output.fileno())
         os.replace(temp, path)
         parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
