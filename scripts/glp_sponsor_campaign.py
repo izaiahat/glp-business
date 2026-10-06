@@ -195,6 +195,9 @@ def run(config,dry_run=False):
   if not local['suppression']['complete']:raise RuntimeError('suppression_ledger_incomplete:'+','.join(local['faults']))
   ledger=load(STATE/'ledger.json') if (STATE/'ledger.json').exists() else {}
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
+  # An outstanding claim may already have delivered despite failed readback.
+  # Reserve its PT day's capacity without clearing the no-replay claim.
+  sent_today+=sum(dt.datetime.fromisoformat(entry['claimed']['at']).astimezone(PT).date()==pt.date() for entry in ledger.values() if entry.get('claimed'))
   remaining=max(0,config['batch_cap']-sent_today)
   previews=[];sent_count=0;read_client=None
   for recipient in plan['recipients']:
