@@ -5144,14 +5144,14 @@
       "callers": [
         "manual:separately approved target-kernel fixtures only; never CI or runtime startup"
       ],
-      "sha256": "b0d11625b25f02347d698c103656d8c8c80c0a6645dbf8d1666403f36aa21c77"
+      "sha256": "e474d3c484a5428b5e88bed19c76ab86c3d42257137e8746e545fd7ee5c02497"
     },
     "tests/test_finch_kernel_harness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/finch-file-review.yml"
       ],
-      "sha256": "92e42a5f683f4e55b1348ff8f14ee321df5609096b21505a23bff48cad1d6224"
+      "sha256": "417121598f8aafc745bac3a27ab37ed5ce89f2be48c27509720e19c75facc2e0"
     }
   }
 }

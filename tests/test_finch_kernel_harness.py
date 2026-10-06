@@ -461,3 +461,99 @@ def test_namespace_symlink_is_refused_even_if_target_identity_matches(monkeypatc
     monkeypatch.setattr(h.Path, 'lstat', lambda path: SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_uid=0))
     monkeypatch.setattr(h, 'identity', lambda path: (1, 2))
     with pytest.raises(ValueError, match='symlinked'): h.verify_namespace('finch-client-abcdef123456')
+
+
+def rendered_counter_readback():
+    """Real accepted renderer -> synthetic nft JSON boundary; no kernel calls.
+
+    Keep one JSON rule per rendered counter, including repeated DNS comments.
+    Only the vendor readback is synthetic; the harness counter reader is real.
+    """
+    spec = importlib.util.spec_from_file_location('counter_network_synthetic', ROOT / 'ops/rook-mcp/finch_network.py')
+    n = importlib.util.module_from_spec(spec); spec.loader.exec_module(n)
+    text = n.render(h.fixture_facts(n))
+    rows = []
+    dns_transports = []
+    for line in text.splitlines():
+        label = re.search(r'\bcounter\b.*\bcomment "([^"]+)"$', line)
+        if label is None: continue
+        expr = [{'counter': {'packets': 0, 'bytes': 0}}]
+        if label[1] == 'finch:verified-dns':
+            transport = re.search(r'\b(tcp|udp) dport 53\b', line)[1]
+            dns_transports.append(transport)
+            expr.insert(0, {'match': {'op': '==', 'left': {'payload': {'protocol': transport, 'field': 'dport'}}, 'right': 53}})
+        rows.append({'rule': {'family': 'inet', 'table': n.TABLE, 'chain': 'finch_output',
+                              'expr': expr, 'comment': label[1]}})
+    assert sorted(dns_transports) == ['tcp', 'udp']
+    return {'nftables': rows}
+
+
+def test_real_renderer_tcp_udp_dns_rules_reach_real_counter_reader(monkeypatch):
+    snapshot = rendered_counter_readback()
+    calls = []
+    def readback(ns, argv):
+        calls.append((ns, argv))
+        return json.dumps(snapshot)
+    monkeypatch.setattr(h, 'in_ns', readback)
+    ns, table = 'finch-client-abcdef123456', 'finch_mcp_egress'
+    # This first real reader call failed on the published head before any
+    # packet case because the two legitimate zero-count DNS rules share a tag.
+    before = h.counters(ns, table)
+    assert before['finch:verified-dns'] == 0
+    total = 0
+    for transport, packets in [('tcp', 3), ('udp', 7)]:
+        rule = next(item['rule'] for item in snapshot['nftables']
+                    if item['rule']['comment'] == 'finch:verified-dns'
+                    and item['rule']['expr'][0]['match']['left']['payload']['protocol'] == transport)
+        rule['expr'][-1]['counter']['packets'] += packets
+        after = h.counters(ns, table)
+        total += packets
+        assert after['finch:verified-dns'] == total
+        assert h.evidence(before, after, 0, packets, 'finch:verified-dns', True, True)['output_packets'] == packets
+        assert all(after[label] == before[label] for label in before if label != 'finch:verified-dns')
+        before = after
+    assert calls == [(ns, [h.NFT, '--json', '--numeric', 'list', 'table', 'inet', table])] * 3
+
+
+def read_synthetic_counter_rules(monkeypatch, snapshot, reader):
+    if reader == 'host': return h.host_counters(SimpleNamespace(kernel_table=lambda: snapshot))
+    monkeypatch.setattr(h, 'in_ns', lambda *a: json.dumps(snapshot))
+    return h.counters('finch-client-abcdef123456', 'finch_mcp_egress')
+
+
+@pytest.mark.parametrize('reader', ['packet', 'host'])
+@pytest.mark.parametrize('bad_counter', [True, -1, 1.5, None, '1'])
+def test_each_repeated_dns_rule_still_requires_valid_packet_count(monkeypatch, bad_counter, reader):
+    snapshot = rendered_counter_readback()
+    dns = [item['rule'] for item in snapshot['nftables'] if item['rule']['comment'] == 'finch:verified-dns']
+    dns[0]['expr'][-1]['counter']['packets'] = 11
+    dns[1]['expr'][-1]['counter']['packets'] = bad_counter
+    with pytest.raises(ValueError): read_synthetic_counter_rules(monkeypatch, snapshot, reader)
+
+
+@pytest.mark.parametrize('reader', ['packet', 'host'])
+def test_repeated_dns_rule_cannot_hide_multiple_counters(monkeypatch, reader):
+    snapshot = rendered_counter_readback()
+    rule = next(item['rule'] for item in snapshot['nftables'] if item['rule']['comment'] == 'finch:verified-dns')
+    rule['expr'].append({'counter': {'packets': 1, 'bytes': 1}})
+    with pytest.raises(ValueError): read_synthetic_counter_rules(monkeypatch, snapshot, reader)
+
+
+@pytest.mark.parametrize('reader', ['packet', 'host'])
+@pytest.mark.parametrize('label', ['finch:metadata4', 'sink:dns-tcp'])
+def test_duplicate_denial_or_sink_labels_still_refused(monkeypatch, label, reader):
+    rule = {'rule': {'comment': label, 'expr': [{'counter': {'packets': 0, 'bytes': 0}}]}}
+    with pytest.raises(ValueError): read_synthetic_counter_rules(monkeypatch, {'nftables': [rule, rule]}, reader)
+
+
+@pytest.mark.parametrize('transport', ['tcp', 'udp'])
+def test_real_renderer_host_reader_never_loses_dns_packet_evidence(transport):
+    snapshot = rendered_counter_readback()
+    dns = [item['rule'] for item in snapshot['nftables'] if item['rule']['comment'] == 'finch:verified-dns']
+    rule = next(rule for rule in dns if rule['expr'][0]['match']['left']['payload']['protocol'] == transport)
+    rule['expr'][-1]['counter']['packets'] = 7
+    totals = h.host_counters(SimpleNamespace(kernel_table=lambda: snapshot))
+    # TCP appears first: the old host reader overwrote [7, 0] with zero,
+    # incorrectly allowing the negative-admission all-zero evidence predicate.
+    assert totals['finch:verified-dns'] == 7
+    assert not all(value == 0 for value in totals.values())

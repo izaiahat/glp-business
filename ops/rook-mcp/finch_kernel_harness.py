@@ -155,14 +155,23 @@ def authorize(args):
 
 def counters(ns, table):
     value = json.loads(in_ns(ns, [NFT, '--json', '--numeric', 'list', 'table', 'inet', table]))
+    return counter_totals(value)
+
+
+def counter_totals(value):
+    """Preserve every rule's packet evidence across both counter readers."""
     result = {}
     for item in value['nftables']:
         rule = item.get('rule', {})
         label = rule.get('comment')
         if label is None: continue
         values = [expr['counter']['packets'] for expr in rule.get('expr', []) if 'counter' in expr]
-        require(len(values) == 1 and type(values[0]) is int and label not in result, 'unique kernel counters required')
-        result[label] = values[0]
+        require(len(values) == 1 and type(values[0]) is int and values[0] >= 0,
+                'one nonnegative integer packet counter per rule required')
+        # The accepted renderer repeats this label for each DNS transport/IP.
+        # Validate every rule before aggregating; denial/sink labels stay unique.
+        require(label not in result or label == 'finch:verified-dns', 'unexpected repeated counter label')
+        result[label] = result.get(label, 0) + values[0]
     return result
 
 
@@ -530,13 +539,7 @@ def skipped_evidence(properties, journal, nonce, previous, current):
 
 
 def host_counters(n):
-    result = {}
-    for item in n.kernel_table()['nftables']:
-        rule = item.get('rule', {})
-        if 'comment' in rule:
-            for expr in rule.get('expr', []):
-                if 'counter' in expr: result[rule['comment']] = expr['counter']['packets']
-    return result
+    return counter_totals(n.kernel_table())
 
 
 def fixture_membership(n, stale):
