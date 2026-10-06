@@ -29,14 +29,14 @@
       "callers": [
         "authorized parent install owner"
       ],
-      "sha256": "da4bdc3783489fb145a4fccb503c74a5bdcbf04dfd9ae0af534ca828e19395e1"
+      "sha256": "438964398032c73164588aa70647bfd930bb75e688114a0524896d22ae7e0448"
     },
     "tests/test_glp345_a4_adoption.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "d6961e92e191087b48080ef593df6132206e3df04d019cf9889495e13e1a3005"
+      "sha256": "76ca92a2ca1c0eb7ab75a3b9aceaae255ea585a377fe3dea049201ceb717cc00"
     },
     "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
       "kind": "source_control",

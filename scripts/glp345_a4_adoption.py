@@ -114,6 +114,7 @@ def stage_weekly_pins(before, wrapper, *, generation=WEEKLY_GENERATION):
 # any immutable historical generation. All seven output members switch together.
 STREAM_GENERATION = 'glp44-consumer-stream-raw-rail-20261006'
 STREAM_SOURCE = '09f942ed202988b3f377d6777abfdb54fab7d7ee'
+STREAM_PREDECESSOR = 'f8ce308995302a0b75d41a9a5576b6a3ea571d8a'
 COLLECTOR = 'systems/analytics-brain/collector.py'
 WEEKLY_PINS = 'ops/glp/seo-weekly-installed-pins.json'
 WEEKLY_ANALYSIS = 'scripts/glp_weekly_seo_analysis.py'
@@ -164,7 +165,7 @@ def stream_sources(checkout):
                   WEEKLY_PINS: STREAM_PINS_AFTER, WEEKLY_ANALYSIS: STREAM_ANALYSIS_AFTER}
     old, new = {}, {}
     for rel in old_hashes:
-        old[rel] = p.git(checkout, 'show', STREAM_SOURCE + '^:' + rel)
+        old[rel] = p.git(checkout, 'show', STREAM_PREDECESSOR + ':' + rel)
         new[rel] = p.git(checkout, 'show', 'HEAD:' + rel)
         if (sha(old[rel]) != old_hashes[rel] or sha(new[rel]) != new_hashes[rel]
                 or p.read_regular(checkout / rel)[0] != new[rel]):
@@ -252,6 +253,7 @@ def authenticate(checkout, generation=GENERATION):
             raise RuntimeError('weekly_producer_not_registered')
         body = p.git(checkout, 'show', weekly_source + ':' + WEEKLY)
     elif generation == STREAM_GENERATION:
+        p.git(checkout, 'merge-base', '--is-ancestor', STREAM_PREDECESSOR, STREAM_SOURCE)
         p.git(checkout, 'merge-base', '--is-ancestor', STREAM_SOURCE, head)
         p.git(checkout, 'merge-base', '--is-ancestor', MANUAL_WEEKLY_SOURCE, head)
         prior = stage_weekly_pins(*stage_pins(

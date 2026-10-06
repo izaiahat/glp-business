@@ -362,7 +362,7 @@ def stream_isolated(isolated, monkeypatch):
     emitted, carrier = a4.stage_stream_pins(*manual)
     old, new = {}, {}
     for rel in (a4.COLLECTOR, a4.RAILS, a4.WEEKLY_PINS, a4.WEEKLY_ANALYSIS):
-        old[rel] = subprocess.check_output(['git', '-C', str(ROOT), 'show', a4.STREAM_SOURCE + '^:' + rel])
+        old[rel] = subprocess.check_output(['git', '-C', str(ROOT), 'show', a4.STREAM_PREDECESSOR + ':' + rel])
         new[rel] = (ROOT / rel).read_bytes()
     pins = json.loads(new[a4.WEEKLY_PINS])
     for absolute in pins['paths']:
