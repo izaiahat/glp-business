@@ -681,7 +681,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "e82495acdba978c9211339f81b2169c144e90fb6808f00f186d801e0d70fc333"
+      "sha256": "001df4f7300777376963207c018cfa36895af4ec745a024dcd9f799a5c5b8523"
     },
     "ops/glp250-partner-email-hold.md": {
       "callers": [],
@@ -2255,7 +2255,7 @@
         "source-only-focused-regression"
       ],
       "kind": "test",
-      "sha256": "1fe78bde357fab0657e08b7b231cb22efc6d4a35a47408135a2df7ff8985a4fa"
+      "sha256": "e0f3aa84d0e096d6397092b9613a8ecff5393ed0d39065764795bf30b67200c1"
     },
     "systems/seo-blog-machine/scripts/accepted_failure_contract.py": {
       "callers": [

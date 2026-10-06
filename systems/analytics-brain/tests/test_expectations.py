@@ -166,6 +166,139 @@ def test_ga4_consumer_stream_binding_preserves_property_diagnostics_and_refuses_
     assert empty_source['event_watermark'] is None and empty_data['ga4_rows'] == []
 
 
+def _raw_ga4_rail(http):
+    """Execute maintained adapter methods, without credential/live-helper imports."""
+    import ast
+    path = Path(__file__).resolve().parents[3] / 'ops/glp/seo_data_rails.py'
+    tree = ast.parse(path.read_text())
+    original = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'GoogleRail')
+    names = {'GA4_PRODUCTION_HOSTS', 'ga4_host_filter', 'ga4_run_report'}
+    methods: list[ast.stmt] = [n for n in original.body if
+               (isinstance(n, ast.FunctionDef) and n.name in names) or
+               (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in names
+                                                 for t in n.targets))]
+    classes: list[ast.stmt] = [ast.ClassDef(
+        name='GoogleRail', bases=[], keywords=[], body=methods, decorator_list=[])]
+    module = ast.fix_missing_locations(ast.Module(body=classes, type_ignores=[]))
+    namespace = {'Any': object, 'GA4_GLP_PROPERTY': collector.GA4_PROPERTY_ID, '_http': http}
+    exec(compile(module, str(path), 'exec'), namespace)
+    rail = namespace['GoogleRail']()
+    rail._headers = lambda: {}
+    return rail
+
+
+def _raw_ga4_report(dimensions, metrics, rows=(), row_count=None):
+    return {'dimensionHeaders': [{'name': d} for d in dimensions],
+            'metricHeaders': [{'name': m, 'type': 'TYPE_INTEGER'} for m in metrics],
+            'rows': [{'dimensionValues': [{'value': d} for d in ds],
+                      'metricValues': [{'value': m} for m in ms]} for ds, ms in rows],
+            'rowCount': len(rows) if row_count is None else row_count}
+
+
+def test_ga4_actual_adapter_missing_or_incomplete_evidence_is_unknown():
+    facts = ['dateHourMinute', 'streamId', 'hostName', 'pagePath', 'eventName']
+    metrics = ['eventCount', 'sessions', 'engagedSessions']
+    audit = ['streamId', 'hostName']
+    good_fact = _raw_ga4_report(facts, metrics, [
+        (['202610060001', '15060837778', brain.PRODUCTION_HOST, '/', 'page_view'], ['2', '1', '1'])])
+    partner_audit = _raw_ga4_report(audit, ['eventCount'], [
+        (['15224515823', 'glp-clinic-scout-partners.pages.dev'], ['3'])])
+    cases = [('missing_schema', {}, {}),
+             ('incomplete_facts', _raw_ga4_report(facts, metrics, row_count=1), partner_audit),
+             ('incomplete_audit', good_fact, _raw_ga4_report(audit, ['eventCount'], row_count=1))]
+    failures = []
+    for name, fact, host in cases:
+        def http(endpoint, *, method, headers, body):
+            assert method == 'POST' and headers == {}
+            return copy.deepcopy(fact if 'pagePath' in [d['name'] for d in body['dimensions']] else host)
+        data = {'ga4_rows': [{'path': '/cached/'}], 'ga4_events': [{'cs_click_id': 'cached'}]}
+        sources = {}
+        collector._collect_ga4(data, sources, _raw_ga4_rail(http))
+        source = sources['ga4']
+        if not (source['state'] == 'error' and source['actual_rows'] is None
+                and data['ga4_rows'] == data['ga4_events'] == []
+                and source.get('non_allowlisted_event_count') is None
+                and source.get('complete') is not True):
+            failures.append((name, source))
+    assert not failures, failures
+
+
+def test_ga4_actual_adapter_valid_empty_and_scoped_partner_diagnostics():
+    facts = ['dateHourMinute', 'streamId', 'hostName', 'pagePath', 'eventName']
+    metrics = ['eventCount', 'sessions', 'engagedSessions']
+    audit = ['streamId', 'hostName']
+    requests = []
+    fact = _raw_ga4_report(facts, metrics, [
+        (['202610060001', '15060837778', brain.PRODUCTION_HOST, '/', 'page_view'], ['2', '1', '1'])])
+    host = _raw_ga4_report(audit, ['eventCount'], [
+        (['15224515823', 'glp-clinic-scout-partners.pages.dev'], ['3'])])
+    def http(endpoint, *, method, headers, body):
+        requests.append(copy.deepcopy(body))
+        assert endpoint.endswith('properties/541440529:runReport')
+        return copy.deepcopy(fact if 'pagePath' in [d['name'] for d in body['dimensions']] else host)
+    rail = _raw_ga4_rail(http)
+    data, sources = {}, {}
+    collector._collect_ga4(data, sources, rail)
+    source = sources['ga4']
+    assert source['state'] == 'healthy' and source['non_allowlisted_event_count'] == 0
+    assert source['collection_window']['host_audit']['other_stream_event_count'] == 3
+    assert requests[0]['dimensionFilter']['andGroup']['expressions'] == [
+        rail.ga4_host_filter(), {'andGroup': {'expressions': [
+            {'filter': {'fieldName': 'streamId', 'stringFilter': {
+                'matchType': 'EXACT', 'value': '15060837778', 'caseSensitive': True}}},
+            {'filter': {'fieldName': 'pagePath', 'inListFilter': {
+                'values': sorted(collector.GA4_APPROVED_NEUTRAL_PATHS), 'caseSensitive': True}}}]}}]
+    assert 'dimensionFilter' not in requests[1]
+    for omit_empty_fields in (False, True):
+        fact, host = _raw_ga4_report(facts, metrics), _raw_ga4_report(audit, ['eventCount'])
+        if omit_empty_fields:
+            for doc in (fact, host):
+                del doc['rows'], doc['rowCount']  # legitimate protobuf zero omission
+        collector._collect_ga4(data, sources, rail)
+        assert sources['ga4']['state'] == 'measured_zero'
+        assert sources['ga4']['complete'] is True and sources['ga4']['event_watermark'] is None
+        assert data['ga4_rows'] == data['ga4_events'] == []
+
+
+def test_ga4_actual_adapter_requires_consistent_page_evidence():
+    def report(**changes):
+        doc = _raw_ga4_report(['hostName'], ['eventCount'], [(['example.com'], ['1'])])
+        doc.update(changes)
+        return doc
+    kwargs = dict(start_date='2026-10-01', end_date='2026-10-02',
+                  dimensions=['hostName'], metrics=['eventCount'], limit=1, fetch_all=True)
+    bad_row = {'dimensionValues': [], 'metricValues': [{'value': '1'}]}
+    bad_cases = [[{}], [None], [report(rows=None)],
+                 [report(dimensionHeaders=[{'name': 'streamId'}])],
+                 [report(metricHeaders=[{'name': 'sessions'}])],
+                 [report(dimensionHeaders=None)], [report(metricHeaders=[None])],
+                 *[[report(rowCount=value)] for value in (None, True, -1, 1.5, '1')],
+                 [{k: v for k, v in report().items() if k != 'rowCount'}],
+                 [report(rows=[bad_row])],
+                 [report(rows=[{'dimensionValues': [{'value': 'example.com'}], 'metricValues': []}])],
+                 [report(rows=[{'dimensionValues': [{'value': None}], 'metricValues': [{'value': '1'}]}])],
+                 [report(rowCount=2), report(rowCount=1)],
+                 [report(rowCount=3), report(rowCount=2)],
+                 [report(rowCount=2), report(rowCount=0, rows=[])],
+                 [report(rowCount=2), report(rowCount=2, rows=[])] ]
+    failures = []
+    for docs in bad_cases:
+        pages = iter(copy.deepcopy(docs))
+        rail = _raw_ga4_rail(lambda *args, **kw: next(pages))
+        result = rail.ga4_run_report(**kwargs)
+        if result['ok'] is not False or result['complete'] is not False or result['rows'] != []:
+            failures.append((docs, result))
+    assert not failures, failures
+    offsets = []
+    def http(*args, **kw):
+        offsets.append(kw['body']['offset'])
+        return report(rowCount=2)
+    complete = _raw_ga4_rail(http).ga4_run_report(**kwargs)
+    assert offsets == [0, 1] and len(complete['rows']) == 2 and complete['complete'] is True
+    partial = _raw_ga4_rail(http).ga4_run_report(**dict(kwargs, fetch_all=False))
+    assert partial['ok'] is True and partial['complete'] is False and len(partial['rows']) == 1
+
+
 def test_posthog_off_host_or_unknown_route_totals_do_not_prove_production():
     class PostHog:
         def hogql(self, query):
