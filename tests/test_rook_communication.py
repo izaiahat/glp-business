@@ -1323,6 +1323,33 @@ class TestFinchCommunication:
         self.app.close()
         self.app = self.m.Application(self.cfg, self.root / 'finch-state', auth=self.m.Authenticator(self.cfg, self.keys), callback=self.callback)
 
+    @pytest.mark.parametrize('branch_index,limit', [(0, 4194304), (1, 1398104)])
+    def test_finch_file_union_branches_are_self_contained(self, branch_index, limit):
+        # Inspect actual discovery output, not a hand-written replacement schema.
+        status, result = self.http_call('tools/list')
+        assert status == 200 and 'error' not in result, result
+        tool = next(t for t in result['result']['tools'] if t['name'] == 'reply_to_finch_request')
+        schema = tool['inputSchema']['properties']['file']
+        branch = schema['oneOf'][branch_index]
+        # A consumer projecting a union branch must not lose inherited filename,
+        # required fields or closedness. This is not a connector implementation.
+        assert set(branch['properties']) == set(schema['properties']) == {
+            'filename', 'content_type', 'content_base64'}
+        assert branch['type'] == schema['type'] == 'object'
+        assert set(branch['required']) == set(schema['required']) == {
+            'filename', 'content_type', 'content_base64'}
+        assert branch['additionalProperties'] is schema['additionalProperties'] is False
+        assert branch['properties']['filename'] == schema['properties']['filename']
+        assert branch['properties']['content_base64'] == {'type': 'string', 'maxLength': limit}
+        mime = branch['properties']['content_type']
+        assert mime['type'] == 'string'
+        if branch_index == 0:
+            assert mime['const'] == 'image/png'
+        else:
+            assert set(mime['enum']) == set(self.m.MIME_EXTENSIONS) - {'image/png'}
+        assert tool['inputSchema']['required'] == ['request_id', 'text']
+        assert not self.posts
+
     @pytest.mark.parametrize('channel', ['901', '902'])
     def test_max_png_actual_http_multipart_cdn_custody_and_replay(self, channel):
         import random

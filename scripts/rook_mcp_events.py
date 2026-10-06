@@ -1829,11 +1829,15 @@ class Application:
             self.tools[0]['inputSchema']['properties']['file'] = json.loads(canonical(COMMUNICATION_TOOLS[1]['inputSchema']['properties']['file']))
             schema = self.tools[0]['inputSchema']['properties']['file']
             schema['properties']['content_base64']['maxLength'] = FINCH_PNG_ENCODED_LIMIT
+            # Union consumers may project each branch without parent constraints.
+            # Keep complete closed object definitions, including filename, in both.
             schema['oneOf'] = [
-                {'properties': {'content_type': {'const': 'image/png'},
-                                'content_base64': {'maxLength': FINCH_PNG_ENCODED_LIMIT}}},
-                {'properties': {'content_type': {'enum': [mime for mime in MIME_EXTENSIONS if mime != 'image/png']},
-                                'content_base64': {'maxLength': 1398104}}}]
+                object_schema({**schema['properties'],
+                    'content_type': {'type': 'string', 'const': 'image/png'},
+                    'content_base64': {'type': 'string', 'maxLength': FINCH_PNG_ENCODED_LIMIT}}),
+                object_schema({**schema['properties'],
+                    'content_type': {'type': 'string', 'enum': [mime for mime in MIME_EXTENSIONS if mime != 'image/png']},
+                    'content_base64': {'type': 'string', 'maxLength': 1398104}})]
             self.tools[0]['description'] = ('Reply once in the delivered request origin channel only; optional one bounded non-sensitive file. '
                 'PNG only: up to 3MiB, 8-bit noninterlaced RGB/RGBA, 4096 per dimension / 4194304 pixels; other files 1MiB. '
                 'Requires verified JWT scope AND RBAC permission finch.replies.write. No destination override or uncertain resend.')
