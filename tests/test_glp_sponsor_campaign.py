@@ -11,6 +11,10 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import glp_sponsor_campaign as m
 import glp328_outreach_policy as policy
 
+@pytest.fixture(autouse=True)
+def isolated_inbox(tmp_path,monkeypatch):
+ monkeypatch.setattr(m,'INBOX_DB',tmp_path/'no-live-inbox.sqlite')
+
 NOW=dt.datetime(2026,10,3,tzinfo=dt.timezone.utc)
 
 def inputs():
@@ -21,6 +25,92 @@ def inputs():
  discovery={'organizations':{'example.com':{'discovery':{'contact_email':'partners@example.com','contact_tier':'partnerships','contact_evidence':evidence}}}}
  local={'suppression':{'complete':True,'entries':[]},'conversations':[]}
  return sheet,discovery,local
+
+def test_new_provider_capacity_is_separate_from_followups(tmp_path,monkeypatch):
+ config,client,rows=offline_campaign(tmp_path,monkeypatch);client.fail=None
+ config.update(new_provider_daily_cap=25,follow_up_daily_cap=25)
+ m.save(m.STATE/'ledger.json',{rows[0]['email']:{'host':rows[0]['host'],'sent':[{'sent_at':(SEND_SLOT-dt.timedelta(days=4)).isoformat(),'thread_id':'old','rfc_message_id':'<old>'}]}})
+ receipt=m.run(config)
+ assert receipt['sent']==26
+ assert receipt['new_provider_count']==25
+ assert receipt['follow_up_count']==1
+ assert m.run(config)['sent']==0 # Repeated run cannot refill the new-provider allowance.
+
+
+def test_stopped_contacts_do_not_consume_new_provider_allowance(tmp_path,monkeypatch):
+ config,client,rows=offline_campaign(tmp_path,monkeypatch);client.fail=None
+ config.update(new_provider_daily_cap=25,follow_up_daily_cap=25)
+ stopped={r['email'] for r in rows[:2]}
+ monkeypatch.setattr(m,'mail_admit',lambda r,p,c:(r['email'] not in stopped,'fixture_prior_reply'))
+ result=m.run(config)
+ assert result['sent']==25
+ assert result['new_provider_count']==25
+ assert len(client.deliveries)==25
+
+
+def test_bouncer_cache_unknown_and_latest_negative_fail_closed(tmp_path):
+ import glp_sponsor_readiness as ready
+ path=tmp_path/'bouncer.jsonl';email='partners@example.com'
+ assert ready.bouncer_readiness(email,path,NOW)['status']=='unknown'
+ row={'email_hash':ready.email_hash(email),'event':'verify_email','http_status':200,'provider_status':'deliverable','send_eligible':True,'blockers':[],'ts':NOW.isoformat()}
+ path.write_text(json.dumps(row)+'\n')
+ assert ready.bouncer_readiness(email,path,NOW)['status']=='verified'
+ path.write_text(json.dumps(row)+'\n'+json.dumps(dict(row,send_eligible=False,provider_status='unknown'))+'\n')
+ assert ready.bouncer_readiness(email,path,NOW)['status']=='blocked'
+ assert ready.bouncer_readiness(email,path,NOW+dt.timedelta(days=8))['status']=='expired'
+
+
+def test_apollo_search_is_read_only_and_unrevealed_email_unknown():
+ import glp_sponsor_readiness as ready
+ calls=[]
+ def transport(method,path,payload):
+  calls.append((method,path,payload));return {'people':[{'id':'p1','title':'CEO','organization':{'primary_domain':'example.com'}}]}
+ result=ready.apollo_search('example.com',transport)
+ assert result['contacts'][0]['verification_status']=='unknown'
+ assert result['contacts'][0].get('email') is None
+ assert calls[0][1]=='/api/v1/mixed_people/api_search'
+ assert result['enrichment_debits']==0
+
+
+def test_professional_contact_and_relationship_require_exact_current_evidence():
+ import glp_sponsor_readiness as ready
+ sheet,discovery,local=inputs();discovery['organizations']['example.com']['discovery']={}
+ professional={'email':'izaiah@example.com','country':'US','title':'Head of Partnerships','organization_domain':'example.com','source':'apollo','person_id':'p1','captured_at_utc':NOW.isoformat(),'evidence_sha256':'b'*64}
+ discovery['organizations']['example.com']['professional_contacts']=[professional]
+ result=m.recipients(sheet,discovery,local)
+ assert len(result['recipients'])==1
+ professional['title']='Patient Support';assert not m.recipients(sheet,discovery,local)['recipients']
+ evidence={'provider_host':'example.com','network':'Impact','program_id':'p1','status':'approved','captured_at_utc':NOW.isoformat(),'evidence_sha256':'c'*64}
+ assert ready.relationship('example.com',evidence,NOW)['variant']=='established_affiliate'
+ assert ready.relationship('elsewhere.com',evidence,NOW)['variant']=='cold'
+ assert ready.relationship('example.com',evidence,NOW+dt.timedelta(days=31))['variant']=='cold'
+
+
+def test_second_contact_cannot_reenroll_provider_and_missing_verification_cannot_send(tmp_path,monkeypatch):
+ old={'email':'partners@ww.com','host':'ww.com'}
+ ledger={old['email']:{'host':'ww.com','sent':[{'sent_at':NOW.isoformat()}]}}
+ assert m.due({'email':'marketing@weightwatchers.com','host':'weightwatchers.com'},ledger,NOW+dt.timedelta(days=15)) is None
+ config,client,rows=offline_campaign(tmp_path,monkeypatch);client.fail=None
+ config.update(require_bouncer=True)
+ result=m.run(config)
+ assert result['sent']==0 and not client.deliveries
+ assert result['verification_readiness']['unknown']==27
+
+
+def test_paypal_readiness_requires_authenticated_matching_completed_capture():
+ import glp_sponsor_readiness as ready
+ order=dict(order_reference='GLP-001',currency='USD',amount='500.00',payee='ops@glpclinicscout.com',capture_id='CAPTURE1',merchant_id='MERCHANT1',reviewed_order=True)
+ assert ready.payment_readiness(order)['status']=='unknown'
+ capture=dict(id='CAPTURE1',status='COMPLETED',amount=dict(value='500.00',currency_code='USD'),invoice_id='GLP-001',payee=dict(email_address='ops@glpclinicscout.com',merchant_id='MERCHANT1'))
+ transport=lambda cid:dict(http_status=200,authenticated=True,environment='live',capture=capture)
+ assert ready.payment_readiness(order,transport)['payment_verified'] is True
+ capture['amount']['value']='250.00'
+ assert ready.payment_readiness(order,transport)['payment_verified'] is False
+ capture['amount']['value']='500.00';capture['status']='REFUNDED'
+ assert ready.payment_readiness(order,transport)['payment_verified'] is False
+ capture['status']='COMPLETED'
+ assert not ready.payment_readiness(order,lambda cid:dict(authenticated=False,capture=capture))['payment_verified']
+
 
 def test_disabled_does_not_read_approval(tmp_path,monkeypatch):
  monkeypatch.setattr(m,'STATE',tmp_path)

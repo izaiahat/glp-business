@@ -1542,6 +1542,7 @@ class Ledger:
         payload: str,
         *,
         verify_existing_payload: bool = False,
+        transactional: bool = False,
     ) -> str:
         payload = redact(payload)
         if len(payload) > DISCORD_LIMIT:
@@ -1549,7 +1550,9 @@ class Ledger:
         outbox_id = "out_" + sha256_text(key)[:24]
         payload_sha256 = sha256_text(payload)
         now = utc_now()
-        with self.conn:
+        if transactional and not self.conn.in_transaction:
+            raise RuntimeError('notification_parent_transaction_missing')
+        with contextlib.nullcontext() if transactional else self.conn:
             self.conn.execute(
                 """INSERT OR IGNORE INTO notification_outbox(outbox_id,event_id,purpose,destination_channel_id,idempotency_key,
                 payload,payload_sha256,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)""",
@@ -2476,6 +2479,15 @@ class Ledger:
                     route = "decisions"
                 elif affiliate_auto_owned:
                     route = "silent"
+            from inbox_control_plane import sponsor_replies
+            sponsor_disposition = sponsor_replies.stage(
+                self, event_id=event_id, mailbox=mailbox, parsed=parsed, raw=raw,
+                thread_id=provider_thread_id, now=now,
+                newest_body=newest_unquoted_human_reply(parsed['body_text']),
+            )
+            if sponsor_disposition is not None:
+                # Persist the silent disposition before append-only classification.
+                route = 'silent'
             classification.update({
                 "reply_class": reply_class, "intent_confidence": intent_confidence,
                 "matched_signals": list(intent["signals"]), "reply_venture": reply_venture,
