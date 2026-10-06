@@ -65,6 +65,101 @@ Offline acceptance: `tests/test_rook_communication.py::TestResearchCommunication
 CI already runs this file, plus the Rook/receiver regressions. Synthetic credentials/transport only;
 passing tests do not prove live login, provisioning, OAuth compatibility or the round trip.
 
+## Finch local whole-file review exception (source only)
+
+Medical terminology can occur in a nonsensitive market report. For Finch
+`text/plain` only, the adapter can accept an independent **whole-file** review
+of the exact current-request bytes instead of rejecting medical terminology
+alone. This is not a classifier, a proximity heuristic or a standing hash
+allowlist. The reviewer must inspect the entire decoded UTF-8 file, including
+distant identifiers, mixed sections and encoded/obfuscated material; any
+personal or sensitive content, uncertain section or unreviewed encoding means
+no nonsensitive verdict. A false attestation by the trusted publisher/reviewer
+is outside what a local file permission check can prove.
+
+Hard secret, credential, DOB/SSN and active-content markers always refuse, even
+with an otherwise valid review. Existing format, size, filename, UTF-8 and
+non-Finch restrictions stay enforced. No client-supplied review/grant fields,
+paths, hashes, destinations, new tool or environment-variable bypass exist.
+Only an already delivered, owned, ready Finch request can use this exception.
+
+### Trust boundary and adoption prerequisites
+
+The sole lookup is `/etc/finch-file-reviews/<request_id>.json`, derived from the
+authenticated request ID. The adapter never creates this directory or writes
+a record. A separately authorized privileged operator must verify the real
+independent review and the operator's exact-file approval, then publish their
+attestation through the parent-owned administrative process. Merely supplying
+JSON in chat, an upload, the state directory or an app-owned file is not an
+approval. This PR supplies no grant-issuing CLI, real record, permission change
+or runtime provisioning step.
+
+The adapter must run non-root, without elevated filesystem capabilities or
+another path to privileged writes. Root execution is explicitly refused for
+the exception. Every ancestor directory and record must be root-owned and not
+group/other-writable, and must be accessible read-only to the adapter. Symlinks,
+nonregular files and multiply linked records are refused. The receiving host
+must independently verify these administrative boundaries before adoption.
+This does not defend against a compromised root, dishonest privileged
+attestation publisher or arbitrary code executing inside the adapter. Existing
+single-writer adapter-state custody remains the replay trust boundary; this
+change does not claim resistance to hostile rollback of its private SQLite.
+
+All directory/file descriptors remain pinned during the attempt. Every stage
+checks inode/ownership/mode, record size/timestamps, path identity and exact
+record bytes; replacement, mutation, deletion or loss of custody fails closed.
+The same immutable review context flows through upload validation, immediate
+pre-POST validation, multipart construction, both REST attachment metadata/CDN
+readbacks and final attachment custody. Root-owned mode bits are not treated as
+immutability: pinning and repeated exact-byte checks are still required.
+
+### Exact attestation contract
+
+The closed `finch-whole-file-review-v1` JSON object contains:
+
+- `binding`, exactly the output of the internal `Application.finch_review_binding`:
+  normalized MIME, exact filename, byte length and SHA256; request ID and message
+  ID; request creation/expiry; authenticated and stored subject; exact guild,
+  channel and bot; stored/current/request policy hashes; executing source SHA256;
+  and exact reply-text/footer SHA256
+- Nonempty `file_author`, independent `reviewer` and `review_evidence`; reviewer
+  must differ from author, authenticated sender, Finch bot and operator approver
+- `verdict: nonsensitive`; `whole_file`, `exact_bytes`, `no_personal_data`,
+  `no_secrets`, `no_active_content` and `no_unreviewed_encoding` all exactly true
+- `operator_approval` with exact `operator_id`, a canonical approval `message_id`
+  and `decision: approve_exact_reviewed_file`; the privileged publisher must
+  verify that evidence actually approves this entire record and file
+- Finite numeric `issued_at` and `expires`: issuance after request creation, no
+  future issuance, unexpired at use, and expiry no later than request expiry
+
+Unknown or duplicate fields, mismatched context and incomplete/uncertain
+verdicts refuse. Records are limited to 16 KiB and contain no report bytes or
+credentials. The review hashes its own complete attestation into the durable
+`sending` receipt before any POST. Reusing the same file for another request
+requires a fresh independent current-request attestation.
+
+Source bootstrapping compares the executing module code object to a fresh
+compilation of the source read at import, then pins the source SHA256. Stale
+bytecode or source movement disables the exception; current disk bytes must
+continue matching that loaded-source hash at every review check. The source
+hash is calculated from actual executing source, not embedded into itself or
+first trusted at grant consumption. Review and installation acceptance must
+use the exact final source bytes; edits invalidate earlier records.
+
+No effect replays after `sending`, `uncertain` or `confirmed`. A matching
+authenticated receipt query can still recover the cached success/uncertainty
+after record deletion or expiry, without loading a new grant or performing
+network effects. Changed file/text/context conflicts. Expiry or custody loss
+during an attempted send leaves an uncertain receipt for parent reconciliation,
+never an automatic retry.
+
+Offline acceptance: `tests/test_finch_file_review.py` uses only synthetic bytes
+and temporary records, emulating privileged ownership for positive paths while
+testing the real ownership predicates independently. The focused exact-head
+workflow also runs all existing adapter, communication and receiver tests.
+Passing those checks is not independent security acceptance, runtime approval,
+permission provisioning, rollout authority or authority to release a held file.
+
 ## Finch dual-channel correlated artifact profile (source only)
 
 `--profile finch` is a separate explicit profile, not a Research rename or a Rook clone.

@@ -7,6 +7,7 @@ private adapter state. Not a Hermes service/gateway; no public ingress or issuer
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import argparse
 import asyncio
@@ -30,6 +31,7 @@ import sqlite3
 import ssl
 import stat
 import struct
+import sys
 import threading
 import time
 import zlib
@@ -41,6 +43,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from standardwebhooks.webhooks import Webhook
 from receive_one_discord_message import create_client, load_token
+
+# Bind the running module, not a hash first calculated when a grant is consumed.
+# A stale .pyc or source replacement during loading disables the review exception.
+_FINCH_LOADED_SOURCE = Path(__file__).read_bytes()
+_FINCH_LOADED_CODE = sys._getframe().f_code
+_FINCH_SOURCE_BOOTSTRAP_OK = _FINCH_LOADED_CODE == compile(
+    _FINCH_LOADED_SOURCE, __file__, 'exec', dont_inherit=True, optimize=sys.flags.optimize)
+FINCH_SOURCE_SHA256 = hashlib.sha256(_FINCH_LOADED_SOURCE).hexdigest()
+FINCH_REVIEW_ROOT = Path('/etc/finch-file-reviews')
 
 GUILD = '1486887661099815126'
 CHANNEL = '1554668115239899196'
@@ -306,7 +317,7 @@ def readback(channel, identity):
     return discord_request('GET', f'/channels/{channel}/messages/{identity}')
 
 
-def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None, finch=None):
+def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None, finch=None, file_review=None):
     """Rook REST identity; general routes require the scoped tool's preflight.
 
     Legacy callers retain their narrow routes and JSON-only return contract.
@@ -345,6 +356,10 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
               or (method == 'POST' and re.fullmatch(write, path))
               or (method in ('PUT', 'DELETE') and re.fullmatch(reaction, path))):
         raise RpcError(-32602, 'InvalidDiscordRoute')
+    if file_review is not None:
+        if finch is None or method != 'POST' or file is None:
+            raise RpcError(-32602, 'FileReviewContextMismatch')
+        file_review.check(channel=path.split('/')[2], bot=finch.bot)
     host, address, _ = callback_target('https://discord.com/')
     conn = PinnedHTTPSConnection(host, address)
     try:
@@ -358,7 +373,9 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
         if file is not None:
             if method != 'POST' or not path.endswith('/messages'):
                 raise RpcError(-32602, 'InvalidFileRoute')
-            body, headers['Content-Type'] = multipart_body(payload, file, finch=finch is not None)
+            body, headers['Content-Type'] = multipart_body(payload, file, finch=finch is not None, file_review=file_review)
+        if file_review is not None:
+            file_review.check(file=file, channel=path.split('/')[2], bot=finch.bot)
         conn.request(method, '/api/v10' + path, body=body, headers=headers)
         response = conn.getresponse()
         maximum = 4194304 if guild_scoped else 262144
@@ -757,10 +774,22 @@ def validate_filename(filename, mime):
     return mime
 
 
-def scan_file_markers(data):
-    # Conservative markers, not a malware/PHI detector. Only non-sensitive files may be supplied.
+def scan_hard_file_markers(data):
+    # These denials cannot be overridden by a whole-file review. Identifiers
+    # (DOB/SSN) are not medical terminology eligible for the exception.
     if re.search(rb'(PRIVATE KEY|Authorization\s*:|Bearer\s+|(?:password|api[_-]?key|client_secret)\s*[:=]|'
-                 rb'\b(?:patient|dob|ssn|diagnosis|medical record)\b|<(?:html|script)\b|/(?:JavaScript|JS|Launch|OpenAction|AA|EmbeddedFile)\b)', data, re.I):
+                 rb'\b(?:dob|ssn)\b|<(?:html|script)\b|/(?:JavaScript|JS|Launch|OpenAction|AA|EmbeddedFile)\b)', data, re.I):
+        raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+
+
+def medical_file_markers(data):
+    return re.search(rb'\b(?:patient|diagnosis|medical record)\b', data, re.I) is not None
+
+
+def scan_file_markers(data):
+    # Conservative markers, not a malware/PHI detector. No proximity heuristic.
+    scan_hard_file_markers(data)
+    if medical_file_markers(data):
         raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
 
 
@@ -1199,14 +1228,151 @@ def validate_finch_png(data):
         raise RpcError(-32602, 'InvalidOrUnsupportedPNG') from exc
 
 
-def validate_file(filename, mime, data, *, finch=False):
+def file_review_binding(file):
+    return {'filename': file['filename'], 'content_type': file['content_type'],
+            'byte_length': len(file['data']), 'sha256': hashlib.sha256(file['data']).hexdigest()}
+
+
+def _review_stat(value, *, directory=False):
+    # Root is the trusted local attestation publisher, never the adapter user.
+    # Checking all parents prevents an app-writable rename or symlink substitute.
+    if (os.geteuid() == 0 or value.st_uid != 0 or value.st_mode & 0o022
+            or not (stat.S_ISDIR(value.st_mode) if directory else stat.S_ISREG(value.st_mode))
+            or (not directory and value.st_nlink != 1)):
+        raise ValueError('independently administered root-owned review custody required')
+    identity = (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
+    return identity if directory else identity + (value.st_nlink, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+
+
+def _review_json(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError('duplicate review field')
+        value[key] = item
+    return value
+
+
+@dataclass(frozen=True)
+class FinchFileReview:
+    """One local, privileged attestation; no public tool can create or select it.
+
+    Pins remain open until the reply attempt finishes. The process's Unix user
+    is trusted for ordinary adapter state, but cannot publish this exception.
+    Root compromise, forged human attestations and arbitrary in-process code
+    execution are not defended by local file permissions.
+    """
+    binding: str
+    raw: bytes
+    pins: tuple
+    current_binding: object
+    expires: float
+    auth_expires: float
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.raw).hexdigest()
+
+    @classmethod
+    def open(cls, binding, current_binding, auth_expires):
+        pins = []
+        try:
+            root = FINCH_REVIEW_ROOT
+            if not root.is_absolute() or '..' in root.parts:
+                raise ValueError('invalid fixed review root')
+            parts = ('/', *root.parts[1:], binding['request_id'] + '.json')
+            parent = None
+            for index, name in enumerate(parts):
+                directory = index != len(parts) - 1
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                fd = os.open(name, flags | (os.O_DIRECTORY if directory else 0), dir_fd=parent)
+                pins.append((fd, parent, name, None, directory))
+                snapshot = _review_stat(os.fstat(fd), directory=directory)
+                pins[-1] = (fd, parent, name, snapshot, directory)
+                parent = fd
+            raw = os.pread(pins[-1][0], 16385, 0)
+            if not 1 <= len(raw) <= 16384:
+                raise ValueError('review size')
+            record = json.loads(raw.decode('utf-8'), object_pairs_hook=_review_json,
+                                parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite number')))
+            if (not isinstance(record, dict) or set(record) != {'schema', 'binding', 'file_author', 'reviewer',
+                    'verdict', 'whole_file', 'exact_bytes', 'no_personal_data', 'no_secrets', 'no_active_content',
+                    'no_unreviewed_encoding', 'review_evidence', 'operator_approval', 'issued_at', 'expires'}
+                    or record['schema'] != 'finch-whole-file-review-v1'
+                    or canonical(record['binding']) != canonical(binding)
+                    or record['verdict'] != 'nonsensitive'
+                    or any(record[field] is not True for field in ('whole_file', 'exact_bytes', 'no_personal_data',
+                        'no_secrets', 'no_active_content', 'no_unreviewed_encoding'))):
+                raise ValueError('exact independent nonsensitive review required')
+            for key in ('file_author', 'reviewer', 'review_evidence'):
+                if (not isinstance(record[key], str) or not record[key].strip()
+                        or len(record[key]) > 512 or any(ord(c) < 32 for c in record[key])):
+                    raise ValueError('review provenance')
+            if record['reviewer'] in {record['file_author'], binding['subject'], binding['bot_id'], OPERATOR}:
+                raise ValueError('reviewer must be independent of author, sender and approver')
+            approval = record['operator_approval']
+            if (not isinstance(approval, dict) or set(approval) != {'operator_id', 'message_id', 'decision'}
+                    or approval['operator_id'] != OPERATOR or approval['decision'] != 'approve_exact_reviewed_file'
+                    or not isinstance(approval['message_id'], str)
+                    or not re.fullmatch(SNOWFLAKE['pattern'], approval['message_id'])):
+                raise ValueError('exact operator approval required')
+            now = time.time()
+            if (any(type(record[k]) not in (int, float) or not math.isfinite(record[k]) for k in ('issued_at', 'expires'))
+                    or not binding['request_created'] <= record['issued_at'] <= now < record['expires']
+                    or record['expires'] > binding['request_expires']):
+                raise ValueError('review must be fresh and bounded by this request')
+            review = cls(canonical(binding), raw, tuple(pins), current_binding, record['expires'], auth_expires)
+            review.check()
+            return review
+        except Exception as exc:
+            for fd, *_ in reversed(pins):
+                os.close(fd)
+            raise RpcError(-32602, 'FinchWholeFileReviewRequired') from exc
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *unused):
+        for fd, *_ in reversed(self.pins):
+            os.close(fd)
+
+    def check(self, *, file=None, metadata=None, channel=None, bot=None, sha256=None):
+        try:
+            if (not _FINCH_SOURCE_BOOTSTRAP_OK
+                    or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != FINCH_SOURCE_SHA256
+                    or time.time() >= min(self.expires, self.auth_expires)
+                    or canonical(self.current_binding(self.sha256)) != self.binding):
+                raise ValueError('expired or changed context/source')
+            for fd, parent, name, snapshot, directory in self.pins:
+                if (_review_stat(os.fstat(fd), directory=directory) != snapshot
+                        or _review_stat(os.stat(name, dir_fd=parent, follow_symlinks=False), directory=directory) != snapshot):
+                    raise ValueError('review custody changed')
+            if os.pread(self.pins[-1][0], 16385, 0) != self.raw:
+                raise ValueError('review bytes changed')
+            binding = json.loads(self.binding)
+            if ((file is not None and file_review_binding(file) != binding['file'])
+                    or (metadata is not None and any(actual != binding['file'][key] for key, actual in (
+                        ('filename', metadata.get('filename')), ('content_type', file_media_type(metadata.get('content_type'))),
+                        ('byte_length', metadata.get('size')))))
+                    or (channel is not None and channel != binding['channel_id'])
+                    or (bot is not None and bot != binding['bot_id'])
+                    or (sha256 is not None and sha256 != binding['file']['sha256'])):
+                raise ValueError('file or destination changed')
+        except Exception as exc:
+            raise RpcError(-32602, 'FileReviewContextMismatch') from exc
+
+
+def file_candidate(filename, mime, data, *, finch=False):
+    """Structural inspection only, NEVER send authorization. Medical matches
+    must still pass validate_file with current-request custody before any POST.
+    """
     mime = validate_filename(filename, mime)
     if not isinstance(data, bytes) or not 1 <= len(data) <= file_limit(mime, finch=finch):
         raise RpcError(-32602, 'FileSizeRefused')
     if finch and mime == 'image/png':
         validate_finch_png(data)
         return {'filename': filename, 'content_type': mime, 'data': data}
-    scan_file_markers(data)
+    scan_hard_file_markers(data)
     if mime in {'text/plain', 'application/json'}:
         try:
             text = data.decode('utf-8')
@@ -1224,7 +1390,18 @@ def validate_file(filename, mime, data, *, finch=False):
     return {'filename': filename, 'content_type': mime, 'data': data}
 
 
-def upload_file(value, *, finch=False):
+def validate_file(filename, mime, data, *, finch=False, file_review=None):
+    file = file_candidate(filename, mime, data, finch=finch)
+    if file_review is not None:
+        if not finch or file['content_type'] != 'text/plain' or not isinstance(file_review, FinchFileReview):
+            raise RpcError(-32602, 'FileReviewContextMismatch')
+        file_review.check(file=file)
+    if not (finch and file['content_type'] == 'image/png') and medical_file_markers(data) and file_review is None:
+        raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+    return file
+
+
+def upload_candidate(value, *, finch=False):
     if not isinstance(value, dict) or set(value) != {'filename', 'content_type', 'content_base64'}:
         raise RpcError(-32602, 'InvalidFileParams')
     encoded = value['content_base64']
@@ -1235,11 +1412,16 @@ def upload_file(value, *, finch=False):
         data = base64.b64decode(encoded, validate=True)
     except (ValueError, TypeError) as exc:
         raise RpcError(-32602, 'InvalidFileBase64') from exc
-    return validate_file(value['filename'], value['content_type'], data, finch=finch)
+    return file_candidate(value['filename'], value['content_type'], data, finch=finch)
 
 
-def multipart_body(payload, file, *, finch=False):
-    file = validate_file(file['filename'], file['content_type'], file['data'], finch=finch)
+def upload_file(value, *, finch=False, file_review=None):
+    file = upload_candidate(value, finch=finch)
+    return validate_file(file['filename'], file['content_type'], file['data'], finch=finch, file_review=file_review)
+
+
+def multipart_body(payload, file, *, finch=False, file_review=None):
+    file = validate_file(file['filename'], file['content_type'], file['data'], finch=finch, file_review=file_review)
     boundary = 'rook-' + secrets.token_hex(24)
     data = (f'--{boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n'.encode()
             + canonical(payload).encode() +
@@ -1248,8 +1430,10 @@ def multipart_body(payload, file, *, finch=False):
     return data, 'multipart/form-data; boundary=' + boundary
 
 
-def attachment_target(metadata, channel, *, finch=False):
+def attachment_target(metadata, channel, *, finch=False, file_review=None):
     """Only a REST-verified attachment's canonical Discord CDN URL; no caller URL."""
+    if file_review is not None:
+        file_review.check(metadata=metadata, channel=channel)
     mime = validate_filename(metadata.get('filename'), metadata.get('content_type'))
     size = metadata.get('size')
     if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= file_limit(mime, finch=finch):
@@ -1273,8 +1457,10 @@ def attachment_target(metadata, channel, *, finch=False):
     return value
 
 
-def download_attachment(metadata, channel, *, finch=False):
-    target = attachment_target(metadata, channel, finch=finch)
+def download_attachment(metadata, channel, *, finch=False, file_review=None):
+    if file_review is not None:
+        file_review.check(channel=channel)
+    target = attachment_target(metadata, channel, finch=finch, file_review=file_review)
     host, address, path = callback_target(target)
     conn = PinnedHTTPSConnection(host, address)
     try:
@@ -1291,27 +1477,34 @@ def download_attachment(metadata, channel, *, finch=False):
         data = response.read(file_limit(metadata['content_type'], finch=finch) + 1)
         if len(data) != metadata['size']:
             raise RpcError(-32030, 'AttachmentSizeMismatch')
-        return validate_file(metadata['filename'], metadata['content_type'], data, finch=finch)['data']
+        return validate_file(metadata['filename'], metadata['content_type'], data, finch=finch, file_review=file_review)['data']
     finally:
         conn.close()
 
 
-def verified_file(message, identity, channel, *, finch=False):
+def verified_file(message, identity, channel, *, finch=False, file_review=None):
+    if file_review is not None:
+        file_review.check(channel=channel, bot=message.get('author', {}).get('id'))
     matches = [a for a in message.get('attachments', []) if a.get('id') == identity]
     if len(matches) != 1:
         raise RpcError(-32602, 'AttachmentNotOnMessage')
     metadata = matches[0]
-    attachment_target(metadata, channel, finch=finch)
-    data = download_attachment(metadata, channel, finch=True) if finch else download_attachment(metadata, channel)
+    attachment_target(metadata, channel, finch=finch, file_review=file_review)
+    if file_review is not None:
+        data = download_attachment(metadata, channel, finch=finch, file_review=file_review)
+    else:
+        data = download_attachment(metadata, channel, finch=True) if finch else download_attachment(metadata, channel)
     if len(data) != metadata['size']:
         raise RpcError(-32030, 'AttachmentSizeMismatch')
-    validate_file(metadata['filename'], metadata['content_type'], data, finch=finch)
+    validate_file(metadata['filename'], metadata['content_type'], data, finch=finch, file_review=file_review)
     return metadata, data
 
 
-def finch_attachment_custody(metadata, channel, sha256):
+def finch_attachment_custody(metadata, channel, sha256, *, file_review=None):
     """No bytes/URL in receipts; exact gateway metadata binds verified CDN bytes."""
-    target = attachment_target(metadata, channel, finch=True)
+    target = attachment_target(metadata, channel, finch=True, file_review=file_review)
+    if file_review is not None:
+        file_review.check(metadata=metadata, channel=channel, sha256=sha256)
     if not isinstance(sha256, str) or not re.fullmatch(r'[a-f0-9]{64}', sha256):
         raise RpcError(-32602, 'InvalidAttachmentDigest')
     return {'id': metadata['id'], 'filename': metadata['filename'],
@@ -1871,14 +2064,14 @@ class Application:
                 self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', research=dot)
         if config.finch:
             if sender is send:
-                def finch_send(channel, wire, file=None):
+                def finch_send(channel, wire, file=None, *, file_review=None):
                     payload = {'content': wire, 'allowed_mentions': {'parse': [], 'replied_user': False}, 'flags': 4}
                     # Finch may notify only the fixed Kael recipient, and only for a literal tag.
                     if re.search(rf'<@!?{BOT}>', wire):
                         payload['allowed_mentions']['users'] = [BOT]
                     if file is not None:
                         payload['attachments'] = [{'id': 0, 'filename': file['filename']}]
-                    return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot)
+                    return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot, file_review=file_review)
                 self.sender = finch_send
             if reader is readback:
                 self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', finch=dot)
@@ -2363,6 +2556,16 @@ class Application:
                 sub.pop('rotate_until', None)
                 self.store.put('subscriptions', sub['id'], sub)
 
+    def finch_review_binding(self, principal, row, file_binding, reply_sha256):
+        """Attestation input contains no file contents or credential material."""
+        return {'file': file_binding, 'request_id': row['id'], 'message_id': row['message_id'],
+                'request_created': row['created'], 'request_expires': row['expires'],
+                'subject': principal.subject, 'request_subject': row['subject'],
+                'guild_id': row['guild_id'], 'channel_id': row['channel_id'], 'bot_id': self.bot,
+                'policy_sha256': self.policy, 'request_policy_sha256': row['policy'],
+                'current_policy_sha256': hashlib.sha256(canonical(self.config.policy_fields()).encode()).hexdigest(),
+                'source_sha256': FINCH_SOURCE_SHA256, 'reply_sha256': reply_sha256}
+
     def reply(self, principal, arguments):
         GUILD, CHANNEL, ROOK_BOT, REPLY_KIND = self.guild, self.channel, self.bot, self.reply_kind
         if self.config.metadata_only or self.store is None or self.sender is None or self.reader is None:
@@ -2374,14 +2577,16 @@ class Application:
                 or not arguments['text'].strip() or len(arguments['text']) > 1850):
             raise RpcError(-32602, 'InvalidParams')
         request_id, text = arguments['request_id'], arguments['text']
-        file = upload_file(arguments['file'], finch=True) if self.config.finch and 'file' in arguments else None
+        # Hard denials and UTF-8/format bounds still precede request lookup.
+        # A candidate is never send authority; ready requests validate below.
+        file = upload_candidate(arguments['file'], finch=True) if self.config.finch and 'file' in arguments else None
         file_binding = ({'filename': file['filename'], 'content_type': file['content_type'], 'byte_length': len(file['data']),
                          'sha256': hashlib.sha256(file['data']).hexdigest()} if file else None)
         wire = f'{text}\n-# {REPLY_KIND} · {request_id}'
         if len(wire.encode('utf-16-le')) // 2 > 2000:
             raise RpcError(-32602, 'ReplyTooLarge')
         digest = hashlib.sha256(wire.encode()).hexdigest()
-        with self.store.lock:
+        with self.store.lock, ExitStack() as reviews:
             row = self.store.get('requests', request_id)
             if not row or row['subject'] != principal.subject or row['policy'] != self.policy:
                 raise RpcError(-32602, 'UnknownOrUnownedRequest')
@@ -2409,14 +2614,33 @@ class Application:
                         d.get('state') == 'acknowledged' and d.get('guild_id') == GUILD and d.get('channel_id') == CHANNEL))
                     for d in self.store.all('deliveries')):
                 raise RpcError(-32602, 'RequestExpiredOrUndelivered')
+            file_review = None
+            if file is not None:
+                if file['content_type'] == 'text/plain' and medical_file_markers(file['data']):
+                    binding = self.finch_review_binding(principal, row, file_binding, digest)
+                    def current_binding(review_sha256):
+                        current = self.store.get('requests', request_id)
+                        if (not current or current.get('state') not in {'ready', 'sending'}
+                                or (current['state'] == 'sending' and (
+                                    current.get('file_review_sha256') != review_sha256
+                                    or current.get('reply_effect_sha256') != effect_digest))):
+                            raise ValueError('review consumed or request changed')
+                        return self.finch_review_binding(principal, current, file_binding, digest)
+                    file_review = reviews.enter_context(FinchFileReview.open(binding, current_binding, principal.expires))
+                validate_file(file['filename'], file['content_type'], file['data'], finch=True, file_review=file_review)
             row.update(state='sending', reply_sha256=digest, auth_method='RS256-authenticated-tools/call',
                        auth_subject=principal.subject, auth_expires=principal.expires)
             if self.config.finch:
                 row.update(reply_effect_sha256=effect_digest, attachment=None)
+                if file_review is not None:
+                    row['file_review_sha256'] = file_review.sha256
             # Durable before any Discord POST; crashes/unknown outcomes never auto-resend.
             self.store.put('requests', request_id, row)
             try:
-                posted = self.sender(CHANNEL, wire, file) if self.config.finch else self.sender(CHANNEL, wire)
+                if file_review is not None:
+                    posted = self.sender(CHANNEL, wire, file, file_review=file_review)
+                else:
+                    posted = self.sender(CHANNEL, wire, file) if self.config.finch else self.sender(CHANNEL, wire)
                 reply_id = posted.get('id') if isinstance(posted, dict) else None
                 if not isinstance(reply_id, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', reply_id):
                     raise ValueError()
@@ -2437,8 +2661,9 @@ class Application:
                         if not isinstance(items, list) or len(items) != (1 if file else 0):
                             raise ValueError('attachment count mismatch')
                         if file:
-                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL, finch=True)
-                            custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest())
+                            review_args = {'file_review': file_review} if file_review is not None else {}
+                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL, finch=True, **review_args)
+                            custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest(), **review_args)
                             if any(custody[key] != expected for key, expected in file_binding.items()):
                                 raise ValueError('attachment bytes or metadata mismatch')
                             attachments.append(custody)
