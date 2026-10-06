@@ -1,0 +1,793 @@
+{
+  "affiliate-sheet-sync-queue": {
+    "allowed_args": [
+      "queue-json",
+      "queue-file",
+      "output",
+      "apply"
+    ],
+    "arg_file_variants": {
+      "queue-json": "queue-file"
+    },
+    "argv": [
+      "python3",
+      "scripts/glp_sheet_sync_drain.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Onboarding-scoped compatibility entry for THE affiliate Sheet single writer. The registered onboarding workflow emits this exact action name after a provider build; it accepts only the same bounded queue payload as sheet_sync_drain and preserves the writer's validation, lock, receipts, and exact Sheet readback.",
+    "required_auth_scope": "onboarding_manifest",
+    "timeout_s": 900
+  },
+  "affiliate_postback_receive": {
+    "allowed_args": [
+      "auth-context",
+      "payload-json",
+      "target"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliate_postback_receiver.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Authenticated GLP affiliate conversion receiver. The n8n edge accepts the registered header or query-secret mode, strips authentication material before dispatch, sends identity fields only, and this writer records an idempotent D1 ledger event with deterministic readback.",
+    "timeout_s": 20
+  },
+  "affiliati_approved_discovery": {
+    "allowed_args": [
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliati_approved_discovery.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Read-only Job A Affiliati discovery. Enumerates the complete authenticated offer feed, selects every approved GLP/weight-loss/telehealth offer, and inspects joined campaign/event configuration. Copies test_link href strings from configuration without requesting, resolving, opening, or clicking them. Submits no applications and performs no provider mutation.",
+    "timeout_s": 1200
+  },
+  "affiliati_best_terms_stage": {
+    "allowed_args": [
+      "apply",
+      "output-dir"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_job_f_affiliati_best_terms.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Job F current-byte Affiliati best-terms reconciliation. Reuses hash-bound Job A captures, inspects the current release configuration without requesting any URL, validates all three nine-field research packets, and stages idempotent winner records in the best-terms deploy backlog. It never calls a provider, clicks a tracking link, writes the Sheet, applies, or deploys.",
+    "timeout_s": 300
+  },
+  "affiliati_postback_ship": {
+    "allowed_args": [],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliati_postback_ship.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "One-shot, idempotent Affiliati Pages postback release machine. It validates the canonical GLP predecessor, applies exactly the four declared function/subid overlays, tests and seals an immutable successor, registers the Pages secret without logging it, deploys, remints the content pointer, and proves public auth-gate plus asset bytes. It does not write the Affiliati portal or request tracking links.",
+    "timeout_s": 3300
+  },
+  "affiliati_tracking_queue": {
+    "allowed_args": [
+      "apply",
+      "output-dir"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliati_tracking_queue.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Job A approved Affiliati best-terms producer. Copies issued Link creative href fields from authenticated local campaign captures into the single-writer queue only after exact Sheet identity, reconciliation, and nine-field research validation. Never requests, resolves, opens, or clicks a tracking URL and never writes the Sheet.",
+    "timeout_s": 900
+  },
+  "analytics_brain": {
+    "allowed_args": [
+      "phase"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_analytics_brain_cadence.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "GLP analytics brain cadence runner. Pre-launch runs are provider-free and report PRELAUNCH_INACTIVE. Once launch-activated, it collects only the phase-specific sources, emits the five canonical outputs, and posts every fail-loud collector result to Discord ops-alerts with message readback.",
+    "timeout_s": 1200
+  },
+  "application_machine": {
+    "allowed_args": [
+      "run-id",
+      "mode"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_application_machine.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Machine 2 (applications): drains only explicit operator rows from affiliate_application_queue. Datatable operations are MCP-first with exact-readback native fallback. Each row must name the network, exact program, operator authority, and application instructions. Empty queue is healthy and silent. Every queued item is re-checked for fit, dedupe, legality, identity, and provider-specific mutation gates; verified submissions emit application_pending rows for the governed single Sheet writer. It never discovers candidates, auto-selects programs, sends fallback email, or applies from marketplace enumeration.",
+    "timeout_s": 3300
+  },
+  "approval_watch": {
+    "allowed_args": [
+      "coverage-only",
+      "no-restore-sessions",
+      "output",
+      "queue",
+      "run-id"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_approval_watch.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Approval watcher that does not wait for an email. Derives every network we hold and every Everflow white-label TENANT from the governed Sheet, verifies the networks it delegates are still actually read by glp/marketplace-enumeration, reads each Everflow tenant's own authenticated publisher API for per-offer offer_affiliate_status, diffs the Katalys programme index, and raises an approval event on any transition into approved. Emits a per-network coverage table naming every unwatched network and why. Reads only: it never writes the Sheet, never requests/opens/resolves/clicks a tracking link, never applies to a programme, never mutates a provider account and never deploys. It also re-establishes its OWN expired tenant sessions with the standing affiliate login (never printing it) and re-reads only the tenants that were dark; pass --no-restore-sessions to suppress that. A single-run lock makes a concurrent run refuse by name instead of hanging on the shared browser profile.",
+    "timeout_s": 1800,
+    "value_flags": {
+      "coverage-only": {
+        "1": ["--coverage-only"],
+        "0": []
+      }
+    }
+  },
+  "article_buffer_refill_dispatch": {
+    "allowed_args": [
+      "mode"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_seo_buffer_dispatch.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Webhook entry for the canonical Hermes SEO buffer refill. Dispatches d70cda5f4416 only when no execution is already running; otherwise returns PASS_ALREADY_RUNNING. It never runs an internal authoring, review, admission, or publish step directly.",
+    "timeout_s": 120
+  },
+  "article_carrier_consume": {
+    "allowed_args": [
+      "mode",
+      "operation-id"
+    ],
+    "argv": [
+      "python3",
+      "scripts/article_carrier_run.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "M/W/F article carrier: consumes one review-passed article from the SEO blog machine's A3 buffer and publishes it (certified entrypoint systems/seo-blog-machine/scripts/article_buffer_cli.py consume; zero model calls). --mode status is the provider-free dry run. Prints one compact JSON receipt on the last stdout line.",
+    "timeout_s": 7800
+  },
+  "bing_fast_index": {
+    "allowed_args": [
+      "mode",
+      "urls",
+      "release",
+      "predecessor"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_bing_fast_index.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Authenticated Bing fast-indexing for the deploy chain's changed-set: SubmitUrlBatch plus SubmitContent (pushes the release's own HTML, never the edge's). Reuses the IndexNow changed-set so the two announcements can never disagree. Single-submitter for the shared 100/day quota; ledgered; fail-open so a Bing outage cannot fail a deploy.",
+    "timeout_s": 900
+  },
+  "boring_finder_run": {
+    "allowed_args": [
+      "mode"
+    ],
+    "argv": [
+      "python3",
+      "scripts/boring_finder_n8n_run.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Boring AI daily finder adapter: reads the real shared Firecrawl balance through the certified firecrawl_account_balance_v1 guard, reconciles the last completed finder day's qualified-vs-promoted delta, and (--mode dispatch, only above zero credits) one-shot dispatches the certified Hermes finder job 5256c3c6e2fb. Never sources, never scores, never resumes the paused schedule.",
+    "timeout_s": 600
+  },
+  "bridge_selftest": {
+    "allowed_args": [
+      "bytes",
+      "echo-json",
+      "echo-file"
+    ],
+    "arg_file_variants": {
+      "echo-json": "echo-file"
+    },
+    "argv": [
+      "python3",
+      "ops/n8n-bridge/selftest_emit.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Transport self-test: emits a JSON document of a requested size and reports back the row count of any file-backed arg. No side effects, no credentials, no network. Exists so the argv-spill and stdout-truncation contracts can be proven against the LIVE bridge, not only in unit tests.",
+    "timeout_s": 120
+  },
+  "buffer_status": {
+    "argv": [
+      "python3",
+      "systems/seo-blog-machine/scripts/article_buffer_cli.py",
+      "status"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "SEO blog machine article buffer depth/status.",
+    "timeout_s": 60
+  },
+  "cogny_queue_drain": {
+    "allowed_args": [
+      "mode",
+      "callback",
+      "budget-s",
+      "model",
+      "job-id",
+      "task-id",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_cogny_queue_drain.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Drains Cogny's scheduled-task queue with no hands. --mode status is read-only (queue + findings census). --mode dispatch polls get_queue_status, claims the next PENDING task via get_next_task, and fires ONE bridge claude_p job carrying the task's own skill_content verbatim plus this fleet's guardrails (read-only, no spend, no Sheet write, no deploy, no gate weakening) \u2014 async, 45-minute budget, resumed through n8n's $execution.resumeUrl. --mode resume reads the agent's JSON receipt, dedupes its findings against the OPEN Cogny backlog by title, and calls complete_task. Skills that mutate a paid account are refused at the gate before a brief exists, and a task cannot be dispatched twice in one PT day. An empty queue is a SUCCESS, not a skip. Prints one compact JSON receipt carrying output_count on the LAST stdout line.",
+    "timeout_s": 600
+  },
+  "cogny_workspace_seed": {
+    "allowed_args": [
+      "mode",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_cogny_workspace_seed.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Writes the Cogny context tree (site model, route families, moat invariants, live keyword targets from the scorer, measurement state) so Cogny's own analyses run with real context instead of guesses, and reports the Cogny task queue and open findings without executing queued tasks. Mirrors the payload to disk first, so a Cogny-side write outage loses nothing.",
+    "timeout_s": 900
+  },
+  "commission_terms_selfserve": {
+    "allowed_args": [
+      "from-receipt",
+      "network",
+      "program-id",
+      "notice-message-id",
+      "notice-ts",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_commission_terms_selfserve.py",
+      "--apply",
+      "--ui-fallback"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Commission-rate change self-serve: re-read the new rate off the network itself (publisher API first, authenticated portal second, stored credentials only - never a password reset), append it to the commission-terms ledger, queue ONE sheet_update_queue row for the single writer's governed commission_terms_correction mode, and flag a site-rate check when the programme is wired live. Cards the operator only when BOTH fetch paths failed, and then says what was tried. Writes zero Sheet cells.",
+    "timeout_s": 1800
+  },
+  "decisions_router": {
+    "allowed_args": [
+      "mode",
+      "message-id",
+      "run-id",
+      "job-id",
+      "sink",
+      "discord-message-id"
+    ],
+    "argv": [
+      "python3",
+      "ops/decisions_router.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Source-bound #decisions router: captures every operator message, applies structured action-item/event/blocker/APPROVE commands deterministically, returns one bounded Sol authoring brief for unmatched residue, and exact-readback receipts the single confirmation card. Sends exist only behind a literal operator APPROVE command and the alias-aware inbox GmailClient transport.",
+    "timeout_s": 3300
+  },
+  "echo_test": {
+    "argv": [
+      "/bin/echo",
+      "bridge-ok"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Liveness probe for the bridge action path. Prints bridge-ok.",
+    "timeout_s": 10
+  },
+  "enumeration_materialize": {
+    "allowed_args": [
+      "networks",
+      "apply",
+      "sheet-values",
+      "create-rejected",
+      "weekly-application-sweep"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_enumeration_materializer.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Diff every marketplace network's relationship list against the governed Sheet and emit sheet_update_queue rows for what is missing or has drifted (advertiser-initiated joins/invites/pendings, pending->rejected, joined->notjoined). Never writes the Sheet; created approvals are fit-gated before wiring.",
+    "timeout_s": 1200
+  },
+  "error_fixer": {
+    "allowed_args": [
+      "engine",
+      "max-cases",
+      "case-id",
+      "cases-json",
+      "mode"
+    ],
+    "argv": [
+      "python3",
+      "ops/error-fixer/fixer_runtime.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Self-healing layer: ingest error_cases, diagnose via the configured engine, apply tier-gated fixes, prove them by re-running the machine, escalate the rest to Discord. Optional 'mode' arg (full|sweep|tier2) selects the same fixed-flag behavior formerly split across error_fixer_sweep/error_fixer_tier2 (retired 2026-09-01 fold 2-3 consolidation): full/omitted runs the default unconditional cycle (which already runs sweep_deep_fix, sweep_tier2 and sweep_stale before the budget gate); sweep pins --sweep-only; tier2 pins --tier2-only. Never forwarded to fixer_runtime.py as a literal '--mode' flag -- that script's argparse has no such flag and would reject it.",
+    "timeout_s": 1800,
+    "value_flags": {
+      "mode": {
+        "full": [],
+        "sweep": [
+          "--sweep-only"
+        ],
+        "tier2": [
+          "--tier2-only"
+        ],
+        "intake": [
+          "--mode",
+          "intake"
+        ],
+        "notification-ack": [
+          "--mode",
+          "notification-ack"
+        ]
+      }
+    }
+  },
+  "error_fixer_daily_review": {
+    "allowed_args": [
+      "pt-date"
+    ],
+    "argv": [
+      "python3",
+      "ops/error-fixer/daily_ops_review.py",
+      "--dispatch-one"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Durable daily ops review owned by the self-healing layer: group same-signature failures, separate normal operation from breakage, dispatch at most one open repair candidate, and upsert one ops-alerts digest.",
+    "timeout_s": 1800
+  },
+  "glp_ads_weekly_review": {
+    "allowed_args": [
+      "execution-id"
+    ],
+    "argv": [
+      "python3",
+      "reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/runner.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "A19 recommendation-only weekly consumer Meta + Microsoft review. Reads Cogny, aggregate consumer D1 and brain evidence, writes one weekly review annex and exact-readback ops-alerts card. Cannot mutate campaigns, export conversions, activate or spend; Microsoft disconnected is UNKNOWN.",
+    "timeout_s": 600
+  },
+  "glp_ads_monitor": {
+    "allowed_args": [],
+    "argv": [
+      "/home/ubuntu/business/ventures/glp-clinic-scout/ads-control-plane/.venv/bin/python",
+      "scripts/glp_ads_three_platform_monitor.py",
+      "--post-alerts",
+      "--notification-protocol=silent-v1"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Read-only GLP paid-acquisition monitor. Reads exact Google and Meta account state, records the explicit Microsoft Ads access blocker, inspects active postback workflows and the held /go runtime without requesting a tracking link, writes a zero-secret receipt, and posts only fail-loud alerts to Discord ops-alerts. It cannot mutate ads, budgets, destinations, reviews, provider links, or spend.",
+    "timeout_s": 300
+  },
+  "glp_ads_monitor_daily_digest": {
+    "allowed_args": [],
+    "argv": [
+      "/home/ubuntu/business/ventures/glp-clinic-scout/ads-control-plane/.venv/bin/python",
+      "scripts/glp_ads_three_platform_monitor.py",
+      "--post-digest",
+      "--notification-protocol=silent-v1"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Daily read-only GLP paid-acquisition digest. Runs the exact three-platform zero-spend monitor and posts one terse status/readback to Discord ops-alerts. No ad, budget, URL, review, tracking-link, provider, or spend mutation is available.",
+    "timeout_s": 300
+  },
+  "glp_seo_updater": {
+    "allowed_args": [
+      "pt-date",
+      "review-request",
+      "review-request-sha256"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_seo_updater_run.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Webhook-only R2 updater adapter. Resumes a stable topic+route claim, rebinds current-base authority without reprioritizing, runs deterministic QA, independent review, serialized build/publish, live content+sitemap verification, and Output Health evaluation. Failed attempts do not consume quota. Prints one compact JSON receipt on the last stdout line.",
+    "timeout_s": 8400
+  },
+  "glp_weekly_seo_control": {
+    "allowed_args": [
+      "report-date"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_weekly_seo_control.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Consolidated Sunday SEO control: run existing learning actions, collect live GSC sc-domain index/ranking evidence plus Cogny Bing, DataForSEO, GA4 and PostHog, write a bounded fail-open targeting policy, and post one exact-readback Discord verdict. Does not deploy, write Sheets, submit URLs, or request tracking links.",
+    "timeout_s": 3600
+  },
+  "inbox_mirror": {
+    "allowed_args": [
+      "max-messages",
+      "output",
+      "reset-cursor",
+      "mailboxes"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliate_inbox_mirror.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Inbound detector's mail lane: read-only scan of the GLP ops@ AND izaiah@ mailboxes for affiliate approvals/rejections/pauses/re-activations since a persisted per-mailbox cursor, emitting sheet_update_queue rows with gmail message-id + on-disk evidence, and routing action-required mail to ops/action_items.",
+    "timeout_s": 1800
+  },
+  "inbox_mirror_scan_only": {
+    "allowed_args": [
+      "max-messages",
+      "output",
+      "mailboxes"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_affiliate_inbox_mirror.py",
+      "--scan-only",
+      "--no-registry"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Cold-scan prover for the inbound detector: classifies mail and reports what it WOULD queue, mutating nothing - no cursor write, no seen-list write, no action_items write, no queue row. This is the proof PHASE1-PROOF \u00a77.4 asked for, without the --reset-cursor blast radius.",
+    "timeout_s": 1800
+  },
+  "job_a_queue_ack_native": {
+    "allowed_args": [
+      "tracking-drain",
+      "wire-drain",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_job_a_queue_ack.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Job A bounded queue acknowledgement after both exact single-writer drain receipts and an independent current Sheet readback prove all six rows applied. Datatable operations are MCP-first with exact-readback native fallback. Changes only queue status and resolved timestamp; writes no Sheet cell, requests no tracking URL, applies to no program, and deploys nothing.",
+    "timeout_s": 600
+  },
+  "keyword_gap_weekly": {
+    "argv": [
+      "python3",
+      "scripts/glp_keyword_gap_machine.py",
+      "--scheduled"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Monday-only competitor keyword-gap and provider/pharmacy entity white-space snapshot. Uses the canonical SEO data rail for batched, cached DataForSEO plus GSC truth; writes data, topic-supply, and strategy-overlay artifacts only. Non-Monday invocations return an explicit zero-effect skip.",
+    "timeout_s": 1800
+  },
+  "maxbounty_application_dry_run": {
+    "allowed_args": [
+      "run-id"
+    ],
+    "argv": [
+      "/home/ubuntu/.hermes/venvs/glp-maxbounty-runtime/bin/python",
+      "scripts/glp_maxbounty_application_dry_run.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Operator-authorized, no-submit MaxBounty ShedRX form diagnosis. Opens and fills the exact application modal, attaches the hash-bound image, enumerates every DOM-required control and validity state, proves the browser FileList, captures stage screenshots, and asserts zero requestApproval POSTs. It never clicks Submit, requests a tracking link, writes the provider, or writes the Sheet.",
+    "timeout_s": 1200
+  },
+  "maxbounty_approval_chain": {
+    "allowed_args": [
+      "program-id",
+      "event-id",
+      "seo-slug",
+      "output"
+    ],
+    "argv": [
+      "/home/ubuntu/.hermes/venvs/glp-maxbounty-runtime/bin/python",
+      "scripts/glp_maxbounty_approval_chain.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Targeted MaxBounty approval recovery: verifies the exact approved campaign in the authenticated portal, captures the provider-issued tracking href by configuration inspection only without opening or following it, compares held rail economics, and queues inventory/link facts through the one Sheet writer. It never deploys.",
+    "timeout_s": 900
+  },
+  "maxbounty_lane": {
+    "allowed_args": [
+      "mode",
+      "queue",
+      "headless",
+      "run-id",
+      "output"
+    ],
+    "argv": [
+      "/home/ubuntu/.hermes/venvs/glp-maxbounty-runtime/bin/python",
+      "scripts/glp_maxbounty_lane.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Daily persistent MaxBounty lane: authenticates the UI-only portal, enumerates Browse > Bookmarked, derives approval strictly from the campaign-detail button, captures payouts/terms/coupons, drafts fixed Native applications, evaluates cross-network effective value, and queues every Sheet fact through sheet_update_queue. Scheduled mode cannot disable the queue. Applications, tracking-link mints and provider deploys are hard-default-closed until the redesign-live and operator-approved-image receipts both hash-verify.",
+    "timeout_s": 1800
+  },
+  "n8n_dt_write_fallback_probe": {
+    "allowed_args": [
+      "probe-id",
+      "timestamp",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "ops/n8n_dt_write_fallback_probe.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Registered one-shot live proof for MCP-first, natural-key-reconciled n8n Data Table writes. Writes two uniquely keyed audit heartbeat rows, proves duplicate insert and update calls SKIP, validates native metadata/read/insert/update/error contracts, emits one private receipt, and never prints credentials.",
+    "timeout_s": 300
+  },
+  "observability_collect": {
+    "argv": [
+      "bash",
+      "/home/ubuntu/.hermes/scripts/glp_observability_collect.sh"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "GSC/GA4 daily collector (writes local sqlite + D1)",
+    "timeout_s": 900
+  },
+  "onboarding_authoring_status": {
+    "allowed_args": [
+      "provider"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_onboarding_authoring_status.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Read-only: the onboarding machine's authoring-dispatch ledger \u2014 cycles used today per provider, in-flight job ids, recorded not_fit stops, and the last engine receipt path. No dispatch, no engine call, no writes. Prints one compact JSON summary.",
+    "timeout_s": 120
+  },
+  "onboarding_manifest_run": {
+    "allowed_args": [
+      "mode",
+      "provider",
+      "batch-authority",
+      "run-id",
+      "inject-fail",
+      "offline",
+      "dry-run",
+      "no-sheet",
+      "no-deploy",
+      "evidence",
+      "removal-set",
+      "removal-receipt",
+      "source-release",
+      "target-release",
+      "authoring",
+      "authoring-callback",
+      "chain",
+      "plan-only",
+      "postback-migration"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_onboarding_manifest.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Machine 4 (onboarding/deploy): --mode scan diffs the governed Sheet against this machine's own snapshot and names newly-approved providers to onboard and newly-paused providers to remove; --mode verify fills the 24-step onboarding manifest for an already-live provider from on-disk and on-the-wire evidence; --mode onboard drives the proven B2 wire-backlog build+deploy pipeline and queues a deployed_live row for the one Sheet writer; --mode remove drives the receipted removal executor; --mode restore puts a paused-then-reactivated provider's placements back into a CANDIDATE from a pre-pause release (needs --removal-receipt --evidence --source-release --target-release). Every (provider, step) pair gets a manifest row; any non-green row is NAMED on the alert card. The col-19 wire-in gate is queued for the ONE Sheet writer whenever a bound row has earned it on any rail. Prints one compact JSON summary on the last stdout line. --mode authoring_resume re-enters the onboard path after the machine's OWN authoring engine returned (ingest the engine receipt -> apply the machine's fit gate -> build -> deploy -> re-assess). When an onboard cycle ends with authoring-class blocks the machine dispatches ONE bridge claude_p authoring job itself (45-minute budget, async, resumed via --authoring-callback = n8n's $execution.resumeUrl), max 3 cycles per provider per PT day, then routes to ops/error-handler. `--authoring 0` reverts to naming the block and stopping.",
+    "entry_authority_scope": "onboarding_manifest",
+    "required_auth_scope": "onboarding_manifest",
+    "timeout_s": 7800
+  },
+  "output_health": {
+    "argv": [
+      "python3",
+      "scripts/business_output_health_sensor.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Business output health sensor across the machine fleet.",
+    "timeout_s": 300
+  },
+  "pricing_refresh": {
+    "allowed_args": [
+      "release",
+      "output",
+      "queue",
+      "captures",
+      "only",
+      "concurrency",
+      "stale-after-days",
+      "apply-to",
+      "fixture"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_pricing_refresh.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Monthly re-capture and re-verification of every live provider's published GLP-1 pricing for glpclinicscout.com. Direct headless Chrome (curl fallback), no scraping service. Re-checks each shipped quote against a fresh capture of its own source URL, diffs against data/provider-pricing-matrix.json, and QUEUES the resulting edits; it never writes a price. Prints a compact JSON receipt on the last stdout line.",
+    "timeout_s": 2400
+  },
+  "program_liveness_check": {
+    "allowed_args": [
+      "snapshot-json",
+      "snapshot-file",
+      "output",
+      "queue",
+      "dry-run"
+    ],
+    "arg_file_variants": {
+      "snapshot-json": "snapshot-file"
+    },
+    "argv": [
+      "python3",
+      "scripts/glp_program_liveness_check.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Weekly liveness audit of every affiliate program live on glpclinicscout.com (detection only; writes a removal queue, never edits the site). dry-run=1 reads release identities offline with no HTTP, tracking probe, receipt or queue write.",
+    "timeout_s": 900,
+    "value_flags": {
+      "dry-run": {
+        "1": ["--dry-run"]
+      }
+    }
+  },
+  "reddit_scan": {
+    "allowed_args": [
+      "seen",
+      "max",
+      "deadline-s"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_reddit_comment_scout.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Daily Reddit comment-opportunity scan for glpclinicscout.com over Reddit's public RSS feeds (read-only; never posts). Prints a compact candidate JSON receipt on the last stdout line.",
+    "timeout_s": 1500
+  },
+  "research_autowire": {
+    "allowed_args": [
+      "mode",
+      "event-json",
+      "event-id",
+      "job-id",
+      "callback-url",
+      "simulate",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_research_autowire.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Research-only approval event machine. Baselines the governed Sheet, detects new approved rows, dispatches one Hermes-managed gpt-5.6-sol xhigh Firecrawl-first program-deep-research-v1 authoring cycle under the exact Sheet SEO Slug, validates first-party quote/capture hashes, and resumes with a read-only wire-backlog plan. It never applies, writes Sheets, deploys, requests tracking URLs, or mutates providers. Durable event IDs make duplicate approvals SKIP.",
+    "timeout_s": 3900
+  },
+  "research_autowire_data_repair": {
+    "allowed_args": [
+      "mode",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/research_autowire_data_repair.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Queue-only repair for the two approved blank-slug research-autowire rows. Re-derives EOSHealth's site slug through the canonical MaxBounty identity function, records Goodness Lover as governed out-of-scope, validates both projections, and writes only to sheet_update_queue. It performs no direct Sheet write, provider action, tracking request/click, build, or deploy.",
+    "timeout_s": 300
+  },
+  "sheet_sync_drain": {
+    "allowed_args": [
+      "queue-json",
+      "queue-file",
+      "output",
+      "apply"
+    ],
+    "arg_file_variants": {
+      "queue-json": "queue-file"
+    },
+    "argv": [
+      "python3",
+      "scripts/glp_sheet_sync_drain.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "THE sheet writer: drains sheet_update_queue rows into the governed narrow Sheet writer modes, one mode per queue kind, evidence-cited and receipted. Refusals and unknown kinds are reported, never dropped.",
+    "timeout_s": 900
+  },
+  "sheet_vs_site_reconcile": {
+    "allowed_args": [
+      "output",
+      "queue",
+      "fixture"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_sheet_vs_site_reconciler.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Weekly sheet-vs-site reconciler (machine 6): audits every governed Sheet row against the live site, the suppression ledger and the deploy queues, and classifies each one CONSISTENT / MISSED-DEPLOY / GHOST / STALE-STATUS / BLANK-MALFORMED / UNKNOWN-FIT. Read-only on the Sheet and the site; emits sheet_update_queue corrections only where a governed mode and an on-disk evidence receipt both allow it.",
+    "timeout_s": 900
+  },
+  "three_engine_telemetry": {
+    "allowed_args": [
+      "mode",
+      "max-serp",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_three_engine_telemetry.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Weekly SEO audit machine (B-24): pulls Google ranks (DataForSEO, budget-guarded), Bing Webmaster query+page stats, GSC search analytics on the sc-domain property, GA4 landing-page sessions, PostHog per-path conversion, and Cogny's second layer (URL-prefix GSC + Bing related-keyword demand) into one weekly artifact with week-over-week deltas. Regressions and opportunities are written to Cogny as findings so the growth-ticket queue becomes the standing SEO backlog. not_ranking and unmeasured are never inferred from one another. Prints one compact JSON receipt (with the Discord digest) on the last stdout line.",
+    "timeout_s": 3300
+  },
+  "topic_data_score": {
+    "allowed_args": [
+      "mode",
+      "max-terms",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_topic_data_score.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Scores every competitor-gap candidate against measured demand \u2014 DataForSEO search volume, Bing keyword impressions via Cogny, our own GSC footprint (exact plus token-overlap neighbours), competitor difficulty, and PostHog conversion by route family \u2014 then writes a bounded demand-multiplier sidecar the article selector folds into its ordering. The selector fails open on a missing or stale sidecar, so a scoring outage never stops the M/W/F publish.",
+    "timeout_s": 2400
+  },
+  "topic_supply_mint": {
+    "argv": [
+      "python3",
+      "scripts/glp_topic_supply_bridge.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Runs the success-silent topic-supply cron wrapper to refresh Firecrawl gap evidence, mint the competitor-gap feed, regenerate latest.json, and prove strategy-safe selector output, then prints one compact JSON receipt with numeric gaps, pillars, spokes, and skipped counts on the last stdout line.",
+    "timeout_s": 1200
+  },
+  "weekly_outward_seo_strategy": {
+    "allowed_args": [
+      "mode",
+      "as-of",
+      "opportunities",
+      "topic-supply",
+      "cogny-input",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_weekly_outward_seo_strategy.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Weekly outward-only SEO strategy machine: consumes hash-bound Cogny, GSC and DataForSEO artifacts and emits route ranking, whitespace, M/W/F topic refill and an evidence-triggered R2 schedule capped at two. GA4, PostHog and own-site revenue analytics are forbidden inputs and can never gate content. The action makes no provider call, publish, deploy or site write.",
+    "timeout_s": 300
+  },
+  "wire_in_ready_queue": {
+    "allowed_args": [
+      "apply",
+      "row",
+      "captures",
+      "reactivation-capture",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_wire_in_ready_queue.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "Network-agnostic structural tracking-href validator and governed col-19 producer. Reads the Sheet, requests no tracking URL, emits only wire_in_ready rows to the single-writer queue, and never writes the Sheet or deploys.",
+    "timeout_s": 600
+  },
+  "xentraffic_enumerate": {
+    "allowed_args": [
+      "detail",
+      "heartbeat",
+      "headless",
+      "queue",
+      "run-id",
+      "output"
+    ],
+    "argv": [
+      "python3",
+      "scripts/glp_xentraffic_enumerate.py"
+    ],
+    "cwd": "/home/ubuntu/business",
+    "description": "XenTraffic lane of the daily marketplace enumeration. This Everflow white-label tenant provisions NO api key (the authenticated user read returns an empty api_key and the portal exposes no mint control), so the lane rides the stored authenticated browser session instead: it lists the whole partner catalogue, runs the first-party GLP/sister fit gate over XenTraffic's own catalogue fields, diffs against the last COMPLETE enumeration to detect new offers, pauses, disappearances and payout changes, and prints snapshot rows + sheet_update_queue rows for the parent workflow to merge. Writes nothing to the Sheet, clicks no tracking link, never touches the password.",
+    "timeout_s": 900
+  }
+}

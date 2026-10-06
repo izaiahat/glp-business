@@ -86,6 +86,42 @@ class CronBridgeTests(unittest.TestCase):
         self.assertEqual(second["status"], "SKIPPED_OBSERVED_SLOT")
         self.assertEqual(len([p for p, _ in self.calls if p == "/run"]), 1)
 
+    def test_error_fixer_durable_modes_use_exact_registered_flags_without_execution(self):
+        # Authentic error-handler execution 19080 failed Case Row before launch:
+        # the consolidated registry rejected intake even though the producer
+        # supports it. Exercise the maintained registry and real command builder,
+        # not a duplicated fixture action or an effectful error event replay.
+        actions = json.loads((ROOT / "ops/n8n-bridge/actions.json").read_text())
+        action = actions["error_fixer"]
+        base = ["python3", "ops/error-fixer/fixer_runtime.py"]
+        expected = {"full": [], "sweep": ["--sweep-only"],
+                    "tier2": ["--tier2-only"], "intake": ["--mode", "intake"],
+                    "notification-ack": ["--mode", "notification-ack"]}
+        self.assertEqual(action["allowed_args"],
+                         ["engine", "max-cases", "case-id", "cases-json", "mode"])
+        # This action stays global-only; intake does not widen manifest authority.
+        for mode, flags in expected.items():
+            payload = {"action": "script", "name": "error_fixer", "args": {"mode": mode}}
+            bridge.authorize_scope(payload, actions, bridge.GLOBAL_AUTH_SCOPE)
+            with self.assertRaises(bridge.BadRequest):
+                bridge.authorize_scope(payload, actions, bridge.ONBOARDING_AUTH_SCOPE)
+            self.assertEqual(bridge.build_script_command(payload, actions)["argv"], base + flags)
+        self.assertEqual(action["value_flags"]["mode"], expected)
+        self.assertEqual(bridge.build_script_command(
+            {"name": "error_fixer", "args": {}}, actions)["argv"], base)
+        for mode in ("intake", "notification-ack"):
+            # Forward evidence byte-for-byte; CLI validation/dedupe remain owned
+            # by error_intake, and no case, ACK, repair or send is executed here.
+            evidence = "[]"
+            payload = {"name": "error_fixer", "args": {"mode": mode, "cases-json": evidence}}
+            self.assertEqual(bridge.build_script_command(payload, actions)["argv"],
+                             base + ["--cases-json", evidence, "--mode", mode])
+        for bad_args in ({"mode": "not-a-mode"}, {"mode": "fix"},
+                         {"mode": "intake --sweep-only"}, {"mode": ["intake"]},
+                         {"mode": "intake", "unknown": "bad"}):
+            with self.assertRaises(bridge.BadRequest):
+                bridge.build_script_command({"name": "error_fixer", "args": bad_args}, actions)
+
     def test_unknown_action_refused_before_submission(self):
         result = self.run_action("not-allowlisted")
         self.assertNotEqual(result["rc"], 0)
@@ -278,6 +314,90 @@ class CronBridgeTests(unittest.TestCase):
         self.assertEqual(calls, [])
         state = json.loads(next(self.root.glob("article_carrier_consume-*.state.json")).read_text())
         self.assertEqual(state["slots"][slot]["receipt_path"], result["receipt_path"])
+
+    def test_carrier_registered_retry_requires_exact_no_effect_hold_receipt(self):
+        action = "article_carrier_consume"
+        slot = "2026-10-02T11:00:America/Los_Angeles"
+        calls = []
+        options = dict(state_dir=self.root, actions={action: {}},
+                       call=lambda path, payload=None: (calls.append(path) or 200,
+                           {"job_id": "new-job", "status": "done", "rc": 0}),
+                       finish=lambda *a: {}, notify=lambda *a: {})
+        with patch.object(cron, "article_release_live", return_value=False) as gate:
+            original = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="scheduled", **options)
+            prior_path = Path(original["receipt_path"])
+            prior_bytes = prior_path.read_bytes()
+            state_path = next(self.root.glob(action + "-*.state.json"))
+            state_bytes = state_path.read_bytes()
+            # Ordinary schedule dedupe is unchanged, even for a held slot.
+            skipped = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="scheduled", **options)
+            self.assertEqual(skipped["status"], "SKIPPED_OBSERVED_SLOT")
+            self.assertEqual(gate.call_count, 1)
+            retried = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="manual_registered", **options)
+            self.assertEqual(retried["status"], "DECLINED_RELEASE_HOLD")
+            self.assertNotEqual(retried["receipt_path"], original["receipt_path"])
+            self.assertEqual(retried["retried_no_effect_receipt"], str(prior_path))
+            self.assertEqual(retried["due_slot"], slot)
+            self.assertEqual(gate.call_count, 2)
+            self.assertEqual(calls, [])
+            self.assertEqual(prior_path.read_bytes(), prior_bytes)
+            again = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="manual_registered", **options)
+            self.assertEqual(again["status"], "DECLINED_RELEASE_HOLD")
+            self.assertEqual(again["retried_no_effect_receipt"], retried["receipt_path"])
+            self.assertEqual(gate.call_count, 3)
+            self.assertEqual(calls, [])
+
+        # Unknown, published, partial-effect and mismatched evidence never grants retry.
+        for change in ({"status": "PASS"}, {"status": "BLOCKED_CONSUME_FAILED"},
+                       {"payload_sha256": "0" * 64}, {"action": "other"},
+                       {"due_slot": None}, {"receipt_path": "other.json"},
+                       {"rc": False}, {"reason": "unknown"},
+                       {"bridge": {}}, {"effects": {}}, {"local": {}},
+                       {"run_type": "manual_registered_repair"},
+                       {"invocation": "manual"}, {"finished_utc": None}):
+            with self.subTest(change=change):
+                state_path.write_bytes(state_bytes)
+                cron.save(prior_path, {**original, **change})
+                with patch.object(cron, "article_release_live") as gate:
+                    result = cron.run_action(action, {"mode": "consume"},
+                        due_slot=slot, invocation="manual_registered", **options)
+                self.assertIn(result["status"],
+                              ("SKIPPED_OBSERVED_SLOT", "BLOCKED_MANUAL_SLOT_READBACK"))
+                gate.assert_not_called()
+                self.assertEqual(calls, [])
+        prior_path.write_bytes(prior_bytes)
+        state_path.write_bytes(state_bytes)
+        with patch.object(cron, "article_release_live", return_value=True) as gate:
+            passed = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="manual_registered", **options)
+            self.assertEqual(passed["status"], "PASS")
+            self.assertEqual(passed["retried_no_effect_receipt"], str(prior_path))
+            self.assertEqual(passed["run_type"], "manual_registered")
+            self.assertEqual(calls, ["/run"])
+            repeated = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="manual_registered", **options)
+            self.assertEqual(repeated["status"], "SKIPPED_OBSERVED_SLOT")
+            self.assertEqual(calls, ["/run"])
+            self.assertEqual(gate.call_count, 1)
+        self.assertEqual(prior_path.read_bytes(), prior_bytes)
+        self.assertEqual(json.loads(Path(passed["receipt_path"]).read_text()), passed)
+
+        # Retained known pending work is reconciled by GET only, not retried.
+        state = json.loads(state_bytes)
+        state["pending"] = {"job_id": "new-job", "due_slot": slot,
+                            "receipt_path": str(prior_path),
+                            "payload_sha256": original["payload_sha256"]}
+        cron.save(state_path, state)
+        with patch.object(cron, "article_release_live") as gate:
+            result = cron.run_action(action, {"mode": "consume"},
+                due_slot=slot, invocation="manual_registered", **options)
+        gate.assert_not_called()
+        self.assertNotIn("retried_no_effect_receipt", result)
+        self.assertEqual(calls, ["/run", "/job/new-job"])
 
     def test_carrier_release_requires_completed_receipt_matching_live_head(self):
         from types import SimpleNamespace

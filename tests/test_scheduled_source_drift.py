@@ -346,7 +346,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = '1af61e20aef908c920fa3f28cd071e9ec2848fe05ef116364232e831bdb48c51'
+    launcher_pin = 'ba31d4048228616b2a87bc4690ad99a28bdf9bc03e09090c3171cf7595974d3d'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
@@ -369,6 +369,20 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
                 payload['sha256'] = budget_pin
                 repinned += 1
     assert repinned == 1
+    # GLP-320: exact isolated TEST entry and repaired native Python payload.
+    sensor = 'ops/hermes-cron-scripts/glp_seo_publish_failure_alert.py'
+    sensor_pin = '09b2eff03246bb74f90b753e25d4a7584a5385a9fad37aecc8747f234f273a7e'
+    assert sha((ROOT/sensor).read_bytes()) == sensor_pin
+    sensor_rows = [row for row in expected['jobs'] if row['id'] == '76de44046a9b']
+    assert len(sensor_rows) == 1 and sensor_rows[0]['payloads'] == []
+    assert sensor_rows[0]['reviewed_sha256'] == 'bc11df966517025e109519d2840ea24ca4eadfdb9f7c5c339ccd455afe6751a2'
+    wrapper_pin = 'd42a5735e4b417437e83b976dbcb8f33cbbf611fb9808c2594e3b7c117189afc'
+    assert sha((ROOT/'ops/hermes-cron-scripts/glp_seo_publish_failure_alert_cron.sh').read_bytes()) == wrapper_pin
+    sensor_rows[0]['reviewed_sha256'] = wrapper_pin
+    sensor_rows[0]['payloads'] = [{
+        'path': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py',
+        'sha256': sensor_pin,
+        'owner': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh'}]
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 

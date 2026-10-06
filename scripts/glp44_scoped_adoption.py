@@ -570,12 +570,12 @@ def _adopt_candidate_in_window(checkout, root, hermes, review, *, scheduler, win
     original = {root / p: value for p, value in before.items()}
     original[root / syncer.STATE] = state
     original[wrapper] = wrapper_before
-    with scheduler._fire_job_lock(JOB) as fenced, scheduler._jobs_file_lock:
+    with scheduler._fire_job_lock(JOB) as fenced:
         if not fenced:
             raise RuntimeError('reporting_fire_fence_unavailable')
-        fd = os.open(scheduler._jobs_lock_file(), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, 'a+') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # The native saver requires its thread-local cross-process lease, not
+        # merely an equivalent manual flock. Refuse degradation before sealing.
+        with scheduler._jobs_lock(require_cross_process=True):
             # Revalidate every source, baseline, wrapper and full job under the lock.
             fresh, _, _, _, _, _ = _plan(checkout, root, hermes, review, window=window, generation=generation, _source_owner=_source_owner)
             if fresh != proposal:

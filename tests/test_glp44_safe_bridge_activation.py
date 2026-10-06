@@ -646,3 +646,362 @@ def test_cutover_orders_exclusion_drain_source_ex_restart_readback():
     assert events.index('source_ex') < events.index('restart') < events.index('VERIFIED')
     assert events.index('restart') < events.index('terminal_http_readback') < events.index('VERIFIED')
     assert events.index('VERIFIED') < events.index('open') < events.index('source_release')
+
+
+def test_registry_generation_admits_only_unchanged_bridge_and_exact_pair(activation, tmp_path, monkeypatch):
+    """Original b02 pin must still refuse the registry-only installed resident."""
+    import hashlib
+    bridge, registry = tmp_path / 'bridge.py', tmp_path / 'actions.json'
+    bridge.write_bytes(b'offline unchanged installed bridge')
+    registry.write_bytes(b'offline accepted old registry')
+    monkeypatch.setattr(activation, 'BRIDGE', bridge)
+    with pytest.raises(activation.Refused, match='approved_bridge_bytes_mismatch'):
+        activation.LinuxHost().source()
+    assert hasattr(activation, 'RegistryHost'), 'missing registry-only receiving generation'
+    assert activation.REGISTRY_BRIDGE_SHA256 == 'a2ef8399f4d14c3d9c14e9691bcd44edab5a8ed50d7761d271ebe6fe88a25b8a'
+    assert activation.REGISTRY_BEFORE == '335c4f0cc2b2933ac6ddda4a3f9eb674e8699a08534a71ea54038ee8ceb401c7'
+    assert activation.REGISTRY_AFTER == '32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47'
+    # Fixture bytes replace only file identities, never production authority.
+    monkeypatch.setattr(activation, 'REGISTRY', registry)
+    monkeypatch.setattr(activation, 'REGISTRY_BRIDGE_SHA256', hashlib.sha256(bridge.read_bytes()).hexdigest())
+    monkeypatch.setattr(activation, 'REGISTRY_BEFORE', hashlib.sha256(registry.read_bytes()).hexdigest())
+    monkeypatch.setattr(activation, 'REGISTRY_AFTER', hashlib.sha256(b'offline accepted new registry').hexdigest())
+    host = activation.RegistryHost()
+    host.source()
+    registry.write_bytes(b'offline accepted new registry')
+    with pytest.raises(activation.Refused, match='registry_generation_mismatch'):
+        host.source()
+    host.imported = True
+    host.source()
+    bridge.write_bytes(b'other bridge')
+    with pytest.raises(activation.Refused, match='unchanged_registry_bridge_mismatch'):
+        host.source()
+    assert activation.APPROVED_BRIDGE_SHA256 == 'b02f156a8d247acc02c61c6dbc24c365ee6b22a9a7afc79646b30c49c897f072'
+
+
+@pytest.mark.parametrize('failure', [None, 'preview', 'apply_uncertain', 'zero_diff',
+                                    'restart_uncertain', 'cached_registration', 'journal_import'])
+def test_registry_handoff_retains_both_locks_and_gate(activation, tmp_path, monkeypatch, failure):
+    assert hasattr(activation.RegistryHost, 'importer'), 'missing supported importer handoff'
+    syncer = load(ROOT / 'scripts/sync_from_repo.py', 'registry_sync_fixture')
+    monkeypatch.setattr(activation, 'BUSINESS', tmp_path)
+    monkeypatch.setattr(activation, 'SOURCE_LOCK', tmp_path / 'source.lock')
+    (tmp_path / 'source.lock').touch()
+    events = []
+    calls = []
+    class Host(activation.RegistryHost):
+        pid = 100
+        closed = False
+        opened = False
+        def source(self): events.append('new_bytes' if self.imported else 'old_bytes')
+        def importer(self): return syncer
+        def scoped_sync(self, apply, adoption):
+            return self.syncer.sync(activation.BUSINESS, self.checkout, apply, adoption,
+                                    (activation.REGISTRY_REL,), _source_owner=self.owner)
+        def validate_checkout(self): events.append('checkout')
+        def identity(self):
+            self.resident_identity = (100, 1000)
+            return self.pid, self.pid * 10
+        def close_ingress(self): self.closed = True
+        def verify_ingress(self): assert self.closed
+        def health(self): return {'status': 'ok', 'jobs_running': 0, 'jobs_queued': 0}
+        def jobs(self): return {}
+        def quiet(self, identity): return True
+        def journal(self, **fields):
+            events.append(fields['phase'])
+            if failure == 'journal_import' and fields['phase'] == 'IMPORTING_REGISTRY':
+                raise OSError('journal')
+        def cached_registration(self):
+            locked()
+            events.append('cache')
+            if failure == 'cached_registration': raise activation.Refused('cache')
+        def open_ingress(self):
+            locked()
+            self.opened = True
+            self.closed = False
+    host = Host()
+    def locked():
+        assert host.closed
+        with pytest.raises(ValueError, match='source_import_busy'):
+            with syncer.source_lock(tmp_path): pass
+        with pytest.raises(BlockingIOError):
+            with activation.LinuxHost().exclusive_source(): pass
+    def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *, _source_owner=None):
+        locked()
+        with syncer.source_session(root, _source_owner): pass
+        calls.append((apply, tuple(adopt_reviewed_baseline), tuple(only)))
+        step = ['preview', 'apply', 'zero_diff'][len(calls) - 1]
+        events.append(step)
+        if failure == step: return 2
+        if failure == 'apply_uncertain' and apply: raise OSError('uncertain import')
+        return 0
+    monkeypatch.setattr(syncer, 'sync', sync)
+    def restart(self):
+        locked()
+        events.append('restart')
+        if failure == 'restart_uncertain': raise activation.Refused('restart')
+        host.pid = 200
+    monkeypatch.setattr(activation.LinuxHost, 'restart', restart)
+    monkeypatch.setattr(activation.LinuxHost, 'readback', lambda *a: events.append('receipts'))
+    if failure:
+        with pytest.raises((activation.Refused, OSError)):
+            activation.activate(host, (100, 1000), timeout=0)
+        assert host.closed and not host.opened
+        assert events.count('restart') <= 1 and sum(c[0] for c in calls) <= 1
+    else:
+        result = activation.activate(host, (100, 1000), timeout=0)
+        assert result['bridge_sha256'] == activation.REGISTRY_BRIDGE_SHA256
+        assert host.opened and calls == [
+            (False, (activation.REGISTRY_REL,), (activation.REGISTRY_REL,)),
+            (True, (activation.REGISTRY_REL,), (activation.REGISTRY_REL,)),
+            (False, (), (activation.REGISTRY_REL,))]
+        assert events.index('IMPORTING_REGISTRY') < events.index('apply') < events.index('restart')
+        assert events.index('receipts') < events.index('cache') < events.index('VERIFIED')
+    # Failure releases process-owned source locks, but NEVER the ingress gate.
+    # No automatic source rollback, retry, receipt deletion or restart loop.
+    with syncer.source_lock(tmp_path): pass
+    with activation.LinuxHost().exclusive_source(): pass
+
+
+@pytest.mark.parametrize('cache', ['new', 'old'])
+def test_registry_cache_probe_hits_real_builder_before_any_job(activation, tmp_path, monkeypatch, cache):
+    assert hasattr(activation.RegistryHost, 'cached_registration'), 'missing genuine cached registration readback'
+    bridge = load(ROOT / 'ops/n8n-bridge/bridge.py', 'registry_builder_fixture')
+    bridge.ACTIONS = json.loads((ROOT / activation.REGISTRY_REL).read_text())
+    if cache == 'old':
+        for mode in ('intake', 'notification-ack'):
+            del bridge.ACTIONS['error_fixer']['value_flags']['mode'][mode]
+    bridge.log = lambda *a: None
+    monkeypatch.setattr(bridge.STORE, 'try_reserve', lambda *a: pytest.fail('probe admitted job'))
+    monkeypatch.setattr(bridge.STORE, 'enqueue', lambda *a: pytest.fail('probe enqueued job'))
+    token = tmp_path / 'token'
+    token.write_text('nonsecret-fixture')
+    token.chmod(0o600)
+    monkeypatch.setattr(activation, 'TOKEN', token)
+    events, responses = [], []
+    class Socket:
+        def settimeout(self, value): pass
+        def setsockopt(self, *args): assert args[-1] == activation.MARK
+        def connect(self, address): assert address == ('127.0.0.1', 8791)
+        def close(self): events.append('socket_closed')
+    class Connection:
+        def __init__(self, *a, **kw): pass
+        def request(self, method, route, body=None, headers=None):
+            assert method == 'POST' and route == '/run'
+            payload = json.loads(body)
+            assert payload == {'action': 'script', 'name': 'error_fixer',
+                               'args': {'mode': '__glp338_registry_readback__'}}
+            handler = object.__new__(bridge.Handler)
+            handler.path = route
+            handler._auth_scope = lambda **kw: bridge.GLOBAL_AUTH_SCOPE
+            handler._read_json = lambda: payload
+            handler._send = lambda status, value, **kw: responses.append((status, value))
+            handler.do_POST()
+        def getresponse(self):
+            from types import SimpleNamespace
+            status, value = responses[-1]
+            return SimpleNamespace(status=status, read=lambda size: json.dumps(value).encode())
+        def close(self): events.append('http_closed')
+    monkeypatch.setattr(activation.socket, 'socket', lambda *a: Socket())
+    monkeypatch.setattr(activation.http.client, 'HTTPConnection', Connection)
+    host = activation.RegistryHost()
+    host.imported = True
+    host.resident_identity = (100, 1000)
+    monkeypatch.setattr(host, 'source', lambda: events.append('startup_binding'))
+    monkeypatch.setattr(host, 'identity', lambda: (200, 2000))
+    monkeypatch.setattr(host, 'verify_ingress', lambda: events.append('gate'))
+    if cache == 'old':
+        with pytest.raises(activation.Refused, match='cached_registry_mismatch'):
+            host.cached_registration()
+    else:
+        host.cached_registration()
+    assert events[0] == 'startup_binding'
+    assert responses[-1][0] == 400
+    assert 'socket_closed' in events and 'http_closed' in events
+
+
+def test_registry_cli_is_explicit_and_never_selects_bridge_upgrade(activation, monkeypatch, capsys):
+    assert 'activate-registry' in (ROOT / 'scripts/glp44_safe_bridge_activation.py').read_text(), 'missing registry CLI'
+    monkeypatch.setattr(activation, 'read_regular', lambda *a: pytest.fail('plan host read'))
+    monkeypatch.setattr(activation.LinuxHost, 'command', lambda *a, **kw: pytest.fail('plan host command'))
+    assert activation.main(['registry-plan']) == 0
+    value = json.loads(capsys.readouterr().out)
+    assert value['bridge_sha256'] == activation.REGISTRY_BRIDGE_SHA256
+    assert value['registry_before'] == activation.REGISTRY_BEFORE
+    assert value['registry_after'] == activation.REGISTRY_AFTER
+    assert value['runtime_authorization'] is False
+    assert activation.main(['activate-registry', '--pid', '100', '--start-ticks', '1000']) == 2
+    assert 'apply_required' in capsys.readouterr().out
+
+
+def test_registry_import_uses_workspace_uid_and_restores_root_on_error(activation, monkeypatch):
+    assert hasattr(activation.RegistryHost, 'scoped_sync'), 'root importer must not create root-owned workspace state'
+    from types import SimpleNamespace
+    privilege = {'uid': 0, 'gid': 0}
+    monkeypatch.setattr(activation.os, 'geteuid', lambda: privilege['uid'])
+    monkeypatch.setattr(activation.os, 'getegid', lambda: privilege['gid'])
+    monkeypatch.setattr(activation.os, 'seteuid', lambda uid: privilege.update(uid=uid))
+    monkeypatch.setattr(activation.os, 'setegid', lambda gid: privilege.update(gid=gid))
+    host = activation.RegistryHost()
+    host.owner = object()
+    calls = []
+    def sync(root, checkout, apply, adoption, only, *, _source_owner):
+        assert privilege == {'uid': 1000, 'gid': 1000}
+        assert only == (activation.REGISTRY_REL,) and _source_owner is host.owner
+        calls.append(apply)
+        raise OSError('ack unknown')
+    host.syncer = SimpleNamespace(sync=sync)
+    with pytest.raises(OSError, match='ack unknown'):
+        host.scoped_sync(True, (activation.REGISTRY_REL,))
+    assert privilege == {'uid': 0, 'gid': 0} and calls == [True]
+
+
+@pytest.mark.parametrize('environment', [b'', b'N8N_BRIDGE_ACTIONS_FILE=/wrong\0',
+    b'N8N_BRIDGE_PORT=9999\0', b'N8N_BRIDGE_ACTIONS_FILE=/wrong\0N8N_BRIDGE_ACTIONS_FILE=/wrong2\0'])
+def test_registry_identity_binds_actual_startup_registry(activation, tmp_path, monkeypatch, environment):
+    proc = tmp_path / 'proc'
+    (proc / '200').mkdir(parents=True)
+    (proc / '200/environ').write_bytes(environment)
+    monkeypatch.setattr(activation, 'PROC', proc)
+    monkeypatch.setattr(activation.LinuxHost, 'identity', lambda self: (200, 2000))
+    host = activation.RegistryHost()
+    if environment:
+        with pytest.raises(activation.Refused, match='registry_startup_environment'):
+            host.identity()
+    else:
+        assert host.identity() == (200, 2000)
+
+
+def test_registry_handoff_real_importer_preserves_unselected_state(activation, tmp_path, monkeypatch):
+    """Actual supported preview/apply/no-adoption check on private Git fixture.
+
+    Only kernel/privilege/process lifecycle are simulated. Git, flock, importer
+    history, atomic file replacement and sync-state preservation are real.
+    """
+    import hashlib
+    import os
+    checkout, root = tmp_path / 'candidate', tmp_path / 'receiving'
+    checkout.mkdir(); root.mkdir()
+    def git(*args, text=False):
+        argv = ['git', '-C', str(checkout), *args]
+        p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env={**os.environ, 'GIT_AUTHOR_NAME': 'Offline fixture',
+                                  'GIT_AUTHOR_EMAIL': 'fixture@example.invalid',
+                                  'GIT_COMMITTER_NAME': 'Offline fixture',
+                                  'GIT_COMMITTER_EMAIL': 'fixture@example.invalid'})
+        out, err = p.communicate(timeout=15)
+        assert p.returncode == 0, err.decode()
+        return out.decode() if text else out
+    git('init', '--quiet')
+    rel = activation.REGISTRY_REL
+    old, new = b'{"fixture":"old"}\n', b'{"fixture":"new"}\n'
+    def manifest(data):
+        (checkout / rel).parent.mkdir(parents=True, exist_ok=True)
+        (checkout / rel).write_bytes(data)
+        (checkout / 'unrelated').write_text('untouched')
+        (checkout / 'ops/rebuild-source-manifest.json').write_text(json.dumps({
+            'schema': 'GLP_BUSINESS_SOURCE_V1', 'tracked_count': 3,
+            'files': {rel: {'sha256': hashlib.sha256(data).hexdigest()},
+                      'unrelated': {'sha256': hashlib.sha256(b'untouched').hexdigest()}}}))
+    manifest(old)
+    git('add', '.'); git('commit', '--quiet', '-m', 'authentic fixture predecessor')
+    manifest(new)
+    git('add', '.'); git('commit', '--quiet', '-m', 'fixture successor')
+    (root / rel).parent.mkdir(parents=True)
+    (root / rel).write_bytes(old)
+    (root / rel).chmod(0o640)
+    (root / 'bridge.py').write_text('unchanged bridge fixture')
+    (root / 'unrelated').write_text('live unrelated bytes')
+    state = root / 'ops/.rebuild-sync-state.json'
+    state.write_text(json.dumps({'schema': 1, 'hashes': {'unrelated': 'retained-baseline'}}))
+    syncer = load(ROOT / 'scripts/sync_from_repo.py', 'registry_real_sync_fixture')
+    def output(argv, **kwargs):
+        assert argv[:3] == ['git', '-C', str(checkout)]
+        return git(*argv[3:], text=kwargs.get('text', False))
+    monkeypatch.setattr(subprocess, 'check_output', output)
+    monkeypatch.setattr(activation, 'BUSINESS', root)
+    monkeypatch.setattr(activation, 'BRIDGE', root / 'bridge.py')
+    monkeypatch.setattr(activation, 'REGISTRY', root / rel)
+    monkeypatch.setattr(activation, 'REGISTRY_BRIDGE_SHA256', hashlib.sha256((root / 'bridge.py').read_bytes()).hexdigest())
+    monkeypatch.setattr(activation, 'REGISTRY_BEFORE', hashlib.sha256(old).hexdigest())
+    monkeypatch.setattr(activation, 'REGISTRY_AFTER', hashlib.sha256(new).hexdigest())
+    monkeypatch.setattr(activation, 'SOURCE_LOCK', root / 'source.lock')
+    (root / 'source.lock').touch()
+    monkeypatch.setattr(activation.os, 'geteuid', lambda: 0)
+    monkeypatch.setattr(activation.os, 'seteuid', lambda uid: None)
+    monkeypatch.setattr(activation.os, 'setegid', lambda gid: None)
+    class Host(activation.RegistryHost):
+        def importer(self): return syncer
+        def validate_checkout(self): pass  # private fixture, not production source acceptance
+        def journal(self, **fields): pass
+        def cached_registration(self): pass  # separately exercised against real builder
+        def identity(self): return self.pid, self.pid * 10
+        def verify_ingress(self): assert self.closed
+        def close_ingress(self): self.closed = True
+        def open_ingress(self): self.closed = False
+        def jobs(self): return {}
+        def health(self): return {'status': 'ok', 'jobs_running': 0, 'jobs_queued': 0}
+        def quiet(self, identity): return True
+    host = Host()
+    host.pid, host.resident_identity = 100, (100, 1000)
+    host.checkout = checkout
+    monkeypatch.setattr(activation.LinuxHost, 'restart', lambda self: setattr(self, 'pid', 200))
+    monkeypatch.setattr(activation.LinuxHost, 'readback', lambda *a: None)
+    result = activation.activate(host, (100, 1000), timeout=0)
+    assert result['new_identity'] == (200, 2000) and not host.closed
+    assert (root / rel).read_bytes() == new
+    assert (root / rel).stat().st_mode & 0o777 == 0o640
+    assert (root / 'unrelated').read_text() == 'live unrelated bytes'
+    assert (root / 'bridge.py').read_text() == 'unchanged bridge fixture'
+    assert json.loads(state.read_text()) == {'schema': 1, 'hashes': {
+        'unrelated': 'retained-baseline', rel: hashlib.sha256(new).hexdigest()}}
+
+
+def test_registry_importer_pin_and_checkout_refuse_drift(activation, tmp_path, monkeypatch):
+    host = activation.RegistryHost()
+    importer = host.importer()
+    assert Path(importer.__file__).resolve() == ROOT / 'scripts/sync_from_repo.py'
+    assert callable(importer.source_lock) and callable(importer.sync)
+    host.checkout = tmp_path
+    (tmp_path / 'scripts').mkdir()
+    (tmp_path / 'scripts/sync_from_repo.py').write_text('raise AssertionError("not accepted")')
+    with pytest.raises(activation.Refused, match='registry_importer_generation_mismatch'):
+        host.importer()
+    host.checkout = ROOT
+    def command(argv, payload=None):
+        if 'status' in argv: return ' M scripts/glp44_safe_bridge_activation.py\n'
+        pytest.fail('dirty checkout must refuse before source reads')
+    monkeypatch.setattr(host, 'command', command)
+    with pytest.raises(activation.Refused, match='registry_checkout_not_clean'):
+        host.validate_checkout()
+
+
+def test_registry_cli_attempt_journal_refuses_second_activation(activation, tmp_path, monkeypatch, capsys):
+    import os
+    import stat
+    control = tmp_path / 'control'
+    control.mkdir(mode=0o700)
+    monkeypatch.setattr(activation, 'CONTROL', control)
+    monkeypatch.setattr(activation.os, 'geteuid', lambda: 0)
+    real_lstat = Path.lstat
+    def lstat(path, *args, **kwargs):
+        value = real_lstat(path, *args, **kwargs)
+        if path == control:
+            row = list(value)
+            row[stat.ST_UID] = 0
+            return os.stat_result(row)
+        return value
+    monkeypatch.setattr(Path, 'lstat', lstat)
+    calls = []
+    def activate(host, identity, timeout):
+        assert isinstance(host, activation.RegistryHost)
+        calls.append(identity)
+        return {'phase': 'OFFLINE_FIXTURE_ONLY'}
+    monkeypatch.setattr(activation, 'activate', activate)
+    args = ['activate-registry', '--apply', '--pid', '100', '--start-ticks', '1000']
+    assert activation.main(args) == 0
+    capsys.readouterr()
+    before = (control / 'activation.jsonl').read_bytes()
+    assert activation.main(args) == 2
+    assert 'FileExistsError' in capsys.readouterr().out and calls == [(100, 1000)]
+    assert (control / 'activation.jsonl').read_bytes() == before

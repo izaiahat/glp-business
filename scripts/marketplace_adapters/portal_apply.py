@@ -40,12 +40,9 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 from pathlib import Path
-from typing import Any, Callable
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
-from urllib.request import Request, urlopen
+from typing import Any
+from urllib.parse import urlsplit
 
 from . import _base as b
 from . import portal_lane as pl
@@ -58,6 +55,9 @@ from scripts.affiliate_contract_policy import (
 from scripts import affiliate_operator_rulings as operator_rulings
 from scripts.affiliate_blocker_completeness import completeness_proof
 from scripts.affiliate_niche_geo_filter import choke_candidate
+from scripts.affiliate_fresh_browser import (
+    TRANSPORT as FRESH_BROWSER_TRANSPORT, fresh_context, login_wall, refuse_persistent,
+)
 from scripts.awin_api_first_application import (
     AuthenticatedAwinCDPAdapter, AwinApiFirstJoin, OfficialAwinReadClient,
 )
@@ -70,7 +70,6 @@ APPLY_ROOT = MACHINE_DIR / "portal-apply"
 AUTHORITY_PATH = BUSINESS / "reports/glp-affiliate-expansion-20260731/02-application-authority.json"
 GATE_SCRIPT = BUSINESS / "scripts/affiliate_application_executor_gate.py"
 KATALYS_ORG = "098e5455-ca72-4099-9ff9-a9dd014148e7"
-KATALYS_CDP = "http://127.0.0.1:9324"
 DECISIONS_CHANNEL = "1524254375453786294"
 
 QUEUED_STATUS = "queued_for_portal_execution"
@@ -94,14 +93,7 @@ AWIN_TERMS_PDF_TOOL = Path("/usr/bin/mutool")
 AWIN_TERMS_PDF_TOOL_SHA256 = "9203440040cc38ee412aeedbfe57f452d6b85709c5b1600ca6ab2aa05478ab73"
 AWIN_TERMS_PDF_MAX_BYTES = 5 * 1024 * 1024
 AWIN_TERMS_TEXT_MAX_BYTES = 1024 * 1024
-AWIN_LOGIN_SECRET = Path("/home/ubuntu/.hermes/secrets/glp-affiliate-portals/ui_login.json")
-AWIN_SHARED_ENV = Path("/home/ubuntu/.hermes/.env")
-AWIN_CDP_ENDPOINT = "http://127.0.0.1:9325"
-AWIN_CDP_PROFILE = "/home/ubuntu/.hermes/browser-profiles/awin-operator"
 AWIN_ACCOUNT_NAME = "Tilton Group"
-AWIN_CAPTCHA_KEY_ENV = (
-    "AWIN_2CAPTCHA_API_KEY", "TWOCAPTCHA_API_KEY", "TWO_CAPTCHA_API_KEY", "CAPTCHA_API_KEY",
-)
 AWIN_PROFILE_TEMPLATE = (
     "https://ui.awin.com/awin/affiliate/2979387/merchant-profile/{program_id}"
 )
@@ -438,44 +430,32 @@ FORM_SCAN_JS = """
 
 
 class PlaywrightApplyDriver(pl.PlaywrightDriver):
-    """`portal_lane.PlaywrightDriver` plus dialog scopes and form introspection.
+    """Legacy compatibility surface; start refuses portal Playwright transport.
 
-    Adds a CDP mode so an already-authenticated browser (the live Katalys
-    session) is REUSED instead of re-logging in — a reused session spends no
-    login attempt, which is exactly what the one-login-per-portal rule wants.
+    Dialog/form helpers remain for older importers, but no persistent or empty
+    Playwright browser is launched. Fresh vault reads use an explicitly injected
+    first-class AI browser driver; this name does not establish access.
     """
 
-    def __init__(self, profile_dir: Path | str = "", *, cdp_url: str = "", **kwargs):
-        super().__init__(Path(profile_dir or "/tmp/portal-apply-unused"), **kwargs)
-        self.cdp_url = cdp_url
+    def __init__(self, profile_dir: Path | str = "", *, fresh: bool = False,
+                 cdp_url: str = "", **kwargs):
+        refuse_persistent(cdp_url)
+        super().__init__(Path(profile_dir or "/home/ubuntu/.hermes/cache/scratch/portal-apply-unused"), **kwargs)
+        self.fresh = fresh
         self._scopes: dict[str, Any] = {}
-        self._browser = None
+        self._fresh_stack: contextlib.ExitStack | None = None
 
     def start(self):
-        if not self.cdp_url:
-            return super().start()
-        from playwright.sync_api import sync_playwright  # noqa: PLC0415 - lazy on purpose
-
-        self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.connect_over_cdp(self.cdp_url)
-        if not self._browser.contexts:
-            raise RuntimeError("cdp_has_no_context")
-        self._ctx = self._browser.contexts[0]
-        self.page = self._ctx.new_page()
-        self.page.set_default_timeout(45000)
-        return self
+        # Empty Playwright contexts are still forbidden affiliate portal access.
+        # Only an injected first-class AI browser can consume a vault login;
+        # starting another browser would lose that login and its ownership proof.
+        from scripts.affiliate_fresh_browser import FreshAIBrowserRequired
+        raise FreshAIBrowserRequired("fresh_ai_browser_vault_stage_required")
 
     def close(self) -> None:
-        if not self.cdp_url:
-            super().close()
-            return
-        # A CDP browser belongs to whoever launched it: close only OUR page.
-        with contextlib.suppress(Exception):
-            if self.page:
-                self.page.close()
-        with contextlib.suppress(Exception):
-            if self._pw:
-                self._pw.stop()
+        # No legacy superclass cleanup: this compatibility driver never starts
+        # a persistent context or listener and must not touch another consumer.
+        return None
 
     # -- scopes --------------------------------------------------------------
     def _scope(self, scope: str = ""):
@@ -587,88 +567,32 @@ class AwinAuthFailure(RuntimeError):
         self.detail = str(detail)
 
 
-class AwinPlaywrightCDPTransport:
-    """Persistent exact-CDP Awin transport with one run-level auth repair."""
+class AwinFreshBrowserTransport:
+    """API-only identity or an injected fresh AI/vault driver (GLP-268).
+
+    API identity creates no browser and grants no portal-write authority. An
+    injected driver consumes an already-owned fresh vault stage; no password,
+    CAPTCHA solver, saved profile or CDP endpoint is accepted here. Legacy
+    shell callers without an API identity stop before portal I/O.
+    """
 
     PROFILE = AWIN_PROFILE_TEMPLATE
     PROGRAMS = "https://ui.awin.com" + AWIN_DIRECTORY_PATH
 
-    def __init__(self, endpoint: str, *, driver: Any | None = None,
-                 captcha_solver: Callable[[dict[str, str]], str] | None = None,
+    def __init__(self, endpoint: str = "", *, driver: Any | None = None,
                  api_identity: dict[str, Any] | None = None):
-        if endpoint != AWIN_CDP_ENDPOINT:
-            raise ValueError("awin_cdp_endpoint_must_be_exact_9325")
-        self.endpoint = endpoint
-        self.driver = driver or PlaywrightApplyDriver(cdp_url=endpoint)
-        self.captcha_solver = captcha_solver or self._solve_captcha_via_2captcha
+        if endpoint:
+            raise AwinAuthFailure("launch_fresh_browser", "persistent_cdp_endpoint_refused")
+        self.endpoint = ""
+        self.driver = driver
         self.api_identity = dict(api_identity or {})
         self._auth_report: dict[str, Any] | None = None
-        if driver is None:
-            try:
-                self.driver.start()
-            except Exception as exc:  # noqa: BLE001 - safe class-only boundary detail
-                raise AwinAuthFailure("attach_persistent_cdp", f"cdp_attach_failed:{type(exc).__name__}") from exc
-
-    @staticmethod
-    def _private_login(path: Path | None = None) -> dict[str, str]:
-        """Load exact shared Awin credentials from a unique owner-only file."""
-        selected = Path(path or AWIN_LOGIN_SECRET)
-        try:
-            named = selected.lstat()
-        except OSError as exc:
-            raise AwinAuthFailure("load_credentials", "credential_file_unavailable") from exc
-        if stat.S_ISLNK(named.st_mode):
-            raise AwinAuthFailure("load_credentials", "credential_file_symlink_rejected")
-        if not stat.S_ISREG(named.st_mode):
-            raise AwinAuthFailure("load_credentials", "credential_file_special_rejected")
-        if named.st_uid != os.getuid():
-            raise AwinAuthFailure("load_credentials", "credential_file_owner_mismatch")
-        if stat.S_IMODE(named.st_mode) != 0o600:
-            raise AwinAuthFailure("load_credentials", "credential_file_mode_not_0600")
-        if named.st_nlink != 1:
-            raise AwinAuthFailure("load_credentials", "credential_file_link_count_not_one")
-        try:
-            fd = os.open(selected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-        except OSError as exc:
-            raise AwinAuthFailure("load_credentials", "credential_file_nofollow_open_failed") from exc
-        try:
-            opened_before = os.fstat(fd)
-            if ((opened_before.st_dev, opened_before.st_ino) != (named.st_dev, named.st_ino)
-                    or opened_before.st_nlink != 1 or not stat.S_ISREG(opened_before.st_mode)
-                    or stat.S_IMODE(opened_before.st_mode) != 0o600):
-                raise AwinAuthFailure("load_credentials", "credential_file_identity_changed")
-            raw = os.read(fd, 65537)
-            opened_after = os.fstat(fd)
-        finally:
-            os.close(fd)
-        if (len(raw) == 0 or len(raw) > 65536
-                or (opened_before.st_dev, opened_before.st_ino, opened_before.st_size,
-                    opened_before.st_mtime_ns, opened_before.st_ctime_ns)
-                != (opened_after.st_dev, opened_after.st_ino, opened_after.st_size,
-                    opened_after.st_mtime_ns, opened_after.st_ctime_ns)
-                or len(raw) != opened_after.st_size):
-            raise AwinAuthFailure("load_credentials", "credential_file_empty_oversize_or_changed")
-
-        def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-            value: dict[str, Any] = {}
-            for key, item in pairs:
-                if key in value:
-                    raise ValueError("duplicate_key")
-                value[key] = item
-            return value
-
-        try:
-            parsed = json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicates)
-        except (UnicodeError, ValueError) as exc:
-            raise AwinAuthFailure("load_credentials", "credential_file_malformed_json") from exc
-        if not isinstance(parsed, dict) or frozenset(parsed) != {"email", "password"}:
-            raise AwinAuthFailure("load_credentials", "credential_file_unexpected_keys")
-        email, password = parsed.get("email"), parsed.get("password")
-        if (not isinstance(email, str) or not email or email != email.strip()
-                or not isinstance(password, str) or not password or not password.strip()
-                or "\x00" in email or "\x00" in password):
-            raise AwinAuthFailure("load_credentials", "credential_file_empty_or_invalid_values")
-        return {"username": email, "password": password}
+        # Official API identity is checked before any portal driver is consulted.
+        # It cannot authorize terms or UI writes (call() still requires a driver).
+        if self.driver is None:
+            self._auth_report = self._api_verified_report(captcha_used=False)
+        if driver is None and self._auth_report is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
 
     @staticmethod
     def _visible(page: Any, selector: str) -> Any | None:
@@ -678,212 +602,6 @@ class AwinPlaywrightCDPTransport:
             if candidate.is_visible():
                 return candidate
         return None
-
-    @staticmethod
-    def _click_login_continue(page: Any, *, failed_step: str) -> None:
-        matches = page.get_by_role("button", name=re.compile(r"continue|sign in|log in", re.I))
-        candidates = []
-        for index in range(matches.count()):
-            candidate = matches.nth(index)
-            if candidate.is_visible() and candidate.is_enabled():
-                candidates.append(candidate)
-        if len(candidates) != 1:
-            raise AwinAuthFailure(failed_step, "exact_enabled_continue_control_required")
-        candidates[0].click()
-
-    @staticmethod
-    def _captcha_challenge(page: Any) -> dict[str, str] | None:
-        """Return one supported public CAPTCHA descriptor; never credential bytes."""
-        script = r"""
-        () => {
-          const visible = node => {
-            const r = node.getBoundingClientRect();
-            const s = getComputedStyle(node);
-            return r.width > 0 && r.height > 0 && s.display !== 'none' && s.visibility !== 'hidden';
-          };
-          const rows = [];
-          for (const node of document.querySelectorAll('[data-sitekey]')) {
-            if (!visible(node)) continue;
-            const cls = `${node.className || ''} ${node.getAttribute('data-callback') || ''}`.toLowerCase();
-            const kind = cls.includes('turnstile') ? 'turnstile' : cls.includes('hcaptcha') ? 'hcaptcha' : 'recaptcha';
-            rows.push({kind, sitekey: node.getAttribute('data-sitekey') || ''});
-          }
-          for (const frame of document.querySelectorAll('iframe[src]')) {
-            if (!visible(frame)) continue;
-            const src = frame.src || '';
-            const match = src.match(/[?&](?:k|sitekey)=([^&]+)/);
-            if (!match) continue;
-            const kind = /turnstile/i.test(src) ? 'turnstile' : /hcaptcha/i.test(src) ? 'hcaptcha' : /recaptcha/i.test(src) ? 'recaptcha' : '';
-            if (kind) rows.push({kind, sitekey: decodeURIComponent(match[1])});
-          }
-          return rows;
-        }
-        """
-        try:
-            rows = [row for row in (page.evaluate(script) or []) if isinstance(row, dict)]
-        except Exception:  # noqa: BLE001 - DOM uncertainty is handled by selector/body checks
-            rows = []
-        unique = {(str(row.get("kind") or ""), str(row.get("sitekey") or "")) for row in rows}
-        unique = {(kind, sitekey) for kind, sitekey in unique
-                  if kind in {"recaptcha", "hcaptcha", "turnstile"} and sitekey}
-        if not unique:
-            return None
-        if len(unique) != 1:
-            raise AwinAuthFailure("detect_captcha", "captcha_challenge_ambiguous")
-        kind, sitekey = next(iter(unique))
-        return {"kind": kind, "sitekey": sitekey, "page_url": str(getattr(page, "url", ""))}
-
-    @staticmethod
-    def _two_captcha_json(url: str, values: dict[str, str]) -> dict[str, Any]:
-        request = Request(url, data=urlencode(values).encode("ascii"), method="POST")
-        try:
-            with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed 2captcha hosts below
-                value = json.loads(response.read(65536))
-        except (OSError, URLError, HTTPError, ValueError) as exc:
-            raise AwinAuthFailure("solve_captcha", f"solver_transport_failed:{type(exc).__name__}") from exc
-        if not isinstance(value, dict):
-            raise AwinAuthFailure("solve_captcha", "solver_response_not_object")
-        return value
-
-    @classmethod
-    def _solve_captcha_via_2captcha(cls, challenge: dict[str, str]) -> str:
-        key = next((str(os.environ.get(name) or "") for name in AWIN_CAPTCHA_KEY_ENV
-                    if str(os.environ.get(name) or "")), "")
-        if not key:
-            key = cls._private_captcha_key()
-        if not key:
-            raise AwinAuthFailure("solve_captcha", "authorized_solver_key_unavailable")
-        method = {"recaptcha": "userrecaptcha", "hcaptcha": "hcaptcha", "turnstile": "turnstile"}[
-            challenge["kind"]]
-        submit = cls._two_captcha_json("https://2captcha.com/in.php", {
-            "key": key, "method": method, "googlekey": challenge["sitekey"],
-            "sitekey": challenge["sitekey"], "pageurl": challenge["page_url"], "json": "1",
-        })
-        if int(submit.get("status") or 0) != 1 or not str(submit.get("request") or ""):
-            raise AwinAuthFailure("solve_captcha", "solver_task_creation_failed")
-        task_id = str(submit["request"])
-        for _ in range(30):
-            time.sleep(5)
-            poll = cls._two_captcha_json("https://2captcha.com/res.php", {
-                "key": key, "action": "get", "id": task_id, "json": "1",
-            })
-            if int(poll.get("status") or 0) == 1 and str(poll.get("request") or ""):
-                return str(poll["request"])
-            if str(poll.get("request") or "") != "CAPCHA_NOT_READY":
-                raise AwinAuthFailure("solve_captcha", "solver_task_failed")
-        raise AwinAuthFailure("solve_captcha", "solver_task_timeout")
-
-    @staticmethod
-    def _private_captcha_key(path: Path | None = None) -> str:
-        """Read one authorized solver key from the owner-only Hermes env file."""
-        selected = Path(path or AWIN_SHARED_ENV)
-        try:
-            named = selected.lstat()
-        except OSError as exc:
-            raise AwinAuthFailure("load_captcha_key", "solver_env_file_unavailable") from exc
-        if (not stat.S_ISREG(named.st_mode) or stat.S_ISLNK(named.st_mode)
-                or named.st_uid != os.getuid() or stat.S_IMODE(named.st_mode) != 0o600
-                or named.st_nlink != 1):
-            raise AwinAuthFailure("load_captcha_key", "solver_env_file_identity_or_mode_rejected")
-        try:
-            fd = os.open(selected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-        except OSError as exc:
-            raise AwinAuthFailure("load_captcha_key", "solver_env_file_nofollow_open_failed") from exc
-        try:
-            before = os.fstat(fd)
-            if ((before.st_dev, before.st_ino) != (named.st_dev, named.st_ino)
-                    or not stat.S_ISREG(before.st_mode) or before.st_nlink != 1
-                    or before.st_uid != os.getuid() or stat.S_IMODE(before.st_mode) != 0o600):
-                raise AwinAuthFailure("load_captcha_key", "solver_env_file_identity_changed")
-            raw = os.read(fd, 1024 * 1024 + 1)
-            after = os.fstat(fd)
-        finally:
-            os.close(fd)
-        if (not raw or len(raw) > 1024 * 1024
-                or len(raw) != after.st_size
-                or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns,
-                    before.st_ctime_ns) != (after.st_dev, after.st_ino, after.st_size,
-                                            after.st_mtime_ns, after.st_ctime_ns)):
-            raise AwinAuthFailure("load_captcha_key", "solver_env_file_empty_oversize_or_changed")
-        try:
-            lines = raw.decode("utf-8").splitlines()
-        except UnicodeError as exc:
-            raise AwinAuthFailure("load_captcha_key", "solver_env_file_not_utf8") from exc
-        values: list[str] = []
-        for raw_line in lines:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            if line.startswith("export "):
-                line = line[7:].lstrip()
-            name, value = line.split("=", 1)
-            if name.strip() not in AWIN_CAPTCHA_KEY_ENV:
-                continue
-            value = value.strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-                value = value[1:-1]
-            values.append(value)
-        if len(values) != 1:
-            raise AwinAuthFailure("load_captcha_key", "exactly_one_solver_key_required")
-        key = values[0]
-        if (not key or key != key.strip() or len(key) > 512
-                or any(char in key for char in "\x00\r\n")):
-            raise AwinAuthFailure("load_captcha_key", "solver_key_shape_invalid")
-        return key
-
-    @staticmethod
-    def _inject_captcha_token(page: Any, challenge: dict[str, str], token: str) -> None:
-        if not token or len(token) > 16384:
-            raise AwinAuthFailure("inject_captcha", "solver_token_shape_invalid")
-        script = r"""
-        ({kind, token}) => {
-          const names = kind === 'turnstile'
-            ? ['cf-turnstile-response'] : kind === 'hcaptcha'
-            ? ['h-captcha-response'] : ['g-recaptcha-response'];
-          let touched = 0;
-          for (const name of names) {
-            for (const node of document.querySelectorAll(`textarea[name="${name}"], input[name="${name}"]`)) {
-              const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(node), 'value')?.set;
-              if (setter) setter.call(node, token); else node.value = token;
-              node.dispatchEvent(new Event('input', {bubbles: true}));
-              node.dispatchEvent(new Event('change', {bubbles: true}));
-              touched += 1;
-            }
-          }
-          const widgets = document.querySelectorAll('[data-sitekey][data-callback]');
-          for (const widget of widgets) {
-            const callback = widget.getAttribute('data-callback');
-            if (callback && typeof window[callback] === 'function') {
-              window[callback](token); touched += 1;
-            }
-          }
-          return touched > 0;
-        }
-        """
-        try:
-            injected = page.evaluate(script, {"kind": challenge["kind"], "token": token})
-        except Exception as exc:  # noqa: BLE001
-            raise AwinAuthFailure("inject_captcha", f"captcha_injection_failed:{type(exc).__name__}") from exc
-        if injected is not True:
-            raise AwinAuthFailure("inject_captcha", "captcha_response_control_not_found")
-
-    def _resolve_captcha_if_present(self, page: Any) -> bool:
-        challenge = self._captcha_challenge(page)
-        body = compact(self.driver.body_text(), 4000)
-        textual = bool(re.search(r"captcha|verify you are human|security check", body, re.I))
-        if challenge is None:
-            if textual:
-                raise AwinAuthFailure("detect_captcha", "unsupported_or_unobservable_captcha")
-            return False
-        try:
-            token = self.captcha_solver(challenge)
-        except AwinAuthFailure:
-            raise
-        except Exception as exc:  # noqa: BLE001 - provider seam details stay class-only
-            raise AwinAuthFailure("solve_captcha", f"captcha_solver_failed:{type(exc).__name__}") from exc
-        self._inject_captcha_token(page, challenge, str(token or ""))
-        self.driver.wait(900)
-        return True
 
     def _api_verified_report(self, *, captcha_used: bool) -> dict[str, Any] | None:
         """Exact official identity for read-only fallback; never UI-write authority."""
@@ -898,29 +616,38 @@ class AwinPlaywrightCDPTransport:
             "status": "API_VERIFIED", "reauthenticated": False,
             "publisher_id": api_id, "publisher_title": api_name,
             "account_name": api_name, "cdp_endpoint": self.endpoint,
-            "profile": AWIN_CDP_PROFILE, "captcha_used": bool(captcha_used),
+            "profile": "", "browser": "not_used" if self.driver is None else FRESH_BROWSER_TRANSPORT,
+            "captcha_used": bool(captcha_used),
             "identity_source": "api",
         }
         return dict(self._auth_report)
 
     def _ensure_authenticated_session(self) -> dict[str, Any]:
-        """Repair one lapsed session, then prove exact publisher id/title."""
+        """Prove exact publisher id/title in the UI, else fall back to the API."""
         auth_report = getattr(self, "_auth_report", None)
         if auth_report is not None:
             return dict(auth_report)
+        if self.driver is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
         page = self.driver.page
+        navigation_failure = ""
         try:
             self.driver.goto(self.PROGRAMS)
             self.driver.wait(1200)
         except Exception as exc:  # noqa: BLE001
-            raise AwinAuthFailure("navigate_publisher_directory", f"navigation_failed:{type(exc).__name__}") from exc
+            navigation_failure = type(exc).__name__
+        if navigation_failure:
+            # Leave the handler before raising: neither the raw cause nor its
+            # implicit context may enter a public authentication traceback.
+            raise AwinAuthFailure("navigate_publisher_directory", f"navigation_failed:{navigation_failure}")
         observed = self._identity_observation([page])
         if observed is not None and observed.get("authenticated") is True:
             self._auth_report = {
                 "status": "HEALTHY", "reauthenticated": False,
                 "publisher_id": AWIN_PUBLISHER_ID, "publisher_title": str(observed.get("title") or ""),
                 "account_name": AWIN_ACCOUNT_NAME, "cdp_endpoint": self.endpoint,
-                "profile": AWIN_CDP_PROFILE, "captcha_used": False, "identity_source": "ui",
+                "profile": "", "browser": FRESH_BROWSER_TRANSPORT,
+                "captcha_used": False, "identity_source": "ui",
             }
             return dict(self._auth_report)
         route = _awin_identity_route(self.driver.current_url())
@@ -934,54 +661,22 @@ class AwinPlaywrightCDPTransport:
         password = self._visible(page, "input[type='password'], input[autocomplete='current-password']")
         if email is None and password is None:
             raise AwinAuthFailure("locate_login_email", "exact_visible_email_selector_required")
-        login = self._private_login()
-        captcha_used = False
-        if email is not None:
-            email.fill(login["username"])
-            captcha_used = self._resolve_captcha_if_present(page) or captcha_used
-            self._click_login_continue(page, failed_step="submit_login_email")
-            self.driver.wait(1200)
-        password = self._visible(page, "input[type='password'], input[autocomplete='current-password']")
-        if password is None:
-            api_report = self._api_verified_report(captcha_used=captcha_used)
-            if api_report is not None:
-                return api_report
-            raise AwinAuthFailure("locate_login_password", "exact_visible_password_selector_required")
-        password.fill(login["password"])
-        captcha_used = self._resolve_captcha_if_present(page) or captcha_used
-        self._click_login_continue(page, failed_step="submit_login_password")
-        self.driver.wait(2500)
-        if self._visible(page, "input[autocomplete='one-time-code'], input[name='code'], input[inputmode='numeric']"):
-            raise AwinAuthFailure("reject_unexpected_2fa", "awin_2fa_is_off_but_challenge_appeared")
-        captcha_used = self._resolve_captcha_if_present(page) or captcha_used
-        try:
-            self.driver.goto(self.PROGRAMS)
-            self.driver.wait(1200)
-        except Exception as exc:  # noqa: BLE001
-            raise AwinAuthFailure("verify_publisher_identity", f"post_login_navigation_failed:{type(exc).__name__}") from exc
-        observed = self._identity_observation([page])
-        if observed is None or observed.get("authenticated") is not True:
-            route = _awin_identity_route(self.driver.current_url())
-            api_report = self._api_verified_report(captcha_used=captcha_used)
-            if api_report is not None:
-                return api_report
-            detail = ("publisher_id_mismatch" if route.get("publisher_scoped")
-                      and str(route.get("publisher_id") or "") != AWIN_PUBLISHER_ID
-                      else "exact_publisher_title_or_id_not_verified")
-            raise AwinAuthFailure("verify_publisher_identity", detail)
-        self._auth_report = {
-            "status": "REPAIRED", "reauthenticated": True,
-            "publisher_id": AWIN_PUBLISHER_ID, "publisher_title": str(observed.get("title") or ""),
-            "account_name": AWIN_ACCOUNT_NAME, "cdp_endpoint": self.endpoint,
-            "profile": AWIN_CDP_PROFILE, "captcha_used": captcha_used, "identity_source": "ui",
-        }
-        return dict(self._auth_report)
+        # GLP-268: the fresh browser is never signed in from a credential file
+        # or a paid CAPTCHA solver. Login belongs to the origin-bound vault stage
+        # (scripts/glp_awin_portal_login.py) in an AI-browser session; here the
+        # verified official API identity is the read-only result, never UI-write
+        # authority, and without it the lane stops for that vault stage.
+        api_report = self._api_verified_report(captcha_used=False)
+        if api_report is not None:
+            return api_report
+        raise AwinAuthFailure("vault_login_required", "fresh_vault_login_stage_not_integrated")
 
     def authenticate_and_verify(self) -> dict[str, Any]:
         return self._ensure_authenticated_session()
 
     def close(self) -> None:
-        self.driver.close()
+        if self.driver is not None:
+            self.driver.close()
 
     @staticmethod
     def failure_payload(exc: AwinAuthFailure) -> dict[str, str]:
@@ -1091,7 +786,7 @@ class AwinPlaywrightCDPTransport:
                 return {"authenticated": False, "publisher_id": "", "account_id": "",
                         "title": "", "website": "", "website_evidence": []}
             observations.append((str(classified["publisher_id"]), title,
-                                 AwinPlaywrightCDPTransport._observed_website(page)))
+                                 AwinFreshBrowserTransport._observed_website(page)))
         observed_ids = {value[0] for value in observations}
         observed_websites = {
             str(value[2].get("website") or "") for value in observations
@@ -1112,6 +807,8 @@ class AwinPlaywrightCDPTransport:
 
     def call(self, action: str, payload: dict[str, Any]) -> dict[str, Any]:
         program_id = str(payload.get("program_id") or "")
+        if action != "verify_identity" and self.driver is None:
+            raise AwinAuthFailure("vault_login_required", "fresh_ai_browser_vault_stage_required")
         if action == "verify_identity":
             # Real transports are constructed through __init__ and carry the
             # run-start auth sentinel. Provider-free legacy identity fixtures
@@ -1264,6 +961,10 @@ class AwinPlaywrightCDPTransport:
                     "prepared_message_sha256": message_sha,
                     "row_authority_sha256": row_sha}
         raise ValueError(f"unsupported_awin_cdp_action:{action}")
+
+
+# Former name kept for existing importers; it no longer attaches to 9325.
+AwinPlaywrightCDPTransport = AwinFreshBrowserTransport
 
 
 # ---------------------------------------------------------------------- gate
@@ -1447,8 +1148,10 @@ class KatalysApplicationExecutor(ApplicationExecutor):
 
     Apply To Program -> traffic-source dialog -> legal confirmation (two
     checkboxes + publisher message) -> Apply Now, then a fresh reload to VERIFY
-    the relationship actually changed. Runs on the already-authenticated CDP
-    browser, so it spends no login attempt.
+    the relationship actually changed. Runs in a fresh per-job browser
+    (GLP-268); Katalys has no application API, and until a vault login stage
+    signs that browser in, the profile read blocks as a login wall instead of
+    riding the old 127.0.0.1:9324 session.
     """
 
     network = "katalys"
@@ -1457,12 +1160,8 @@ class KatalysApplicationExecutor(ApplicationExecutor):
     PRIMARY_LABELS = ("Apply To Program", "Join Program")
     EXISTING_LABELS = ("Manage", "Leave Program")
 
-    def __init__(self, *, cdp_url: str = KATALYS_CDP, **kwargs):
-        super().__init__(**kwargs)
-        self.cdp_url = cdp_url
-
     def make_driver(self):  # pragma: no cover - provider construction
-        return PlaywrightApplyDriver(cdp_url=self.cdp_url)
+        return PlaywrightApplyDriver(fresh=True)
 
     def program_url(self, program_id: str) -> str:
         return f"https://app.katalys.com/pub/{KATALYS_ORG}/explore/{program_id}"
@@ -1473,8 +1172,8 @@ class KatalysApplicationExecutor(ApplicationExecutor):
         response = driver.goto(url)
         driver.wait(3000)
         text = compact(driver.body_text())
-        if pl._host(driver.current_url()) != "app.katalys.com":
-            return {"status": "BLOCKED", "blocker": "katalys_session_lost_or_redirected"}
+        if login_wall(driver.current_url(), "app.katalys.com"):
+            return {"status": "BLOCKED", "blocker": "katalys_fresh_login_required"}
         if response.get("http_status") not in (None, 200):
             return {"status": "BLOCKED", "blocker": f"profile_http_{response.get('http_status')}"}
         if f"Program ID: {row['program_id']}" not in text:
@@ -3483,11 +3182,13 @@ def bind_exact_awin_ready_rows(rows: list[dict[str, Any]], authority: dict[str, 
     have exactly one current row with the same immutable identity; all other Awin
     rows are excluded before an effectful executor is constructed.
     """
+    # `cdp_port` is a field of the reviewed parent manifest and stays bound
+    # exactly; since GLP-268 it no longer selects or attaches to any browser.
     if (str(authority.get("publisher_id") or "") != AWIN_PUBLISHER_ID
             or str(authority.get("account_name") or "") != "Tilton Group"
             or str(authority.get("site") or "") != "https://glpclinicscout.com"
             or int(authority.get("cdp_port") or 0) != 9325
-            or AwinPlaywrightCDPTransport.PROFILE != AWIN_PROFILE_TEMPLATE):
+            or AwinFreshBrowserTransport.PROFILE != AWIN_PROFILE_TEMPLATE):
         raise ValueError("awin_parent_publisher_or_profile_authority_mismatch")
     ready = tuple(str(value) for value in authority.get("ready_awin_program_ids") or ())
     bindings = authority.get("row_bindings") or {}
@@ -3679,7 +3380,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="reviewed repaired exact-11 manifest; required for any Awin execution authority")
     parser.add_argument("--awin-token-fd", type=int, default=-1,
                         help="already-open fd containing the Awin token; execute mode only")
-    parser.add_argument("--awin-cdp-endpoint", default=AWIN_CDP_ENDPOINT)
+    parser.add_argument("--awin-cdp-endpoint", default="",
+                        help="retired (GLP-268): any value is refused; a fresh browser is used per job")
     parser.add_argument("--awin-auth-preflight-only", action="store_true",
                         help="verify exact Awin identity via UI or official GET /accounts; no rows")
     parser.add_argument("--json", action="store_true")
@@ -3697,12 +3399,12 @@ def main(argv: list[str] | None = None) -> int:
                 args.awin_token_fd, argv=sys.argv[1:] if argv is None else argv)
             api_identity = OfficialAwinReadClient(token, AWIN_PUBLISHER_ID).verify_account()
             token = ""
-            transport = AwinPlaywrightCDPTransport(
+            transport = AwinFreshBrowserTransport(
                 args.awin_cdp_endpoint, api_identity=api_identity)
             report = transport.authenticate_and_verify()
         except AwinAuthFailure as exc:
             print("AWIN_AUTH_FAILURE_V1 " + json.dumps(
-                AwinPlaywrightCDPTransport.failure_payload(exc),
+                AwinFreshBrowserTransport.failure_payload(exc),
                 sort_keys=True, separators=(",", ":")), file=sys.stderr)
             return 78
         finally:
@@ -3778,14 +3480,16 @@ def main(argv: list[str] | None = None) -> int:
                     args.awin_token_fd, argv=sys.argv[1:] if argv is None else argv)
                 ledger_binding.assert_current("before_cdp_transport_construction")
                 try:
-                    cdp_transport = AwinPlaywrightCDPTransport(args.awin_cdp_endpoint)
+                    # API first; the fresh per-job browser launches only after
+                    # the official account identity has been read.
                     api = OfficialAwinReadClient(token, authority["publisher_id"])
                     api_identity = api.verify_account()
-                    cdp_transport.api_identity = dict(api_identity)
+                    cdp_transport = AwinFreshBrowserTransport(
+                        args.awin_cdp_endpoint, api_identity=api_identity)
                     auth_preflight = cdp_transport.authenticate_and_verify()
                 except AwinAuthFailure as exc:
                     print("AWIN_AUTH_FAILURE_V1 " + json.dumps(
-                        AwinPlaywrightCDPTransport.failure_payload(exc),
+                        AwinFreshBrowserTransport.failure_payload(exc),
                         sort_keys=True, separators=(",", ":")), file=sys.stderr)
                     return 78
                 ledger_binding.assert_current("before_authenticated_adapter_construction")

@@ -25,6 +25,141 @@ NEW_ID = "11111111-1111-4111-8111-111111111111"
 
 
 class CurrentReleaseTests(unittest.TestCase):
+    def d1_fixture(self):
+        """Synthetic native predecessor and successor; never production evidence."""
+        self.prepare(); self.approve_fixture()
+        self.assertEqual(self.publish(), 0, self.last)
+        terminal_path = Path(self.last["receipt"])
+        prior = self.prepared
+        raw_pointer = self.pointer.read_bytes()
+        routes = self.prepared_data["compiled"]["routes"]
+        shape = [[r["route"], r["mount"], r["method"], bool(r["middlewares"]), bool(r["modules"])] for r in routes]
+        self.prepared = self.root / "d1-prepared"
+        self.fixture_base = NEW_ID
+        self.fixture_next = "22222222-2222-4222-8222-222222222222"
+        self.deployments = [copy.deepcopy(self.current)]
+        self.calls.clear(); self.deploy_calls.clear(); self.builds.clear()
+        extra = self.source / "functions/api/postback/xentraffic.js"
+        extra.parent.mkdir(parents=True)
+        extra.write_text("// synthetic held receiver; not deployed\n")
+        self.git("add", ".")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "synthetic D1")
+        self.head = self.git("rev-parse", "HEAD").strip()
+        self.tree = self.git("rev-parse", "HEAD^{tree}").strip()
+        rows = [[f, c.sha_file(self.source / f)] for f in self.git("ls-files").strip().splitlines()]
+        self.gate_data.update(head=self.head, built_source_sha256=c.sha_bytes(json.dumps(rows, separators=(",", ":")).encode()))
+        self.gate.write_bytes(c.json_bytes(self.gate_data))
+        manifest = json.loads((self.package / "PACKAGE-MANIFEST.json").read_bytes())
+        manifest.update(site_head=self.head, rollback_deployment_id=self.fixture_base,
+                        build_receipt={"sha256": c.sha_file(self.gate)})
+        (self.package / "PACKAGE-MANIFEST.json").write_bytes(c.json_bytes(manifest))
+        fixture = {"head": self.head, "git_tree": self.tree, "gate_sha256": c.sha_file(self.gate),
+                   "package_sha256": c.sha_file(self.package / "PACKAGE-MANIFEST.json"),
+                   "built_source_sha256": self.gate_data["built_source_sha256"], "rollback": self.fixture_base,
+                   "pointer_sha256": c.sha_bytes(raw_pointer), "terminal_sha256": c.sha_file(terminal_path),
+                   "predecessor_prepared_sha256": c.sha_file(prior / "PREPARED.json"),
+                   "route_shape_sha256": c.sha_bytes(json.dumps(shape, separators=(",", ":")).encode()),
+                   "runtime": {name: c.file_closure(self.source / name) for name in ("functions", "src", "data")}}
+        self.stack.enter_context(mock.patch.object(c, "CURRENT_D1", fixture, create=True))
+        return prior, terminal_path, routes
+
+    def test_d1_current_predecessor_prepare_publish_exact_binding(self):
+        self.d1_fixture()
+        historical = c.CURRENT_ROLLBACK
+        self.prepare()
+        self.assertEqual(self.prepared_data["rollback_deployment_id"], self.fixture_base)
+        self.assertEqual(self.prepared_data["build_receipt"]["schema"], "glp-d1-release-result-v1")
+        self.approve_fixture()
+        # An otherwise valid independent fixture review of the old base refuses.
+        self.review["subject"]["rollback_deployment_id"] = historical
+        self.save_review()
+        self.assertEqual(self.publish(), 1)
+        self.assertEqual(self.last["error"], "current_approval_subject_mismatch")
+        self.assertEqual(self.deploy_calls, [])
+        self.review["subject"]["rollback_deployment_id"] = self.fixture_base
+        self.save_review()
+        self.assertEqual(self.publish(), 0, self.last)
+        receipt = json.loads(Path(self.last["receipt"]).read_bytes())
+        self.assertEqual(receipt["rollback_deployment_id"], self.fixture_base)
+        self.assertEqual(receipt["stages"]["pages_deploy_intent"]["predecessor_id"], self.fixture_base)
+        self.assertEqual(json.loads(self.pointer.read_bytes())["supersedes"]["deployment_id"], self.fixture_base)
+        self.assertEqual(c.CURRENT_ROLLBACK, historical)
+        self.assertEqual(self.publish(), 1)
+        self.assertEqual(len(self.deploy_calls), 1)
+
+    def test_d1_current_predecessor_refuses_wrong_pointer_terminal_and_package(self):
+        prior, terminal_path, _ = self.d1_fixture()
+        self.assertEqual(c.current_pointer(self.fixture_base)["deployment_id"], self.fixture_base)
+        before = len(self.calls)
+        with mock.patch.object(c, "read_token", side_effect=AssertionError("no credentials")):
+            for path in (self.pointer, terminal_path, prior / "PREPARED.json", prior / "release/src/worker.mjs",
+                         prior / "release/public/index.html", prior / "gate.json"):
+                raw = path.read_bytes()
+                mode = path.stat().st_mode & 0o777
+                try:
+                    path.chmod(0o600)  # Temporary synthetic evidence only.
+                    path.write_bytes(raw + b" ")
+                    with self.subTest(path=path), self.assertRaises(c.GateError):
+                        c.current_pointer(self.fixture_base)
+                finally:
+                    path.write_bytes(raw)
+                    path.chmod(mode)
+            for key in ("site-head", "expected-build-receipt-sha256", "expected-package-manifest-sha256"):
+                args = self.prep_args()
+                args[key] = "0" * (40 if key == "site-head" else 64)
+                self.assertEqual(self.cli("--prepare-current", args), 1)
+            manifest_path = self.package / "PACKAGE-MANIFEST.json"
+            manifest = json.loads(manifest_path.read_bytes())
+            manifest["rollback_deployment_id"] = c.CURRENT_ROLLBACK
+            manifest_path.write_bytes(c.json_bytes(manifest))
+            self.assertEqual(self.cli("--prepare-current", self.prep_args()), 1)
+        self.assertFalse(self.prepared.exists())
+        self.assertEqual(len(self.calls), before)
+
+    def test_d1_current_runtime_and_route_closure_rejects_unknowns(self):
+        _, _, routes = self.d1_fixture()
+        value = c.current_source(self.source, self.head, self.tree, self.gate_data)
+        self.assertEqual(value["runtime"], c.CURRENT_D1["runtime"])
+        c.current_d1_routes(routes)
+        for name in ("functions/unknown.js", "src/unknown.mjs", "data/unknown.json"):
+            path = self.source / name
+            path.write_text("unlisted")
+            with self.subTest(name=name), self.assertRaisesRegex(c.GateError, "current_untracked_runtime_source"):
+                c.current_source(self.source, self.head, self.tree, self.gate_data)
+            path.unlink()
+        # Even a caller-rehashed gate cannot adopt changed tracked source.
+        for name in ("functions/api/postback/xentraffic.js", "src/worker.mjs", "data/holds.json"):
+            path = self.source / name
+            raw = path.read_bytes()
+            path.write_bytes(raw + b"\n")
+            gate = copy.deepcopy(self.gate_data)
+            rows = [[f, c.sha_file(self.source / f)] for f in self.git("ls-files").strip().splitlines()]
+            gate.update(built_source_sha256=c.sha_bytes(json.dumps(rows, separators=(",", ":")).encode()),
+                        generated_diff_sha256=c.sha_bytes(c.current_git(self.source, "diff", "--no-ext-diff", "--binary")),
+                        generated_diff_paths=[name])
+            with self.subTest(name=name), self.assertRaisesRegex(c.GateError, "current_d1_runtime_closure_drift"):
+                c.current_source(self.source, self.head, self.tree, gate)
+            path.write_bytes(raw)
+        with self.assertRaisesRegex(c.GateError, "current_d1_runtime_closure_drift"):
+            c.current_source(self.source, self.head, self.tree, {**self.gate_data, "head": "0" * 40})
+        with mock.patch.dict(c.CURRENT_D1, {"head": "0" * 40}), self.assertRaisesRegex(c.GateError, "current_functions_inventory_drift"):
+            c.current_source(self.source, self.head, self.tree, self.gate_data)
+        for bad in (routes[:-1], routes + [routes[0]], [{**routes[0], "method": "DELETE"}, *routes[1:]]):
+            with self.assertRaisesRegex(c.GateError, "current_d1_compiled_route_closure_drift"):
+                c.current_d1_routes(bad)
+
+    def test_d1_current_rollback_uses_authenticated_base_once(self):
+        self.d1_fixture(); self.prepare(); self.approve_fixture()
+        before = self.pointer.read_bytes()
+        self.readback_fail = True
+        self.assertEqual(self.publish(), 1)
+        self.assertEqual(self.current["id"], self.fixture_base)
+        self.assertEqual(self.pointer.read_bytes(), before)
+        self.assertEqual(self.rollbacks, ["/deployments/" + self.fixture_base + "/rollback"])
+        self.assertEqual(self.publish(), 1)
+        self.assertEqual(len(self.rollbacks), 1)
+        self.assertEqual(len(self.deploy_calls), 1)
+
     def test_f06_distributed_receipt_preserves_scope_and_authenticates_leaves(self):
         # Explicit synthetic fixtures: never approval or actual execution evidence.
         rows = self.gate_data["output_before"]["files"]
@@ -188,7 +323,7 @@ class CurrentReleaseTests(unittest.TestCase):
         self.deploy_calls.append(c.file_closure(Path(command[4])))
         self.assertEqual(self.deploy_calls[-1], self.prepared_data["deploy_directory"])
         if self.cli_mode != "unsettled":
-            self.current = self.deployment(NEW_ID, self.head)
+            self.current = self.deployment(getattr(self, "fixture_next", NEW_ID), self.head)
             self.deployments.append(copy.deepcopy(self.current))
         if self.cli_mode != "land":
             raise subprocess.TimeoutExpired(command, 1800)
@@ -204,7 +339,7 @@ class CurrentReleaseTests(unittest.TestCase):
         if request.full_url.startswith(prefix):
             suffix = request.full_url[len(prefix):]
             if request.get_method() == "POST":
-                self.assertEqual(suffix, "/deployments/" + c.CURRENT_ROLLBACK + "/rollback")
+                self.assertEqual(suffix, "/deployments/" + getattr(self, "fixture_base", c.CURRENT_ROLLBACK) + "/rollback")
                 self.rollbacks.append(suffix)
                 self.current = copy.deepcopy(self.deployments[0])
                 body = {"success": True, "result": self.current}
@@ -219,7 +354,7 @@ class CurrentReleaseTests(unittest.TestCase):
                     body = {"success": True, "result": self.deployments,
                             "result_info": {"page": 1, "total_pages": 1, "total_count": len(self.deployments)}}
                 else:
-                    self.assertEqual(suffix, "/deployments/" + c.CURRENT_ROLLBACK)
+                    self.assertEqual(suffix, "/deployments/" + getattr(self, "fixture_base", c.CURRENT_ROLLBACK))
                     body = {"success": True, "result": self.deployments[0]}
             response.read.return_value = c.json_bytes(body)
         else:
@@ -366,7 +501,7 @@ class CurrentReleaseTests(unittest.TestCase):
                        "subject": {"repository": c.CURRENT_REPOSITORY, "head": self.head, "git_tree": self.tree,
                                    "public_tree_sha256": p["public_tree_sha256"], "package_manifest_sha256": p["package_manifest_sha256"],
                                    "project": c.PROJECT, "rollback_branch": "main", "rollback_environment": "production",
-                                   "rollback_deployment_id": c.CURRENT_ROLLBACK,
+                                   "rollback_deployment_id": p["rollback_deployment_id"],
                                    "prepared_manifest_sha256": c.sha_file(self.prepared / "PREPARED.json"),
                                    "deploy_directory_sha256": p["deploy_directory"]["tree_sha256"],
                                    "compiled_worker_sha256": p["compiled"]["worker_sha256"]},

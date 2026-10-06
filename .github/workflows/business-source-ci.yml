@@ -32,6 +32,12 @@ jobs:
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
           persist-credentials: false
+      - name: Hermes active-work gate (offline proc/tmux fixtures, exact head; no activation)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_hermes_active_work_gate.py -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
@@ -45,6 +51,13 @@ jobs:
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp337_shared_bridge_migration.py tests/test_glp337_shared_bridge_generation.py tests/test_glp44_reader_exclusion.py
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_host_transport.py
+      - name: GLP338 durable error intake action contract (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py::CronBridgeTests tests/test_glp44_bridge_source_admission.py tests/test_glp44_bridge_fence_successor.py
       - name: GLP330 retained discovery migration (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -128,13 +141,15 @@ jobs:
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_host_custody.py
       - name: GLP334 fresh receiver and retained network input contracts (offline)
         run: .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp334_live_reconciliation.py
-      - name: GLP-320 current terminal carrier release regression (offline)
+      - name: GLP-320 portable cron runner test group (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           PYTHONPATH: systems/analytics-brain:scripts:.
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py -k 'carrier_current_terminal_base_supersedes_canceled_legacy_tracker or carrier_release_requires_completed_receipt_matching_live_head or carrier_cron_declines_before_glp40_release_without_bridge_post'
+          # DecisionsGraphTests requires the uncurated host-only action_items module.
+          # Run the complete portable runner class, including every carrier test.
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_cron_bridge_action.py::CronBridgeTests
       - name: Curated business control tests
         run: PATH="$PWD/.venv/bin:$PATH" bash scripts/run_tests.sh
       - name: GLP44 sealed commercial obligations (offline, exact head)
@@ -163,3 +178,9 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp73_retention_prepared_consumer.py
+      - name: GLP-268 fresh per-job browser for affiliate callers (offline fakes; no browser launch)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp268_fresh_browser_callers.py

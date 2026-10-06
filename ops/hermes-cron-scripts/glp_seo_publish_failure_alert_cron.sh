@@ -6,7 +6,19 @@ CRON_DISCORD_OUTPUT_DECLARATION_V1={"short_name":"SEO Publish Alert","output_cla
 CRON_DECLARATION
 set -uo pipefail
 umask 077
-out="$(python3 /home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py 2>&1)" || { printf '%s\n' "$out"; exit 1; }
+out="$(python3 /home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert.py 2>&1)" || {
+  if [[ -v GLP320_FAILURE_SENSOR_TEST ]]; then printf 'TEST — GLP320 REFUSED (inspect report inputs/state; no replay)\n' >&2
+  else printf '%s\n' "$out"; fi
+  exit 1
+}
+if [[ -v GLP320_FAILURE_SENSOR_TEST ]]; then
+  case "$out" in
+    'TEST — GLP320 failure-sensor acceptance:'*) printf '%s\n' "$out" ;;
+    '') ;;
+    *) printf 'TEST — GLP320 REFUSED: non-TEST payload output\n' >&2; exit 1 ;;
+  esac
+  exit 0
+fi
 case "$out" in
   ALERTED*)
     st="${out#ALERTED: carrier=}"; st="${st%%,*}"
