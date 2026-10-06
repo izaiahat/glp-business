@@ -65,6 +65,158 @@ Offline acceptance: `tests/test_rook_communication.py::TestResearchCommunication
 CI already runs this file, plus the Rook/receiver regressions. Synthetic credentials/transport only;
 passing tests do not prove live login, provisioning, OAuth compatibility or the round trip.
 
+## Finch receiving confinement proposal (source only, adoption held)
+
+The observed receiving adapter ran as UID/GID 1000 with `NoNewPrivs: 0`, no
+seccomp filter, an unconfined AppArmor label, and access to a user account with
+passwordless sudo. Non-root ownership alone therefore did not establish the
+PR237 requirement that the adapter cannot publish privileged review records.
+The follow-up source adds a proposed receiving boundary without changing
+authentication, identity, token ownership or the existing private SQLite.
+
+Maintained proposal files:
+
+- `ops/rook-mcp/finch_adapter_launch.py`, based on the exact 5,871-byte host
+  launcher SHA256 `ec64deecf03affc6c86d59184ea24c72687a74f6c098e3d07c9d4db9d6642a72`
+- `ops/rook-mcp/finch-mcp-receiving-v1.apparmor`, a complete named profile with no
+  external include expansion
+- `ops/rook-mcp/finch-mcp-adapter.system.service`, a proposed system-managed
+  service using the existing UID/GID 1000, preserving restart, resource and
+  infinite graceful-stop settings; this requires a separately approved migration
+- `tests/test_finch_receiving_sandbox.py`, synthetic-only source/launcher gates;
+  these do not load a policy or prove actual kernel denials
+
+Nothing in this repository installs a profile, creates a system unit or root
+contract, changes permission, executes sudo, starts/stops a service, or retries
+a held artifact. Parent-owned independent source review and explicit runtime
+authorization remain necessary. The receiving host must prove the exact loaded
+policy and effective service settings; source assertions and profile names
+alone are not that proof.
+
+### Boundary and preserved behavior
+
+The system service manager must apply the enforcing named AppArmor profile **before the first
+Python instruction**, with NoNewPrivileges and a native-ABI seccomp filter.
+The launcher uses `-I -S -B`, skips all site initialization, refuses unexpected
+`LD_*`/`PYTHON*`/GLIBC loader environment, checks kernel UID/GID, capabilities,
+NNP, seccomp and enforcing profile before Git/import/config/network work,
+then replaces its environment with four explicit nonsecret values. Neither
+`PYTHONPATH`, cwd imports, `.pth`, `sitecustomize` nor a user-selected interpreter
+can become a pre-confinement bootstrap. Git gets a separate clean environment,
+global/system configuration disabled, hooks/fsmonitor disabled and optional
+writes disabled. Git and Python executions inherit the same profile; no
+unconfined profile transition is granted.
+
+The observed stdin was `/dev/null`; stdout/stderr shared a stream whose
+reciprocal peer was `/run/systemd/journal/stdout`. The launcher requires that
+exact stdio shape, including root peer credentials, and closes/verifies every
+nonstdio descriptor **at new process startup**, before token or Discord work.
+It does not close descriptors in a running adapter. Listener, SQLite, event
+poll, gateway and self-pipe sockets are subsequently created inside confinement.
+Only anonymous same-profile UNIX stream peers and the exact journal path are
+allowed; there is no blanket UNIX, DBus, ssh-agent or user-manager allowance.
+
+Filesystem writes are limited to the existing adapter writer lock, SQLite and
+its three explicit sidecars. Code, venv, launcher, setup readbacks, token,
+receiving contract, AppArmor source and reviewed-file records are read-only.
+The profile denies capabilities, DBus, mounting and outgoing peer tracing;
+signals are sent only within the profile. Existing supplementary groups do
+not grant paths or operations absent from the MAC policy. Policy/source loading,
+unit management, scheduling and arbitrary executable paths are not allowed.
+The system manager empties both capability bounding and ambient sets before
+dropping to the unchanged numeric UID/GID; both launcher and review gate verify
+all five capability sets are empty.
+The seccomp proposal also removes unused SysV/POSIX-message-queue and keyring
+interfaces plus peer process-memory/pidfd controls from `@system-service`;
+`pipe`/`pipe2` remain available for the existing Git subprocesses.
+
+The exact original bot, guild, two channels, sender set, token reference,
+issuer/audience and operator validation remain unchanged. The same state path
+is passed to the same adapter, with no clearing, conversion or ownership change.
+Full starts still read one current message per channel and require fresh
+canonical cursors. Existing delivered pending requests and durable confirmed or
+uncertain receipts remain in place; fresh polling is not state deletion or
+permission to replay. Metadata-only and check-only retain their separate gates.
+The launcher invokes the validated adapter in the same interpreter to avoid a
+second Python startup. Existing bounded lifetime and graceful draining remain.
+
+### Separate root-owned receiving contract
+
+The required `/etc/finch-mcp/receiving.json` is **receiving configuration, not a
+whole-file review grant**. It cannot authorize an upload, independent review,
+operator approval or held-report release. A separately authorized privileged
+publisher creates it only after accepting the exact source and receiving plan.
+Every ancestor and the regular single-link file must be root-owned and not
+group/other-writable; symlinks, replacement during reading and duplicate/extra
+fields fail closed. It contains exactly:
+
+- `schema: finch-receiving-contract-v1`
+- `source_commit`: exact accepted 40-character commit SHA, never a branch name
+- SHA256 fields `source_sha256`, `receiver_sha256`, `poster_sha256`,
+  `launcher_sha256`, `profile_sha256`, pinning the adapter, two local imports,
+  installed launcher and complete installed AppArmor source
+
+The existing nonsecret setup's `source_commit`, clean checkout HEAD and all
+source hashes must agree. This replaces the host launcher's literal deployed
+HEAD pin without embedding a commit SHA into the commit that defines it. The
+parent must separately authorize the source-pin/config update; other setup or
+authentication fields must not change. No contract-generation or installation
+tool is included. The launcher compiles already hash-verified local module
+bytes so path reopening or stale bytecode cannot substitute another module.
+
+The adapter checks kernel confinement and all contract hashes at every local
+whole-file review validation stage. The complete receiving-contract digest is
+also bound into the exact current-request review. Missing, unsafe, changed or
+unconfined receiving state refuses the exception; PR237 hard denials and
+reviewer/operator/expiry/no-replay rules remain intact. Compiled kernel policy
+identity and the absence of outside privilege brokers require independent
+receiver-side verification, not trust in the on-disk policy name or JSON alone.
+
+### Mandatory receiving acceptance still outstanding
+
+1. Compile this exact AppArmor source with the receiving parser without loading
+   it, confirm supported mediation/features and inspect the compiled policy;
+   no missing-feature/complain fallback. Independently approve its eventual load
+2. Verify the effective system-service settings apply the named profile,
+   NNP and seccomp **before interpreter startup**. Prove expected UID/GID,
+   zero bounding/effective/permitted/inheritable/ambient capabilities, enforce mode and
+   descriptor/environment custody. Do not infer this from a unit text file. The systemd v255 MAC documentation describes these options
+   as system-manager-only; an earlier user-unit drop-in design was withdrawn.
+   Do not install this as a user unit or fall back to an unenforced profile
+3. Run a separately authorized bounded denial harness inside the same receiving
+   profile: sudo/setuid helpers, user/system DBus and transient-unit activation,
+   external UNIX/abstract peers, SSH agent/container brokers, peer ptrace/proc
+   memory/process-vm/signal/FD routes, writable-code poisoning, profile escape,
+   root-record mutation and inherited-descriptor substitution must be denied
+4. AppArmor INET rules here are coarse. They preserve DNS, public HTTPS/gateway
+   and loopback HTTP, but **do not prove exclusion of privileged TCP/UDP brokers**.
+   The parent must inventory and exclude reachable privileged endpoints,
+   including localhost SSH/control APIs, using supported receiving controls.
+   Any unresolved route blocks adoption; no source-only or current socket
+   observation waives this prerequisite
+5. Verify actual DNS/NSS/TLS, journal peer, dedicated venv imports, Git checks,
+   loopback listener, fresh cursors and the receiver's required read-only
+   custody access. A missing dependency requires review, not broadening the
+   policy ad hoc. Confirm no unconfined competing state/source writer or
+   rollback route undermines durable single-writer receipts
+6. After separate approval, publish the exact root contract/profile/launcher
+   and source-pin change through the parent-owned path. Gracefully drain the
+   legacy `systemctl --user` service before disabling its restart/activation
+   path; do not kill a reserved in-flight effect or reset any receipt. Confirm
+   the old process has exited and cannot restart before starting the SYSTEM
+   service with UID/GID 1000. The unchanged SQLite writer lock is a backstop,
+   not permission for competing services. Verify unchanged state identity,
+   pending requests, no-replay receipts and fresh startup cursors. Keep a
+   reviewed rollback plan; rollback must not introduce a second writer or
+   revive uncertain effects. Only then consider an independently reviewed file grant
+
+The cloud workspace lacks `apparmor_parser`; its source tests do not claim a
+successful profile compilation or receiving kernel enforcement. Systemd and
+AppArmor behavior must be checked against the receiving versions. References:
+[systemd v255 execution policy](https://github.com/systemd/systemd/blob/v255/man/systemd.exec.xml),
+[AppArmor UNIX/peer mediation](https://www.apparmor.net/man/4.0/apparmor.d/),
+[Linux No New Privileges](https://docs.kernel.org/userspace-api/no_new_privs.html).
+
 ## Finch local whole-file review exception (source only)
 
 Medical terminology can occur in a nonsensitive market report. For Finch

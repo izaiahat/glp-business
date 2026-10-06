@@ -31,6 +31,9 @@ class TestFinchReviewedFiles:
 
     @pytest.fixture(autouse=True)
     def local_review_fs(self, setup, monkeypatch):
+        # Positive review tests model an independently accepted receiving
+        # sandbox. Its real kernel predicate has a separate negative suite.
+        monkeypatch.setattr(self.m, '_finch_confinement', lambda: None)
         self.review_root = self.root / 'synthetic-privileged-reviews'
         self.review_root.mkdir(mode=0o755)
         monkeypatch.setattr(self.m, 'FINCH_REVIEW_ROOT', self.review_root)

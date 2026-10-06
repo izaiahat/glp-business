@@ -1,0 +1,54 @@
+# SOURCE-ONLY proposed SYSTEM service, not a user-manager drop-in.
+# Requires separately approved migration after gracefully draining/disabling the
+# legacy user unit. Never run both owners; preserve the existing UID1000 state.
+# Nothing in this source installs, enables, loads or starts this service.
+[Unit]
+Description=Dedicated Finch two-channel MCP adapter (port 18806; receiving confinement)
+StartLimitIntervalSec=15min
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=1000
+Group=1000
+WorkingDirectory=/home/ubuntu/business
+UMask=0077
+Restart=always
+RestartSec=30
+TimeoutStopSec=infinity
+MemoryHigh=256M
+MemoryMax=384M
+CPUQuota=50%
+TasksMax=64
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=30
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+AppArmorProfile=finch-mcp-receiving-v1
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@mount @privileged @reboot @swap @raw-io @debug @module @obsolete @cpu-emulation io_uring_setup io_uring_enter io_uring_register bpf userfaultfd
+# @system-service includes @ipc/@keyring. Keep pipe/pipe2 for Python/Git, but
+# deny unused broker IPC, shared memory and inherited/session keyring routes.
+SystemCallFilter=~@keyring ipc msgctl msgget msgrcv msgsnd semctl semget semop semtimedop semtimedop_time64 shmat shmctl shmdt shmget mq_getsetattr mq_notify mq_open mq_timedreceive mq_timedreceive_time64 mq_timedsend mq_timedsend_time64 mq_unlink
+SystemCallFilter=~process_vm_readv process_vm_writev process_madvise process_mrelease pidfd_open pidfd_getfd pidfd_send_signal
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# The profile is applied by systemd before the first interpreter instruction.
+# -I -S additionally prohibit cwd/user-site, .pth and sitecustomize startup.
+ExecCondition=/home/ubuntu/.hermes/venvs/finch-mcp/bin/python -I -S -B /home/ubuntu/.hermes/scripts/finch_adapter_launch.py --check-only
+ExecStart=/home/ubuntu/.hermes/venvs/finch-mcp/bin/python -I -S -B /home/ubuntu/.hermes/scripts/finch_adapter_launch.py
+StandardInput=null
+StandardOutput=journal
+StandardError=inherit
+Environment=PATH=/usr/bin:/bin HOME=/home/ubuntu TMPDIR=/home/ubuntu/.hermes/cache/scratch LANG=C.UTF-8
+UnsetEnvironment=LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT LD_PROFILE LD_ORIGIN_PATH LD_ASSUME_KERNEL LD_BIND_NOW LD_DYNAMIC_WEAK LD_HWCAP_MASK LD_SHOW_AUXV LD_TRACE_LOADED_OBJECTS LD_USE_LOAD_BIAS GLIBC_TUNABLES PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE PYTHONINSPECT PYTHONBREAKPOINT PYTHONWARNINGS PYTHONPYCACHEPREFIX PYTHONSAFEPATH PYTHONNOUSERSITE DBUS_SESSION_BUS_ADDRESS SSH_AUTH_SOCK
+
+[Install]
+WantedBy=multi-user.target

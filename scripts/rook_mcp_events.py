@@ -52,6 +52,10 @@ _FINCH_SOURCE_BOOTSTRAP_OK = _FINCH_LOADED_CODE == compile(
     _FINCH_LOADED_SOURCE, __file__, 'exec', dont_inherit=True, optimize=sys.flags.optimize)
 FINCH_SOURCE_SHA256 = hashlib.sha256(_FINCH_LOADED_SOURCE).hexdigest()
 FINCH_REVIEW_ROOT = Path('/etc/finch-file-reviews')
+FINCH_CONFINEMENT_LABEL = 'finch-mcp-receiving-v1 (enforce)'
+FINCH_RECEIVING_CONTRACT = Path('/etc/finch-mcp/receiving.json')
+FINCH_APPARMOR_POLICY = Path('/etc/apparmor.d/finch-mcp-receiving-v1')
+FINCH_LAUNCHER = Path('/home/ubuntu/.hermes/scripts/finch_adapter_launch.py')
 
 GUILD = '1486887661099815126'
 CHANNEL = '1554668115239899196'
@@ -1233,6 +1237,100 @@ def file_review_binding(file):
             'byte_length': len(file['data']), 'sha256': hashlib.sha256(file['data']).hexdigest()}
 
 
+def _finch_kernel_read(leaf):
+    # Kernel-only fixed proc paths, not an environment variable or caller file.
+    # The independently accepted confinement policy must deny mount/namespace
+    # changes and profile transitions; a profile name is not a policy audit.
+    path = f'/proc/{os.getpid()}/{leaf}'
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        value = os.read(fd, 32769)
+        if len(value) > 32768:
+            raise ValueError('unbounded kernel status')
+        return value.decode('ascii')
+    finally:
+        os.close(fd)
+
+
+def _finch_root_bytes(path, limit):
+    """Read a fixed root-administered configuration through pinned ancestry."""
+    pins = []
+    try:
+        if not path.is_absolute() or '..' in path.parts:
+            raise ValueError('unsafe receiving path')
+        parent = None
+        for index, name in enumerate(('/', *path.parts[1:])):
+            directory = index != len(path.parts) - 1
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                         | (os.O_DIRECTORY if directory else 0), dir_fd=parent)
+            pins.append((fd, parent, name, None, directory))
+            snapshot = _review_stat(os.fstat(fd), directory=directory)
+            pins[-1] = (fd, parent, name, snapshot, directory)
+            parent = fd
+        data = os.pread(pins[-1][0], limit + 1, 0)
+        if not 1 <= len(data) <= limit:
+            raise ValueError('receiving configuration size')
+        for fd, parent, name, snapshot, directory in pins:
+            if (_review_stat(os.fstat(fd), directory=directory) != snapshot
+                    or _review_stat(os.stat(name, dir_fd=parent, follow_symlinks=False), directory=directory) != snapshot):
+                raise ValueError('receiving configuration changed')
+        return data
+    finally:
+        for fd, *_ in reversed(pins):
+            os.close(fd)
+
+
+def _finch_receiving_contract():
+    raw = _finch_root_bytes(FINCH_RECEIVING_CONTRACT, 4096)
+    contract = json.loads(raw.decode('ascii'), object_pairs_hook=_review_json)
+    if (not isinstance(contract, dict) or set(contract) != {'schema', 'source_commit', 'source_sha256',
+            'launcher_sha256', 'profile_sha256', 'receiver_sha256', 'poster_sha256'} or contract['schema'] != 'finch-receiving-contract-v1'
+            or not isinstance(contract['source_commit'], str)
+            or not re.fullmatch(r'[a-f0-9]{40}', contract['source_commit'])
+            or any(not isinstance(contract[key], str) or not re.fullmatch(r'[a-f0-9]{64}', contract[key])
+                   for key in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'receiver_sha256', 'poster_sha256'))
+            or not _FINCH_SOURCE_BOOTSTRAP_OK or contract['source_sha256'] != FINCH_SOURCE_SHA256
+            or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != contract['source_sha256']
+            or hashlib.sha256(Path(__file__).with_name('receive_one_discord_message.py').read_bytes()).hexdigest() != contract['receiver_sha256']
+            or hashlib.sha256(Path(__file__).with_name('post_discord_message.py').read_bytes()).hexdigest() != contract['poster_sha256']
+            or hashlib.sha256(FINCH_LAUNCHER.read_bytes()).hexdigest() != contract['launcher_sha256']
+            or hashlib.sha256(_finch_root_bytes(FINCH_APPARMOR_POLICY, 16384)).hexdigest() != contract['profile_sha256']):
+        raise ValueError('receiving contract/source/policy mismatch')
+    return contract, hashlib.sha256(raw).hexdigest()
+
+
+def _finch_confinement():
+    """Receiving-host gate only; installing/loading the policy is parent-owned.
+
+    These kernel conditions are necessary, not sufficient: independent adoption
+    must verify the exact loaded policy, launcher, IPC paths and descriptor set.
+    Never substitute user-provided receipts or an environment variable here.
+    """
+    try:
+        status = {}
+        for line in _finch_kernel_read('status').splitlines():
+            key, sep, value = line.partition(':')
+            if not sep or key in status:
+                raise ValueError('malformed kernel status')
+            status[key] = value.strip()
+        for key in ('Uid', 'Gid'):
+            if status.get(key, '').split() != ['1000'] * 4:
+                raise ValueError('unexpected receiving identity')
+        if os.getresuid() != (1000, 1000, 1000) or os.getresgid() != (1000, 1000, 1000):
+            raise ValueError('kernel identity disagreement')
+        if status.get('NoNewPrivs') != '1' or status.get('Seccomp') != '2':
+            raise ValueError('required privilege/syscall restrictions missing')
+        for key in ('CapInh', 'CapPrm', 'CapEff', 'CapAmb', 'CapBnd'):
+            if not re.fullmatch(r'0{16}', status.get(key, '')):
+                raise ValueError('capability present or unknown')
+        label = _finch_kernel_read('attr/apparmor/current')
+        if label not in (FINCH_CONFINEMENT_LABEL, FINCH_CONFINEMENT_LABEL + '\n'):
+            raise ValueError('required enforcing profile missing')
+        return _finch_receiving_contract()[1]
+    except Exception as exc:
+        raise RpcError(-32602, 'FinchReceivingConfinementRequired') from exc
+
+
 def _review_stat(value, *, directory=False):
     # Root is the trusted local attestation publisher, never the adapter user.
     # Checking all parents prevents an app-writable rename or symlink substitute.
@@ -1277,6 +1375,7 @@ class FinchFileReview:
     def open(cls, binding, current_binding, auth_expires):
         pins = []
         try:
+            _finch_confinement()
             root = FINCH_REVIEW_ROOT
             if not root.is_absolute() or '..' in root.parts:
                 raise ValueError('invalid fixed review root')
@@ -1338,6 +1437,7 @@ class FinchFileReview:
 
     def check(self, *, file=None, metadata=None, channel=None, bot=None, sha256=None):
         try:
+            _finch_confinement()
             if (not _FINCH_SOURCE_BOOTSTRAP_OK
                     or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != FINCH_SOURCE_SHA256
                     or time.time() >= min(self.expires, self.auth_expires)
@@ -2564,7 +2664,8 @@ class Application:
                 'guild_id': row['guild_id'], 'channel_id': row['channel_id'], 'bot_id': self.bot,
                 'policy_sha256': self.policy, 'request_policy_sha256': row['policy'],
                 'current_policy_sha256': hashlib.sha256(canonical(self.config.policy_fields()).encode()).hexdigest(),
-                'source_sha256': FINCH_SOURCE_SHA256, 'reply_sha256': reply_sha256}
+                'source_sha256': FINCH_SOURCE_SHA256, 'reply_sha256': reply_sha256,
+                'receiving_contract_sha256': _finch_confinement()}
 
     def reply(self, principal, arguments):
         GUILD, CHANNEL, ROOK_BOT, REPLY_KIND = self.guild, self.channel, self.bot, self.reply_kind
