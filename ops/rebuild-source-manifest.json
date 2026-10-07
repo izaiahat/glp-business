@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 748,
+  "tracked_count": 749,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -210,7 +210,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "25e473016f96dbb7259089c43ffbe03f8cea2b53b8e40b7a1516e0f3b53389da"
+      "sha256": "0e2d4c0b12499876f8a4addaaee9d221877884182416178ec1f1096b52e4ed8d"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -4713,6 +4713,13 @@
         "host cron"
       ],
       "sha256": "50645fd2db1c8df0ef51546269ec9c84fa366981805553decd2337ffa9935c4f"
+    },
+    "tests/test_pallas_relationship_ending.py": {
+      "callers": [
+        "ci:GLP347"
+      ],
+      "kind": "test",
+      "sha256": "49c11cd9d2403e7c92cd8af63446a9fbd4fa80d0dca8e4e2d27bee6d957284ad"
     },
     "tests/test_glp_affiliate_registry_sync.py": {
       "kind": "test",
