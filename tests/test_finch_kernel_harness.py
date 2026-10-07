@@ -557,3 +557,86 @@ def test_real_renderer_host_reader_never_loses_dns_packet_evidence(transport):
     # incorrectly allowing the negative-admission all-zero evidence predicate.
     assert totals['finch:verified-dns'] == 7
     assert not all(value == 0 for value in totals.values())
+
+
+def ipv6_udp_worker_evidence(monkeypatch, capsys, fault=None):
+    """Run the real generic worker/reader/evidence path with fake sockets only.
+
+    Worker admission and alarm are synthetic prerequisites, as in the existing
+    worker tests. This does not create a namespace, socket or kernel packet.
+    """
+    address, port, tag = 'fd12:3456::99', 9120, 'udp6-regression'
+    snapshot = rendered_counter_readback()
+    packets = next(item['rule']['expr'][-1]['counter'] for item in snapshot['nftables']
+                   if item['rule']['comment'] == 'finch:nonpublic6')
+    state = {'selected': False, 'sink_arrivals': 0}
+    events = []
+    monkeypatch.setattr(h, 'SINKS', [*h.SINKS, (tag, 'sink', address, port, 'udp')])
+    monkeypatch.setattr(h, '__file__', str(h.PROGRAM))
+    monkeypatch.setattr(h, 'os', SimpleNamespace(geteuid=lambda: 0))
+    monkeypatch.setattr(h, 'signal', SimpleNamespace(alarm=lambda seconds: events.append(('alarm', seconds))))
+    monkeypatch.setattr(h, 'worker_context', lambda fd: events.append(('context', fd)))
+    monkeypatch.setattr(h, 'in_ns', lambda *args: json.dumps(snapshot))
+
+    class Datagram:
+        def settimeout(self, value): assert value == 1.5
+        def connect(self, *args):
+            raise AssertionError('AF_INET6 UDP connect is forbidden in this regression')
+        def send(self, *args):
+            raise AssertionError('AF_INET6 UDP must use sendto, never connected send')
+        def sendto(self, data, peer):
+            assert data == h.PAYLOAD and peer == (address, port)
+            events.append(('sendto', state['selected'], peer))
+            if state['selected']:
+                packets['packets'] = True if fault == 'malformed-count' else 0 if fault == 'missing-growth' else 1
+                if fault == 'sink-arrival': state['sink_arrivals'] += 1
+            else: state['sink_arrivals'] += 1
+            return len(data)
+        def recvfrom(self, limit):
+            assert limit == 4096
+            if state['selected'] and fault != 'forbidden-success': raise TimeoutError('synthetic denied datagram')
+            return h.PAYLOAD, (address, port, 0, 0)
+        def close(self): events.append(('close',))
+
+    def socket_factory(family, kind):
+        assert family == socket.AF_INET6 and kind == socket.SOCK_DGRAM
+        events.append(('socket', family, kind))
+        return Datagram()
+    monkeypatch.setattr(h, 'socket', SimpleNamespace(socket=socket_factory, AF_INET=socket.AF_INET,
+                        AF_INET6=socket.AF_INET6, SOCK_DGRAM=socket.SOCK_DGRAM, SOCK_STREAM=socket.SOCK_STREAM))
+
+    def invoke():
+        monkeypatch.setattr(h, 'sys', SimpleNamespace(
+            flags=SimpleNamespace(isolated=1, no_site=1, dont_write_bytecode=1),
+            stdin=SimpleNamespace(buffer=io.BytesIO(json.dumps({'role': 'client', 'tag': tag}).encode() + b'\n'))))
+        h.worker(9)
+        return json.loads(capsys.readouterr().out)
+
+    before_control = h.counters('finch-client-abcdef123456', 'finch_mcp_egress')
+    control = invoke()
+    assert control == {'success': True, 'unconnected_udp': True, 'self_signed_fixture_tls': False}
+    assert state['sink_arrivals'] == 1
+    assert h.counters('finch-client-abcdef123456', 'finch_mcp_egress') == before_control
+    state['selected'] = True
+    before, sink_before = h.counters('finch-client-abcdef123456', 'finch_mcp_egress'), state['sink_arrivals']
+    selected = invoke()
+    assert selected['unconnected_udp'] is True and selected['self_signed_fixture_tls'] is False
+    after = h.counters('finch-client-abcdef123456', 'finch_mcp_egress')
+    row = h.evidence(before, after, sink_before, state['sink_arrivals'], 'finch:nonpublic6', False, selected['success'])
+    assert row['output_packets'] == 1 and row['sink_packets'] == 0 and row['socket_success'] is False
+    assert events == [('context', 9), ('alarm', 160), ('socket', socket.AF_INET6, socket.SOCK_DGRAM),
+                      ('sendto', False, (address, port)), ('close',),
+                      ('context', 9), ('alarm', 160), ('socket', socket.AF_INET6, socket.SOCK_DGRAM),
+                      ('sendto', True, (address, port)), ('close',)]
+    return row
+
+
+def test_af_inet6_unconnected_udp_control_and_selected_denial(monkeypatch, capsys):
+    assert ipv6_udp_worker_evidence(monkeypatch, capsys)['allowed'] is False
+
+
+@pytest.mark.parametrize('fault,reason', [
+    ('malformed-count', 'one nonnegative integer'), ('missing-growth', 'expected OUTPUT rule'),
+    ('sink-arrival', 'denied sink observed packets'), ('forbidden-success', 'unexpected socket result')])
+def test_af_inet6_unconnected_udp_bad_evidence_is_rejected(monkeypatch, capsys, fault, reason):
+    with pytest.raises(ValueError, match=reason): ipv6_udp_worker_evidence(monkeypatch, capsys, fault)
