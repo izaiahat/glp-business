@@ -22,7 +22,7 @@
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "a1ccc9972a3ddb062206ed85605f54c715e03bad24a9b359a628cb85ddfd175a"
+      "sha256": "a046bd2601b3375fbd408f791b7d35470889b0b677d29f0c838d5e6d3fc2ba23"
     },
     "tests/conftest.py": {
       "kind": "test",
@@ -3658,7 +3658,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "e01915ed36b4d0f52af6dabee5ccfb085338d3b5a4f00e87671d061703c55a26"
+      "sha256": "c5d5df8894075350619ea0e6b4f16e71d5cc9c6e056677359fe26fecf7556bdd"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
