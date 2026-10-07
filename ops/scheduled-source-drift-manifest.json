@@ -508,7 +508,7 @@
       "surface": "native",
       "path": "/home/ubuntu/.hermes/scripts/weekly_strategy_review_gate.py",
       "source": "ops/hermes-cron-scripts/weekly_strategy_review_gate.py",
-      "reviewed_sha256": "484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e",
+      "reviewed_sha256": "941bdb578df2014f0c019ebdfc71f66de51ee1c25be3569ff26b1dff386ee9ca",
       "payloads": []
     },
     {
