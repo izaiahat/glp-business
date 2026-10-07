@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 746,
+  "tracked_count": 747,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -210,7 +210,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "ccc7663e660c3ed6a94f5303286566ed85f7d090e0b51b2080540d91af5fdaa8"
+      "sha256": "25e473016f96dbb7259089c43ffbe03f8cea2b53b8e40b7a1516e0f3b53389da"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -1361,7 +1361,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "a4701f1f1c875a5770e4c4b34309000d9dca937ecba9af89f678d846ed338e34"
+      "sha256": "9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -4831,14 +4831,14 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "df8d46dd186a3a8786793e3b8cff675967b5381d2900265b7bc867a15fb8c9bb"
+      "sha256": "a4b4006ec4db53b83e4911d8773bfc2f95da8bf8f448d2f77866ac26bd15c15f"
     },
     "tests/test_glp268_reconciler_access.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "8a1d0ac73930ef49326a32dc51acc1c14a0976b89de86a2e8160a700ba008fb2"
+      "sha256": "312737914e3515fc2db3131302561ba5eba6b173687d48d865daf84898afd474"
     },
     "tests/test_glp268_fresh_browser_callers.py": {
       "callers": [
@@ -5035,6 +5035,9 @@
       ],
       "kind": "test",
       "sha256": "d4d6f4c7a4aa3074225268e84caa1de6d94c5e69907591cb6028165cf81dc1ab"
+    },
+    "scripts/katalys_fresh_relationship.py": {
+      "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
     }
   }
 }

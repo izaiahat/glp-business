@@ -17,6 +17,7 @@ from email import policy
 from email.parser import BytesParser
 from email.utils import parseaddr
 from pathlib import Path
+from katalys_fresh_relationship import relationship_snapshot as katalys_fresh_relationship_snapshot
 from typing import Any
 import requests
 from google.auth.transport.requests import Request
@@ -1547,10 +1548,16 @@ def katalys_relationship_snapshot(program,expected_name):
   'variables':{'orgId':portal.ORG_ID,'limit':portal.PAGE_SIZE,'offset':0,'search':'','pubId':portal.PUB_ID},
  },timeout=60)
  if response.status_code in {401,403}:raise RuntimeError(f'katalys_graphql_session_expired:{response.status_code}')
- if response.status_code>=400:raise RuntimeError(f'katalys_graphql_http:{response.status_code}')
+ if response.status_code!=200:raise RuntimeError(f'katalys_graphql_http:{response.status_code}')
  try:payload=response.json()
  except ValueError as exc:raise RuntimeError('katalys_graphql_non_json') from exc
- if payload.get('errors'):raise RuntimeError('katalys_graphql_errors')
+ if payload.get('errors'):
+  errors=payload['errors']
+  # HTTP200/FORBIDDEN is unavailable API scope, never an empty relationship.
+  # Only this explicit refusal permits an independently authenticated UI read;
+  # mixed errors, expired auth and identity failures still stop normally.
+  denied=isinstance(errors,list) and all(isinstance(e,dict) and isinstance(e.get('extensions'),dict) and e['extensions'].get('code')=='FORBIDDEN' for e in errors)
+  raise RuntimeError('katalys_graphql_org_permission_unavailable' if denied else 'katalys_graphql_errors')
  block=((payload.get('data') or {}).get('offerMarketplace') or {})
  rows=[item for item in (block.get('results') or []) if str(item.get('offerId'))==str(program)]
  if len(rows)!=1:raise RuntimeError(f'katalys_graphql_program_identity_count:{len(rows)}')
@@ -1567,12 +1574,20 @@ def katalys_relationship_snapshot(program,expected_name):
          'provider_readback_verified':relation in {'approved','pending','rejected'},
          'read_method':'authenticated_live_graphql'}
 async def katalys_snapshot(program,expected_name,existing_link,allow_link_generation=True,expected_action=None,relationship_only=False,*,fresh_driver=None):
- # Relationship reconciliation consumes the existing authenticated API read;
- # cached credentials do not grant UI terms or link-generation authority.
- snapshot=await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
+ # Attempt the maintained API read first. A precise permission refusal is not
+ # success and may only be replaced by an independently authorized visible read.
+ ui_relationship=False
+ try:snapshot=await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
+ except RuntimeError as exc:
+  if str(exc)!='katalys_graphql_org_permission_unavailable' or fresh_driver is None:raise
+  snapshot=katalys_fresh_relationship_snapshot(program,expected_name,fresh_driver=fresh_driver)
+  snapshot['api_readback']='UNAVAILABLE_ORG_PERMISSION';ui_relationship=True
  if relationship_only:return snapshot
  if snapshot.get('relationship')=='approved' and not existing_link and allow_link_generation:raise RuntimeError('katalys_link_generation_held_no_legacy_cdp_fallback')
  snapshot['tracking_link']=existing_link or '';snapshot['link_generated']=False
+ # This finite replacement proves only the exact visible site relationship.
+ # Missing terms remain UNKNOWN; it grants neither link nor program mutation.
+ if ui_relationship:return snapshot
  if fresh_driver is None:
   # No UI terms evidence: leave UNKNOWN/empty, never infer terms from email.
   snapshot['terms']='';snapshot['terms_readback']='NOT_CHECKED_FRESH_VAULT_BROWSER_REQUIRED'
@@ -2503,7 +2518,12 @@ async def process_event(event,svc,gmail,state,dry_run,provider_cache,operator_ha
  approval_publisher=PUBLISHER_AWIN if cand['network']=='Awin' else row[13]
  approval_fact=None if dry_run or approval_classification is None else record_approval_fact(event,cand,snap,program,terms_evidence,approval_classification,approval_publisher)
  approval_processing=approval_classification is not None
- receipt={'status':'PASS','event_id':event['event_id'],'network':cand['network'],'program_id':program,'row_number':row_num,'signal':cand['action'],'provider_relationship':snap['relationship'],'provider_readback_verified':True,'approval_processing':approval_processing,'terms_rubric_executed':approval_processing,'terms_capture_complete':bool((terms_evidence or {}).get('capture_complete')),'terms_incomplete_nonblocking':bool((terms_evidence or {}).get('incomplete_nonblocking')),'terms_text_sha256':(terms_evidence or {}).get('text_sha256'),'terms_hard_trigger_count':int((terms_evidence or {}).get('hard_trigger_count') or 0),'approval_classification_recorded':approval_classification is not None,'approval_fact_recorded':approval_fact is not None,'approval_fact':approval_fact,'classification':approval_classification or invitation_classification,'candidate_gate_advisory':candidate_gate_advisory,'relationship_truth_only':candidate_gate_advisory is not None,'sheet_readback_verified':True,'sheet_schema_contract_verified':True,'schema_repair':schema_repair,'created_row':created_row,'creation_applied':creation_applied,'creation_queue':creation_queue,'approval_queue':approval_queue,'created_columns':HEADERS if creation_applied else [],'changed_columns':[ALLOWED[c] for c in changes]+(['K','T','U','X','Y'] if approval_queue and approval_queue.get('status')=='applied' else []),'sheet_write_count':write_count,'dry_run':dry_run,'external_send':False,'provider_mutation':bool(snap.get('link_generated')),'provider_program_mutation':False,'tracking_link_generated':bool(snap.get('link_generated')),'archive':False,'delete':False,'provider_draft':False,'affiliate_redirect_clicks':0,'terminal_routine_recovery':terminal_recovery}
+ receipt={'status':'PASS','event_id':event['event_id'],'network':cand['network'],'program_id':program,'row_number':row_num,'signal':cand['action'],'provider_relationship':snap['relationship'],
+  # Persist only readback provenance, never the raw provider body or credentials.
+  'provider_readback_provenance':{
+   **{key:snap[key] for key in ('api_readback','read_method','terms_readback') if key in snap},
+   **{key:snap['details'][key] for key in ('relationship_scope','inventory_complete','publisher_id','principal_verified') if key in (snap.get('details') or {})},
+  },'provider_readback_verified':True,'approval_processing':approval_processing,'terms_rubric_executed':approval_processing,'terms_capture_complete':bool((terms_evidence or {}).get('capture_complete')),'terms_incomplete_nonblocking':bool((terms_evidence or {}).get('incomplete_nonblocking')),'terms_text_sha256':(terms_evidence or {}).get('text_sha256'),'terms_hard_trigger_count':int((terms_evidence or {}).get('hard_trigger_count') or 0),'approval_classification_recorded':approval_classification is not None,'approval_fact_recorded':approval_fact is not None,'approval_fact':approval_fact,'classification':approval_classification or invitation_classification,'candidate_gate_advisory':candidate_gate_advisory,'relationship_truth_only':candidate_gate_advisory is not None,'sheet_readback_verified':True,'sheet_schema_contract_verified':True,'schema_repair':schema_repair,'created_row':created_row,'creation_applied':creation_applied,'creation_queue':creation_queue,'approval_queue':approval_queue,'created_columns':HEADERS if creation_applied else [],'changed_columns':[ALLOWED[c] for c in changes]+(['K','T','U','X','Y'] if approval_queue and approval_queue.get('status')=='applied' else []),'sheet_write_count':write_count,'dry_run':dry_run,'external_send':False,'provider_mutation':bool(snap.get('link_generated')),'provider_program_mutation':False,'tracking_link_generated':bool(snap.get('link_generated')),'archive':False,'delete':False,'provider_draft':False,'affiliate_redirect_clicks':0,'terminal_routine_recovery':terminal_recovery}
  path=save_receipt(event['event_id'],receipt);mark_path=None
  if dry_run:
   if not recover_terminal_routine:mark_state(state,event['event_id'],'dry_run_pass',receipt=path)
