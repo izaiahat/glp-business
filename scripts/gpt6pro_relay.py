@@ -736,8 +736,19 @@ def _paced_send(callback):
 
 
 def bu_json(script: str, timeout: int = 300) -> dict:
-    envelope = load_config().get('envelope', {})
+    cfg = load_config()
+    envelope = cfg.get('envelope', {})
     cap = min(3, envelope.get('max_concurrent_chats_per_account', 3)) + 2
+    # Terminal dispositions release active capacity but must retain their exact
+    # evidence tabs. Account for only byte/journal-verified terminal custody;
+    # ordinary uncertain targets get NO extra allowance. Active admission stays
+    # three/account and six/IP under the existing global reservation lock.
+    accounts = [a for a in cfg.get('accounts', [])
+                if f"http://127.0.0.1:{a.get('cdp_port', 9340)}" == BU_ENV['BU_CDP_URL']]
+    if len(accounts) == 1:
+        retained = {t for s in sibling_bindings(accounts[0]['label'], '')
+                    if _verified_terminal_unsent(s) for t in custody_tabs(s)}
+        cap += len(retained)
     preamble = ('import time\n_pace_path=' + repr(str(BUSINESS / 'ops/gpt6pro-relay/locks/page-load-ip.clock')) +
                 '\n_page_gap=' + repr(max(60, 60 / max(0.01, envelope.get('max_page_loads_per_min_per_ip', 1)))) + '\n')
     preamble = ('\n_tab_cap=' + repr(cap) + '\n_submit_gap=' +
@@ -1006,6 +1017,24 @@ function committed6ProMaximum(){
         return owners===1&&accepted;
     }catch(_){return false;}
 }
+function picker6ProLabel(row,view){
+    const label=row.innerText.trim().replace(/\s+/g,' ');
+    if(label==='6 Pro')return true;
+    // Observed default-family UI abbreviates 6 Pro as Pro. Never trust
+    // Pro alone: require the same picker to name exactly one selected GPT-6
+    // family, the explicit default-family/effort-only schema, and the existing
+    // maximum/4-of-4 gate below. The CLOSED incoming-parent gpt-6-pro/null
+    // witness remains mandatory before typing and again at Send.
+    if(label!=='Pro')return false;
+    const owner=row.closest('[data-explicit-model]');
+    const badge=row.querySelector('[data-maximum=true][data-effort-only=true]');
+    if(!owner||owner.getAttribute('data-explicit-model')!=='false'||
+       !badge||badge.getAttribute('data-effort-only')!=='true')return false;
+    const selected=[...view.querySelectorAll('[role=menuitemradio][aria-checked=true]')];
+    return selected.length===1&&selected[0].innerText.trim()==='GPT-6'&&
+        selected[0].getAttribute('aria-checked')==='true'&&
+        selected[0].getAttribute('data-model-selected')==='true';
+}
 function full6ProMaximum(){
     const actionable=pickerActionable,menu=pickerMenu();
     if(!menu)return false;
@@ -1016,7 +1045,7 @@ function full6ProMaximum(){
     if(rows.length!==1)return false;
     const row=rows[0],owner=row.closest('[aria-hidden]');
     if(!owner||owner.getAttribute('aria-hidden')!=='false'||
-       row.innerText.trim().replace(/\s+/g,' ')!=='6 Pro')return false;
+       !picker6ProLabel(row,view))return false;
     const badge=row.querySelector('[data-maximum=true]');
     // The observed thumb is aria-hidden=true; its active Power menuitem is
     // the accessible control. Never ignore hidden/inert ancestry or disablement.
