@@ -36,7 +36,7 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
     # successor bound separately; the producer must still stage the original.
     successor = {'scripts/affiliate_approval_auto_reconciler.py': (
         '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
-        'e3ac5adeedec256f0f37408b79c0fe52b719ef05a432c79eda11e7f036ecfd3e')}
+        '9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3')}
     for name in expected:
         original = p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
         if name in successor:

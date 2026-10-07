@@ -278,3 +278,80 @@ def test_graphql_forbidden_is_permission_hold_not_empty_relationship(monkeypatch
         with pytest.raises(RuntimeError, match=stage): fn('1325','Willow')
 
 
+@pytest.mark.parametrize('status', [201, 202, 301, 304, 401, 403, 429, 500])
+def test_non200_forbidden_never_calls_ui(monkeypatch, status):
+    import sys
+    portal = SimpleNamespace(BEARER_PATH=Token(), GRAPHQL='https://fixture.invalid/graphql',
+        MARKETPLACE_QUERY='fixture-only-query', ORG_ID='fixture-org', PUB_ID='fixture-pub', PAGE_SIZE=10)
+    monkeypatch.setitem(sys.modules, 'katalys_portal_session', portal)
+    http = SimpleNamespace(post=lambda *a, **kw: SimpleNamespace(status_code=status,
+        json=lambda: {'errors':[{'extensions':{'code':'FORBIDDEN'}}], 'data':None}))
+    api = load_function('katalys_relationship_snapshot', requests=http)
+    driver = KatalysDriver()
+    ui_calls = []
+    def ui(*args, **kwargs):
+        ui_calls.append('ui')
+        return katalys_producer()(*args, **kwargs)
+    fn = load_function('katalys_snapshot', katalys_relationship_snapshot=api,
+        katalys_fresh_relationship_snapshot=ui)
+    error = 'session_expired' if status in (401, 403) else 'http'
+    with pytest.raises(RuntimeError, match=f'katalys_graphql_{error}:{status}'):
+        asyncio.run(fn('1325', 'Willow', '', allow_link_generation=False, fresh_driver=driver))
+    assert ui_calls == [] and driver.reads == []
+
+
+@pytest.mark.parametrize('relationship', ['pending', 'approved', 'rejected'])
+@pytest.mark.parametrize('dry_run', [True, False])
+def test_normal_event_receipt_preserves_allowlisted_readback_provenance(tmp_path, relationship, dry_run):
+    driver = KatalysDriver(KATALYS_BODY.replace('\nPending\n', '\n'+relationship.title()+'\n'))
+    snapshot = load_function('katalys_snapshot', katalys_relationship_snapshot=permission_unavailable,
+        katalys_fresh_relationship_snapshot=katalys_producer())
+    async def readback(*args, **kwargs):
+        result = await snapshot(*args, **kwargs)
+        result['raw_body'] = 'fixture-only-private-body'
+        result['details']['authorization'] = 'fixture-only-private-token'
+        return result
+    event = {'event_id':'fixture-only-receipt', 'state':'held', 'raw_path':'fixture-only-message',
+        'canonical_category':'affiliate_network_response', 'received_at':'2026-10-07T00:00:00Z'}
+    candidate = {'network':'Katalys', 'action':'relationship_approval', 'text':'fixture-only-signal'}
+    row = [''] * 27
+    row[2] = 'Willow'
+    receipts = []
+    def save(event_id, payload):
+        path = tmp_path / (event_id + '.json')
+        path.write_text(json.dumps(payload))
+        receipts.append(json.loads(path.read_text()))
+        return path
+    sheet = SimpleNamespace(spreadsheets=lambda:SimpleNamespace(values=lambda:
+        SimpleNamespace(get=lambda **kw:object())))
+    fn = load_function('process_event',
+        approval_test_label=lambda e:False, TERMINAL_EVENT_STATES=set(),
+        message_text=lambda p:('fixture-subject', 'fixture-sender', 'fixture-body'), detect=lambda *a:candidate,
+        load_snapshot=lambda:{}, require_operator_ruling_clear=lambda *a:None,
+        AFFILIATE_AUTH_DOMAINS={'Katalys'}, verify_affiliate_authentication=lambda *a:{'status':'PASS'},
+        IDENTITY_PREREQUISITE_RE=re.compile(r'(?!)'), OPERATOR_PREREQUISITE_RE=re.compile(r'(?!)'),
+        DIRECT_PARTNER_NETWORKS=set(), DIRECT_OPERATOR_NETWORKS=set(),
+        SHEET_ID='fixture-sheet', TAB='fixture-tab', EXPECTED_RANGE='A1:AA', HEADERS=['fixture-header'],
+        execute_google_request=lambda *a:{'values':[['fixture-header'],row]}, pad=lambda x:x,
+        load_closed_program_tombstones=lambda:[], match_closed_program_tombstone=lambda *a:None,
+        prior_rejection_evidence_match=lambda *a:None, bind_row=lambda *a:(2,row,'1325'),
+        katalys_snapshot=readback, screen_provider_terms=lambda *a:{'capture_complete':False, 'hard_trigger_count':0},
+        classify_approved_event=lambda *a:{'classification':{'portfolio':'glp'}},
+        choke_candidate=lambda *a, **kw:{'operational':True}, desired_changes=lambda *a, **kw:{},
+        CHECKBOX_COLUMNS=set(), ALLOWED={}, sha=lambda x:'fixture-sha',
+        record_approval_fact=lambda *a:{'fixture-only-fact':True}, save_receipt=save,
+        mark_state=lambda *a, **kw:None, finalize_mailbox_completion=lambda *a, **kw:(None,None))
+    result = asyncio.run(fn(event, sheet, object(), object(), dry_run, {'fresh_katalys_driver':driver}))
+    assert result['receipt'] == str(tmp_path / 'fixture-only-receipt.json')
+    assert len(receipts) == 1
+    receipt = receipts[0]
+    assert receipt['status'] == 'PASS' and receipt['provider_readback_verified'] is True
+    assert receipt['provider_relationship'] == relationship and receipt['dry_run'] is dry_run
+    assert receipt['approval_fact_recorded'] is (relationship == 'approved' and not dry_run)
+    assert receipt['provider_readback_provenance'] == {
+        'api_readback':'UNAVAILABLE_ORG_PERMISSION',
+        'read_method':'fresh_ai_browser_vault_visible_relationship',
+        'relationship_scope':'GLP Clinic Scout Site', 'inventory_complete':False,
+        'publisher_id':'098e5455-ca72-4099-9ff9-a9dd014148e7',
+        'principal_verified':True, 'terms_readback':'UNKNOWN'}
+    assert receipt['sheet_write_count'] == 0 and receipt['provider_mutation'] is False

@@ -206,7 +206,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "ac370d579db8f6498cd5fdd455544bf7f42a2e669d261070321248318086c78c"
+      "sha256": "25e473016f96dbb7259089c43ffbe03f8cea2b53b8e40b7a1516e0f3b53389da"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -1357,7 +1357,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "e3ac5adeedec256f0f37408b79c0fe52b719ef05a432c79eda11e7f036ecfd3e"
+      "sha256": "9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -4834,7 +4834,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "2741b17c008e1f8c0dbb1955e24e0444db7e1dd69dd1306a43ec99963aad0023"
+      "sha256": "312737914e3515fc2db3131302561ba5eba6b173687d48d865daf84898afd474"
     },
     "tests/test_glp268_fresh_browser_callers.py": {
       "callers": [
