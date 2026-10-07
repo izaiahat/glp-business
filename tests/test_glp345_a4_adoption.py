@@ -468,19 +468,51 @@ def test_stream_plan_does_not_adopt_absent_baseline(stream_isolated, rel):
         a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.STREAM_GENERATION)
 
 
-def test_stream_committed_source_and_historical_generation_binding():
+def test_stream_committed_source_and_historical_generation_binding(tmp_path):
     import glp345_a4_adoption as a4
-    head, body = a4.authenticate(ROOT, generation=a4.STREAM_GENERATION)
-    assert head == subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
-    assert a4.sha(body) == a4.STREAM_COLLECTOR_AFTER
-    old, new = a4.stream_sources(ROOT)
+    # This accepted main commit is the exact pre-GLP75 source cohort. Later
+    # weekly repairs legitimately move its pins but cannot reuse its frozen
+    # generation. Exercise real Git-bound producers in isolated local clones;
+    # do not monkeypatch authentication or repin old generation constants.
+    accepted = '79dc5959049bad8b84a7c8249e15ca46a8d891ec'
+    current = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
+    probe = """
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / 'scripts'))
+import glp345_a4_adoption as a4
+root = Path.cwd()
+result = {}
+try:
+    head, body = a4.authenticate(root, generation=a4.STREAM_GENERATION)
+    old, new = a4.stream_sources(root)
     before, after = map(json.loads, (old[a4.WEEKLY_PINS], new[a4.WEEKLY_PINS]))
-    assert len(after['paths']) == 20
-    assert {p for p in before['paths'] if before['paths'][p] != after['paths'][p]} == {str(a4.BUSINESS / a4.RAILS)}
-    # Historical authentication continues refusing the moved raw rail. It does
-    # not alias, repin, or silently redirect to the named successor.
-    with pytest.raises(RuntimeError, match='approved_weekly_input_moved:ops/glp/seo_data_rails.py'):
-        a4.authenticate(ROOT, generation=a4.MANUAL_WEEKLY_GENERATION)
+    result.update(head=head, collector_sha=a4.sha(body), path_count=len(after['paths']),
+                  changed_paths=sorted(p for p in before['paths'] if before['paths'][p] != after['paths'][p]))
+except RuntimeError as exc:
+    result['stream_refusal'] = str(exc)
+try:
+    a4.authenticate(root, generation=a4.MANUAL_WEEKLY_GENERATION)
+except RuntimeError as exc:
+    result['manual_refusal'] = str(exc)
+print(json.dumps(result))
+"""
+    results = {}
+    for name, revision in (('accepted', accepted), ('current', current)):
+        checkout = tmp_path / name
+        subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
+        subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', revision], check=True)
+        results[name] = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=checkout))
+    historical = results['accepted']
+    assert historical['head'] == accepted
+    assert historical['collector_sha'] == a4.STREAM_COLLECTOR_AFTER
+    assert historical['path_count'] == 20
+    assert historical['changed_paths'] == [str(a4.BUSINESS / a4.RAILS)]
+    assert results['current']['stream_refusal'] == 'stream_source_binding_moved:' + a4.WEEKLY_PINS
+    # Neither historical nor latest head aliases the moved raw rail back into
+    # the older manual generation; all original refusal semantics survive.
+    for result in results.values():
+        assert result['manual_refusal'] == 'approved_weekly_input_moved:ops/glp/seo_data_rails.py'
 
 
 def test_no_window_cannot_apply(isolated):
