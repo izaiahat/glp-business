@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 717,
+  "tracked_count": 719,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -485,7 +485,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "54ee86223e7b636615a91f5d0b3166f39b5cdbdc4144c3b08122faacb7cdc22c"
+      "sha256": "50a946d8d9df26284b3ebf040b2049eb7d2861db36292ba556f1be60502f1224"
     },
     ".hermes.md": {
       "callers": [],
@@ -745,12 +745,26 @@
       "kind": "script",
       "sha256": "47054f0a059c72010b6524466ea784c7769c91cb6d7831f11e084e995aa2d933"
     },
+    "tests/test_cgroup_headroom_guardian.py": {
+      "callers": [
+        "guardian-exact-head"
+      ],
+      "kind": "test",
+      "sha256": "b3e3f34a762b70c984da778cd1701614ae8df592562e3e55c000806b65fe7aa8"
+    },
+    ".github/workflows/guardian-coordinator-ci.yml": {
+      "callers": [
+        "GitHub pull_request exact-head CI"
+      ],
+      "kind": "workflow",
+      "sha256": "edc021ce880fa17dfd6df5fdd6937d89cb42c1f121da52f615fc570089bc2959"
+    },
     "ops/hermes-cron-scripts/cgroup_headroom_guardian.py": {
       "callers": [
         "hermes:f918ef069c4a"
       ],
       "kind": "script",
-      "sha256": "4a137a9081b5b42cef5422690dc3214015f5359d99df3b7b093c3e97ffe5b6a2"
+      "sha256": "84da41316f1757ccfa994e542013b42c13d7cb4cffa881da5ebbf240e3275503"
     },
     "ops/hermes-cron-scripts/codex_gate_watchdog.py": {
       "callers": [
