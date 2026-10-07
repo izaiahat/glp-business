@@ -110,6 +110,80 @@ def stage_weekly_pins(before, wrapper, *, generation=WEEKLY_GENERATION):
     return emitted, carrier
 
 
+# PR239's accepted collector/raw rail continues the installed manual A4, not
+# any immutable historical generation. All seven output members switch together.
+STREAM_GENERATION = 'glp44-consumer-stream-raw-rail-20261006'
+STREAM_SOURCE = '09f942ed202988b3f377d6777abfdb54fab7d7ee'
+STREAM_PREDECESSOR = 'f8ce308995302a0b75d41a9a5576b6a3ea571d8a'
+COLLECTOR = 'systems/analytics-brain/collector.py'
+WEEKLY_PINS = 'ops/glp/seo-weekly-installed-pins.json'
+WEEKLY_ANALYSIS = 'scripts/glp_weekly_seo_analysis.py'
+STREAM_PATHS = (
+    'systems/analytics-brain/collector.py',
+    'ops/glp/seo_data_rails.py',
+    'ops/glp/seo-weekly-installed-pins.json',
+    'scripts/glp_weekly_seo_analysis.py',
+    'reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json',
+)
+STREAM_MAP_BEFORE = '5d83a280be12cdbf1f7449ac9a7c83d07e66027ad3c8be6eb4b57eaaeb61190a'
+STREAM_WRAPPER_BEFORE = '43532ad8c94c1dde3eac99abe42eb499fe831d1bc1328aa661b9184ea147206d'
+STREAM_RAIL_AFTER = '001df4f7300777376963207c018cfa36895af4ec745a024dcd9f799a5c5b8523'
+STREAM_COLLECTOR_BEFORE = 'f6e65eac71a317ad418b4bc46bac1ff9e0065db6364b44ed6cfb84a5daa7c8f3'
+STREAM_COLLECTOR_AFTER = '55d733fbf9c8ecc6d3c3c99cb8e249d22673d42802085c1107f7d6e90f77ae7e'
+STREAM_PINS_AFTER = 'b0938ebf5a3c8b3e0f88539f036ec54dbc4cfc7cc63f715c6fe613455d1653ce'
+STREAM_ANALYSIS_AFTER = '88176d7b67c4b52b2119d66e9bd80988cedf496773d8ae48a881007213450afb'
+
+
+def stage_stream_pins(before, wrapper):
+    """Only the accepted rail/map edge moves; authenticate full installed bytes."""
+    import json
+    if (sha(before), sha(wrapper)) != (STREAM_MAP_BEFORE, STREAM_WRAPPER_BEFORE):
+        raise RuntimeError('unknown_stream_artifact_preimage')
+    pins = json.loads(before)
+    if pins['posthog'] != {'path': str(BUSINESS / RAILS), 'sha256': RAILS_AFTER}:
+        raise RuntimeError('stream_posthog_preimage_moved')
+    pins['posthog']['sha256'] = STREAM_RAIL_AFTER
+    emitted = (json.dumps(pins, indent=2, sort_keys=True) + '\n').encode()
+    edges = wrapper_pins(wrapper)
+    if edges[str(BUSINESS / MAP)] != STREAM_MAP_BEFORE:
+        raise RuntimeError('stream_map_edge_moved')
+    edges[str(BUSINESS / MAP)] = sha(emitted)
+    node = next(n for n in ast.parse(wrapper).body if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == 'PINS' for t in n.targets))
+    rows = wrapper.splitlines(keepends=True)
+    carrier = b''.join(rows[:node.lineno-1] + [('PINS = ' + repr(edges) + '\n').encode()] + rows[node.end_lineno:])
+    return emitted, carrier
+
+
+def stream_sources(checkout):
+    """Carry literal old/new proofs; never turn live drift into a baseline."""
+    import maxbounty_pin_release as p
+    old_hashes = {COLLECTOR: STREAM_COLLECTOR_BEFORE, RAILS: RAILS_AFTER,
+                  WEEKLY_PINS: '467b074c657fcc07f00bd081bdc6a6904ccf73ac113c48d140107822073fc90f',
+                  WEEKLY_ANALYSIS: '469d5655c6b4e0c02e56feb6af95629adde37019dfecf6d4d93ab8528c8aece2'}
+    new_hashes = {COLLECTOR: STREAM_COLLECTOR_AFTER, RAILS: STREAM_RAIL_AFTER,
+                  WEEKLY_PINS: STREAM_PINS_AFTER, WEEKLY_ANALYSIS: STREAM_ANALYSIS_AFTER}
+    old, new = {}, {}
+    for rel in old_hashes:
+        old[rel] = p.git(checkout, 'show', STREAM_PREDECESSOR + ':' + rel)
+        new[rel] = p.git(checkout, 'show', 'HEAD:' + rel)
+        if (sha(old[rel]) != old_hashes[rel] or sha(new[rel]) != new_hashes[rel]
+                or p.read_regular(checkout / rel)[0] != new[rel]):
+            raise RuntimeError('stream_source_binding_moved:' + rel)
+        if rel in (COLLECTOR, RAILS) and new[rel] != p.git(checkout, 'show', STREAM_SOURCE + ':' + rel):
+            raise RuntimeError('accepted_stream_source_moved:' + rel)
+    if (old[WEEKLY_PINS].count(RAILS_AFTER.encode()) != 1
+            or new[WEEKLY_PINS] != old[WEEKLY_PINS].replace(RAILS_AFTER.encode(), STREAM_RAIL_AFTER.encode(), 1)
+            or old[WEEKLY_ANALYSIS].count(old_hashes[WEEKLY_PINS].encode()) != 1
+            or new[WEEKLY_ANALYSIS] != old[WEEKLY_ANALYSIS].replace(
+                old_hashes[WEEKLY_PINS].encode(), STREAM_PINS_AFTER.encode(), 1)):
+        raise RuntimeError('stream_weekly_literal_co_pin_moved')
+    pins = p.strict_json(new[WEEKLY_PINS])
+    if pins.get('schema') != 'glp-weekly-installed-source-pins-v1' or len(pins.get('paths', {})) != 20:
+        raise RuntimeError('stream_full_twenty_pin_identity_required')
+    return old, new
+
+
 def authenticate(checkout, generation=GENERATION):
     """Bind executing producer/helpers, snapshots and reviewed source bytes."""
     import maxbounty_pin_release as p
@@ -178,6 +252,33 @@ def authenticate(checkout, generation=GENERATION):
                    for row in registry['artifacts']):
             raise RuntimeError('weekly_producer_not_registered')
         body = p.git(checkout, 'show', weekly_source + ':' + WEEKLY)
+    elif generation == STREAM_GENERATION:
+        p.git(checkout, 'merge-base', '--is-ancestor', STREAM_PREDECESSOR, STREAM_SOURCE)
+        p.git(checkout, 'merge-base', '--is-ancestor', STREAM_SOURCE, head)
+        p.git(checkout, 'merge-base', '--is-ancestor', MANUAL_WEEKLY_SOURCE, head)
+        prior = stage_weekly_pins(*stage_pins(
+            p.git(checkout, 'show', head + ':' + MAP_SNAPSHOT),
+            p.git(checkout, 'show', head + ':' + WRAPPER_SNAPSHOT)),
+            generation=MANUAL_WEEKLY_GENERATION)
+        # Current packaging retains the immutable manual artifacts. Successor
+        # projections are generated by this registered owner, never hand-edited.
+        for rel, approved in zip((MAP, 'ops/hermes-cron-scripts/' + WRAPPER), prior):
+            if (p.git(checkout, 'show', head + ':' + rel) != approved
+                    or p.read_regular(checkout / rel)[0] != approved
+                    or manifest['files'][rel]['sha256'] != sha(approved)):
+                raise RuntimeError('stream_manual_artifact_binding_moved:' + rel)
+        if (sha(p.git(checkout, 'show', head + ':' + WEEKLY_SNAPSHOT)) != WEEKLY_BEFORE
+                or sha(p.git(checkout, 'show', head + ':tests/fixtures/glp341-a3-result.json')) != A3_HASH):
+            raise RuntimeError('stream_historical_custody_moved')
+        old, new = stream_sources(checkout)
+        for rel, approved in {**new, WEEKLY: p.git(checkout, 'show', MANUAL_WEEKLY_SOURCE + ':' + WEEKLY)}.items():
+            if (p.git(checkout, 'show', head + ':' + rel) != approved
+                    or p.read_regular(checkout / rel)[0] != approved
+                    or manifest['files'][rel]['sha256'] != sha(approved)):
+                raise RuntimeError('stream_co_pin_source_moved:' + rel)
+        if sha(p.git(checkout, 'show', head + ':' + WEEKLY)) != MANUAL_WEEKLY_AFTER:
+            raise RuntimeError('stream_manual_weekly_source_moved')
+        body = new[COLLECTOR]
     elif generation != GENERATION:
         raise RuntimeError('unknown_a4_generation')
     return head, body
@@ -190,6 +291,8 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
     root, hermes = root.resolve(strict=True), hermes.resolve(strict=True)
     if not isinstance(prepared_by, str) or not prepared_by.strip():
         raise RuntimeError('preparer_required')
+    if generation == STREAM_GENERATION:
+        return _plan_stream(checkout, root, hermes, prepared_by, window=window)
     if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
         raise RuntimeError('unknown_a4_generation')
     weekly = generation in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION)
@@ -222,10 +325,24 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
         state['hashes'][MAP] = sha(emitted)
     staged = {root / subject: source, root / MAP: emitted,
               hermes / 'scripts' / WRAPPER: carrier, root / syncer.STATE: p.json_bytes(state)}
+    return _finish_plan(root, hermes, prepared_by, window, generation, head,
+                        weekly_source if weekly else SOURCE, wrapper_before,
+                        emitted, carrier, observed, staged, strict_dependencies=weekly)
+
+
+def _finish_plan(root, hermes, prepared_by, window, generation, head, source_head,
+                 wrapper_before, emitted, carrier, observed, staged, *,
+                 strict_dependencies, extra_expected=None):
+    import copy
+    import maxbounty_pin_release as p
     # Retain all actual weekly dependencies. Existing drift is explicit review
     # context, never "fixed" by dropping a pin or accepting arbitrary live bytes.
     expected = wrapper_pins(carrier)
     expected.update({v['path']: v['sha256'] for v in p.strict_json(emitted).values()})
+    for absolute, digest in (extra_expected or {}).items():
+        if absolute in expected and expected[absolute] != digest:
+            raise RuntimeError('incoherent_weekly_dependency:' + absolute)
+        expected[absolute] = digest
     drift = []
     for absolute, digest in expected.items():
         path = root / Path(absolute).relative_to(BUSINESS)
@@ -233,7 +350,7 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
         actual = sha(staged.get(path, observed[path][0]))
         if actual != digest:
             drift.append({'path': str(path), 'expected': digest, 'actual': actual})
-    if weekly and drift:
+    if strict_dependencies and drift:
         raise RuntimeError('weekly_dependency_drift:' + ','.join(item['path'] for item in drift))
     registry = hermes / 'cron/jobs.json'
     observed[registry] = p.read_regular(registry)
@@ -259,7 +376,7 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
     if window is not None and (job.get('enabled') is not False or job.get('state') != 'paused'):
         raise RuntimeError('weekly_not_held_by_window')
     proposal = {'schema': 'glp345-a4-proposal-v1', 'generation': generation,
-                'producer_head': head, 'source_head': weekly_source if weekly else SOURCE, 'prepared_by': prepared_by.strip(),
+                'producer_head': head, 'source_head': source_head, 'prepared_by': prepared_by.strip(),
                 'root': str(root), 'hermes': str(hermes),
                 'journal': str(Path(window.journal).resolve()) if window else None,
                 'window_preimage_sha256': sha(p.json_bytes({k: v for k, v in
@@ -270,6 +387,39 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
                 'registry_mode': observed[registry][1], 'job_before': copy.deepcopy(job),
                 'job_original': original, 'weekly_residual_drift': drift}
     return proposal, observed, staged
+
+
+def _plan_stream(checkout, root, hermes, prepared_by, *, window):
+    import maxbounty_pin_release as p
+    import sync_from_repo as syncer
+    head, _ = authenticate(checkout, generation=STREAM_GENERATION)
+    old, new = stream_sources(checkout)
+    observed = {root / rel: p.read_regular(root / rel) for rel in STREAM_PATHS}
+    observed[hermes / 'scripts' / WRAPPER] = p.read_regular(hermes / 'scripts' / WRAPPER)
+    observed[root / syncer.STATE] = p.read_regular(root / syncer.STATE)
+    state = p.strict_json(observed[root / syncer.STATE][0])
+    if state.get('schema') != 1 or not isinstance(state.get('hashes'), dict):
+        raise RuntimeError('source_import_baseline_moved')
+    for rel, body in old.items():
+        if (observed[root / rel][0] != body or state['hashes'].get(rel) != sha(body)):
+            raise RuntimeError('stream_source_preimage_or_baseline_moved:' + rel)
+    if state['hashes'].get(MAP) != STREAM_MAP_BEFORE:
+        raise RuntimeError('map_import_baseline_moved')
+    emitted, carrier = stage_stream_pins(observed[root / MAP][0],
+                                        observed[hermes / 'scripts' / WRAPPER][0])
+    pins = p.strict_json(new[WEEKLY_PINS])
+    if pins.get('schema') != 'glp-weekly-installed-source-pins-v1' or len(pins.get('paths', {})) != 20:
+        raise RuntimeError('stream_full_twenty_pin_identity_required')
+    staged = {root / rel: body for rel, body in new.items()}
+    staged[root / MAP] = emitted
+    staged[hermes / 'scripts' / WRAPPER] = carrier
+    for rel in STREAM_PATHS:
+        state['hashes'][rel] = sha(staged[root / rel])
+    staged[root / syncer.STATE] = p.json_bytes(state)
+    return _finish_plan(root, hermes, prepared_by, window, STREAM_GENERATION, head,
+                        STREAM_SOURCE, STREAM_WRAPPER_BEFORE, emitted, carrier,
+                        observed, staged, strict_dependencies=True,
+                        extra_expected=pins['paths'])
 
 
 def validate_review(review, proposal):
@@ -326,7 +476,7 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None, _source_own
     if not isinstance(review, dict) or not isinstance(review.get('proposal'), dict):
         raise RuntimeError('independent_review_required')
     generation = review['proposal'].get('generation')
-    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
+    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION):
         raise RuntimeError('unknown_a4_generation')
     custody = root / 'reports/ops/pin-archive/glp345-a4' / generation
     intent = custody / 'cutover.json'
@@ -411,7 +561,7 @@ def main(argv=None):
     parser.add_argument('--root', type=Path, default=BUSINESS)
     parser.add_argument('--hermes', type=Path, default=HERMES)
     parser.add_argument('--prepared-by', default='F08 source owner')
-    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION), default=GENERATION)
+    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION), default=GENERATION)
     parser.add_argument('--window', type=Path)
     parser.add_argument('--review', type=Path)
     parser.add_argument('--apply', action='store_true')

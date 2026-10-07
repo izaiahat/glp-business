@@ -886,27 +886,56 @@ class GoogleRail:
         rows = []
         pages = 0
         offset = 0
+        expected_row_count = None
         try:
             while True:
                 body["offset"] = offset
                 doc = _http(endpoint, method="POST", headers=self._headers(), body=body)
-                page = doc.get("rows") or []
+                if not isinstance(doc, dict):
+                    raise ValueError("invalid_ga4_report_shape")
+                dimension_headers = doc.get("dimensionHeaders")
+                metric_headers = doc.get("metricHeaders")
+                if (not isinstance(dimension_headers, list)
+                        or not isinstance(metric_headers, list)
+                        or any(not isinstance(h, dict) for h in dimension_headers + metric_headers)
+                        or [h.get("name") for h in dimension_headers] != dimensions
+                        or [h.get("name") for h in metric_headers] != metrics):
+                    raise ValueError("invalid_ga4_report_headers")
+                # Protobuf JSON can omit zero rowCount and empty rows, but only
+                # an authenticated response schema can establish an empty read.
+                page = doc.get("rows", [])
+                row_count = doc.get("rowCount", 0)
+                if (not isinstance(page, list) or type(row_count) is not int
+                        or row_count < 0 or len(page) > limit
+                        or len(rows) + len(page) > row_count
+                        or (expected_row_count is not None and row_count != expected_row_count)):
+                    raise ValueError("invalid_ga4_report_count")
+                expected_row_count = row_count
                 pages += 1
                 for row in page:
-                    rows.append({
-                        "dimensions": [d.get("value") for d in row.get("dimensionValues") or []],
-                        "metrics": [m.get("value") for m in row.get("metricValues") or []],
-                    })
-                row_count = int(doc.get("rowCount") or len(rows))
-                if not fetch_all or not page or len(rows) >= row_count:
+                    if not isinstance(row, dict):
+                        raise ValueError("invalid_ga4_report_row")
+                    dimension_values = row.get("dimensionValues")
+                    metric_values = row.get("metricValues")
+                    if (not isinstance(dimension_values, list) or not isinstance(metric_values, list)
+                            or len(dimension_values) != len(dimensions) or len(metric_values) != len(metrics)
+                            or any(not isinstance(v, dict) or not isinstance(v.get("value"), str)
+                                   for v in dimension_values + metric_values)):
+                        raise ValueError("invalid_ga4_report_row")
+                    rows.append({"dimensions": [v["value"] for v in dimension_values],
+                                 "metrics": [v["value"] for v in metric_values]})
+                if not page and len(rows) < row_count:
+                    raise ValueError("incomplete_ga4_report")
+                if not fetch_all or len(rows) == row_count:
                     break
                 offset += len(page)
         except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": str(exc)[:300], "rows": rows,
+            return {"ok": False, "error": str(exc)[:300], "rows": [],
                     "pages": pages, "complete": False, "host_filtered": bool(host_filter)}
-        return {"ok": True, "dimension_names": dimensions, "metric_names": metrics,
+        return {"ok": True, "dimension_names": [h["name"] for h in dimension_headers],
+                "metric_names": [h["name"] for h in metric_headers],
                 "rows": rows, "host_filtered": bool(host_filter),
-                "host_filter": host_filter, "pages": pages, "complete": True}
+                "host_filter": host_filter, "pages": pages, "complete": len(rows) == row_count}
 
 
 # ---------------------------------------------------------------------------

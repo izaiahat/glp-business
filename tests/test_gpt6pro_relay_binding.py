@@ -511,6 +511,65 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(len(self.browser.pages), 1)
         self.assertEqual(next(iter(self.browser.pages.values()))['url'], 'about:blank')
 
+    def test_single_managed_wave_qualifies_three_generating_chats(self):
+        """Actual wave + submit/poll code; fourth refuses before a browser send."""
+        wave_spec = importlib.util.spec_from_file_location('qualified_wave', RELAY_PATH.with_name('gpt6pro_wave.py'))
+        assert wave_spec is not None and wave_spec.loader is not None
+        wave = importlib.util.module_from_spec(wave_spec)
+        with mock.patch.dict(sys.modules, {'gpt6pro_relay': relay}):
+            wave_spec.loader.exec_module(wave)
+        jobs = ['qualified-one', 'qualified-two', 'qualified-three']
+        for job in [*jobs, 'qualified-four']:
+            d = relay.job_dir(job)
+            (d / 'PROMPT.md').write_text('Distinct useful review fixture: ' + job)
+            (d / 'MANIFEST.json').write_text(json.dumps({'job': job, 'job_class': 'review', 'attach': [],
+                **{k: job + '-' + k for k in relay.PROVENANCE_FIELDS}}))
+        wave_file = self.root / 'wave.json'
+        wave_file.write_text(json.dumps({'jobs': [{'job': j} for j in jobs]}))
+        peak = []
+        self.browser.defer_text = True
+        def cli(args):
+            with mock.patch.object(sys, 'argv', ['gpt6pro_relay.py', *args]), redirect_stdout(io.StringIO()) as out:
+                code = relay.main()
+                return code, out.getvalue().strip().splitlines()[-1]
+        def managed_run(args, timeout=900):
+            if args[0] == 'submit':
+                result = cli(args)
+                peak.append(len(relay.active_registry()))
+                if len(peak) == 3:
+                    self.assertEqual(peak, [1, 2, 3])
+                    rows = [relay.job_state(j) for j in jobs]
+                    self.assertTrue(all(r['status'] == 'running' for r in rows))
+                    self.assertEqual(len({r['conversation_id'] for r in rows}), 3)
+                    self.assertEqual(len({r['tab'] for r in rows}), 3)
+                    self.assertTrue(all(self.browser.pages[r['tab']]['stop'] for r in rows))
+                    before = (len(self.browser.sent), len(self.browser.created))
+                    fourth = [a.replace('qualified-three', 'qualified-four') for a in args]
+                    with self.assertRaisesRegex(SystemExit, 'CAPACITY_ACCOUNT'):
+                        cli(fourth)
+                    self.assertEqual((len(self.browser.sent), len(self.browser.created)), before)
+                    for r in rows:
+                        page = self.browser.pages[r['tab']]
+                        page.update(stop=False, text='Bound useful result for ' + r['job'])
+                return result
+            return cli(args)
+        def sleep(seconds):
+            self.clock += seconds
+            self.browser.clock += seconds
+        fake_clock = types.SimpleNamespace(monotonic=lambda: self.clock, sleep=sleep)
+        with mock.patch.object(wave, 'JOBS', relay.JOBS), \
+             mock.patch.object(wave, 'time', fake_clock), \
+             mock.patch.object(wave, 'run', side_effect=managed_run), \
+             mock.patch.object(wave.importlib, 'reload', side_effect=lambda module: module), \
+             mock.patch.object(sys, 'argv', ['gpt6pro_wave.py', '--wave', str(wave_file), '--account', 'account-a']), \
+             redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(wave.main(), 0)
+        self.assertEqual(peak, [1, 2, 3])
+        self.assertEqual(len(self.browser.sent), 3)
+        self.assertTrue(all(relay.job_state(j)['status'] == 'done' for j in jobs))
+        self.assertEqual(relay.active_registry(), [])
+        self.assertIn('WAVE_DONE', out.getvalue())
+
     def test_account_tab_cap_refuses_before_creating_a_sixth_page(self):
         for i in range(4):
             self.browser.pages[f'old-{i}'] = {"url": SIBLING, "text": "", "composer": "", "messages": True, "stop": False}
@@ -1375,6 +1434,144 @@ console.log(JSON.stringify(fixtures.map(f => {
                                     capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
                              'composer_empty': empty, 'user_count': users})
+
+    def test_current_obsolete_unsent_disposition_actual_cli(self):
+        """No replay: exact WRONG_MODEL/readiness pins, UNKNOWN stays held."""
+        import copy
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        jobs = [('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
+                ('pro-glp96-intake-design-closer-20261003', 'unsent_reconciled', 'SECURITY_INTERSTITIAL')]
+        pins, originals = {}, {}
+        report = 'reports/current-terminal-facts.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        facts = []
+        for job, status, reason in jobs:
+            d = relay.job_dir(job)
+            prompt = b'original obsolete packet'
+            (d / 'PROMPT.md').write_bytes(prompt)
+            (d / 'drive-input').mkdir()
+            (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+            tab = 'retained-challenge' if reason == 'SECURITY_INTERSTITIAL' else None
+            origin = 12345.5 if tab else None
+            original = {'job': job, 'account': 'account-a', 'job_class': 'review',
+                'status': 'failed', 'reason': reason, 'retry_blocked': True,
+                'typed': False, 'sent': False, 'reply_token': 'b'*64,
+                'input_sha256': sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode()),
+                **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS},
+                'error': {'error': reason, 'typed': False, 'sent': False,
+                    'state': {'url': HOME, 'model': None, 'stop': False,
+                              'assistant_count': 0, 'last_len': 0}}}
+            if tab:
+                original['error']['tab'] = tab
+            old_bytes = json.dumps(original).encode()
+            backup = sha(old_bytes) if tab else None
+            held = dict(original)
+            if tab:
+                (d / ('JOB.pre-readiness-reconcile-'+backup+'.json')).write_bytes(old_bytes)
+                held.update(status=status, reconciled_at='2026-10-03T00:59:49+00:00', preimage_sha256=backup)
+            relay.job_write(job, held)
+            originals[job] = (d / 'JOB.json').read_bytes()
+            message = relay._failed_generation_identity(held).encode()
+            (d / 'MESSAGE.md').write_bytes(message)
+            manifest = {k: held[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+            manifest.update(attach=[], drive_attach=[])
+            (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+            relay.ledger_append(self.cfg, {'event': 'submitted', 'job': job, 'account': 'account-a',
+                'kind': 'initial', 'certainty': 'reserved_may_send',
+                **{k: held[k] for k in relay.PROVENANCE_FIELDS}})
+            if tab:
+                event = {'event': 'readiness_unsent_reconcile', 'job': job, 'account': 'account-a',
+                    'reason': reason, 'preimage_sha256': backup, 'message_sha256': sha(message),
+                    'retained_tab': tab, 'time_origin': origin}
+                for phase in ('STARTED', 'APPLIED'):
+                    relay.ledger_append(self.cfg, {**event, 'phase': phase})
+            lines = [line for line in relay.ledger_path(self.cfg).read_bytes().splitlines()
+                     if json.loads(line)['job'] == job]
+            c = {'job': job, 'held': sha(originals[job]), 'message': sha(message),
+                 'manifest': sha((d / 'MANIFEST.json').read_bytes()),
+                 'drive_prompt': sha(prompt), 'ledger_lines': tuple(map(sha, lines)),
+                 'backup': backup, 'tab': tab, 'time_origin': origin,
+                 'status': status, 'reason': reason}
+            pins[job] = c
+            facts.append({'job': job, 'disposition': 'terminal_unsent_obsolete', 'reason': reason,
+                'typed': False, 'sent': False, 'submission_bound': False,
+                'job_sha256': c['held'], 'message_sha256': c['message'], 'error_tab': tab,
+                'time_origin': origin, 'ledger_rows_sha256': sha(json.dumps(
+                    list(map(json.loads, lines)), sort_keys=True, separators=(',', ':')).encode())})
+        rp.write_text(json.dumps({'jobs': facts}))
+        unknown = self.job(relay.CONSUMED_CANARY['job'], url=None, tab=None, status='failed',
+            typed=True, sent='UNKNOWN', retry_blocked=True, reason='RETAINED_RESUME_UNCERTAIN',
+            error={'error': 'SECURITY_INTERSTITIAL', 'typed': False, 'sent': False})
+        def call(job, *extra):
+            with mock.patch.object(sys, 'argv', ['relay', 'reconcile-unsent-model', '--job', job,
+                                               '--report', report, *extra]), redirect_stdout(io.StringIO()) as out:
+                return relay.main(), out.getvalue()
+        def snapshot():
+            return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in self.root.rglob('*') if p.is_file()}
+        with relay.account_lock(), relay.global_lock():
+            pass
+        with mock.patch.object(relay, 'TERMINAL_UNSENT_CURRENT', pins, create=True), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, '_retained_empty_witness', return_value=True) as witness, \
+             mock.patch.object(relay, '_legacy_tabs', return_value=[{'type': 'page', 'url': HOME}]), \
+             mock.patch.object(relay, 'bu', side_effect=AssertionError('NO OTHER BROWSER')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')), \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            for job, _, _ in jobs:
+                c = pins[job]
+                before = snapshot()
+                self.assertEqual(call(job)[0], 0)
+                self.assertEqual(snapshot(), before)
+                for label, mutate, restore in [
+                    ('authority', lambda: None, lambda: None),
+                    ('UNKNOWN overrides stale error', lambda: relay.job_write(job, {**json.loads(originals[job]), 'sent': 'UNKNOWN'}),
+                        lambda: (relay.JOBS / job / 'JOB.json').write_bytes(originals[job])),
+                    ('binding', lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
+                        lambda: relay.ledger_path(self.cfg).write_bytes(saved_ledger)),
+                    ('live runner', lambda: setattr(live, 'return_value', {job}), lambda: setattr(live, 'return_value', set()))]:
+                    saved_ledger = relay.ledger_path(self.cfg).read_bytes()
+                    with self.subTest(job=job, guard=label):
+                        mutate()
+                        pre = snapshot()
+                        with self.assertRaises(SystemExit):
+                            call(job, '--apply', '--authorize-preimage', '0'*64 if label == 'authority' else c['held'])
+                        self.assertEqual(snapshot(), pre)
+                        restore()
+                if c['tab']:
+                    witness.return_value = False
+                    with self.assertRaises(SystemExit): call(job)
+                    witness.return_value = True
+                pre_ledger = relay.ledger_path(self.cfg).read_bytes()
+                self.assertEqual(call(job, '--apply', '--authorize-preimage', c['held'])[0], 0)
+                terminal = relay.job_state(job)
+                self.assertEqual({k:v for k,v in terminal.items() if k != 'terminal_unsent'}, json.loads(originals[job]))
+                self.assertIs(terminal['retry_blocked'], True)
+                self.assertEqual((relay.JOBS / job / ('JOB.pre-terminal-unsent-'+c['held']+'.json')).read_bytes(), originals[job])
+                self.assertTrue(relay.ledger_path(self.cfg).read_bytes().startswith(pre_ledger))
+                self.assertTrue(relay._verified_terminal_unsent(terminal))
+                with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'): relay.cmd_submit(self.args(job))
+                with self.assertRaises(SystemExit): call(job, '--apply', '--authorize-preimage', c['held'])
+                # Both admission callers must reject projected/raw identity drift and interrupted apply.
+                relay.job_write(job, {**terminal, 'job': 'drift'})
+                self.assertFalse(relay._verified_terminal_unsent({**terminal, 'job': job}))
+                with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'): relay.cmd_submit(self.args('future'))
+                relay.job_write(job, terminal)
+                applied = relay.ledger_path(self.cfg).read_bytes()
+                relay.ledger_path(self.cfg).write_bytes(b'\n'.join(applied.splitlines()[:-1])+b'\n')
+                self.assertFalse(relay._verified_terminal_unsent(terminal))
+                relay.ledger_path(self.cfg).write_bytes(applied)
+            self.assertEqual([r['job'] for r in relay.active_registry()], [unknown['job']])
+            self.assertEqual(relay.job_state(unknown['job']), unknown)
+            with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'): relay.cmd_submit(self.args('future'))
+            # Different account can be admitted; old UNKNOWN cannot be retired by a forged receipt.
+            self.cfg['accounts'].append({'label': 'account-b', 'cdp_port': 9341, 'weekly_messages': 100})
+            relay.job_write(unknown['job'], {**unknown, 'account': 'account-b'})
+            with self.assertRaisesRegex(AssertionError, 'NO CLEANUP'): relay.cmd_submit(self.args('future'))
+            self.assertEqual(relay.job_state('future')['status'], 'submitting')
 
     def test_pr52_terminal_unsent_actual_cli(self):
         """Exact obsolete preinsert job: no replay; only different-ID admission."""
