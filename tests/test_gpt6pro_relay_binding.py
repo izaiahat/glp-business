@@ -3840,7 +3840,7 @@ let ctx;
                                and any(isinstance(t, ast.Name) and t.id == 'html' for t in n.targets)))
         html = html.replace('aria-expanded="true"', 'aria-expanded="true" data-selected-reasoning-effort="medium" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning"')
         html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
-        html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p></p></div>'
+        html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p><br class="ProseMirror-trailingBreak"></p></div>'
         node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
         left, right = node.index('const output={};'), node.index('}finally{await cdp')
         node = node[:left] + r'''
