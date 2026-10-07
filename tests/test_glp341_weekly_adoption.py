@@ -1,6 +1,7 @@
 """Coherent PR115-after-PR165 adoption; no live writes or provider calls."""
 import ast
 import json
+import subprocess
 from pathlib import Path
 import sys
 
@@ -104,11 +105,14 @@ def test_reviewed_weekly_successor_closes_three_incompatibilities():
     assert set(candidate) == set(original)
     for key in set(original) - {'posthog'}:
         assert candidate[key] == original[key]  # PR161 must not be rolled back.
-    assert candidate['posthog']['sha256'] == a4.sha((ROOT / 'ops/glp/seo_data_rails.py').read_bytes())
+    # The immutable PR115 generation binds its real committed rail, not a later
+    # mutable successor. Preserve the original equality and literal digest.
+    historical_rail = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                                              a4.WEEKLY_SOURCE + ':' + a4.RAILS])
+    assert candidate['posthog']['sha256'] == a4.sha(historical_rail) == a4.RAILS_AFTER
     pins = a4.wrapper_pins(carrier)
     old = a4.wrapper_pins(wrapper)
     assert not any('result_contract' in p or 'briefs/' in p for p in pins)
-    import subprocess
     approved_old = subprocess.check_output(['git', '-C', str(ROOT), 'show',
                                            a4.WEEKLY_SOURCE + ':' + a4.WEEKLY])
     assert pins[str(a4.BUSINESS / a4.WEEKLY)] == a4.sha(approved_old)
