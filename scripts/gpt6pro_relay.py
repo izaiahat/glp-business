@@ -912,16 +912,56 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 }'''
 
 
+# Current picker visibility belongs to its active view ancestor, not the row.
+# Keep the complete label, maximum badge, exact scale and actionable menu proof.
+MODEL_PICKER_JS = r'''function full6ProMaximum(){
+    const actionable=(e,visualThumb=false)=>{
+        if(!e||!e.getClientRects().length)return false;
+        for(let p=e;p;p=p.parentElement){
+            const s=getComputedStyle(p);
+            const hidden=p.getAttribute('aria-hidden')==='true'&&!(visualThumb&&p===e&&p.getAttribute('role')==='slider');
+            if(p.hidden||p.inert||hidden||
+               p.getAttribute('aria-disabled')==='true'||p.disabled===true||
+               p.getAttribute('data-active')==='false'||
+               s.display==='none'||s.visibility==='hidden')return false;
+        }return true;
+    };
+    const trigger=document.querySelector('button[aria-label="Select ChatGPT model"]');
+    if(!actionable(trigger)||trigger.getAttribute('aria-expanded')!=='true')return false;
+    const menu=document.getElementById(trigger.getAttribute('aria-controls'));
+    if(!actionable(menu)||menu.getAttribute('role')!=='menu')return false;
+    const views=[...menu.querySelectorAll('[data-model-picker-view=simple]')].filter(e=>actionable(e));
+    if(views.length!==1)return false;
+    const view=views[0];
+    const rows=[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')].filter(e=>actionable(e));
+    if(rows.length!==1)return false;
+    const row=rows[0],owner=row.closest('[aria-hidden]');
+    if(!owner||owner.getAttribute('aria-hidden')!=='false'||
+       row.innerText.trim().replace(/\s+/g,' ')!=='6 Pro')return false;
+    const badge=row.querySelector('[data-maximum=true]');
+    // The observed thumb is aria-hidden=true; its active Power menuitem is
+    // the accessible control. Never ignore hidden/inert ancestry or disablement.
+    const powers=[...view.querySelectorAll('[data-reasoning-slider][role=menuitem][aria-label=Power]')].filter(e=>actionable(e));
+    if(powers.length!==1)return false;
+    const sliders=[...powers[0].querySelectorAll('[role=slider]')].filter(e=>actionable(e,true));
+    if(!actionable(badge)||sliders.length!==1)return false;
+    const slider=sliders[0];
+    return slider.getAttribute('aria-valuemin')==='0'&&
+           slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
+}'''
+
+
 def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = (),
                  retained_tab: str | None = None, time_origin: float | None = None) -> dict:
     """Verify full 6 Pro/maximum gate and send; only explicit resume uses an existing target."""
     if retained_tab and (dry or type(time_origin) not in (int, float) or time_origin <= 0):
         raise ValueError('retained submission requires a bound document and effectful authority')
     payload = json.dumps(text)
+    full_picker_probe = '(()=>{' + MODEL_PICKER_JS + 'return full6ProMaximum();})()'
     # Retained sends must re-prove document, exact original draft and full
     # model/readiness in the synchronous evaluation that clicks Send.
     retained_click = ("(()=>{const retainedOrigin=" + json.dumps(time_origin) +
-        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + r'''
+        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + MODEL_PICKER_JS + r'''
         if(performance.timeOrigin!==retainedOrigin)return {clicked:false,reason:'document'};
         const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
         if(composerText(e)!==intended)return {clicked:false,reason:'composer'};
@@ -938,13 +978,7 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
            /Reconnect Google Drive/.test(body)||
            (()=>{const main=document.querySelector('main');return !!main&&[...main.querySelectorAll('div[class*="group/activity-header"] span, button')].some(x=>x.textContent.trim()==='Thinking failed'&&(x.matches('button')||x.children.length===0));})())return {clicked:false,reason:'readiness'};
         const model=[...document.querySelectorAll('button')].map(b=>b.innerText.trim()).find(t=>/^\s*\d+\s*Pro\s*$/.test(t)||/^\s*\d+(\.\d+)?\s*(Sol)?\s*$/.test(t));
-        const view=document.querySelector('[data-model-picker-view=simple]');
-        const rows=view?[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];
-        const slider=view&&view.querySelector('[data-reasoning-slider] [role=slider]');
-        const fullPicker=rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&
-          rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&
-          !!rows[0].querySelector('[data-maximum=true]')&&!!slider&&
-          slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
+        const fullPicker=full6ProMaximum();
         if((model && !/^\s*6\s*Pro\s*$/.test(model))||(!model&&!fullPicker))return {clicked:false,reason:'model'};
         const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
         if(!b||b.disabled)return {clicked:false,reason:'send_disabled'};
@@ -1047,11 +1081,11 @@ if RETAINED: _fresh()
 if not st["model"]:
     trigger="button[aria-label='Select ChatGPT model']"
     label=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");return b?b.innerText.trim():null;}})()")
-    if label in ('Medium', 'Pro'):
+    if label in ('Medium', 'Pro', 'Thinking effort'):
         if RETAINED: _fresh()
         picker_guard=("performance.timeOrigin==="+json.dumps(ORIGIN)+"&&!!(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))&&!((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]')).innerText.trim())") if RETAINED else "true"
-        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!("+picker_guard+")||!b||b.innerText.trim()!=="+json.dumps(label)+")return false;b.click();return true;}})()")
-        if opened and label == 'Medium':
+        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!("+picker_guard+")||!b||b.disabled||!['Medium','Pro','Thinking effort'].includes(b.innerText.trim()))return false;if(b.getAttribute('aria-expanded')!=='true')b.click();return true;}})()")
+        if opened and label in ('Medium', 'Thinking effort') and not _bound_js(tab['targetId'], fresh, {full_picker_probe!r}):
             # The slider is visible only in the simple view. Its fifth tick was
             # observed to show the full '6 Pro' model/effort row on acct2.
             for _ in range(10):
@@ -1067,7 +1101,7 @@ if not st["model"]:
         if opened:
             for _ in range(10):
                 time.sleep(0.3)
-                selected=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const rows=v?[...v.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];const slider=v&&v.querySelector('[data-reasoning-slider] [role=slider]');return !!b&&b.getAttribute('aria-expanded')==='true'&&rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&!!rows[0].querySelector('[data-maximum=true]')&&!!slider&&slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';}})()")
+                selected=_bound_js(tab['targetId'], fresh, {full_picker_probe!r})
                 if selected: break
             if RETAINED: _fresh()
             _bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(("+picker_guard+")&&b&&b.getAttribute('aria-expanded')==='true')b.click();return true;}})()")
