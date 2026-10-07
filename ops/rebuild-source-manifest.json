@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 747,
+  "tracked_count": 748,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -496,7 +496,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8c450b8f0039653344449a54cff287981afa0fd542f05d695d49be8fe94365ac"
+      "sha256": "3b97c18d463c82d65e87687d381cf11a5b711d745954423d5224eaa4a6c9cc14"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -863,7 +863,7 @@
         "hermes:f0c6a95a371c"
       ],
       "kind": "script",
-      "sha256": "45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9"
+      "sha256": "99bcc4cca7c63f41e3546bb0e470976907027557bf1e7b89d1a0dbb8aaebcfb4"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh": {
       "callers": [
@@ -1456,7 +1456,22 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66"
+      "sha256": "aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3"
+    },
+    "scripts/pallas_relationship_ending.py": {
+      "callers": [
+        "scripts/glp_sheet_sync_drain.py",
+        "manual:GLP-347 exact approved relationship ending"
+      ],
+      "kind": "script",
+      "sha256": "1b647bcca499e20af8495f5eda5a39e45be27d05e06bbfe68c655e8641273a35"
+    },
+    "scripts/glp_affiliate_registry_sync.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_affiliate_sync_job.py"
+      ],
+      "sha256": "037979554a29ea9e0feec557d9700dadba5231c295e6376ff92e9b4fced5174f"
     },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
@@ -1959,7 +1974,7 @@
         "sheet_update_queue single-writer carrier"
       ],
       "kind": "script",
-      "sha256": "aa12fc53f878bb8c0505fca4681cd116eae1a81bacf99969b1b8ffab48a76abd"
+      "sha256": "10bcc641001f360d9d51046ed84e63bd9e451ad2c800e7e5d010b9e15840628e"
     },
     "scripts/glp_sheet_vs_site_reconciler.py": {
       "callers": [
@@ -4677,13 +4692,6 @@
       ],
       "sha256": "8d6e20f1f8f8978ee22d57eb169f01ce4784fd9230f5216526b7735000995237"
     },
-    "scripts/glp_affiliate_registry_sync.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/glp_affiliate_sync_job.py"
-      ],
-      "sha256": "7abb012bf345b08ad4424ffe629614b3221152b4c1e1b5cd1a3f7c7496e83299"
-    },
     "scripts/glp_affiliate_release.py": {
       "kind": "script",
       "callers": [
@@ -4711,7 +4719,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "18c8b19e1db1c6c73e8ae39b68be71c6bcf3f3de4435a658c789a58b60cddb9b"
+      "sha256": "056cc0c5dd27954dc73d8c3613a7269943e4192e204fd1f1f899d2e46c4cf2b7"
     },
     "tests/test_glp_affiliate_release.py": {
       "kind": "test",

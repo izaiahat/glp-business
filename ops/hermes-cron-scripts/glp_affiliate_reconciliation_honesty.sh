@@ -43,7 +43,7 @@ wire_rails_expected_sha256='7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd
 wire_scope='/home/ubuntu/business/scripts/affiliate_provider_row_scope.py'
 wire_scope_expected_sha256='4c2eb769723efbde2c7cb6fcb5f5bd7da2b236333dc1376098cd08056db4af90'
 wire_writer='/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py'
-wire_writer_expected_sha256='0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66'
+wire_writer_expected_sha256='aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'
 wire_metadata="/home/ubuntu/business/scripts/affiliate_provider_metadata.py"
 wire_metadata_expected_sha256="04eb33474fc6a0d9791659f0bee8834ea430cbd1d5f37332bbbe06a5ab4be348"
 for wire_path in "$wire_scanner" "$wire_rails" "$wire_scope" "$wire_writer" "$wire_metadata"; do
@@ -98,7 +98,7 @@ if [[ $dry_run -eq 1 && $wire_rc -ne 0 ]]; then exit "$wire_rc"; fi
 declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/katalys_approved_link_resolver.py']='46c0c8c259c25ab94ea9c1337b550b15569e7a01523f6da5d8a7260741fbd085'
   ['/home/ubuntu/business/scripts/katalys_generate_tracking_links.py']='7bad1d2ea2084004f98aefd85b5785f15771cebe61237d76c7884d1a293a2cd6'
-  ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66'
+  ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_daily.py']='948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='1f6988537a04f9b0813240a7c637cdd1bba840f61155b6af2717dbe016417c6a'
   ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='85837d85f38275366058f4ab2be2e85dac2481770edb9687297393deb5be80f3'
