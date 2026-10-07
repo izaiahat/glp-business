@@ -15,28 +15,19 @@ from selection_receipt import (
 from existing_article_updates import _routes_in, _substantive_projection
 from r2_update_carrier import object_hash, validate_r2_packet_contract, validate_update_authority
 from machine_config import load_config
+from article_research import packet_research_valid
 
 DEFAULT_CONFIG = Path("/home/ubuntu/business/systems/seo-blog-machine/config/verticals/glp-clinic-scout.json")
 
 HERE = Path(__file__).resolve().parent
 COMPILER = HERE / "compile_review_packet_article.py"
 ROUTE_PATTERN = re.compile(r"^/(?:guides|best|reviews|cost|tools)/[a-z0-9]+(?:-[a-z0-9]+)*/$")
-# The DEPLOYED renderer decides which namespaces can exist as catalog articles.
-# ``scripts/build-staging.mjs`` (``addGuideMetadata``) throws
-# ``article_canonical_path_invalid`` for anything outside /guides/ and /best/;
-# /cost/, /tools/ and /reviews/ pages on the live site are hand-built statics,
-# not batch articles. ROUTE_PATTERN above is deliberately wider because
-# selection and link plans legitimately reference those static routes.
-#
-# 2026-08-18: a packet minted at /cost/glp1-pills-cost/ passed selection, the
-# deterministic validator and a full five-gate review, entered the standing
-# buffer, and only died inside ``npm run build`` — after the entire research +
-# review spend. This check moves the renderer's own contract to the front of the
-# chain. Keep it byte-identical to the renderer: the parity test in
-# tests/test_renderer_article_route_namespace.py asserts the live accepted
-# base still carries exactly this pattern.
-RENDERER_ARTICLE_ROUTE_SOURCE = r"^\/(?:guides|best)\/[a-z0-9-]+\/$"
-RENDERER_ARTICLE_ROUTE_PATTERN = re.compile(r"^/(?:guides|best)/[a-z0-9-]+/$")
+# Coupled with the reviewed site addGuideMetadata successor. /reviews/ articles
+# use the source-driven renderer, not the provider-profile generator. Route
+# collisions, held providers, selection and all evidence gates still apply.
+# Adopt the site successor before installing this admission predicate.
+RENDERER_ARTICLE_ROUTE_SOURCE = r"^\/(?:guides|best|reviews)\/[a-z0-9-]+\/$"
+RENDERER_ARTICLE_ROUTE_PATTERN = re.compile(r"^/(?:guides|best|reviews)/[a-z0-9-]+/$")
 PRIMARY_MEDICAL_HOSTS = (
     "fda.gov", "hhs.gov", "nih.gov", "ncbi.nlm.nih.gov",
     "pubmed.ncbi.nlm.nih.gov", "cms.gov", "ftc.gov", "uscourts.gov",
@@ -631,6 +622,7 @@ def validate(packet: Path, expected_topic_id: str | None = None,
     queue_authority = authority.get("queue_authority") or {}
     parity_target = int(article.get("serp_contract", {}).get("parity_target_words") or 3000)
     checks = {
+        "alexandria_claim_ledger": packet_research_valid(packet, selected["target_query"]),
         "authority_topic_id_present": len(topic_id) >= 12,
         "authority_topic_ready": (queue_authority.get("evidence_state") or authority.get("evidence_state")
                                   or authority.get("authorization", {}).get("queue_evidence_state")) == "READY_FOR_RESEARCH",

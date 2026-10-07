@@ -577,7 +577,7 @@ def main() -> None:
     bing_submitter = SYSTEM / "scripts/submit_target_bing_once.py"
     purge = BUSINESS / "scripts/recover_glp_wave2_cache_purge_20260729.py"
     controls = [build, tree_materializer, publish, engine, apply, compiler, validator, review, repair,
-                SYSTEM / "scripts/deterministic_qa_repair.py",
+                SYSTEM / "scripts/deterministic_qa_repair.py", SYSTEM / "scripts/article_research.py",
                 SYSTEM / "scripts/r2_update_carrier.py", schema,
                 sol_wrapper, opus_wrapper, transports_module,
                 gsc, verifier, indexnow, bing_submitter, purge, rubric, SYSTEM / "config/verticals/glp-clinic-scout.json",
