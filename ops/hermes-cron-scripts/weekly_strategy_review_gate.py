@@ -44,7 +44,7 @@ def main():
         if cached and not args.output:
             result=cached
         else:
-            command=[sys.executable,str(PRODUCER)]
+            command=[sys.executable,str(PRODUCER),'--update-strategy']
             if args.output: command+=['--output',str(args.output)]
             completed=subprocess.run(command,cwd=B,capture_output=True,text=True,timeout=1800,check=True)
             result=json.loads(completed.stdout)
@@ -61,7 +61,8 @@ def main():
                 'live_review':result['review'],'live_report':result['report'],
                 'seo_refill_recommendations':result['topic_recommendations'],
                 'report_summary':result['summary'],
-                'instruction':'Use the produced live report and concrete SEO action list. Unknown is not zero. This run authorizes no writes or new spend; scheduler alone delivers the final summary.'}},ensure_ascii=False))
+                'strategy_update':result.get('strategy_update'),
+                'instruction':'Use the produced live report and exact-readback Cogny strategy input. GLP-73 owns governed topic/refill adoption; require its receipt, not a report-only claim. Unknown is not zero. No publication or new paid collection; scheduler alone delivers the final summary.'}},ensure_ascii=False))
     return 0
 
 if __name__=='__main__': sys.exit(main())

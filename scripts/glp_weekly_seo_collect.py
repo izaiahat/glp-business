@@ -105,6 +105,9 @@ class RecordedDFS(DataForSEO):
   return doc
 
 def run(output, *, allow_metered=False, report_date=None):
+ helper_path=Path(__file__).resolve().parents[1]/'ops/glp/weekly_strategy_inputs.py'
+ if sha(helper_path.read_bytes())!='d60df3ea3605385b1bcf04268a50ea8d2c2fd8dda2bbc361252531ab890f51c7':
+  raise ValueError('weekly_estate_helper_source_drift')
  report_date=report_date or dt.datetime.now(dt.timezone.utc).date()
  store=Store(output);run_id='S3b-'+str(uuid.uuid4());started=now()
  store.save('RUN-SUBMITTED.json',{'run_id':run_id,'started_at_utc':started,'mode':'MANUAL_CURRENT_DATA_DRY_RUN','resume_allowed':False})

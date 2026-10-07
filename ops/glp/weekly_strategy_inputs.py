@@ -26,8 +26,11 @@ def estate_snapshot(business, *, jobs=None):
     business=Path(business); current=business/'reports/glp-clinic-scout/analytics/current'
     bindings={}; components=[]; errors=[]
     if jobs is None:
-        registry=json.loads((Path.home()/'.hermes/cron/jobs.json').read_text())
-        jobs=registry if isinstance(registry,list) else registry['jobs']
+        try:
+            registry=json.loads((Path.home()/'.hermes/cron/jobs.json').read_text())
+            jobs=registry if isinstance(registry,list) else registry['jobs']
+        except (OSError,ValueError,KeyError,TypeError):
+            jobs=[];errors.append({'component':'scheduler','reason':'estate_registry_unavailable'})
     schedules=[{'id':j['id'],'name':j.get('name'),'enabled':j.get('enabled',True),
                 'schedule':j.get('schedule_display'),'next_run_at':j.get('next_run_at'),
                 'last_run_at':j.get('last_run_at'),'last_status':j.get('last_status'),

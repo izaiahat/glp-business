@@ -384,7 +384,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
         'sha256': sensor_pin,
         'owner': '/home/ubuntu/.hermes/scripts/glp_seo_publish_failure_alert_cron.sh'}]
     # GLP-44: only the existing weekly strategy gate source pin changes.
-    strategy_pin = '941bdb578df2014f0c019ebdfc71f66de51ee1c25be3569ff26b1dff386ee9ca'
+    strategy_pin = '7137024ef3d811435dcd6c08f411bde7923c5ce130a6e0b2b83da205490d54fc'
     assert sha((ROOT/'ops/hermes-cron-scripts/weekly_strategy_review_gate.py').read_bytes()) == strategy_pin
     strategy_rows = [row for row in expected['jobs'] if row['id'] == '020bcdd7f0e1']
     assert len(strategy_rows) == 1 and strategy_rows[0]['payloads'] == []

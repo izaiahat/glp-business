@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Weekly Strategy report producer; read-only providers, report-local outputs.
+"""Weekly Strategy report producer and operator-authorized Cogny planning sync.
 
-No metered collection, queue admission, finding mutations, site writes or sends.
+No metered collection, article queue admission, site writes or sends.
+--update-strategy writes exact-readback Cogny evidence and a governed input pointer.
 The registered wake gate calls this before its scheduler-owned summary delivery.
 """
 import argparse
@@ -25,7 +26,7 @@ def load(path,name):
 def save(path,doc):
     path.write_text(json.dumps(doc,indent=2,ensure_ascii=False)+'\n')
 
-def run(output):
+def run(output, *, update_strategy=False):
     from ops.glp.weekly_strategy_inputs import topic_recommendations
     from ops.glp.seo_weekly_modules import read_bound
     collector=load(B/'scripts/glp_weekly_seo_collect.py','weekly_strategy_collector')
@@ -60,10 +61,29 @@ def run(output):
     topics['evidence_binding']=inputs['gsc-28'];topics['week_start']=receipt['week_start']
     topics['module_binding']={'path':str(output/'analysis/modules/receipt.json'),'sha256':hashlib.sha256((output/'analysis/modules/receipt.json').read_bytes()).hexdigest()}
     save(output/'TOPIC-RECOMMENDATIONS.json',topics)
+    strategy_update={'status':'REPORT_ONLY_NOT_REQUESTED'}
+    if update_strategy:
+        from ops.glp.weekly_strategy_sync import build_updates, sync_updates, publish_current
+        from ops.glp.cogny_client import CognyClient
+        evidence=read_bound(inputs['cogny-weekly-evidence'])
+        source_observations=dict(input_observations)
+        for name in ('bing-page','bing-query'):
+            bound=evidence['snapshots'][name];doc=read_bound(bound)
+            source_observations[name]={'binding':bound,'context':doc['context'],'result':doc['result']}
+        for name in ('ga4','posthog','footprint'):
+            doc=read_bound(inputs[name])
+            source_observations[name]={'binding':inputs[name],'context':doc['context'],'result':doc['result']}
+        updates=build_updates(topics,module_report,inputs,source_observations=source_observations)
+        client=CognyClient(retries=1,timeout=90);client.initialize()
+        strategy_update=sync_updates(client,updates,output/'cogny-strategy-update')
+        current_pointer=B/'reports/glp-clinic-scout/weekly-strategy/current-strategy.json'
+        publish_current(current_pointer,updates,strategy_update)
+        strategy_update['current_input']=str(current_pointer)
+        strategy_update['consumer_adoption']='PENDING_GLP73_RECEIPT'
     current={c['component']:c['live_effect'] for c in estate['result']['components']}
     sources=current.get('analytics',{}).get('sources',[])
     unknowns=[{'subject':s['source'],'reason':s.get('reason') or s['state'],'owner':'GLP-44 source/import owner'} for s in sources if s['state'] not in ('healthy','measured_zero')]
-    unknowns += [{'subject':k,'reason':module_report['modules'][k].get('required_artifact',v),'owner':'operator: explicit recurring authority and per-run ceiling' if k=='keyword_gap' else 'GLP-44'} for k,v in receipt['module_statuses'].items() if v!='PASS_ANALYSIS_ONLY']
+    unknowns += [{'subject':k,'reason':module_report['modules'][k].get('required_artifact',v),'owner':'GLP-44: authority exists; account-wide MTD spend readback required' if k=='keyword_gap' else 'GLP-44'} for k,v in receipt['module_statuses'].items() if v!='PASS_ANALYSIS_ONLY']
     unknowns += [{'subject':name,'reason':'Weekly neutral snapshot incomplete; see bound result, not cached source success','owner':'GLP-44'} for name in ('ga4','posthog') if input_observations[name]['ok'] is not True or input_observations[name]['complete'] is False]
     if ranking is None: unknowns.append({'subject':'weekly ranking verdict','reason':'No ranking receipt captured within eight days','owner':'registered weekly ranking producer'})
     unknowns += [{'subject':'affiliate payable revenue / ROAS','reason':'Network join incomplete; unmatched D1 clicks are not lost or payable sales','owner':'network reporting/import owner'},
@@ -76,6 +96,7 @@ def run(output):
             'module_statuses':receipt['module_statuses'],'gsc_rows':collected['gsc_rows'],
             'cogny_query_count':collected['cogny_query_count'],'recommendations':len(topics['recommendations']),
             'non_article_operations':receipt['source_operations'],'affiliate_join':current.get('affiliate_join'),
+            'strategy_update':strategy_update,
             'unknowns':unknowns,'metered_cost_usd':collected['actual_cost_usd'],
             'sends':0,'queue_writes':0,'site_writes':0,'publication_authorized':False}
     save(output/'REPORT.json',report)
@@ -83,30 +104,32 @@ def run(output):
            '## Ranking outcome', json.dumps(ranking,ensure_ascii=False) if ranking else 'UNKNOWN: no eligible recent ranking receipt.', '',
            '## Source readbacks',*['- '+s['source']+': '+str(s['state'])+'; rows '+str(s.get('actual_rows'))+'; watermark '+str(s.get('watermark')) for s in sources],
            '',f"Cogny calls: {collected['cogny_query_count']}; GSC query/page windows: {collected['gsc_rows']}; new metered spend: $0.",'',
-           '## Concrete SEO action list (GLP-73 handoff, not queue writes)',
+           '## Concrete SEO action list (GLP-73 governed refill handoff)',
            *[f"{r['priority']}. {r['route']} — query ‘{r['query']}’; {r['impressions']} impressions, {r['clicks']} clicks, avg position {r['average_position']:.2f}. {r['decision_value']}" for r in topics['recommendations']],
            '',f"Non-article source operations: {receipt['source_operations']}; use analysis/NON-ARTICLE-INTAKE.json via the existing governed updater, not article identities.",'',
            '## Remaining UNKNOWN',*['- '+r['subject']+': '+r['reason']+' (owner: '+r['owner']+').' for r in unknowns],
+           '', '## Cogny strategy update and consumer input',json.dumps(strategy_update,ensure_ascii=False),
            '', '## Detailed comparative SEO strategy', (output/'analysis/WEEKLY-STRATEGY-NOTE.md').read_text()]
     (output/'WEEKLY-REVIEW.md').write_text('\n'.join(lines)+'\n')
     summary='\n'.join(['📊 **Weekly Strategy** — '+str(report['recommendations'])+' evidence-bound SEO actions',
       f"Status: **{report['analytics_mode']}** · estate **{receipt['module_statuses'].get('estate_health')}**",
-      'Shipped: Cogny + GSC + GA4 + PostHog + Bing source readbacks consumed.',
+      'Observed: Cogny + GSC + GA4 + PostHog + Bing source readbacks consumed.',
       f"Blocked: network revenue **UNKNOWN**; keyword gap **held**; new metered spend **$0**.",
       f"Next GLP: review **{report['recommendations']}** existing-page opportunities; **{receipt['source_operations']}** source patches.",
-      '→ Keep ads paused; explicit recurring DataForSEO authority/ceiling needed only for the held module.',
+      '→ Keep ads paused; DataForSEO authority exists but unknown account MTD spend blocks new paid collection.',
       '-# artifact: '+str(output/'WEEKLY-REVIEW.md')])
     (output/'DISCORD.txt').write_text(summary+'\n')
     return {'report':str(output/'REPORT.json'),'review':str(output/'WEEKLY-REVIEW.md'),
-            'topic_recommendations':str(output/'TOPIC-RECOMMENDATIONS.json'),'summary':summary,'status':report['status']}
+            'topic_recommendations':str(output/'TOPIC-RECOMMENDATIONS.json'),'strategy_update':strategy_update,'summary':summary,'status':report['status']}
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path)
+    parser.add_argument('--update-strategy',action='store_true')
     args=parser.parse_args()
     output=args.output or B/'reports/glp-clinic-scout/weekly-strategy'/('run-'+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8])
     lock=B/'ops/glp/.weekly-strategy-report.lock'
     with lock.open('a') as stream:
         fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        print(json.dumps(run(output),ensure_ascii=False))
+        print(json.dumps(run(output,update_strategy=args.update_strategy),ensure_ascii=False))
 
 if __name__=='__main__': main()
