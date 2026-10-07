@@ -5,11 +5,14 @@ The source task ran no privileged fixture, service, policy, network or credentia
 operation. Hermes owns deployment, phase approval and closure. Do not paste all
 phases into an unattended script: accept each phase's evidence before continuing.
 
-The inspected source is PR238 head `cb70f906bf33fbceccff42774b49b1597dbbaef1`,
+The original inspected source was PR238 head `cb70f906bf33fbceccff42774b49b1597dbbaef1`,
 stacked on PR237 `9393eab1e10b3c9d8368571373854df02fc613da` and deployed baseline
-`af5cc609e0e4bd7f5c3d0164b0aeb3b95e61037e`. This runbook changes documentation
-only. A later accepted docs commit does not itself change the receiving contract,
-checkout, source pin or any installed file.
+`af5cc609e0e4bd7f5c3d0164b0aeb3b95e61037e`. The integration order is
+PR260 → PR237 → PR238 → PR252. The table below pins the integrated PR252
+fixed-recipient adapter; guard, unit, launcher and harness pins are unchanged.
+Choose the exact independently accepted integrated Git head before receiving.
+A docs commit or reply-consumer installation does not approve production
+confinement, service replacement, or file-reply release.
 
 | Installed artifact | Accepted SHA256 |
 | --- | --- |
@@ -18,7 +21,7 @@ checkout, source pin or any installed file.
 | AppArmor profile | `9b288c197d51bb063c1ff8821adf0647821c4499dc13dc1d07a914f62106beb8` |
 | `finch_network.py` | `f006d767cb4bae30ad4fb919c4ac06104dc72fe2b61bfc894052b7f051669155` |
 | `finch_kernel_harness.py` | `e474d3c484a5428b5e88bed19c76ab86c3d42257137e8746e545fd7ee5c02497` |
-| Adapter `rook_mcp_events.py` | `05f8bd0ff6ca2d96898b899654553402c3a3f629a5ab30b890b926e404ba71bc` |
+| Adapter `rook_mcp_events.py` | `b3c99fff316e9a2bcfe0fdbc5304d8ba7592a04150cd6c56d91d13b6debe32b8` |
 
 ## 0. Entry gate and stopped preimage
 
