@@ -15,14 +15,14 @@
       "callers": [
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
-      "sha256": "64d5971b7322ce3a249ea5b6fd40187d05c153e207716ac82d87e26ac1e3cf73"
+      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
     },
     "tests/test_native_reply_consumer.py": {
       "kind": "test",
       "callers": [
         "tests/test_receive_one_discord_message.py"
       ],
-      "sha256": "c424c088d64d61c375826c66bd7a85cebad7ffb169d774866944537c999c6dce"
+      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
     },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",

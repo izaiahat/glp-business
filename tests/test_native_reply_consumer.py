@@ -145,6 +145,77 @@ class NativeConsumerTests(unittest.TestCase):
                 receipts, reader=lambda *_: self.fail('unconfirmed API GET'))
             self.assertEqual(result['status'], 'waiting_native_confirmation')
 
+    def test_parent_hard_deadline_terminates_blocked_readback_and_preserves_replay(self):
+        import native_reply_consumer as consumer
+        import subprocess
+        # Exercise the documented Linux parent launch, not a mocked clock or timer.
+        # Both stalls occur inside the real run()/collect() path with network denied.
+        script = Path(consumer.__file__).resolve()
+        for stall in ('readback', 'durable_before_stdout'):
+            with self.subTest(stall=stall):
+                receipt_dir = self.root / stall
+                receipt_dir.mkdir(mode=0o700)
+                config = self.root / (stall + '.json')
+                config.write_text(json.dumps({'parent': 'parent-1', 'receipt_state_dir': str(receipt_dir),
+                    'registrations': [{'correlation': 'discord-100', 'channel': receiver.CHANNEL,
+                        'state_dir': str(self.root), 'issuer': 'issuer', 'audience': 'audience',
+                        'subject': 'subject', 'task_owner': 'owner-1', 'action': 'inspect source'}]}))
+                config.chmod(0o600)
+                marker = receipt_dir / 'entered-stall'
+                code = f'''
+import sys, time, json
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0, {str(script.parent)!r})
+import native_reply_consumer as c, rook_mcp_events as n
+config = Path({str(config)!r})
+data = json.loads({json.dumps(self.data)!r})
+def block():
+    Path({str(marker)!r}).write_text('blocking')
+    time.sleep(1.25)
+def read(method, path, **kwargs):
+    assert method == 'GET' and path == '/channels/{receiver.CHANNEL}/messages/101'
+    if {stall!r} == 'readback': block()
+    return data
+put = c.Receipts.put
+def stage(self, value):
+    put(self, value)
+    if {stall!r} == 'durable_before_stdout': block()
+with patch.object(n, 'discord_request', side_effect=read), \\
+     patch.object(n, 'load_rook_token', side_effect=AssertionError('credential forbidden')), \\
+     patch('socket.socket.connect', side_effect=AssertionError('network forbidden')), \\
+     patch.object(c.Receipts, 'put', stage):
+    c.main(['--config', str(config), '--max-wait-seconds', '1'])
+'''
+                start = time.monotonic()
+                # Missing prefix reproduces the previously documented unbounded launch.
+                prefix = getattr(consumer, 'PARENT_DEADLINE_PREFIX', ())
+                command = [*prefix, *(['1s'] if prefix else []), sys.executable, '-B', '-c', code]
+                process = subprocess.run(command, capture_output=True, text=True, timeout=5)
+                elapsed = time.monotonic() - start
+                self.assertTrue(marker.exists(), 'did not reach blocking run/collect seam')
+                self.assertEqual(process.returncode, 137, process.stderr)
+                self.assertLess(elapsed, 1.5, 'hard deadline failed to terminate readback')
+                self.assertEqual(process.stdout, '', 'must not claim completion after budget')
+                # The process is reaped; lock released and committed staging survives SIGKILL.
+                _, entries = consumer.load_registrations(config)
+                with consumer.Receipts(receipt_dir) as receipts:
+                    old = receipts.get(entries[0].receipt_id)
+                    if stall == 'readback':
+                        self.assertIsNone(old)
+                    else:
+                        self.assertEqual(old['status'], 'staged')
+                        replay = consumer.collect(entries[0], receipts, replay=True,
+                            reader=lambda *_: self.fail('replay must not GET or restage'))
+                        self.assertTrue(replay['replay'])
+                        self.assertEqual(replay['content_sha256'], self.binding['reply_sha256'])
+                        self.assertEqual(consumer.collect(entries[0], receipts)['status'],
+                            'awaiting_coordinator_ack')
+                        with self.assertRaises(ValueError):
+                            receipts.record(old['receipt_id'], 'owner-1', 'applied', 'not received')
+                        receipts.record(old['receipt_id'], 'parent-1', 'received', 'offline replay read')
+                        receipts.record(old['receipt_id'], 'owner-1', 'rejected', 'offline timeout recovery')
+
     def test_registered_recovery_does_not_relax_gateway_freshness(self):
         self.assertFalse(receiver.verified_reply_binding(self.data, self.scope, receiver.ROOK_BOT))
         check = getattr(receiver, 'verified_registered_reply_binding', None)
