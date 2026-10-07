@@ -1,0 +1,29 @@
+name: native-reply-consumer
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/native_reply_consumer.py
+      - scripts/receive_one_discord_message.py
+      - tests/test_native_reply_consumer.py
+      - ops/rook-mcp/requirements.txt
+      - .github/workflows/native-reply-consumer.yml
+permissions:
+  contents: read
+jobs:
+  exact-head-result-protocol:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline exact-head result/expiry/custody regressions
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+          .venv/bin/python -B -m unittest discover -s tests -p test_native_reply_consumer.py -v
