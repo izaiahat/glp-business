@@ -31,8 +31,21 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
         'ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh',
     }
     assert release.GLP331_SOURCES == expected
+    # GLP268 changes the current maintained reader, not the historical seven-
+    # source adoption contract. Keep its original blob and exact candidate
+    # successor bound separately; the producer must still stage the original.
+    successor = {'scripts/affiliate_approval_auto_reconciler.py': (
+        '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
+        'a4701f1f1c875a5770e4c4b34309000d9dca937ecba9af89f678d846ed338e34')}
     for name in expected:
-        assert (ROOT/name).read_bytes() == p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
+        original = p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
+        if name in successor:
+            old, candidate = successor[name]
+            assert p.sha_bytes(original) == old
+            assert p.sha_bytes((ROOT/name).read_bytes()) == candidate
+        else:
+            assert (ROOT/name).read_bytes() == original
+    assert "p.git(repo, 'show', source_head+':'+name)" in (ROOT/'scripts/fleet_pin_release.py').read_text()
     assert p.sha_bytes((ROOT/release.GLP331_SNAPSHOT).read_bytes()) == (
         '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9')
 

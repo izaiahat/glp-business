@@ -21,6 +21,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -28,4 +31,7 @@ jobs:
       - name: Fresh admission and unchanged safety oracles (fixture only)
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python -m pytest -q -p no:cacheprovider tests/test_glp110_archive_admission.py
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python -m pytest -q -p no:cacheprovider tests/test_glp110_archive_admission.py

@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+from contextlib import ExitStack
 from pathlib import Path
 import shutil
 import stat
@@ -20,6 +21,7 @@ import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sync_from_repo import source_lock
 from bounded_pruner import ScanBudget, discovery, tree_stats
 
 BUS = Path('/home/ubuntu/business')
@@ -617,103 +619,131 @@ def run(api,config,state,*,dry_run,deadline,full_pass=False,progress_path=None,a
                         'bytes_freed':sum(r.get('bytes_freed',0) for r in rows),
                         'runtime_seconds':time.monotonic()-start})
     d_partial=False
+    def acquire(lease, rule):
+        # Refuse only at a snapshot-free checkpoint. Never wait/reacquire while
+        # carrying references: the admitted scope owns every dependent effect.
+        try:
+            lease.enter_context(source_lock(BUS))
+        except ValueError as exc:
+            if str(exc) != 'source_import_busy': raise
+            state['full_pass_complete']=False
+            rows.append({'rule':rule,'ok':False,'status':'GATED_SOURCE_BUSY',
+                         'partial':True,'bytes_freed':0,'reason':str(exc)})
+            save('source_lease_gated')
+            return False
+        return True
+
+    def protected_snapshot():
+        # Rebuild inside each A/B slice lease; never carry protection bytes
+        # across the receiving checkpoint between full-pass slices.
+        try:
+            retention=json.loads((BUS/'ops/disk-retention-policy.json').read_text())
+            protected_roots=list(retention['protected_roots'])
+        except (OSError,ValueError,KeyError):
+            # Unknown retention protection cannot authorize A/B effects.
+            protected_roots=[str(BUS)]
+        protected_roots.extend(r['path'] for r in rows if r.get('rule')=='D_cold_run_images'
+                               and (Path(r['path'])/'MANIFEST-DELETED-IMAGES.json').exists())
+        return protected_roots
+
     if not archive_only:
         from screenshot_pruner import run_rules as run_D
-        save('D_reference_inventory_and_run_images')
-        def d_progress(d_rows):
-            if progress_path:
-                atomic_json(progress_path,{'stage':'D_cold_run_images','rows':d_rows,
-                    'runtime_seconds':time.monotonic()-start})
-        rows.extend(run_D(api,config,dry_run=dry_run,deadline=deadline,progress=d_progress))
-        d_partial=any(r.get('partial',False) or not r.get('ok',True) for r in rows)
-        save('D_cold_run_images_complete' if not d_partial else 'D_partial_or_gated')
-        if images_only:
-            state['full_pass_complete']=not d_partial
-            save('complete' if not d_partial else 'partial')
-            return rows
-    try:
-        retention=json.loads((BUS/'ops/disk-retention-policy.json').read_text())
-        protected_roots=list(retention['protected_roots'])
-    except (OSError,ValueError,KeyError):
-        # Unknown retention protection cannot authorize A/B effects.
-        protected_roots=[str(BUS)]
-    protected_roots.extend(r['path'] for r in rows if r.get('rule')=='D_cold_run_images'
-                           and (Path(r['path'])/'MANIFEST-DELETED-IMAGES.json').exists())
+        with ExitStack() as lease:
+            if not acquire(lease,'D_cold_run_images_summary'): return rows
+            save('D_reference_inventory_and_run_images')
+            def d_progress(d_rows):
+                if progress_path:
+                    atomic_json(progress_path,{'stage':'D_cold_run_images','rows':d_rows,
+                        'runtime_seconds':time.monotonic()-start})
+            rows.extend(run_D(api,config,dry_run=dry_run,deadline=deadline,progress=d_progress))
+            d_partial=any(r.get('partial',False) or not r.get('ok',True) for r in rows)
+            save('D_cold_run_images_complete' if not d_partial else 'D_partial_or_gated')
+            if images_only:
+                state['full_pass_complete']=not d_partial
+                save('complete' if not d_partial else 'partial')
+                return rows
     bstate={} if dry_run else state.setdefault('B_scan',{})
     if not archive_only:
         save('A_regenerable')
         while True:
-            rows.extend(regenerable(api,Path(config['business']),state,dry_run=dry_run,
-                        deadline=min(deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_roots))
-            save('A_regenerable')
+            with ExitStack() as lease:
+                if not acquire(lease,'A_regenerable'): return rows
+                rows.extend(regenerable(api,Path(config['business']),state,dry_run=dry_run,
+                            deadline=min(deadline,time.monotonic()+config['A_budget_seconds']),protected_roots=protected_snapshot()))
+                save('A_regenerable')
             if not full_pass or time.monotonic()>=deadline or not (state.get('A_cursor') or state.get('A_pending')): break
         save('B_readonly_evidence_dedupe')
         while True:
-            result=dedupe(config['dedupe_roots'],bstate,dry_run=dry_run,
-                          deadline=min(deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_roots)
-            rows.append(result); save('B_readonly_evidence_dedupe')
+            with ExitStack() as lease:
+                if not acquire(lease,'B_readonly_evidence_dedupe'): return rows
+                result=dedupe(config['dedupe_roots'],bstate,dry_run=dry_run,
+                              deadline=min(deadline,time.monotonic()+config['B_budget_seconds']),protected_roots=protected_snapshot())
+                rows.append(result); save('B_readonly_evidence_dedupe')
             if not full_pass or time.monotonic()>=deadline or result.get('status')!='TIME_BUDGET_PARTIAL': break
-    save('C_reference_inventory')
-    try:
-        reference_started=time.monotonic()
-        pins=ReferenceIndex(reference_files(config,min(deadline,time.monotonic()+1200)),config['business'])
-        save('C_reference_inventory_complete')
-    except (OSError,ValueError,ScanBudget) as exc:
-        rows.append({'rule':'C_cold_evidence_archive','ok':True,'status':'GATED_REFERENCE_INVENTORY_INCOMPLETE',
-                     'reason':str(exc)[:300],'reference_runtime_seconds':round(time.monotonic()-reference_started,3),'bytes_freed':0})
-        save('C_reference_inventory_gated')
-        return rows
-    state_dir=STATE.parent/'host-pruner-archives'
-    roots=list(map(Path,config['archive_roots']))
-    contract=['depth-v1',config.get('archive_max_depth',4),config.get('archive_min_bytes',50*1024*1024),list(map(str,roots))]
-    if dry_run or state.get('C_contract')!=contract:
-        state.pop('C_done',None); state.pop('C_sizes',None)
-        state['C_contract']=contract
-    if not dry_run:
-        state_dir.mkdir(exist_ok=True)
-        rows.extend(recover_retirements(api,state_dir,set(roots),deadline,pins))
-    def discovered(root,count):
-        archive_progress['roots_discovered'].append(str(root))
-        archive_progress['candidates']+=count
-        save('C_candidate_discovery')
-    try:
-        candidates=archive_candidates(config,deadline=deadline,progress=discovered)
-    except (ScanBudget,OSError) as exc:
-        state['full_pass_complete']=False
-        rows.append({'rule':'C_cold_evidence_archive','status':'TIME_BUDGET_PARTIAL',
-                     'ok':True,'bytes_freed':0,'reason':str(exc)[:180]})
-        save('partial'); return rows
-    # Complete manageable trees first, then advance larger resumable archives.
-    estimates=state.setdefault('C_sizes',{})
-    candidates.sort(key=lambda p:(estimates.get(str(p),0)>4*GIB,-estimates.get(str(p),0),str(p)))
-    # Legacy C_done is historical path-only telemetry, not fresh admission.
-    # Held candidates can change between runs; successfully retired source
-    # trees naturally disappear from discovery. Preserve the old ledger but
-    # derive completion solely from guards evaluated during THIS invocation.
-    done=[]
-    pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
-    save('C_cold_evidence_archive')
-    for p in candidates:
-        if str(p) in done: continue
-        if time.monotonic()+45>=deadline: break
-        result=archive_tree(api,p,pins,dry_run=dry_run,deadline=deadline,state_dir=state_dir,
-                            min_bytes=max(50*1024*1024,int(config.get('archive_min_bytes',50*1024*1024))))
-        if result.get('original_bytes'): estimates[str(p)]=result['original_bytes']
-        rows.append(result)
-        if result.get('status') not in pending_statuses:
-            done.append(str(p))
-        archive_progress['evaluated']+=1
+
+    with ExitStack() as lease:
+        if not acquire(lease,'C_cold_evidence_archive'): return rows
+        save('C_reference_inventory')
+        try:
+            reference_started=time.monotonic()
+            pins=ReferenceIndex(reference_files(config,min(deadline,time.monotonic()+1200)),config['business'])
+            save('C_reference_inventory_complete')
+        except (OSError,ValueError,ScanBudget) as exc:
+            rows.append({'rule':'C_cold_evidence_archive','ok':True,'status':'GATED_REFERENCE_INVENTORY_INCOMPLETE',
+                         'reason':str(exc)[:300],'reference_runtime_seconds':round(time.monotonic()-reference_started,3),'bytes_freed':0})
+            save('C_reference_inventory_gated')
+            return rows
+        state_dir=STATE.parent/'host-pruner-archives'
+        roots=list(map(Path,config['archive_roots']))
+        contract=['depth-v1',config.get('archive_max_depth',4),config.get('archive_min_bytes',50*1024*1024),list(map(str,roots))]
+        if dry_run or state.get('C_contract')!=contract:
+            state.pop('C_done',None); state.pop('C_sizes',None)
+            state['C_contract']=contract
+        if not dry_run:
+            state_dir.mkdir(exist_ok=True)
+            rows.extend(recover_retirements(api,state_dir,set(roots),deadline,pins))
+        def discovered(root,count):
+            archive_progress['roots_discovered'].append(str(root))
+            archive_progress['candidates']+=count
+            save('C_candidate_discovery')
+        try:
+            candidates=archive_candidates(config,deadline=deadline,progress=discovered)
+        except (ScanBudget,OSError) as exc:
+            state['full_pass_complete']=False
+            rows.append({'rule':'C_cold_evidence_archive','status':'TIME_BUDGET_PARTIAL',
+                         'ok':True,'bytes_freed':0,'reason':str(exc)[:180]})
+            save('partial'); return rows
+        # Complete manageable trees first, then advance larger resumable archives.
+        estimates=state.setdefault('C_sizes',{})
+        candidates.sort(key=lambda p:(estimates.get(str(p),0)>4*GIB,-estimates.get(str(p),0),str(p)))
+        # Legacy C_done is historical path-only telemetry, not fresh admission.
+        # Held candidates can change between runs; successfully retired source
+        # trees naturally disappear from discovery. Preserve the old ledger but
+        # derive completion solely from guards evaluated during THIS invocation.
+        done=[]
+        pending_statuses={'TIME_BUDGET_PARTIAL','ARCHIVE_BUILD_PARTIAL','ARCHIVE_VERIFY_PENDING','RETIREMENT_PENDING','GATED_REFERENCE_CHANGED'}
+        save('C_cold_evidence_archive')
+        for p in candidates:
+            if str(p) in done: continue
+            if time.monotonic()+45>=deadline: break
+            result=archive_tree(api,p,pins,dry_run=dry_run,deadline=deadline,state_dir=state_dir,
+                                min_bytes=max(50*1024*1024,int(config.get('archive_min_bytes',50*1024*1024))))
+            if result.get('original_bytes'): estimates[str(p)]=result['original_bytes']
+            rows.append(result)
+            if result.get('status') not in pending_statuses:
+                done.append(str(p))
+            archive_progress['evaluated']+=1
+            archive_progress['roots_evaluated']=[str(root) for root in roots
+                    if all(str(p) in done for p in candidates if root in p.parents)]
+            save('C_cold_evidence_archive')
         archive_progress['roots_evaluated']=[str(root) for root in roots
                 if all(str(p) in done for p in candidates if root in p.parents)]
-        save('C_cold_evidence_archive')
-    archive_progress['roots_evaluated']=[str(root) for root in roots
-            if all(str(p) in done for p in candidates if root in p.parents)]
-    state['full_pass_complete']=not (d_partial or (not archive_only and (state.get('A_cursor') or state.get('A_pending') or bstate.get('cursors')))
-            or any(str(p) not in done for p in candidates))
-    save('complete' if state['full_pass_complete'] else 'partial')
-    rows.append({'rule':'evidence_preserving_summary','ok':True,'runtime_seconds':round(time.monotonic()-start,3),
-                 'bytes_freed':0,'partial':not state['full_pass_complete'], 'archive_progress':archive_progress})
-    return rows
+        state['full_pass_complete']=not (d_partial or (not archive_only and (state.get('A_cursor') or state.get('A_pending') or bstate.get('cursors')))
+                or any(str(p) not in done for p in candidates))
+        save('complete' if state['full_pass_complete'] else 'partial')
+        rows.append({'rule':'evidence_preserving_summary','ok':True,'runtime_seconds':round(time.monotonic()-start,3),
+                     'bytes_freed':0,'partial':not state['full_pass_complete'], 'archive_progress':archive_progress})
+        return rows
 
 
 if __name__=='__main__':
