@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 731,
+  "tracked_count": 735,
   "files": {
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -4930,6 +4930,34 @@
       ],
       "kind": "test",
       "sha256": "00ab291d0b93cd52218c7377c6d210db4737d032b2c04d64037d1ea40aaa027c"
+    },
+    "ops/glp/seo_weekly_continuation.py": {
+      "kind": "source_control",
+      "callers": [
+        "registered weekly SEO source-stage owner"
+      ],
+      "sha256": "c361d71965dc038af054d1c56e4b434cba79d4e4a9ce5ad306fd2702727f5d3a"
+    },
+    "ops/glp/seo_quickwin_common.py": {
+      "kind": "source_control",
+      "callers": [
+        "registered weekly SEO source-stage owner"
+      ],
+      "sha256": "cdb59d01f3ad6ed6a7589bd059692b6747fead35f8b9a14dc632a3bad80e0339"
+    },
+    "ops/glp/seo_nonarticle_emitter.py": {
+      "kind": "source_control",
+      "callers": [
+        "registered weekly SEO source-stage owner"
+      ],
+      "sha256": "293c3dd200341269470967f580b96714ec1f526b0e8b51cf0db9c9c532f0d3f9"
+    },
+    "scripts/glp_weekly_seo_source_stage.py": {
+      "kind": "script",
+      "callers": [
+        "registered weekly SEO source-stage owner"
+      ],
+      "sha256": "7a808e54ec56698f6c2866e493eb10056c1d1fc86b703e9db14d011673db569c"
     }
   }
 }
