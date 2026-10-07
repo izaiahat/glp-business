@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 763,
+  "tracked_count": 764,
   "files": {
+    "tests/conftest.py": {
+      "kind": "test",
+      "callers": [
+        "all pytest workflows (fixture-only ledger isolation)"
+      ],
+      "sha256": "9ef699bc0508b6baa570a71c76f028fe2a199f0901dd88343ecaf4f370e0edb4"
+    },
     "scripts/firecrawl_client.py": {
       "kind": "script",
       "callers": [
@@ -1031,7 +1038,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "d0f0101d25515cb06c51c27e08f9274af44365872cbfd03c97f676c2dfa3cfb3"
+      "sha256": "baa104140d6a7d2a8fbb07319af8aec2cd3bc980c0e01946968c542fbdde483b"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -3938,7 +3945,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "script",
-      "sha256": "fd1d126f21e9055be3492a00f6b77672274e71dbeaf9bab55476e32a06ce81f2"
+      "sha256": "02292f744965bd120fcd8ccf64ccdafd89585ab2c7e7615f09428ac91bcfc3ad"
     },
     "ops/glp/evidence-refresh-k3/review_evidence.py": {
       "callers": [
@@ -3952,7 +3959,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "00848e74f16f849281360be4be933c7184751693be4cbd7cce7626e5993b25fb"
+      "sha256": "5a2861b38cd97c0a6a0915c27a1e32b74bedb391de4bdd5937d963c1adccbe74"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
