@@ -16,21 +16,21 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "24d346e64070167b4698602fbae1523ee472dd07f8641e9dc7e1064662bb4b15"
+      "sha256": "f423d5b9d5ce31ed99e4c9c178a501bc2af1535f4995f6e229f2aa51ea6f6af0"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "9700a9e43894b0dd10a7021883a0bd2ca736dc4c7eb3f0fecf5111070bde37e3"
+      "sha256": "1808fe87c34a58203afd935b39ce57b7ae5a45f240fff5b1a2e6ba96c822873a"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
       "callers": [
         "GitHub pull_request exact-head CI"
       ],
-      "sha256": "5c131d935569201c136a934adc573ca0246403046990d540a6f999225cb1f853"
+      "sha256": "907e9f85eb18aeb499f5d7b13160af23d3132f4c94357b876d2a8f9020042e4b"
     },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [

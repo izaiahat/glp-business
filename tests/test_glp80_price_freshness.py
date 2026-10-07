@@ -81,6 +81,19 @@ def test_injection_price_does_not_price_unpriced_oral_alternative():
     assert not p.amount_route_supported(oral, 89, quote)
 
 
+def test_truncated_source_attested_supply_wording_is_not_real_movement():
+    row, result, _ = fixture()
+    quote = 'Compounded semaglutide injection includes 12 weeks of medication for $12/month.'
+    row['facts']['supply_period'] = {'value': '12 weeks of medication', 'evidence': []}
+    result['fields'] = [{'field': 'amount_usd', 'value': 12, 'quote': quote},
+                        {'field': 'period', 'value': '/month', 'quote': quote},
+                        {'field': 'supply_period', 'value': '12 weeks', 'quote': quote}]
+    result['identity_quote'] = quote
+    verdict = p.classify_price_observation(row, result, quote, result['source_url'])
+    assert verdict['status'] == 'NO_PRICE_CHANGE_DETECTED'
+    assert verdict['changed_fields'] == []
+
+
 def test_same_amount_but_changed_billing_period_requires_price_review():
     row, result, _ = fixture()
     quote = 'Compounded semaglutide injection is $12 every 4 weeks.'
@@ -145,10 +158,63 @@ def test_unknown_fields_never_become_zero_or_remove_attested_row():
     assert row == original
 
 
+def test_keyed_schema_cannot_assign_injection_offer_to_oral_row():
+    row, _, _ = fixture()
+    item = p.extraction_schema([row])['properties']['row_observations']
+    assert item['additionalProperties'] is False
+    assert item['required'] == [row['row_id']]
+    assert item['properties'][row['row_id']]['properties']['medication_id']['const'] == row['medication_id']
+
+
+def test_completed_malformed_extraction_retried_once_with_both_raw_receipts_retained(tmp_path):
+    row, result, quote = fixture()
+    url = result['source_url']
+    class Client:
+        calls = 0
+        def scrape(self, payload, **kwargs):
+            self.calls += 1
+            content = {'rows': [result, result]} if self.calls == 1 else {'row_observations': {row['row_id']: result}}
+            return {'success': True, 'data': {'markdown': quote * 3, 'metadata': {'sourceURL': url}, 'json': content}}
+    client = Client()
+    _, data = p.extract(client, 'a', 'A', url, [row], tmp_path / 'source')
+    assert client.calls == 2
+    assert data['extraction_attempts'] == 2
+    assert data['json']['rows'] == [result]
+    assert (tmp_path / 'source-attempt-1.json').exists()
+    assert (tmp_path / 'source-attempt-1-refusal.json').exists()
+    assert (tmp_path / 'source-attempt-2.json').exists()
+
+
+def test_persistent_schema_failure_remains_failure_after_two_attempts():
+    row, result, quote = fixture()
+    class Client:
+        calls = 0
+        def scrape(self, payload, **kwargs):
+            self.calls += 1
+            return {'success': True, 'data': {'markdown': quote * 3, 'json': {'rows': [result, result]}}}
+    client = Client()
+    with pytest.raises(ValueError, match='structured_row_key_coverage_mismatch'):
+        p.extract(client, 'a', 'A', result['source_url'], [row])
+    assert client.calls == 2
+
+
+def test_transport_timeout_is_not_blindly_replayed():
+    row, result, _ = fixture()
+    class Client:
+        calls = 0
+        def scrape(self, payload, **kwargs):
+            self.calls += 1
+            raise TimeoutError('ambiguous transport')
+    client = Client()
+    with pytest.raises(TimeoutError):
+        p.extract(client, 'a', 'A', result['source_url'], [row])
+    assert client.calls == 1
+
+
 def test_schema_requires_nullable_fields_quotes_urls_and_no_extra_fields():
     row, _, _ = fixture()
     schema = p.extraction_schema([row])
-    props = schema['properties']['rows']['items']['properties']
+    props = schema['properties']['row_observations']['properties'][row['row_id']]['properties']
     assert props['source_url']['type'] == 'string'
     assert props['fields']['items']['properties']['value']['type'] == ['number', 'string', 'null']
     assert props['fields']['items']['additionalProperties'] is False
