@@ -2816,7 +2816,7 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
-        facts = json.loads((BUSINESS / report_path).read_bytes())
+        facts = json.loads((BUSINESS / report_path).read_bytes()) if report is not None else {}
         terminal_requested = any(r.get('job') == job and r.get('disposition') == 'terminal_unsent_preinsert'
                                  for r in facts.get('jobs', []))
         if job == TERMINAL_UNSENT_PR52['job'] or job in TERMINAL_UNSENT_CURRENT or terminal_requested:

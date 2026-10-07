@@ -3179,7 +3179,7 @@ except SystemExit as e: print(str(e),flush=True)
         self.browser.sent_times = []
         original = self.browser.js
         def timed(expression):
-            if expression.startswith('(()=>{const b=') and 'b.click();return true;' in expression:
+            if expression.startswith('(()=>{function pickerActionable') and 'const b=document.querySelector' in expression and 'b.click();return true;' in expression:
                 self.browser.sent_times.append(self.browser.clock)
             return original(expression)
         with mock.patch.object(self.browser, 'js', side_effect=timed):
