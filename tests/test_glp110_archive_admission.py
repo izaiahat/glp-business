@@ -15,6 +15,196 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import evidence_preserving_pruner as ep
+import subprocess
+
+# Fixture effect-denial patches subprocess globally; preserve only this narrow
+# scratch-root lease probe transport before those patches. No live CLI entry.
+_LEASE_POPEN = subprocess.Popen
+_LEASE_PROBE = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from sync_from_repo import source_lock
+try:
+    with source_lock(sys.argv[2]):
+        print('ACQUIRED', flush=True)
+        if sys.argv[3] == 'hold': sys.stdin.readline()
+except ValueError as exc:
+    if str(exc) != 'source_import_busy': raise
+    print('BUSY', flush=True)
+"""
+
+
+def lease_process(root, *, hold=False):
+    return _LEASE_POPEN([sys.executable, '-I', '-B', '-c', _LEASE_PROBE,
+        str(Path(ep.__file__).parent), str(root), 'hold' if hold else 'probe'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, env={**ep.os.environ, 'GLP_SOURCE_LOCK_WAIT_S': '0'})
+
+
+def lease_result(root):
+    process = lease_process(root)
+    out, err = process.communicate(timeout=10)
+    assert process.returncode == 0, err
+    return out.strip()
+
+
+def test_cleanup_c_reference_effects_exclude_real_receiving_process(owner, monkeypatch):
+    observed = []
+    def check(boundary):
+        result = lease_result(ep.BUS)
+        observed.append((boundary, result))
+        assert result == 'BUSY', 'cleanup lacks the existing workspace lease: '+boundary
+    def references(*args):
+        check('C_first_reference_read')
+        return [owner.source]
+    def recovery(*args):
+        check('C_retirement_recovery')
+        return []
+    def candidate(*args, **kwargs):
+        check('C_dependent_archive_effect')
+        return {'rule': 'C_cold_evidence_archive', 'ok': True, 'status': 'GATED_FIXTURE'}
+    monkeypatch.setattr(ep, 'reference_files', references)
+    monkeypatch.setattr(ep, 'recover_retirements', recovery)
+    monkeypatch.setattr(ep, 'archive_tree', candidate)
+    ep.run(owner.api, owner.config, owner.state, dry_run=False,
+           deadline=time.monotonic()+60, archive_only=True)
+    assert [name for name, _ in observed] == ['C_first_reference_read',
+        'C_retirement_recovery', 'C_dependent_archive_effect']
+    assert lease_result(ep.BUS) == 'ACQUIRED', 'lease leaked after cleanup return'
+
+
+@pytest.mark.parametrize('phase', ['D', 'A', 'B'])
+def test_cleanup_snapshot_effect_scopes_hold_existing_lease(owner, monkeypatch, phase):
+    calls = []
+    def effect(*args, **kwargs):
+        calls.append(phase)
+        assert lease_result(ep.BUS) == 'BUSY', 'snapshot-dependent '+phase+' lacks lease'
+        return {'rule': phase+'_fixture', 'ok': True}
+    if phase == 'D':
+        monkeypatch.setitem(sys.modules, 'screenshot_pruner',
+                            SimpleNamespace(run_rules=lambda *a, **k: [effect()]))
+    elif phase == 'A':
+        monkeypatch.setattr(ep, 'regenerable', lambda *a, **k: [effect()])
+    else:
+        monkeypatch.setattr(ep, 'dedupe', effect)
+    rows, _ = execute(owner)
+    assert calls == [phase]
+    assert lease_result(ep.BUS) == 'ACQUIRED'
+
+
+@pytest.mark.parametrize('phase', ['D', 'C'])
+def test_receiving_owner_refuses_cleanup_before_snapshot(owner, monkeypatch, phase):
+    monkeypatch.setenv('GLP_SOURCE_LOCK_WAIT_S', '0')
+    def denied(*args, **kwargs):
+        raise AssertionError('reference inventory/effects entered without admission')
+    monkeypatch.setattr(ep, 'reference_files', denied)
+    monkeypatch.setitem(sys.modules, 'screenshot_pruner', SimpleNamespace(run_rules=denied))
+    history = copy.deepcopy(owner.state['C_done'])
+    holder = lease_process(ep.BUS, hold=True)
+    try:
+        assert holder.stdout.readline().strip() == 'ACQUIRED'
+        rows = ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                      deadline=time.monotonic()+60, archive_only=phase == 'C')
+        assert rows[-1]['status'] == 'GATED_SOURCE_BUSY'
+        assert rows[-1]['partial'] is True and rows[-1]['bytes_freed'] == 0
+        assert owner.state['full_pass_complete'] is False
+        assert owner.state['C_done'] == history
+    finally:
+        out, err = holder.communicate('\n', timeout=10)
+        assert holder.returncode == 0, err
+    assert lease_result(ep.BUS) == 'ACQUIRED'
+    # A new fixture invocation must capture fresh source, not reuse refused pins.
+    owner.source.write_text(json.dumps({'current_root': str(owner.root)}))
+    monkeypatch.setattr(ep, 'reference_files', lambda *a: [owner.source])
+    rows = ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                  deadline=time.monotonic()+60, archive_only=True)
+    assert next(r for r in rows if r.get('path') == str(owner.root))['status'] == 'GATED_REFERENCED'
+
+
+@pytest.mark.parametrize('failure', ['inventory', 'effect'])
+def test_cleanup_lease_releases_on_gated_inventory_and_exception(owner, monkeypatch, failure):
+    def failed(*args, **kwargs):
+        assert lease_result(ep.BUS) == 'BUSY'
+        if failure == 'inventory': raise ep.ScanBudget('fixture inventory budget')
+        raise RuntimeError('fixture dependent effect refused')
+    if failure == 'inventory':
+        monkeypatch.setattr(ep, 'reference_files', failed)
+        rows = ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                      deadline=time.monotonic()+60, archive_only=True)
+        assert rows[-1]['status'] == 'GATED_REFERENCE_INVENTORY_INCOMPLETE'
+    else:
+        monkeypatch.setattr(ep, 'archive_tree', failed)
+        with pytest.raises(RuntimeError, match='fixture dependent effect refused'):
+            ep.run(owner.api, owner.config, owner.state, dry_run=False,
+                   deadline=time.monotonic()+60, archive_only=True)
+    assert lease_result(ep.BUS) == 'ACQUIRED'
+
+
+def test_b_slices_rebuild_protection_after_real_receiving_checkpoint(owner, monkeypatch):
+    from contextlib import contextmanager
+    from sync_from_repo import source_lock
+    scopes = 0
+    snapshots = []
+    policy = ep.BUS / 'ops/disk-retention-policy.json'
+    @contextmanager
+    def scheduled_receiving(root):
+        nonlocal scopes
+        scopes += 1
+        number = scopes
+        with source_lock(root) as acquired:
+            yield acquired
+        if number == 3:  # D, A, first B slice; custody has actually ended.
+            holder = lease_process(root, hold=True)
+            try:
+                assert holder.stdout.readline().strip() == 'ACQUIRED'
+                policy.write_text(json.dumps({'protected_roots': [str(owner.root)]}))
+            finally:
+                out, err = holder.communicate('\n', timeout=10)
+                assert holder.returncode == 0, err
+    def dedupe(*args, protected_roots, **kwargs):
+        assert lease_result(ep.BUS) == 'BUSY'
+        snapshots.append(protected_roots)
+        return {'rule': 'B_fixture', 'ok': True,
+                'status': 'TIME_BUDGET_PARTIAL' if len(snapshots) == 1 else 'COMPLETE'}
+    monkeypatch.setattr(ep, 'source_lock', scheduled_receiving)
+    monkeypatch.setattr(ep, 'dedupe', dedupe)
+    execute(owner)
+    assert snapshots == [[], [str(owner.root)]]
+    assert snapshots[0] is not snapshots[1]
+    assert lease_result(ep.BUS) == 'ACQUIRED'
+
+
+def test_receiving_between_b_and_c_refuses_before_reference_inventory(owner, monkeypatch):
+    from contextlib import contextmanager
+    from sync_from_repo import source_lock
+    monkeypatch.setenv('GLP_SOURCE_LOCK_WAIT_S', '0')
+    scopes = 0
+    holders = []
+    @contextmanager
+    def receiving_after_b(root):
+        nonlocal scopes
+        scopes += 1
+        number = scopes
+        with source_lock(root) as acquired:
+            yield acquired
+        if number == 3:
+            holder = lease_process(root, hold=True)
+            holders.append(holder)
+            assert holder.stdout.readline().strip() == 'ACQUIRED'
+    def denied(*args):
+        raise AssertionError('C inventoried after losing receiving admission')
+    monkeypatch.setattr(ep, 'source_lock', receiving_after_b)
+    monkeypatch.setattr(ep, 'reference_files', denied)
+    try:
+        rows, candidates = execute(owner)
+        assert candidates[-1]['status'] == 'GATED_SOURCE_BUSY'
+        assert owner.state['full_pass_complete'] is False
+        assert rows[-1]['rule'] == 'C_cold_evidence_archive'
+    finally:
+        for holder in holders:
+            out, err = holder.communicate('\n', timeout=10)
+            assert holder.returncode == 0, err
+    assert lease_result(ep.BUS) == 'ACQUIRED'
 
 
 @pytest.fixture
