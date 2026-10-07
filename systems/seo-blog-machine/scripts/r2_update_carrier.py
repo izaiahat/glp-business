@@ -30,6 +30,7 @@ from existing_article_updates import (
     validate_r2_execution_contract,
 )
 from machine_config import load_config
+from weekly_strategy_consumer import load_strategy as load_cogny_strategy, preference as cogny_preference, preference_score as cogny_preference_score
 from selection_receipt import write_immutable_receipt
 
 BUSINESS = Path("/home/ubuntu/business")
@@ -1094,7 +1095,20 @@ def run(
             release_root=release_root,
             as_of=as_of,
         )
+    cogny_strategy, cogny_meta = load_cogny_strategy(as_of=as_of)
     r2_candidates = list((weekly_payload.get("weekly_plan") or {}).get("selected") or [])
+    # Reorder only the already governed P1-P4 R2 pool. No new route/identity or
+    # quota is minted from a recommendation, including low-volume page2 advice.
+    r2_candidates = sorted(r2_candidates, key=lambda row: (
+        str(row.get("priority") or ""),
+        -cogny_preference_score(cogny_strategy, row.get("target_query") or row.get("query"), row.get("route"), "r2_refresh"),
+    ))
+    r2_candidates = [{**row, "cogny_strategy_preference": cogny_preference(
+        cogny_strategy, row.get("target_query") or row.get("query"), row.get("route"), "r2_refresh")}
+        for row in r2_candidates]
+    weekly_payload = {**weekly_payload, "cogny_weekly_strategy": cogny_meta,
+                      "weekly_plan": {**(weekly_payload.get("weekly_plan") or {}), "selected": r2_candidates}}
+    weekly_payload["receipt_sha256"] = payload_hash(weekly_payload, "receipt_sha256")
     week_dir = output_root.resolve() / as_of.isoformat()
     week_dir.mkdir(parents=True, exist_ok=True)
     weekly_selection = write_sealed(

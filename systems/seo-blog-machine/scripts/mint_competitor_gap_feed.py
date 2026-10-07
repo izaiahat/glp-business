@@ -41,6 +41,7 @@ import sys
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from weekly_strategy_consumer import load_strategy, preference, preference_score
 
 BUSINESS = Path("/home/ubuntu/business")
 SCRIPTS = BUSINESS / "systems/seo-blog-machine/scripts"
@@ -400,9 +401,13 @@ def build_feed(*, strategy_path: Path, corpus_path: Path, database: Path,
         gaps.append(row)
         seen_join_keys.add(key)
     skipped.extend(weekly_holds)
+    cogny_strategy, cogny_meta = load_strategy()
+    for row in gaps:
+        row["cogny_strategy_preference"] = preference(cogny_strategy, row["keyword"], row["target_route"], "new_article")
     gaps.sort(key=lambda item: (
         {"B": 0, "C": 1}.get(str(item.get("opportunity_class") or ""), 2),
         0 if (item.get("strategy_binding") or {}).get("depth_stage") == "pillar" else 1,
+        -preference_score(cogny_strategy, item["keyword"], item["target_route"], "new_article"),
         -item["priority"],
         -item["keyword_evidence"]["merged_search_volume"],
         int((item.get("strategy_binding") or {}).get("queue_position") or 0),
@@ -447,6 +452,7 @@ def build_feed(*, strategy_path: Path, corpus_path: Path, database: Path,
             "gsc_window": gsc_window,
             "firecrawl_supplement": firecrawl_meta,
             "weekly_keyword_gap_supply": weekly_meta,
+            "cogny_weekly_strategy": cogny_meta,
             "current_content_base": str(release_root),
         },
         "summary": {

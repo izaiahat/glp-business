@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, "/home/ubuntu/business/systems/analytics-brain")
 from current_content_base import verify_resolution  # noqa: E402
 from machine_config import canonical, load_config  # noqa: E402
+from weekly_strategy_consumer import load_strategy as load_cogny_strategy, preference as cogny_preference, preference_score as cogny_preference_score
 from selection_receipt import load_selection_receipt, sha256_file, write_immutable_receipt  # noqa: E402
 from decision_policy import (  # noqa: E402
     consumer_policy, require_allowed, write_consumer_decision,
@@ -555,6 +556,7 @@ def select_strategy_safe(
     demand_table: dict[str, float] | None = None,
     excluded_topic_ids: set[str] | None = None,
     dynamic_cluster_ids: set[str] | None = None,
+    cogny_strategy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Pure selector: strategy safety first, GSC preference second, then the
     strategy's content-class balance and the measured-demand multiplier (both
@@ -710,6 +712,7 @@ def select_strategy_safe(
     weights = class_weights or {}
     table = demand_table or {}
     for row in eligible:
+        row["cogny_strategy_preference"] = cogny_preference(cogny_strategy, row["target_query"], row["target_route"], "new_article")
         row["class_balance_multiplier"] = class_balance_multiplier(
             row["content_class"], shares, weights, class_tolerance_pct)
         row["demand_multiplier"] = demand_multiplier(str(row.get("target_query") or ""), table)
@@ -731,6 +734,7 @@ def select_strategy_safe(
         preferred or selection_pool,
         key=lambda row: (
             int(row.get("opportunity_class_rank", 2)),
+            -cogny_preference_score(cogny_strategy, row["target_query"], row["target_route"], "new_article"),
             -float(row["gsc_preference"].get("weight") or 0)
             * float(row.get("class_balance_multiplier") or 1.0)
             * float(row.get("demand_multiplier") or 1.0),
@@ -841,6 +845,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
         for key, value in ((config.get("topic_feed") or {}).get("class_weights") or {}).items()
     }
     active_class_weights, targeting_meta = load_targeting_policy(configured_class_weights)
+    cogny_strategy, cogny_meta = load_cogny_strategy()
     selected = select_strategy_safe(
         list(queue.get("queue") or []),
         strategy_rows,
@@ -859,6 +864,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
         demand_table=demand_table,
         excluded_topic_ids=set(args.exclude_topic_id or []),
         dynamic_cluster_ids=overlay_clusters,
+        cogny_strategy=cogny_strategy,
     )
     overlay_source_spec = None
     if overlay_spec is not None:
@@ -968,6 +974,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
         "revenue_blind": True,
         "analytics_decisions": analytics_decisions,
         "demand_signal": demand_meta,
+        "cogny_weekly_strategy": cogny_meta,
         "targeting_policy": targeting_meta,
         "eligible_count": len(selected["eligible"]),
         "selected": selected["selected"],

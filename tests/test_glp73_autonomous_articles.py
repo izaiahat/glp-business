@@ -28,6 +28,51 @@ class ArticleRoutes(unittest.TestCase):
         for route in ['/cost/price/', '/tools/calculator/', '/reviews/a/b/', '/reviews/a?b/', '/reviews/../']:
             self.assertIsNone(pattern.fullmatch(route), route)
 
+class R2ReviewRoute(unittest.TestCase):
+    def test_r2_uses_same_current_astra_route_as_new_articles(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import review_transports
+        path = ROOT / 'scripts/glp_seo_updater_run.py'
+        tree = ast.parse(path.read_text())
+        node = next(n for n in tree.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'REVIEW_TRANSPORT' for t in n.targets))
+        # The real current transport table is safe metadata; policy Opus lookup
+        # is an obsolete host dependency and must not run at updater import.
+        with patch.object(review_transports, 'policy_opus_transport', side_effect=AssertionError('legacy Opus invoked')):
+            ns = {'review_transports': review_transports}
+            exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), ns)
+        self.assertEqual(ns['REVIEW_TRANSPORT'], review_transports.ASTRA_TRANSPORT['transport_id'])
+        advisory = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'execute_review_only')
+        self.assertNotIn('policy_opus_transport', ast.unparse(advisory))
+
+    def test_codex_review_capacity_uses_reported_windows_not_claude_session_fields(self):
+        path = ROOT / 'scripts/glp_seo_updater_run.py'
+        tree = ast.parse(path.read_text())
+        nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'current_review_pool']
+        self.assertEqual(len(nodes), 1, 'current provider capacity resolver missing')
+        import datetime as dt
+        ns = {'dt': dt}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), ns)
+        now = dt.datetime(2026,10,7,23,tzinfo=dt.timezone.utc)
+        pool = {'provider':'openai-codex','role':'ACTIVE','freshness':'live','fetched_at':'2026-10-07T22:55:00Z',
+                'windows':{'seven_day':{'remaining_pct':76}}, 'session_left_pct':None}
+        self.assertEqual(ns['current_review_pool']({'pools':[pool]}, now=now), pool)
+        for bad in [{**pool,'provider':'anthropic'}, {**pool,'fetched_at':'2026-10-01T00:00:00Z'},
+                    {**pool,'windows':{}}, {**pool,'windows':{'seven_day':{'remaining_pct':0}}}]:
+            with self.assertRaises(RuntimeError): ns['current_review_pool']({'pools':[bad]}, now=now)
+
+class CarrierInventory(unittest.TestCase):
+    def test_reserve_deficit_is_not_a_base_compatibility_failure(self):
+        path = SCRIPTS / 'validate_article_carrier_base_compatibility.py'
+        tree = ast.parse(path.read_text())
+        selected = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in {'require', 'require_publishable_inventory'}]
+        namespace = {}
+        exec(compile(ast.Module(body=selected, type_ignores=[]), str(path), 'exec'), namespace)
+        check = namespace.get('require_publishable_inventory')
+        self.assertIsNotNone(check, 'missing separation of refill capacity and publishability')
+        check({'status':'BUFFER_CAPACITY_DEFICIT', 'entries':[{'entry_id':'passing'}], 'pool':{'ready':1,'minimum':3,'target':4}})
+        for value in [{'status':'UNKNOWN', 'entries':[{}]}, {'status':'BUFFER_CAPACITY_DEFICIT', 'entries':[]}, {'status':'PASS_BUFFER_STATUS', 'entries':None}]:
+            with self.assertRaises(RuntimeError): check(value)
+
 class AutonomousReview(unittest.TestCase):
     def test_legacy_invocation_and_bridge_approvals_are_not_current_routes(self):
         sys.path.insert(0, str(SCRIPTS))

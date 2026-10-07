@@ -114,9 +114,19 @@ def validate_base_interfaces(release: Path) -> dict[str, Any]:
     }
 
 
+def require_publishable_inventory(status):
+    # Minimum/target are refill watermarks, not a ban on consuming the last
+    # independently admitted entry. Treat unknown status and empty inventory
+    # as failures; all existing exact next-entry/base checks still run below.
+    require(isinstance(status, dict) and status.get("status") in {
+        "PASS_BUFFER_STATUS", "BUFFER_CAPACITY_DEFICIT",
+    }, "buffer_status_nonpass")
+    require(isinstance(status.get("entries"), list) and bool(status["entries"]), "ready_buffer_empty")
+
+
 def validate_next_ready_entry(release: Path) -> dict[str, Any]:
     status = buffer_cli.status(buffer_cli.DEFAULT_ROOT)
-    require(status.get("status") == "PASS_BUFFER_STATUS", "buffer_status_nonpass")
+    require_publishable_inventory(status)
     entries = status.get("entries")
     require(isinstance(entries, list) and entries, "ready_buffer_empty")
     entry = entries[0]
