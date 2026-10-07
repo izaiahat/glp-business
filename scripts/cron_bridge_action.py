@@ -658,6 +658,25 @@ def finish_action(action, args, job, state, state_path, *, call=None):
                                          r["receipt"], note[:900], job)
         return effects
     if action == "pricing_refresh":
+        emitted = machine_receipt(job)
+        if emitted.get("schema") == "glp.price_freshness.v1":
+            count = emitted.get("active_provider_count")
+            completed = emitted.get("completed_provider_count")
+            pages = emitted.get("successful_pages")
+            if (not isinstance(count, int) or isinstance(count, bool) or count < 1
+                    or completed != count or emitted.get('primary_pages_successful') != count
+                    or not isinstance(pages, int) or pages < count
+                    or emitted.get("failed_primary_pages") != 0):
+                raise TerminalRefusal("FAIL_INCOMPLETE_COHORT", "price_monitor_cohort_incomplete")
+            note = (f"Pricing monitor: {count} providers, {pages} pages; "
+                    f"{emitted.get('confirmed_changes', 0)} confirmed price fields; "
+                    f"{emitted.get('review_required', 0)} unknown/conflict review rows. "
+                    "Prices are not removed on source failures; publication is a separate F06 effect.")
+            effects = {"providers_monitored": count, "pages_monitored": pages}
+            if emitted.get('confirmed_changes', 0):
+                effects['notification'] = post_once(note + " Registry intake: " + str(emitted.get('receipt')), job, state, state_path)
+            effects['heartbeat'] = heartbeat('pricing_refresh', count, emitted['receipt'], note, job)
+            return effects
         r = machine_receipt(job, schema="glp.pricing_refresh.v1")
         verdicts = r.get("row_verdicts") or {}
         checked = sum(float(verdicts.get(key) or 0) for key in ("unchanged", "evidence_lost", "capture_failed"))

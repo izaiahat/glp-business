@@ -26,7 +26,9 @@ INTENT_SCHEMA = 'glp-f06-publication-intent-v1'
 PATCH_SCHEMA = 'ws-r-json-patch-v1'
 # Mirrors the typed pricing witness bar (validate-provider-pricing-matrix.mjs).
 MAX_EVIDENCE_AGE_DAYS = 92
-PRICE_FIELDS = frozenset({'amount_usd', 'period', 'billing_basis', 'price_phase', 'price_kind',
+PRICE_FIELDS = frozenset({'amount_usd', 'intro_usd', 'ongoing_usd', 'equivalent_usd',
+                          'membership_usd', 'medication_usd', 'advertised_floor_usd',
+                          'ongoing_equivalent_usd', 'period', 'billing_basis', 'price_phase', 'price_kind',
                           'medication', 'formulation'})
 CANCELLATION_FIELDS = frozenset({'cancellation_policy', 'notice_days', 'refund_policy',
                                  'minimum_commitment_months', 'cancellation_fee_usd'})
