@@ -43,14 +43,14 @@
       "callers": [
         "authorized parent install owner"
       ],
-      "sha256": "438964398032c73164588aa70647bfd930bb75e688114a0524896d22ae7e0448"
+      "sha256": "8d931ec72d3f66cf45cf5fad013489be7b04802cdf947016eb8cefba67636619"
     },
     "tests/test_glp345_a4_adoption.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "c279ed2a90a730d7e2f7841174352a132a7eb0ed58125252ea6c5fa7e9b326b5"
+      "sha256": "2cc50179f471a5f27bca009dcb36845a73f71014b05d6454842870592205f06b"
     },
     "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
       "kind": "source_control",
@@ -3412,7 +3412,7 @@
         "scripts/maintenance_window.py"
       ],
       "kind": "repository_control",
-      "sha256": "52bec731ba3e2bf5c0abffcd257c6814781bf942e692f14431f873b429e2813c"
+      "sha256": "dfbd49dd1790bdc05d370dd0df8185824769ab3a7ec34591d1420a06b4e2be16"
     },
     "scripts/maintenance_window.py": {
       "callers": [
