@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 747,
+  "tracked_count": 750,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -4418,31 +4418,52 @@
       ],
       "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
     },
+    "scripts/glp_sponsor_alexandria.py": {
+      "kind": "script",
+      "callers": [
+        "authorized sponsor preapproval business-contact research"
+      ],
+      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
+    },
+    "tests/test_glp_sponsor_alexandria.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
+    },
+    "tests/test_glp_sponsor_autonomous.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
+    },
     "scripts/glp_sponsor_campaign.py": {
       "kind": "script",
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "a6bfec4eb7a6d27b607ac8f9c3c349396917c389628787520cc801261427b4d0"
+      "sha256": "6b02be915865c1c5e9e1bac3a662f72d87db949b10e61af5a6bcf523e34cc104"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "0947a81691f91da07cc01c78f4d8f412eed37cd5712f906c9ec5648f141c5b70"
+      "sha256": "dd0a94824b57d3bd17727b5d242aa261f993b325c01f867ab3478c4f21b27be7"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "0f6e1f90298648c5c22a0e3ec1c7189f18dd49998ccb3b823bf13d336619854e"
+      "sha256": "bbb8e3c77d2e5ffcb4f2f96087ed32540af5fbde0b2c6ce61667473844783263"
     },
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "30f4413527be869711da5109590a5b9b620b421164c1fbb8f20f76ed1945f276"
+      "sha256": "acae3df1bd2de39e8c5ee8d82ea4aa4a2eb4da0168dae442910eb0ce80255a88"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4886,14 +4907,14 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "f31a59a9034d6c9b7dd7aff257643779431312cc1c52276db4ab03faed602445"
+      "sha256": "4f988082d932ffb1da57dce951827cfd7cfc7fd068c4964864f171583acf3284"
     },
     "inbox_control_plane/sponsor_replies.py": {
       "kind": "source_control",
       "callers": [
         "inbox_control_plane/control_plane.py"
       ],
-      "sha256": "53e115bd02aa9264c28ffc01b8ee7a3be7dfb298fe679399f4cc88501f96c39b"
+      "sha256": "3ca1515dc6cdd477592e2087e738595f5c85fdbb0a0370ca61e63bd124ace42f"
     },
     "tests/test_glp_sponsor_continuation.py": {
       "kind": "test",

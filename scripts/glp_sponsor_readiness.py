@@ -46,12 +46,22 @@ def apollo_transport(method,path,payload):
     if path.endswith('/people/match') and any(payload.get(k) is not False for k in
             ('reveal_personal_emails','reveal_phone_number','run_waterfall_email','run_waterfall_phone')):
         raise RuntimeError('apollo_personal_phone_or_waterfall_not_authorized')
-    key=os.environ.get('APOLLO_API_KEY')
-    if not key:raise RuntimeError('apollo_account_unavailable')
-    request=urllib.request.Request('https://api.apollo.io'+path,data=json.dumps(payload).encode(),method=method,
-                                   headers={'x-api-key':key,'Content-Type':'application/json'})
-    with urllib.request.urlopen(request,timeout=20) as response:
-        return json.load(response)
+    from firecrawl_client import FirecrawlClient
+    capability='people/match' if path.endswith('/people/match') else 'people/search'
+    options={k:v for k,v in payload.items() if k not in ('run_waterfall_email','run_waterfall_phone')}
+    response=FirecrawlClient('sponsor_campaign').scrape({'alexandria':[{'provider':'apollo','capability':capability,'options':options}]})
+    entries=response.get('data',{}).get('alexandria',[])
+    if response.get('success') is not True or len(entries)!=1:
+        raise RuntimeError('alexandria_response_unknown')
+    row=entries[0]
+    if row.get('error') or row.get('provider')!='apollo' or row.get('capability')!=capability or row.get('upstreamStatus')!=200:
+        raise RuntimeError('alexandria_provider_unknown')
+    data=row['data']
+    if capability=='people/search':
+        return {'people':[{k:p.get(k) for k in ('id','title','has_email')} for p in data.get('people',[])]}
+    p=data.get('person') or {}
+    return {'person':{**{k:p.get(k) for k in ('id','title','email','country')},
+                      'organization':{'primary_domain':(p.get('organization') or {}).get('primary_domain')}}}
 
 
 def apollo_search(host,transport=apollo_transport):
