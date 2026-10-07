@@ -510,6 +510,48 @@ def test_protected_installed_runtime_requires_code_provenance_not_noncode_arm(
     assert writes == []
 
 
+def test_protected_runtime_cannot_drop_provenance_by_relabeling(protected_runtime_completion):
+    target, path, data, writes, parent, independent, *_ = protected_runtime_completion
+    data.update(scope='protected-noncode')
+    data.pop('pr')
+    data.pop('installed_files')
+    refresh_protected_bindings(data, parent, independent)
+    path.write_text(json.dumps(data))
+    with pytest.raises(SystemExit, match='installed|provenance|non-code'):
+        lo.pass_issue(target, path, {}, protected_noncode=True, check_only=True)
+    assert writes == []
+
+
+def test_protected_metadata_is_not_acceptance_and_does_not_end_nested_scope(
+        protected_noncode_completion, capsys):
+    target, path, data, writes, parent, independent, *_ = protected_noncode_completion
+    wiring = '* Verify authenticated API consumption; unsupported tools retain a reason.'
+    nested = '### Retained guard\n\n* Retain independent REAL and send gates.'
+    target['description'] += ('\n## Relevant tool wiring\n\n' + wiring + '\n\n'
+        'PR: pending or retain linked existing PR; no source reauthoring solely for consolidation.\n'
+        'Authority: `ops/linear/approvals/OPERATOR-DECISION-20261001-cleanup-program.md`. '
+        'Plan: `reports/ops/system-rationalization-20261001/PLAN.md`.\n\n' + nested + '\n')
+    data.update(description_sha256=digest(target['description']),
+                retained_acceptance_clauses=[{'clause': wiring + '\n' + nested, 'verdict': 'PASS',
+                                             'evidence': data['evidence'][0]['path']}])
+    refresh_protected_bindings(data, parent, independent)
+    path.write_text(json.dumps(data))
+    lo.pass_issue(target, path, {}, protected_noncode=True, check_only=True)
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    # Neither metadata nor a metadata-looking requirement may hide later scope.
+    for suffix, quoted in (('', wiring), ('Authority: retain independent financial acceptance.',
+                                         wiring + '\n' + nested)):
+        if suffix:
+            target['description'] += '\n' + suffix + '\n'
+            data['description_sha256'] = digest(target['description'])
+        data['retained_acceptance_clauses'][0]['clause'] = quoted
+        refresh_protected_bindings(data, parent, independent)
+        path.write_text(json.dumps(data))
+        with pytest.raises(SystemExit, match='full original/nested acceptance'):
+            lo.pass_issue(target, path, {}, protected_noncode=True, check_only=True)
+    assert writes == []
+
+
 @pytest.mark.parametrize('defect', [
     'missing_independent', 'stale_parent', 'same_author', 'missing_pr', 'unmerged', 'head_mismatch',
     'merge_mismatch', 'ci_failure', 'wrong_ci_receipt', 'no_installed_source', 'source_changed',

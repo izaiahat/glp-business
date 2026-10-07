@@ -12,8 +12,10 @@
         <comment_id> <body_sha256>. Independent user differs from parent and attested author.
         Prefixes: Acceptance verified by parent: (or Coordinator acceptance verified:) and
         Independent protected acceptance verified:. No new effects or weakened REAL/send gates.
-        Quote complete nested Acceptance/Relevant tool wiring bodies in acceptance_clauses
+        Quote complete nested Acceptance/Relevant tool wiring requirements in acceptance_clauses
         or retained_acceptance_clauses, each PASS with evidence; typed first-section lint remains.
+        PR placeholders and Authority/Plan path metadata are not acceptance clauses.
+        Installed-source/deployment acceptance requires --protected-runtime provenance.
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --protected-runtime [--check-only]
         Same authenticated/full-scope bindings, plus ordinary PR/CI format and
         installed_files [{path,sha256}] matching current live bytes AND authenticated merged
@@ -554,14 +556,30 @@ def _lint_protected_result(path, iss, *, runtime=False):
                 'all original/nested acceptance clauses need PASS with evidence')
         normalise = lambda text: re.sub(r'\s+', ' ', text).strip()
         answered = normalise('\n'.join(c['clause'] for c in clauses))
+        # Ignore only known metadata forms, never stop at a metadata-looking line:
+        # subsequent requirements and nested headings still belong to this section.
+        metadata = (r'PR: pending or retain linked existing PR; no source reauthoring solely for consolidation\.|'
+                    r'Authority: `ops/linear/approvals/[^`\n]+\.md`\.'
+                    r'(?:[ \t]+Plan: `reports/[^`\n]+\.md`\.)?|Plan: `reports/[^`\n]+\.md`\.')
+        scope = [iss.get('title') or '']
         headings = list(re.finditer(r'^(#{2,6})[ \t]+([^\n]+)\n', description, re.M))
         for index, heading in enumerate(headings):
             if not re.match(r'Acceptance\b|Relevant tool wiring\b', heading[2], re.I):
                 continue
             end = next((h.start() for h in headings[index + 1:] if len(h[1]) <= len(heading[1])),
                        len(description))
-            require(normalise(description[heading.end():end]) in answered,
+            body = description[heading.end():end]
+            scope.append(body)
+            requirements = '\n'.join(line for line in body.splitlines()
+                                     if not re.fullmatch(metadata, line.strip()))
+            require(normalise(requirements) in answered,
                     'full original/nested acceptance or tool-wiring coverage missing')
+        if not runtime:
+            # The authenticated issue's contract, not a caller's scope label or
+            # omission of pr/installed_files, determines whether provenance is needed.
+            require(not re.search(r'\b(?:install\w*|deploy\w*|source[- ](?:code|bytes))\b',
+                                  '\n'.join(scope), re.I),
+                    'installed-source/deployment acceptance requires runtime provenance, not non-code')
         author = data.get('author_id')
         require(isinstance(author, str) and re.fullmatch(r'[a-f0-9-]{36}', author),
                 'parent-attested execution author Linear ID required')
