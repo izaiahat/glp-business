@@ -1354,7 +1354,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "a4701f1f1c875a5770e4c4b34309000d9dca937ecba9af89f678d846ed338e34"
+      "sha256": "e3ac5adeedec256f0f37408b79c0fe52b719ef05a432c79eda11e7f036ecfd3e"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -4824,7 +4824,7 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "df8d46dd186a3a8786793e3b8cff675967b5381d2900265b7bc867a15fb8c9bb"
+      "sha256": "a4b4006ec4db53b83e4911d8773bfc2f95da8bf8f448d2f77866ac26bd15c15f"
     },
     "tests/test_glp268_reconciler_access.py": {
       "callers": [

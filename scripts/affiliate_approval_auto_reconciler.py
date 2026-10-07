@@ -17,6 +17,7 @@ from email import policy
 from email.parser import BytesParser
 from email.utils import parseaddr
 from pathlib import Path
+from katalys_fresh_relationship import relationship_snapshot as katalys_fresh_relationship_snapshot
 from typing import Any
 import requests
 from google.auth.transport.requests import Request
@@ -1550,7 +1551,13 @@ def katalys_relationship_snapshot(program,expected_name):
  if response.status_code>=400:raise RuntimeError(f'katalys_graphql_http:{response.status_code}')
  try:payload=response.json()
  except ValueError as exc:raise RuntimeError('katalys_graphql_non_json') from exc
- if payload.get('errors'):raise RuntimeError('katalys_graphql_errors')
+ if payload.get('errors'):
+  errors=payload['errors']
+  # HTTP200/FORBIDDEN is unavailable API scope, never an empty relationship.
+  # Only this explicit refusal permits an independently authenticated UI read;
+  # mixed errors, expired auth and identity failures still stop normally.
+  denied=isinstance(errors,list) and all(isinstance(e,dict) and isinstance(e.get('extensions'),dict) and e['extensions'].get('code')=='FORBIDDEN' for e in errors)
+  raise RuntimeError('katalys_graphql_org_permission_unavailable' if denied else 'katalys_graphql_errors')
  block=((payload.get('data') or {}).get('offerMarketplace') or {})
  rows=[item for item in (block.get('results') or []) if str(item.get('offerId'))==str(program)]
  if len(rows)!=1:raise RuntimeError(f'katalys_graphql_program_identity_count:{len(rows)}')
@@ -1567,12 +1574,20 @@ def katalys_relationship_snapshot(program,expected_name):
          'provider_readback_verified':relation in {'approved','pending','rejected'},
          'read_method':'authenticated_live_graphql'}
 async def katalys_snapshot(program,expected_name,existing_link,allow_link_generation=True,expected_action=None,relationship_only=False,*,fresh_driver=None):
- # Relationship reconciliation consumes the existing authenticated API read;
- # cached credentials do not grant UI terms or link-generation authority.
- snapshot=await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
+ # Attempt the maintained API read first. A precise permission refusal is not
+ # success and may only be replaced by an independently authorized visible read.
+ ui_relationship=False
+ try:snapshot=await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
+ except RuntimeError as exc:
+  if str(exc)!='katalys_graphql_org_permission_unavailable' or fresh_driver is None:raise
+  snapshot=katalys_fresh_relationship_snapshot(program,expected_name,fresh_driver=fresh_driver)
+  snapshot['api_readback']='UNAVAILABLE_ORG_PERMISSION';ui_relationship=True
  if relationship_only:return snapshot
  if snapshot.get('relationship')=='approved' and not existing_link and allow_link_generation:raise RuntimeError('katalys_link_generation_held_no_legacy_cdp_fallback')
  snapshot['tracking_link']=existing_link or '';snapshot['link_generated']=False
+ # This finite replacement proves only the exact visible site relationship.
+ # Missing terms remain UNKNOWN; it grants neither link nor program mutation.
+ if ui_relationship:return snapshot
  if fresh_driver is None:
   # No UI terms evidence: leave UNKNOWN/empty, never infer terms from email.
   snapshot['terms']='';snapshot['terms_readback']='NOT_CHECKED_FRESH_VAULT_BROWSER_REQUIRED'
