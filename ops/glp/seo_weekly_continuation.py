@@ -18,6 +18,9 @@ BUSINESS=Path('/home/ubuntu/business')
 CONTROLLER=BUSINESS/'scripts/glp_weekly_seo_control.py'
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+def workweek_start(observation):
+    # The registered Sunday planning run prepares the following Monday's work.
+    return (observation+dt.timedelta(days=1) if observation.weekday()==6 else observation-dt.timedelta(days=observation.weekday())).isoformat()
 def save(path,doc):
     path.parent.mkdir(parents=True,exist_ok=True)
     with path.open('x') as stream:json.dump(doc,stream,indent=2,ensure_ascii=False);stream.write('\n')
@@ -56,7 +59,7 @@ def run_week(input_path,output_root,*,report_date=None,registered=False):
         except (KeyError,ValueError,TypeError):prior=None
     observation=dt.datetime.fromisoformat(gsc['captured_at_utc'].replace('Z','+00:00')).date()
     observation=report_date or observation
-    week_start=(observation-dt.timedelta(days=observation.weekday())).isoformat()
+    week_start=workweek_start(observation)
     output_root.mkdir(parents=True,exist_ok=False)
     # Execute the real existing controller's analysis path. It imports the staged
     # continuation modules via the explicitly prepared namespace, not a mock.

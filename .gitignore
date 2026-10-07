@@ -1,4 +1,5 @@
 # Generated from ops/rebuild-source-manifest.json: deny by default
+
 # GLP331 maintained producer closure (source only)
 /*
 !/.github/
@@ -539,3 +540,10 @@
 # Hermes active-work gate: exact maintained predecessor and owning tests
 !/scripts/hermes_active_work_gate.py
 !/tests/test_hermes_active_work_gate.py
+
+# GLP75 maintained weekly source/recovery repair (no runtime artifacts)
+!/ops/glp/seo_weekly_continuation.py
+!/ops/glp/seo_quickwin_common.py
+!/ops/glp/seo_nonarticle_emitter.py
+!/scripts/glp_weekly_seo_source_stage.py
+!/tests/test_glp75_weekly_producer_repairs.py

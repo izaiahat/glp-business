@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 735,
+  "tracked_count": 736,
   "files": {
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -499,7 +499,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "50a946d8d9df26284b3ebf040b2049eb7d2861db36292ba556f1be60502f1224"
+      "sha256": "04baca68582210bf3be84949a49e04fd591911009e4e6964e35e371ebe7bd86d"
     },
     ".hermes.md": {
       "callers": [],
@@ -680,7 +680,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "467b074c657fcc07f00bd081bdc6a6904ccf73ac113c48d140107822073fc90f"
+      "sha256": "308a5019dfaea86013c1bc52ffe136033a21586337c4850ab4b42dd5b6ce9da2"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -1973,7 +1973,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "469d5655c6b4e0c02e56feb6af95629adde37019dfecf6d4d93ab8528c8aece2"
+      "sha256": "498411bed3a818b85707eead4bcde83992a7cd5880566c9e5f7910949be6a69a"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -2179,7 +2179,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ffd959225f7df51e43da98f034a7c30fbc02b368055f59020eab4c06aa2ffafa"
+      "sha256": "f5c5b872e4e52966bcd3247c47de28d393d92889c80e296bc4c6abf656528a9b"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4936,28 +4936,35 @@
       "callers": [
         "registered weekly SEO source-stage owner"
       ],
-      "sha256": "c361d71965dc038af054d1c56e4b434cba79d4e4a9ce5ad306fd2702727f5d3a"
+      "sha256": "bcb8878409f08e4e9a0561b8accf40cdbd369a469f3b1753934ba9aae08287d5"
     },
     "ops/glp/seo_quickwin_common.py": {
       "kind": "source_control",
       "callers": [
         "registered weekly SEO source-stage owner"
       ],
-      "sha256": "cdb59d01f3ad6ed6a7589bd059692b6747fead35f8b9a14dc632a3bad80e0339"
+      "sha256": "fddb50deac965bc069fd43de70b594086f00430aed569cdacb4274e238e710c1"
     },
     "ops/glp/seo_nonarticle_emitter.py": {
       "kind": "source_control",
       "callers": [
         "registered weekly SEO source-stage owner"
       ],
-      "sha256": "293c3dd200341269470967f580b96714ec1f526b0e8b51cf0db9c9c532f0d3f9"
+      "sha256": "7294ae767db327fdae0c02b261f6cf2a94e651f69501bc1c5559e932d16165fb"
     },
     "scripts/glp_weekly_seo_source_stage.py": {
       "kind": "script",
       "callers": [
         "registered weekly SEO source-stage owner"
       ],
-      "sha256": "7a808e54ec56698f6c2866e493eb10056c1d1fc86b703e9db14d011673db569c"
+      "sha256": "f76a83638516b4e70494fbf68f7f3863beb840b05ff52d3a962be78c689bbe19"
+    },
+    "tests/test_glp75_weekly_producer_repairs.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "4289c193d93b98a26212efc5dd5234d4c9cab024fda48d677b22eee3c1f20c0d"
     }
   }
 }

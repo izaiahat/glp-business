@@ -116,12 +116,21 @@ def url_intent_score(query, path, page):
     fit = 1 if ((kind == 'commercial_review' and path.startswith('/reviews/')) or (kind == 'commercial_comparison' and path in ('/providers/', '/reviews/'))) else 0
     return {'score': round(80 * overlap + 20 * fit, 2), 'formula': '80*unique_query_token_overlap + 20*explicit_review_or_directory_route_fit', 'token_overlap': overlap, 'intent': kind, 'not_a_measured_ranking_factor': True}
 
+def unsupported_promotional_copy(value):
+    # Registry display names are identifiers, not evidence for ranking claims.
+    return not isinstance(value, str) or bool(re.search(r'#\s*1\b|\b(?:no\.?\s*1|number\s+(?:one|1)|best|leading|top[- ]rated)\b', value, re.I))
+
 def proposed_copy(path, current, display_name=None):
     if path == '/providers/':
         return {'title': 'Compare GLP-1 Providers: Costs & Program Details | Clinic Scout', 'h1': 'Compare GLP-1 providers', 'meta': 'Compare GLP-1 providers by published costs, program details and available evidence. Review what is included and confirm current terms with each provider.'}
     if path == '/reviews/':
         return {'title': 'GLP-1 Provider Reviews: Pricing & Terms | Clinic Scout', 'h1': 'GLP-1 provider reviews', 'h1_text_segments': ['GLP-1 provider ', 'reviews', ''], 'meta': 'Read source-cited GLP-1 provider reviews. Compare published pricing, service terms and evidence gaps before choosing which provider to research.'}
+    if display_name and unsupported_promotional_copy(display_name):
+        # A promotional identity is not grounds to rewrite restrained live copy.
+        copy = {key: current.get(key) for key in ('title', 'h1', 'meta')}
+        return copy if all(value and not unsupported_promotional_copy(value) for value in copy.values()) else None
     subject = display_name or current.get('h1') or ''
+    if unsupported_promotional_copy(subject): return None
     subject = re.split(r'\s+(?:review|reviews)\b', subject, flags=re.I)[0].strip(' :—–-')
     if not subject or len(subject) > 65: return None
     if path.startswith('/reviews/'):

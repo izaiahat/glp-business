@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from ops.glp.seo_quickwin_common import unsupported_promotional_copy
 
 SCHEMA='glp-seo-non-article-intake-v1'
 SOURCE='data/page-seo-copy.json'
@@ -19,7 +20,7 @@ def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 def valid_copy(copy):
-    return isinstance(copy,dict) and set(copy)=={'title','h1','meta'} and all(isinstance(v,str) and v.strip() and len(v)<=4096 and not re.search(r'[<>\r\n]|\$\s*\d|\b\d+\s+(?:providers|clinics)\b',v,re.I) for v in copy.values())
+    return isinstance(copy,dict) and set(copy)=={'title','h1','meta'} and all(isinstance(v,str) and v.strip() and len(v)<=4096 and not unsupported_promotional_copy(v) and not re.search(r'[<>\r\n]|\$\s*\d|\b\d+\s+(?:providers|clinics)\b',v,re.I) for v in copy.values())
 
 def pointer(route):return '/routes/'+route.replace('~','~0').replace('/','~1')
 

@@ -25,7 +25,7 @@ def run(report_date, *, module_input=None, root=ROOT, admission_root=None, regis
     business_context = load_business_context('weekly_source_stage')
     pins = load('weekly_analysis_pin_guard', B / 'scripts/glp_weekly_seo_analysis.py')
     pins.verify_pins()
-    from ops.glp.seo_weekly_continuation import run_week
+    from ops.glp.seo_weekly_continuation import run_week, workweek_start
     from ops.glp.seo_nonarticle_stage import admit, save
     target = Path(root) / report_date.isoformat()
     receipt_path = target / 'receipt.json'
@@ -52,7 +52,8 @@ def run(report_date, *, module_input=None, root=ROOT, admission_root=None, regis
         for item in prior['files']:
             if hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() != item['sha256']:
                 raise ValueError('weekly_stage_receipt_drift')
-        if registered and prior['status'] == 'BLOCKED_FINDING_RECONCILE_NO_RECOLLECTION':
+        if registered and (prior['status'] == 'BLOCKED_FINDING_RECONCILE_NO_RECOLLECTION' or
+                (prior['status'] == 'PARTIAL' and prior.get('finding', {}).get('status') == 'BLOCKED_FINDING_RECONCILE_NO_RECOLLECTION')):
             prior_receipt_raw = receipt_path.read_bytes()
             resumed = True
         else:
@@ -62,7 +63,7 @@ def run(report_date, *, module_input=None, root=ROOT, admission_root=None, regis
         if not registered or module_input is not None or not checkpoint.is_file():
             raise ValueError('weekly_stage_incomplete_reconcile_no_recollection')
         week = json.loads(checkpoint.read_text())
-        if week.get('status') != 'PASS_DRY_RUN':
+        if week.get('status') not in ('PASS_DRY_RUN', 'PARTIAL_DRY_RUN'):
             raise ValueError('weekly_stage_incomplete_reconcile_no_recollection')
         required = {str(target / 'analysis/STRATEGY.json'), str(target / 'analysis/NON-ARTICLE-INTAKE.json')}
         if not required.issubset({item['path'] for item in week['files']}):
@@ -70,6 +71,11 @@ def run(report_date, *, module_input=None, root=ROOT, admission_root=None, regis
         for item in week['files']:
             if hashlib.sha256(Path(item['path']).read_bytes()).hexdigest() != item['sha256']:
                 raise ValueError('weekly_checkpoint_file_drift')
+        # Never relabel/replay an old Sunday payload into another week's finding.
+        # Its receipt, finding and unapproved source intake remain historical.
+        strategy = json.loads((target / 'analysis/STRATEGY.json').read_text())
+        if week.get('week_start') != workweek_start(report_date) or strategy.get('week_start') != week['week_start']:
+            raise ValueError('weekly_checkpoint_workweek_collision_reconcile')
         module_input = target / 'collection/MODULE-INPUTS.json'
         collection = json.loads((target / 'collection/COLLECTION-RESULT.json').read_text())
         bound = collection['manifest']
