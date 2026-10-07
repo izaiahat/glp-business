@@ -33,6 +33,72 @@ def test_exact_same_source_complete_fields_are_confirmed():
     assert p.review(row, result, quote, result['source_url']) == []
 
 
+def test_unchanged_price_with_schema_nulls_is_unknown_evidence_not_price_review():
+    row, result, quote = fixture()
+    result['fields'][0]['value'] = 12
+    result['identity_quote'] = None
+    result['fields'][1]['value'] = None
+    verdict = p.classify_price_observation(row, result, quote, result['source_url'])
+    assert verdict['status'] == 'NO_PRICE_CHANGE_DETECTED'
+    assert verdict['review_required'] is False
+    assert verdict['validation_errors']
+
+
+def test_month_alias_and_exact_medication_line_are_proven_not_null_or_fake_quote():
+    row, result, quote = fixture()
+    raw = '[Compounded Semaglutide injection · From $21/mo](https://clinic.example/pricing)'
+    result['identity_quote'] = 'From $21/mo'
+    result['fields'][0]['quote'] = 'From $21/mo'
+    result['fields'][1].update(value='monthly', quote='From $21/mo')
+    verdict = p.classify_price_observation(row, result, raw, result['source_url'])
+    assert verdict['status'] == 'CONFIRMED_CHANGE'
+    assert verdict['proposal']['fields'][1]['value'] == '/month'
+    assert verdict['proposal']['fields'][0]['quote'] in raw
+    assert 'Semaglutide' in verdict['proposal']['fields'][0]['quote']
+
+
+def test_unsupported_number_on_another_drug_is_not_a_real_change():
+    row, result, quote = fixture()
+    result['fields'][0]['quote'] = 'Tirzepatide $21/month'
+    verdict = p.classify_price_observation(row, result, 'Tirzepatide $21/month', result['source_url'])
+    assert verdict['status'] == 'UNSUPPORTED_EXTRACTION'
+    assert verdict['review_required'] is False
+
+
+def test_real_bound_price_delta_with_unknown_billing_terms_needs_review():
+    row, result, quote = fixture()
+    result['fields'][1]['value'] = None
+    verdict = p.classify_price_observation(row, result, quote, result['source_url'])
+    assert verdict['status'] == 'PRICE_CHANGE_REVIEW_REQUIRED'
+    assert verdict['review_required'] is True
+
+
+def test_injection_price_does_not_price_unpriced_oral_alternative():
+    quote = 'Compounded semaglutide as a weekly injection from $89/month or a daily tablet.'
+    inj = {'medication_id': 'compounded-semaglutide-injection'}
+    oral = {'medication_id': 'compounded-semaglutide-oral'}
+    assert p.amount_route_supported(inj, 89, quote)
+    assert not p.amount_route_supported(oral, 89, quote)
+
+
+def test_same_amount_but_changed_billing_period_requires_price_review():
+    row, result, _ = fixture()
+    quote = 'Compounded semaglutide injection is $12 every 4 weeks.'
+    result['identity_quote'] = quote
+    result['fields'] = [{'field': 'amount_usd', 'value': 12, 'quote': quote},
+                        {'field': 'period', 'value': 'every 4 weeks', 'quote': quote}]
+    verdict = p.classify_price_observation(row, result, quote, result['source_url'])
+    assert verdict['status'] == 'PRICE_CHANGE_REVIEW_REQUIRED'
+    assert verdict['changed_fields'] == ['period']
+
+
+def test_other_plan_monthly_average_does_not_relabel_four_week_renewal():
+    quote = 'Compounded semaglutide is $139 first month, then $199 every 4 weeks, or $139/mo average on annual plan.'
+    fields = [{'field': 'ongoing_usd', 'value': 199}]
+    assert not p.period_at_amount('ongoing_period', '/month', quote, fields)
+    assert p.period_at_amount('ongoing_period', 'every 4 weeks', quote, fields)
+
+
 @pytest.mark.parametrize('mutate', [
     lambda x: x['fields'][0].update(value=12),
     lambda x: x.update(source_url='https://other.example/pricing'),
@@ -121,7 +187,7 @@ def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path, monkeypa
     p.put(candidate / 'data/affiliate-activation-selection.json', {})
     captured = p.utc()
     (folder / 'source.md').write_text(raw)
-    p.put(folder / 'source-extraction.json', {'data': {'json': {'rows': [extracted]}}})
+    p.put(folder / 'source-normalized-extraction.json', {'rows': [extracted]})
     cap = {'source_url': extracted['source_url'], 'content_sha256': p.digest(raw),
            'captured_at_utc': captured, 'markdown_path': 'source.md',
            'forced_fresh': True, 'status': 'CAPTURED', 'status_code': 200, 'usable_evidence': True}

@@ -16,14 +16,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "53c3147b252ebfc432c91dccc70de8082627745377c60957b7859cda42b11d2f"
+      "sha256": "24d346e64070167b4698602fbae1523ee472dd07f8641e9dc7e1064662bb4b15"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "d611081a2c9a8e5b516ec6f21d925631f4c2ab888d010555526f8467c550e4bf"
+      "sha256": "9700a9e43894b0dd10a7021883a0bd2ca736dc4c7eb3f0fecf5111070bde37e3"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
