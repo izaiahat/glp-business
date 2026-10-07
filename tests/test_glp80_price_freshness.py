@@ -166,6 +166,38 @@ def test_keyed_schema_cannot_assign_injection_offer_to_oral_row():
     assert item['properties'][row['row_id']]['properties']['medication_id']['const'] == row['medication_id']
 
 
+def test_explicit_engine_refusal_recovers_once_and_retains_failure_metadata():
+    import io
+    import urllib.error
+    class Client:
+        calls = []
+        def scrape(self, payload, **kwargs):
+            self.calls.append(payload)
+            if len(self.calls) == 1:
+                raise urllib.error.HTTPError(payload['url'], 500, 'engines', {}, io.BytesIO(b'{"code":"SCRAPE_ALL_ENGINES_FAILED"}'))
+            return {'success': True, 'data': {'markdown': 'actual scraped source'}}
+    client = Client()
+    result = p.scrape(client, 'https://clinic.example/pricing', ['markdown'])
+    assert len(client.calls) == 2
+    assert client.calls[1]['proxy'] == 'enhanced'
+    assert result['transport_recovery']['first_http_status'] == 500
+    assert result['data']['markdown'] == 'actual scraped source'
+
+
+def test_persistent_engine_failure_is_not_success_or_unbounded_retry():
+    import io
+    import urllib.error
+    class Client:
+        calls = 0
+        def scrape(self, payload, **kwargs):
+            self.calls += 1
+            raise urllib.error.HTTPError(payload['url'], 500, 'engines', {}, io.BytesIO(b'{"code":"SCRAPE_ALL_ENGINES_FAILED"}'))
+    client = Client()
+    with pytest.raises(urllib.error.HTTPError):
+        p.scrape(client, 'https://clinic.example/pricing', ['markdown'])
+    assert client.calls == 2
+
+
 def test_completed_malformed_extraction_retried_once_with_both_raw_receipts_retained(tmp_path):
     row, result, quote = fixture()
     url = result['source_url']
@@ -291,6 +323,16 @@ def test_bridge_never_counts_incomplete_price_monitor_as_live(primary, completed
     row = {'schema': p.SCHEMA, 'active_provider_count': 2,
            'completed_provider_count': completed, 'primary_pages_successful': primary,
            'successful_pages': 3, 'failed_primary_pages': failed, 'receipt': 'fixture'}
+    monkeypatch.setattr(bridge, 'machine_receipt', lambda *a, **kw: row)
+    with pytest.raises(bridge.TerminalRefusal, match='price_monitor_cohort_incomplete'):
+        bridge.finish_action('pricing_refresh', {}, {}, {}, tmp_path / 'state')
+
+
+def test_auxiliary_source_failure_cannot_emit_a_success_heartbeat(monkeypatch, tmp_path):
+    import cron_bridge_action as bridge
+    row = {'schema': p.SCHEMA, 'active_provider_count': 2, 'completed_provider_count': 2,
+           'primary_pages_successful': 2, 'successful_pages': 3, 'failed_pages': 1,
+           'failed_primary_pages': 0, 'confirmed_changes': 0, 'review_required': 0, 'receipt': 'fixture'}
     monkeypatch.setattr(bridge, 'machine_receipt', lambda *a, **kw: row)
     with pytest.raises(bridge.TerminalRefusal, match='price_monitor_cohort_incomplete'):
         bridge.finish_action('pricing_refresh', {}, {}, {}, tmp_path / 'state')

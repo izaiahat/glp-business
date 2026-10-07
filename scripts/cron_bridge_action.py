@@ -666,11 +666,13 @@ def finish_action(action, args, job, state, state_path, *, call=None):
             if (not isinstance(count, int) or isinstance(count, bool) or count < 1
                     or completed != count or emitted.get('primary_pages_successful') != count
                     or not isinstance(pages, int) or pages < count
-                    or emitted.get("failed_primary_pages") != 0):
+                    or emitted.get("failed_primary_pages") != 0 or emitted.get('failed_pages') != 0):
                 raise TerminalRefusal("FAIL_INCOMPLETE_COHORT", "price_monitor_cohort_incomplete")
             note = (f"Pricing monitor: {count} providers, {pages} pages; "
                     f"{emitted.get('confirmed_changes', 0)} confirmed price fields; "
-                    f"{emitted.get('review_required', 0)} unknown/conflict review rows. "
+                    f"{emitted.get('review_required', 0)} price-change review rows; "
+                    f"{emitted.get('evidence_unknown_rows', 0)} evidence gaps; "
+                    f"{emitted.get('unsupported_extraction_rows', 0)} unsupported extraction rows. "
                     "Prices are not removed on source failures; publication is a separate F06 effect.")
             effects = {"providers_monitored": count, "pages_monitored": pages}
             if emitted.get('confirmed_changes', 0):

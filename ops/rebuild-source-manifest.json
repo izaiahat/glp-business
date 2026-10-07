@@ -16,14 +16,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "f423d5b9d5ce31ed99e4c9c178a501bc2af1535f4995f6e229f2aa51ea6f6af0"
+      "sha256": "02abcac4218c3ccc6e945886c4d12126df4571a503f73e890000f570d0e1c6f1"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "1808fe87c34a58203afd935b39ce57b7ae5a45f240fff5b1a2e6ba96c822873a"
+      "sha256": "87eb4dbe2416c024b549b6638ce1599fc19c10313e17398de722651270c499dd"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
@@ -1623,7 +1623,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "67ba298a4f339292e88b9424d0aa86022eec34c9346e299a657c49b7b0bf1bce"
+      "sha256": "4ad3934d599973a19eb6155cb1c8db9b5e2b9a6ed245f06b18ae0d1a84bd8718"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -3526,7 +3526,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "2a187868ce70407ce827224c23924fdabd9269111099aafb92b2c8999cfd0ba7"
+      "sha256": "9efc9d2a3a335f76047b7444e75ca650702f80249e369599084d032d079a2c97"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3547,7 +3547,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "e01915ed36b4d0f52af6dabee5ccfb085338d3b5a4f00e87671d061703c55a26"
+      "sha256": "631dcf843840ab1f1abda2cae41c75bf1767948702cbcce99df5446dd4e46b45"
     },
     "scripts/maintenance_admission.py": {
       "callers": [

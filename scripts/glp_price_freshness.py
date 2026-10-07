@@ -21,11 +21,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import urllib.error
 from urllib.parse import urlsplit, parse_qsl
 
 BUSINESS = Path('/home/ubuntu/business')
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = 'glp.price_freshness.v1'
+LOADED_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
 def utc():
@@ -426,8 +428,28 @@ def response_data(response, url):
 
 
 def scrape(client, url, formats):
-    return client.scrape({'url': url, 'formats': formats, 'onlyMainContent': False,
-                          'maxAge': 0, 'timeout': 120000}, timeout=150)
+    payload = {'url': url, 'formats': formats, 'onlyMainContent': False,
+               'maxAge': 0, 'timeout': 120000}
+    try:
+        return client.scrape(payload, timeout=150)
+    except urllib.error.HTTPError as exc:
+        # One completed, explicit engine refusal, not an ambiguous timeout.
+        # Current Firecrawl docs bill enhanced at the same base rate; the
+        # account PAYG cap remains $0. Do not escalate arbitrary 5xx errors.
+        if exc.code != 500:
+            raise
+        try:
+            refusal = json.loads(exc.read().decode())
+        except (ValueError, UnicodeDecodeError):
+            raise exc
+        if refusal.get('code') != 'SCRAPE_ALL_ENGINES_FAILED':
+            raise exc
+        response = client.scrape({**payload, 'proxy': 'enhanced', 'waitFor': 2000}, timeout=150)
+        response = copy.deepcopy(response)
+        response['transport_recovery'] = {'first_http_status': 500,
+                'first_error_code': 'SCRAPE_ALL_ENGINES_FAILED', 'attempts': 2,
+                'retry_options': {'proxy': 'enhanced', 'waitFor': 2000}}
+        return response
 
 
 def extract(client, pid, provider, url, rows, artifact_prefix=None):
@@ -515,12 +537,14 @@ def run(args, client=None):
     state_dir.mkdir(parents=True, exist_ok=True)
     client = client or client_for(out.name)
     report = {'schema': SCHEMA, 'run_type': 'manual_requested' if args.manual_registered else 'scheduled_requested',
+              'loaded_source_sha256': LOADED_SOURCE_SHA256, 'extractor_version': 2,
               'started_at_utc': utc(), 'release_root': str(release),
               'registry_sha256': digest((release / 'data/program-registry.json').read_bytes()),
               'matrix_sha256': digest(matrix_path.read_bytes()), 'active_provider_count': len(active),
               'held_program_ids': held, 'providers': [], 'public_effects': 0}
     put(out / 'MONITOR-TARGETS.json', {'schema': SCHEMA, 'active': active, 'held': held,
-         'strategy': 'scheduled_firecrawl_v2_scrape_full_byte_diff', 'schedule': 'daily 02:20 America/Los_Angeles'})
+         'strategy': 'scheduled_firecrawl_v2_scrape_full_byte_diff', 'requested_schedule': 'daily 02:20 America/Los_Angeles',
+         'schedule_installation': 'NOT_ATTESTED_BY_NETWORK_RUN'})
     delta = load_delta()
     def process_provider(pair):
         pid, provider = pair
@@ -539,6 +563,8 @@ def run(args, client=None):
             try:
                 response = scrape(client, url, ['markdown', {'type': 'changeTracking', 'modes': ['git-diff']}])
                 put(folder / (key + '-monitor.json'), response)
+                if response.get('transport_recovery'):
+                    page['monitor_transport_recovery'] = response['transport_recovery']
                 data = response_data(response, url)
                 text = data['markdown']
                 is_changed = changed(cache.get('markdown'), text, data.get('changeTracking'))
@@ -549,6 +575,8 @@ def run(args, client=None):
                     response, data = extract(client, pid, provider['provider'], url, typed, folder / (key + '-extraction'))
                     page['extraction_attempts'] = data['extraction_attempts']
                     put(folder / (key + '-extraction.json'), response)
+                    if response.get('transport_recovery'):
+                        page['extraction_transport_recovery'] = response['transport_recovery']
                     text = data['markdown']
                     raw_path = folder / (key + '.md')
                     raw_path.write_text(text)
@@ -641,11 +669,15 @@ def run(args, client=None):
                   primary_pages_successful=sum(any(page['source_url'] == provider['primary_url'] and page['status'] != 'ERROR'
                                             for page in provider['pages']) for provider in report['providers']),
                   successful_pages=sum(p['status'] != 'ERROR' for p in pages),
+                  recovered_transport_pages=sum(bool(p.get('monitor_transport_recovery') or p.get('extraction_transport_recovery')) for p in pages),
                   failed_pages=sum(p['status'] == 'ERROR' for p in pages),
                   confirmed_changes=sum(p['confirmed_changes'] for p in report['providers']),
+                  evidence_unknown_rows=sum(len(p['evidence_unknown_row_ids']) for p in report['providers']),
+                  unsupported_extraction_rows=sum(len(p['unsupported_extraction_row_ids']) for p in report['providers']),
                   review_required=sum(p['review_required'] for p in report['providers']))
     report['failed_primary_pages'] = len(report['providers']) - report['primary_pages_successful']
-    report['status'] = 'PRIMARY_REFRESH_COMPLETE' if not report['failed_primary_pages'] else 'PARTIAL_PRIMARY_SOURCE_FAILURE'
+    report['status'] = ('FULL_REFRESH_COMPLETE' if not report['failed_pages'] else
+                        'PARTIAL_PRIMARY_SOURCE_FAILURE' if report['failed_primary_pages'] else 'PARTIAL_AUXILIARY_SOURCE_FAILURE')
     report['publication_status'] = 'READY_FOR_REGISTRY_ADOPTION' if report['confirmed_changes'] else 'NO_CONFIRMED_PRICE_CHANGE'
     put(out / 'RESULT.json', report)
     print(json.dumps({k: v for k, v in report.items() if k != 'providers'}))
@@ -759,7 +791,7 @@ def main():
     with lock.open('a') as f:
         fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
         report = run(args)
-    return 0 if report['failed_primary_pages'] == 0 else 1
+    return 0 if report['failed_pages'] == 0 else 1
 
 
 if __name__ == '__main__':
