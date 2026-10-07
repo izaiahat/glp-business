@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 764,
+  "tracked_count": 765,
   "files": {
+    ".github/workflows/firecrawl-integration.yml": {
+      "kind": "workflow",
+      "callers": [
+        "GitHub pull_request exact-head integration"
+      ],
+      "sha256": "a1ccc9972a3ddb062206ed85605f54c715e03bad24a9b359a628cb85ddfd175a"
+    },
     "tests/conftest.py": {
       "kind": "test",
       "callers": [
