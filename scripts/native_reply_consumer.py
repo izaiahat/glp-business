@@ -64,6 +64,7 @@ class Registration:
     action: str
     reply_id: str | None = None
     content_sha256: str | None = None
+    result_key: str | None = None
 
     def __post_init__(self):
         s = self.scope
@@ -74,6 +75,8 @@ class Registration:
                 or s.after_message != s.correlation.removeprefix('discord-')
                 or any(not re.fullmatch(NAME, value) for value in (self.parent, self.task_owner))
                 or not isinstance(self.action, str) or not 1 <= len(self.action) <= 500
+                or self.result_key is not None and (not isinstance(self.result_key, str)
+                    or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', self.result_key))
                 or (self.reply_id is None) != (self.content_sha256 is None)
                 or self.reply_id is not None and (not re.fullmatch(r'[1-9][0-9]{0,19}', self.reply_id)
                     or not re.fullmatch(SHA, self.content_sha256))):
@@ -87,10 +90,15 @@ class Registration:
     @property
     def registration_sha256(self):
         s = self.scope
-        return hashlib.sha256(canonical([s.correlation, s.guild, s.channel, s.bot, s.reply_kind,
+        fields = [s.correlation, s.guild, s.channel, s.bot, s.reply_kind,
             s.mcp_state_dir, s.mcp_issuer, s.mcp_audience, s.mcp_subject,
             s.finch.policy_fields() if s.finch else None, self.parent, self.task_owner,
-            self.action, self.reply_id, self.content_sha256]).encode()).hexdigest()
+            self.action, self.reply_id, self.content_sha256]
+        # Preserve existing receipt hashes; stricter result requirements cannot
+        # be retrofitted onto an already staged legacy registration.
+        if self.result_key is not None:
+            fields.append({'result_key': self.result_key})
+        return hashlib.sha256(canonical(fields).encode()).hexdigest()
 
 
 def native_row(registration):
@@ -163,11 +171,30 @@ def collect(registration, receipts, *, reader=None, replay=False):
     if old:
         if old['registration_sha256'] != registration.registration_sha256:
             raise ValueError('registration_conflict')
-        if replay and old['status'] == 'staged':
+        if replay and old['status'] in {'staged', 'non_result_reply'}:
             return dict(old, replay=True)
         return {'status': 'awaiting_coordinator_ack' if old['status'] == 'staged' else old['status'],
             'receipt_id': old['receipt_id'], 'correlation': s.correlation}
     row = native_row(registration)
+    if row is not None:
+        fields = {'issuer': s.mcp_issuer, 'audience': s.mcp_audience, 'subject': s.mcp_subject}
+        if s.finch:
+            fields['identity'] = s.finch.policy_fields()
+        # Pending requests have no reply authentication yet. Validate their
+        # intake registration before interpreting expiry or effect state; full
+        # confirmed reply authentication remains mandatory below.
+        if (not isinstance(row, dict) or row.get('id') != s.correlation
+                or row.get('message_id') != s.after_message
+                or row.get('subject') != s.mcp_subject
+                or row.get('policy') != hashlib.sha256(canonical(fields).encode()).hexdigest()
+                or s.finch and (row.get('guild_id') != s.guild or row.get('channel_id') != s.channel)):
+            raise ValueError('native_registration_refused')
+    if row and row.get('state') in {'sending', 'uncertain'}:
+        return {'status': 'reconciliation_required', 'correlation': s.correlation,
+            'next_action': 'reconcile_exact_effect_no_resend'}
+    if row and row.get('state') == 'ready' and row.get('expires', float('inf')) <= time.time():
+        return {'status': 'request_expired', 'correlation': s.correlation,
+            'expires': row['expires'], 'next_action': 'reconcile_then_fresh_result_only_request'}
     if not row or row.get('state') != 'confirmed':
         return {'status': 'waiting_native_confirmation', 'correlation': s.correlation}
     identity = row.get('reply_id')
@@ -196,6 +223,16 @@ def collect(registration, receipts, *, reader=None, replay=False):
         'content_sha256': hashlib.sha256(data['content'].encode()).hexdigest(), 'trust': TRUST,
         'text': body['text'][:TEXT_LIMIT], 'text_truncated': len(body['text']) > TEXT_LIMIT,
         'staged_at': time.time(), 'operator_approval': False}
+    if registration.result_key is not None:
+        # Syntax is a task-result contract, NOT an approval or proof of quality.
+        terminal = re.match(r'^(?:<@!?[0-9]+>\s*)*(RESULT|BLOCKED)\s+'
+            + re.escape(registration.result_key) + r'(?:\s+|:\s*)(\S[\s\S]*)$', body['text'].strip())
+        value['result_key'] = registration.result_key
+        if terminal:
+            value['outcome'] = terminal.group(1).lower()
+        else:
+            value.update(status='non_result_reply',
+                next_action='reconcile_then_fresh_result_only_request')
     receipts.put(value)  # durable before stdout; crash => explicit replay, never silently applied
     return value
 
@@ -215,7 +252,7 @@ def load_registrations(path):
     entries = []
     required = {'correlation', 'channel', 'state_dir', 'issuer', 'audience', 'subject', 'task_owner', 'action'}
     for r in config['registrations']:
-        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256'}:
+        if not required <= set(r) or set(r) - required - {'reply_id', 'content_sha256', 'result_key'}:
             raise ValueError('invalid_registration_fields')
         if r['channel'] not in {CHANNEL, FINCH_CHANNEL, SHARED_CHANNEL}:
             raise ValueError('unauthorized_channel')
@@ -224,7 +261,8 @@ def load_registrations(path):
             r['correlation'].removeprefix('discord-'), 'author', FINCH_BOT if is_finch else ROOK_BOT,
             1, r['state_dir'], r['issuer'], r['audience'], r['subject'], None,
             finch if is_finch else None, r['channel'] if is_finch else None)
-        entries.append(Registration(scope, config['parent'], r['task_owner'], r['action'], r.get('reply_id'), r.get('content_sha256')))
+        entries.append(Registration(scope, config['parent'], r['task_owner'], r['action'],
+            r.get('reply_id'), r.get('content_sha256'), r.get('result_key')))
     if len({r.receipt_id for r in entries}) != len(entries):
         raise ValueError('duplicate_registration')
     return config['receipt_state_dir'], entries
@@ -238,7 +276,9 @@ def run(config, max_wait_seconds, replay=False):
     with Receipts(directory) as receipts:
         while True:
             values = [collect(r, receipts, replay=replay) for r in registrations]
-            if any(v['status'] == 'staged' for v in values) or all(v['status'] != 'waiting_native_confirmation' for v in values):
+            if any(v['status'] in {'staged', 'non_result_reply', 'request_expired',
+                    'reconciliation_required'} for v in values) or all(
+                    v['status'] != 'waiting_native_confirmation' for v in values):
                 return {'status': 'native_consumer_batch', 'results': values}
             if time.monotonic() >= deadline:
                 return {'status': 'deadline', 'results': values}

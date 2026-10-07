@@ -145,6 +145,138 @@ class NativeConsumerTests(unittest.TestCase):
                 receipts, reader=lambda *_: self.fail('unconfirmed API GET'))
             self.assertEqual(result['status'], 'waiting_native_confirmation')
 
+    def test_expired_ready_request_is_actionable_not_waiting(self):
+        import native_reply_consumer as consumer
+        self.binding.update(state='ready', expires=time.time()-1)
+        self.write_binding()
+        registration = consumer.Registration(self.scope, 'parent-1', 'owner', 'inspect')
+        with consumer.Receipts(self.root) as receipts:
+            result = consumer.collect(registration, receipts,
+                reader=lambda *_: self.fail('expired request must not GET'))
+            self.assertEqual(result['status'], 'request_expired')
+            self.assertEqual(result['next_action'], 'reconcile_then_fresh_result_only_request')
+            self.assertIsNone(receipts.get(registration.receipt_id))
+        # Uncertain/sending effects must NEVER be mistaken for expired ready work.
+        for state in ('sending', 'uncertain'):
+            self.binding['state'] = state; self.write_binding()
+            with consumer.Receipts(self.root) as receipts:
+                result = consumer.collect(registration, receipts,
+                    reader=lambda *_: self.fail('uncertain request must not GET'))
+                self.assertEqual(result['status'], 'reconciliation_required')
+                self.assertEqual(result['next_action'], 'reconcile_exact_effect_no_resend')
+
+    def test_native_registration_binding_precedes_actionable_state(self):
+        import native_reply_consumer as consumer
+        from copy import deepcopy
+        from dataclasses import replace
+        import rook_mcp_events as native
+        finch = native.FinchIdentity(consumer.FINCH_CHANNEL, consumer.SHARED_CHANNEL,
+            consumer.FINCH_BOT, Path('/home/ubuntu/.hermes/secrets/dot-bots/finch.token'),
+            (native.OPERATOR, native.BOT, native.ROOK_BOT))
+        original = deepcopy(self.binding)
+        for identity in (None, finch):
+            scope = self.scope if identity is None else replace(self.scope,
+                reply_kind='finch.reply', origin_id=finch.bot, finch=finch,
+                finch_channel=consumer.FINCH_CHANNEL)
+            fields = {'issuer': 'issuer', 'audience': 'audience', 'subject': 'subject'}
+            if identity:
+                fields['identity'] = identity.policy_fields()
+            binding = dict(original, policy=hashlib.sha256(consumer.canonical(fields).encode()).hexdigest(),
+                channel_id=scope.channel)
+            registration = consumer.Registration(scope, 'parent-1', 'owner', 'inspect')
+            deltas = [{'id': 'discord-999'}, {'message_id': '999'},
+                {'subject': 'foreign'}, {'policy': '0'*64}]
+            if identity:
+                deltas += [{'guild_id': '999'}, {'channel_id': consumer.SHARED_CHANNEL}]
+            for state in ('ready', 'sending', 'uncertain', 'confirmed'):
+                for delta in deltas:
+                    with self.subTest(finch=bool(identity), state=state, delta=delta):
+                        self.binding = dict(binding, state=state, expires=time.time()-1, **delta)
+                        self.write_binding()
+                        with consumer.Receipts(self.root) as receipts:
+                            with self.assertRaisesRegex(ValueError, 'native_registration_refused'):
+                                consumer.collect(registration, receipts,
+                                    reader=lambda *_: self.fail('misbound row must not GET'))
+                            self.assertIsNone(receipts.get(registration.receipt_id))
+
+    def test_result_only_registration_does_not_complete_on_ack(self):
+        import native_reply_consumer as consumer
+        registration = consumer.Registration(self.scope, 'parent-1', 'owner', 'inspect',
+            result_key='TASK-1')
+        self.data['content'] = 'ACK TASK-1 working on it\n-# rook.reply · discord-100'
+        self.binding['reply_sha256'] = hashlib.sha256(self.data['content'].encode()).hexdigest()
+        self.write_binding()
+        with consumer.Receipts(self.root) as receipts:
+            result = consumer.collect(registration, receipts, reader=lambda *_: self.data)
+            self.assertEqual(result['status'], 'non_result_reply')
+            self.assertEqual(result['next_action'], 'reconcile_then_fresh_result_only_request')
+            self.assertEqual(result['text'], 'ACK TASK-1 working on it')
+            self.assertFalse(result['operator_approval'])
+            duplicate = consumer.collect(registration, receipts,
+                reader=lambda *_: self.fail('ACK must not be re-read'))
+            self.assertEqual(duplicate['status'], 'non_result_reply')
+            for disposition in ('received', 'applied', 'rejected'):
+                with self.assertRaises(ValueError):
+                    receipts.record(result['receipt_id'],
+                        'parent-1' if disposition == 'received' else 'owner', disposition, 'ACK is not work')
+
+    def test_terminal_contract_requires_exact_key_and_nonempty_evidence(self):
+        import native_reply_consumer as consumer
+        from dataclasses import replace
+        registration = consumer.Registration(self.scope, 'parent-1', 'owner', 'inspect',
+            result_key='TASK-1')
+        for index, (text, expected) in enumerate([
+            ('RESULT TASK-1 Head abc; CI PASS', 'result'),
+            ('<@1486880423568211968> RESULT TASK-1: Head abc; CI PASS', 'result'),
+            ('BLOCKED TASK-1 source bytes unavailable', 'blocked'),
+            ('RESULT TASK-10 Head abc; CI PASS', None),
+            ('RESULT TASK-1', None),
+            ('RESULT TASK-1   ', None),
+            ('ACK then later RESULT TASK-1 Head abc', None),
+        ]):
+            directory = self.root / str(index); directory.mkdir(mode=0o700)
+            self.data['content'] = text+'\n-# rook.reply · discord-100'
+            self.binding['reply_sha256'] = hashlib.sha256(self.data['content'].encode()).hexdigest()
+            self.write_binding()
+            with consumer.Receipts(directory) as receipts:
+                value = consumer.collect(registration, receipts, reader=lambda *_: self.data)
+                self.assertEqual(value['status'], 'staged' if expected else 'non_result_reply')
+                self.assertEqual(value.get('outcome'), expected)
+                self.assertEqual(consumer.collect(registration, receipts, replay=True)['text'], text)
+                with self.assertRaises(ValueError):
+                    consumer.collect(replace(registration, result_key='TASK-2'), receipts)
+        # New optional contract must not change hashes of retained old receipts.
+        legacy = replace(registration, result_key=None)
+        s = self.scope
+        fields = [s.correlation, s.guild, s.channel, s.bot, s.reply_kind,
+            s.mcp_state_dir, s.mcp_issuer, s.mcp_audience, s.mcp_subject, None,
+            'parent-1', 'owner', 'inspect', None, None]
+        self.assertEqual(legacy.registration_sha256,
+            hashlib.sha256(consumer.canonical(fields).encode()).hexdigest())
+        self.assertNotEqual(legacy.registration_sha256, registration.registration_sha256)
+
+    def test_expiry_in_mixed_batch_returns_immediately_and_loader_preserves_key(self):
+        import native_reply_consumer as consumer
+        # One expired request must not wait behind another still-ready request.
+        self.binding.update(state='ready', expires=time.time()-1)
+        self.write_binding()
+        config = {'parent': 'parent-1', 'receipt_state_dir': str(self.root), 'registrations': []}
+        for correlation in ('discord-100', 'discord-102'):
+            config['registrations'].append({'correlation': correlation, 'channel': receiver.CHANNEL,
+                'state_dir': str(self.root), 'issuer': 'issuer', 'audience': 'audience', 'subject': 'subject',
+                'task_owner': 'owner', 'action': 'inspect', 'result_key': 'TASK-1'})
+        path = self.root/'config.json'; path.write_text(json.dumps(config)); path.chmod(0o600)
+        _, entries = consumer.load_registrations(path)
+        self.assertEqual(entries[0].result_key, 'TASK-1')
+        with patch.object(consumer.time, 'sleep', side_effect=AssertionError('must not wait')):
+            output = consumer.run(path, 600)
+        self.assertEqual([x['status'] for x in output['results']],
+            ['request_expired', 'waiting_native_confirmation'])
+        config['registrations'][0]['result_key'] = 'invalid key'
+        path.write_text(json.dumps(config))
+        with self.assertRaises(ValueError):
+            consumer.load_registrations(path)
+
     def test_parent_hard_deadline_terminates_blocked_readback_and_preserves_replay(self):
         import native_reply_consumer as consumer
         import subprocess
