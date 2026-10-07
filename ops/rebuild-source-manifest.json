@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 749,
+  "tracked_count": 772,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -22,14 +22,14 @@
       "callers": [
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
-      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
+      "sha256": "81fd2d27edd17b8d42cedbf95f8028ba2953d5ff561da612b52e296d69049609"
     },
     "tests/test_native_reply_consumer.py": {
       "kind": "test",
       "callers": [
         "tests/test_receive_one_discord_message.py"
       ],
-      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
+      "sha256": "d873f3efe027fb966127f93ba9663741a7b0ee4cf739d79721e55989ce49bd4b"
     },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -1221,7 +1221,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "e0f72b9f02837d6de8a7a075fbff37c507c139e23f11cc7dfbe1f90bb454d087"
+      "sha256": "2885526123a041bbdf9af053a8cca7b297e35653ab2016b24f3b22518af356fa"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2031,7 +2031,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "0a54b3d94a6c06c032cc76d015020bb5612ee0a903ecc7fde6cb207fe634d24e"
+      "sha256": "9e00c804e7586b79b2f2d9807a86bc91799b9d45cef1d3a66e1f19005eb8ac87"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -2186,7 +2186,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "fc33d2a5b2728e4088a0e796f2cbad3e357245de6dd2faa74d541e181134ab32"
+      "sha256": "b3c99fff316e9a2bcfe0fdbc5304d8ba7592a04150cd6c56d91d13b6debe32b8"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -2201,7 +2201,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8008acf04b82bf197ff18a144e9095cbb8de26869762122a3c589e8c9ed7f19d"
+      "sha256": "dd23deb4d1018315e23a6d339062a8ac174f37a92bae95062cd8053bb63eb9dd"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3270,7 +3270,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "21f54e779d49ca1d2a5523aa09ad5739b6ccbe26e633bf0f8c20b7018d9f3bf9"
+      "sha256": "aad4fc5ecf899852e18f1efc5f9cb7a293c5154da8807334d530777b7816b708"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -3370,7 +3370,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "a67fdec17b806c9607b9046d6a22fe9bda29cbded66c14dfb8e525b0f37179c7"
+      "sha256": "321cc01c5b8db70d781312a3803c98e19474fcb5fc6f96d8058a2ee99952a5e2"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -5053,6 +5053,157 @@
     },
     "scripts/katalys_fresh_relationship.py": {
       "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
+    },
+    ".github/workflows/native-reply-consumer.yml": {
+      "kind": "source_control",
+      "callers": [
+        "github:pull_request"
+      ],
+      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
+    },
+    "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
+      "kind": "source_control",
+      "callers": [
+        "manual:authorized-orchestrator"
+      ],
+      "sha256": "85b51b928b5d3023e0d4507198158211aad0828af5fd6e3fbaf68e00caf0eae7"
+    },
+    "tests/finch_png_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_rook_communication.py"
+      ],
+      "sha256": "43a55d276e14de6611c3a22c24c98c693e700046cffad23604d8b2589531eb94"
+    },
+    "tests/finch_cabx_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_rook_communication.py"
+      ],
+      "sha256": "21a8121316ec9ec09df43d03a4b61f90294130f0d35497c6e833684d22ef5456"
+    },
+    "tests/fixtures/finch_cabx_embedded_file.jumb": {
+      "kind": "retained_offline_fixture_not_runtime_authority",
+      "callers": [
+        "tests/finch_cabx_acceptance.py"
+      ],
+      "sha256": "9fdd17837a0aa7ba7ab60c974011a3cee9ecaae2a94d868504c184942204cd61"
+    },
+    "tests/fixtures/finch_cabx_embedded_file.LICENSE": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "tests/fixtures/finch_cabx_embedded_file.jumb"
+      ],
+      "sha256": "2c00691f56a8ca04c8716e4d1d054cf4e09500fadad16ae7281304e0c94e96e2"
+    },
+    "tests/test_finch_file_review.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "8a2ff0a9be9ee817aa03f9901909e6b991aa651454600282f5c2384367ab5f07"
+    },
+    ".github/workflows/finch-file-review.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "manual:source-only exact-head Finch PR review"
+      ],
+      "sha256": "dd6042db96e2e9107adadc6565861461a069448adacb1680f310607f3f0bf048"
+    },
+    "ops/rook-mcp/finch_adapter_launch.py": {
+      "kind": "script",
+      "callers": [
+        "manual:parent-approved receiving launcher; no auto-install"
+      ],
+      "sha256": "8745066d434da434a482e5439f3c4e1727776a56d19402de52d0e75894dd94bb"
+    },
+    "ops/rook-mcp/finch-mcp-receiving-v1.apparmor": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:independent receiving MAC acceptance; not loaded"
+      ],
+      "sha256": "9b288c197d51bb063c1ff8821adf0647821c4499dc13dc1d07a914f62106beb8"
+    },
+    "tests/test_finch_receiving_sandbox.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "5281360e4df1bed92d5008921be23d2b0bdffc10b166ff187e4993dd73305163"
+    },
+    "ops/rook-mcp/finch-mcp-adapter.system.service": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:parent-approved system-service migration; not installed"
+      ],
+      "sha256": "37fb96ae615a652778adc8e3b3e0c1c909a63ed2e2545762596e24cd6800d243"
+    },
+    "ops/rook-mcp/finch_network.py": {
+      "kind": "script",
+      "callers": [
+        "manual:approved scoped network installation; system-service readback admission"
+      ],
+      "sha256": "f006d767cb4bae30ad4fb919c4ac06104dc72fe2b61bfc894052b7f051669155"
+    },
+    "tests/test_finch_network.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "714919ccf926f8a8e64c045308e929bf16e4e4c3e5dcb06ffa9a5e3a63b13547"
+    },
+    "ops/rook-mcp/finch_kernel_harness.py": {
+      "kind": "script",
+      "callers": [
+        "manual:separately approved target-kernel fixtures only; never CI or runtime startup"
+      ],
+      "sha256": "e474d3c484a5428b5e88bed19c76ab86c3d42257137e8746e545fd7ee5c02497"
+    },
+    "tests/test_finch_kernel_harness.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "ec66f784e7a0e82e17de8ed754c5838be0e17c6ed8f604979d2a7e03cd73cd24"
+    },
+    "ops/rook-mcp/FINCH_RECEIVING_RUNBOOK.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:parent-approved receiving acceptance sequence; commands not executed by source task"
+      ],
+      "sha256": "810362c327ad30527861a7fb03b161027ec4fbf8551d001d4390b7e768141adf"
+    },
+    "ops/hermes-cron-scripts/pro_route_dispatch.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "a0e5401e0e5eeb1c33d8700606b35c8a2b1e02b3e0293e8a0db430123fbd7953"
+    },
+    "ops/pro-route.md": {
+      "callers": [],
+      "kind": "operations",
+      "sha256": "e0bef8e1db1e7461a732bbba94caa148ac7a74c578d5f53cdf897ca8b31a8322"
+    },
+    "scripts/pro_route.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "350f0f5a64427c4e37defc856869b35938b1733d6bf44a6eb445639c4ef3c583"
+    },
+    "tests/test_pro_dispatch.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "c7feb25e434bd5bde699178a7cdfb6abba1a576578d1dfc69c6e8d11da3bc271"
+    },
+    "tests/test_pro_picker_family.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "fd5bbb10d15f71a2d632defbce7f02d97c2d04dc657881f0de35fc8ccb9abcb5"
+    },
+    "tests/test_pro_route.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
     }
   }
 }

@@ -1,0 +1,93 @@
+# Source proposal only. Parent must compile, independently review and explicitly
+# authorize loading this exact policy before the separately approved system-service migration.
+# No rule includes. The one explicit ABI leaf is separately root-owned and
+# hash-bound by the receiving contract; implicit legacy ABI selection is refused.
+abi <abi/4.0>,
+profile finch-mcp-receiving-v1 flags=(mediate_deleted) {
+  # Descriptor-pinned O_RDONLY|O_DIRECTORY custody opens need explicit reads;
+  # file rules alone do not grant opening their ancestor directories.
+  / r,
+  /etc/ r,
+  /etc/finch-mcp/ r,
+  /etc/apparmor.d/ r,
+  /etc/apparmor.d/abi/ r,
+  /etc/apparmor.d/abi/4.0 r,
+  /etc/finch-file-reviews/ r,
+  # Preserve the existing dedicated interpreter; every exec inherits confinement.
+  /home/ubuntu/.hermes/venvs/finch-mcp/bin/python ixr,
+  /usr/bin/python3{,.[0-9],.[0-9][0-9]} ixr,
+  /usr/bin/git ixr,
+  /usr/lib/** mr,
+  /lib/** mr,
+  /lib64/** mr,
+  /home/ubuntu/.hermes/venvs/finch-mcp/** mr,
+  /etc/ld.so.cache r,
+  /etc/ld.so.preload r,
+  /usr/share/locale/** r,
+  /usr/share/zoneinfo/** r,
+  /etc/{localtime,timezone} r,
+
+  # Existing source, source-control metadata and two NONSECRET setup readbacks.
+  /home/ubuntu/.hermes/scripts/finch_adapter_launch.py r,
+  /home/ubuntu/business/.worktrees/finch-file-schema-composition/ r,
+  /home/ubuntu/business/.worktrees/finch-file-schema-composition/** r,
+  /home/ubuntu/business/.git/ r,
+  /home/ubuntu/business/.git/** r,
+  /home/ubuntu/.hermes/state/finch-setup/nonsecret-bindings.json r,
+  /home/ubuntu/.hermes/state/finch-setup/public-auth-readback.json r,
+  /home/ubuntu/.hermes/secrets/dot-bots/finch.token r,
+  /etc/finch-mcp/receiving.json r,
+  /etc/finch-mcp/network-facts.json r,
+  /run/ r,
+  /run/finch-mcp/ r,
+  /run/finch-mcp/network-admission.json r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/libexec/ r,
+  /usr/local/libexec/finch-mcp/ r,
+  /usr/local/libexec/finch-mcp/finch_network.py r,
+  /etc/apparmor.d/finch-mcp-receiving-v1 r,
+  /etc/finch-file-reviews/discord-[0-9]*.json r,
+
+  # Only the existing adapter DB, its bounded SQLite sidecars and writer lock.
+  owner /home/ubuntu/.hermes/state/finch-public-mcp/ r,
+  owner /home/ubuntu/.hermes/state/finch-public-mcp/{writer.lock,rook.sqlite3,rook.sqlite3-journal,rook.sqlite3-wal,rook.sqlite3-shm} rwk,
+
+  /dev/null rw,
+  /dev/{random,urandom} r,
+  /proc/[0-9]*/{status,cgroup,attr/apparmor/current} r,
+  /proc/[0-9]*/fd/ r,
+  /proc/self/fd/ r,
+  /proc/[0-9]*/ns/{net,cgroup} r,
+  /proc/sys/kernel/random/boot_id r,
+  /sys/fs/cgroup/system.slice/finch-mcp-adapter.service/ r,
+
+  # Preserve the already verified journal stream only. No user-manager/system
+  # bus, ssh-agent, sudo, Docker or arbitrary filesystem socket path is granted.
+  /run/systemd/journal/stdout rw,
+  unix (create, getattr, getopt, setopt, shutdown) type=stream,
+  unix (connect, send, receive) type=stream addr=none peer=(label=finch-mcp-receiving-v1,addr=none),
+
+  # DNS and public HTTPS/gateway plus the existing loopback HTTP listener.
+  # These coarse INET grants require the separately installed, admitted service
+  # cgroup nft OUTPUT policy. Actual receiving denial proof remains mandatory.
+  /etc/{hosts,host.conf,nsswitch.conf,resolv.conf,gai.conf,services,protocols} r,
+  /run/systemd/resolve/{stub-resolv.conf,resolv.conf} r,
+  /etc/ssl/** r,
+  /usr/share/ca-certificates/** r,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  # The manager may stop/read status; the adapter cannot control outside peers.
+  signal (receive) peer=unconfined,
+  signal (send, receive) peer=finch-mcp-receiving-v1,
+  ptrace (readby) peer=unconfined,
+  deny ptrace (read, trace),
+  deny capability,
+  deny dbus,
+  deny mount,
+  deny umount,
+  deny pivot_root,
+}
