@@ -151,7 +151,7 @@ def approval_ready(config):
  except (zipfile.BadZipFile,KeyError,ValueError,TypeError) as error:
   raise RuntimeError('approved_packet_binding_missing') from error
  if config.get('require_full_source_binding') is True:
-  required={'scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py'}
+  required={'scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_paypal.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py'}
   if config.get('bouncer_debits_enabled') is True:required.add('scripts/bouncer_shared_account_guard.py')
   if not required.issubset(manifest):raise RuntimeError('current_sponsor_source_binding_missing')
  for rel,sha in manifest.items():
@@ -384,6 +384,94 @@ def canonical_send_boundary(ledger,at,required):
  finally:db.close()
 
 
+def invoice_provider_hosts(values,local):
+ """Live registry/suppression holds also govern agreement-based invoices."""
+ import glp328_outreach_policy as policy
+ if not values or tuple(values[0])!=policy.EXPECTED_HEADERS or not local['suppression']['complete']:return set()
+ rows=[policy.classify_row(i,row) for i,row in enumerate(values[1:],2)]
+ held=[row for row in rows if row.get('blocks_org')]
+ return {row['host'] for row in rows if row['eligible'] and row.get('host')
+         and 'fella' not in row['host'] and 'fella' not in row['program'].lower()
+         and not any(same(row['host'],x['host']) or normalize(row['program'])==normalize(x['program']) for x in held)
+         and not any(same(row['host'],x['domain']) for x in local['suppression']['entries'])}
+
+
+def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
+ """Same job, same lock/orders ledger. Dry-run cannot request or send invoices."""
+ import glp_sponsor_paypal as paypal
+ path=STATE/'orders.json'
+ orders=load(path) if path.exists() else {}
+ result={'status':'unknown','orders':{},'placement_allowed':False,'financial_writes':0,'financial_write_attempts':0}
+ client=None
+ if config.get('paypal_read_only_polling') is True:
+  try:client=paypal.PayPalClient()
+  except (RuntimeError,OSError,ValueError):pass
+ for key,order in orders.items():
+  # Never consume caller-written payment_verified fields as evidence.
+  observation=paypal.unknown('paypal_account_binding_missing')
+  if client is not None:
+   action=order.get('invoice_action')
+   allowed=(not dry_run and order.get('provider_host') in finance_hosts and key==order.get('order_id')
+            and (not order.get('invoice_id') or sum(x.get('invoice_id')==order['invoice_id'] for x in orders.values())==1)
+            and action in ('draft','request') and
+            config.get('paypal_invoice_'+('drafts' if action=='draft' else 'requests')+'_enabled') is True)
+   pending=(action=='draft' and not order.get('invoice_id')) or (action=='request' and order.get('invoice_id') and not order.get('invoice_requested_at'))
+   if allowed and pending and not order.get('invoice_claim'):
+    try:
+     approval=paypal.authorize_order(order,STATE,action)
+     client.merchant(at) # Gate identity before reservation; this is read-only.
+     # The registered job supplies its canonical ledger. Static finance_hosts
+     # is only initial admission (and an offline fixture seam), not a final
+     # permission surviving merchant authentication or other slow reads.
+     current_hosts=invoice_provider_hosts(read_values(),read_local()) if ledger is not None else finance_hosts
+     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None):
+      host=order['provider_host']
+      if host not in current_hosts:raise ValueError('sponsor_invoice_provider_held')
+      if ledger is not None:
+       if any(same(host,row.get('host',email.split('@')[-1]))
+              and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items()):raise ValueError('sponsor_invoice_provider_stopped')
+      order['invoice_claim']={'action':action,'at':stamp(at),'approval_sha256':approval}
+      save(path,orders) # Unknown effects remain durably reserved; never retry.
+      result['financial_write_attempts']+=1
+      response=client.invoice_write(order,STATE,action,at)
+      result['financial_writes']+=1
+      if action=='draft':
+       invoice_id=response.get('id','')
+       if not re.fullmatch(paypal.INVOICE_ID,invoice_id):raise ValueError('paypal_draft_readback_missing')
+       order['invoice_id']=invoice_id;save(path,orders)
+       readback=client.request('GET','/v2/invoicing/invoices/'+invoice_id)
+       if readback.get('id')!=invoice_id or readback.get('status')!='DRAFT':raise ValueError('paypal_draft_readback_missing')
+       paypal.invoice_matches(readback,order)
+       order['invoice_drafted_at']=stamp(at)
+      else:
+       readback=client.request('GET','/v2/invoicing/invoices/'+order['invoice_id'])
+       if readback.get('id')!=order['invoice_id'] or readback.get('status') not in ('SENT','PAID','PAYMENT_PENDING'):raise ValueError('paypal_request_readback_missing')
+       paypal.invoice_matches(readback,order)
+       order['invoice_requested_at']=stamp(at)
+      order.pop('invoice_claim');save(path,orders)
+    except (RuntimeError,OSError,ValueError,KeyError,TypeError):pass
+   observation=paypal.poll_order(client,order,at,STATE)
+  order['payment_readiness']=observation
+  result['orders'][key]=observation
+ # Durable transaction reservations survive negative/unknown polls. Two orders
+ # cannot reuse the same invoice or paid transaction, even on a later run.
+ owners={}
+ for key,order in orders.items():
+  tokens=set(order.get('allocated_transaction_ids',[]))|set(result['orders'][key].get('transaction_ids',[]))
+  if order.get('invoice_id'):tokens.add('invoice:'+order['invoice_id'])
+  for token in tokens:owners.setdefault(token,set()).add(key)
+ conflicts=set().union(*(keys for keys in owners.values() if len(keys)>1)) if owners else set()
+ for key,order in orders.items():
+  if key in conflicts:
+   result['orders'][key]=paypal.unknown('paypal_duplicate_order_allocation')
+   order['payment_readiness']=result['orders'][key]
+  elif result['orders'][key]['payment_verified']:
+   order['allocated_transaction_ids']=result['orders'][key]['transaction_ids']
+ if orders:save(path,orders)
+ if result['orders']:result['status']='polled' if client is not None else 'unknown'
+ return result
+
+
 def run(config,dry_run=False):
  STATE.mkdir(parents=True,exist_ok=True)
  with (STATE/'run.lock').open('a') as lock:
@@ -400,12 +488,14 @@ def run(config,dry_run=False):
     save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
     plan=recipients(values,discovery,local)
   import glp_sponsor_readiness as readiness
-  orders=load(STATE/'orders.json') if (STATE/'orders.json').exists() else {}
-  payment_readiness={key:readiness.payment_readiness(order) for key,order in orders.items()}
   if not local['suppression']['complete']:raise RuntimeError('suppression_ledger_incomplete:'+','.join(local['faults']))
   ledger=load(STATE/'ledger.json') if (STATE/'ledger.json').exists() else {}
   reply_readiness=consume_reply_stops(ledger)
   if reply_readiness['applied']:save(STATE/'ledger.json',ledger)
+  finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
+  finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
+                 and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
+  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger)
   if enabled and config.get('require_canonical_reply_coverage') is True and reply_readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
   # An outstanding claim may already have delivered despite failed readback.
@@ -465,7 +555,7 @@ def run(config,dry_run=False):
   for recipient in plan['recipients']:
    status=recipient.get('verification',{}).get('status','unknown')
    verification_counts[status]=verification_counts.get(status,0)+1
-  receipt={'reply_readiness':reply_readiness,'sourcing_readiness':sourcing_readiness,'payment_readiness':{'status':'unknown' if not payment_readiness else 'orders_not_authenticated','orders':payment_readiness,'placement_allowed':False},'verification_readiness':verification_counts,'new_provider_count':sent_by_kind[0],'follow_up_count':sent_by_kind[1],'new_provider_preview_count':selected[0],'follow_up_preview_count':selected[1],'daily_capacity_used':{'new_providers':used[0],'follow_ups':used[1]},'campaign':CAMPAIGN,'run_type':'registered_dry_run' if dry_run else 'scheduled','generated_utc':stamp(at),'send_enabled':enabled,'sent':sent_count,'eligible_recipient_count':len(plan['recipients']),'first_batch_count':len(previews),'registry_rows':plan['registry_rows'],'candidate_rows':plan['candidate_rows'],'previews':previews,'exclusions':plan['exclusions']}
+  receipt={'reply_readiness':reply_readiness,'sourcing_readiness':sourcing_readiness,'payment_readiness':payment_readiness,'verification_readiness':verification_counts,'new_provider_count':sent_by_kind[0],'follow_up_count':sent_by_kind[1],'new_provider_preview_count':selected[0],'follow_up_preview_count':selected[1],'daily_capacity_used':{'new_providers':used[0],'follow_ups':used[1]},'campaign':CAMPAIGN,'run_type':'registered_dry_run' if dry_run else 'scheduled','generated_utc':stamp(at),'send_enabled':enabled,'sent':sent_count,'eligible_recipient_count':len(plan['recipients']),'first_batch_count':len(previews),'registry_rows':plan['registry_rows'],'candidate_rows':plan['candidate_rows'],'previews':previews,'exclusions':plan['exclusions']}
   save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
 
