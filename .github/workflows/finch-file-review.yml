@@ -1,7 +1,7 @@
 name: finch-file-review
 on:
   pull_request:
-    branches: [main, baseline/finch-deployed-af5cc609-20261006, fix/finch-file-review-gate-20261006]
+    branches: [main, baseline/finch-deployed-af5cc609-20261006, fix/finch-file-review-gate-20261006, fix/finch-receiving-sandbox-20261006]
 permissions:
   contents: read
 jobs:
