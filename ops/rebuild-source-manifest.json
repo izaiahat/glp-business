@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 726,
+  "tracked_count": 728,
   "files": {
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -4817,6 +4817,21 @@
       ],
       "kind": "script",
       "sha256": "3fa0238e3c3830b120ca98b9f9c67db708b0c5406110333d4397961679acfe58"
+    },
+    "ops/glp268-affiliate-access.md": {
+      "callers": [
+        "scripts/affiliate_approval_auto_reconciler.py",
+        "scripts/marketplace_adapters/portal_apply.py"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "af1e2f5a1635f80f63adf28fa85797b2d92114264e897f0f98fc4636c7b5e1e2"
+    },
+    "tests/test_glp268_reconciler_access.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "d298de4e9b6fc2ec09ff281a5fe5fad6df62198410056b47ac5ec84a6fa667b0"
     },
     "tests/test_glp268_fresh_browser_callers.py": {
       "callers": [
