@@ -39,6 +39,7 @@ from site_tree_materializer import (  # noqa: E402
     FLAGSHIP_REQUIRED_PUBLIC_BUILD_INPUTS,
     constructor_provenance,
     copytree_linked,
+    materialize_accepted_prepared_base,
     detach_for_write,
     prepare_clean_build_trees,
     remove_materialized_tree,
@@ -550,10 +551,76 @@ def ensure_accepted_base_sealed(
     return receipt
 
 
+def accepted_base_inventory(manifest: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Select one authenticated producer representation, never per-row aliases."""
+    inventory = manifest.get("release_rows")
+    if not isinstance(inventory, list) or not inventory or not isinstance(inventory[0], dict):
+        raise RuntimeError("base_manifest_rows_invalid")
+    fields = set(inventory[0])
+    if fields == {"path", "sha256", "bytes"}:
+        representation = "bytes"
+    elif fields == {"path", "size", "sha256"}:
+        representation = "size"
+        if (set(manifest) != {"schema", "release_root", "release_rows", "release_tree_sha256",
+                              "site_head", "deploy_directory"}
+                or manifest["schema"] != "glp-opus-release-deployment-manifest-v1"
+                or not isinstance(manifest["site_head"], str)
+                or not re.fullmatch(r"[0-9a-f]{40}", manifest["site_head"])):
+            raise RuntimeError("base_native_manifest_invalid")
+        deploy = manifest["deploy_directory"]
+        if (not isinstance(deploy, dict) or set(deploy) != {"tree_sha256", "file_count", "total_bytes"}
+                or not isinstance(deploy["tree_sha256"], str)
+                or not SHA256_PATTERN.fullmatch(deploy["tree_sha256"])
+                or any(type(deploy[k]) is not int or deploy[k] < 0 for k in ("file_count", "total_bytes"))):
+            raise RuntimeError("base_native_deploy_closure_invalid")
+    else:
+        raise RuntimeError("base_manifest_row_representation_invalid")
+    normalized = []
+    seen: set[str] = set()
+    for row in inventory:
+        if not isinstance(row, dict) or set(row) != fields:
+            raise RuntimeError("base_manifest_mixed_rows")
+        path, digest, length = row["path"], row["sha256"], row[representation]
+        if (not isinstance(path, str) or not path or "\\" in path or "\0" in path
+                or path.startswith("/") or any(p in {"", ".", ".."} for p in path.split("/"))
+                or path in seen or not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest)
+                or type(length) is not int or length < 0):
+            raise RuntimeError("base_manifest_row_invalid")
+        seen.add(path)
+        normalized.append({"path": path, "sha256": digest, "bytes": length})
+    return representation, sorted(normalized, key=lambda r: r["path"].encode())
+
+
+def accepted_base_closure(inventory: list[dict[str, Any]], representation: str) -> str:
+    if representation == "bytes":
+        return closure(inventory)
+    if representation != "size":
+        raise RuntimeError("base_manifest_row_representation_invalid")
+    digest = hashlib.sha256()
+    for row in sorted(inventory, key=lambda r: r["path"].encode()):
+        digest.update(f"{row['path']}\0{row['bytes']}\0{row['sha256']}\n".encode())
+    return digest.hexdigest()
+
+
 def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str]:
     base = Path(job["base_release_root"]).resolve()
     manifest_path = checked(job["base_manifest"], "base_manifest")
     receipt_path = checked(job["base_final_receipt"], "base_final_receipt")
+    def descriptor(path: Path) -> tuple[int, ...]:
+        info = os.lstat(path)
+        return tuple(getattr(info, k) for k in (
+            "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns"))
+    descriptors = (descriptor(manifest_path), descriptor(receipt_path))
+
+    def recheck_evidence() -> None:
+        # Authenticate the CURRENT lexical selection, including aliases/ancestors,
+        # against the original resolved paths and descriptors. Hash equality alone
+        # must not bless a same-byte retarget while the old resolved file survives.
+        selected = (checked(job["base_manifest"], "base_manifest"),
+                    checked(job["base_final_receipt"], "base_final_receipt"))
+        if selected != (manifest_path, receipt_path) or descriptors != tuple(map(descriptor, selected)):
+            raise RuntimeError("base_evidence_descriptor_drift")
+
     manifest = json.loads(manifest_path.read_text())
     receipt = json.loads(receipt_path.read_text())
     if receipt.get("status") == "PASS_LIVE_GSC_READBACK_PASS":
@@ -572,28 +639,29 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
         raise RuntimeError("base_terminal_manifest_invalid")
     if Path(manifest.get("release_root", "")).resolve() != base:
         raise RuntimeError("base_manifest_root_invalid")
+    representation, inventory = accepted_base_inventory(manifest)
     actual_rows = rows(base)
-    # Compare CONTENT, not list order. Two producers mint accepted-base manifests:
-    # this builder (`rows()`, which sorts Path objects) and the publisher's
-    # current-base-evidence adapter (which sorts path strings). Those orders
-    # diverge whenever a directory name is a prefix of a sibling file name — e.g.
-    # `workers/price-watch/.wrangler/...` vs `workers/price-watch-scheduler.mjs`,
-    # where '-' < '/' as strings but 'price-watch' < 'price-watch-scheduler.mjs'
-    # as path parts. That made a byte-identical base fail base_release_drift on
-    # 2026-08-18 with an IDENTICAL tree closure. The closure below is the
-    # authoritative tree identity and is still checked exactly.
-    by_path = lambda values: sorted(values or [], key=lambda row: row["path"])
-    if (by_path(actual_rows) != by_path(manifest.get("release_rows"))
-            or closure(actual_rows) != manifest.get("release_tree_sha256")):
+    by_path = lambda values: sorted(values, key=lambda row: row["path"].encode())
+    release_tree = accepted_base_closure(actual_rows, representation)
+    if by_path(actual_rows) != inventory or release_tree != manifest.get("release_tree_sha256"):
         raise RuntimeError("base_release_drift")
-    public_tree = closure(rows(base / "public"))
-    if receipt_release_tree != manifest.get("release_tree_sha256") or receipt_public_tree != public_tree:
+    public_tree = accepted_base_closure(rows(base / "public"), representation)
+    if receipt_release_tree != release_tree or receipt_public_tree != public_tree:
         raise RuntimeError("base_terminal_tree_mismatch")
-    ensure_accepted_base_sealed(base, actual_rows, str(manifest.get("release_tree_sha256")))
+    if representation == "size":
+        if (receipt.get("schema") != "glp-opus-production-terminal-receipt-v1"
+                or receipt.get("status") != "PASS_PRODUCTION_TERMINAL"
+                or receipt.get("site_head") != manifest["site_head"]):
+            raise RuntimeError("base_native_terminal_identity_invalid")
+    else:
+        # The legacy repair authenticates its own bytes-order digest only.
+        recheck_evidence()
+        ensure_accepted_base_sealed(base, actual_rows, release_tree)
     values = load_env()
     token = values.get("CLOUDFLARE_API_TOKEN") or values.get("CF_API_TOKEN")
     if not token:
         raise RuntimeError("cloudflare_token_missing")
+    recheck_evidence()
     response = requests.get(CF_API, headers={"Authorization": f"Bearer {token}"}, timeout=60)
     response.raise_for_status()
     body = response.json()
@@ -602,6 +670,14 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
     canonical = (body.get("result") or {}).get("canonical_deployment") or {}
     if canonical.get("id") != deployment_id:
         raise RuntimeError("production_head_changed")
+
+    recheck_evidence()
+    if representation == "size" and unsealed_base_entries(base):
+        # Ingest the authenticated prepared bytes into a NEW fixed-root immutable
+        # base. Never seal the mutable report tree or rewrite its bound evidence.
+        base = materialize_accepted_prepared_base(
+            base, SITE_RELEASES_ROOT / f"accepted-prepared-{release_tree}", inventory)
+    recheck_evidence()
     return base, manifest, deployment_id
 
 
@@ -2687,6 +2763,175 @@ def verify_new_article_route_master_family(
     }
 
 
+#: Decorative-image lineage tiers, in selection order (GLP-73). A tier that the
+#: release rejects steps down to the next one; the last tier publishes the
+#: article with no hero at all. Content and claims checks are not in this lane.
+IMAGE_LINEAGE_TIERS = ("native_generated", "stock_fallback", "text_only")
+
+
+def _image_lineage_paths(target: Path, visual_key: str) -> list[Path]:
+    """Every candidate path one route's image lineage may create or rewrite."""
+    return [
+        target / "artifacts/ultracode/article-image-manifest.json",
+        target / ROUTE_MASTER_STATE_RELATIVE,
+        target / "artifacts/ultracode/article-release-image-receipts" / f"{visual_key}.json",
+        target / "assets/source/article-masters-pass2" / f"{visual_key}.webp",
+        *(target / "assets/derivatives" / f"{visual_key}{suffix}" for suffix in IMAGE_SUFFIXES),
+    ]
+
+
+def snapshot_image_lineage(target: Path, visual_key: str) -> dict[Path, bytes | None]:
+    """Capture tier-owned regular files; malformed inherited entries must survive.
+
+    None means genuinely absent, never an existing symlink, directory or FIFO.
+    Reject those before the native tier can write or fallback can mask them.
+    """
+    snapshot: dict[Path, bytes | None] = {}
+    for path in _image_lineage_paths(target, visual_key):
+        try:
+            mode = path.lstat().st_mode
+        except FileNotFoundError:
+            snapshot[path] = None
+            continue
+        if not stat.S_ISREG(mode):
+            raise RuntimeError(f"article_image_lineage_nonregular_collision:{path.relative_to(target)}")
+        snapshot[path] = path.read_bytes()
+    return snapshot
+
+
+def restore_image_lineage(snapshot: dict[Path, bytes | None]) -> list[str]:
+    """Put every snapshotted path back exactly; new files are removed.
+
+    A changed file is replaced through a fresh inode (temp file + rename), never
+    rewritten in place, so a hard link the candidate still shares with its base
+    release can never be mutated by the rollback.
+    """
+    restored: list[str] = []
+    for path, body in snapshot.items():
+        if body is None:
+            if os.path.lexists(path):
+                path.unlink()
+                restored.append(path.as_posix())
+            continue
+        if path.is_file() and not path.is_symlink() and path.read_bytes() == body:
+            continue
+        mode = stat.S_IMODE(os.lstat(path).st_mode) if os.path.lexists(path) else None
+        temp = path.with_name(path.name + ".rollback.tmp")
+        temp.write_bytes(body)
+        if mode is not None:
+            os.chmod(temp, mode | stat.S_IWUSR)
+        os.replace(temp, path)
+        restored.append(path.as_posix())
+    return restored
+
+
+def demote_generated_receipt(receipt: dict[str, Any], reason: str) -> dict[str, Any]:
+    """A GENERATED hero whose lineage the release rejected becomes a stock FALLBACK.
+
+    Nothing of the rejected family survives into the receipt the release binds:
+    no staged files, alt text or model claim. The rejection itself is retained
+    as provenance so the ledger shows what was generated and why it was refused.
+    """
+    attempted = list(receipt.get("provider_chain_attempted") or [])
+    attempted.append({"provider": "release_lineage", "status": "REJECTED", "reason": reason})
+    return {
+        "schema": article_images.SCHEMA, "status": article_images.STATUS_FALLBACK,
+        "reason": reason, "visual_key": receipt.get("visual_key"), "route": receipt.get("route"),
+        "h1": receipt.get("h1"), "alt": None, "staged_dir": None, "files": [],
+        "credits_spent": receipt.get("credits_spent", 0), "cache_hit": receipt.get("cache_hit", False),
+        "prepared_at_utc": receipt.get("prepared_at_utc") or now(), "provider": "stock",
+        "provider_chain_attempted": attempted,
+        "rejected_generation": {
+            "provider": receipt.get("provider"), "model": receipt.get("model"),
+            "prompt_sha256": receipt.get("prompt_sha256"), "staged_dir": receipt.get("staged_dir"),
+            "selected_candidate_sha256": (receipt.get("selected_candidate") or {}).get("sha256"),
+        },
+    }
+
+
+def legacy_fallback_receipt(article: dict[str, Any], visual_key: str) -> dict[str, Any]:
+    """A job minted before the image lane existed never ran it; say so, then use stock."""
+    return {
+        "schema": article_images.SCHEMA, "status": article_images.STATUS_FALLBACK,
+        "reason": "legacy_template_without_control_pin", "visual_key": visual_key,
+        "route": str(article.get("canonical_path") or ""), "h1": str(article.get("h1") or ""),
+        "alt": None, "staged_dir": None, "files": [], "credits_spent": 0, "cache_hit": False,
+        "prepared_at_utc": now(), "provider": "stock", "provider_chain_attempted": [],
+    }
+
+
+def stage_article_image_lineage(
+    target: Path,
+    article: dict[str, Any],
+    image_receipt: dict[str, Any] | None,
+    visual_key: str,
+    catalogs: dict[str, dict[str, Any]],
+    catalog_paths: dict[str, Path],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any]]:
+    """Select the article's hero lineage: native GENERATED, receipted stock, text only.
+
+    GLP-73: a decorative image must never veto a publication. Before this
+    selector, a native hero that failed release-lineage validation (pixels,
+    receipt binding, a collision in the candidate tree) raised straight out of
+    the build and the day's article did not ship. Now the rejected tier is
+    rolled back byte for byte, the receipt is demoted to a stock FALLBACK that
+    records the rejection, and the next tier runs. Stock pixels that cannot be
+    verified already step down to the text-only receipt inside ``stage_stock``.
+
+    Returns ``(lineage, effective_receipt, selection)``. ``selection`` lists every
+    tier attempted with its outcome so the build receipt is honest about which
+    image, if any, the reader will see.
+    """
+    attempts: list[dict[str, Any]] = []
+    receipt = image_receipt
+
+    def write_catalogs() -> None:
+        for name, path in catalog_paths.items():
+            path.write_text(json.dumps(catalogs[name], indent=2, sort_keys=True) + "\n")
+
+    if receipt is not None and receipt.get("status") == article_images.STATUS_GENERATED:
+        snapshot = snapshot_image_lineage(target, visual_key)
+        try:
+            lineage = stage_new_article_route_master(target, article, receipt, visual_key, catalogs)
+            article_image_release_contract.configure(target)
+        except Exception as error:  # decoration must never gate a publish
+            rolled_back = restore_image_lineage(snapshot)
+            reason = f"generated_lineage_rejected:{type(error).__name__}:{error}"
+            attempts.append({"tier": "native_generated", "status": "REJECTED",
+                             "reason": reason, "rolled_back": rolled_back})
+            print(json.dumps({"article_images": "generated_lineage_rejected",
+                              "visual_key": visual_key, "reason": reason,
+                              "rolled_back": rolled_back}, sort_keys=True), file=sys.stderr)
+            receipt = demote_generated_receipt(receipt, reason)
+            # The generated alt/model metadata was bound into the article row for
+            # a family that will not ship; the catalogs must say stock, as before.
+            article.pop("images", None)
+            write_catalogs()
+            article_images.record_event(receipt)
+        else:
+            attempts.append({"tier": "native_generated", "status": "STAGED"})
+            return lineage, receipt, {"tier": "native_generated", "attempts": attempts}
+
+    if receipt is None:
+        receipt = legacy_fallback_receipt(article, visual_key)
+        attempts.append({"tier": "native_generated", "status": "NOT_ATTEMPTED",
+                         "reason": receipt["reason"]})
+    lineage = article_image_release_contract.stage_stock(
+        sys.modules[__name__], target, article, receipt, visual_key, catalogs,
+    )
+    if lineage is None:
+        # Pre-v3 image corpus: the post-build ``install_hero`` copy decides.
+        attempts.append({"tier": "stock_fallback", "status": "DEFERRED_TO_INSTALL",
+                         "reason": "image_manifest_not_v3"})
+        return None, receipt, {"tier": "stock_fallback", "attempts": attempts}
+    if lineage.get("availability") == "unavailable":
+        attempts.append({"tier": "stock_fallback", "status": "REJECTED", "reason": lineage.get("reason")})
+        attempts.append({"tier": "text_only", "status": "STAGED", "receipt": lineage.get("receipt")})
+        return lineage, receipt, {"tier": "text_only", "attempts": attempts}
+    attempts.append({"tier": "stock_fallback", "status": "STAGED"})
+    return lineage, receipt, {"tier": "stock_fallback", "attempts": attempts}
+
+
 def rebind_article_image_manifest_for_r2(target: Path, article: dict[str, Any]) -> dict[str, Any]:
     """Rebind nonvisual image lineage after an existing article catalog edit."""
     manifest_path = target / "artifacts/ultracode/article-image-manifest.json"
@@ -3300,20 +3545,15 @@ def _build_candidate_materialized(
     ownership_path.write_text(json.dumps(ownership, indent=2, sort_keys=True) + "\n")
     image_manifest_rebind: dict[str, Any] | None = None
     article_route_master_lineage: dict[str, Any] | None = None
+    image_selection: dict[str, Any] | None = None
     if operation == "r2_refresh":
         image_manifest_rebind = rebind_article_image_manifest_for_r2(temp, article)
-    elif image_receipt and image_receipt.get("status") == article_images.STATUS_GENERATED:
-        article_route_master_lineage = stage_new_article_route_master(
-            temp,
-            article,
-            image_receipt,
-            visual_key,
-            catalogs,
-        )
-        article_image_release_contract.configure(temp)
     elif operation == "new_article":
-        article_route_master_lineage = article_image_release_contract.stage_stock(
-            sys.modules[__name__], temp, article, image_receipt, visual_key, catalogs,
+        # GLP-73: native hero -> receipted stock hero -> text only. The selector
+        # rolls a rejected tier back and steps down instead of raising; the
+        # content, claims and public-delta checks around it are unchanged.
+        article_route_master_lineage, image_receipt, image_selection = stage_article_image_lineage(
+            temp, article, image_receipt, visual_key, catalogs, catalog_paths,
         )
         if article_route_master_lineage and article_route_master_lineage.get("availability") == "unavailable":
             # The signed job authorizes the seven-image ceiling; the route-bound
@@ -3430,6 +3670,7 @@ def _build_candidate_materialized(
         "images": {
             "receipt": image_receipt,
             "install": image_install,
+            "selection": image_selection,
         },
         "cow": {
             **cow,
@@ -3679,9 +3920,14 @@ def retain_price_index_predecessor(job: dict[str, Any], base: Path, target: Path
     checkpoint_html = "artifacts/build4-preservation/glp-1-price-index/index.html"
     checkpoint_manifest = "artifacts/build4-preservation/ops/price-index-manifest.json"
     manifest = json.loads(checked(job["base_manifest"], "base_manifest").read_text())
-    if manifest["release_root"] != str(base) or job["base_release_root"] != str(base):
+    representation, inventory = accepted_base_inventory(manifest)
+    if manifest["release_root"] != job["base_release_root"]:
         raise RuntimeError("price_index_retention_base_identity_drift")
-    indexed = {row["path"]: row for row in manifest["release_rows"]}
+    if str(base) != manifest["release_root"]:
+        expected = SITE_RELEASES_ROOT / f"accepted-prepared-{manifest['release_tree_sha256']}"
+        if representation != "size" or base != expected or unsealed_base_entries(base):
+            raise RuntimeError("price_index_retention_base_identity_drift")
+    indexed = {row["path"]: row for row in inventory}
 
     def authenticated(relative: str) -> bytes:
         path = base / relative

@@ -113,7 +113,22 @@ AUTHORIZED_TRANSPORTS: dict[str, dict[str, Any]] = {
     POLICY_OPUS_TRANSPORT["transport_id"]: POLICY_OPUS_TRANSPORT,
     POLICY_OPUS55_TRANSPORT["transport_id"]: POLICY_OPUS55_TRANSPORT,
 }
-DEFAULT_TRANSPORT_ID = SOL_TRANSPORT["transport_id"]
+# New invocation policy; retain historical rows for authentic receipt replay.
+# GLP73 operator source-writing grant, 2026-10-07: Astra reviews Sol repairs.
+ASTRA_TRANSPORT: dict[str, Any] = {
+    "transport_id": "hermes-openai-codex-astra-independent",
+    "wrapper": BUSINESS / "scripts/hermes_sol_article_review.py",
+    "provider": "openai-codex",
+    "model": "gpt-6-astra-900k",
+    "effort": "high",
+    "speed": "normal",
+    "service_tier": "default",
+    "api_mode": "codex_responses",
+    "auxiliary_models": (),
+    "authorized_since": "2026-10-07",
+}
+AUTHORIZED_TRANSPORTS[ASTRA_TRANSPORT["transport_id"]] = ASTRA_TRANSPORT
+DEFAULT_TRANSPORT_ID = ASTRA_TRANSPORT["transport_id"]
 
 # The retired Bridge-review path. It was never packet-bound, never tool-free and
 # never schema-pinned, so it stays forbidden in every active source regardless of
@@ -126,7 +141,10 @@ class TransportError(RuntimeError):
 
 
 def transport(transport_id: str | None) -> dict[str, Any]:
-    resolved = transport_id or DEFAULT_TRANSPORT_ID
+    # Legacy summary/job receipts omitted transport_id when Sol was the only
+    # route. New producers explicitly emit DEFAULT_TRANSPORT_ID; absence must
+    # never reinterpret an old subject as freshly reviewed by Astra.
+    resolved = transport_id or SOL_TRANSPORT["transport_id"]
     if resolved not in AUTHORIZED_TRANSPORTS:
         raise TransportError(f"review_transport_unauthorized:{resolved}")
     return AUTHORIZED_TRANSPORTS[resolved]
@@ -170,6 +188,13 @@ def validate_raw_review_runtime(raw: dict[str, Any], *, error: type[Exception] =
     row = identify_transport(raw)
     review_input = raw.get("review_input") or {}
     runtime = runtime_block(raw)
+
+    # New receipts require explicit route/speed pins. Do not retroactively
+    # demand new fields from authentic historical transport identities.
+    if "service_tier" in row:
+        for block in (review_input, runtime):
+            if any(block.get(key) != row[key] for key in ("effort", "speed", "service_tier")):
+                raise error(f"{prefix}_current_route_pin_invalid:{row['transport_id']}")
 
     if (review_input.get("provider") != row["provider"]
             or review_input.get("model") != row["model"]

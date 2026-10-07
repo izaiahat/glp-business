@@ -53,12 +53,11 @@ from ops import discord_fmt
 from inbox_control_plane.affiliate_network_registry import network_for_domain, network_for_text
 from inbox_control_plane.mark_read_after_action import mark_read_after_action, save_receipt as save_mark_read_receipt
 from affiliate_operator_rulings import load_snapshot, policy_receipt
-from scripts.marketplace_adapters.portal_lane import portal_password, portal_username
 from scripts.impact_api_credentials import load_impact_api_credentials
 import n8n_dt
 SHEET_ID='1P2Tr6ePYN9Q35_V90FyHs6ONUwam4iIErNEftdJPL78'; TAB='Affiliate Applications'; TOKEN=Path('/home/ubuntu/.hermes/secrets/glp-scout-ops-google/google_token.json'); AWIN_SECRET=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/awin/api.json'); PARTNERIZE_SECRET=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/partnerize/api.json')
-HEALTHTRADER_LOGIN=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/healthtrader/ui_login.json'); HEALTHTRADER_TOKEN=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/healthtrader/access_token.json')
-PUBLISHER_AWIN='2979387'; PUBLISHER_PARTNERIZE='1100l432092'; KATALYS_ORG='098e5455-ca72-4099-9ff9-a9dd014148e7'; KATALYS_AFF='13031'; AUTHORITY_MESSAGE='1528159191376728135'; AUTOMATION_ID='glp-affiliate-approval-reconciler-v1'; CDP='http://127.0.0.1:9324'
+HEALTHTRADER_TOKEN=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/healthtrader/access_token.json')
+PUBLISHER_AWIN='2979387'; PUBLISHER_PARTNERIZE='1100l432092'; KATALYS_ORG='098e5455-ca72-4099-9ff9-a9dd014148e7'; KATALYS_AFF='13031'; AUTHORITY_MESSAGE='1528159191376728135'; AUTOMATION_ID='glp-affiliate-approval-reconciler-v1'
 REPORT_DIR=BUSINESS/'reports/glp-affiliate-auto-reconciler'; CLOSED_PROGRAM_TOMBSTONES=BUSINESS/'reports/glp-affiliate-inbox-event-reconciliation-20260723/closed-program-tombstones.json'; HEADERS=list(EXPECTED_HEADERS)
 SHEET_LOCK=BUSINESS/'locks/glp-affiliate-sheet.lock'
 SHEET_UPDATE_QUEUE='hJiP3eJKBvtZ6bQU'
@@ -1215,39 +1214,17 @@ def maxbounty_public_terms():
  terms=text[marker.start():]
  if len(terms)<1000:raise RuntimeError('maxbounty_terms_capture_incomplete')
  return terms
-def maxbounty_snapshot():
- email_address=portal_username('maxbounty');password=portal_password('maxbounty')
- if email_address.strip().lower()!='ops@glpclinicscout.com' or not password:raise RuntimeError('maxbounty_universal_credentials_unavailable')
- session=requests.Session();session.headers.update({'Accept':'application/json','User-Agent':'GLPClinicScout-AutoReconciler/1.0'})
- response=session.post('https://api.maxbounty.com/affiliates/api/authenticationApp',json={
-  'email':email_address,'password':password,'ld':0,'oid':0,
- },timeout=120)
- if response.status_code>=400:raise RuntimeError(f'maxbounty_login_http:{response.status_code}')
- try:login=response.json()
- except ValueError as exc:raise RuntimeError('maxbounty_login_response_invalid') from exc
- if login.get('success') is not True:raise RuntimeError('maxbounty_universal_credentials_rejected')
- token=str(login.get('mb-app-token') or '').strip();publisher_id=str(login.get('mb-aid') or '').strip()
- if not token or not publisher_id:raise RuntimeError('maxbounty_login_identity_incomplete')
- headers={'Content-Type':'application/json','x-app-token':token}
- verified=session.get('https://api.maxbounty.com/affiliates/api/application/verifyToken',headers=headers,timeout=120)
- if verified.status_code>=400:raise RuntimeError(f'maxbounty_verify_http:{verified.status_code}')
- try:verification=verified.json()
- except ValueError as exc:raise RuntimeError('maxbounty_verify_response_invalid') from exc
- if verification.get('success') is not True:raise RuntimeError('maxbounty_session_unverified')
- affiliate=session.get('https://api.maxbounty.com/affiliates/api/affiliate',headers=headers,timeout=120)
- if affiliate.status_code>=400:raise RuntimeError(f'maxbounty_affiliate_http:{affiliate.status_code}')
- try:account=affiliate.json()
- except ValueError as exc:raise RuntimeError('maxbounty_affiliate_response_invalid') from exc
- if account.get('success') is not True:raise RuntimeError('maxbounty_affiliate_readback_failed')
- provider_publisher=str(account.get('publisher_id') or '').strip()
- if provider_publisher and provider_publisher!=publisher_id:raise RuntimeError('maxbounty_publisher_identity_mismatch')
- details={'network_account':True,'publisher_id':publisher_id,
-          'api_capabilities':'Authenticated account readback and public campaign inventory; no persistent API key required for these reads.',
-          'portal_url':'https://affiliates.maxbounty.com/'}
- return {'provider':'MaxBounty','program_id':'network-account','publisher_id':publisher_id,
-         'relationship':'approved','official_url':'https://maxbounty.com/affiliate/',
-         'tracking_link':'','terms':maxbounty_public_terms(),'cookie_window':'',
-         'details':details,'verified':True,'provider_readback_verified':True}
+def maxbounty_snapshot(*,fresh_driver=None):
+ # No configured supported publisher API credential exists for this account.
+ # authenticationApp is password login, not an API-key replacement.
+ if fresh_driver is None or getattr(fresh_driver,'fresh',False) is not True:raise RuntimeError('maxbounty_supported_api_unavailable_fresh_ai_browser_vault_stage_required')
+ fresh_driver.goto('https://affiliates.maxbounty.com/settings')
+ if fresh_driver.url!='https://affiliates.maxbounty.com/settings' or 'ops@glpclinicscout.com' not in fresh_driver.body_text():raise RuntimeError('maxbounty_protected_principal_unverified')
+ fresh_driver.goto('https://affiliates.maxbounty.com/dashboard');body=fresh_driver.body_text().lower()
+ if fresh_driver.url!='https://affiliates.maxbounty.com/dashboard' or 'MaxBounty' not in fresh_driver.title() or not all(x in body for x in ('dashboard','campaigns')):raise RuntimeError('maxbounty_dashboard_identity_unverified')
+ # This account-access read does not consume campaign/capacity leases, expose
+ # session tokens, verify campaign relationships or release provider holds.
+ return {'provider':'MaxBounty','program_id':'network-account','publisher_id':'UNKNOWN','relationship':'approved','official_url':'https://maxbounty.com/affiliate/','tracking_link':'','terms':'','cookie_window':'','details':{'network_account':True,'principal_verified':True,'capacity':'UNKNOWN','api_capabilities':'Supported publisher API unavailable; fresh vault authenticated account read only.'},'verified':True,'provider_readback_verified':True,'read_method':'fresh_ai_browser_vault','provider_writes':0}
 async def cj_snapshot(program,expected_name):
  secret_path=Path('/home/ubuntu/.hermes/secrets/affiliate-marketplaces/cj/api.json')
  if not secret_path.is_file():raise RuntimeError('cj_api_secret_missing')
@@ -1488,27 +1465,27 @@ def upsert_new_partnerize_approval(event,candidate,snapshot,program,classificati
  receipt['reconciler_writer_attempts']=writer_attempts
  return {'sheet_receipt_path':str(output),'sheet_receipt_sha256':hashlib.sha256(output.read_bytes()).hexdigest(),'row_number':int(selected[0]['row']),'sheet_write_count':int(receipt.get('value_cells_written') or 0),'created_count':len(receipt.get('created') or []),'updated_count':len(receipt.get('updated') or []),'writer_attempts':writer_attempts}
 
-async def healthtrader_snapshot(program,expected_name):
+async def healthtrader_snapshot(program,expected_name,*,fresh_driver=None):
  if str(program)!='network-account' or norm(expected_name)!='healthtrader':raise RuntimeError('healthtrader_identity_mismatch')
- if not HEALTHTRADER_LOGIN.is_file() or not HEALTHTRADER_TOKEN.is_file():raise RuntimeError('healthtrader_credentials_missing')
- login=json.loads(HEALTHTRADER_LOGIN.read_text());token=json.loads(HEALTHTRADER_TOKEN.read_text());access=str(token.get('access_token') or '').strip()
- if not login.get('username') or not login.get('password') or not access:raise RuntimeError('healthtrader_credentials_incomplete')
- response=requests.get('https://api.healthtrader.com/affiliates/v1/offers/list',headers={'Authorization':f'Bearer {access}','Accept':'application/json','User-Agent':'GLPClinicScout-AutoReconciler/1.0'},timeout=60)
+ if not HEALTHTRADER_TOKEN.is_file():raise RuntimeError('healthtrader_cached_api_token_missing_no_password_login')
+ token=json.loads(HEALTHTRADER_TOKEN.read_text());access=str(token.get('access_token') or '').strip()
+ if not access:raise RuntimeError('healthtrader_cached_api_token_incomplete_no_password_login')
+ response=requests.get('https://api.healthtrader.com/affiliates/v1/offers/list',headers={'Authorization':f'Bearer {access}','Accept':'application/json','User-Agent':'GLPClinicScout-AutoReconciler/1.0'},timeout=60,allow_redirects=False)
  if response.status_code!=200:raise RuntimeError(f'healthtrader_offers_http:{response.status_code}')
  payload=response.json();offers=payload.get('offer') or payload.get('offers') or payload.get('data') or []
  if isinstance(offers,dict):offers=offers.get('offers') or offers.get('offer') or []
  if not isinstance(offers,list) or not offers:raise RuntimeError('healthtrader_offer_inventory_empty')
- session=requests.Session();session.headers.update({'User-Agent':'GLPClinicScout-AutoReconciler/1.0'})
- page=session.get('https://affiliates.healthtrader.com/login',timeout=60)
- match=(re.search(r'name=["\']_token["\'][^>]*value=["\']([^"\']+)',page.text,re.I)
-        or re.search(r'value=["\']([^"\']+)["\'][^>]*name=["\']_token',page.text,re.I))
- if page.status_code!=200 or not match:raise RuntimeError('healthtrader_login_preflight_failed')
- dashboard=session.post('https://affiliates.healthtrader.com/login',data={'_token':match.group(1),'email':str(login['username']),'password':str(login['password'])},timeout=60,allow_redirects=True)
- body=re.sub(r'<[^>]+>',' ',html.unescape(dashboard.text));body=re.sub(r'\s+',' ',body)
- if dashboard.status_code!=200 or '/dashboard' not in dashboard.url:raise RuntimeError('healthtrader_login_failed')
+ # API inventory access is not account approval. The principal must be read
+ # from the protected profile of this job's separately vault-authenticated run.
+ if fresh_driver is None or getattr(fresh_driver,'fresh',False) is not True:raise RuntimeError('fresh_ai_browser_vault_stage_required')
+ fresh_driver.goto('https://affiliates.healthtrader.com/profile')
+ if fresh_driver.url!='https://affiliates.healthtrader.com/profile' or 'ops@glpclinicscout.com' not in fresh_driver.body_text():raise RuntimeError('healthtrader_protected_principal_unverified')
+ fresh_driver.goto('https://affiliates.healthtrader.com/dashboard')
+ body=fresh_driver.body_text()
+ if fresh_driver.url!='https://affiliates.healthtrader.com/dashboard' or 'HealthTrader' not in fresh_driver.title():raise RuntimeError('healthtrader_dashboard_identity_unverified')
  if 'Your account has been in the review' in body or 'account is under review' in body.lower():raise RuntimeError('healthtrader_account_review_pending')
- if 'Dashboard' not in body or 'Affiliate' not in body or 'Offers' not in body:raise RuntimeError('healthtrader_dashboard_identity_unverified')
- return {'provider':'HealthTrader','program_id':'network-account','relationship':'approved','official_url':'https://healthtrader.com/us/affiliate-program','tracking_link':'','terms':'','cookie_window':'','details':{'offer_count':len(offers),'dashboard_approved':True,'api_scope':token.get('scope')},'verified':True}
+ if not all(marker in body for marker in ('Dashboard','Offers','Account')):raise RuntimeError('healthtrader_dashboard_identity_unverified')
+ return {'provider':'HealthTrader','program_id':'network-account','relationship':'approved','official_url':'https://healthtrader.com/us/affiliate-program','tracking_link':'','terms':'','cookie_window':'','details':{'offer_count':len(offers),'dashboard_approved':True,'principal_verified':True,'api_scope':token.get('scope')},'verified':True,'provider_readback_verified':True,'provider_writes':0,'read_method':'official_api_then_fresh_ai_browser_vault'}
 def partnerize_snapshot(program,cache,expected_name,destination,allow_link_generation=True):
  session,campaigns=cache;entry=campaigns.get(str(program));
  if not entry:return {'provider':'Partnerize','program_id':program,'relationship':'unknown','verified':False}
@@ -1589,25 +1566,23 @@ def katalys_relationship_snapshot(program,expected_name):
          'link_generated':False,'verified':relation in {'approved','pending','rejected'},
          'provider_readback_verified':relation in {'approved','pending','rejected'},
          'read_method':'authenticated_live_graphql'}
-async def katalys_snapshot(program,expected_name,existing_link,allow_link_generation=True,expected_action=None,relationship_only=False):
- if relationship_only:
-  return await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
- from playwright.async_api import async_playwright
- async with async_playwright() as pw:
-  browser=await pw.chromium.connect_over_cdp(CDP); ctx=browser.contexts[0]; page=await ctx.new_page(); target=f'https://app.katalys.com/pub/{KATALYS_ORG}/explore/{program}'; await page.goto(target,wait_until='domcontentloaded',timeout=60000);await page.wait_for_timeout(4200); body=await page.locator('body').inner_text(); host=urllib.parse.urlsplit(page.url).hostname
-  if host!='app.katalys.com' or f'Program ID: {program}' not in body or norm(expected_name) not in norm(body): await page.close(); raise RuntimeError('katalys_identity_or_session_mismatch')
-  relation='approved' if '\nApproved\n' in body else ('pending' if '\nPending\n' in body else ('rejected' if '\nRejected\n' in body or (expected_action=='relationship_adverse' and '\nApplied\n' not in body) else 'unknown')); tracking=existing_link;link_generated=False
-  if relation=='approved' and not tracking and allow_link_generation:
-   create=page.get_by_role('button',name='Create Link',exact=True)
-   if await create.count()<1: await page.close(); raise RuntimeError('katalys_create_link_missing')
-   await create.last.click();await page.wait_for_timeout(800); traffic=page.locator('input[name="traffic-source"]:visible')
-   if await traffic.count()!=1: await page.close(); raise RuntimeError('katalys_traffic_source_missing')
-   await traffic.click();opt=page.get_by_role('option').filter(has_text='GLP Clinic Scout Site')
-   if await opt.count()!=1: await page.close(); raise RuntimeError('katalys_traffic_source_ambiguous')
-   await opt.click();await page.wait_for_timeout(900);dialog=page.locator('[role="dialog"]:visible');text=await dialog.inner_text();links=re.findall(r'https://track\.revoffers\.com/[^\s]+',text);valid=[x.rstrip('.,)') for x in links if f'offer_id={program}' in x and f'aff_id={KATALYS_AFF}' in x]
-   if len(valid)!=1: await page.close(); raise RuntimeError('katalys_generated_link_invalid')
-   tracking=valid[0];link_generated=True
-  terms=payout_terms(body); await page.close(); return {'provider':'Katalys','program_id':program,'relationship':relation,'terms':terms,'tracking_link':tracking,'link_generated':link_generated,'verified':relation in {'approved','pending','rejected'}}
+async def katalys_snapshot(program,expected_name,existing_link,allow_link_generation=True,expected_action=None,relationship_only=False,*,fresh_driver=None):
+ # Relationship reconciliation consumes the existing authenticated API read;
+ # cached credentials do not grant UI terms or link-generation authority.
+ snapshot=await asyncio.to_thread(katalys_relationship_snapshot,program,expected_name)
+ if relationship_only:return snapshot
+ if snapshot.get('relationship')=='approved' and not existing_link and allow_link_generation:raise RuntimeError('katalys_link_generation_held_no_legacy_cdp_fallback')
+ snapshot['tracking_link']=existing_link or '';snapshot['link_generated']=False
+ if fresh_driver is None:
+  # No UI terms evidence: leave UNKNOWN/empty, never infer terms from email.
+  snapshot['terms']='';snapshot['terms_readback']='NOT_CHECKED_FRESH_VAULT_BROWSER_REQUIRED'
+  return snapshot
+ if getattr(fresh_driver,'fresh',False) is not True:raise RuntimeError('fresh_ai_browser_vault_stage_required')
+ target=f'https://app.katalys.com/pub/{KATALYS_ORG}/explore/{program}'
+ fresh_driver.goto(target);body=fresh_driver.body_text()
+ if fresh_driver.url!=target or f'Program ID: {program}' not in body or norm(expected_name) not in norm(body):raise RuntimeError('katalys_identity_or_session_mismatch')
+ snapshot['terms']=payout_terms(body);snapshot['terms_readback']='FRESH_AUTHENTICATED_UI'
+ return snapshot
 def cookie_window(text):
  match=re.search(r'\b(\d{1,4})\s*[- ]?day(?:s)?\s+(?:cookie|attribution|tracking)',str(text or ''),re.I)
  return f"{int(match.group(1))} days" if match else ''
@@ -2467,12 +2442,12 @@ async def process_event(event,svc,gmail,state,dry_run,provider_cache,operator_ha
   if snap is None:
    if 'awin' not in provider_cache:provider_cache['awin']=awin_relationship_index()
    snap=awin_snapshot(program,provider_cache['awin'],row[2])
- elif cand['network']=='Katalys':snap=await katalys_snapshot(program,row[2],row[14],allow_link_generation=False,expected_action=cand['action'])
+ elif cand['network']=='Katalys':snap=await katalys_snapshot(program,row[2],row[14],allow_link_generation=False,expected_action=cand['action'],fresh_driver=provider_cache.get('fresh_katalys_driver'))
  elif cand['network']=='CJ Affiliate':snap=await cj_snapshot(program,row[2])
  elif cand['network']=='Impact.com':snap=impact_snapshot(program,row[2],cand['action']);program=snap['program_id']
- elif cand['network']=='HealthTrader':snap=await healthtrader_snapshot(program,row[2])
+ elif cand['network']=='HealthTrader':snap=await healthtrader_snapshot(program,row[2],fresh_driver=provider_cache.get('fresh_healthtrader_driver'))
  elif cand['network']=='MaxBounty':
-  if 'maxbounty' not in provider_cache:provider_cache['maxbounty']=maxbounty_snapshot()
+  if 'maxbounty' not in provider_cache:provider_cache['maxbounty']=maxbounty_snapshot(fresh_driver=provider_cache.get('fresh_maxbounty_driver'))
   snap=provider_cache['maxbounty'];program=snap['program_id']
  else:
   if 'partnerize' not in provider_cache:provider_cache['partnerize']=partnerize_relationship_index()
@@ -2626,8 +2601,25 @@ def configure_dry_run_output(output):
   target.chmod(0o600)
  REPORT_DIR=root;STATE_DB=target
 
-async def main():
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');args=ap.parse_args()
+async def main(*,fresh_drivers=None):
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');args=ap.parse_args()
+ if args.access_only:
+  # Registered read-only entry: no inbox/Sheet/queue/scheduler initialization,
+  # no cards, mark-read, application, terms acceptance or link generation.
+  if args.event_id or args.operator_handoff or args.recover_terminal_routine or args.dry_run or args.validate_only:raise RuntimeError('access_only_cannot_combine_effect_modes')
+  driver=(fresh_drivers or {}).get(args.access_only)
+  try:
+   if args.access_only=='maxbounty':snapshot=maxbounty_snapshot(fresh_driver=driver)
+   elif args.access_only=='healthtrader':snapshot=await healthtrader_snapshot('network-account','HealthTrader',fresh_driver=driver)
+   else:
+    if not args.access_program or not args.access_name:raise RuntimeError('katalys_access_requires_exact_program_identity')
+    snapshot=await katalys_snapshot(args.access_program,args.access_name,'',allow_link_generation=False,fresh_driver=driver)
+   result={'status':'PASS' if snapshot.get('verified') is True else 'UNKNOWN','provider':snapshot.get('provider'),'program_id':snapshot.get('program_id'),'relationship':snapshot.get('relationship'),'verified':snapshot.get('verified') is True,'read_method':snapshot.get('read_method'),'principal_verified':(snapshot.get('details') or {}).get('principal_verified',False),'provider_writes':0,'tracking_clicks':0,'external_send':False}
+  except Exception as error:
+   # Do not serialize raw credential-bearing helper/transport exception text.
+   result={'status':'HELD','provider':args.access_only,'error_class':type(error).__name__,'reason':'authenticated_readback_not_proven_no_legacy_fallback','provider_writes':0,'tracking_clicks':0,'external_send':False}
+  print(json.dumps(result,sort_keys=True));return 0 if result['status']=='PASS' else 66
+ if args.access_program or args.access_name:raise RuntimeError('access_identity_requires_access_only')
  if args.dry_run:configure_dry_run_output(args.dry_run_output)
  elif args.dry_run_output:raise RuntimeError('dry_run_output_requires_dry_run')
  if args.operator_handoff and not args.event_id:raise RuntimeError('operator_handoff_requires_explicit_event_ids')
@@ -2642,7 +2634,12 @@ async def main():
  if not values or pad(values[0])!=HEADERS:raise RuntimeError('canonical_sheet_header_mismatch')
  schema_repair,schema_contract=prepare_sheet_schema(svc,allow_repair=not args.dry_run and not args.validate_only)
  if args.validate_only:print(json.dumps({'status':'PASS','sheet_header':True,'sheet_schema_contract':schema_contract,'inbox_db':INBOX_DB.exists(),'state_db':STATE_DB.exists(),'outbound_send':False,'provider_mutation':False}));state.close();return 0
- outputs=[];provider_cache={};handoffs=[explicit_handoff] if explicit_handoff else ([] if args.event_id else pending_operator_handoffs())
+ # Only this invocation's explicitly injected browser readers reach callers.
+ # A shell run stays empty and existing principal/effect gates remain intact.
+ provider_cache={'fresh_'+network+'_driver':fresh_drivers[network]
+                 for network in ('maxbounty','healthtrader','katalys')
+                 if fresh_drivers and network in fresh_drivers}
+ outputs=[];handoffs=[explicit_handoff] if explicit_handoff else ([] if args.event_id else pending_operator_handoffs())
  for handoff in handoffs:
   event_ids=list(handoff['affiliate_subset']);events=fetch_inbox_events(event_ids,include_terminal=True);by_id={str(event['event_id']):event for event in events}
   if set(by_id)!=set(event_ids):raise RuntimeError('operator_handoff_event_set_missing')

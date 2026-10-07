@@ -69,6 +69,65 @@ POLICY = {
 }
 DEFAULT = (12, 10)
 
+# This persistent default-profile workspace owner is documented in the owning
+# board evidence. Bind its launcher and backend ancestry, not a PID, model or
+# coincidental text in a child prompt. Other sessions/profiles keep DEFAULT.
+PROC_ROOT = Path("/proc")
+HERMES_HOME = Path("/home/ubuntu/.hermes")
+RUNTIME = HERMES_HOME / "hermes-agent"
+WORKSPACE = Path("/home/ubuntu/business")
+COORDINATOR_SESSION = "20260922_191215_fffbbb"
+
+
+def process_identity(pid: str) -> tuple[list[str], str, str]:
+    """Read argv, parent PID and kernel start tick; fail closed on disappearance."""
+    process = PROC_ROOT / pid
+    fields = (process / "stat").read_text().rsplit(")", 1)[1].split()
+    argv = (process / "cmdline").read_bytes().rstrip(b"\0").split(b"\0")
+    return [arg.decode("utf-8", "strict") for arg in argv], fields[1], fields[19]
+
+
+def business_coordinator(pid: str, pids: set[str]) -> bool:
+    """Recognize only the established persistent business TUI's real ancestry."""
+    try:
+        backend = process_identity(pid)
+        if backend[0] != [str(RUNTIME / "venv/bin/python"), "-m", "tui_gateway.entry"]:
+            return False
+        node_pid = backend[1]
+        if node_pid not in pids:
+            return False
+        node = process_identity(node_pid)
+        if node[0] != [str(HERMES_HOME / "node/bin/node"), "--expose-gc",
+                       str(RUNTIME / "ui-tui/dist/entry.js")]:
+            return False
+        launcher_pid = node[1]
+        if launcher_pid not in pids:
+            return False
+        launcher = process_identity(launcher_pid)
+        prefix = [str(RUNTIME / "venv/bin/python"), str(RUNTIME / "venv/bin/hermes"),
+                  "--profile", "default", "chat", "--tui", "--source", "claude-code",
+                  "--resume", COORDINATOR_SESSION]
+        if launcher[0][:len(prefix)] != prefix:
+            return False
+        # Suffix is routing only; never let it override profile, source or resume.
+        suffix = launcher[0][len(prefix):]
+        if len(suffix) % 2 or any(suffix[i] not in {"--provider", "--model", "--reasoning"}
+                                 for i in range(0, len(suffix), 2)):
+            return False
+        for owner_pid in (pid, launcher_pid):
+            process = PROC_ROOT / owner_pid
+            if (process / "cwd").resolve() != WORKSPACE:
+                return False
+            env = (process / "environ").read_bytes().split(b"\0")
+            homes = [item.partition(b"=")[2] for item in env if item.startswith(b"HERMES_HOME=")]
+            if homes != [os.fsencode(HERMES_HOME)] and not (owner_pid == launcher_pid and not homes):
+                return False
+        # A recycled or concurrently replaced process must not inherit identity.
+        return all(process_identity(owner_pid) == identity for owner_pid, identity in
+                   ((pid, backend), (node_pid, node), (launcher_pid, launcher)))
+    except (OSError, ValueError, IndexError, UnicodeError):
+        return False
+
 # Warn when real anonymous memory reaches this fraction of `high`.
 WARN_FRACTION = 0.85
 
@@ -107,6 +166,9 @@ def scope_owner(scope: Path) -> tuple[str, str]:
         for marker in POLICY:
             if marker in cmd:
                 return marker, marker.replace("--source ", "").replace(" --resume", "")
+    for pid in pids[:40]:
+        if business_coordinator(pid, set(pids)):
+            return "--source glp-scout", "glp-scout"
     return "", "unclassified"
 
 

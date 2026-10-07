@@ -1,5 +1,15 @@
 # GLP331 scoped carrier closure in the existing pin producers
 
+## GLP268 current-reader successor
+
+GLP268's candidate approval-reconciler access migration changes only the current
+reader. The GLP331 producer still stages all seven historical blobs from its
+unchanged `GLP331_SOURCE_HEAD`, never the new current reader. The scope regression
+therefore binds the original reconciler blob and exact GLP268 candidate separately;
+the other six source blobs and immutable snapshot remain unchanged. This is not a
+new GLP331 adoption, repin, review receipt, scheduling or live-effect authorization.
+Historical unchanged-source statements below describe the GLP331 snapshot.
+
 Source-only proposal/implementation. **Not live adoption approval.** PR117's exact
 seven business files are unchanged. `wrapper_pin_sync.py` now retains every pin
 occurrence (the writer's scalar and associative sites both survive). The existing
