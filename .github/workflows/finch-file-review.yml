@@ -1,0 +1,25 @@
+name: finch-file-review
+on:
+  pull_request:
+    branches: [main, baseline/finch-deployed-af5cc609-20261006]
+permissions:
+  contents: read
+jobs:
+  synthetic-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install isolated offline-test dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5' -r ops/rook-mcp/requirements.txt
+      - name: Exact-head Finch and existing adapter regressions (synthetic only)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_file_review.py tests/test_rook_communication.py tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py

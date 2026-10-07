@@ -65,6 +65,101 @@ Offline acceptance: `tests/test_rook_communication.py::TestResearchCommunication
 CI already runs this file, plus the Rook/receiver regressions. Synthetic credentials/transport only;
 passing tests do not prove live login, provisioning, OAuth compatibility or the round trip.
 
+## Finch local whole-file review exception (source only)
+
+Medical terminology can occur in a nonsensitive market report. For Finch
+`text/plain` only, the adapter can accept an independent **whole-file** review
+of the exact current-request bytes instead of rejecting medical terminology
+alone. This is not a classifier, a proximity heuristic or a standing hash
+allowlist. The reviewer must inspect the entire decoded UTF-8 file, including
+distant identifiers, mixed sections and encoded/obfuscated material; any
+personal or sensitive content, uncertain section or unreviewed encoding means
+no nonsensitive verdict. A false attestation by the trusted publisher/reviewer
+is outside what a local file permission check can prove.
+
+Hard secret, credential, DOB/SSN and active-content markers always refuse, even
+with an otherwise valid review. Existing format, size, filename, UTF-8 and
+non-Finch restrictions stay enforced. No client-supplied review/grant fields,
+paths, hashes, destinations, new tool or environment-variable bypass exist.
+Only an already delivered, owned, ready Finch request can use this exception.
+
+### Trust boundary and adoption prerequisites
+
+The sole lookup is `/etc/finch-file-reviews/<request_id>.json`, derived from the
+authenticated request ID. The adapter never creates this directory or writes
+a record. A separately authorized privileged operator must verify the real
+independent review and the operator's exact-file approval, then publish their
+attestation through the parent-owned administrative process. Merely supplying
+JSON in chat, an upload, the state directory or an app-owned file is not an
+approval. This PR supplies no grant-issuing CLI, real record, permission change
+or runtime provisioning step.
+
+The adapter must run non-root, without elevated filesystem capabilities or
+another path to privileged writes. Root execution is explicitly refused for
+the exception. Every ancestor directory and record must be root-owned and not
+group/other-writable, and must be accessible read-only to the adapter. Symlinks,
+nonregular files and multiply linked records are refused. The receiving host
+must independently verify these administrative boundaries before adoption.
+This does not defend against a compromised root, dishonest privileged
+attestation publisher or arbitrary code executing inside the adapter. Existing
+single-writer adapter-state custody remains the replay trust boundary; this
+change does not claim resistance to hostile rollback of its private SQLite.
+
+All directory/file descriptors remain pinned during the attempt. Every stage
+checks inode/ownership/mode, record size/timestamps, path identity and exact
+record bytes; replacement, mutation, deletion or loss of custody fails closed.
+The same immutable review context flows through upload validation, immediate
+pre-POST validation, multipart construction, both REST attachment metadata/CDN
+readbacks and final attachment custody. Root-owned mode bits are not treated as
+immutability: pinning and repeated exact-byte checks are still required.
+
+### Exact attestation contract
+
+The closed `finch-whole-file-review-v1` JSON object contains:
+
+- `binding`, exactly the output of the internal `Application.finch_review_binding`:
+  normalized MIME, exact filename, byte length and SHA256; request ID and message
+  ID; request creation/expiry; authenticated and stored subject; exact guild,
+  channel and bot; stored/current/request policy hashes; executing source SHA256;
+  and exact reply-text/footer SHA256
+- Nonempty `file_author`, independent `reviewer` and `review_evidence`; reviewer
+  must differ from author, authenticated sender, Finch bot and operator approver
+- `verdict: nonsensitive`; `whole_file`, `exact_bytes`, `no_personal_data`,
+  `no_secrets`, `no_active_content` and `no_unreviewed_encoding` all exactly true
+- `operator_approval` with exact `operator_id`, a canonical approval `message_id`
+  and `decision: approve_exact_reviewed_file`; the privileged publisher must
+  verify that evidence actually approves this entire record and file
+- Finite numeric `issued_at` and `expires`: issuance after request creation, no
+  future issuance, unexpired at use, and expiry no later than request expiry
+
+Unknown or duplicate fields, mismatched context and incomplete/uncertain
+verdicts refuse. Records are limited to 16 KiB and contain no report bytes or
+credentials. The review hashes its own complete attestation into the durable
+`sending` receipt before any POST. Reusing the same file for another request
+requires a fresh independent current-request attestation.
+
+Source bootstrapping compares the executing module code object to a fresh
+compilation of the source read at import, then pins the source SHA256. Stale
+bytecode or source movement disables the exception; current disk bytes must
+continue matching that loaded-source hash at every review check. The source
+hash is calculated from actual executing source, not embedded into itself or
+first trusted at grant consumption. Review and installation acceptance must
+use the exact final source bytes; edits invalidate earlier records.
+
+No effect replays after `sending`, `uncertain` or `confirmed`. A matching
+authenticated receipt query can still recover the cached success/uncertainty
+after record deletion or expiry, without loading a new grant or performing
+network effects. Changed file/text/context conflicts. Expiry or custody loss
+during an attempted send leaves an uncertain receipt for parent reconciliation,
+never an automatic retry.
+
+Offline acceptance: `tests/test_finch_file_review.py` uses only synthetic bytes
+and temporary records, emulating privileged ownership for positive paths while
+testing the real ownership predicates independently. The focused exact-head
+workflow also runs all existing adapter, communication and receiver tests.
+Passing those checks is not independent security acceptance, runtime approval,
+permission provisioning, rollout authority or authority to release a held file.
+
 ## Finch dual-channel correlated artifact profile (source only)
 
 `--profile finch` is a separate explicit profile, not a Research rename or a Rook clone.
@@ -92,7 +187,15 @@ must be checked separately before any later live launch.
 
 Only `reply_to_finch_request` and `read_finch_messages` are exposed and dispatched.
 Reads require explicit allowlisted `channel_id`, retain 25-message/65KB bounds and never
-create assignments. Finch ingress requires a literal mention from Izaiah/Kael/Rook.
+create assignments. Finch reads and request-event `data` additionally retain actual Discord
+user-mention metadata as `mentions: [{"id": "<canonical snowflake>"}, ...]` (IDs only,
+first 100 entries), with `mentions_truncated` signaling an omitted suffix. Missing or
+malformed metadata is `mentions: null` (unknown); an actual empty list stays `[]`.
+Literal body tokens, role mentions and reply text never manufacture user IDs. Read
+truncation also contributes to the existing message/result `truncated` flag. These
+additive event fields are optional in discovery for compatibility with older events;
+Rook/Research serialization and ingress/auth/custody policy are unchanged.
+Finch ingress requires a literal mention from Izaiah/Kael/Rook.
 When Discord's `mentions` field is present, it must contain Finch's bot ID; absent
 metadata permits exact content-token fallback, but `mentions=[]` is refused in both
 Finch channels. Rook's suppressed-notification explicit-tag exception is Rook-only,
@@ -104,11 +207,168 @@ GitHub comments or GitHub/Linear read tools are added.
 
 Correlated reply arguments are `request_id`, bounded `text` and optionally **one**
 `file` with `filename`, `content_type`, `content_base64`; no destination or operation ID.
-Existing upload filters, MIME/extension pairs, 1MiB decoded limit, 1.5MB file-envelope
-limit, multipart encoding and pinned no-redirect verified CDN bytes are reused.
+Existing upload filters, MIME/extension pairs, multipart encoding and pinned
+no-redirect verified CDN bytes are reused. **Only Finch PNG** gains a 3MiB
+(3,145,728-byte) decoded-file cap / 4,194,304 base64-character cap. The HTTP
+JSON envelope is at most 4,227,072 bytes, and the >1,500,000-byte exception
+requires `reply_to_finch_request` with `image/png` on the Finch profile. Upload,
+multipart revalidation, verified CDN metadata/download and final custody use the
+same scoped cap. Finch non-PNG and all non-Finch files stay 1MiB; their existing
+1,500,000-byte envelope ceiling and raw marker/signature behavior remain intact.
 Ordinary HTTP JSON retains 32KiB. Use a genuine safe `.txt` report; HTML, `.md`, DOCX,
 ZIP and executable/sensitive bytes remain denied. Marker filters are not a complete
-malware/PHI safety guarantee. Mentions and embeds are suppressed on Finch replies.
+malware/PHI safety guarantee. Automatic mentions and embeds remain suppressed;
+the existing exact literal Kael-tag allowlist is unchanged.
+
+### Finch PNG validation restrictions (source only)
+
+The stdlib-only streaming decoder accepts **8-bit, noninterlaced RGB or RGBA**
+(color types 2/6, compression/filter methods 0). It validates every chunk length,
+CRC and reserved type bit; first/unique IHDR, consecutive IDAT, empty final IEND,
+no trailing bytes, a single complete zlib stream and exact decoded scanline count.
+All five PNG row filters really reconstruct samples, using the preceding row.
+It does not allocate a full bitmap or color-manage the image.
+
+Bounds: 4096 per dimension; 4,194,304 pixels; at most 16,781,312 inflated scanline
+bytes (including filter bytes); 1024 chunks; 64KiB compressed/output windows;
+at most three 16KiB decoded-row copies plus a bounded row-assembly buffer. At most
+16Mi sample reconstructions bound CPU work (no wall-clock deadline). The parser
+retains at most the 3MiB input's copied IDAT payloads; transport also holds bounded
+JSON/base64/multipart copies, so the decoder's sub-512KiB measured allocation is
+**not** a process-wide memory cap. No dependency or live environment install.
+
+Supported ancillary chunks are `tEXt`, `zTXt`, `iTXt`, `gAMA`, `cHRM`, `sRGB`,
+`pHYs` and the narrowly framed `caBX` profile below. Fixed-size chunks must be
+unique and precede IDAT. Text and caBX may occur before or after IDAT, never
+between consecutive IDAT chunks. Raw ancillary payload plus expanded text has a
+**shared 256KiB** budget (uncompressed text is conservatively counted twice;
+caBX is counted once). zTXt/iTXt expansion uses the same bounded single-stream
+inflater; text syntax/UTF-8 are checked. The unchanged sensitive/active marker
+regex scans every non-IDAT chunk and actual expanded text. Only successfully
+decoded IDAT image data avoids raw-byte marker scanning; invalid images and
+unsupported metadata fail closed.
+
+`caBX` accepts one uncompressed, explicitly sized JUMBF `jumb` store per PNG,
+with first/unique `jumd`, root UUID `63327061-0011-0010-8000-00aa00389b71`
+and label `c2pa`. The explicit full-UUID allowlist uses that suffix for containers
+`c2pa`, `c2ma`, `c2um`, `c2as`; CBOR leaves `c2cl`, `c2cs`, `c2db`, `cbor`;
+and JSON `json`. Embedded-file content instead uses the standard UUID
+`40cb0c32-bb8a-489d-a70b-2ad6f47f4369`; the `bfdb`-prefix/suffix substitute
+`62666462-0011-0010-8000-00aa00389b71` is refused as an enclosing content type.
+The content/child distinction follows [C2PA 2.4 assertion stores](https://spec.c2pa.org/specifications/specifications/2.4/specs/C2PA_Specification.html#_assertion_store)
+(ISO 19566-5:2023 Annex B); the exact identifier is cross-checked against the
+[pinned c2pa-rs JUMBF reference implementation](https://github.com/contentauth/c2pa-rs/blob/e4f63a233c3b5bd6f5fcd308a0d0db95ab35eae4/sdk/src/jumbf/boxes.rs)
+(`JUMBF_EMBEDDED_FILE_UUID`, `JumbfEmbeddedFileBox::new`/`add_data`).
+Actual boxes are `jumb`, `jumd`, `cbor`,
+`json`, paired `bfdb`/`bidb`, optional final `free`, and optional description
+private `c2sh` containing exactly 16 or 32 salt bytes. Description toggles must
+include requestable + labeled, with only optional 4-byte ID, 32-byte signature
+and private salt fields; labels are nonempty, valid UTF-8, at most 1024 bytes,
+with C2PA-forbidden characters refused. Maximum depth is 8 superboxes including
+the root; maximum count is 1024 boxes including descriptions, padding and salt.
+Every declared box must fit its immediate parent and consume exactly its range.
+Zero-to-EOF lengths, extended lengths, duplicate stores, unknown box/type UUIDs,
+compressed `brob`/`c2cm`, XML/codestream/custom UUID/protected content and external
+embedded references fail closed rather than being skipped.
+
+Embedded descriptors accept `image/png`, `image/jpeg`, and the **source-only,
+reject-only `image/svg+xml` subset** below, with an optional nonempty UTF-8
+filename of at most 1024 bytes. Only `bidb` paired with `bfdb` MIME
+`image/svg+xml` in the standard embedded-file UUID gets SVG validation.
+Standalone SVG uploads remain denied; all other profiles are unchanged.
+CBOR, JSON and PNG/JPEG embedded content bytes remain **opaque**: this is a
+framing check, not a CBOR/JSON parser, embedded PNG/JPEG decoder, C2PA semantic
+validator or provenance-trust check.
+The complete raw caBX payload plus individual labels, salt and leaf payloads
+are marker-scanned (FourCC boundaries must not mask standalone word markers),
+including embedded image pixels; they gain **no** outer-image IDAT exemption.
+Inner PNG/JPEG compressed metadata, escaped JSON and encoded CBOR values are not
+expanded/interpreted: an escaped JSON or chunked CBOR semantic marker can pass
+if it has no matching raw-byte marker. Even invalid JSON/CBOR or invalid embedded
+PNG/JPEG content can pass supported framing. Existing word-boundary regex limits remain; marker scans
+are not sanitization or a complete malware/PHI detector. No URL is fetched,
+signature trusted, bytes normalized, metadata stripped or image re-encoded.
+
+#### Embedded SVG compatibility (not general SVG safety)
+
+The explicit namespace-aware Expat parser accepts exactly one `svg` root and
+one direct, empty `path`, both in `http://www.w3.org/2000/svg`, declared once as
+the root's default namespace. Whitespace-only XML text is allowed. Unnamespaced
+root attributes may only be `width`, `height`, `viewBox`, `fill`; path attributes
+may only be mandatory `d` and optional `fill`. Root dimensions/viewBox/fill are
+optional; normal SVG defaults apply when absent. No other elements, attributes,
+namespace declarations/prefixes, descendants or nonwhitespace text are accepted.
+
+Limits before parsing: UTF-8 XML at most **8192 bytes**, no `&`, `<!` or `<?`
+constructs. Numeric/predefined character references are deliberately refused,
+as are XML declarations, PI, comments, CDATA, DTDs and entities. Defensive parser
+handlers refuse them too; parameter-entity parsing is disabled, and no external
+entity resolver is provided. Immediate start callbacks enforce two elements,
+depth two and root/path attribute counts (four/two); no XML tree is built.
+Non-`d` attribute values have a 128-byte UTF-8 cap. The input cap also bounds
+parser allocation/work for names and attribute values before those callbacks.
+
+The fully consumed path grammar supports only **explicit absolute `M L H V C Z`**,
+with arities **2/2/1/1/6/0**, and requires initial `M`. Numeric tokens support sign,
+decimal and exponent forms, comma/ASCII-whitespace separation and adjacent
+signed/decimal tokens. Every coordinate/control value must be finite with
+absolute value at most **1,000,000**. A path has at most **4096 UTF-8 bytes**,
+**1024 operands** and **256 drawing segments**, counting `Z` but excluding moves.
+Each command takes exactly one operand group: implicit repetitions, relative
+commands, arcs, quadratic/reflected curves and lowercase close are refused.
+
+Present dimensions must be positive, at most **4096**, unitless or `px` only.
+Present `viewBox` must consume exactly four comma/ASCII-whitespace-separated
+finite values bounded by absolute 1,000,000, with positive width/height. Fill is only `none`, `black`, `white`,
+`#RGB` or `#RRGGBB` (hex digits case-insensitive). Scripts, events, foreignObject,
+animation, styles/CSS, transforms, links, XML base and references are unsupported.
+The narrow vocabulary intentionally sacrifices compatibility; acceptance is not
+universal semantic safety, sanitization, rendering correctness or provenance
+verification. Original PNG and metadata bytes, the Finch 3MiB cap, shared 256KiB
+aggregate metadata cap and every existing raw marker scan remain unchanged.
+
+The 2415-byte SVG / 2282-byte path test is newly constructed artificial geometry,
+matching only reported counts (287 operands; 79 drawing segments; M8 L20 H2 V13
+C36 Z8), not original artwork or proof of a live request. The actual original
+bytes are unavailable; the reported request expired and is not retried.
+
+Most fixtures are synthetic spec-shaped framing, not signed/verified provenance.
+The independently published regression bytes in
+`tests/fixtures/finch_cabx_embedded_file.jumb` are an unchanged 12,628-byte
+embedded-file assertion extracted from the upstream
+[c2pa-rs exp-test1.png](https://raw.githubusercontent.com/contentauth/c2pa-rs/e4f63a233c3b5bd6f5fcd308a0d0db95ab35eae4/sdk/tests/fixtures/exp-test1.png).
+The complete upstream PNG is 5,884,439 bytes with SHA-256
+`8794b09652ab0585b9337f9c85981407ee297eda20f5885964057fca59648bd3`.
+Its caBX payload begins at absolute offset 41; extract caBX-relative range
+`[23216,35844)` (PNG-absolute `[23257,35885)`). The resulting fixture SHA-256 is
+`9fdd17837a0aa7ba7ab60c974011a3cee9ecaae2a94d868504c184942204cd61`.
+It retains the published `jumd` UUID/label, `bfdb` image/jpeg descriptor, and
+`bidb` bytes. Tests pin its length/hash, accept it in synthetic PNG/store wrappers
+and refuse a variant changing only the enclosing UUID to the erroneous substitute.
+The original PNG is **not** accepted whole: it exceeds the Finch 3MiB file limit
+and its caBX exceeds the 256KiB metadata limit. Extraction is a test-only bounded
+assertion fixture, not normalization of upload bytes or verification of the
+original PNG's signature/provenance. The upstream MIT notice is retained beside
+the fixture; optional filename/salt coverage remains explicitly synthetic.
+Original avatar/banner bytes are unavailable. Finch has now reported the banner
+chunk-map (IHDR, caBX, 32 consecutive IDAT, IEND), matching this chunk profile;
+that report is not local verification of either original caBX payload. Both
+originals still require supported uncompressed box framing, metadata bounds
+and unchanged marker checks. Independent review and exact live-owner caBX scope
+confirmation are required before any separately authorized runtime use.
+
+Grayscale/indexed/palette, 16-bit, interlaced and APNG files are refused, as are
+PLTE, transparency keys (`tRNS`), ICC profiles (`iCCP`), EXIF (`eXIf`), timestamps
+and any unknown chunks. These compatibility restrictions are deliberate: this is
+not a general PNG implementation, OCR or reliable PHI/secret/malware detection.
+The original avatar/banner bytes are unavailable locally; their formats, hashes,
+claimed compressed-byte marker offset and real compatibility are not verified.
+
+`FinchIdentity.policy_fields()` and stored request/receipt hashes are unchanged;
+its `correlated_file_limit` remains the generic 1MiB cap. The PNG-only source
+exception is explicit above and in the tool schema, not a state migration.
+Independent source review and future exact owner approval remain required;
+no existing requests, runtime files, deployment or publication are changed.
 
 The pre-effect digest binds origin, exact text/footer and normalized file metadata/bytes.
 POST and GET author/context/content plus attachment ID/name/type/size/URL and downloaded

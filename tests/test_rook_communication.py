@@ -1,4 +1,6 @@
 """One focused communication acceptance group. No sockets or credentials."""
+from finch_png_acceptance import TestFinchPNGValidator, png_fixture
+from finch_cabx_acceptance import TestFinchCaBX
 import base64
 from copy import deepcopy
 import hashlib
@@ -1187,6 +1189,7 @@ class TestFinchCommunication:
         self.keys = Keys()
         self.callbacks = []; self.http = []; self.posts = []; self.messages = {}
         self.raw = b'bounded source evidence\n'; self.cdn = self.raw
+        self.filename, self.content_type = 'notes.txt', 'text/plain; charset=utf-8'
         self.fault = None
         monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: pytest.fail('network denied'))
         monkeypatch.setattr(socket.socket, 'bind', lambda *a, **k: pytest.fail('bind denied'))
@@ -1201,7 +1204,7 @@ class TestFinchCommunication:
                 data = outer.cdn if _.cdn else json.dumps(_.value).encode()
                 return data[:limit]
             def getheader(_, name, fallback=None):
-                return {'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': str(len(outer.raw))}.get(name, fallback)
+                return {'Content-Type': outer.content_type, 'Content-Length': str(len(outer.raw))}.get(name, fallback)
         class Connection:
             def __init__(_, host, address): _.host = host; assert address == '8.8.8.8'
             def request(_, method, path, body=None, headers=None):
@@ -1223,12 +1226,15 @@ class TestFinchCommunication:
                         parts = list(parsed.iter_parts()); assert len(parts) == 2
                         payload = json.loads(parts[0].get_payload(decode=True))
                         file = parts[1].get_payload(decode=True)
-                        assert file == outer.raw and parts[1].get_filename() == 'notes.txt'
+                        assert file == outer.raw and parts[1].get_filename() == outer.filename
                     else: payload = json.loads(body)
                     request_id = payload['content'].split(' · ')[-1]
                     row = outer.app.store.get('requests', request_id)
                     assert row['state'] == 'sending' and row['channel_id'] == channel
-                    assert payload['allowed_mentions'] == {'parse': [], 'replied_user': False}
+                    mentions = payload['allowed_mentions']
+                    assert mentions['parse'] == [] and mentions['replied_user'] is False
+                    assert set(mentions) <= {'parse', 'replied_user', 'users'}
+                    assert mentions.get('users', []) in ([], ['1486880423568211968'])
                     assert payload['flags'] == 4
                     outer.posts.append((channel, payload, file))
                     if outer.fault == 'timeout': raise TimeoutError('synthetic ambiguity')
@@ -1236,8 +1242,8 @@ class TestFinchCommunication:
                     value = {'id': identity, 'channel_id': channel, 'author': {'id': outer.dot.bot},
                              'content': payload['content'], 'attachments': []}
                     if file is not None:
-                        value['attachments'] = [{'id': '601', 'filename': 'notes.txt', 'content_type': 'text/plain; charset=utf-8',
-                            'size': len(file), 'url': f'https://cdn.discordapp.com/attachments/{channel}/601/notes.txt?backend=b2&ex=aa&is=bb&hm=cc&'}]
+                        value['attachments'] = [{'id': '601', 'filename': outer.filename, 'content_type': outer.content_type,
+                            'size': len(file), 'url': f'https://cdn.discordapp.com/attachments/{channel}/601/{outer.filename}?backend=b2&ex=aa&is=bb&hm=cc&'}]
                     if outer.fault == 'author': value['author']['id'] = m.ROOK_BOT
                     if outer.fault == 'channel': value['channel_id'] = '902' if channel == '901' else '901'
                     if outer.fault == 'guild': value['guild_id'] = '999'
@@ -1306,8 +1312,8 @@ class TestFinchCommunication:
             'type': 0, 'author': {'id': author or self.m.OPERATOR}, 'content': content, **extra}}
 
     def args(self, identity='301', file=True):
-        return {'request_id': 'discord-' + identity, 'text': 'answer', **({'file': {'filename': 'notes.txt',
-            'content_type': 'text/plain', 'content_base64': base64.b64encode(self.raw).decode()}} if file else {})}
+        return {'request_id': 'discord-' + identity, 'text': 'answer', **({'file': {'filename': self.filename,
+            'content_type': self.content_type, 'content_base64': base64.b64encode(self.raw).decode()}} if file else {})}
 
     def ready(self, identity='301', channel='901'):
         self.subscribe(channel)
@@ -1316,6 +1322,82 @@ class TestFinchCommunication:
     def reopen(self):
         self.app.close()
         self.app = self.m.Application(self.cfg, self.root / 'finch-state', auth=self.m.Authenticator(self.cfg, self.keys), callback=self.callback)
+
+    @pytest.mark.parametrize('branch_index,limit', [(0, 4194304), (1, 1398104)])
+    def test_finch_file_union_branches_are_self_contained(self, branch_index, limit):
+        # Inspect actual discovery output, not a hand-written replacement schema.
+        status, result = self.http_call('tools/list')
+        assert status == 200 and 'error' not in result, result
+        tool = next(t for t in result['result']['tools'] if t['name'] == 'reply_to_finch_request')
+        schema = tool['inputSchema']['properties']['file']
+        branch = schema['oneOf'][branch_index]
+        # A consumer projecting a union branch must not lose inherited filename,
+        # required fields or closedness. This is not a connector implementation.
+        assert set(branch['properties']) == set(schema['properties']) == {
+            'filename', 'content_type', 'content_base64'}
+        assert branch['type'] == schema['type'] == 'object'
+        assert set(branch['required']) == set(schema['required']) == {
+            'filename', 'content_type', 'content_base64'}
+        assert branch['additionalProperties'] is schema['additionalProperties'] is False
+        assert branch['properties']['filename'] == schema['properties']['filename']
+        assert branch['properties']['content_base64'] == {'type': 'string', 'maxLength': limit}
+        mime = branch['properties']['content_type']
+        assert mime['type'] == 'string'
+        if branch_index == 0:
+            assert mime['const'] == 'image/png'
+        else:
+            assert set(mime['enum']) == set(self.m.MIME_EXTENSIONS) - {'image/png'}
+        assert tool['inputSchema']['required'] == ['request_id', 'text']
+        assert not self.posts
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_max_png_actual_http_multipart_cdn_custody_and_replay(self, channel):
+        import random
+        m = self.m
+        pixels = b''.join(b'\x00' + random.Random(n).randbytes(3072) for n in range(1000))
+        base = png_fixture(1024, 1000, raw=pixels)
+        padding = b'Note\x00' + b'x' * (m.FINCH_PNG_LIMIT - len(base) - 17)
+        self.raw = self.cdn = png_fixture(1024, 1000, raw=pixels, extra=[(b'tEXt', padding)])
+        assert len(self.raw) == m.FINCH_PNG_LIMIT
+        self.filename, self.content_type = 'art.png', 'image/png'
+        self.ready(channel=channel)
+        args = self.args()
+        assert len(args['file']['content_base64']) == m.FINCH_PNG_ENCODED_LIMIT
+        assert len(m.canonical(rpc(m, 'tools/call', {'name': 'reply_to_finch_request', 'arguments': args}))) > m.FILE_HTTP_LIMIT
+        status, result = self.call('reply_to_finch_request', args)
+        assert status == 200 and 'error' not in result, result
+        assert result['result']['isError'] is False, result
+        row = self.app.store.get('requests', 'discord-301')
+        assert row['state'] == 'confirmed' and row['attachment']['byte_length'] == m.FINCH_PNG_LIMIT
+        assert row['attachment']['sha256'] == hashlib.sha256(self.raw).hexdigest()
+        assert self.posts[0][0] == channel and self.posts[0][2] == self.raw
+        before = len(self.http)
+        self.reopen()
+        assert self.call('reply_to_finch_request', args)[1] == result
+        assert len(self.http) == before
+        assert args['file']['content_base64'] not in m.canonical(row)
+        assert 'cdn.discordapp.com' not in m.canonical(row)
+        schema = self.app.tools[0]['inputSchema']['properties']['file']
+        assert schema['properties']['content_base64']['maxLength'] == 4194304
+        assert schema['oneOf'][1]['properties']['content_base64']['maxLength'] == 1398104
+        assert m.COMMUNICATION_TOOLS[1]['inputSchema']['properties']['file']['properties']['content_base64']['maxLength'] == 1398104
+
+    @pytest.mark.parametrize('name,mime', [('reply_to_finch_request', 'text/plain'), ('send_rook_message', 'image/png'),
+                                        ('read_finch_messages', 'image/png'), ('discord_api', 'image/png')])
+    def test_large_http_exception_only_finch_png(self, name, mime):
+        args = {'request_id': 'discord-301', 'text': 'answer', 'file': {'filename': 'art.png',
+                'content_type': mime, 'content_base64': 'A' * 2000000}}
+        status, result = self.call(name, args)
+        assert status == 400 and result['error'] == 'bounded_json_body_required'
+        assert not self.posts
+
+    def test_invalid_png_refused_before_reservation_or_send(self):
+        self.ready()
+        args = self.args(); args['file'] = {'filename': 'art.png', 'content_type': 'image/png',
+                                           'content_base64': base64.b64encode(b'\x89PNG\r\n\x1a\n').decode()}
+        assert 'error' in self.call('reply_to_finch_request', args)[1]
+        assert self.app.store.get('requests', 'discord-301')['state'] == 'ready'
+        assert not self.posts
 
     def test_exact_two_identity_bindings_and_cli_inputs(self):
         from dataclasses import replace
@@ -1362,6 +1444,76 @@ class TestFinchCommunication:
         assert not self.http and not self.posts
         _, body = self.http_call('events/list')
         assert body['result']['events'][0]['inputSchema']['properties']['channel_id']['enum'] == ['901', '902']
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_actual_mentions_survive_finch_reads_and_signed_events(self, channel):
+        event = self.event(channel=channel, mentions=[
+            {'id': self.dot.bot, 'username': 'not-projected', 'member': {'roles': ['777']}},
+            {'id': self.m.ROOK_BOT}])
+        self.messages[(channel, '301')] = deepcopy(event['d'])
+        for arguments in ({'channel_id': channel, 'message_id': '301'}, {'channel_id': channel, 'limit': 1}):
+            status, body = self.call('read_finch_messages', arguments)
+            assert status == 200 and not body['result']['isError']
+            value = body['result']['structuredContent']['messages'][0]
+            assert value['mentions'] == [{'id': self.dot.bot}, {'id': self.m.ROOK_BOT}]
+            assert value['mentions_truncated'] is False
+        assert not self.app.store.all('requests')  # Reads never replay live requests.
+        self.subscribe(channel)
+        assert self.app.ingest(event, self.cursors) == 1
+        payload = self.callbacks[-1][1]['data']
+        assert payload['mentions'] == [{'id': self.dot.bot}, {'id': self.m.ROOK_BOT}]
+        assert payload['mentions_truncated'] is False
+        assert payload['text'] == 'bounded assignment'
+        schema = self.app.event_definition['payloadSchema']
+        assert schema['properties']['mentions']['items']['properties']['id'] == self.m.SNOWFLAKE
+        assert set(payload) <= set(schema['properties'])
+        assert not self.posts
+
+    @pytest.mark.parametrize('metadata,expected,admitted', [
+        ({}, None, True), ({'mentions': None}, None, False), ({'mentions': []}, [], False),
+        ({'mentions': '<@903>'}, None, False), ({'mentions': {'id': '903'}}, None, False),
+        ({'mentions': [None]}, None, False), ({'mentions': [{'id': 903}]}, None, False),
+        ({'mentions': [{'id': '0903'}]}, None, False), ({'mentions': [{'id': '９０３'}]}, None, False),
+        ({'mentions': [{'id': '9' * 21}]}, None, False),
+        ({'mentions': [{'id': '903'}, {'id': 'bad'}]}, None, True),
+        ({'mentions': [{'id': '904'}]}, [{'id': '904'}], False),
+    ])
+    def test_mention_metadata_unknown_empty_and_literal_are_not_fabricated(self, metadata, expected, admitted):
+        event = self.event(**metadata)  # Literal <@903> is present in every body.
+        self.messages[('901', '301')] = deepcopy(event['d'])
+        _, body = self.call('read_finch_messages', {'channel_id': '901', 'message_id': '301'})
+        value = body['result']['structuredContent']['messages'][0]
+        assert value['mentions'] == expected
+        assert value['mentions_truncated'] is False
+        assert not self.app.store.all('requests')
+        self.subscribe('901')
+        assert self.app.ingest(event, self.cursors) == int(admitted)
+        events = [v['data'] for _, v in self.callbacks if v.get('name') == self.app.event]
+        if admitted:
+            assert events[0]['mentions'] == expected
+            assert events[0]['mentions_truncated'] is False
+        else:
+            assert not events and not self.app.store.all('requests')
+        # Shared Rook/Research projection and original event schema remain unchanged.
+        assert 'mentions' not in self.m.message_projection(event['d'], '901')
+        assert 'mentions' not in self.m.EVENT_DEFINITION['payloadSchema']['properties']
+        assert not self.posts
+
+    @pytest.mark.parametrize('channel', ['901', '902'])
+    def test_mentions_bounded_prefix_marks_read_and_event_truncation(self, channel):
+        prefix = [{'id': str(1000 + i)} for i in range(100)]
+        event = self.event(channel=channel, mentions=prefix + [{'id': self.dot.bot}])
+        self.messages[(channel, '301')] = deepcopy(event['d'])
+        _, body = self.call('read_finch_messages', {'channel_id': channel, 'message_id': '301'})
+        result = body['result']['structuredContent']; value = result['messages'][0]
+        assert value['mentions'] == prefix and value['mentions_truncated'] is True
+        assert value['truncated'] is True and result['truncated'] is True
+        self.subscribe(channel)
+        assert self.app.ingest(event, self.cursors) == 1  # Existing ingress still sees actual bot metadata.
+        payload = self.callbacks[-1][1]['data']
+        assert payload['mentions'] == prefix and payload['mentions_truncated'] is True
+        assert {'id': self.dot.bot} not in payload['mentions']  # No invented completeness.
+        assert not self.posts
 
     def test_auth_http_subject_resource_scope_and_rbac_fail_closed(self):
         for delta in ({'aud': 'https://other.example/mcp'}, {'iss': 'https://other.example/'},
@@ -1516,6 +1668,29 @@ class TestFinchCommunication:
         self.reopen()
         assert self.call('reply_to_finch_request', self.args())[1] == result and len(self.posts) == 1
         assert 'error' in self.call('reply_to_finch_request', {**self.args(), 'text': 'changed'})[1]
+
+    @pytest.mark.parametrize('file', [False, True], ids=['text', 'multipart'])
+    def test_reply_only_allows_explicit_kael_mentions(self, file):
+        unwanted = '<@999> <@!998> <@392067741500309517> <@1554962007059472445> <@&1486880423568211968> @everyone @here'
+        cases = [
+            ('<@1486880423568211968> answer ' + unwanted, ['1486880423568211968']),
+            ('<@!1486880423568211968> answer ' + unwanted, ['1486880423568211968']),
+            ('Kael 1486880423568211968 answer', []),
+            ('answer ' + unwanted, []),
+        ]
+        for index, (text, users) in enumerate(cases):
+            identity = str(301 + index)
+            self.ready(identity)
+            status, result = self.call('reply_to_finch_request', {**self.args(identity, file=file), 'text': text})
+            assert status == 200 and not result['result']['isError'], result
+            channel, payload, uploaded = self.posts[-1]
+            assert channel == '901'
+            assert payload['content'] == text + '\n-# finch.reply · discord-' + identity
+            assert payload['allowed_mentions'] == {'parse': [], 'replied_user': False,
+                                                   **({'users': users} if users else {})}
+            assert payload['flags'] == 4  # SUPPRESS_EMBEDS, not SUPPRESS_NOTIFICATIONS.
+            assert uploaded == (self.raw if file else None)
+        assert len(self.posts) == len(cases)
 
     def test_text_only_exact_origin_and_attachment_absence(self):
         self.ready(channel='902')
