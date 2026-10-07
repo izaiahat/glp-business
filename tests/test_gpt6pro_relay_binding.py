@@ -133,7 +133,9 @@ class FakeCDP:
             page["composer"] += params["text"]
             return {}
         if method == 'Input.dispatchMouseEvent':
-            if self.slider_works and params['type'] == 'mouseReleased':
+            if params['x'] == 50 and params['type'] == 'mousePressed':
+                page['picker_open'] = False
+            elif params['x'] == 1100 and self.slider_works and params['type'] == 'mouseReleased':
                 page['picker_power'] = 4
                 page['selected_effort'] = 'maximum'
             return {}
@@ -244,9 +246,8 @@ class FakeCDP:
             if "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')!=='true')b.click();return true;" in expression:
                 page['picker_open'] = True
                 return True
-            if "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')==='true')b.click();return true;" in expression:
-                page['picker_open'] = False
-                return True
+            if 'const r=b.getBoundingClientRect(),x=' in expression:
+                return {'x': 50, 'y': 15} if page.get('picker_open') and (not page['composer'] or page.get('placeholder')) and not page['messages'] else None
             if "return !!b&&b.getAttribute('aria-expanded')==='false'" in expression:
                 return not page.get('picker_open', True) and committed
             if expression.endswith('return committed6ProMaximum();})()'):
@@ -3584,7 +3585,123 @@ function attachModelOwner(trigger,selectedModel){
 '''
 
 
+# Byte-exact source59 and source68 callback slices from retained capture
+# 24cd58d14748ee1a62621b61841bba739a8e0260bb980368a8db46cf5fa96182.
+# React/import composition is a fixture; HTMLElement.click has detail=0 and
+# must NOT acquire an invented onclick toggle. Production never calls these.
+MODEL_TRIGGER_FIXTURE = r'''
+function installCloseTrigger(trigger,onOpenChange){
+ const eB=false,Z=false,e6=true,eY={current:false},eG={current:null},e8=()=>{},te=onOpenChange;
+ const pointer=e=>{!eB||e.defaultPrevented||0!==e.button||e.ctrlKey||(e8(),e.preventDefault())};
+ const click=e=>{if(eB&&!Z&&!e.defaultPrevented&&0===e.button&&!e.ctrlKey&&0!==e.detail){let e=!e6||eY.current;te(e),e&&eG.current?.focus({preventScroll:!0})}};
+ const state={triggerRef:null,triggerId:'trigger',contentId:'menu',get open(){return trigger.getAttribute('aria-expanded')==='true'},onOpenToggle:()=>onOpenChange(!state.open),onOpenChange};
+ const N=()=>state,u=()=>({}),o={b:()=>null},T={jsx:(type,props)=>({type,props})},s={a:'Anchor'},E={a:{button:'Button'}},i={a:(user,internal)=>e=>{user?.(e);if(!e.defaultPrevented)internal(e)}};
+ const render=function(e,t){let{__scopeDropdownMenu:n,disabled:r=!1,..._}=e,a=N("DropdownMenuTrigger",n),l=u(n),C=(0,o.b)(t,a.triggerRef);return(0,T.jsx)(s.a,{asChild:!0,...l,children:(0,T.jsx)(E.a.button,{type:"button",id:a.triggerId,"aria-haspopup":"menu","aria-expanded":a.open,"aria-controls":a.open?a.contentId:void 0,"data-state":a.open?"open":"closed","data-disabled":r?"":void 0,disabled:r,..._,ref:C,onPointerDown:(0,i.a)(e.onPointerDown,e=>{!r&&0===e.button&&!1===e.ctrlKey&&(a.onOpenToggle(),a.open||e.preventDefault())}),onKeyDown:(0,i.a)(e.onKeyDown,e=>{!r&&(["Enter"," "].includes(e.key)&&a.onOpenToggle(),"ArrowDown"===e.key&&a.onOpenChange(!0),["Enter"," ","ArrowDown"].includes(e.key)&&e.preventDefault())})})})};
+ const handlers=render({onClick:click,onPointerDown:pointer},null).props.children.props;
+ trigger.onclick=handlers.onClick;trigger.onpointerdown=handlers.onPointerDown;
+}
+function pointerClose(){document.querySelector('button').onpointerdown({button:0,ctrlKey:false,detail:1,defaultPrevented:false,preventDefault(){this.defaultPrevented=true}});}
+'''
+
+
 class NativeComposerTests(unittest.TestCase):
+    def test_close_pointer_event_actual_emitted_caller(self):
+        """Captured callbacks + real emitted selection caller, no browser/CDP.
+
+        Mutation occurs after maximum proof, isolating close refusal. Event
+        transport and DOM are fixtures, not evidence of live event delivery.
+        """
+        tree = ast.parse(Path(__file__).read_text())
+        def literal(method, variable):
+            fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == method)
+            return next(ast.literal_eval(n.value) for n in ast.walk(fn) if isinstance(n, ast.Assign)
+                        and any(isinstance(t, ast.Name) and t.id == variable for t in n.targets))
+        fixture = literal('test_malformed_owner_cannot_hide_from_any_emitted_consumer', 'fixture')
+        node = literal('test_malformed_owner_cannot_hide_from_any_emitted_consumer', 'node')
+        pipeline = literal('test_committed_maximum_selection_native', 'pipeline')
+        proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        try:
+            def call(expr='true', setup=None):
+                proc.stdin.write(json.dumps({'expr': expr, 'setup': setup})+'\n'); proc.stdin.flush()
+                result = json.loads(proc.stdout.readline())
+                self.assertNotIn('error', result)
+                return result.get('value')
+            cases = {
+                'accept': '', 'reject_parent': '',
+                'wrong_document': 'performance.timeOrigin=0',
+                'nonempty': "txt.data='private draft'",
+                'messages': "const query=document.querySelectorAll;document.querySelectorAll=s=>s==='[data-message-author-role]'?[{}]:query(s)",
+                'duplicate_trigger': "const query=document.querySelectorAll;document.querySelectorAll=s=>s==='button[aria-label=\"Select ChatGPT model\"]'?[trigger,trigger]:query(s)",
+                'unknown_expanded': "trigger.setAttribute('aria-expanded','unknown')",
+                'unanchored': "trigger.setAttribute('aria-controls','other')",
+                'zero_geometry': 'trigger.getBoundingClientRect=()=>({left:0,top:0,width:0,height:30})',
+                'nonfinite_geometry': 'trigger.getBoundingClientRect=()=>({left:NaN,top:0,width:100,height:30})',
+                'alternate_missing': 'delete owner.alternate.memoizedProps.models',
+                'alternate_disagrees': "owner.alternate.memoizedProps.selectedModel={slug:'gpt-6',thinkingEffort:'standard'}",
+                'malformed_owner': 'owner.return={type:owner.type,memoizedProps:{},return:null}',
+                'no_delivery': '',
+            }
+            for retained in (False, True):
+                scripts = []
+                with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+                    relay.send_message('fixture', **({'retained_tab': 'offline', 'time_origin': 12345.5} if retained else {}))
+                generated = scripts[0]
+                branch = compile(generated[generated.index('# All paths must commit'):generated.index('# Settle:')], '<actual-close-caller>', 'exec')
+                for case, mutation in cases.items():
+                    # Fresh _fresh is URL/message bound, not timeOrigin bound.
+                    # Do not invent a stronger fresh-document oracle in fixtures.
+                    if case == 'wrong_document' and not retained: continue
+                    with self.subTest(retained=retained, case=case):
+                        call(setup=fixture+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+
+                             '(()=>{const accepts='+json.dumps(case != 'reject_parent')+';'+pipeline+'})();'+
+                             "txt.data='';trigger.getBoundingClientRect=()=>({left:0,top:0,width:100,height:30});owner.alternate={type:owner.type,memoizedProps:{...props}};")
+                        mouse_events, insertions = [], []
+                        mutated = False
+                        def refuse(reason, **kw): raise RuntimeError(reason)
+                        def fresh():
+                            # Test the real retained geometry's synchronous
+                            # document guard, not a canned _fresh refusal.
+                            return HOME
+                        def bound(tid, url, expr):
+                            nonlocal mutated
+                            self.assertEqual((tid, url), ('offline', HOME))
+                            result = call(expr)
+                            if expr.endswith('return full6ProMaximum();})()') and not mutated:
+                                mutated = True
+                                if mutation: call(mutation+';true')
+                            return result
+                        def mouse(method, **kw):
+                            self.assertEqual(method, 'Input.dispatchMouseEvent')
+                            self.assertEqual((kw['session_id'], kw['button'], kw['clickCount']), ('offline', 'left', 1))
+                            mouse_events.append(kw)
+                            if kw['x'] == 187 and kw['type'] == 'mouseReleased':
+                                call('selectMaximum();owner.alternate.memoizedProps.selectedModel=props.selectedModel;true')
+                            elif kw['x'] == 50 and kw['type'] == 'mousePressed' and case != 'no_delivery':
+                                call('pointerClose();'+('' if case == 'alternate_disagrees' else 'owner.alternate.memoizedProps.selectedModel=props.selectedModel;')+'true')
+                        env = {'st': {'model': '6 Pro'}, 'RETAINED': retained, 'tab': {'targetId': 'offline'},
+                               'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda _: None),
+                               '_bound_js': bound, '_fresh': fresh, 'cdp': mouse,
+                               '_sessions': {'offline': 'offline'}, '_binding_error': refuse}
+                        if case == 'accept':
+                            exec(branch, env)
+                            insertions.append('admitted after real model branch')
+                            self.assertEqual(call('events'), ['selected', 'parent', 'closed'])
+                        else:
+                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL|document_changed'):
+                                exec(branch, env)
+                            self.assertEqual(insertions, [])
+                        close_events = [e for e in mouse_events if e['x'] == 50]
+                        expected_close = case in ('accept', 'reject_parent', 'alternate_missing', 'alternate_disagrees', 'malformed_owner', 'no_delivery')
+                        self.assertEqual([e['type'] for e in close_events], ['mousePressed', 'mouseReleased'] if expected_close else [])
+                        self.assertEqual(call('sends'), 0)
+                        self.assertEqual(call('getters'), 0)
+                        self.assertEqual(len(mouse_events), 4 if expected_close else 2)
+        finally:
+            proc.stdin.write('{"stop":true}\n'); proc.stdin.flush(); proc.stdin.close()
+            proc.wait(timeout=10)
+            self.assertEqual(proc.returncode, 0, proc.stderr.read())
+
     def test_malformed_owner_cannot_hide_from_any_emitted_consumer(self):
         """Reviewer's valid + malformed owner counterexample, pure Node VM.
 
@@ -3614,7 +3731,7 @@ class NativeComposerTests(unittest.TestCase):
         fixture = r'''
 window=globalThis;getComputedStyle=()=>({display:'block',visibility:'visible'});
 performance={timeOrigin:12345.5};
-function el(attrs={},text=''){return {attrs,innerText:text,parentElement:null,hidden:false,inert:false,disabled:false,getClientRects:()=>[1],getAttribute(k){return this.attrs[k]??null},setAttribute(k,v){this.attrs[k]=v},hasAttribute(k){return k in this.attrs},click(){this.onclick?.()},closest(){return view}}}
+function el(attrs={},text=''){return {attrs,innerText:text,parentElement:null,hidden:false,inert:false,disabled:false,getClientRects:()=>[1],getBoundingClientRect:()=>({left:0,top:0,width:100,height:30}),getAttribute(k){return this.attrs[k]??null},setAttribute(k,v){this.attrs[k]=v},hasAttribute(k){return k in this.attrs},click(){this.onclick?.({button:0,ctrlKey:false,detail:0,defaultPrevented:false})},closest(){return view}}}
 const trigger=el({'aria-label':'Select ChatGPT model','aria-expanded':'true','aria-controls':'menu','data-selected-reasoning-effort':'medium','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'},'Pro');
 const view=el({'aria-hidden':'false'}),menu=el({role:'menu'});menu.id='menu';
 const row=el({},'6 Pro'),badge=el(),power=el(),slider=el({'role':'slider','aria-valuemin':'0','aria-valuemax':'4','aria-valuenow':'4'}),rail=el();
@@ -3664,18 +3781,23 @@ let ctx;
             }
             for case, mutation in cases.items():
                 with self.subTest(case=case):
-                    call(setup=fixture+MODEL_OWNER_FIXTURE+'(()=>{const accepts=true;'+pipeline+'})();')
+                    call(setup=fixture+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+'(()=>{const accepts=true;'+pipeline+'})();')
+                    call("txt.data='';true")
                     env = {'st': {'model': '6 Pro'}, 'RETAINED': False, 'tab': {'targetId': 'offline'},
                            'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda n: None),
                            '_bound_js': lambda tid, url, expr: call(expr), '_fresh': lambda: None,
-                           'cdp': lambda method, **kw: call('selectMaximum();true' if kw['type']=='mouseReleased' else 'true'),
+                           'cdp': lambda method, **kw: call('selectMaximum();true' if kw['x']==187 and kw['type']=='mouseReleased' else 'pointerClose();true' if kw['x']==50 and kw['type']=='mousePressed' else 'true'),
                            '_sessions': {'offline': 'offline'}, '_binding_error': refuse}
                     # Establish a real accepted transition, then add the competing
                     # owner before re-running initial admission and every consumer.
                     exec(branch, env)
                     self.assertEqual(call('events'), ['selected', 'parent', 'closed'])
                     if mutation: call(mutation+';true')
+                    # Begin the second close-only scenario open; opening behavior
+                    # is separately scoped and is not invented by onclick here.
+                    call("trigger.setAttribute('aria-expanded','true');true")
                     initial = outcome(lambda: exec(branch, env))
+                    call("txt.data='fixture';true")
                     exec(compile(ast.Module(body=[prepare], type_ignores=[]), '<actual-prepare>', 'exec'), env)
                     chunk = outcome(lambda: env['_prepare']('fixture'))
                     actual = {'initial': initial, 'chunk': chunk, 'fresh': call(fresh_click),
@@ -3718,6 +3840,7 @@ let ctx;
                                and any(isinstance(t, ast.Name) and t.id == 'html' for t in n.targets)))
         html = html.replace('aria-expanded="true"', 'aria-expanded="true" data-selected-reasoning-effort="medium" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning"')
         html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
+        html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p></p></div>'
         node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
         left, right = node.index('const output={};'), node.index('}finally{await cdp')
         node = node[:left] + r'''
@@ -3761,12 +3884,12 @@ const commit=(e,t)=>{let n=tH[e.powerSettingIndex],a=tH[t.powerSettingIndex];n?.
 const close=function(e){null!=ty.current&&(window.clearTimeout(ty.current),ty.current=null),e?(to(null),eV&&null==e4&&(0,b.c)(eQ,tU),_.a.prefetch(),eX||tM||(e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_SURFACE_OPENED"),!eV&&tQ&&"simple"===ta&&e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_THINKING_EFFORT_DROPDOWN_CLICKED"))):(s()(tl,eq)||(ti?.intent==="thinking-effort"&&null!=eH?eH(tl.thinkingEffort):eF(tl)),to(null),ty.current=window.setTimeout(()=>{ty.current=null,tr("simple"),te("")},350)),tI(e)};
 function render(){tl=(null!=ti&&(s()(ti.base,eq)||eV&&s()((0,ei.b)(eD,ti.base,e4),eq))?ti.model:null)??eq;}
 window.selectMaximum=()=>{select({powerSettingIndex:1});render();commit({powerSettingIndex:1},{powerSettingIndex:0});render();events.push('selected');};
-trigger.onclick=()=>{close(trigger.getAttribute('aria-expanded')!=='true');render();};
+installCloseTrigger(trigger,v=>{close(v);render();});
 window.props=props;window.owner=owner;
 '''
                 for case in ['accept', 'reject', 'duplicate_trigger', 'duplicate_owner', 'getter', 'document_drift']:
                     with self.subTest(case=case):
-                        native('document.body.innerHTML='+json.dumps(html)+';'+MODEL_OWNER_FIXTURE+
+                        native('document.body.innerHTML='+json.dumps(html)+';'+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+
                                '(()=>{const accepts='+json.dumps(case != 'reject')+';'+pipeline+'})();true')
                         if case == 'duplicate_trigger':
                             native('document.body.append(document.querySelector("button").cloneNode(true));true')
@@ -3776,7 +3899,10 @@ window.props=props;window.owner=owner;
                             native('Object.defineProperty(props,"selectedModel",{get(){getters++;return null;},set(){}});true')
                         def mouse(method, **kwargs):
                             self.assertEqual(method, 'Input.dispatchMouseEvent', 'no insertion in model admission')
-                            native('window.mouse++;'+('selectMaximum();' if kwargs['type']=='mouseReleased' else '')+'true')
+                            center = native('(()=>{const r=document.querySelector("button").getBoundingClientRect();return r.left+r.width/2})()')
+                            action = ('pointerClose();' if kwargs['x']==center and kwargs['type']=='mousePressed' else
+                                      'selectMaximum();' if kwargs['x']!=center and kwargs['type']=='mouseReleased' else '')
+                            native('window.mouse++;'+action+'true')
                         def refuse(reason, **kwargs): raise RuntimeError(reason)
                         def bound(tab, url, expr):
                             if case == 'document_drift' and native('window.mouse'):
@@ -3793,13 +3919,14 @@ window.props=props;window.owner=owner;
                             exec(branch, env)
                             self.assertEqual(env['st']['model'], '6 Pro')
                             self.assertEqual(native('window.events'), ['selected', 'parent', 'closed'])
-                            self.assertEqual(native('window.mouse'), 2)
+                            self.assertEqual(native('window.mouse'), 4)
                             self.assertEqual(native('document.querySelector("button").getAttribute("aria-expanded")'), 'false')
                             # Every real emitted consumer sees the same authoritative gate.
                             probes = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
                                       and isinstance(n.value, str) and 'function committed6ProMaximum' in n.value]
                             committed = next(x for x in probes if x.endswith('return committed6ProMaximum();})()'))
                             self.assertTrue(native(committed))
+                            native('document.querySelector("#prompt-textarea").remove();true')
                             native('document.body.insertAdjacentHTML("beforeend",\'<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p>fixture</p></div><button data-testid="send-button">Send</button>\');document.querySelector("[data-testid=send-button]").onclick=()=>sends++;true')
                             atomic = retained.replace('const retainedOrigin=12345.5;',
                                                       'const retainedOrigin='+str(native('performance.timeOrigin'))+';')
