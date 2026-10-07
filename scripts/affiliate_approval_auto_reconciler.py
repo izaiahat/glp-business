@@ -2634,7 +2634,12 @@ async def main(*,fresh_drivers=None):
  if not values or pad(values[0])!=HEADERS:raise RuntimeError('canonical_sheet_header_mismatch')
  schema_repair,schema_contract=prepare_sheet_schema(svc,allow_repair=not args.dry_run and not args.validate_only)
  if args.validate_only:print(json.dumps({'status':'PASS','sheet_header':True,'sheet_schema_contract':schema_contract,'inbox_db':INBOX_DB.exists(),'state_db':STATE_DB.exists(),'outbound_send':False,'provider_mutation':False}));state.close();return 0
- outputs=[];provider_cache={};handoffs=[explicit_handoff] if explicit_handoff else ([] if args.event_id else pending_operator_handoffs())
+ # Only this invocation's explicitly injected browser readers reach callers.
+ # A shell run stays empty and existing principal/effect gates remain intact.
+ provider_cache={'fresh_'+network+'_driver':fresh_drivers[network]
+                 for network in ('maxbounty','healthtrader','katalys')
+                 if fresh_drivers and network in fresh_drivers}
+ outputs=[];handoffs=[explicit_handoff] if explicit_handoff else ([] if args.event_id else pending_operator_handoffs())
  for handoff in handoffs:
   event_ids=list(handoff['affiliate_subset']);events=fetch_inbox_events(event_ids,include_terminal=True);by_id={str(event['event_id']):event for event in events}
   if set(by_id)!=set(event_ids):raise RuntimeError('operator_handoff_event_set_missing')
