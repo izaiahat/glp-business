@@ -1,7 +1,7 @@
 name: finch-file-review
 on:
   pull_request:
-    branches: [baseline/finch-deployed-af5cc609-20261006]
+    branches: [main, baseline/finch-deployed-af5cc609-20261006]
 permissions:
   contents: read
 jobs:
