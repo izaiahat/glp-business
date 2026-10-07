@@ -657,7 +657,7 @@ def require_binding(st: dict, result: dict | None = None) -> None:
     for sibling in sibling_bindings(st["account"], st["job"]):
         if binding_url(sibling) == want:
             raise SystemExit(f"CONVERSATION_COLLISION job={st['job']} sibling={sibling.get('job')}")
-        if result is not None and result.get("tab") and result["tab"] == sibling.get("tab"):
+        if result is not None and result.get("tab") and result["tab"] in custody_tabs(sibling):
             raise SystemExit(f"TAB_COLLISION job={st['job']} sibling={sibling.get('job')}")
     if result is not None:
         state = result.get("state") or {}
@@ -667,8 +667,26 @@ def require_binding(st: dict, result: dict | None = None) -> None:
             raise SystemExit(f"CONVERSATION_MISMATCH job={st['job']}")
 
 
+def custody_tabs(st: dict) -> list[str]:
+    """Conserve every attributed target, independently of admission-proof validity."""
+    tabs = [st.get('tab')]
+    for key, field in (('error', 'tab'), ('resume_error', 'tab'),
+                       ('terminal_unsent', 'retained_tab'), ('resume_attempt', 'retained_tab')):
+        row = st.get(key)
+        if isinstance(row, dict):
+            tabs.append(row.get(field))
+    history = st.get('resume_history')
+    if isinstance(history, list):
+        tabs.extend(row.get('retained_tab') for row in history if isinstance(row, dict))
+    # Conflicting attribution protects the union; it never selects a winner or
+    # proves a reservation terminal. Malformed target values fail closed.
+    if any(tab is not None and (not isinstance(tab, str) or not tab) for tab in tabs):
+        raise SystemExit('BINDING_REGISTRY_INVALID_TARGET ' + str(st.get('job')))
+    return sorted({tab for tab in tabs if tab is not None})
+
+
 def protected_tabs(st: dict) -> list[str]:
-    return [s["tab"] for s in sibling_bindings(st["account"], st["job"]) if s.get("tab")]
+    return sorted({tab for s in sibling_bindings(st['account'], st['job']) for tab in custody_tabs(s)})
 
 
 # ---------------------------------------------------------------- browser
@@ -1367,8 +1385,7 @@ def cleanup_tabs() -> int:
             raise SystemExit('CLEANUP_REFUSED unbound generating job')
         # A proof-attributed target may be absent from the original error. Protect
         # it conservatively even if later evidence drift invalidates admission.
-        protected = [tab for r in live for tab in (r.get('tab'), (r.get('error') or {}).get('tab'),
-                     (r.get('terminal_unsent') or {}).get('retained_tab')) if tab]
+        protected = sorted({tab for row in live for tab in custody_tabs(row)})
         out = bu_json(BU_PRELUDE + f'''
 protected=set({protected!r})
 tabs=list_tabs()
@@ -2527,7 +2544,124 @@ TERMINAL_UNSENT_CURRENT = {
 }
 
 
+# One historical atomic composer refusal AFTER insertion but BEFORE its click.
+# Original true/UNKNOWN flags and the nonmatching draft are never rewritten.
+# These reviewed-source/custody pins do not cover generic errors or timeouts.
+TERMINAL_GUARD_REFUSED = {
+    **CONSUMED_CANARY,
+    'held': '9063d40a522736092508f974e1d6f477cccdc5c708d4cb2ade73b9fc71da9c0e',
+    'postinsert_guard': True,
+    'draft_sha256': '40c661b5b3d7b6005f75974e9ada44ba6829679b354ccd0bf0ebbb58f9bbdc9a',
+    'ledger_lines': (*CONSUMED_CANARY['ledger_lines'],
+        '63a54f9bc6f132b314a153677e5065bc92efa67b24e5e4602a3792982a1e3b29'),
+    'backups': {
+        'JOB.pre-retained-resume-ef0ddbcb8e8921544cae919ff6ddbe74d33a151ec92adf570eab0a694a69d7e4.json':
+            'ef0ddbcb8e8921544cae919ff6ddbe74d33a151ec92adf570eab0a694a69d7e4',
+        'JOB.pre-canary-recovery-88041b25bf3cd6f2388c1b84aaa3f4f23ea659a9237ca3e58bed7d4878fc15c6.json':
+            '88041b25bf3cd6f2388c1b84aaa3f4f23ea659a9237ca3e58bed7d4878fc15c6'},
+    'proof_files': {
+        'reports/ops/pro-retained-generated-js-review-20260927/INDEPENDENT-REVIEW.json':
+            '438b50df6352d6cce90dd4aba70cf1881cd6bc563bc20c1adf244e99f5c343c3',
+        'reports/ops/pro-consumed-canary-source-recovery-review-20260927/INDEPENDENT-REVIEW.json':
+            '69eddab33757986db27362a5277b8701f7388e4dafd80a3c4db138666dab3af3',
+        'reports/ops/pro-six-forward-recovery-execution-20260927/INDEPENDENT-REVIEW.json':
+            'a602400cb61d11b82369e1d1bfce8be69546344aeae9dbbb25fca5757b5e483e',
+        'reports/ops/pro-consumed-canary-existing-target-witness-20260927/RESULT.json':
+            '36033bb2572dfddd7c8f5358f89c6ca581ce16cd5e01755de1000e29d7ad02d0',
+        'pro-consumed-canary-source-recovery-review-worktree/scripts/gpt6pro_relay.py':
+            'baf90d2d37a6b69cec56c5f6fc1c0c3b31ce6cf40eca42d9e59a0c089ff23569',
+        'reports/ops/system-resume-20261006/persistent-three-pro-20261007/ACCT2-RAW-DRAFT.json':
+            '9a4149f6291ce87c08bcaf1a4948a212143b1a0515ecea8b4449c0c037a441cd'},
+}
+
+
+def _guard_refusal_custody(cfg, st, preimage, report):
+    """Exact historical source barriers + unchanged raw custody; never flag-only."""
+    c = TERMINAL_GUARD_REFUSED
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    if (st.get('job') != c['job'] or sha(preimage) != c['held'] or json.loads(preimage) != st or
+            st.get('status') != 'failed' or st.get('reason') != 'RETAINED_RESUME_UNCERTAIN' or
+            st.get('typed') is not True or st.get('sent') != 'UNKNOWN' or st.get('retry_blocked') is not True or
+            st.get('resume_error') != {'error': 'retained_send_guard_failed', 'guard': 'composer',
+                'typed': True, 'sent': 'UNKNOWN', 'tab': c['tab']} or
+            any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
+        raise ValueError('STATE')
+    d = JOBS / c['job']
+    if any((d / name).exists() for name in ('RESPONSE.md', 'outbox')):
+        raise ValueError('OUTPUT')
+    pins = {'MESSAGE.md': c['message'], 'MANIFEST.json': c['manifest'],
+            'drive-input/PROMPT.md': c['drive_prompt'], **c['backups']}
+    custody = {}
+    for root, items in ((d, pins), (BUSINESS, c['proof_files'])):
+        for rel, digest in items.items():
+            p = (root / rel).resolve()
+            if Path(rel).is_absolute() or not p.is_relative_to(root.resolve()):
+                raise ValueError('CUSTODY_PATH')
+            custody[p] = p.read_bytes()
+            if sha(custody[p]) != digest:
+                raise ValueError('CUSTODY')
+    manifest = json.loads(custody[(d / 'MANIFEST.json').resolve()])
+    if (any(not st.get(k) or manifest.get(k) != st[k] for k in (*PROVENANCE_FIELDS, 'job', 'job_class')) or
+            _failed_generation_identity(st).encode() not in custody[(d / 'MESSAGE.md').resolve()]):
+        raise ValueError('IDENTITY')
+    paths = [d / 'PROMPT.md', *map(Path, manifest['attach']), *map(Path, manifest['drive_attach'])]
+    if any(not p.resolve().is_relative_to(d.resolve()) for p in paths):
+        raise ValueError('PACKET_PATH')
+    custody.update({p: p.read_bytes() for p in paths})
+    ordered = [(p.name, sha(custody[p])) for p in paths]
+    if sha(json.dumps(ordered, separators=(',', ':')).encode()) != st['input_sha256']:
+        raise ValueError('PACKET')
+    lp = ledger_path(cfg); custody[lp] = lp.read_bytes()
+    all_rows = [(line, json.loads(line)) for line in custody[lp].splitlines() if line.strip()]
+    lines = [line for line, row in all_rows if row.get('job') == c['job']]
+    if tuple(map(sha, lines[:3])) != c['ledger_lines']:
+        raise ValueError('LEDGER')
+    rows = list(map(json.loads, lines))
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    custody[rp] = rp.read_bytes()
+    matches = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
+    if len(matches) != 1:
+        raise ValueError('REPORT')
+    row = matches[0]
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_postinsert_guard',
+        'job_sha256': c['held'], 'typed': True, 'sent': 'UNKNOWN', 'submission_bound': False,
+        'draft_sha256': c['draft_sha256']}
+    if any(row.get(k) != v or type(row.get(k)) is not type(v) for k, v in expected.items()):
+        raise ValueError('REPORT')
+    n = row.get('ledger_preimage_bytes')
+    if type(n) is not int or n <= 0 or sha(custody[lp][:n]) != row.get('ledger_preimage_sha256'):
+        raise ValueError('LEDGER_PREIMAGE')
+    if len(rows) == 3 and len(custody[lp]) != n:
+        raise ValueError('LEDGER_PREIMAGE')
+    return custody, rows
+
+
+def _retained_draft_witness(tab, time_origin, digest):
+    """Passive stable exact populated draft; never treat UNKNOWN as empty/ready."""
+    expression = '(()=>{' + COMPOSER_TEXT_JS + r'''const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,origin:performance.timeOrigin,logical:composerText(e),html:e?.outerHTML,innerText:e?.innerText,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length};})()'''
+    result = bu_json(BU_PRELUDE + f'''
+tab={tab!r}
+before=sorted(t['targetId'] for t in list_tabs())
+if tab not in before: _binding_error('retained_target_missing')
+_select(tab)
+probe=lambda e:_bound_js(tab,'https://chatgpt.com/',e)
+a=probe({expression!r}); state=_state(probe); b=probe({expression!r})
+valid=(a==b and before==sorted(t['targetId'] for t in list_tabs()) and
+ a['url']=='https://chatgpt.com/' and a['origin']=={time_origin!r} and
+ isinstance(a['logical'],str) and len(a['logical'])==13323 and a['users']==a['assistants']==0 and
+ __import__('hashlib').sha256(a['logical'].encode()).hexdigest()=={digest!r} and
+ state['ready_state']=='complete' and state['composer_present'] is True and
+ all(state[k] is False for k in ('logged_out','stop','drive_reconnect','rate_limited','security_interstitial','human_challenge','thinking_failed')))
+print('RELAY_JSON:'+json.dumps({{'valid':valid}}))
+''')
+    return result == {'valid': True}
+
+
 def _terminal_unsent_pin(job, report=None):
+    if job == TERMINAL_GUARD_REFUSED['job']:
+        return TERMINAL_GUARD_REFUSED
     if job == TERMINAL_UNSENT_PR52['job']:
         return TERMINAL_UNSENT_PR52
     if job in TERMINAL_UNSENT_CURRENT:
@@ -2667,6 +2801,8 @@ def _generic_terminal_unsent_evidence(st, c, rows, custody):
 
 def _terminal_unsent_custody(cfg, st, preimage, report):
     """Offline exact-byte proof shared by disposition and admission readback."""
+    if st.get('job') == TERMINAL_GUARD_REFUSED['job']:
+        return _guard_refusal_custody(cfg, st, preimage, report)
     if st.get('job') not in (TERMINAL_UNSENT_PR52['job'], *TERMINAL_UNSENT_CURRENT):
         c = _terminal_unsent_pin(st['job'], report)
         custody, rows = _current_terminal_unsent_custody(cfg, st, preimage, report, c)
@@ -2790,9 +2926,12 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
                                 'require-held'], capture_output=True, text=True)
     if admission.returncode:
         refuse('ADMISSION')
-    # Every report-bound document needs fresh strict-empty proof. Only the
-    # preserved older exact pin without a target keeps its original contract.
-    if c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
+    # Pre-insert incidents retain strict-empty proof. The one post-insertion
+    # guard refusal instead preserves the exact populated draft, never clears it.
+    if c.get('postinsert_guard'):
+        if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+            refuse('TAB_EVIDENCE')
+    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
         refuse('TAB_EVIDENCE')
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
@@ -2841,6 +2980,10 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     attribution and fresh same-document strict-empty proof. It appends only
     STARTED/APPLIED and a terminal proof, never clears retry_blocked or cleans up.
     Only a DIFFERENT job can benefit from its verified terminal admission case.
+    The separately pinned post-insertion composer-refusal incident additionally
+    binds historical source/attempt evidence and exact populated-draft custody.
+    Its original typed=true/sent=UNKNOWN/retry_blocked fields are preserved;
+    generic possibly-sent jobs, retries and draft edits remain forbidden.
     """
     incidents = {
         'glp270-20260924d-taxonomy-all-expiring-rows':
@@ -2874,7 +3017,7 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         facts = json.loads((BUSINESS / report_path).read_bytes()) if report is not None else {}
         terminal_requested = any(r.get('job') == job and r.get('disposition') == 'terminal_unsent_preinsert'
                                  for r in facts.get('jobs', []))
-        if job == TERMINAL_UNSENT_PR52['job'] or job in TERMINAL_UNSENT_CURRENT or terminal_requested:
+        if job in (TERMINAL_UNSENT_PR52['job'], TERMINAL_GUARD_REFUSED['job']) or job in TERMINAL_UNSENT_CURRENT or terminal_requested:
             return _reconcile_terminal_unsent(cfg, st, path, preimage, report_path,
                                               apply, authorize_preimage, selected_account)
         if authorize_preimage is not None:

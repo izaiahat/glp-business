@@ -384,6 +384,141 @@ class BindingTests(unittest.TestCase):
         relay.job_write(name, st)
         return st
 
+    def test_postinsert_guard_terminal_preserves_unknown_and_draft(self):
+        """Exact custody branch, never an error-string or empty-page waiver."""
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        job = relay.CONSUMED_CANARY['job']; tab = 'held-draft'; origin = 12345.0
+        d = relay.job_dir(job); (d / 'drive-input').mkdir()
+        (d / 'PROMPT.md').write_bytes(b'fixture'); (d / 'drive-input/PROMPT.md').write_bytes(b'folded')
+        (d / 'old-first.json').write_bytes(b'first-backup'); (d / 'old-second.json').write_bytes(b'second-backup')
+        held = {'job':job, 'account':'account-a', 'job_class':'review', 'status':'failed',
+            'reason':'RETAINED_RESUME_UNCERTAIN', 'typed':True, 'sent':'UNKNOWN', 'retry_blocked':True,
+            'error':{'tab':tab}, 'resume_error':{'error':'retained_send_guard_failed', 'guard':'composer',
+                'typed':True, 'sent':'UNKNOWN', 'tab':tab},
+            **{k:'fixture-'+k for k in relay.PROVENANCE_FIELDS}}
+        held['input_sha256'] = sha(json.dumps([('PROMPT.md',sha(b'fixture'))],separators=(',',':')).encode())
+        message = relay._failed_generation_identity(held).encode(); (d/'MESSAGE.md').write_bytes(message)
+        manifest = {k:held[k] for k in (*relay.PROVENANCE_FIELDS,'job','job_class')}
+        manifest.update(attach=[],drive_attach=[]); (d/'MANIFEST.json').write_text(json.dumps(manifest))
+        relay.job_write(job,held); original=(d/'JOB.json').read_bytes()
+        for event in ('submitted','retained_resume','canary_forward_recovery'):
+            relay.ledger_append(self.cfg,{'job':job,'account':'account-a','event':event})
+        ledger=relay.ledger_path(self.cfg); lb=ledger.read_bytes()
+        proof=self.root/'proof.txt'; proof.write_bytes(b'historical reviewed source and execution fixture')
+        c={'job':job,'held':sha(original),'message':sha(message),
+            'manifest':sha((d/'MANIFEST.json').read_bytes()),'drive_prompt':sha(b'folded'),
+            'ledger_lines':tuple(map(sha,lb.splitlines())), 'tab':tab,'time_origin':origin,
+            'postinsert_guard':True,'draft_sha256':sha(b'unchanged nonmatching draft'),
+            'backups':{'old-first.json':sha(b'first-backup'),'old-second.json':sha(b'second-backup')},
+            'proof_files':{'proof.txt':sha(proof.read_bytes())}}
+        report='facts.json'; rp=self.root/report
+        facts={'job':job,'disposition':'terminal_unsent_postinsert_guard','job_sha256':c['held'],
+            'typed':True,'sent':'UNKNOWN','submission_bound':False,'draft_sha256':c['draft_sha256'],
+            'ledger_preimage_sha256':sha(lb),'ledger_preimage_bytes':len(lb)}
+        rp.write_text(json.dumps({'jobs':[facts]}))
+        def call(*args):
+            with mock.patch.object(sys,'argv',['relay','reconcile-unsent-model','--job',job,'--report',report,*args]), redirect_stdout(io.StringIO()):
+                return relay.main()
+        with mock.patch.object(relay,'TERMINAL_GUARD_REFUSED',c,create=True), \
+             mock.patch.object(relay,'_retained_draft_witness',return_value=True,create=True) as witness, \
+             mock.patch.object(relay,'_legacy_live_jobs',return_value=set()), \
+             mock.patch.object(relay.subprocess,'run',return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay,'bu',side_effect=AssertionError('NO OTHER BROWSER')), \
+             mock.patch.object(relay,'cleanup_tabs',side_effect=AssertionError('NO CLEANUP')):
+            self.assertEqual(call(),0)
+            self.assertEqual((d/'JOB.json').read_bytes(),original); self.assertEqual(ledger.read_bytes(),lb)
+            witness.return_value=False
+            with self.assertRaises(SystemExit):call()
+            witness.return_value=True
+            proof.write_bytes(b'drift')
+            with self.assertRaises(SystemExit):call()
+            proof.write_bytes(b'historical reviewed source and execution fixture')
+            # Refuse every independent custody mutation before any terminal write.
+            changes = [(d/'PROMPT.md',b'packet drift'),(d/'old-first.json',b'backup drift'),
+                       (rp,b'{"jobs":[]}'),(ledger,lb+b'not-json\n'),
+                       (ledger,lb+json.dumps({'job':job,'event':'submission_bound'}).encode()+b'\n'),
+                       (d/'JOB.json',json.dumps({**held,'resume_error':{'error':'timeout'}}).encode()),
+                       (d/'JOB.json',json.dumps({**held,'sent':True}).encode())]
+            for path, changed in changes:
+                with self.subTest(custody=path.name):
+                    old=path.read_bytes();path.write_bytes(changed)
+                    with self.assertRaises(SystemExit):call()
+                    self.assertFalse((d/('JOB.pre-terminal-unsent-'+c['held']+'.json')).exists())
+                    path.write_bytes(old)
+            with self.assertRaises(SystemExit):call('--apply','--authorize-preimage','0'*64)
+            self.assertEqual(call('--apply','--authorize-preimage',c['held']),0)
+            terminal=relay.job_state(job)
+            self.assertEqual({k:v for k,v in terminal.items() if k!='terminal_unsent'},held)
+            self.assertTrue(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(relay.active_registry(),[])
+            self.assertIn(tab,relay.protected_tabs({'job':'different','account':'account-a'}))
+            with self.assertRaisesRegex(SystemExit,'REFUSED_DUPLICATE'):relay.cmd_submit(self.args(job))
+            with self.assertRaises(SystemExit):call('--apply','--authorize-preimage',c['held'])
+            applied=ledger.read_bytes();ledger.write_bytes(b'\n'.join(applied.splitlines()[:-1])+b'\n')
+            self.assertFalse(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(len(relay.active_registry()),1)
+            ledger.write_bytes(applied);relay.job_write(job,{**terminal,'sent':False})
+            self.assertFalse(relay._verified_terminal_unsent({**terminal,'sent':False}))
+
+    def test_populated_witness_actual_emitted_fail_closed(self):
+        """Execute emitted witness Python; browser payloads are inert boundary fixtures."""
+        import copy
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        logical = 'x' * 13323; digest = sha(logical.encode()); scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s: scripts.append(s) or {}):
+            self.assertFalse(relay._retained_draft_witness('held',12345.0,digest))
+        generated=scripts[0][len(relay.BU_PRELUDE):]
+        compile(generated,'<actual-passive-witness>','exec')
+        base={'url':HOME,'origin':12345.0,'logical':logical,'html':'unchanged','innerText':logical,
+              'users':0,'assistants':0}
+        state={'ready_state':'complete','composer_present':True,**{k:False for k in
+               ('logged_out','stop','drive_reconnect','rate_limited','security_interstitial','human_challenge','thinking_failed')}}
+        cases={'positive':None,'origin':('origin',0),'url':('url',WANT),'rich':('logical',None),
+               'same_length_change':('logical','y'*13323),'users':('users',1),'assistants':('assistants',1)}
+        cases.update({key:(key,True) for key in state if key not in ('ready_state','composer_present')})
+        cases.update({'not_ready':('ready_state','loading'),'no_composer':('composer_present',False),
+                      'torn':None,'inventory_drift':None,'missing_target':None})
+        for name,change in cases.items():
+            with self.subTest(case=name):
+                a=copy.deepcopy(base);s=copy.deepcopy(state);calls=[]
+                if change:
+                    target=s if change[0] in s else a;target[change[0]]=change[1]
+                def tabs():
+                    calls.append('tabs')
+                    return [{'targetId':'other' if name=='missing_target' else 'held'}]+(
+                        [{'targetId':'new'}] if name=='inventory_drift' and calls.count('tabs')>1 else [])
+                observations=iter([a,{**a,'html':'changed'} if name=='torn' else copy.deepcopy(a)])
+                def bound(tab,url,expr):
+                    self.assertEqual((tab,url),('held',HOME))
+                    self.assertIn(relay.COMPOSER_TEXT_JS,expr)
+                    return next(observations)
+                env={'json':json,'list_tabs':tabs,'_select':lambda t:calls.append('select'),
+                     '_bound_js':bound,'_state':lambda probe:s,
+                     '_binding_error':lambda reason:(_ for _ in ()).throw(RuntimeError(reason))}
+                if name=='missing_target':
+                    with self.assertRaisesRegex(RuntimeError,'retained_target_missing'):exec(generated,env)
+                else:
+                    with redirect_stdout(io.StringIO()) as output:exec(generated,env)
+                    self.assertEqual(json.loads(output.getvalue().split('RELAY_JSON:')[1]),{'valid':name=='positive'})
+                self.assertTrue(all(x in ('tabs','select') for x in calls))
+
+    def test_nested_custody_targets_protected_without_admission_waiver(self):
+        """A failed proof may not make any custody-attributed draft selectable."""
+        held = self.job('held', url=None, tab=None, status='failed',
+            typed=True, sent='UNKNOWN', retry_blocked=True,
+            error={'tab': 'initial-held'}, resume_error={'tab': 'resume-held'},
+            terminal_unsent={'retained_tab': 'unverified-proof-held'})
+        current = self.job('current', url=WANT, tab='current-tab')
+        self.assertEqual(set(relay.protected_tabs(current)),
+            {'initial-held', 'resume-held', 'unverified-proof-held'})
+        self.assertIn('held', [r['job'] for r in relay.active_registry()])
+        for tab in relay.protected_tabs(current):
+            with self.subTest(tab=tab), self.assertRaisesRegex(SystemExit, 'TAB_COLLISION'):
+                relay.require_binding(current, {'tab': tab, 'state': {'conversation_url_now': WANT}})
+        self.assertEqual(relay.job_state('held'), held)
+        with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+            relay.cmd_submit(self.args('fresh'))
+
     def test_drive_folder_timeout_registered_cli_one_shot(self):
         """Actual submit CLI timeout-after-create, then same-reservation recovery CLI."""
         import hashlib
@@ -527,6 +662,21 @@ class BindingTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 call('--authorize-preimage', sha(held))
             self.assertEqual(len(self.browser.sent), 1)
+
+    def test_cleanup_retains_nested_attempt_and_history_targets(self):
+        targets = {'resume-only', 'attempt-only', 'history-only'}
+        for tab in targets:
+            self.browser.pages[tab] = {'url': HOME, 'composer': 'retained draft', 'text': '',
+                                       'messages': False, 'stop': False}
+        self.job('held', url=None, tab=None, status='failed', typed=True,
+            sent='UNKNOWN', retry_blocked=True, resume_error={'tab': 'resume-only'},
+            resume_attempt={'retained_tab': 'attempt-only'},
+            resume_history=[{'retained_tab': 'history-only'}])
+        self.assertEqual(relay.cleanup_tabs(), 1)  # unrelated fixture sibling only
+        self.assertEqual(set(self.browser.pages), targets)
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_cleanup_reclaims_terminal_chat_tabs_but_preserves_generating_binding(self):
         self.browser.pages['active'] = {"url": WANT, "text": "", "composer": "", "messages": True, "stop": True}
