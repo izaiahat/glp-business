@@ -3,6 +3,7 @@
 Updates are operator-authorized planning inputs, never publication authority.
 Unknown keyword gaps remain null. Only exact Cogny readback publishes a pointer.
 """
+import datetime as dt
 import hashlib
 import json
 import os
@@ -39,7 +40,10 @@ def build_updates(topics, modules, bindings, *, source_observations):
     gap=modules['modules']['keyword_gap']
     extension=gap.get('output',{}).get('ws_s_extension',{})
     gaps=extension.get('new_observations') if gap['status']=='PASS_ANALYSIS_ONLY' else None
+    captured=dt.datetime.now(dt.timezone.utc)
     return {'schema':'glp-weekly-strategy-updates-v1','week_start':topics['week_start'],
+        'generated_at_utc':captured.isoformat(),
+        'expires_at_utc':(captured+dt.timedelta(days=8)).isoformat(),
         'topic_priorities':rows,'page2_targets':rows,'refresh_list':list(refresh.values()),
         'keyword_gaps':gaps,'keyword_gap_status':gap['status'],
         'keyword_gap_required_artifact':gap.get('required_artifact'),

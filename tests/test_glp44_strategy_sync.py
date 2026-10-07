@@ -19,6 +19,10 @@ def test_strategy_updates_group_existing_pages_not_duplicate_articles():
     assert doc['refresh_list'][0]['action']=='refresh_existing_page'
     assert doc['keyword_gaps'] is None and doc['keyword_gap_status']=='UNKNOWN_INPUT'
     assert doc['publication_authorized'] is False
+    import datetime as dt
+    captured=dt.datetime.fromisoformat(doc['generated_at_utc'])
+    expiry=dt.datetime.fromisoformat(doc['expires_at_utc'])
+    assert expiry-captured==dt.timedelta(days=8)
     assert doc['own_site_analytics_gates_content'] is False
     assert all(t['evidence_class']=='LOW_VOLUME_CONTEXT' for t in doc['page2_targets'])
 

@@ -694,14 +694,14 @@
         "scripts/glp_weekly_strategy_report.py"
       ],
       "kind": "script",
-      "sha256": "489fef77d72a5bee47fdd0d5c7417ed77d4500513fb19aa0d9f619137d89e499"
+      "sha256": "59d20dea64c4bf2578d695755c7becabfc23f0794e4e04fc9063a7070d3b5dbe"
     },
     "tests/test_glp44_strategy_sync.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "3f988d19604162b5191bc19d76cd8ae96cc87feb03e2fcd5e949ecd3aa26d27b"
+      "sha256": "922bb0476e3c534670d072c257ad480e91494ba9c34d5ef337ae1f9db9d46b4c"
     },
     "ops/glp/weekly_strategy_inputs.py": {
       "callers": [
