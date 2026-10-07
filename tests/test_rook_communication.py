@@ -1234,7 +1234,7 @@ class TestFinchCommunication:
                     mentions = payload['allowed_mentions']
                     assert mentions['parse'] == [] and mentions['replied_user'] is False
                     assert set(mentions) <= {'parse', 'replied_user', 'users'}
-                    assert mentions.get('users', []) in ([], ['1486880423568211968'])
+                    assert mentions.get('users', []) in ([], [m.BOT], [m.ROOK_BOT], [m.BOT, m.ROOK_BOT])
                     assert payload['flags'] == 4
                     outer.posts.append((channel, payload, file))
                     if outer.fault == 'timeout': raise TimeoutError('synthetic ambiguity')
@@ -1670,27 +1670,29 @@ class TestFinchCommunication:
         assert 'error' in self.call('reply_to_finch_request', {**self.args(), 'text': 'changed'})[1]
 
     @pytest.mark.parametrize('file', [False, True], ids=['text', 'multipart'])
-    def test_reply_only_allows_explicit_kael_mentions(self, file):
-        unwanted = '<@999> <@!998> <@392067741500309517> <@1554962007059472445> <@&1486880423568211968> @everyone @here'
-        cases = [
-            ('<@1486880423568211968> answer ' + unwanted, ['1486880423568211968']),
-            ('<@!1486880423568211968> answer ' + unwanted, ['1486880423568211968']),
-            ('Kael 1486880423568211968 answer', []),
-            ('answer ' + unwanted, []),
-        ]
-        for index, (text, users) in enumerate(cases):
-            identity = str(301 + index)
-            self.ready(identity)
-            status, result = self.call('reply_to_finch_request', {**self.args(identity, file=file), 'text': text})
-            assert status == 200 and not result['result']['isError'], result
-            channel, payload, uploaded = self.posts[-1]
-            assert channel == '901'
-            assert payload['content'] == text + '\n-# finch.reply · discord-' + identity
-            assert payload['allowed_mentions'] == {'parse': [], 'replied_user': False,
-                                                   **({'users': users} if users else {})}
-            assert payload['flags'] == 4  # SUPPRESS_EMBEDS, not SUPPRESS_NOTIFICATIONS.
-            assert uploaded == (self.raw if file else None)
-        assert len(self.posts) == len(cases)
+    @pytest.mark.parametrize('text,users', [
+        ('<@1554962007059472445> answer', ['1554962007059472445']),
+        ('<@1486880423568211968> answer', ['1486880423568211968']),
+        ('<@!1554962007059472445> <@!1486880423568211968> answer',
+         ['1486880423568211968', '1554962007059472445']),
+        ('Kael 1486880423568211968 and Rook 1554962007059472445 answer', []),
+        ('<@999> <@!998> <@392067741500309517> <@&1486880423568211968> '
+         '<@&1554962007059472445> @everyone @here answer', []),
+    ], ids=['rook-only', 'kael-only', 'both', 'neither', 'unrelated'])
+    def test_reply_only_allows_literal_fixed_recipient_mentions(self, file, text, users):
+        self.ready()
+        arguments = {**self.args(file=file), 'text': text}
+        status, result = self.call('reply_to_finch_request', arguments)
+        assert status == 200 and not result['result']['isError'], result
+        channel, payload, uploaded = self.posts[-1]
+        assert channel == '901'
+        assert payload['content'] == text + '\n-# finch.reply · discord-301'
+        assert payload['allowed_mentions'] == {'parse': [], 'replied_user': False,
+                                               **({'users': users} if users else {})}
+        assert payload['flags'] == 4  # SUPPRESS_EMBEDS, not SUPPRESS_NOTIFICATIONS.
+        assert uploaded == (self.raw if file else None)
+        assert self.call('reply_to_finch_request', arguments)[1] == result
+        assert len(self.posts) == 1
 
     def test_text_only_exact_origin_and_attachment_absence(self):
         self.ready(channel='902')

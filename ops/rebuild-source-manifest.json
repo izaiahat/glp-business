@@ -2185,7 +2185,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "05f8bd0ff6ca2d96898b899654553402c3a3f629a5ab30b890b926e404ba71bc"
+      "sha256": "b3c99fff316e9a2bcfe0fdbc5304d8ba7592a04150cd6c56d91d13b6debe32b8"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3369,7 +3369,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "77d6514042457bd543bce6d6ddeabba9100a916096204870077ab271c9e42295"
+      "sha256": "321cc01c5b8db70d781312a3803c98e19474fcb5fc6f96d8058a2ee99952a5e2"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -5094,7 +5094,7 @@
       "callers": [
         "manual:source-only exact-head Finch PR review"
       ],
-      "sha256": "3d9f814a6825329f49a9b556240cecd31ac638aa7b4f2408ae3263847cbb2c6d"
+      "sha256": "dd6042db96e2e9107adadc6565861461a069448adacb1680f310607f3f0bf048"
     },
     "ops/rook-mcp/finch_adapter_launch.py": {
       "kind": "script",
@@ -5158,7 +5158,7 @@
       "callers": [
         "manual:parent-approved receiving acceptance sequence; commands not executed by source task"
       ],
-      "sha256": "bc51e33ced967332293ddfba438c380d68b2cc8e25c6897923415ca9eea128e1"
+      "sha256": "810362c327ad30527861a7fb03b161027ec4fbf8551d001d4390b7e768141adf"
     },
     "ops/hermes-cron-scripts/pro_route_dispatch.py": {
       "callers": [],
