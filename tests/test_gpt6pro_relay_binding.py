@@ -155,7 +155,7 @@ class FakeCDP:
             const model={innerText:p.model||'6 Pro'};
             const trigger={innerText:p.model||'6 Pro',getClientRects:()=>[1],parentElement:null,
               getAttribute:k=>({'data-selected-reasoning-effort':p.selected_effort||'medium',
-                'data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'}[k]||null)};
+                'aria-expanded':'false','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'}[k]||null)};
             const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
               body:{innerText:p.challenge?'Checking your browser':'ChatGPT'},
               querySelector:s=>s.includes('prompt-textarea')?editor:
@@ -163,6 +163,9 @@ class FakeCDP:
               querySelectorAll:s=>s==='button'?[model]:s==='button[aria-label="Select ChatGPT model"]'?[trigger]:[],};
             const performance={timeOrigin:p.origin||12345.5};
             const getComputedStyle=()=>({display:'block',visibility:'visible'});
+            ''' + MODEL_OWNER_FIXTURE + '''
+            attachModelOwner(trigger,{slug:p.model&&p.model!=='6 Pro'?'other':'gpt-6-pro',
+                thinkingEffort:p.selected_effort==='maximum'?null:'standard'});
             const result=''' + expression + ''';
             console.log(JSON.stringify({result,clicks}));'''
         run = REAL_SUBPROCESS_RUN(['node', '-e', source, json.dumps(page)],
@@ -2380,7 +2383,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
             and n.func.id == '_bound_js' and len(n.args) > 2
             and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
-        self.assertEqual(len(expressions), 16)  # Includes commit, close and per-insertion metadata guards.
+        self.assertEqual(len(expressions), 15)  # Parent readback follows close, never the open preview.
         evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
         node = r'''const expressions=JSON.parse(process.argv[1]);
             // Compile every actual generated constant after the nested Python parse.
@@ -2400,7 +2403,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         observed = json.loads(result.stdout)
-        self.assertEqual(observed['count'], 16)
+        self.assertEqual(observed['count'], 15)
         self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
             'assistants': 0, 'empty': True, 'challenge': False,
             'interstitial': False, 'login': False, 'rate': False,
@@ -3567,6 +3570,20 @@ with r.account_lock():
                 proc.communicate()
 
 
+# Fixture owner contract; never invoked as application code. The actual captured
+# callbacks are exercised below; the data/React tree and sinks remain synthetic.
+MODEL_OWNER_FIXTURE = r'''
+function attachModelOwner(trigger,selectedModel){
+    function ownerType(e){const {selectedModel:eq,onModelChange:eF,onThinkingEffortChange:eH}=e;
+        return {onCommitPower:null,onOpenChange:null,surface:'CHATGPT_MODEL_PICKER_SURFACE_COMPOSER'};}
+    const props={selectedModel,onModelChange:()=>{},models:{},modelLimits:{},
+        xHighExperimentResetContextKey:null,isLoading:false,isError:false,disabled:false};
+    trigger.__reactFiber$fixture={type:ownerType,memoizedProps:props,return:null};
+    return props;
+}
+'''
+
+
 class NativeComposerTests(unittest.TestCase):
     def test_committed_maximum_selection_native(self):
         """Run actual generated model branch/JS; preview and model-text cannot commit."""
@@ -3577,6 +3594,16 @@ class NativeComposerTests(unittest.TestCase):
         with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
             relay.send_message('fixture')
         generated = scripts[0]
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture', retained_tab='offline', time_origin=12345.5)
+        retained = next(n.value for n in ast.walk(ast.parse(scripts[1]))
+                        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                        and n.value.startswith('(()=>{const retainedOrigin='))
+        fresh_click = next(n.value for n in ast.walk(ast.parse(generated))
+                           if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                           and 'function committed6ProMaximum' in n.value
+                           and 'b.click();return true;' in n.value
+                           and 'const b=document.querySelector' in n.value)
         marker = '# All paths must commit' if '# All paths must commit' in generated else '# On a fresh chat'
         branch = compile(generated[generated.index(marker):generated.index('# Settle:')], '<actual-model-selection>', 'exec')
         tree = ast.parse(generated)
@@ -3605,29 +3632,100 @@ catch(e){process.stdout.write(JSON.stringify({error:e.message})+'\n');}}
                     result = json.loads(proc.stdout.readline())
                     self.assertNotIn('error', result)
                     return result.get('value')
-                for commits, model_text in [(False, None), (False, '6 Pro'), (True, None)]:
-                    with self.subTest(commits=commits, model_text=model_text):
-                        native('document.body.innerHTML='+json.dumps(html)+';window.mouse=0;document.querySelector("button").onclick=function(){this.setAttribute("aria-expanded",String(this.getAttribute("aria-expanded")!=="true"));};true')
+                # Byte-exact callback slices from source70 in the bounded upstream
+                # capture 24cd58d14748ee1a62621b61841bba739a8e0260bb980368a8db46cf5fa96182.
+                # React/imported helpers, parent sinks and rerenders are fixtures.
+                # The later read-only schema capture observed own-data
+                # {slug:'gpt-6-pro', thinkingEffort:null}, not maximum/medium effort.
+                pipeline = r'''
+window.mouse=0;window.sends=0;window.getters=0;window.events=[];
+const trigger=document.querySelector('button');
+let eq={slug:'gpt-5-6-thinking',thinkingEffort:'standard'},ti=null,tl=eq;
+const props=attachModelOwner(trigger,eq), owner=trigger.__reactFiber$fixture;
+const eD={},eV=false,e4=undefined,eH=undefined,eX=true,tM=false,tQ=true,ta='simple';
+const q={i:()=>undefined},s=()=>((a,b)=>JSON.stringify(a)===JSON.stringify(b));
+const tH=[{modelSlug:'gpt-5-6-thinking',thinkingEffort:'standard'},{modelSlug:'gpt-6-pro',thinkingEffort:null}],tR=undefined;
+const to=f=>{ti=typeof f==='function'?f(ti):f;},e3=()=>{},e2=()=>events.push('telemetry');
+const eF=m=>{events.push('parent');if(accepts){eq=m;props.selectedModel=m;}};
+const ty={current:null},tr=()=>{},te=()=>{},_={a:{prefetch(){}}};
+const tI=v=>{trigger.setAttribute('aria-expanded',String(v));events.push(v?'open':'closed');};
+const tY=function(e,t){let n=void 0===t?"model":t;to(t=>({model:e,base:eq,intent:"thinking-effort"!==n||e.slug!==eq.slug||(e.versionId??(0,q.i)(eD,e.slug))!==(eq.versionId??(0,q.i)(eD,eq.slug))||null!=t&&s()(t.base,eq)&&"thinking-effort"!==t.intent?"model":"thinking-effort"}))};
+const tJ=function(e){let t=tH[e.powerSettingIndex];if(null!=t)return{slug:t.modelSlug,thinkingEffort:t.thinkingEffort,versionId:tR?.slugs.includes(t.modelSlug)?tR.id:(0,q.i)(eD,t.modelSlug)}};
+const select=e=>{let t=tH[e.powerSettingIndex];null!=t&&t.modelSlug!==tl.slug&&e3(t.modelSlug);let n=tJ(e);null!=n&&tY(n,"thinking-effort")};
+const commit=(e,t)=>{let n=tH[e.powerSettingIndex],a=tH[t.powerSettingIndex];n?.thinkingEffort!=null&&a?.thinkingEffort!=null&&n.thinkingEffort!==a.thinkingEffort&&e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_THINKING_EFFORT_SELECTED")};
+const close=function(e){null!=ty.current&&(window.clearTimeout(ty.current),ty.current=null),e?(to(null),eV&&null==e4&&(0,b.c)(eQ,tU),_.a.prefetch(),eX||tM||(e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_SURFACE_OPENED"),!eV&&tQ&&"simple"===ta&&e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_THINKING_EFFORT_DROPDOWN_CLICKED"))):(s()(tl,eq)||(ti?.intent==="thinking-effort"&&null!=eH?eH(tl.thinkingEffort):eF(tl)),to(null),ty.current=window.setTimeout(()=>{ty.current=null,tr("simple"),te("")},350)),tI(e)};
+function render(){tl=(null!=ti&&(s()(ti.base,eq)||eV&&s()((0,ei.b)(eD,ti.base,e4),eq))?ti.model:null)??eq;}
+window.selectMaximum=()=>{select({powerSettingIndex:1});render();commit({powerSettingIndex:1},{powerSettingIndex:0});render();events.push('selected');};
+trigger.onclick=()=>{close(trigger.getAttribute('aria-expanded')!=='true');render();};
+window.props=props;window.owner=owner;
+'''
+                for case in ['accept', 'reject', 'duplicate_trigger', 'duplicate_owner', 'getter', 'document_drift']:
+                    with self.subTest(case=case):
+                        native('document.body.innerHTML='+json.dumps(html)+';'+MODEL_OWNER_FIXTURE+
+                               '(()=>{const accepts='+json.dumps(case != 'reject')+';'+pipeline+'})();true')
+                        if case == 'duplicate_trigger':
+                            native('document.body.append(document.querySelector("button").cloneNode(true));true')
+                        if case == 'duplicate_owner':
+                            native('owner.return={type:owner.type,memoizedProps:props,return:null};true')
+                        if case == 'getter':
+                            native('Object.defineProperty(props,"selectedModel",{get(){getters++;return null;},set(){}});true')
                         def mouse(method, **kwargs):
-                            native('window.mouse++;'+ ('document.querySelector("button").setAttribute("data-selected-reasoning-effort","maximum");' if commits and kwargs['type']=='mouseReleased' else '')+'true')
+                            self.assertEqual(method, 'Input.dispatchMouseEvent', 'no insertion in model admission')
+                            native('window.mouse++;'+('selectMaximum();' if kwargs['type']=='mouseReleased' else '')+'true')
                         def refuse(reason, **kwargs): raise RuntimeError(reason)
-                        env = {'st': {'model': model_text}, 'RETAINED': False, 'tab': {'targetId':'offline'},
+                        def bound(tab, url, expr):
+                            if case == 'document_drift' and native('window.mouse'):
+                                raise RuntimeError('retained_document_changed')
+                            return native(expr)
+                        env = {'st': {'model': '6 Pro'}, 'RETAINED': False, 'tab': {'targetId':'offline'},
                                'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda n: None),
-                               '_bound_js': lambda tab, url, expr: native(expr), '_fresh': lambda: None,
+                               '_bound_js': bound, '_fresh': lambda: None,
                                'cdp': mouse, '_sessions': {'offline':'offline'}, '_binding_error': refuse,
                                '__import__': __import__}
-                        if not commits:
-                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL'): exec(branch, env)
-                            self.assertEqual(native('document.querySelector("button").getAttribute("data-selected-reasoning-effort")'), 'medium')
+                        if case != 'accept':
+                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL|retained_document_changed'): exec(branch, env)
                         else:
                             exec(branch, env)
                             self.assertEqual(env['st']['model'], '6 Pro')
+                            self.assertEqual(native('window.events'), ['selected', 'parent', 'closed'])
                             self.assertEqual(native('window.mouse'), 2)
                             self.assertEqual(native('document.querySelector("button").getAttribute("aria-expanded")'), 'false')
-                            # Real per-chunk pre-insertion caller must reject committed drift.
-                            native('document.querySelector("button").setAttribute("data-selected-reasoning-effort","medium");true')
+                            # Every real emitted consumer sees the same authoritative gate.
+                            probes = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                                      and isinstance(n.value, str) and 'function committed6ProMaximum' in n.value]
+                            committed = next(x for x in probes if x.endswith('return committed6ProMaximum();})()'))
+                            self.assertTrue(native(committed))
+                            native('document.body.insertAdjacentHTML("beforeend",\'<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p>fixture</p></div><button data-testid="send-button">Send</button>\');document.querySelector("[data-testid=send-button]").onclick=()=>sends++;true')
+                            atomic = retained.replace('const retainedOrigin=12345.5;',
+                                                      'const retainedOrigin='+str(native('performance.timeOrigin'))+';')
+                            self.assertTrue(native(fresh_click))
+                            self.assertEqual(native(atomic), {'clicked': True})
+                            self.assertEqual(native('window.sends'), 2)
+                            native('window.sends=0;true')
+                            # Negative Send cases use the actual emitted synchronous guards.
+                            for mutation, reason in [
+                                ('owner.return={type:owner.type,memoizedProps:props,return:null}', 'model'),
+                                ('props.isLoading=true', 'model'),
+                                ('props.selectedModel={slug:"gpt-5-6-thinking",thinkingEffort:"standard"}', 'model'),
+                                ('props.selectedModel={slug:"gpt-6-pro",thinkingEffort:"medium"}', 'model'),
+                                ('document.querySelector("#prompt-textarea p").textContent="changed"', 'composer'),
+                            ]:
+                                native(mutation+';true')
+                                self.assertEqual(native(atomic), {'clicked': False, 'reason': reason})
+                                if reason == 'model': self.assertFalse(native(fresh_click))
+                                native('owner.return=null;props.isLoading=false;props.selectedModel={slug:"gpt-6-pro",thinkingEffort:null};document.querySelector("#prompt-textarea p").textContent="fixture";true')
+                            self.assertEqual(native(retained), {'clicked': False, 'reason': 'document'})
+                            self.assertEqual(native('window.sends'), 0)
+                            # Both alternate directions refuse stale props rather than guessing current fiber.
+                            native('owner.alternate={type:owner.type,memoizedProps:{...props,selectedModel:{slug:"gpt-5-6-thinking",thinkingEffort:"standard"}}};true')
+                            self.assertFalse(native(committed))
+                            native('owner.alternate=null;props.selectedModel={slug:"gpt-6-pro",thinkingEffort:"medium"};true')
+                            self.assertFalse(native(committed), 'medium is not maximum')
                             exec(compile(ast.Module(body=[prepare], type_ignores=[]), '<actual-prepare>', 'exec'), env)
                             with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL'): env['_prepare']('')
+                        self.assertEqual(native('window.getters'), 0)
+                        self.assertEqual(native('window.sends'), 0)
+                        self.assertEqual(native('document.querySelector("button").getAttribute("data-selected-reasoning-effort")'), 'medium')
                 proc.stdin.write(json.dumps({'stop':True})+'\n'); proc.stdin.flush(); proc.stdin.close()
                 proc.wait(timeout=15)
                 self.assertEqual(proc.returncode, 0, proc.stderr.read())
@@ -3854,6 +3952,7 @@ sid=(await cdp('Target.attachToTarget',{targetId:target,flatten:true})).sessionI
 await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*']},sid);
 await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button aria-label="Select ChatGPT model" data-selected-reasoning-effort="maximum" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning">6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
 const output={};
+await js(__MODEL_OWNER_FIXTURE__);
 for(const expr of f.expressions)new Function('return ('+expr+')');
 if(f.picker){
 const i=f.picker;output.picker=[];
@@ -3872,7 +3971,11 @@ output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify
 const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
 process.stdout.write(JSON.stringify(output));
 }finally{await cdp('Browser.close').catch(()=>{});}})().catch(e=>{process.stderr.write(e.message);process.exitCode=1;}).finally(()=>{chrome.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));setTimeout(()=>{chrome.kill('SIGKILL');},2000).unref();});
-'''
+'''.replace('__MODEL_OWNER_FIXTURE__', json.dumps(MODEL_OWNER_FIXTURE + '''
+const trigger=document.querySelector('button[aria-label="Select ChatGPT model"]');
+trigger.setAttribute('aria-expanded','false');
+attachModelOwner(trigger,{slug:'gpt-6-pro',thinkingEffort:null});
+'''))
 
 
 if __name__ == "__main__":

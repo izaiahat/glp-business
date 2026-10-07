@@ -937,12 +937,52 @@ function pickerMenu(){
 }
 function committed6ProMaximum(){
     const trigger=pickerTrigger();
-    // Require explicit committed maximum metadata. Missing/unknown values
-    // never authorize insertion; a preview or successful close is not a commit.
-    return !!trigger&&trigger.getAttribute('data-selected-reasoning-effort')==='maximum'&&
-        trigger.getAttribute('data-codex-intelligence-trigger')==='true'&&
-        trigger.getAttribute('data-composer-navigation-target')==='reasoning'&&
-        ['Pro','Thinking effort','6 Pro'].includes(trigger.innerText.trim());
+    // The trigger's candidate effort also labels staged state. Only the closed
+    // selection owner's incoming selectedModel is a parent-acceptance witness.
+    // This follows the supported maximum action + full 6 Pro/maximum/4-of-4
+    // proof below; null is the observed Pro model effort, NOT medium => maximum.
+    if(!trigger||trigger.getAttribute('aria-expanded')!=='false'||
+       trigger.getAttribute('data-codex-intelligence-trigger')!=='true'||
+       trigger.getAttribute('data-composer-navigation-target')!=='reasoning'||
+       !['Pro','Thinking effort','6 Pro'].includes(trigger.innerText.trim()))return false;
+    const own=(o,k)=>{
+        if(!o||(typeof o!=='object'&&typeof o!=='function'))return undefined;
+        const d=Object.getOwnPropertyDescriptor(o,k);
+        if(d&&!('value'in d))throw new Error('accessor');
+        return d?.value;
+    };
+    const contract=['selectedModel','onModelChange','models','modelLimits',
+        'isLoading','isError','disabled','xHighExperimentResetContextKey'];
+    const sourceContract=['selectedModel:','onModelChange:','onThinkingEffortChange:',
+        'onCommitPower:','onOpenChange:','CHATGPT_MODEL_PICKER_SURFACE_COMPOSER'];
+    function selected(p){
+        const model=own(p,'selectedModel');
+        return own(p,'disabled')===false&&own(p,'isLoading')===false&&own(p,'isError')===false&&
+            typeof own(p,'onModelChange')==='function'&&
+            own(model,'slug')==='gpt-6-pro'&&own(model,'thinkingEffort')===null;
+    }
+    try{
+        const keys=Object.getOwnPropertyNames(trigger).filter(k=>k.startsWith('__reactFiber$'));
+        if(keys.length!==1)return false;
+        let f=own(trigger,keys[0]),owners=0,accepted=false;
+        const seen=new Set();
+        for(let depth=0;f&&depth<80;depth++,f=own(f,'return')){
+            if(seen.has(f))return false;seen.add(f);
+            const p=own(f,'memoizedProps'),type=own(f,'type');
+            if(!p||typeof type!=='function'||!contract.every(k=>{
+                const d=Object.getOwnPropertyDescriptor(p,k);return d&&'value'in d;
+            }))continue;
+            const source=Function.prototype.toString.call(type);
+            if(!sourceContract.every(s=>source.includes(s)))continue;
+            if(++owners!==1)return false;
+            // A DOM fiber can reference either React buffer. Never guess that
+            // stale Pro props are current: both buffers must agree if present.
+            const alternate=own(f,'alternate');
+            accepted=selected(p)&&(alternate==null||(own(alternate,'type')===type&&
+                selected(own(alternate,'memoizedProps'))));
+        }
+        return owners===1&&accepted;
+    }catch(_){return false;}
 }
 function full6ProMaximum(){
     const actionable=pickerActionable,menu=pickerMenu();
@@ -1132,11 +1172,10 @@ for typ in ('mousePressed','mouseReleased'):
 selected=False
 for _ in range(10):
     time.sleep(0.3)
-    # Some supported controls close the menu upon commit. Reopen for the full
-    # six/Pro/maximum/4-of-4 proof, while requiring committed metadata too.
+    # Some supported controls close on selection. Reopen only for the full
+    # 6 Pro/maximum/4-of-4 proof; staged selection is not parent acceptance.
     if not _bound_js(tab['targetId'], fresh, {open_picker!r}): break
-    selected=(_bound_js(tab['targetId'], fresh, {full_picker_probe!r}) and
-              _bound_js(tab['targetId'], fresh, {committed_probe!r}))
+    selected=_bound_js(tab['targetId'], fresh, {full_picker_probe!r})
     if selected: break
 if RETAINED: _fresh()
 closed=False
