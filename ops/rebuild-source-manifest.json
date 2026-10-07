@@ -203,7 +203,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "d7a65c5e0f834ec78a3535bc4cb37f0977bdf1c1e21d6335ee56f95db2eb8e74"
+      "sha256": "ccc7663e660c3ed6a94f5303286566ed85f7d090e0b51b2080540d91af5fdaa8"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -1354,7 +1354,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "fd9b39cbd67049a71ce86f1ac598a1d36027f8e71ab5f110d423486df33e473c"
+      "sha256": "a4701f1f1c875a5770e4c4b34309000d9dca937ecba9af89f678d846ed338e34"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -4824,14 +4824,14 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "af1e2f5a1635f80f63adf28fa85797b2d92114264e897f0f98fc4636c7b5e1e2"
+      "sha256": "df8d46dd186a3a8786793e3b8cff675967b5381d2900265b7bc867a15fb8c9bb"
     },
     "tests/test_glp268_reconciler_access.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "d298de4e9b6fc2ec09ff281a5fe5fad6df62198410056b47ac5ec84a6fa667b0"
+      "sha256": "8a1d0ac73930ef49326a32dc51acc1c14a0976b89de86a2e8160a700ba008fb2"
     },
     "tests/test_glp268_fresh_browser_callers.py": {
       "callers": [

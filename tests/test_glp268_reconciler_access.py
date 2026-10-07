@@ -105,3 +105,34 @@ def test_registered_access_entry_never_initializes_effectful_state(monkeypatch,c
     result=json.loads(capsys.readouterr().out)
     assert result['status']=='PASS' and result['provider_writes']==0 and result['external_send'] is False
 
+
+@pytest.mark.parametrize('handoff', [False, True])
+@pytest.mark.parametrize('network', ['maxbounty', 'healthtrader', 'katalys', None, 'unknown'])
+def test_normal_main_passes_owned_driver_to_selected_caller(monkeypatch, handoff, network):
+    import argparse, sys
+    driver = Driver()
+    event = {'event_id': 'fixture-only-event'}
+    state = SimpleNamespace(execute=lambda *a: SimpleNamespace(fetchone=lambda: None), close=lambda: None)
+    sheet = SimpleNamespace(spreadsheets=lambda: SimpleNamespace(values=lambda: SimpleNamespace(get=lambda **kw: object())))
+    selected_calls = []
+    async def consume(selected, svc, gmail, state, dry_run, cache, *rest):
+        selected_calls.append(selected)
+        if network in ('maxbounty', 'healthtrader', 'katalys'):
+            assert cache.get('fresh_' + network + '_driver') is driver
+            assert set(cache) == {'fresh_' + network + '_driver'}
+        else:
+            assert cache == {}
+        assert dry_run is True
+        return []
+    fn = load_function('main', argparse=argparse, HEADERS=['fixture-header'], SHEET_ID='fixture-sheet', TAB='fixture-tab', pad=lambda x:x,
+        configure_dry_run_output=lambda x: None, load_snapshot=lambda: {}, init_state=lambda: state,
+        google_service=lambda: sheet, gmail_service=lambda: object(), execute_google_request=lambda *a: {'values':[['fixture-header']]},
+        prepare_sheet_schema=lambda *a, **kw: (None, {}), pending_operator_handoffs=lambda: [],
+        load_operator_handoff=lambda x: {'affiliate_subset':['fixture-only-event']},
+        fetch_inbox_events=lambda *a, **kw: [event], process_selected_events=consume)
+    argv = ['registered-reconciler', '--dry-run', '--dry-run-output', 'fixture-only-output', '--event-id', 'fixture-only-event']
+    if handoff: argv += ['--operator-handoff', 'fixture-only-handoff']
+    monkeypatch.setattr(sys, 'argv', argv)
+    assert asyncio.run(fn(fresh_drivers={network: driver} if network is not None else None)) == 0
+    assert selected_calls == [[(event, None)]]
+
