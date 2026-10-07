@@ -247,3 +247,87 @@ def test_repaired_source_pin_closure_and_actual_guard(tmp_path, monkeypatch):
         with pytest.raises(ValueError, match='weekly_installed_source_drift:'):
             analysis.verify_pins()
         destination.write_bytes(original)
+
+
+def historical_stage_fixture(tmp_path, monkeypatch):
+    dependencies(monkeypatch)
+    common = load('stage_copy_policy', 'ops/glp/seo_quickwin_common.py')
+    monkeypatch.setitem(sys.modules, 'ops.glp.seo_quickwin_common', common)
+    emitter = load('stage_emitter', 'ops/glp/seo_nonarticle_emitter.py')
+    monkeypatch.setitem(sys.modules, 'ops.glp.seo_nonarticle_emitter', emitter)
+    module(monkeypatch, 'ops.glp.seo_weekly_modules', read_bound=lambda x: x, validate_snapshot=lambda *_: None)
+    stage = load('stage_custody', 'ops/glp/seo_nonarticle_stage.py')
+    release = tmp_path / 'release'
+    source = release / emitter.SOURCE
+    save(source, {'schema': 'clinic-scout-page-seo-v1', 'routes': {}})
+    pointer_path = tmp_path / 'pointer.json'
+    save(pointer_path, {})
+    generation = {'release_root': str(release), 'deployment_id': 'OFFLINE', 'pointer_sha256': sha(pointer_path)}
+    row = {'route': '/reviews/example/', 'state': 'STAGED_SOURCE_OWNER_REVIEW_REQUIRED',
+           'exact_new_copy': {'title': 'Example Review', 'h1': 'Example review', 'meta': 'Review documented pricing and evidence gaps.'},
+           'evidence_module': 'money_pages'}
+    bundle = emitter.emit_bundle({'rows': [row]}, source, week_start='2026-10-05', evidence_bindings={}, generation=generation)
+    current_overlay = emitter.apply_operations(source.read_bytes(), bundle)
+    monkeypatch.setattr(stage, 'validate', lambda b, p: (emitter.apply_operations(source.read_bytes(), b), pointer_path.read_bytes()))
+    # Historical producer accepted this promotional text; it is now forbidden.
+    old = json.loads(json.dumps(bundle))
+    old['week_start'] = '2026-09-28'
+    old['operations'][0]['value']['title'] = 'Example: #1 Best Provider'
+    op = old['operations'][0]
+    op['patch_id'] = emitter.digest({'week_start': old['week_start'], 'source_sha256': old['source']['sha256'],
+                                     'operation': {k: v for k, v in op.items() if k != 'patch_id'}})
+    old['intake_id'] = emitter.digest({k: v for k, v in old.items() if k != 'intake_id'})
+    root = tmp_path / 'admissions'
+    target = root / old['intake_id']
+    save(target / 'INTAKE.json', old)
+    save(target / 'source-overlay' / emitter.SOURCE, {'schema': 'clinic-scout-page-seo-v1', 'routes': {op['route']: op['value']}})
+    receipt = {'schema': 'glp-seo-nonarticle-admission-v1', 'status': 'ADMITTED_SOURCE_REVIEW_REQUIRED',
+               'intake_id': old['intake_id'], 'generation': generation, 'operation_count': 1,
+               'patch_ids': [op['patch_id']], 'publication_authorized': False,
+               'source_overlay_only': True, 'article_queue_writes': 0, 'current_source_writes': 0,
+               'files': [{'path': str(p), 'sha256': sha(p)} for p in sorted(target.rglob('*')) if p.is_file()]}
+    receipt_path = target / 'ADMISSION.json'
+    save(receipt_path, receipt)
+    intake = tmp_path / 'current-intake.json'
+    save(intake, bundle)
+    return stage, emitter, root, pointer_path, intake, receipt_path, old, current_overlay
+
+
+def test_disjoint_historical_copy_policy_does_not_block_fresh_admission(tmp_path, monkeypatch):
+    stage, emitter, root, pointer_path, intake, prior, old, expected = historical_stage_fixture(tmp_path, monkeypatch)
+    originals = {p: p.read_bytes() for p in prior.parent.rglob('*') if p.is_file()}
+    # Never re-admit or promote the unsupported historical operation.
+    with pytest.raises(ValueError, match='invalid_field_patch'):
+        emitter.apply_operations((tmp_path / 'release' / emitter.SOURCE).read_bytes(), old)
+    result = stage.admit(intake, root=root, pointer=pointer_path)
+    assert result['status'] == 'ADMITTED_SOURCE_REVIEW_REQUIRED'
+    assert result['publication_authorized'] is False
+    assert result['generation_reanchors'] == []
+    overlay = Path(result['receipt']).parent / 'source-overlay' / emitter.SOURCE
+    assert json.loads(overlay.read_text()) == expected
+    assert originals == {p: p.read_bytes() for p in prior.parent.rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('damage', ['intake', 'overlay', 'index', 'source'])
+def test_disjoint_custody_still_refuses_tamper(tmp_path, monkeypatch, damage):
+    stage, emitter, root, pointer_path, intake, prior, old, _ = historical_stage_fixture(tmp_path, monkeypatch)
+    target = prior.parent
+    if damage == 'index':
+        receipt = json.loads(prior.read_text())
+        receipt['patch_ids'] = []
+        prior.write_text(json.dumps(receipt))
+    else:
+        path = {'intake': target / 'INTAKE.json', 'overlay': target / 'source-overlay' / emitter.SOURCE,
+                'source': tmp_path / 'release' / emitter.SOURCE}[damage]
+        path.write_bytes(path.read_bytes() + b'\n')
+    with pytest.raises(ValueError):
+        stage.admit(intake, root=root, pointer=pointer_path)
+    assert len(list(root.glob('*/ADMISSION.json'))) == 1
+
+
+def test_overlapping_historical_unsupported_copy_remains_refused(tmp_path, monkeypatch):
+    stage, _, _, _, _, prior, old, _ = historical_stage_fixture(tmp_path, monkeypatch)
+    with pytest.raises(ValueError, match='invalid_field_patch'):
+        stage.read_admission(prior, current_patch_ids={old['operations'][0]['patch_id']})
+    with pytest.raises(ValueError, match='invalid_field_patch'):
+        stage.read_admission(prior)
