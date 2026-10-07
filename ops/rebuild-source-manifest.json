@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 774,
+  "tracked_count": 789,
   "files": {
     "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py": {
       "kind": "script",
@@ -1354,7 +1354,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "e0f72b9f02837d6de8a7a075fbff37c507c139e23f11cc7dfbe1f90bb454d087"
+      "sha256": "2885526123a041bbdf9af053a8cca7b297e35653ab2016b24f3b22518af356fa"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2304,7 +2304,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "fc33d2a5b2728e4088a0e796f2cbad3e357245de6dd2faa74d541e181134ab32"
+      "sha256": "b3c99fff316e9a2bcfe0fdbc5304d8ba7592a04150cd6c56d91d13b6debe32b8"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -2319,7 +2319,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d3b8b1c370d98a61d6a5dd8fb4cb1d432f4894ef283134ffa8de75da053c4513"
+      "sha256": "dd23deb4d1018315e23a6d339062a8ac174f37a92bae95062cd8053bb63eb9dd"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3488,7 +3488,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "a67fdec17b806c9607b9046d6a22fe9bda29cbded66c14dfb8e525b0f37179c7"
+      "sha256": "321cc01c5b8db70d781312a3803c98e19474fcb5fc6f96d8058a2ee99952a5e2"
     },
     "tests/test_rook_mcp_events.py": {
       "callers": [
@@ -5215,6 +5215,113 @@
       "callers": [],
       "kind": "test",
       "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
+    },
+    "tests/finch_png_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_rook_communication.py"
+      ],
+      "sha256": "43a55d276e14de6611c3a22c24c98c693e700046cffad23604d8b2589531eb94"
+    },
+    "tests/finch_cabx_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_rook_communication.py"
+      ],
+      "sha256": "21a8121316ec9ec09df43d03a4b61f90294130f0d35497c6e833684d22ef5456"
+    },
+    "tests/fixtures/finch_cabx_embedded_file.jumb": {
+      "kind": "retained_offline_fixture_not_runtime_authority",
+      "callers": [
+        "tests/finch_cabx_acceptance.py"
+      ],
+      "sha256": "9fdd17837a0aa7ba7ab60c974011a3cee9ecaae2a94d868504c184942204cd61"
+    },
+    "tests/fixtures/finch_cabx_embedded_file.LICENSE": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "tests/fixtures/finch_cabx_embedded_file.jumb"
+      ],
+      "sha256": "2c00691f56a8ca04c8716e4d1d054cf4e09500fadad16ae7281304e0c94e96e2"
+    },
+    "tests/test_finch_file_review.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "8a2ff0a9be9ee817aa03f9901909e6b991aa651454600282f5c2384367ab5f07"
+    },
+    ".github/workflows/finch-file-review.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "manual:source-only exact-head Finch PR review"
+      ],
+      "sha256": "dd6042db96e2e9107adadc6565861461a069448adacb1680f310607f3f0bf048"
+    },
+    "ops/rook-mcp/finch_adapter_launch.py": {
+      "kind": "script",
+      "callers": [
+        "manual:parent-approved receiving launcher; no auto-install"
+      ],
+      "sha256": "8745066d434da434a482e5439f3c4e1727776a56d19402de52d0e75894dd94bb"
+    },
+    "ops/rook-mcp/finch-mcp-receiving-v1.apparmor": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:independent receiving MAC acceptance; not loaded"
+      ],
+      "sha256": "9b288c197d51bb063c1ff8821adf0647821c4499dc13dc1d07a914f62106beb8"
+    },
+    "tests/test_finch_receiving_sandbox.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "5281360e4df1bed92d5008921be23d2b0bdffc10b166ff187e4993dd73305163"
+    },
+    "ops/rook-mcp/finch-mcp-adapter.system.service": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:parent-approved system-service migration; not installed"
+      ],
+      "sha256": "37fb96ae615a652778adc8e3b3e0c1c909a63ed2e2545762596e24cd6800d243"
+    },
+    "ops/rook-mcp/finch_network.py": {
+      "kind": "script",
+      "callers": [
+        "manual:approved scoped network installation; system-service readback admission"
+      ],
+      "sha256": "f006d767cb4bae30ad4fb919c4ac06104dc72fe2b61bfc894052b7f051669155"
+    },
+    "tests/test_finch_network.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "714919ccf926f8a8e64c045308e929bf16e4e4c3e5dcb06ffa9a5e3a63b13547"
+    },
+    "ops/rook-mcp/finch_kernel_harness.py": {
+      "kind": "script",
+      "callers": [
+        "manual:separately approved target-kernel fixtures only; never CI or runtime startup"
+      ],
+      "sha256": "e474d3c484a5428b5e88bed19c76ab86c3d42257137e8746e545fd7ee5c02497"
+    },
+    "tests/test_finch_kernel_harness.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/finch-file-review.yml"
+      ],
+      "sha256": "ec66f784e7a0e82e17de8ed754c5838be0e17c6ed8f604979d2a7e03cd73cd24"
+    },
+    "ops/rook-mcp/FINCH_RECEIVING_RUNBOOK.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:parent-approved receiving acceptance sequence; commands not executed by source task"
+      ],
+      "sha256": "810362c327ad30527861a7fb03b161027ec4fbf8551d001d4390b7e768141adf"
     }
   }
 }
