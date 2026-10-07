@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 753,
+  "tracked_count": 755,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -22,14 +22,14 @@
       "callers": [
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
-      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
+      "sha256": "81fd2d27edd17b8d42cedbf95f8028ba2953d5ff561da612b52e296d69049609"
     },
     "tests/test_native_reply_consumer.py": {
       "kind": "test",
       "callers": [
         "tests/test_receive_one_discord_message.py"
       ],
-      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
+      "sha256": "d873f3efe027fb966127f93ba9663741a7b0ee4cf739d79721e55989ce49bd4b"
     },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -5068,6 +5068,20 @@
       "callers": [],
       "kind": "test",
       "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
+    },
+    ".github/workflows/native-reply-consumer.yml": {
+      "kind": "source_control",
+      "callers": [
+        "github:pull_request"
+      ],
+      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
+    },
+    "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
+      "kind": "source_control",
+      "callers": [
+        "manual:authorized-orchestrator"
+      ],
+      "sha256": "85b51b928b5d3023e0d4507198158211aad0828af5fd6e3fbaf68e00caf0eae7"
     }
   }
 }
