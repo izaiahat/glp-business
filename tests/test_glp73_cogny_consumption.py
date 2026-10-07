@@ -15,7 +15,7 @@ class CognyInputs(unittest.TestCase):
         updates={'schema':'glp-weekly-strategy-updates-v1','week_start':'2026-10-05',
                  'publication_authorized':False,'strategy_input_write_authorized':True,'unknown_is_not_zero':True,
                  'topic_priorities':[{'query':'target query','route':'/guides/existing/','priority':1,'evidence_class':'MONTHLY_PROXY_AT_LEAST_100'}],
-                 'page2_targets':[], 'refresh_list':[{'route':'/guides/existing/','priority':1}],
+                 'page2_targets':[], 'refresh_list':[{'route':'/guides/existing/','priority':1,'queries':['target query']}],
                  'keyword_gaps':[{'keyword':'new query'}], 'evidence_bindings':{},'source_observations':{}}
         p=root/'updates.json';p.write_text(json.dumps(updates))
         readback=root/'readback.json';readback.write_text(json.dumps({'response':{'content':'# fixture\n'+p.read_text()}}))
@@ -66,7 +66,7 @@ class CognyInputs(unittest.TestCase):
             tree=ast.parse((scripts/'r2_update_carrier.py').read_text())
             node=next(n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='r2_candidates' for t in n.targets)
                       and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Name) and n.value.func.id=='sorted')
-            ns['r2_candidates']=[{**a,'priority':'P1'},{**b,'priority':'P1','target_query':'target query','route':'/guides/existing/'}]
+            ns['r2_candidates']=[{**a,'priority':'P1'}, {k:v for k,v in {**b,'priority':'P1','route':'/guides/existing/','gsc_queries':[{'query':'target query'}]}.items() if k != 'target_query'}]
             exec(compile(ast.Module(body=[node],type_ignores=[]),'r2_update_carrier.py','exec'),ns)
             self.assertEqual(ns['r2_candidates'][0]['topic_id'],'b')
 
