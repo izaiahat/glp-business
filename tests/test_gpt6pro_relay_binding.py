@@ -1764,7 +1764,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         """No replay: exact WRONG_MODEL/readiness pins, UNKNOWN stays held."""
         import copy
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
-        jobs = [('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
+        jobs = [('route-glp-80-0165c8c734145a8044438815', 'failed', 'TAB_CAP'),
+                ('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
                 ('pro-glp96-intake-design-closer-20261003', 'unsent_reconciled', 'SECURITY_INTERSTITIAL')]
         pins, originals = {}, {}
         report = 'reports/current-terminal-facts.json'
@@ -1789,6 +1790,8 @@ console.log(JSON.stringify(fixtures.map(f => {
                               'assistant_count': 0, 'last_len': 0}}}
             if tab:
                 original['error']['tab'] = tab
+            if reason == 'TAB_CAP':
+                original['error'] = {'error': reason, 'typed': False, 'sent': False, 'count': 5, 'cap': 5}
             old_bytes = json.dumps(original).encode()
             backup = sha(old_bytes) if tab else None
             held = dict(original)
@@ -1819,6 +1822,10 @@ console.log(JSON.stringify(fixtures.map(f => {
                  'backup': backup, 'tab': tab, 'time_origin': origin,
                  'status': status, 'reason': reason}
             pins[job] = c
+            if reason == 'TAB_CAP':
+                log = self.root / 'reports/tabcap-submit.log'
+                log.write_text('SEND_FAILED TAB_CAP ' + json.dumps(original['error']) + '\n')
+                c.update(pretarget=True, attempt_log=str(log.relative_to(self.root)), attempt_log_sha256=sha(log.read_bytes()))
             facts.append({'job': job, 'disposition': 'terminal_unsent_obsolete', 'reason': reason,
                 'typed': False, 'sent': False, 'submission_bound': False,
                 'job_sha256': c['held'], 'message_sha256': c['message'], 'error_tab': tab,
@@ -1870,6 +1877,12 @@ console.log(JSON.stringify(fixtures.map(f => {
                     witness.return_value = False
                     with self.assertRaises(SystemExit): call(job)
                     witness.return_value = True
+                if c.get('pretarget'):
+                    log = self.root / c['attempt_log']
+                    saved = log.read_bytes()
+                    log.write_bytes(saved + b'drift')
+                    with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'): call(job)
+                    log.write_bytes(saved)
                 pre_ledger = relay.ledger_path(self.cfg).read_bytes()
                 self.assertEqual(call(job, '--apply', '--authorize-preimage', c['held'])[0], 0)
                 terminal = relay.job_state(job)
