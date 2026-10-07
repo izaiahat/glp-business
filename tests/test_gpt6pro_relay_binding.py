@@ -65,6 +65,7 @@ class FakeCDP:
         self.app_samples = []
         self.app_overrides = {}
         self.on_run = lambda: None
+        self.on_activate = lambda tid: None
 
     def list_tabs(self):
         return [{"targetId": tid, "url": p["url"]} for tid, p in self.pages.items()]
@@ -327,7 +328,7 @@ class FakeCDP:
         clock.monotonic = lambda: self.clock
         env = {"cdp": self.cdp, "js": self.js, "list_tabs": self.list_tabs, "switch_tab": self.switch_tab,
                "current_tab": self.current_tab, "goto_url": self.goto_url, "wait_for_load": lambda: None,
-               "activate_tab": lambda tid: None, "close_tab": lambda tid: self.pages.pop(tid)}
+               "activate_tab": self.on_activate, "close_tab": lambda tid: self.pages.pop(tid)}
         out = io.StringIO()
         with mock.patch.dict(sys.modules, {"time": clock}), redirect_stdout(out):
             try:
@@ -383,6 +384,22 @@ class BindingTests(unittest.TestCase):
               "submitted": relay.now_iso(), **extra}
         relay.job_write(name, st)
         return st
+
+    def test_bound_poll_activates_virtualized_target_without_reload_or_completion(self):
+        self.browser.pages['wanted'] = {'url': WANT, 'text': '', 'composer': '', 'messages': True, 'stop': True}
+        activated = []
+        def render(tid):
+            activated.append(tid)
+            self.browser.pages[tid]['text'] = 'visible streaming answer'
+        self.browser.on_activate = render
+        result = relay.read_reply(WANT, 'wanted', existing_only=True)
+        self.assertEqual(result['text'], 'visible streaming answer')
+        self.assertTrue(result['state']['stop'])
+        self.assertEqual(activated, ['wanted'])
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_postinsert_guard_terminal_preserves_unknown_and_draft(self):
         """Exact custody branch, never an error-string or empty-page waiver."""
