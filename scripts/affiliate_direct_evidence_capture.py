@@ -168,7 +168,8 @@ class FirecrawlScraper:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                from firecrawl_client import firecrawl_urlopen
+                with firecrawl_urlopen(request, caller='affiliate_direct_evidence_capture', timeout=self.timeout) as response:
                     document = json.load(response)
                 data = document.get("data") if isinstance(document, dict) else None
                 if not isinstance(data, dict):

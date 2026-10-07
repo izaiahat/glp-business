@@ -135,7 +135,10 @@ def capture(profile, pricing, out, offline=False):
         stamp = datetime.now(timezone.utc).isoformat()
         name = digest(url)[:16]
         try:
-            response = requests.post('https://api.firecrawl.dev/v1/scrape', headers={'Authorization': 'Bearer ' + key}, json={'url': url, 'formats': ['markdown'], 'maxAge': 0, 'onlyMainContent': False}, timeout=75)
+            import sys
+            sys.path.insert(0, str(Path('/home/ubuntu/business/scripts')))
+            from firecrawl_client import firecrawl_post
+            response = firecrawl_post('https://api.firecrawl.dev/v2/scrape', caller='tools.glp.evidence_refresh', headers={'Authorization': 'Bearer ' + key}, json={'url': url, 'formats': ['markdown'], 'maxAge': 0, 'onlyMainContent': False}, timeout=75)
             data = response.json() if response.status_code == 200 else {}
             body = data.get('data', {}).get('markdown')
             metadata = data.get('data', {}).get('metadata', {})

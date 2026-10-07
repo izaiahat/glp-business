@@ -224,7 +224,8 @@ def main():
     request = urllib.request.Request('https://api.firecrawl.dev/v2/scrape',
         data=json.dumps({'url': REQUESTED_URL, 'formats': ['markdown'], 'onlyMainContent': True, 'maxAge': 0}).encode(),
         headers={'Authorization': 'Bearer ' + _firecrawl_key(), 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(request, timeout=90) as fetched:
+    from firecrawl_client import firecrawl_urlopen
+    with firecrawl_urlopen(request, caller='glp_evidence_capture_refresh', timeout=90) as fetched:
         response = json.load(fetched)
     finished = utc()
     def bound_bytes(kind):

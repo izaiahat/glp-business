@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 import requests
-BASE='https://api.firecrawl.dev/v1'
+import sys
+sys.path.insert(0, str(Path('/home/ubuntu/business/scripts')))
+from firecrawl_client import firecrawl_post, search_rows
+BASE='https://api.firecrawl.dev/v2'
 SELF='glpclinicscout.com'
 NON_COMPETITOR_HOSTS={
  'pmc.ncbi.nlm.nih.gov','journals.ieditore.com','journals.econsciences.com',
@@ -29,9 +32,9 @@ def main():
  key=env_key();head={'Authorization':f'Bearer {key}','Content-Type':'application/json'};a.raw_dir.mkdir(parents=True,exist_ok=True);os.chmod(a.raw_dir,0o700);gaps=[];calls=[]
  for i,row in enumerate(rows):
   keyword=row['keyword'];payload={'query':f'"{keyword}" GLP-1 cost insurance provider guide','limit':5,'scrapeOptions':{'formats':['markdown'],'onlyMainContent':True}}
-  r=requests.post(BASE+'/search',headers=head,json=payload,timeout=90);body=r.json() if r.headers.get('content-type','').startswith('application/json') else {'success':False};raw={'schema':'seo-firecrawl-competitor-search-v1','captured_at':now(),'keyword':keyword,'http_status':r.status_code,'response':body};rp=a.raw_dir/f'{i+1:02d}-{sha(keyword)[:12]}.json';rp.write_text(json.dumps(raw,indent=2,sort_keys=True)+'\n');os.chmod(rp,0o600);calls.append({'keyword':keyword,'http_status':r.status_code,'raw_path':str(rp),'raw_sha256':sha(rp.read_bytes())})
+  r=firecrawl_post(BASE+'/search',caller='seo.competitor_gap',headers=head,json=payload,timeout=90);body=r.json() if r.headers.get('content-type','').startswith('application/json') else {'success':False};raw={'schema':'seo-firecrawl-competitor-search-v1','captured_at':now(),'keyword':keyword,'http_status':r.status_code,'response':body};rp=a.raw_dir/f'{i+1:02d}-{sha(keyword)[:12]}.json';rp.write_text(json.dumps(raw,indent=2,sort_keys=True)+'\n');os.chmod(rp,0o600);calls.append({'keyword':keyword,'http_status':r.status_code,'raw_path':str(rp),'raw_sha256':sha(rp.read_bytes())})
   if r.status_code!=200 or body.get('success') is False:raise RuntimeError(f'firecrawl_search_failed:{r.status_code}')
-  data=body.get('data') or [];e=[]
+  data=search_rows(body, sources=('web',));e=[]
   for item in data:
    u=item.get('url') or '';host=(urlsplit(u).hostname or '').lower()
    if not u or host==SELF or host.endswith('.'+SELF) or not credible_competitor_host(host):continue

@@ -112,7 +112,7 @@ class CorrectionTests(unittest.TestCase):
 
     def test_registered_caller_wires_correction_around_unchanged_guards(self):
         tree = ast.parse(SOURCE.read_text())
-        main = ast.unparse(next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'main'))
+        main = ast.unparse(next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'run_main'))
         self.assertIn('prepare_reviewed_correction(before, pid)', main)
         self.assertLess(main.index('prepare_reviewed_correction('), main.index('verify_sources('))
         self.assertIn("manifest['previous_row'] = before['therapeutic_taxonomy']['programs'][pid]", main)

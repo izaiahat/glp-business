@@ -41,7 +41,7 @@ REPORT_ROOT = Path("/home/ubuntu/business/reports/glp-clinic-scout/finish-line-2
 STATE = REPORT_ROOT / "decision-card-state.json"
 ENV = Path("/home/ubuntu/.hermes/.env")
 DISCORD_CHANNEL = "1487300132054765629"
-FIRECRAWL_URL = "https://api.firecrawl.dev/v1/scrape"
+FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 # The previous published Synergy mapping is retained only as a correction audit.
@@ -235,11 +235,13 @@ def requests_fetch(url: str) -> dict[str, Any]:
     }
 
 
-def firecrawl_fetch(url: str, api_key: str) -> dict[str, Any]:
-    response = requests.post(
+def firecrawl_fetch(url: str, api_key: str, proxy: str = 'basic') -> dict[str, Any]:
+    from firecrawl_client import firecrawl_post
+    response = firecrawl_post(
         FIRECRAWL_URL,
+        caller='glp_price_verification',
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
-        json={"url": url, "formats": ["markdown"], "onlyMainContent": False, "waitFor": 7000, "proxy": "enhanced"},
+        json={"url": url, "formats": ["markdown"], "onlyMainContent": False, "waitFor": 7000, "proxy": proxy},
         timeout=180,
     )
     try:
@@ -250,7 +252,7 @@ def firecrawl_fetch(url: str, api_key: str) -> dict[str, Any]:
     text = result.get("markdown") if isinstance(result, dict) else ""
     text = text if isinstance(text, str) else ""
     return {
-        "method": "firecrawl_rendered_enhanced_fallback",
+        "method": f"firecrawl_rendered_{proxy}_fallback",
         "requested_url": url,
         "final_url": (result.get("metadata") or {}).get("url", url) if isinstance(result, dict) else url,
         "http_status": response.status_code,
@@ -266,7 +268,8 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
     for fetcher in (
         lambda: browser_fetch(browser, url, program_id) if browser is not None else (_ for _ in ()).throw(RuntimeError("playwright_unavailable")),
         lambda: requests_fetch(url),
-        lambda: firecrawl_fetch(url, firecrawl_key) if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
+        lambda: firecrawl_fetch(url, firecrawl_key, 'basic') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
+        lambda: firecrawl_fetch(url, firecrawl_key, 'enhanced') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
     ):
         try:
             result = fetcher()

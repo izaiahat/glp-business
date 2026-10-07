@@ -5,7 +5,7 @@
 set -euo pipefail
 cd /home/ubuntu/business
 SOURCE=/home/ubuntu/business/scripts/glp_reddit_daily_scout.py
-SOURCE_SHA256=4f05255287f614fbb6e37eafb9a8f0bb1a3d60f83ec64b54097ae893f7f44443
+SOURCE_SHA256=5f7980f9a674b8aecdc3b894acdcf468c73e2846e59d2613302ed78ff9a47bfe
 actual=$(/usr/bin/sha256sum "$SOURCE")
 if [[ "${actual%% *}" != "$SOURCE_SHA256" ]]; then
   printf 'reddit_daily_scout_source_hash_mismatch\n' >&2

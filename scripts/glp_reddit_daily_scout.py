@@ -222,6 +222,7 @@ def thread_subreddit(url: str) -> str | None:
     return match.group(1) if match else None
 
 
+from firecrawl_client import firecrawl_urlopen, search_rows
 # ---------------------------------------------------------------- firecrawl
 
 def _firecrawl_key() -> str:
@@ -241,15 +242,17 @@ def live_search_fn() -> Callable[..., list[dict[str, Any]]]:
         if tbs:
             body["tbs"] = tbs
         request = urllib.request.Request(
-            "https://api.firecrawl.dev/v1/search",
+            "https://api.firecrawl.dev/v2/search",
             data=json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with firecrawl_urlopen(request, caller='glp_reddit_daily_scout', timeout=120) as response:
             payload = json.load(response)
+        if payload.get('success') is not True:
+            raise RuntimeError('firecrawl_search_unavailable_not_empty')
         return [
             {"url": row.get("url"), "title": row.get("title") or "", "description": row.get("description") or ""}
-            for row in (payload.get("data") or [])
+            for row in search_rows(payload, sources=('web',))
             if row.get("url")
         ]
 
@@ -261,12 +264,12 @@ def live_scrape_fn() -> Callable[[str], dict[str, Any]]:
 
     def scrape(url: str) -> dict[str, Any]:
         request = urllib.request.Request(
-            "https://api.firecrawl.dev/v1/scrape",
+            "https://api.firecrawl.dev/v2/scrape",
             data=json.dumps({"url": url, "formats": ["markdown"], "timeout": 40000, "maxAge": 0}).encode(),
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with firecrawl_urlopen(request, caller='glp_reddit_daily_scout', timeout=120) as response:
                 payload = json.load(response)
         except Exception as exc:  # noqa: BLE001 — carried as evidence, never fatal
             return {"status": f"error:{type(exc).__name__}", "markdown": "", "metadata": {}}

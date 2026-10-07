@@ -104,7 +104,10 @@ def firecrawl_search(key: str, query: str) -> tuple[str | None, list[dict[str, A
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=90) as response:
+        import sys
+        sys.path.insert(0, str(BUSINESS / 'scripts'))
+        from firecrawl_client import firecrawl_urlopen
+        with firecrawl_urlopen(request, caller='seo.refresh_topic_supply_firecrawl', timeout=90) as response:
             payload = json.load(response)
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"firecrawl_http_{exc.code}") from exc

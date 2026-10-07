@@ -68,7 +68,7 @@ from glp_price_verification import env_value  # noqa: E402
 import glp_headful_capture as headful  # noqa: E402
 import glp_capture_fetch_receipts as fetch_receipts  # noqa: E402
 
-FIRECRAWL_URL = "https://api.firecrawl.dev/v1/scrape"
+FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape"
 FORBIDDEN_URL_MARKERS = ("awin1.com", "awclick", "cread.php", "anrdoezrs",
                          "dpbolvw", "jdoqocy", "tkqlhce", "track.revoffers.com",
                          "aff_c", "/go/")
@@ -104,8 +104,10 @@ def scrape(url: str, key: str, attempts: int = 3, cycle_id: str = "") -> dict[st
         body_keys=sorted(body), nonce=nonce, attempts=attempts)
     for attempt in range(attempts):
         try:
-            response = requests.post(
+            from firecrawl_client import firecrawl_post
+            response = firecrawl_post(
                 FIRECRAWL_URL,
+                caller='g6_r1a_stage5_research_fetch',
                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
                 json=body,
                 timeout=180,

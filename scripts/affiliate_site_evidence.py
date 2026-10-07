@@ -375,7 +375,8 @@ def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120):
         req = urllib.request.Request(
             f"https://api.firecrawl.dev/v2/{path}", data=json.dumps(payload).encode(),
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        from firecrawl_client import firecrawl_urlopen
+        with firecrawl_urlopen(req, caller='affiliate_site_evidence', timeout=timeout) as resp:
             return json.load(resp)
 
     def resolve(name: str) -> str:

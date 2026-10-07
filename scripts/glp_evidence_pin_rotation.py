@@ -62,7 +62,8 @@ def firecrawl_attests(scrape_id: str, expect_url: str) -> dict:
     request = urllib.request.Request(f"https://api.firecrawl.dev/v2/scrape/{scrape_id}",
                                      headers={"Authorization": "Bearer " + _firecrawl_key()})
     try:
-        with urllib.request.urlopen(request, timeout=45) as response:
+        from firecrawl_client import firecrawl_urlopen
+        with firecrawl_urlopen(request, caller='glp_evidence_pin_rotation', timeout=45) as response:
             body = json.load(response)
     except urllib.error.HTTPError as exc:
         return {"attested": False, "http_status": exc.code,

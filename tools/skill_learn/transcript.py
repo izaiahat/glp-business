@@ -25,7 +25,7 @@ import sys
 import time
 import urllib.request
 
-FIRECRAWL_URL = "https://api.firecrawl.dev/v1/scrape"
+FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape"
 ENV_PATH = os.path.expanduser("~/.hermes/.env")
 
 JS_EXPAND = '(()=>{const e=document.querySelector("tp-yt-paper-button#expand"); if(e) e.click(); return "expanded:"+!!e;})()'
@@ -65,7 +65,10 @@ def _scrape(video_id: str, settle_ms: int, timeout_ms: int = 230000) -> dict:
     }
     req = urllib.request.Request(FIRECRAWL_URL, data=json.dumps(body).encode(), method="POST",
                                  headers={"Authorization": "Bearer " + _key(), "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout_ms / 1000 + 60) as r:
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+    from firecrawl_client import firecrawl_urlopen
+    with firecrawl_urlopen(req, caller='skill_learn.transcript', timeout=timeout_ms / 1000 + 60) as r:
         return json.load(r)
 
 
