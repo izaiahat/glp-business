@@ -5,6 +5,7 @@ on:
     paths:
       - scripts/native_reply_consumer.py
       - scripts/receive_one_discord_message.py
+      - scripts/rook_mcp_events.py
       - tests/test_native_reply_consumer.py
       - ops/rook-mcp/requirements.txt
       - .github/workflows/native-reply-consumer.yml

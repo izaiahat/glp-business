@@ -22,7 +22,7 @@
       "callers": [
         "github:pull_request"
       ],
-      "sha256": "1c0ea44ba78c82b4e8f72e34e2524bb27851df9d824b6a038992ead56bf55633"
+      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
     },
     "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
       "kind": "source_control",
@@ -36,14 +36,14 @@
       "callers": [
         "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
       ],
-      "sha256": "c8957ed12cdf0189353fa77b3941363bf413a15faba2661468120364417832e1"
+      "sha256": "81fd2d27edd17b8d42cedbf95f8028ba2953d5ff561da612b52e296d69049609"
     },
     "tests/test_native_reply_consumer.py": {
       "kind": "test",
       "callers": [
         "tests/test_receive_one_discord_message.py"
       ],
-      "sha256": "7648f426c015690debcedd07be94a5429a5984a8e6c7543148d3f44f9dce6b58"
+      "sha256": "d873f3efe027fb966127f93ba9663741a7b0ee4cf739d79721e55989ce49bd4b"
     },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",

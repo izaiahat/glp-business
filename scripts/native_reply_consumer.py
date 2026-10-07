@@ -176,6 +176,19 @@ def collect(registration, receipts, *, reader=None, replay=False):
         return {'status': 'awaiting_coordinator_ack' if old['status'] == 'staged' else old['status'],
             'receipt_id': old['receipt_id'], 'correlation': s.correlation}
     row = native_row(registration)
+    if row is not None:
+        fields = {'issuer': s.mcp_issuer, 'audience': s.mcp_audience, 'subject': s.mcp_subject}
+        if s.finch:
+            fields['identity'] = s.finch.policy_fields()
+        # Pending requests have no reply authentication yet. Validate their
+        # intake registration before interpreting expiry or effect state; full
+        # confirmed reply authentication remains mandatory below.
+        if (not isinstance(row, dict) or row.get('id') != s.correlation
+                or row.get('message_id') != s.after_message
+                or row.get('subject') != s.mcp_subject
+                or row.get('policy') != hashlib.sha256(canonical(fields).encode()).hexdigest()
+                or s.finch and (row.get('guild_id') != s.guild or row.get('channel_id') != s.channel)):
+            raise ValueError('native_registration_refused')
     if row and row.get('state') in {'sending', 'uncertain'}:
         return {'status': 'reconciliation_required', 'correlation': s.correlation,
             'next_action': 'reconcile_exact_effect_no_resend'}

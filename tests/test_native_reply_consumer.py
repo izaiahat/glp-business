@@ -165,6 +165,40 @@ class NativeConsumerTests(unittest.TestCase):
                 self.assertEqual(result['status'], 'reconciliation_required')
                 self.assertEqual(result['next_action'], 'reconcile_exact_effect_no_resend')
 
+    def test_native_registration_binding_precedes_actionable_state(self):
+        import native_reply_consumer as consumer
+        from copy import deepcopy
+        from dataclasses import replace
+        import rook_mcp_events as native
+        finch = native.FinchIdentity(consumer.FINCH_CHANNEL, consumer.SHARED_CHANNEL,
+            consumer.FINCH_BOT, Path('/home/ubuntu/.hermes/secrets/dot-bots/finch.token'),
+            (native.OPERATOR, native.BOT, native.ROOK_BOT))
+        original = deepcopy(self.binding)
+        for identity in (None, finch):
+            scope = self.scope if identity is None else replace(self.scope,
+                reply_kind='finch.reply', origin_id=finch.bot, finch=finch,
+                finch_channel=consumer.FINCH_CHANNEL)
+            fields = {'issuer': 'issuer', 'audience': 'audience', 'subject': 'subject'}
+            if identity:
+                fields['identity'] = identity.policy_fields()
+            binding = dict(original, policy=hashlib.sha256(consumer.canonical(fields).encode()).hexdigest(),
+                channel_id=scope.channel)
+            registration = consumer.Registration(scope, 'parent-1', 'owner', 'inspect')
+            deltas = [{'id': 'discord-999'}, {'message_id': '999'},
+                {'subject': 'foreign'}, {'policy': '0'*64}]
+            if identity:
+                deltas += [{'guild_id': '999'}, {'channel_id': consumer.SHARED_CHANNEL}]
+            for state in ('ready', 'sending', 'uncertain', 'confirmed'):
+                for delta in deltas:
+                    with self.subTest(finch=bool(identity), state=state, delta=delta):
+                        self.binding = dict(binding, state=state, expires=time.time()-1, **delta)
+                        self.write_binding()
+                        with consumer.Receipts(self.root) as receipts:
+                            with self.assertRaisesRegex(ValueError, 'native_registration_refused'):
+                                consumer.collect(registration, receipts,
+                                    reader=lambda *_: self.fail('misbound row must not GET'))
+                            self.assertIsNone(receipts.get(registration.receipt_id))
+
     def test_result_only_registration_does_not_complete_on_ack(self):
         import native_reply_consumer as consumer
         registration = consumer.Registration(self.scope, 'parent-1', 'owner', 'inspect',
