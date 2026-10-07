@@ -333,9 +333,6 @@ def page_family_analysis(
                     "position_numerator": 0.0, "rows": [], "page_rows": [],
                     "named_query_impressions": 0, "named_query_clicks": 0},
             "dataforseo": {"positions": [], "search_volume": 0, "rows": []},
-            "ga4": {"sessions": 0, "views": 0, "pages": set()},
-            "posthog": {"views": 0, "affiliate_clicks": 0, "intent_events": 0,
-                        "pages": set()},
         }
         for family in (
             "provider_review", "commercial_comparison", "cost_pricing",
@@ -388,28 +385,7 @@ def page_family_analysis(
         target["positions"].append(position)
         target["search_volume"] += int(row.get("search_volume") or 0)
         target["rows"].append(row)
-    article_paths = {urlparse(url).path for url in article_urls}
-    for row in ga4.get("rows") or []:
-        path = str((row.get("dimensions") or [""])[0])
-        if path not in article_paths:
-            continue
-        family = content_family(path)
-        target = families[family]["ga4"]
-        metrics = row.get("metrics") or []
-        target["sessions"] += int(float(metrics[0] or 0)) if metrics else 0
-        target["views"] += int(float(metrics[1] or 0)) if len(metrics) > 1 else 0
-        target["pages"].add(path)
-    for row in posthog.get("rows") or []:
-        path = str(row.get("path") or "")
-        if path not in article_paths:
-            continue
-        family = content_family(path)
-        target = families[family]["posthog"]
-        target["views"] += int(row.get("views") or 0)
-        target["affiliate_clicks"] += int(row.get("clicks") or 0)
-        target["intent_events"] += int(row.get("intent_events") or 0)
-        target["pages"].add(path)
-
+    # Approved neutral analytics cannot measure or join article families.
     output: dict[str, Any] = {}
     all_dfs: list[tuple[float, str, str]] = []
     for family, signals in families.items():
@@ -419,7 +395,6 @@ def page_family_analysis(
         for row in dfs["rows"]:
             all_dfs.append((float(row.get("position") or 999), family,
                             str(row.get("keyword") or "")))
-        post = signals["posthog"]
         page_rows = sorted(
             gsc["page_rows"],
             key=lambda row: (-row["clicks"], -row["impressions"], row["position"], row["url"]),
@@ -465,25 +440,15 @@ def page_family_analysis(
                 )[:10],
             },
             "ga4": {
-                "classification": "SOURCE-REPORTED",
-                "date_range": gsc_window,
-                "source": "GA4 direct user-OAuth, production hostname filter",
-                "sessions": signals["ga4"]["sessions"],
-                "views": signals["ga4"]["views"],
-                "page_count": len(signals["ga4"]["pages"]),
+                "classification": "UNMEASURED_BY_DESIGN",
+                "source": "Approved GA4 neutral routes exclude article families",
+                "sessions": None, "views": None, "page_count": None,
             },
             "posthog": {
-                "classification": "SOURCE-REPORTED",
-                "date_range": "rolling 14 days",
-                "source": "PostHog HogQL host/path-filtered",
-                "views": post["views"],
-                "affiliate_clicks": post["affiliate_clicks"],
-                "intent_events": post["intent_events"],
-                "page_count": len(post["pages"]),
-                "affiliate_click_rate": (
-                    round(post["affiliate_clicks"] / post["views"], 6)
-                    if post["views"] else None
-                ),
+                "classification": "UNMEASURED_BY_DESIGN",
+                "source": "Approved PostHog neutral aggregates omit article and click identity",
+                "views": None, "affiliate_clicks": None, "intent_events": None,
+                "page_count": None, "affiliate_click_rate": None,
             },
         }
     top_12 = sorted(all_dfs)[:12]
@@ -506,10 +471,7 @@ def page_family_analysis(
         and review["gsc"]["clicking_pages"] >= 2
         and review["gsc"]["impressions"] >= 100
     )
-    conversion_proven = bool(
-        review["posthog"]["views"] >= 25
-        and review["posthog"]["affiliate_clicks"] >= 2
-    )
+    conversion_proven = None  # Unmeasured, not a negative observed conversion result.
     return {
         "classification": "MEASURED_AND_SOURCE_REPORTED",
         "families": output,
@@ -532,8 +494,8 @@ def page_family_analysis(
                 "but click distribution remains concentrated and is not revenue attribution."
             ),
             "conversion_caveat": (
-                "PostHog sample is too small to claim provider-review conversion. "
-                "Rankability and Google acquisition are measured; conversion is not yet proven."
+                "Article/click identity is excluded by the approved measurement scope. "
+                "Neutral pageviews cannot establish provider-review conversion."
             ),
         },
     }
@@ -687,13 +649,41 @@ def collect(report_date: dt.date, module_input: Path | None = None) -> dict[str,
     gsc_prior = gsc_rows(windows["gsc_prior"], ["page"])
     gsc_current_query = gsc_rows(windows["gsc_current"], ["query", "page"])
     gsc_prior_query = gsc_rows(windows["gsc_prior"], ["query", "page"])
+    ga4_started = utc_now()
     ga4 = google.ga4_run_report(
         start_date=windows["gsc_current"][0].isoformat(),
         end_date=windows["gsc_current"][1].isoformat(),
-        dimensions=["pagePath"], metrics=["sessions", "screenPageViews"],
+        dimensions=["streamId", "hostName", "pagePath"], metrics=["sessions", "screenPageViews"],
+        dimension_filter=GoogleRail.ga4_neutral_filter(),
         limit=250000, fetch_all=True,
     )
-    posthog = PostHog().page_conversion(days=14)
+    # Validate the consumer response as well as the requested scope. A failed or
+    # incomplete read must not become a neutral measured-zero observation.
+    if (ga4.get("ok") is not True or ga4.get("complete") is not True
+            or ga4.get("dimension_names") != ["streamId", "hostName", "pagePath"]
+            or ga4.get("metric_names") != ["sessions", "screenPageViews"]
+            or any(len(row.get("dimensions", [])) != 3
+                   or row["dimensions"][:2] != [GoogleRail.GA4_CONSUMER_STREAM_ID, "glpclinicscout.com"]
+                   or row["dimensions"][2] not in GoogleRail.GA4_NEUTRAL_PATHS
+                   for row in ga4.get("rows", []))):
+        ga4 = {"ok": False, "complete": False, "state": "UNKNOWN", "rows": []}
+    ga4["request_started_at_utc"] = ga4_started
+    ga4["captured_at_utc"] = utc_now()
+    ga4["context"] = {"scope": "exact_consumer_stream_host_and_approved_neutral_routes",
+                      "start_date": str(windows["gsc_current"][0]),
+                      "end_date": str(windows["gsc_current"][1]),
+                      "consumer_stream_id": GoogleRail.GA4_CONSUMER_STREAM_ID,
+                      "neutral_route_paths": list(GoogleRail.GA4_NEUTRAL_PATHS)}
+    posthog_started = utc_now()
+    try:
+        posthog = PostHog().neutral_pageviews(
+            start_date=str(report_date - dt.timedelta(days=14)), end_date=str(report_date))
+    except Exception as exc:
+        posthog = {"ok": False, "complete": False, "state": "UNKNOWN", "rows": [],
+                   "total_views": None, "affiliate_clicks": None, "error_type": type(exc).__name__}
+
+    posthog["request_started_at_utc"] = posthog_started
+    posthog["captured_at_utc"] = utc_now()
 
     dfs_result = dataforseo_collection(module_input)
     dfs_measured = dfs_result.get('ok') is True
@@ -740,21 +730,6 @@ def collect(report_date: dt.date, module_input: Path | None = None) -> dict[str,
     r2_prior = [row for row in r2_rows
                 if in_window(row.get("completed_at_utc"), windows["publication_prior"])]
     production_events = len(new_current) + len(r2_current)
-
-    path_set = {urlparse(url).path for url in article_urls}
-    ga4_sessions = ga4_views = ga4_pages = 0
-    for row in ga4.get("rows") or []:
-        if (row.get("dimensions") or [None])[0] in path_set:
-            ga4_pages += 1
-            ga4_sessions += int(float(row["metrics"][0]))
-            ga4_views += int(float(row["metrics"][1]))
-    posthog_views = posthog_clicks = posthog_intents = posthog_pages = 0
-    for row in posthog.get("rows") or []:
-        if row.get("path") in path_set:
-            posthog_pages += 1
-            posthog_views += int(row.get("views") or 0)
-            posthog_clicks += int(row.get("clicks") or 0)
-            posthog_intents += int(row.get("intent_events") or 0)
 
     captured = utc_now()
     family_analysis = page_family_analysis(
@@ -901,22 +876,16 @@ def collect(report_date: dt.date, module_input: Path | None = None) -> dict[str,
             "query_rows": bing_query,
             "page_rows": bing_page,
         },
+        "neutral_analytics": {"ga4": ga4, "posthog": posthog,
+                              "note": "Separate bounded source windows; not article traffic or commercial attribution."},
         "downstream_corroboration": {
-            "ga4_article_sessions": metric(
-                ga4_sessions, "GA4 direct user-OAuth, production hostname filter",
-                date_range_text(windows["gsc_current"]), classification="SOURCE-REPORTED",
-                unit="SESSIONS"),
-            "ga4_article_pageviews": metric(
-                ga4_views, "GA4 direct user-OAuth, production hostname filter",
-                date_range_text(windows["gsc_current"]), classification="SOURCE-REPORTED",
-                unit="VIEWS"),
-            "posthog_article_views": metric(
-                posthog_views, "PostHog HogQL host/path-filtered", "rolling 14 days",
-                classification="SOURCE-REPORTED", unit="VIEWS"),
-            "posthog_article_affiliate_clicks": metric(
-                posthog_clicks, "PostHog HogQL affiliate_click events", "rolling 14 days",
-                classification="SOURCE-REPORTED", unit="AFFILIATE_CLICKS"),
-            "warning": "GA4/PostHog corroborate visits only; they do not prove Google indexation or ranking.",
+            name: metric(None, source, classification="UNMEASURED_BY_DESIGN", unit=unit,
+                         note="Approved neutral scope excludes article/click identity; absence is not zero.")
+            for name, source, unit in (
+                ("ga4_article_sessions", "GA4 approved neutral scope", "SESSIONS"),
+                ("ga4_article_pageviews", "GA4 approved neutral scope", "VIEWS"),
+                ("posthog_article_views", "PostHog approved neutral scope", "VIEWS"),
+                ("posthog_article_affiliate_clicks", "PostHog approved neutral scope", "AFFILIATE_CLICKS"))
         },
         "evidence": [],
         "effects": {

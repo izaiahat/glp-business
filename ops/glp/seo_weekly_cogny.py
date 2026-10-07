@@ -16,6 +16,7 @@ import math
 from pathlib import Path
 
 from ops.glp.cogny_client import TOOL
+from ops.glp.seo_data_rails import GoogleRail
 
 DOMAIN = 'sc-domain:glpclinicscout.com'
 PREFIX = 'https://glpclinicscout.com/'
@@ -123,9 +124,8 @@ def collect(client, store, report_date, *, row_limit=25000, max_pages=40):
     for page in range(max_pages):
         doc = call(TOOL['ga4_run_report'], {
             'property_id': '541440529', 'date_ranges': [{'startDate': str(ga_start), 'endDate': str(end)}],
-            'dimensions': ['hostName', 'pagePath'], 'metrics': metrics,
-            'dimension_filter': {'filter': {'fieldName': 'hostName', 'stringFilter': {
-                'matchType': 'EXACT', 'value': HOST, 'caseSensitive': True}}},
+            'dimensions': ['streamId', 'hostName', 'pagePath'], 'metrics': metrics,
+            'dimension_filter': GoogleRail.ga4_neutral_filter(),
             'limit': row_limit, 'offset': page*row_limit})
         batch = doc.get('rows') if isinstance(doc, dict) else None
         count = doc.get('rowCount') if isinstance(doc, dict) else None
@@ -138,14 +138,15 @@ def collect(client, store, report_date, *, row_limit=25000, max_pages=40):
         try:
             for row in batch:
                 key = (row['hostName'], row['pagePath'])
-                if key[0] != HOST or key in seen:
+                if (row['streamId'] != GoogleRail.GA4_CONSUMER_STREAM_ID
+                        or key[0] != HOST or key[1] not in GoogleRail.GA4_NEUTRAL_PATHS or key in seen):
                     raise ValueError('ga4_scope_or_duplicate')
                 seen.add(key)
                 values = []
                 for metric in metrics:
                     value = row.get(metric)
                     value = float(value) if value is not None and not isinstance(value, bool) else None
-                    if value is not None and (not math.isfinite(value) or value < 0):
+                    if value is None or not math.isfinite(value) or value < 0:
                         raise ValueError('ga4_metric_invalid')
                     values.append(value)
                 valid.append({'dimensions': list(key), 'metrics': values})
@@ -159,8 +160,12 @@ def collect(client, store, report_date, *, row_limit=25000, max_pages=40):
             break
     save('ga4', {'property': '541440529', 'hostname': HOST, 'start_date': str(ga_start),
                  'end_date': str(end), 'dimensions': ['hostName', 'pagePath'],
+                 'consumer_stream_id': GoogleRail.GA4_CONSUMER_STREAM_ID,
+                 'neutral_route_paths': list(GoogleRail.GA4_NEUTRAL_PATHS),
+                 'scope': 'exact_consumer_stream_host_and_approved_neutral_routes',
+                 'article_measurement': 'UNMEASURED_BY_DESIGN',
                  'affiliate_cash_attribution': 'UNKNOWN_NOT_JOINED'},
-         {'ok': complete, 'complete': complete, 'rows': rows, 'metric_names': metrics,
+         {'ok': complete, 'complete': complete, 'rows': rows if complete else [], 'metric_names': metrics,
           'row_count_provider': total}, first)
     for name, tool in [('bing-query', 'bing_query_stats'), ('bing-page', 'bing_page_stats')]:
         first = len(queries)

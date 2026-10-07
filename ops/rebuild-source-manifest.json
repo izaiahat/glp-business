@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 744,
+  "tracked_count": 745,
   "files": {
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -680,7 +680,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "2170566fb1ace25d6f17e2569a1ea4b6783db42cfe883f08edd78fea95da4689"
+      "sha256": "d70e8e0791bd30f17fad7b743bf1f39ce1d54f032f9b823f4fd88737d5c8f07b"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -695,7 +695,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "b9f801f25262f4d7092cab8f8ebc3e8b4353f135e225737a80bf3364d23f39c5"
+      "sha256": "70af6013c32c4b197ea969571a2f2ee795dbe38a94d0e8caaadc3bc2f448e2c9"
     },
     "ops/glp250-partner-email-hold.md": {
       "callers": [],
@@ -1959,7 +1959,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "2b44b078df3bb85168420930afd0c368465bd7d11573fc41045a6fa3ded02e78"
+      "sha256": "a2f11fb2bb16d542b5ee57c0d9b5f48a7186fea74e0e286be869af1ac250c681"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -1974,7 +1974,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf"
+      "sha256": "35014412980214d5e68915d7aa19f218d6d74ea5efb0cd1412b460cb2473fae1"
     },
     "scripts/glp_wire_in_ready_queue.py": {
       "callers": [
@@ -2165,7 +2165,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0a872bb694a1a83eeb6cd7d18d36a604b43ffd563bf3194f87da49cd621fcead"
+      "sha256": "8008acf04b82bf197ff18a144e9095cbb8de26869762122a3c589e8c9ed7f19d"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2915,7 +2915,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "test",
-      "sha256": "de6fee9cc25eaa0185fca58d39300439782cde523e1969baf95fe0224089cdc1"
+      "sha256": "6c1e58c5c4efa77eea5da7daa7163552321db63b81c4d2d6e20b3c84cb12ac3b"
     },
     "tests/test_glp44_weekly_pin_adoption.py": {
       "callers": [
@@ -5013,14 +5013,21 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "7246b775af0f4d40d0dfa696d39faf89adf58fc9bd6f7ac75b30637d6af7bd79"
+      "sha256": "7d43d2bbc2937f88d5c1d06054c815104e6ccf833344cf70aa19ee0cd2c0d41a"
     },
     "ops/glp/seo_weekly_cogny.py": {
       "callers": [
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "3c41fde4965f9fb457c196eb70a0faef22f66e0cd6bbbc5db49f05001a543a7f"
+      "sha256": "875db13999baf748014520f58942ae9b8b0567753f87e34cc2156cabec998533"
+    },
+    "tests/test_glp44_weekly_neutral_adapters.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "296dbdcdffb0bd8e03fae422c226c2e22c0cfc7587563159cb28bd796a2c76e2"
     }
   }
 }

@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 B=Path('/home/ubuntu/business')
 sys.path.insert(0,str(B))
 from ops.glp.cogny_client import CognyClient, TOOL
-from ops.glp.seo_data_rails import GoogleRail, DataForSEO
+from ops.glp.seo_data_rails import GoogleRail, DataForSEO, PostHog
 from ops.glp.seo_quickwin_common import inspect_html
 
 HOST='https://glpclinicscout.com'
@@ -193,7 +193,13 @@ def run(output, *, allow_metered=False, report_date=None):
    if excluded:exclusions.append(excluded)
  bindings['pages']=store.save('inputs/pages.json',pages)
  store.save('page-exclusions.json',{'rows':exclusions,'count':len(exclusions)})
- for key in ('posthog','estate'):
+ began=now()
+ try:
+  posthog=PostHog().neutral_pageviews(start_date=str(report_date-dt.timedelta(days=14)),end_date=str(report_date))
+ except Exception as exc:
+  posthog={'ok':False,'complete':False,'state':'UNKNOWN','rows':[],'total_views':None,'affiliate_clicks':None,'error_type':type(exc).__name__}
+ bindings['posthog']=store.save('inputs/posthog.json',{'request_started_at_utc':began,'captured_at_utc':now(),'context':{'source':'PostHog direct approved neutral pageviews','requested':True,**posthog.get('context',{})},'result':posthog})
+ for key in ('estate',):
   bindings[key]=store.save('inputs/'+key+'.json',{'captured_at_utc':now(),'context':{'source':'Not requested; ancillary to outward evidence','requested':False},'result':{'ok':False,'complete':False,'state':'UNKNOWN','error':'NOT_REQUESTED_NO_CURRENT_EVIDENCE','rows':[]}})
  assert_stable(sources)
  manifest={'schema':'glp-weekly-module-inputs-v1','inputs':bindings,'built_at_utc':now(),'run_id':run_id,'current_base_sha256':sha(sources[basepath]),'current_base_deployment_id':base['deployment_id'],'source_bindings':{str(p):{'sha256':sha(raw)} for p,raw in sources.items()},'renderer_bindings':renderers,'pointer_stability':'PASS_EXACT_BYTES_PRE_POST','raw_receipts':{str(p.relative_to(store.path)):{'sha256':sha(p.read_bytes())} for p in sorted((store.path/'raw').glob('*'))},'publication_authorized':False}
@@ -201,7 +207,7 @@ def run(output, *, allow_metered=False, report_date=None):
  summary={'run_id':run_id,'manifest':binding,'gsc_rows':{k:len(v['result']['rows']) for k,v in snapshots.items()},'gsc_complete':{k:v['result']['complete'] for k,v in snapshots.items()},'footprints':{k:{'rows':len(v['items']),'total_count':v['total_count'],'complete':v['complete'],'pages':v['pages']} for k,v in result['domains'].items()},'actual_cost_usd':actual_cost,'dataforseo_ok':result['ok'],'routes':len(routes),'pages_200':len(pages),'excluded_pages':len(exclusions),'renderer_count':len(renderers),'mode':'MANUAL_CURRENT_DATA_DRY_RUN','natural_execution_id':None,'effects':{'queue_writes':0,'site_writes':0,'schedules':0,'sends':0},'limitations':['Cogny identity lacks domain property unless explicitly present; domain reads use confirmed GoogleRail identity','GSC query privacy omissions and internal limits remain','GA4/PostHog/estate UNKNOWN, not requested','Public HTML only; no JS, affiliate requests or redirects','No S14 history retimestamped; no category volume refetch']}
  summary['cogny_query_count']=len(cogny['queries'])
  summary['cogny_evidence']=cogny['binding']
- summary['limitations']=[x.replace('GA4/PostHog/estate UNKNOWN, not requested','PostHog/estate UNKNOWN, not requested; GA4 through Cogny is ancillary and not cash') for x in summary['limitations']]
+ summary['limitations']=[x.replace('GA4/PostHog/estate UNKNOWN, not requested','GA4/PostHog are bounded neutral observations, not article/click attribution or cash; estate UNKNOWN, not requested') for x in summary['limitations']]
  store.save('COLLECTION-RESULT.json',summary)
  return summary
 if __name__=='__main__':
