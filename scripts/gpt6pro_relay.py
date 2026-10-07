@@ -956,6 +956,9 @@ function committed6ProMaximum(){
     const sourceContract=['selectedModel:','onModelChange:','onThinkingEffortChange:',
         'onCommitPower:','onOpenChange:','CHATGPT_MODEL_PICKER_SURFACE_COMPOSER'];
     function selected(p){
+        if(!p||!contract.every(k=>{
+            const d=Object.getOwnPropertyDescriptor(p,k);return d&&'value'in d;
+        }))return false;
         const model=own(p,'selectedModel');
         return own(p,'disabled')===false&&own(p,'isLoading')===false&&own(p,'isError')===false&&
             typeof own(p,'onModelChange')==='function'&&
@@ -968,13 +971,14 @@ function committed6ProMaximum(){
         const seen=new Set();
         for(let depth=0;f&&depth<80;depth++,f=own(f,'return')){
             if(seen.has(f))return false;seen.add(f);
-            const p=own(f,'memoizedProps'),type=own(f,'type');
-            if(!p||typeof type!=='function'||!contract.every(k=>{
-                const d=Object.getOwnPropertyDescriptor(p,k);return d&&'value'in d;
-            }))continue;
+            const type=own(f,'type');
+            if(typeof type!=='function')continue;
             const source=Function.prototype.toString.call(type);
             if(!sourceContract.every(s=>source.includes(s)))continue;
+            // Recognize before schema validation: malformed owners must not
+            // disappear from uniqueness, even when their getters are unread.
             if(++owners!==1)return false;
+            const p=own(f,'memoizedProps');
             // A DOM fiber can reference either React buffer. Never guess that
             // stale Pro props are current: both buffers must agree if present.
             const alternate=own(f,'alternate');

@@ -3585,6 +3585,111 @@ function attachModelOwner(trigger,selectedModel){
 
 
 class NativeComposerTests(unittest.TestCase):
+    def test_malformed_owner_cannot_hide_from_any_emitted_consumer(self):
+        """Reviewer's valid + malformed owner counterexample, pure Node VM.
+
+        Execute initial selection, chunk preparation and both actual Send guards;
+        only DOM/React and effect sinks are synthetic. No browser or live state.
+        """
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture')
+            relay.send_message('fixture', retained_tab='offline', time_origin=12345.5)
+        fresh, retained = scripts
+        tree = ast.parse(fresh)
+        probes = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                  and isinstance(n.value, str) and 'function committed6ProMaximum' in n.value]
+        fresh_click = next(x for x in probes if 'const b=document.querySelector' in x
+                           and 'b.click();return true;' in x)
+        atomic = next(n.value for n in ast.walk(ast.parse(retained)) if isinstance(n, ast.Constant)
+                      and isinstance(n.value, str) and n.value.startswith('(()=>{const retainedOrigin='))
+        branch = compile(fresh[fresh.index('# All paths must commit'):fresh.index('# Settle:')],
+                         '<actual-model-selection>', 'exec')
+        prepare = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_prepare')
+        # Reuse the existing byte-exact captured callback chain, not a new oracle.
+        method = next(n for n in ast.walk(ast.parse(Path(__file__).read_text()))
+                      if isinstance(n, ast.FunctionDef) and n.name == 'test_committed_maximum_selection_native')
+        pipeline = next(ast.literal_eval(n.value) for n in ast.walk(method) if isinstance(n, ast.Assign)
+                        and any(isinstance(t, ast.Name) and t.id == 'pipeline' for t in n.targets))
+        fixture = r'''
+window=globalThis;getComputedStyle=()=>({display:'block',visibility:'visible'});
+performance={timeOrigin:12345.5};
+function el(attrs={},text=''){return {attrs,innerText:text,parentElement:null,hidden:false,inert:false,disabled:false,getClientRects:()=>[1],getAttribute(k){return this.attrs[k]??null},setAttribute(k,v){this.attrs[k]=v},hasAttribute(k){return k in this.attrs},click(){this.onclick?.()},closest(){return view}}}
+const trigger=el({'aria-label':'Select ChatGPT model','aria-expanded':'true','aria-controls':'menu','data-selected-reasoning-effort':'medium','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'},'Pro');
+const view=el({'aria-hidden':'false'}),menu=el({role:'menu'});menu.id='menu';
+const row=el({},'6 Pro'),badge=el(),power=el(),slider=el({'role':'slider','aria-valuemin':'0','aria-valuemax':'4','aria-valuenow':'4'}),rail=el();
+rail.getBoundingClientRect=()=>({width:200,height:30,right:200,top:0});
+row.querySelector=()=>badge;power.querySelectorAll=()=>[slider];
+view.querySelectorAll=s=>s.includes('view-toggle')?[row]:s.includes('power-slider')?[rail]:[power];menu.querySelectorAll=()=>[view];
+const txt={nodeType:3,data:'fixture'},p={nodeType:1,tagName:'P',attributes:[],childNodes:[txt],lastChild:txt};
+const composer=el({contenteditable:'true'});composer.tagName='DIV';composer.classList={contains:()=>true};composer.childNodes=[p];composer.lastChild=p;
+const send=el();send.onclick=()=>sends++;
+let selection={isCollapsed:true};composer.focus=()=>document.activeElement=composer;
+window.getSelection=()=>selection;selection.removeAllRanges=()=>{};selection.addRange=r=>{selection.anchorNode=r.node;selection.anchorOffset=r.offset};
+document={readyState:'complete',title:'ChatGPT',body:{innerText:''},
+ createRange:()=>({setStart(n,o){this.node=n;this.offset=o},collapse(){}}),
+ querySelector:s=>s.includes('prompt-textarea')?composer:s.includes('send-button')?send:s==='button'?trigger:null,
+ querySelectorAll:s=>s==='button[aria-label="Select ChatGPT model"]'?[trigger]:s==='[id]'?[menu]:s==='button'?[trigger,send]:[]};
+'''
+        node = r'''
+const vm=require('vm'),rl=require('readline').createInterface({input:process.stdin,crlfDelay:Infinity});
+let ctx;
+(async()=>{for await(const line of rl){const r=JSON.parse(line);if(r.stop)break;
+ try{if(r.setup){ctx=vm.createContext({setTimeout:()=>1,clearTimeout(){}});vm.runInContext(r.setup,ctx);}
+ process.stdout.write(JSON.stringify({value:vm.runInContext(r.expr||'true',ctx)})+'\n');}
+ catch(e){process.stdout.write(JSON.stringify({error:e.stack})+'\n');}
+}})();
+'''
+        proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        try:
+            def call(expr='true', setup=None):
+                proc.stdin.write(json.dumps({'expr': expr, 'setup': setup})+'\n'); proc.stdin.flush()
+                result = json.loads(proc.stdout.readline())
+                self.assertNotIn('error', result)
+                return result.get('value')
+            def refuse(reason, **kwargs): raise RuntimeError(reason)
+            def outcome(action):
+                try: action()
+                except RuntimeError as exc: return str(exc)
+                return None
+            cases = {
+                'positive': '',
+                'duplicate_accessor': 'const bad={...props};Object.defineProperty(bad,"selectedModel",{get(){getters++;return null}});owner.return={type:owner.type,memoizedProps:bad,return:null}',
+                'duplicate_missing': 'const bad={...props};delete bad.models;owner.return={type:owner.type,memoizedProps:bad,return:null}',
+                'duplicate_null_props': 'owner.return={type:owner.type,memoizedProps:null,return:null}',
+                'duplicate_primitive_props': 'owner.return={type:owner.type,memoizedProps:7,return:null}',
+                'alternate_missing': 'const bad={...props};delete bad.models;owner.alternate={type:owner.type,memoizedProps:bad}',
+                'alternate_accessor': 'const bad={...props};Object.defineProperty(bad,"models",{get(){getters++;return {}}});owner.alternate={type:owner.type,memoizedProps:bad}',
+            }
+            for case, mutation in cases.items():
+                with self.subTest(case=case):
+                    call(setup=fixture+MODEL_OWNER_FIXTURE+'(()=>{const accepts=true;'+pipeline+'})();')
+                    env = {'st': {'model': '6 Pro'}, 'RETAINED': False, 'tab': {'targetId': 'offline'},
+                           'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda n: None),
+                           '_bound_js': lambda tid, url, expr: call(expr), '_fresh': lambda: None,
+                           'cdp': lambda method, **kw: call('selectMaximum();true' if kw['type']=='mouseReleased' else 'true'),
+                           '_sessions': {'offline': 'offline'}, '_binding_error': refuse}
+                    # Establish a real accepted transition, then add the competing
+                    # owner before re-running initial admission and every consumer.
+                    exec(branch, env)
+                    self.assertEqual(call('events'), ['selected', 'parent', 'closed'])
+                    if mutation: call(mutation+';true')
+                    initial = outcome(lambda: exec(branch, env))
+                    exec(compile(ast.Module(body=[prepare], type_ignores=[]), '<actual-prepare>', 'exec'), env)
+                    chunk = outcome(lambda: env['_prepare']('fixture'))
+                    actual = {'initial': initial, 'chunk': chunk, 'fresh': call(fresh_click),
+                              'retained': call(atomic), 'clicks': call('sends'), 'getters': call('getters')}
+                    expected = ({'initial': None, 'chunk': None, 'fresh': True,
+                                 'retained': {'clicked': True}, 'clicks': 2, 'getters': 0} if case == 'positive' else
+                                {'initial': 'WRONG_MODEL', 'chunk': 'WRONG_MODEL', 'fresh': False,
+                                 'retained': {'clicked': False, 'reason': 'model'}, 'clicks': 0, 'getters': 0})
+                    self.assertEqual(actual, expected)
+        finally:
+            proc.stdin.write('{"stop":true}\n'); proc.stdin.flush(); proc.stdin.close()
+            proc.wait(timeout=10)
+            self.assertEqual(proc.returncode, 0, proc.stderr.read())
+
     def test_committed_maximum_selection_native(self):
         """Run actual generated model branch/JS; preview and model-text cannot commit."""
         import inspect
