@@ -47,6 +47,19 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def valid_capture_contract(article: dict) -> bool:
+    capture = article.get("capture_surface") or {}
+    if not str(article.get("canonical_path") or "").startswith("/guides/"):
+        return capture.get("status") == "WORKING_BASE_TEMPLATE_CONTRACT" and capture.get("health_data_fields") == []
+    return capture == {
+        "status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": "/api/content-upgrade",
+        "source_page": "guide-link", "lead_magnet_key": "guide-link-resource",
+        "consent_version": "glp-guide-resource-v1-20261007", "email_field": "email",
+        "health_data_fields": ["guide_path"], "guide_path": article["canonical_path"],
+        "purpose": "resource-delivery", "follow_up_consent": False, "stored_page_identifier": False,
+    }
+
+
 def _serp_fully_observed(serp: dict) -> bool:
     """Require parity evidence or an exact dated failure for every observed result."""
     result_rows = serp.get("rankings", []) or serp.get("observed_serp", [])
@@ -643,7 +656,7 @@ def validate(packet: Path, expected_topic_id: str | None = None,
         "internal_link_floor": len(article["internal_links"]) >= 3,
         "organization_author": article["author"].get("entity_type") == "Organization" and article["author"].get("clinical_credentials_claimed") is False,
         "article_and_faq_schema_requested": set(["Article", "FAQPage"]) <= set(__import__("yaml").safe_load(draft.split("---", 2)[1])["schemaRequirements"]),
-        "capture_contract": article.get("capture_surface", {}).get("status") == "WORKING_BASE_TEMPLATE_CONTRACT" and article["capture_surface"].get("health_data_fields") == [],
+        "capture_contract": valid_capture_contract(article),
         "two_column_tables": sum(len(section.get("tables") or []) for section in article["sections"]) >= 3 and all(len(table["headers"]) == 2 and all(len(row) == 2 for row in table["rows"]) for section in article["sections"] for table in section.get("tables") or []),
         "claim_map_status": mapping.get("status") in {"PASS_ALL_FACTUAL_CLAIMS_MAPPED_TO_CAPTURED_QUOTES", "READY_FOR_OPUS_REVIEW"},
         "evidence_status": ledger.get("status") == "PASS_SOURCE_PACK" or bool(ledger.get("sources")),
