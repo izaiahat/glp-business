@@ -41,5 +41,8 @@
   "approval_status": "EXACT_FINAL_COPY_RATES_ASSETS_PENDING",
   "professional_contact_source": "apollo",
   "professional_enrichment_enabled": false,
-  "bouncer_debits_enabled": false
+  "bouncer_debits_enabled": false,
+  "paypal_read_only_polling": true,
+  "paypal_invoice_drafts_enabled": false,
+  "paypal_invoice_requests_enabled": false
 }

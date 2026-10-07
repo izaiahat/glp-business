@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 728,
+  "tracked_count": 731,
   "files": {
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -912,7 +912,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "6500509934958dec0bae7b6008e1bb43e1feed0b53cafbb225b51ba2fb5cc690"
+      "sha256": "093069a063e51bf35f7bc7e3dbeef7621dc38f7c331850e8706d1db29558d0fa"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2179,7 +2179,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
+      "sha256": "ffd959225f7df51e43da98f034a7c30fbc02b368055f59020eab4c06aa2ffafa"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2200,7 +2200,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4"
+      "sha256": "2adb0420d48aeb4ac9eeaf6227093757a7143d1b815334598679f04f2a8a460b"
     },
     "scripts/skill_router.py": {
       "callers": [],
@@ -2325,7 +2325,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "9359b21440ebf8abd5f3b4912b8f5792f7bc8273cae3605f40db203464f21640"
+      "sha256": "4307abef334388606822d3946a8f22e3577a40e8a3781dd26627019c7afabd93"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -3833,7 +3833,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a90ffe89d8ec95a459b5e0ce875a87f243bdd2ae7d4c56424342d3525a5eacca"
+      "sha256": "5d6db83e5d488138eb66d7f9eb0672cc8c6924f1ee0eb52954b196dbd1eec4df"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -3845,7 +3845,7 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "775e44bc5e936dc3e19cb4c1ad3109e00426d70d53fccb60d5d2fc359c043bfa"
+      "sha256": "0b2bc9516ba0f81a502920ae5057a9ca4b8388304b3e60db29b2b8b834f6a078"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
@@ -4416,14 +4416,14 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "7a745ada51b7e33dd5d8ade1ba2d50e46ec21ff3fa73cb0b1384e16155071a37"
+      "sha256": "a6bfec4eb7a6d27b607ac8f9c3c349396917c389628787520cc801261427b4d0"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "585a9effe864ae24f4f9e25ed3b800cfa5437b5ee476503941535efcbc195a23"
+      "sha256": "0947a81691f91da07cc01c78f4d8f412eed37cd5712f906c9ec5648f141c5b70"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
@@ -4435,7 +4435,7 @@
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "2fa36e17af35823c2ad41646786d3761641577271d88f5a9d0738bf411397aad"
+      "sha256": "30f4413527be869711da5109590a5b9b620b421164c1fbb8f20f76ed1945f276"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4907,7 +4907,29 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "e1556f61f0285c6782e76ddbf95aac9ef17d794ca48618dc8528949df78ee6fa"
+      "sha256": "885421b612fe64599a18f4d3df2c566a9808e20ebf05c66d7a6973971fbe865c"
+    },
+    "scripts/glp_sponsor_paypal.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "4aada3d496e3dd1845453109ce2bd904ab7ec5bf1b930f322dbfc9a82657843d"
+    },
+    "tests/test_glp_sponsor_paypal.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "78f4ab6821e4ef7fca5b845d3751c9aae7698d7fc91d9196a94c4e9937d27cbd"
+    },
+    "tests/test_glp73_builder_current_base.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp80-k3-source.yml"
+      ],
+      "kind": "test",
+      "sha256": "00ab291d0b93cd52218c7377c6d210db4737d032b2c04d64037d1ea40aaa027c"
     }
   }
 }
