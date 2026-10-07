@@ -919,7 +919,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "093069a063e51bf35f7bc7e3dbeef7621dc38f7c331850e8706d1db29558d0fa"
+      "sha256": "d0f0101d25515cb06c51c27e08f9274af44365872cbfd03c97f676c2dfa3cfb3"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -3840,7 +3840,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "5d6db83e5d488138eb66d7f9eb0672cc8c6924f1ee0eb52954b196dbd1eec4df"
+      "sha256": "00848e74f16f849281360be4be933c7184751693be4cbd7cce7626e5993b25fb"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
