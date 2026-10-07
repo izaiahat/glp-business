@@ -883,7 +883,9 @@ def main() -> int:
             print(json.dumps({'status': 'error', 'error': 'missing_firecrawl_api_key_in_local_store', 'unsent_day0': before}, indent=2))
             return 2
         from firecrawl import Firecrawl
-        app = Firecrawl(api_key=api_key)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+        from firecrawl_client import LedgerSDKClient
+        app = LedgerSDKClient(Firecrawl(api_key=api_key), caller='sponsor.refill_email_ready_targets')
         to_add = max(0, args.refill_count)
         result = discover(app, to_add, args.max_urls, args.max_queries, args.dry_run, args.query_offset)
         after = unsent_day0_count() if not args.dry_run else before + result['accepted']

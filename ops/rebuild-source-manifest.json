@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 765,
+  "tracked_count": 766,
   "files": {
+    "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py": {
+      "kind": "script",
+      "callers": [
+        "maintained sponsor discovery refill (constructor attribution only; existing holds)"
+      ],
+      "sha256": "ac465327355f80f17d96f1ff1271aa4091301b98d5a6c3a4b088d5730541d498"
+    },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
       "callers": [
@@ -29,7 +36,7 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "337e3106f5a999d444992c251560b1446bf070676f04573ca1ad5d03515f1881"
+      "sha256": "8ab1dd8cebc2019de64b7d2881ea342d255ba2675782505563a3dd23252ea978"
     },
     "scripts/glp_reddit_daily_scout.py": {
       "kind": "script",
@@ -120,7 +127,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "1120d18c666c9affb2cdbe0329529e7c210953dc25b6f85c03128d4cea0fc231"
+      "sha256": "9cb765169ea6ac6960a8306e6e6a44684f90d9b9c8875aca1bead8539659a77a"
     },
     "tests/test_firecrawl_credit_loops.py": {
       "kind": "test",
@@ -1045,7 +1052,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "baa104140d6a7d2a8fbb07319af8aec2cd3bc980c0e01946968c542fbdde483b"
+      "sha256": "62906109f7e05a921ad21e5f50bab9ab2060ea1ed2572bc1d7da793ec57897bf"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -3966,7 +3973,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "5a2861b38cd97c0a6a0915c27a1e32b74bedb391de4bdd5937d963c1adccbe74"
+      "sha256": "48dc88e36b12186fe60e62529b1ef590921f87bdb82eea713f29df2a2eea0d04"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [

@@ -200,3 +200,36 @@ class FirecrawlClient:
 
     def search(self, payload, **kwargs):
         return self.request("search", payload, **kwargs)
+
+
+class LedgerSDKClient:
+    """Preserve SDK typed results while attributing each logical operation."""
+    def __init__(self, client, caller, run_id=None):
+        self.client, self.caller, self.run_id = client, caller, run_id or RUN_ID
+
+    def _call(self, name, value, **options):
+        endpoint = {'search':'/v2/search', 'scrape':'/v2/scrape', 'gov_search':'/v2/search/gov'}[name]
+        body = {**options, ('url' if name == 'scrape' else 'query'): value}
+        operation = str(uuid.uuid4())
+        record_operation(self.caller, endpoint, body, outcome='started', operation_id=operation, run_id=self.run_id)
+        try:
+            result = getattr(self.client, name)(value, **options)
+        except BaseException:
+            record_operation(self.caller, endpoint, body, outcome='ambiguous_transport_error', operation_id=operation, run_id=self.run_id)
+            raise
+        payload = result.model_dump(by_alias=True) if hasattr(result, 'model_dump') else result if isinstance(result, dict) else {}
+        if 'metadata' in payload and 'data' not in payload:
+            payload = {'success':True, 'data':payload}
+        record_operation(self.caller, endpoint, body, payload=payload,
+                         outcome='provider_error' if payload.get('success') is False else 'success',
+                         operation_id=operation, run_id=self.run_id)
+        return result
+
+    def search(self, query, **options):
+        return self._call('search', query, **options)
+
+    def scrape(self, url, **options):
+        return self._call('scrape', url, **options)
+
+    def gov_search(self, query, **options):
+        return self._call('gov_search', query, **options)

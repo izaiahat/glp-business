@@ -45,3 +45,33 @@ def test_client_refuses_v1_and_uncapped_agent(tmp_path):
     with pytest.raises(ValueError):
         client.request('agent', {'prompt': 'test'})
     assert not (tmp_path/'ledger').exists()
+
+
+def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
+    from types import SimpleNamespace
+    monkeypatch.setattr(fc,'LEDGER',tmp_path/'sdk.jsonl')
+    typed=SimpleNamespace(web=[],model_dump=lambda **kw: {'success':True,'creditsUsed':2,'data':{'web':[]}})
+    client=fc.LedgerSDKClient(SimpleNamespace(search=lambda query,**kw:typed),'sdk-fixture')
+    assert client.search('private query',limit=1) is typed
+    rows=[json.loads(s) for s in fc.LEDGER.read_text().splitlines()]
+    assert rows[-1]['creditsUsed']==2
+    assert [r['outcome'] for r in rows]==['started','success']
+    assert 'private query' not in fc.LEDGER.read_text()
+
+
+@pytest.mark.parametrize('basic_ok,expected',[(True,['basic']),(False,['basic','enhanced'])])
+def test_price_proxy_sequence(monkeypatch,basic_ok,expected):
+    import glp_price_verification as price
+    from types import SimpleNamespace
+    calls=[]
+    def post(url,**kwargs):
+        proxy=kwargs['json']['proxy'];calls.append(proxy)
+        text='First party offer $100. '*50 if basic_ok or proxy=='enhanced' else ''
+        return SimpleNamespace(status_code=200,content=text.encode(),json=lambda:{'success':True,'data':{'markdown':text,'metadata':{'statusCode':200}}})
+    monkeypatch.setattr(fc,'firecrawl_post',post)
+    def requests_unavailable(url):
+        raise OSError('fixture transport unavailable')
+    monkeypatch.setattr(price,'requests_fetch',requests_unavailable)
+    result=price.fetch_source(None,'https://example.invalid/pricing','fixture','fixture-only')
+    assert result['text']
+    assert calls==expected
