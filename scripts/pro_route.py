@@ -284,6 +284,11 @@ def dispatch(only=None, max_actions=6):
                 row['attempts'].append({'action': action, 'at': relay.now_iso(), **result})
             save(row)
             results.append({'job': row['job'], 'action': action, 'state': row['state'], **result})
+            if action == 'poll' and not result.get('deferred'):
+                # Match wave.poll_owned(): without spacing, the shared IP clock
+                # admits only the first chat on every tick and starves siblings.
+                # effect() has already released heavy/account locks here.
+                time.sleep(max(20, relay.load_config()['envelope']['poll_stagger_s']))
     return results
 
 

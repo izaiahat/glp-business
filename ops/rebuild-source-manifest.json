@@ -2016,7 +2016,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "0091ed64c3a872fe8b70eb3245718f027dbbefe27b611ff99066c2627bafcea2"
+      "sha256": "3092c53fb15d47f393cb0cf9143f43ec2413301960f1bb2f10ed5c45d48c04bb"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3255,7 +3255,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "21f54e779d49ca1d2a5523aa09ad5739b6ccbe26e633bf0f8c20b7018d9f3bf9"
+      "sha256": "1669995d0bc7c3354525ef79628abb7f171f1ef95b4804e1dff693c95608f96c"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -5052,7 +5052,7 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "5bea16a3dfaf159831337b315c94c08ce262d002ff274d5fb3c64b3cdc5fa94d"
+      "sha256": "350f0f5a64427c4e37defc856869b35938b1733d6bf44a6eb445639c4ef3c583"
     },
     "tests/test_pro_dispatch.py": {
       "callers": [],
@@ -5067,7 +5067,7 @@
     "tests/test_pro_route.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "41a4fb7443fd5491e0757fe578e63c0620eb27a6741f567d291d96fdd27909b1"
+      "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
     }
   }
 }

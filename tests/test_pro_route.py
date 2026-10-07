@@ -182,3 +182,15 @@ def test_changed_packet_cannot_reach_heavy_or_transport(tmp_path, monkeypatch):
     (d/'PROMPT.md').write_text('substituted request')
     monkeypatch.setattr(m.subprocess,'run',lambda *a,**k:(_ for _ in ()).throw(AssertionError('external call')))
     with pytest.raises(ValueError,match='PACKET_DRIFT'):m.effect(row,'submit')
+
+
+def test_dispatch_spaces_bound_polls_without_holding_heavy(tmp_path,monkeypatch):
+    m=route();monkeypatch.setattr(m,'ROOT',tmp_path)
+    for job in ['a','b','c']:m.save({'job':job,'state':'running','attempts':[]})
+    monkeypatch.setattr(m.relay,'job_state',lambda job:{'status':'running'})
+    monkeypatch.setattr(m.relay,'load_config',lambda:{'envelope':{'poll_stagger_s':20}})
+    events=[]
+    monkeypatch.setattr(m,'effect',lambda row,action:events.append(row['job']) or {'rc':3})
+    monkeypatch.setattr(m.time,'sleep',lambda seconds:events.append(seconds))
+    m.dispatch()
+    assert events==['a',20,'b',20,'c',20]

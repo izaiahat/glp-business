@@ -1365,6 +1365,10 @@ if EXISTING_ONLY:
     if _conversation(_here(tab))!=want: _binding_error('legacy_tab_mismatch', expected=want, tab=tab)
 else:
     tab=_bound_tab(want, {tab!r}, {list(protected)!r})
+# Chrome virtualizes background transcripts. Activate only the already proved
+# exact target; never navigate or reload a nonterminal chat to obtain text.
+activate_tab(tab)
+time.sleep(1)
 probe=lambda expression: _bound_js(tab, want, expression)
 st=_state(probe)
 if RELOAD and not st["stop"] and not st["thinking_failed"]:
