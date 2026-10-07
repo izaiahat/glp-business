@@ -167,6 +167,16 @@ def fake_sync_playwright(monkeypatch):
     return log
 
 
+def test_registered_module_entry_bootstraps_host_sibling_imports(monkeypatch, request):
+    # The retained niche filter imports affiliate_payout_policy as a sibling.
+    # `python -m scripts.marketplace_adapters.portal_apply` otherwise fails
+    # before reaching its safe read-only mode on the actual receiving host.
+    scripts_dir = str(ROOT / "scripts")
+    monkeypatch.setattr(sys, "path", [p for p in sys.path if p != scripts_dir])
+    request.getfixturevalue("portal_apply")
+    assert scripts_dir in sys.path
+
+
 def test_api_identity_never_launches_a_portal_browser(portal_apply, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("API identity launched a browser")
