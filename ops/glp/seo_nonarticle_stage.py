@@ -77,8 +77,14 @@ def validate(bundle, pointer=POINTER):
     return apply_operations(source.read_bytes(), bundle), raw_pointer
 
 
-def read_admission(receipt_path):
-    """Authenticate immutable review-stage custody, not historical permission."""
+def read_admission(receipt_path, *, current_patch_ids=None):
+    """Authenticate review custody; current copy policy applies only to overlap.
+
+    A disjoint historical intake contributes no replay/reanchor authority. Its
+    immutable file hashes, envelope, patch identities and source CAS still have
+    to authenticate, but a newly tightened copy policy must not reinterpret
+    unrelated historical proposals as current operational permissions.
+    """
     receipt_path = Path(receipt_path)
     raw = receipt_path.read_bytes()
     receipt = json.loads(raw)
@@ -110,10 +116,26 @@ def read_admission(receipt_path):
     source = Path(intake['generation']['release_root']) / SOURCE
     if intake['source']['path'] != str(source):
         raise ValueError('admission_source_identity_drift')
-    expected = apply_operations(source.read_bytes(), intake)
+    source_raw = source.read_bytes()
+    if (digest(source_raw) != intake['source']['sha256']
+            or digest({k: v for k, v in intake.items() if k != 'intake_id'}) != intake['intake_id']
+            or len(ids) != intake['operation_count'] or len(ids) != len(set(ids))):
+        raise ValueError('admission_cas_or_intake_drift')
+    for op in intake['operations']:
+        expected_id = digest({'week_start': intake['week_start'],
+                              'source_sha256': intake['source']['sha256'],
+                              'operation': {k: v for k, v in op.items() if k != 'patch_id'}})
+        if op['patch_id'] != expected_id:
+            raise ValueError('admission_patch_identity_drift')
+    binding = {'path': str(receipt_path), 'sha256': digest(raw)}
+    if current_patch_ids is not None and not set(ids).intersection(current_patch_ids):
+        # No prior byte may enter this run's overlay, replay or reanchor. Current
+        # validate() has already applied the strict emitter to the fresh bundle.
+        return receipt, intake, binding
+    expected = apply_operations(source_raw, intake)
     if json.loads(overlay_path.read_bytes()) != expected:
         raise ValueError('admitted_overlay_intent_drift')
-    return receipt, intake, {'path': str(receipt_path), 'sha256': digest(raw)}
+    return receipt, intake, binding
 
 
 def generation_key(generation):
@@ -140,7 +162,7 @@ def admit(intake_path, *, root=ROOT, pointer=POINTER):
         for admitted_path in sorted(root.glob('*/ADMISSION.json')):
             if admitted_path == receipt_path:
                 continue
-            prior, prior_intake, prior_binding = read_admission(admitted_path)
+            prior, prior_intake, prior_binding = read_admission(admitted_path, current_patch_ids=patch_ids)
             prior_ops = {op['patch_id']: op for op in prior_intake['operations']}
             overlap = patch_ids & prior_ops.keys()
             if not overlap:
