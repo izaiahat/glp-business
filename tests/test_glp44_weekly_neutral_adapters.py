@@ -117,6 +117,48 @@ def test_weekly_source_stage_requests_bounded_posthog(tmp_path, monkeypatch):
         assert observed['affiliate_clicks'] is None
 
 
+@pytest.mark.parametrize('response,expected', [
+    # Exact independent-review counterexamples plus schema-complete controls.
+    ({'columns': ['path', 'views'], 'results': []}, 0),
+    ({'columns': ['path', 'views']}, None),
+    ({'columns': ['path', 'views'], 'results': None}, None),
+    ({'columns': ['path', 'views'], 'results': False}, None),
+    ({'columns': ['path', 'views'], 'results': 0}, None),
+    ({'columns': ['path', 'views'], 'results': ''}, None),
+    ({'columns': ['path', 'views'], 'results': {}}, None),
+    ({'columns': ['path', 'views'], 'results': 'malformed'}, None),
+    (None, None),
+    ([], None),
+    ({'results': []}, None),
+    ({'columns': None, 'results': []}, None),
+    ({'columns': ['path', 'views'], 'results': [['/', 7]]}, 7),
+])
+def test_neutral_posthog_raw_http_schema(response, expected, monkeypatch):
+    """Real hogql -> neutral_pageviews; only raw HTTP is stubbed, no credentials."""
+    tree = ast.parse((ROOT / 'ops/glp/seo_data_rails.py').read_bytes())
+    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'PostHog')
+    calls = []
+    def http(url, **kwargs):
+        calls.append((url, kwargs))
+        return response
+    ns = {'dt': dt, 'Any': object, '_http': http,
+          'POSTHOG_PROJECT': 'offline-fixture',
+          'POSTHOG_QUERY_URL': 'https://invalid.example/never-requested'}
+    exec(compile(ast.Module(body=[cls], type_ignores=[]), '<exact PostHog>', 'exec'), ns)
+    ph = object.__new__(ns['PostHog'])
+    ph._key = 'inert-not-a-credential'
+    observed = ph.neutral_pageviews(start_date='2026-10-01', end_date='2026-10-07')
+    assert len(calls) == 1
+    assert calls[0][1]['body']['query']['kind'] == 'HogQLQuery'
+    assert observed['total_views'] == expected
+    assert observed['ok'] is (expected is not None)
+    assert observed['complete'] is (expected is not None)
+    assert observed['state'] == ('SOURCE_REPORTED' if expected is not None else 'UNKNOWN')
+    assert observed['affiliate_clicks'] is None
+    assert observed['context']['article_measurement'] == 'UNMEASURED_BY_DESIGN'
+    assert observed['rows'] == ([['/', 7]] if expected == 7 else [])
+
+
 def test_weekly_ga4_constrains_stream_and_neutral_routes(tmp_path):
     rails = runpy.run_path(str(ROOT / 'ops/glp/seo_data_rails.py'))
     tools = {k: k for k in ('gsc_list_properties', 'gsc_search_analytics', 'ga4_run_report', 'bing_query_stats', 'bing_page_stats')}

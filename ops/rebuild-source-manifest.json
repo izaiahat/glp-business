@@ -680,7 +680,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "d70e8e0791bd30f17fad7b743bf1f39ce1d54f032f9b823f4fd88737d5c8f07b"
+      "sha256": "41279de91bfa043e469fc4b05c936296a9cfab72a12b91566fba89be67d18b16"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -695,7 +695,7 @@
         "GLP-44 registered weekly ranking collector/report"
       ],
       "kind": "script",
-      "sha256": "70af6013c32c4b197ea969571a2f2ee795dbe38a94d0e8caaadc3bc2f448e2c9"
+      "sha256": "5237654f900bd8231ec9a7cd7a94862b4c4427e2694098171bffb1fa13a9d319"
     },
     "ops/glp250-partner-email-hold.md": {
       "callers": [],
@@ -1959,7 +1959,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "a2f11fb2bb16d542b5ee57c0d9b5f48a7186fea74e0e286be869af1ac250c681"
+      "sha256": "b2b215266e6a46b12ff00dda69e30fa158a14870f336fb24ffac7c85a0548655"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -5027,7 +5027,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "296dbdcdffb0bd8e03fae422c226c2e22c0cfc7587563159cb28bd796a2c76e2"
+      "sha256": "d4d6f4c7a4aa3074225268e84caa1de6d94c5e69907591cb6028165cf81dc1ab"
     }
   }
 }

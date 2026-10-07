@@ -970,9 +970,14 @@ class PostHog:
                         headers={"Authorization": "Bearer " + self._key},
                         body={"query": {"kind": "HogQLQuery", "query": query}},
                         timeout=timeout)
+            # Only explicit arrays establish a successful read. Truthiness
+            # normalization would turn missing/null/false results into zero.
+            if (not isinstance(doc, dict) or not isinstance(doc.get("columns"), list)
+                    or not isinstance(doc.get("results"), list)):
+                raise ValueError("invalid_posthog_query_shape")
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": str(exc)[:300], "rows": []}
-        return {"ok": True, "columns": doc.get("columns") or [], "rows": doc.get("results") or []}
+        return {"ok": True, "columns": doc["columns"], "rows": doc["results"]}
 
     def neutral_pageviews(self, *, start_date: str, end_date: str) -> dict[str, Any]:
         """Fixed anonymous neutral aggregates; end_date is exclusive UTC midnight.
