@@ -8,22 +8,8 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 726,
+  "tracked_count": 727,
   "files": {
-    "scripts/native_reply_consumer.py": {
-      "kind": "script",
-      "callers": [
-        "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
-      ],
-      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
-    },
-    "tests/test_native_reply_consumer.py": {
-      "kind": "test",
-      "callers": [
-        "tests/test_receive_one_discord_message.py"
-      ],
-      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
-    },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
       "callers": [
@@ -759,20 +745,6 @@
       "kind": "script",
       "sha256": "47054f0a059c72010b6524466ea784c7769c91cb6d7831f11e084e995aa2d933"
     },
-    "tests/test_cgroup_headroom_guardian.py": {
-      "callers": [
-        "guardian-exact-head"
-      ],
-      "kind": "test",
-      "sha256": "b3e3f34a762b70c984da778cd1701614ae8df592562e3e55c000806b65fe7aa8"
-    },
-    ".github/workflows/guardian-coordinator-ci.yml": {
-      "callers": [
-        "GitHub pull_request exact-head CI"
-      ],
-      "kind": "workflow",
-      "sha256": "edc021ce880fa17dfd6df5fdd6937d89cb42c1f121da52f615fc570089bc2959"
-    },
     "ops/hermes-cron-scripts/cgroup_headroom_guardian.py": {
       "callers": [
         "hermes:f918ef069c4a"
@@ -912,7 +884,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "6500509934958dec0bae7b6008e1bb43e1feed0b53cafbb225b51ba2fb5cc690"
+      "sha256": "093069a063e51bf35f7bc7e3dbeef7621dc38f7c331850e8706d1db29558d0fa"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2179,7 +2151,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
+      "sha256": "b8cdcf7e1844be347f31de2e96b0803813cd3cb31e7565489bc684d77d1e219c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2200,7 +2172,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "f225d17a5cc1683be33457d9e4f56057b1789da91b59cb81a95b042d06573de4"
+      "sha256": "2adb0420d48aeb4ac9eeaf6227093757a7143d1b815334598679f04f2a8a460b"
     },
     "scripts/skill_router.py": {
       "callers": [],
@@ -2325,7 +2297,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "9359b21440ebf8abd5f3b4912b8f5792f7bc8273cae3605f40db203464f21640"
+      "sha256": "4307abef334388606822d3946a8f22e3577a40e8a3781dd26627019c7afabd93"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -2937,6 +2909,14 @@
       ],
       "kind": "test",
       "sha256": "9d9446b403753cb58157d032b3037cc3457d62d5348a9ad52f38f45ca2940424"
+    },
+    "tests/test_glp73_builder_current_base.py": {
+      "callers": [
+        "scripts/run_tests.sh",
+        ".github/workflows/glp80-k3-source.yml"
+      ],
+      "kind": "test",
+      "sha256": "00ab291d0b93cd52218c7377c6d210db4737d032b2c04d64037d1ea40aaa027c"
     },
     "tests/test_glp73_current_pointer_consumer.py": {
       "callers": [
@@ -3833,7 +3813,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "a90ffe89d8ec95a459b5e0ce875a87f243bdd2ae7d4c56424342d3525a5eacca"
+      "sha256": "5d6db83e5d488138eb66d7f9eb0672cc8c6924f1ee0eb52954b196dbd1eec4df"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -3845,7 +3825,7 @@
     ".github/workflows/glp80-k3-source.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "775e44bc5e936dc3e19cb4c1ad3109e00426d70d53fccb60d5d2fc359c043bfa"
+      "sha256": "0b2bc9516ba0f81a502920ae5057a9ca4b8388304b3e60db29b2b8b834f6a078"
     },
     "tests/test_glp80_k3_prepared_consumer.py": {
       "callers": [],
@@ -4858,6 +4838,34 @@
         "disposable native home"
       ],
       "sha256": "25bb3eb57f34aafbfdade08d94d21d31f1961581479a2e3bdeed001a2fe98a46"
+    },
+    "scripts/native_reply_consumer.py": {
+      "kind": "script",
+      "callers": [
+        "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
+      ],
+      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
+    },
+    "tests/test_native_reply_consumer.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_receive_one_discord_message.py"
+      ],
+      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
+    },
+    "tests/test_cgroup_headroom_guardian.py": {
+      "callers": [
+        "guardian-exact-head"
+      ],
+      "kind": "test",
+      "sha256": "b3e3f34a762b70c984da778cd1701614ae8df592562e3e55c000806b65fe7aa8"
+    },
+    ".github/workflows/guardian-coordinator-ci.yml": {
+      "callers": [
+        "GitHub pull_request exact-head CI"
+      ],
+      "kind": "workflow",
+      "sha256": "edc021ce880fa17dfd6df5fdd6937d89cb42c1f121da52f615fc570089bc2959"
     },
     "scripts/glp_sponsor_readiness.py": {
       "kind": "source_control",

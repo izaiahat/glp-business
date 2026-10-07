@@ -39,6 +39,7 @@ from site_tree_materializer import (  # noqa: E402
     FLAGSHIP_REQUIRED_PUBLIC_BUILD_INPUTS,
     constructor_provenance,
     copytree_linked,
+    materialize_accepted_prepared_base,
     detach_for_write,
     prepare_clean_build_trees,
     remove_materialized_tree,
@@ -550,10 +551,76 @@ def ensure_accepted_base_sealed(
     return receipt
 
 
+def accepted_base_inventory(manifest: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Select one authenticated producer representation, never per-row aliases."""
+    inventory = manifest.get("release_rows")
+    if not isinstance(inventory, list) or not inventory or not isinstance(inventory[0], dict):
+        raise RuntimeError("base_manifest_rows_invalid")
+    fields = set(inventory[0])
+    if fields == {"path", "sha256", "bytes"}:
+        representation = "bytes"
+    elif fields == {"path", "size", "sha256"}:
+        representation = "size"
+        if (set(manifest) != {"schema", "release_root", "release_rows", "release_tree_sha256",
+                              "site_head", "deploy_directory"}
+                or manifest["schema"] != "glp-opus-release-deployment-manifest-v1"
+                or not isinstance(manifest["site_head"], str)
+                or not re.fullmatch(r"[0-9a-f]{40}", manifest["site_head"])):
+            raise RuntimeError("base_native_manifest_invalid")
+        deploy = manifest["deploy_directory"]
+        if (not isinstance(deploy, dict) or set(deploy) != {"tree_sha256", "file_count", "total_bytes"}
+                or not isinstance(deploy["tree_sha256"], str)
+                or not SHA256_PATTERN.fullmatch(deploy["tree_sha256"])
+                or any(type(deploy[k]) is not int or deploy[k] < 0 for k in ("file_count", "total_bytes"))):
+            raise RuntimeError("base_native_deploy_closure_invalid")
+    else:
+        raise RuntimeError("base_manifest_row_representation_invalid")
+    normalized = []
+    seen: set[str] = set()
+    for row in inventory:
+        if not isinstance(row, dict) or set(row) != fields:
+            raise RuntimeError("base_manifest_mixed_rows")
+        path, digest, length = row["path"], row["sha256"], row[representation]
+        if (not isinstance(path, str) or not path or "\\" in path or "\0" in path
+                or path.startswith("/") or any(p in {"", ".", ".."} for p in path.split("/"))
+                or path in seen or not isinstance(digest, str) or not SHA256_PATTERN.fullmatch(digest)
+                or type(length) is not int or length < 0):
+            raise RuntimeError("base_manifest_row_invalid")
+        seen.add(path)
+        normalized.append({"path": path, "sha256": digest, "bytes": length})
+    return representation, sorted(normalized, key=lambda r: r["path"].encode())
+
+
+def accepted_base_closure(inventory: list[dict[str, Any]], representation: str) -> str:
+    if representation == "bytes":
+        return closure(inventory)
+    if representation != "size":
+        raise RuntimeError("base_manifest_row_representation_invalid")
+    digest = hashlib.sha256()
+    for row in sorted(inventory, key=lambda r: r["path"].encode()):
+        digest.update(f"{row['path']}\0{row['bytes']}\0{row['sha256']}\n".encode())
+    return digest.hexdigest()
+
+
 def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str]:
     base = Path(job["base_release_root"]).resolve()
     manifest_path = checked(job["base_manifest"], "base_manifest")
     receipt_path = checked(job["base_final_receipt"], "base_final_receipt")
+    def descriptor(path: Path) -> tuple[int, ...]:
+        info = os.lstat(path)
+        return tuple(getattr(info, k) for k in (
+            "st_dev", "st_ino", "st_mode", "st_uid", "st_gid", "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns"))
+    descriptors = (descriptor(manifest_path), descriptor(receipt_path))
+
+    def recheck_evidence() -> None:
+        # Authenticate the CURRENT lexical selection, including aliases/ancestors,
+        # against the original resolved paths and descriptors. Hash equality alone
+        # must not bless a same-byte retarget while the old resolved file survives.
+        selected = (checked(job["base_manifest"], "base_manifest"),
+                    checked(job["base_final_receipt"], "base_final_receipt"))
+        if selected != (manifest_path, receipt_path) or descriptors != tuple(map(descriptor, selected)):
+            raise RuntimeError("base_evidence_descriptor_drift")
+
     manifest = json.loads(manifest_path.read_text())
     receipt = json.loads(receipt_path.read_text())
     if receipt.get("status") == "PASS_LIVE_GSC_READBACK_PASS":
@@ -572,28 +639,29 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
         raise RuntimeError("base_terminal_manifest_invalid")
     if Path(manifest.get("release_root", "")).resolve() != base:
         raise RuntimeError("base_manifest_root_invalid")
+    representation, inventory = accepted_base_inventory(manifest)
     actual_rows = rows(base)
-    # Compare CONTENT, not list order. Two producers mint accepted-base manifests:
-    # this builder (`rows()`, which sorts Path objects) and the publisher's
-    # current-base-evidence adapter (which sorts path strings). Those orders
-    # diverge whenever a directory name is a prefix of a sibling file name — e.g.
-    # `workers/price-watch/.wrangler/...` vs `workers/price-watch-scheduler.mjs`,
-    # where '-' < '/' as strings but 'price-watch' < 'price-watch-scheduler.mjs'
-    # as path parts. That made a byte-identical base fail base_release_drift on
-    # 2026-08-18 with an IDENTICAL tree closure. The closure below is the
-    # authoritative tree identity and is still checked exactly.
-    by_path = lambda values: sorted(values or [], key=lambda row: row["path"])
-    if (by_path(actual_rows) != by_path(manifest.get("release_rows"))
-            or closure(actual_rows) != manifest.get("release_tree_sha256")):
+    by_path = lambda values: sorted(values, key=lambda row: row["path"].encode())
+    release_tree = accepted_base_closure(actual_rows, representation)
+    if by_path(actual_rows) != inventory or release_tree != manifest.get("release_tree_sha256"):
         raise RuntimeError("base_release_drift")
-    public_tree = closure(rows(base / "public"))
-    if receipt_release_tree != manifest.get("release_tree_sha256") or receipt_public_tree != public_tree:
+    public_tree = accepted_base_closure(rows(base / "public"), representation)
+    if receipt_release_tree != release_tree or receipt_public_tree != public_tree:
         raise RuntimeError("base_terminal_tree_mismatch")
-    ensure_accepted_base_sealed(base, actual_rows, str(manifest.get("release_tree_sha256")))
+    if representation == "size":
+        if (receipt.get("schema") != "glp-opus-production-terminal-receipt-v1"
+                or receipt.get("status") != "PASS_PRODUCTION_TERMINAL"
+                or receipt.get("site_head") != manifest["site_head"]):
+            raise RuntimeError("base_native_terminal_identity_invalid")
+    else:
+        # The legacy repair authenticates its own bytes-order digest only.
+        recheck_evidence()
+        ensure_accepted_base_sealed(base, actual_rows, release_tree)
     values = load_env()
     token = values.get("CLOUDFLARE_API_TOKEN") or values.get("CF_API_TOKEN")
     if not token:
         raise RuntimeError("cloudflare_token_missing")
+    recheck_evidence()
     response = requests.get(CF_API, headers={"Authorization": f"Bearer {token}"}, timeout=60)
     response.raise_for_status()
     body = response.json()
@@ -602,6 +670,14 @@ def require_current_base(job: dict[str, Any]) -> tuple[Path, dict[str, Any], str
     canonical = (body.get("result") or {}).get("canonical_deployment") or {}
     if canonical.get("id") != deployment_id:
         raise RuntimeError("production_head_changed")
+
+    recheck_evidence()
+    if representation == "size" and unsealed_base_entries(base):
+        # Ingest the authenticated prepared bytes into a NEW fixed-root immutable
+        # base. Never seal the mutable report tree or rewrite its bound evidence.
+        base = materialize_accepted_prepared_base(
+            base, SITE_RELEASES_ROOT / f"accepted-prepared-{release_tree}", inventory)
+    recheck_evidence()
     return base, manifest, deployment_id
 
 
@@ -3844,9 +3920,14 @@ def retain_price_index_predecessor(job: dict[str, Any], base: Path, target: Path
     checkpoint_html = "artifacts/build4-preservation/glp-1-price-index/index.html"
     checkpoint_manifest = "artifacts/build4-preservation/ops/price-index-manifest.json"
     manifest = json.loads(checked(job["base_manifest"], "base_manifest").read_text())
-    if manifest["release_root"] != str(base) or job["base_release_root"] != str(base):
+    representation, inventory = accepted_base_inventory(manifest)
+    if manifest["release_root"] != job["base_release_root"]:
         raise RuntimeError("price_index_retention_base_identity_drift")
-    indexed = {row["path"]: row for row in manifest["release_rows"]}
+    if str(base) != manifest["release_root"]:
+        expected = SITE_RELEASES_ROOT / f"accepted-prepared-{manifest['release_tree_sha256']}"
+        if representation != "size" or base != expected or unsealed_base_entries(base):
+            raise RuntimeError("price_index_retention_base_identity_drift")
+    indexed = {row["path"]: row for row in inventory}
 
     def authenticated(relative: str) -> bytes:
         path = base / relative

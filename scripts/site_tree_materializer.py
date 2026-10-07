@@ -4,9 +4,10 @@ A candidate starts as hardlinks to an immutable predecessor. Before any
 candidate path is written, callers must call :func:`detach_for_write` for that
 path. Directories are always private. Files stay shared until detached.
 
-The helper deliberately has no cross-device copy fallback. The only privileged
-path is a descriptor-bound hardlink copy between fixed flagship site roots; raw
-caller paths are never passed to sudo.
+The helper deliberately has no cross-device hardlink-copy fallback. Privileged
+operations use already-open descriptors within fixed flagship site roots. The
+narrow authenticated registry prepared-base producer creates private immutable
+bytes there; candidate/release construction still uses hardlink COW.
 """
 from __future__ import annotations
 
@@ -830,6 +831,236 @@ def prepare_clean_build_trees(
         "generated_files_at_build_start": expected_files,
         "stale_generated_files_at_build_start": 0,
     }
+
+
+def _mkdir_custodied_fd(parent_fd: int, name: str) -> tuple[int, bool]:
+    """Bind mkdir's creation to the opened inode before any write or seal.
+
+    mkdirat does not return an FD. A name/FD check alone can adopt a donor
+    swapped in before openat. Watch the retained parent BEFORE mkdir and drain
+    the kernel's ordered namespace events AFTER open: exactly one directory
+    create, with no move/delete for this name, establishes creation custody.
+    Overflow/watch loss is refusal, never a fallback. Later swaps cannot change
+    this retained inode; callers still verify final canonical name binding.
+    """
+    import ctypes
+    import struct
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.inotify_init1.argtypes = [ctypes.c_int]
+    libc.inotify_init1.restype = ctypes.c_int
+    libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+    libc.inotify_add_watch.restype = ctypes.c_int
+    watcher = libc.inotify_init1(os.O_CLOEXEC | os.O_NONBLOCK)
+    if watcher < 0:
+        raise OSError(ctypes.get_errno(), "accepted_prepared_creation_watch_unavailable")
+    fd = -1
+    try:
+        # IN_CREATE|DELETE|MOVED_FROM|MOVED_TO|DELETE_SELF|MOVE_SELF|UNMOUNT,
+        # plus IN_ONLYDIR. /proc binds the watch to our retained parent inode.
+        wd = libc.inotify_add_watch(watcher, os.fsencode(f"/proc/self/fd/{parent_fd}"), 0x01002fc0)
+        if wd < 0:
+            raise OSError(ctypes.get_errno(), "accepted_prepared_creation_watch_unavailable")
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            return os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd), False
+        fd = os.open(name, _DIRECTORY_FLAGS, dir_fd=parent_fd)
+        # A second mkdir must report EEXIST. Besides checking presence, this
+        # takes the parent's directory mutation lock: any rename that selected
+        # the opened inode has completed its synchronous fsnotify enqueue before
+        # we drain. A read alone could run while that rename is still finishing.
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+        else:
+            raise RuntimeError("accepted_prepared_creation_custody_lost")
+        creates = 0
+        while True:
+            try:
+                events = os.read(watcher, 65536)
+            except BlockingIOError:
+                break
+            if not events:
+                raise RuntimeError("accepted_prepared_creation_custody_lost")
+            offset = 0
+            while offset < len(events):
+                if len(events) - offset < 16:
+                    raise RuntimeError("accepted_prepared_creation_custody_lost")
+                event_wd, mask, _, length = struct.unpack_from("iIII", events, offset)
+                end = offset + 16 + length
+                if end > len(events) or event_wd != wd or mask & 0xec00:
+                    # Includes queue overflow, ignored watch and parent loss/move.
+                    raise RuntimeError("accepted_prepared_creation_custody_lost")
+                entry = events[offset + 16:end].split(b"\0", 1)[0]
+                if entry == os.fsencode(name):
+                    if mask != 0x40000100:  # IN_ISDIR | IN_CREATE only
+                        raise RuntimeError("accepted_prepared_creation_custody_lost")
+                    creates += 1
+                offset = end
+        if creates != 1 or not _destination_binding_matches(parent_fd, name, fd):
+            raise RuntimeError("accepted_prepared_creation_custody_lost")
+        result, fd = fd, -1
+        return result, True
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(watcher)
+
+
+def materialize_accepted_prepared_base(
+    source: Path, destination: Path, expected_rows: list[dict[str, Any]],
+) -> Path:
+    """Ingest authenticated registry prepared bytes as a new immutable base.
+
+    This is base production, NOT candidate/release materialization (which still
+    must hardlink an immutable base). Never link, chmod or chown the report tree.
+    The only privileged operation is the existing descriptor-bound owner seal;
+    its allowed site roots are unchanged. Failed/uncertain seals are not retried
+    or removed automatically. An existing target must independently qualify.
+    """
+    source = _normalized_absolute(source, "prepared_base")
+    destination = _normalized_absolute(destination, "prepared_base_destination")
+    registry = _CANONICAL_MACHINE_ROOT / "registry-site-sync"
+    if (source.name != "release" or source.parent.name != "prepared"
+            or source.parent.parent.parent != registry):
+        raise PermissionError("accepted_prepared_source_outside_registry")
+    _fixed_child_parent(destination, (_SITE_ROOT / "releases",), "accepted_prepared_base")
+    indexed: dict[str, dict[str, Any]] = {}
+    digest = hashlib.sha256()
+    for row in sorted(expected_rows, key=lambda r: r["path"].encode()):
+        path = row["path"]
+        if (set(row) != {"path", "sha256", "bytes"} or not isinstance(path, str) or not path
+                or path.startswith("/") or "\\" in path or "\0" in path
+                or any(p in {"", ".", ".."} for p in path.split("/")) or path in indexed
+                or type(row["bytes"]) is not int or row["bytes"] < 0 or not _valid_sha256(row["sha256"])):
+            raise ValueError("accepted_prepared_inventory_invalid")
+        indexed[path] = row
+        digest.update(f"{path}\0{row['bytes']}\0{row['sha256']}\n".encode())
+    if not indexed or destination.name != "accepted-prepared-" + digest.hexdigest():
+        raise ValueError("accepted_prepared_destination_digest_invalid")
+    source_fd = _open_tree_root(source)
+    parent_fd = -1
+    destination_fd = -1
+    retained: list[int] = []
+    previous_limit = None
+    try:
+        parent_fd = _open_tree_root(destination.parent)
+        before = _tree_manifest_fd(source_fd, require_immutable=False)
+        if set(before["files"]) != set(indexed):
+            raise RuntimeError("accepted_prepared_source_inventory_drift")
+        destination_fd, created = _mkdir_custodied_fd(parent_fd, destination.name)
+        if created:
+            previous_limit = _raise_bounded_fd_limit(
+                len(before["directories"]) + len(before["files"]) + 32, "accepted_prepared_base")
+            retained.append(os.dup(destination_fd))
+
+        def walk(source_dir: int, target_dir: int, prefix: Path) -> None:
+            if set(os.listdir(source_dir)) != set(os.listdir(target_dir)) and not created:
+                raise RuntimeError("accepted_prepared_existing_inventory_drift")
+            for name in sorted(os.listdir(source_dir)):
+                relative = (prefix / name).as_posix()
+                info = _entry_stat(source_dir, name)
+                if stat.S_ISDIR(info.st_mode):
+                    child_source, _ = _opened_stat(source_dir, name, _DIRECTORY_FLAGS, info)
+                    child_target = -1
+                    try:
+                        if created:
+                            child_target, child_created = _mkdir_custodied_fd(target_dir, name)
+                            if not child_created:
+                                raise RuntimeError("accepted_prepared_creation_custody_lost")
+                            retained.append(os.dup(child_target))
+                        else:
+                            child_target = os.open(name, _DIRECTORY_FLAGS, dir_fd=target_dir)
+                        walk(child_source, child_target, prefix / name)
+                    finally:
+                        os.close(child_source)
+                        if child_target >= 0:
+                            os.close(child_target)
+                elif stat.S_ISREG(info.st_mode):
+                    row = indexed.get(relative)
+                    if row is None:
+                        raise RuntimeError("accepted_prepared_source_inventory_drift")
+                    source_file, opened = _opened_stat(source_dir, name, _FILE_FLAGS, info)
+                    target_file = -1
+                    try:
+                        flags = (os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW) if created else _FILE_FLAGS
+                        target_file = os.open(name, flags, 0o600, dir_fd=target_dir)
+                        if created:
+                            retained.append(os.dup(target_file))
+                            while True:
+                                block = os.read(source_file, 1024 * 1024)
+                                if not block:
+                                    break
+                                view = memoryview(block)
+                                while view:
+                                    written = os.write(target_file, view)
+                                    view = view[written:]
+                            os.fsync(target_file)
+                            os.fchmod(target_file, 0o444 | (stat.S_IMODE(opened.st_mode) & 0o111))
+                        target_info = os.fstat(target_file)
+                        if ((opened.st_dev, opened.st_ino) == (target_info.st_dev, target_info.st_ino)
+                                or target_info.st_size != row["bytes"] or _hash_fd(target_file) != row["sha256"]
+                                or _hash_fd(source_file) != row["sha256"]
+                                or _snapshot(os.fstat(source_file)) != _snapshot(opened)):
+                            raise RuntimeError("accepted_prepared_content_drift")
+                    finally:
+                        os.close(source_file)
+                        if target_file >= 0:
+                            os.close(target_file)
+                else:
+                    raise ValueError("accepted_prepared_special_entry")
+
+        walk(source_fd, destination_fd, Path())
+        if _tree_manifest_fd(source_fd, require_immutable=False) != before:
+            raise RuntimeError("accepted_prepared_source_descriptor_drift")
+        if created:
+            for fd in retained:
+                if stat.S_ISDIR(os.fstat(fd).st_mode):
+                    os.fchmod(fd, 0o555)
+                os.fsync(fd)
+            if os.geteuid() == 0:
+                for fd in retained:
+                    os.fchown(fd, 0, 0)
+            else:
+                _sudo_chown_fds(retained, 0, 0)
+        final = _tree_manifest_fd(destination_fd, require_owner=(0, 0))
+        if set(final["files"]) != set(indexed) or set(final["directories"]) != set(before["directories"]):
+            raise RuntimeError("accepted_prepared_final_inventory_drift")
+        for path, snapshot in final["files"].items():
+            parent = _open_relative_directory_fd(destination_fd, str(Path(path).parent))
+            file_fd = -1
+            try:
+                file_fd = os.open(Path(path).name, _FILE_FLAGS, dir_fd=parent)
+                if _preserved_snapshot(os.fstat(file_fd)) != snapshot or _hash_fd(file_fd) != indexed[path]["sha256"]:
+                    raise RuntimeError("accepted_prepared_final_content_drift")
+            finally:
+                if file_fd >= 0:
+                    os.close(file_fd)
+                os.close(parent)
+        for path, fd in ((source, source_fd), (destination.parent, parent_fd)):
+            rebound = _open_tree_root(path)
+            try:
+                if (os.fstat(rebound).st_dev, os.fstat(rebound).st_ino) != (os.fstat(fd).st_dev, os.fstat(fd).st_ino):
+                    raise RuntimeError("accepted_prepared_root_descriptor_drift")
+            finally:
+                os.close(rebound)
+        if not _destination_binding_matches(parent_fd, destination.name, destination_fd):
+            raise RuntimeError("accepted_prepared_destination_rebound")
+        if _tree_manifest_fd(source_fd, require_immutable=False) != before:
+            raise RuntimeError("accepted_prepared_source_descriptor_drift")
+        return destination
+    finally:
+        for fd in retained:
+            os.close(fd)
+        if destination_fd >= 0:
+            os.close(destination_fd)
+        if parent_fd >= 0:
+            os.close(parent_fd)
+        os.close(source_fd)
+        if previous_limit is not None:
+            resource.setrlimit(resource.RLIMIT_NOFILE, previous_limit)
 
 
 def copytree_linked(
