@@ -69,7 +69,7 @@ def test_empty_unpolled_actions_cannot_claim_complete_coverage(tmp_path,monkeypa
  assert client.deliveries==[]
 
 def test_loose_manifest_rehash_does_not_reapprove_changed_copy(tmp_path):
- required=['scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py']
+ required=['scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_paypal.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py']
  for rel in required:
   p=m.ROOT/rel;p.parent.mkdir(parents=True,exist_ok=True);p.write_text('original fixture')
  manifest={rel:m.digest(m.ROOT/rel) for rel in required}

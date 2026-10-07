@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 724,
+  "tracked_count": 726,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -2165,7 +2165,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c3374998af6b71ad8b02ec1d3cf1cfd32fd5b843f2c2b6202db05a03a0e9d85e"
+      "sha256": "041d2ecc88ec2f4add395640c3142a91ccaa32bffd35245e08558dcc3d02ee5c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4397,19 +4397,33 @@
       ],
       "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
     },
+    "scripts/glp_sponsor_paypal.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "3d4354412b385a1434487fd77ea4b5dbf7e6b80572927a578a552b8d8d72c65d"
+    },
+    "tests/test_glp_sponsor_paypal.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "664d77f2eb5651d58f39ebd988e11dd8e6abb297507f2ae7801b504002c671d6"
+    },
     "scripts/glp_sponsor_campaign.py": {
       "kind": "script",
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "7a745ada51b7e33dd5d8ade1ba2d50e46ec21ff3fa73cb0b1384e16155071a37"
+      "sha256": "b8aed54a204dc2c659ea287a7de77072611d2010294320cf34a86b656456475e"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "585a9effe864ae24f4f9e25ed3b800cfa5437b5ee476503941535efcbc195a23"
+      "sha256": "0947a81691f91da07cc01c78f4d8f412eed37cd5712f906c9ec5648f141c5b70"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
@@ -4421,7 +4435,7 @@
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "2fa36e17af35823c2ad41646786d3761641577271d88f5a9d0738bf411397aad"
+      "sha256": "30f4413527be869711da5109590a5b9b620b421164c1fbb8f20f76ed1945f276"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4878,7 +4892,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "e1556f61f0285c6782e76ddbf95aac9ef17d794ca48618dc8528949df78ee6fa"
+      "sha256": "885421b612fe64599a18f4d3df2c566a9808e20ebf05c66d7a6973971fbe865c"
     }
   }
 }
