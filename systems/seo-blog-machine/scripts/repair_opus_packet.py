@@ -182,12 +182,34 @@ if __name__ == "__main__":
         # Supported native CLI with process-local overrides; no saved-config
         # mutation, inherited Fast, paid provider or fallback model.
         sys.path.insert(0, "/home/ubuntu/.hermes/hermes-agent")
+        from copy import deepcopy
         from cli import CLI_CONFIG
+        import hermes_cli.config_effective as config_effective
         from hermes_cli.main import main as hermes_main
-        CLI_CONFIG.setdefault("agent", {})["service_tier"] = SERVICE_TIER
-        CLI_CONFIG["fallback_providers"] = []
+
+        def repair_config(config):
+            config = deepcopy(config)
+            config.setdefault("agent", {})["service_tier"] = SERVICE_TIER
+            config["fallback_providers"] = []
+            config.pop("fallback_model", None)
+            return config
+
+        CLI_CONFIG.update(repair_config(CLI_CONFIG))
         CLI_CONFIG.pop("fallback_model", None)
+        # chat() reloads effective persisted config immediately before inference.
+        # Keep the native loader (managed overlay, parse failures, approvals and
+        # all other settings), but project these same route pins on EVERY read
+        # in this bounded process. No saved config or native source is changed.
+        native_load_config = config_effective.load_user_config_effective
+
+        def load_repair_config(*args, **kwargs):
+            return repair_config(native_load_config(*args, **kwargs))
+
+        config_effective.load_user_config_effective = load_repair_config
         sys.argv = [sys.argv[0], *sys.argv[2:]]
-        hermes_main()
+        try:
+            hermes_main()
+        finally:
+            config_effective.load_user_config_effective = native_load_config
         raise SystemExit(0)
     raise SystemExit(main())

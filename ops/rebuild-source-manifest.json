@@ -4928,7 +4928,7 @@
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
-      "sha256": "29b4015d3060a4f67e81684f6ffac44b5fcdf9c095010c9f67c867c361cabee8"
+      "sha256": "96eb3374eb1b78bdcc26dd9164a599fa053e00197da6bf12b9235de66831ae2a"
     },
     "ops/hermes-cron-prompts/glp-seo-buffer-refill.md": {
       "kind": "native_cron_prompt",

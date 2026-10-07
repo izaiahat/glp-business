@@ -224,10 +224,111 @@ def test_native_reviewer_pins_standard_and_refuses_legacy_or_tools():
             wrapper.validate_target_args(altered)
 
 
+# Executable AST snapshots of the reviewed native boundary, not a replacement
+# implementation. CI has no native install. On the receiving host, compare and
+# execute the real extracted functions; never import cli/gateway/config loaders.
+# Provenance (whole source SHA256):
+# cli_chat_turn_mixin.py: 3cbe309cc3c70c438c0499a938097c94f008055bf51c68f7d4d07f9961ca513f
+# run_config_loaders.py: 25f62ff386e8c4280ff2b1bdfe140fcac5abeed6a0cf92f27a171fc73efbbd50
+# fallback_config.py: c19bc2b176dfab542eb3ad62ecc5c2f429782abe5836e1b8aeb4e0526cb622b8
+NATIVE_FALLBACK_BOUNDARY = {
+    "hermes_cli/cli_chat_turn_mixin.py": '''
+def _sync_fallback_chain_with_config(self, agent) -> None:
+    from cli import logger
+    try:
+        from gateway.run import GatewayRunner
+        from hermes_cli.config_effective import load_user_config_effective
+        from hermes_cli.fallback_config import get_fallback_chain
+        self._fallback_model = get_fallback_chain(load_user_config_effective(fail_closed=True))
+    except Exception as e:
+        logger.debug('fallback chain sync skipped (keeping current chain): %s', e)
+        return
+    GatewayRunner._apply_fallback_chain_to_agent(agent, self._fallback_model)
+''',
+    "gateway/run_config_loaders.py": '''
+def _apply_fallback_chain_to_agent(agent: Any, chain: list | None) -> None:
+    if agent is None:
+        return
+    new_chain = list(chain or [])
+    rate_limited_until = getattr(agent, '_rate_limited_until', 0) or 0
+    if getattr(agent, '_fallback_activated', False) and rate_limited_until > time.monotonic():
+        return
+    old_chain = list(getattr(agent, '_fallback_chain', []) or [])
+    agent._fallback_chain = new_chain
+    agent._fallback_model = new_chain[0] if new_chain else None
+    if not getattr(agent, '_fallback_activated', False):
+        agent._fallback_index = 0
+    if new_chain != old_chain:
+        unavailable = getattr(agent, '_unavailable_fallback_keys', None)
+        if unavailable:
+            unavailable.clear()
+''',
+    "hermes_cli/fallback_config.py": '''
+def _normalized_base_url(value: Any) -> str:
+    return value.strip().rstrip('/') if isinstance(value, str) else ''
+def _iter_fallback_entries(raw: Any) -> list[dict[str, Any]]:
+    candidates = [raw] if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    entries: list[dict[str, Any]] = []
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            continue
+        provider = str(entry.get('provider') or '').strip()
+        model = str(entry.get('model') or '').strip()
+        if not provider or not model:
+            continue
+        normalized = {**entry, 'provider': provider, 'model': model}
+        base_url = _normalized_base_url(entry.get('base_url'))
+        if base_url:
+            normalized['base_url'] = base_url
+        entries.append(normalized)
+    return entries
+def _entry_identity(entry: dict[str, Any]) -> tuple[str, str, str]:
+    return (str(entry.get('provider') or '').strip().lower(), str(entry.get('model') or '').strip().lower(), _normalized_base_url(entry.get('base_url')).lower())
+def get_fallback_chain(config: dict[str, Any] | None) -> list[dict[str, Any]]:
+    config = config or {}
+    chain: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for key in ('fallback_providers', 'fallback_model'):
+        for entry in _iter_fallback_entries(config.get(key)):
+            identity = _entry_identity(entry)
+            if identity not in seen:
+                seen.add(identity)
+                chain.append(entry)
+    return chain
+''',
+}
+
+
+def native_fallback_boundary():
+    import time
+    namespace = {"Any": object, "time": time}
+    native = Path("/home/ubuntu/.hermes/hermes-agent")
+    for relative, snapshot in NATIVE_FALLBACK_BOUNDARY.items():
+        tree = ast.parse(snapshot)
+        names = {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}
+        path = native / relative
+        if path.is_file():
+            actual = [node for node in ast.walk(ast.parse(path.read_bytes()))
+                      if isinstance(node, ast.FunctionDef) and node.name in names]
+            for node in actual:
+                node.decorator_list = []
+                if (isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)):
+                    node.body = node.body[1:]
+            tree_actual = ast.Module(body=list(actual), type_ignores=[])
+            assert ast.dump(tree_actual) == ast.dump(tree), "native boundary changed; re-review snapshot"
+            tree = tree_actual
+        exec(compile(tree, str(path), "exec"), namespace)
+    return namespace
+
+
 def test_repair_native_entry_overrides_config_without_persisting(monkeypatch):
+    import logging
     import runpy
     import sys
     from types import SimpleNamespace
+    boundary = native_fallback_boundary()
     path = SCRIPTS / "repair_opus_packet.py"
     spec = importlib.util.spec_from_file_location("repair_route_fixture", path)
     assert spec is not None and spec.loader is not None
@@ -238,16 +339,72 @@ def test_repair_native_entry_overrides_config_without_persisting(monkeypatch):
     for flag, value in (("--provider", "openai-codex"), ("--model", "gpt-6.1-sol"),
                         ("--reasoning", "high"), ("--max-turns", "60")):
         assert cmd[cmd.index(flag) + 1] == value
-    config = {"agent": {"service_tier": "priority"}, "fallback_providers": [{"provider": "forbidden"}],
-              "fallback_model": {"provider": "forbidden"}}
+    persisted = {"agent": {"service_tier": "priority", "max_turns": 60},
+                 "approvals": {"deny": ["fixture-protected"]},
+                 "fallback_providers": [{"provider": "fixture-forbidden", "model": "fixture-model"}],
+                 "fallback_model": {"provider": "fixture-legacy", "model": "fixture-legacy-model"}}
+    untouched = copy.deepcopy(persisted)
+    config = copy.deepcopy(persisted)
+    reads = []
+    torn = False
+
+    def effective_loader(*args, **kwargs):
+        reads.append((args, kwargs))
+        if torn:
+            raise ValueError("fixture torn config")
+        # Deliberately return the fixture itself: the override must not mutate it.
+        return persisted
+
+    effective = SimpleNamespace(load_user_config_effective=effective_loader)
+    monkeypatch.setitem(sys.modules, "hermes_cli", SimpleNamespace(config_effective=effective))
+    monkeypatch.setitem(sys.modules, "cli", SimpleNamespace(CLI_CONFIG=config, logger=logging.getLogger("offline")))
+    monkeypatch.setitem(sys.modules, "hermes_cli.config_effective", effective)
+    monkeypatch.setitem(sys.modules, "gateway.run", SimpleNamespace(GatewayRunner=SimpleNamespace(
+        _apply_fallback_chain_to_agent=boundary["_apply_fallback_chain_to_agent"])))
+    monkeypatch.setitem(sys.modules, "hermes_cli.fallback_config", SimpleNamespace(
+        get_fallback_chain=boundary["get_fallback_chain"]))
+    # Prove the genuine native boundary can restore both forbidden routes.
+    agent = SimpleNamespace(_fallback_chain=[], _fallback_model=None)
+    cli = SimpleNamespace(_fallback_model=[])
+    refresh = boundary["_sync_fallback_chain_with_config"]
+    refresh(cli, agent)
+    assert agent._fallback_chain == [persisted["fallback_providers"][0], persisted["fallback_model"]]
+    agent._fallback_chain, agent._fallback_model, cli._fallback_model = [], None, []
+    expected = copy.deepcopy(persisted)
+    expected["agent"]["service_tier"] = "default"
+    expected["fallback_providers"] = []
+    expected.pop("fallback_model")
     observed = []
-    monkeypatch.setitem(sys.modules, "cli", SimpleNamespace(CLI_CONFIG=config))
-    monkeypatch.setitem(sys.modules, "hermes_cli.main", SimpleNamespace(main=lambda: observed.append(copy.deepcopy(config))))
+
+    def inference_boundary():
+        nonlocal torn
+        observed.append(copy.deepcopy(config))
+        # Execute the actual per-turn refresh/application BEFORE the inert
+        # inference observer, including a later persisted edit and a torn read.
+        for mode in ("initial", "edited", "torn"):
+            if mode == "edited":
+                persisted["fallback_providers"].append({"provider": "fixture-added", "model": "fixture-added-model"})
+            torn = mode == "torn"
+            refresh(cli, agent)
+            assert agent._fallback_chain == [], "native refresh restored forbidden fallback before inference"
+            assert agent._fallback_model is None
+            assert cli._fallback_model == []
+            if not torn:
+                fresh = effective.load_user_config_effective(fail_closed=True)
+                assert fresh == expected  # retains approvals and other settings
+        torn = False
+
+    monkeypatch.setitem(sys.modules, "hermes_cli.main", SimpleNamespace(main=inference_boundary))
     monkeypatch.setattr(sys, "argv", cmd[1:])
     with pytest.raises(SystemExit) as exit_result:
         runpy.run_path(str(path), run_name="__main__")
     assert exit_result.value.code == 0
-    assert observed == [{"agent": {"service_tier": "default"}, "fallback_providers": []}]
+    assert observed == [expected]
+    assert effective.load_user_config_effective is effective_loader
+    assert all(kwargs == {"fail_closed": True} and not args for args, kwargs in reads)
+    # Only the deliberate fixture edit above changed the persisted mapping.
+    persisted["fallback_providers"].pop()
+    assert persisted == untouched
 
 
 def test_refill_prompt_projection_preserves_freshness_and_gate_contract():
