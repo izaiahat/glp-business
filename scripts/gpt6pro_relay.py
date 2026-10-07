@@ -2363,8 +2363,112 @@ TERMINAL_UNSENT_PR52 = {
 }
 
 
+# Current source-proven pre-insert refusals only. No retained send was attempted.
+# Acct2's consumed UNKNOWN job is deliberately absent; stale error flags cannot
+# establish unsent custody. These pins do not broaden PR52/canary exceptions.
+TERMINAL_UNSENT_CURRENT = {
+    'glp44-canonical-sensor-partition-20261006': {
+        'job': 'glp44-canonical-sensor-partition-20261006',
+        'held': 'a9217c279914d3a72be56525e3b01215fc9424a5ebcf9dd7a190f247bf436575',
+        'status': 'failed', 'reason': 'WRONG_MODEL', 'backup': None,
+        'message': 'dd16dabaee15ffb8a58fce3edd81444fa133dac49bf6982ee39e2a6713655505',
+        'manifest': 'cd6bb067f72fd10c839e9c24c812712e2d7b3d40fbbc0ecb284a5bdc6a877981',
+        'drive_prompt': 'dfe4a416c40c891b4dcaba3d0da2d1d3106fce655271a929acd71a547c5e1ceb',
+        'ledger_lines': ('b0625dd0a4ed821b0491f7163b666ff330c0263c6137ab41de9759a033701870',),
+        'tab': None, 'time_origin': None,
+    },
+    'pro-glp96-intake-design-closer-20261003': {
+        'job': 'pro-glp96-intake-design-closer-20261003',
+        'held': '9a49105d13b15892836e64c42ade9c4376fc411dabac11813ad182c5913cbb8d',
+        'status': 'unsent_reconciled', 'reason': 'SECURITY_INTERSTITIAL',
+        'backup': '5b34fffc0ba2573074f8e45092e43e4af8b3ceef7b7d6b8c8c801c649da82b0e',
+        'message': '24d8e13f21295e9cdbbd71e10bebd5c422b9965512f240714e36dd5b0f65a8a9',
+        'manifest': 'c9d04fbf6bf1542bf3b02ba8925f054e90156b9fdd12674fea261a3d34a8b527',
+        'drive_prompt': '39a2fe3edac5fd160ea93401abee616023e9d048fabba56351f3206a940a5589',
+        'ledger_lines': ('606843ce0562eb04cd73c57ecfa70edab13759c98a57eb08bc6b4ea27a27cebf',
+                         '93890a3862731339fb2bb3079f1c5720c7eee6fd1e5d39ad3c93683d8cdf95bc',
+                         '55e34b66977981a3d2036e1a15002627f82c9438c2eb1fe8bc6df6147053f7da'),
+        'tab': 'AE132746A45F57BA0367D39D3B0320EF', 'time_origin': 1790988433154.6,
+    },
+}
+
+
+def _terminal_unsent_pin(job):
+    if job == TERMINAL_UNSENT_PR52['job']:
+        return TERMINAL_UNSENT_PR52
+    return TERMINAL_UNSENT_CURRENT[job]
+
+
+def _current_terminal_unsent_custody(cfg, st, preimage, report):
+    """Exact no-resume incidents; no inference from an error's stale sent flag."""
+    c = TERMINAL_UNSENT_CURRENT[st['job']]
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    error = st.get('error') or {}
+    observed = error.get('state') or {}
+    if (sha(preimage) != c['held'] or json.loads(preimage) != st or
+            st.get('status') != c['status'] or st.get('reason') != c['reason'] or
+            st.get('retry_blocked') is not True or st.get('typed') is not False or st.get('sent') is not False or
+            error.get('error') != c['reason'] or error.get('typed') is not False or error.get('sent') is not False or
+            error.get('tab') != c['tab'] or observed.get('url') != 'https://chatgpt.com/' or
+            observed.get('stop') is not False or observed.get('assistant_count') != 0 or observed.get('last_len') != 0 or
+            any(k in st for k in ('resume_attempt', 'resume_history', 'resume_error', 'terminal_unsent')) or
+            any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
+        raise ValueError('STATE')
+    d = JOBS / c['job']
+    if any((d / name).exists() for name in ('RESPONSE.md', 'outbox')):
+        raise ValueError('OUTPUT')
+    pins = {'MESSAGE.md': c['message'], 'MANIFEST.json': c['manifest'], 'drive-input/PROMPT.md': c['drive_prompt']}
+    if c['backup']:
+        pins['JOB.pre-readiness-reconcile-' + c['backup'] + '.json'] = c['backup']
+    custody = {d / name: (d / name).read_bytes() for name in pins}
+    if any(sha(custody[d / name]) != digest for name, digest in pins.items()):
+        raise ValueError('CUSTODY')
+    if c['backup']:
+        original = json.loads(custody[d / ('JOB.pre-readiness-reconcile-' + c['backup'] + '.json')])
+        if (st.get('preimage_sha256') != c['backup'] or original.get('status') != 'failed' or
+                original.get('typed') is not False or original.get('sent') is not False or
+                st != {**original, 'status': c['status'], 'preimage_sha256': c['backup'],
+                       'reconciled_at': st.get('reconciled_at')}):
+            raise ValueError('PREIMAGE')
+    manifest = json.loads(custody[d / 'MANIFEST.json'])
+    if (any(manifest.get(k) != st.get(k) or not st.get(k) for k in (*PROVENANCE_FIELDS, 'job', 'job_class')) or
+            not isinstance(manifest.get('attach'), list) or not isinstance(manifest.get('drive_attach'), list) or
+            _failed_generation_identity(st).encode() not in custody[d / 'MESSAGE.md']):
+        raise ValueError('IDENTITY')
+    paths = [d / 'PROMPT.md', *manifest['attach'], *manifest['drive_attach']]
+    if any(not Path(p).resolve().is_relative_to(d.resolve()) for p in paths):
+        raise ValueError('PACKET_PATH')
+    custody.update({Path(p): Path(p).read_bytes() for p in paths})
+    packet = [(Path(p).name, sha(custody[Path(p)])) for p in paths]
+    if sha(json.dumps(packet, separators=(',', ':')).encode()) != st['input_sha256']:
+        raise ValueError('PACKET')
+    ledger = ledger_path(cfg)
+    custody[ledger] = ledger.read_bytes()
+    all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
+    lines = [line for line, row in all_rows if row.get('job') == c['job']]
+    n = len(c['ledger_lines'])
+    if tuple(map(sha, lines[:n])) != c['ledger_lines']:
+        raise ValueError('LEDGER')
+    rows = [json.loads(line) for line in lines]
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    custody[rp] = rp.read_bytes()
+    matching = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_obsolete', 'reason': c['reason'],
+                'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': c['held'],
+                'message_sha256': c['message'], 'error_tab': c['tab'], 'time_origin': c['time_origin'],
+                'ledger_rows_sha256': sha(json.dumps(rows[:n], sort_keys=True, separators=(',', ':')).encode())}
+    if (len(matching) != 1 or any(matching[0].get(k) != v for k, v in expected.items()) or
+            any(matching[0].get(k) is not False for k in ('typed', 'sent', 'submission_bound'))):
+        raise ValueError('REPORT')
+    return custody, rows
+
+
 def _terminal_unsent_custody(cfg, st, preimage, report):
     """Offline exact-byte proof shared by disposition and admission readback."""
+    if st.get('job') in TERMINAL_UNSENT_CURRENT:
+        return _current_terminal_unsent_custody(cfg, st, preimage, report)
     c = TERMINAL_UNSENT_PR52
     sha = lambda b: hashlib.sha256(b).hexdigest()
     def refuse(reason):
@@ -2416,7 +2520,7 @@ def _terminal_unsent_custody(cfg, st, preimage, report):
 
 
 def _terminal_unsent_event(st, report, report_bytes, observed_at):
-    c = TERMINAL_UNSENT_PR52
+    c = _terminal_unsent_pin(st['job'])
     return {'event': 'terminal_unsent', 'job': c['job'], 'account': st['account'],
             'preimage_sha256': c['held'], 'message_sha256': c['message'],
             'retained_tab': c['tab'], 'time_origin': c['time_origin'],
@@ -2430,7 +2534,8 @@ def _verified_terminal_unsent(st):
     Fail closed after any interrupted apply or changed evidence. Cleanup deliberately
     does NOT use this admission exception: retry_blocked still protects error.tab.
     """
-    if st.get('job') != TERMINAL_UNSENT_PR52['job'] or not isinstance(st.get('terminal_unsent'), dict):
+    if (st.get('job') not in (TERMINAL_UNSENT_PR52['job'], *TERMINAL_UNSENT_CURRENT) or
+            not isinstance(st.get('terminal_unsent'), dict)):
         return False
     try:
         # Sibling records project the directory name over job; that projection is
@@ -2438,26 +2543,29 @@ def _verified_terminal_unsent(st):
         if json.loads((JOBS / st['job'] / 'JOB.json').read_bytes()) != st:
             return False
         proof = st['terminal_unsent']
-        backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + TERMINAL_UNSENT_PR52['held'] + '.json')
+        c = _terminal_unsent_pin(st['job'])
+        n = len(c['ledger_lines'])
+        backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + c['held'] + '.json')
         preimage = backup.read_bytes()
         original = json.loads(preimage)
         custody, rows = _terminal_unsent_custody(load_config(), original, preimage, proof['report'])
         expected = _terminal_unsent_event(original, proof['report'],
             custody[(BUSINESS / proof['report']).resolve()], proof['observed_at'])
         return (datetime.fromisoformat(proof['observed_at']).tzinfo is not None and
-                proof == expected and st == {**original, 'terminal_unsent': proof} and len(rows) == 4 and
+                proof == expected and st == {**original, 'terminal_unsent': proof} and len(rows) == n + 2 and
                 all(row == {'ts': row.get('ts'), **proof, 'phase': phase}
-                    for row, phase in zip(rows[2:], ('STARTED', 'APPLIED'))))
+                    for row, phase in zip(rows[n:], ('STARTED', 'APPLIED'))))
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return False
 
 
 def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize_preimage, account):
     """Registered, forward-only disposition; NEVER restores, clears or resends."""
-    c = TERMINAL_UNSENT_PR52
-    def refuse(reason):
+    c = _terminal_unsent_pin(path.parent.name)
+    def refuse(reason) -> NoReturn:
         raise SystemExit('TERMINAL_UNSENT_REFUSED_' + reason + ' ' + c['job'])
-    if (st.get('account') != account or (apply and authorize_preimage != c['held']) or
+    if (st.get('job') != c['job'] or hashlib.sha256(preimage).hexdigest() != c['held'] or
+            st.get('account') != account or (apply and authorize_preimage != c['held']) or
             (not apply and authorize_preimage is not None)):
         refuse('AUTHORITY')
     try:
@@ -2465,7 +2573,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         refuse('CUSTODY')
     backup = path.with_name('JOB.pre-terminal-unsent-' + c['held'] + '.json')
-    if len(rows) != 2 or backup.exists():
+    if len(rows) != len(c['ledger_lines']) or backup.exists():
         refuse('HISTORY')
     if _legacy_live_jobs():
         refuse('LIVE_RUNNER')
@@ -2473,7 +2581,10 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
                                 'require-held'], capture_output=True, text=True)
     if admission.returncode:
         refuse('ADMISSION')
-    if not _retained_empty_witness(c['tab'], c['time_origin']):
+    # The untouched WRONG_MODEL incident has no retained target or continuation;
+    # its immutable source refusal was before insertion. No unrelated tab is
+    # inspected or discarded. Retained incidents still need fresh empty proof.
+    if c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
         refuse('TAB_EVIDENCE')
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
@@ -2483,7 +2594,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     if not apply:
         print('WOULD_TERMINALIZE_UNSENT job=' + c['job'] + ' preimage_sha256=' + c['held'])
         return 0
-    # Both consumed attempts/failures survive in the unchanged preimage and old rows.
+    # Every original attempt/failure survives in the unchanged preimage and old rows.
     with backup.open('xb') as fh:
         fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
     fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
@@ -2514,9 +2625,9 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     of the exact job rows serialized with sorted keys and compact separators),
     and time_origin from an admitted read of the retained challenge-free tab.
     It preserves retry_blocked and the retained tab; it is not a resume API.
-    The exact pinned obsolete PR52 job instead appends terminal_unsent proof.
-    Its explicit report row must say disposition=terminal_unsent_obsolete;
-    --apply also requires --authorize-preimage for the current consumed JOB.
+    Exact pinned obsolete PR52/current pre-insert jobs append terminal_unsent proof.
+    The explicit report row must say disposition=terminal_unsent_obsolete;
+    --apply also requires --authorize-preimage for the exact current JOB.
     Only a DIFFERENT job can benefit from its verified terminal admission case.
     """
     incidents = {
@@ -2548,7 +2659,7 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
-        if job == TERMINAL_UNSENT_PR52['job']:
+        if job == TERMINAL_UNSENT_PR52['job'] or job in TERMINAL_UNSENT_CURRENT:
             return _reconcile_terminal_unsent(cfg, st, path, preimage, report_path,
                                               apply, authorize_preimage, selected_account)
         if authorize_preimage is not None:
@@ -3150,7 +3261,7 @@ def main() -> int:
     m.add_argument("--job", required=True)
     m.add_argument("--report", help="unlisted job: report JSON (relative to business root) whose row proves it unsent")
     m.add_argument("--apply", action="store_true")
-    m.add_argument('--authorize-preimage', help='exact current JOB SHA256; required with --apply only for obsolete PR52 terminal-unsent disposition')
+    m.add_argument('--authorize-preimage', help='exact current JOB SHA256; required with --apply only for pinned obsolete terminal-unsent disposition')
     sd = sub.add_parser("reconcile-unsent-send-disabled", help="dry-run first; exact intact unsent SEND_DISABLED draft")
     sd.add_argument("--job", required=True)
     sd.add_argument("--apply", action="store_true")
