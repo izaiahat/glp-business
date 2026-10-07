@@ -203,14 +203,14 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "5607f66b600de9ce8d955d59ea30379c02bcddac0bb829f12c0efc482bb9d161"
+      "sha256": "d7a65c5e0f834ec78a3535bc4cb37f0977bdf1c1e21d6335ee56f95db2eb8e74"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
       "callers": [
         "GLP331 exact proposal and independent review contract"
       ],
-      "sha256": "c51e904d6e1832a901012eff73b3fc8db96f06c104fd0508f1e483f968b643dc"
+      "sha256": "6b91b8dc8f844737b886c9f66976dfbd14ea7629fa026a3eaf36f9d61c7ee339"
     },
     ".github/workflows/glp331-carrier-closure.yml": {
       "kind": "repository_control",
