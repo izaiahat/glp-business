@@ -58,6 +58,8 @@ suites+=(systems/seo-blog-machine/tests/test_workweek_boundary.py)
 suites+=(tests/test_glp_affiliate_registry_sync.py tests/test_glp_affiliate_release.py tests/test_glp_affiliate_absence_audit.py)
 suites+=(tests/test_affiliate_discovery_resume.py tests/test_affiliate_discovery_admission.py tests/test_affiliate_best_terms_recovery.py tests/test_affiliate_terms_fanout.py tests/test_pro_opaque_program_identity.py)
 suites+=(tests/test_receive_one_discord_message.py tests/test_rook_mcp_events.py tests/test_rook_communication.py)
+suites+=(tests/test_finch_file_review.py)
+suites+=(tests/test_finch_receiving_sandbox.py)
 if [[ -f /home/ubuntu/business/ops/n8n-bridge/actions.json && \
       -f /home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py && \
       -f /home/ubuntu/business/reports/glp-clinic-scout/growth/build-3/reddit-firecrawl-search-captures-20260811-r5.json ]]; then
@@ -70,4 +72,5 @@ suites+=(tests/test_glp343_topic_first_party_scoring.py tests/test_glp343_integr
 suites+=(tests/test_affiliate_catalog_batch.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)
+suites+=(tests/test_pro_route.py tests/test_pro_picker_family.py tests/test_pro_dispatch.py)
 python3 -m pytest -q "${suites[@]}"

@@ -7,6 +7,7 @@ private adapter state. Not a Hermes service/gateway; no public ingress or issuer
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import argparse
 import asyncio
@@ -19,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import ipaddress
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -28,8 +30,12 @@ import socket
 import sqlite3
 import ssl
 import stat
+import struct
+import sys
 import threading
 import time
+import zlib
+from xml.parsers import expat
 from urllib.parse import urlsplit, quote, unquote, parse_qs, parse_qsl, urlencode
 
 import jwt
@@ -37,6 +43,24 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from standardwebhooks.webhooks import Webhook
 from receive_one_discord_message import create_client, load_token
+
+# Bind the running module, not a hash first calculated when a grant is consumed.
+# A stale .pyc or source replacement during loading disables the review exception.
+_FINCH_LOADED_SOURCE = Path(__file__).read_bytes()
+_FINCH_LOADED_CODE = sys._getframe().f_code
+_FINCH_SOURCE_BOOTSTRAP_OK = _FINCH_LOADED_CODE == compile(
+    _FINCH_LOADED_SOURCE, __file__, 'exec', dont_inherit=True, optimize=sys.flags.optimize)
+FINCH_SOURCE_SHA256 = hashlib.sha256(_FINCH_LOADED_SOURCE).hexdigest()
+FINCH_REVIEW_ROOT = Path('/etc/finch-file-reviews')
+FINCH_CONFINEMENT_LABEL = 'finch-mcp-receiving-v1 (enforce)'
+FINCH_RECEIVING_CONTRACT = Path('/etc/finch-mcp/receiving.json')
+FINCH_APPARMOR_POLICY = Path('/etc/apparmor.d/finch-mcp-receiving-v1')
+FINCH_APPARMOR_ABI = Path('/etc/apparmor.d/abi/4.0')
+FINCH_NETWORK_GUARD = Path('/usr/local/libexec/finch-mcp/finch_network.py')
+FINCH_NETWORK_FACTS = Path('/etc/finch-mcp/network-facts.json')
+FINCH_NETWORK_ADMISSION = Path('/run/finch-mcp/network-admission.json')
+FINCH_CGROUP = '/system.slice/finch-mcp-adapter.service'
+FINCH_LAUNCHER = Path('/home/ubuntu/.hermes/scripts/finch_adapter_launch.py')
 
 GUILD = '1486887661099815126'
 CHANNEL = '1554668115239899196'
@@ -80,6 +104,14 @@ CHANNEL_READ = 'rook.channel.read'
 CHANNEL_WRITE = 'rook.channel.write'
 FILE_LIMIT = 1048576
 FILE_HTTP_LIMIT = 1500000
+FINCH_PNG_LIMIT = 3 * FILE_LIMIT
+FINCH_PNG_ENCODED_LIMIT = 4194304
+FINCH_PNG_HTTP_LIMIT = FINCH_PNG_ENCODED_LIMIT + 32768
+PNG_DIMENSION_LIMIT = 4096
+PNG_PIXEL_LIMIT = 4194304
+PNG_INFLATED_LIMIT = 16781312  # 4 Mi pixels * RGBA plus at most 4096 filter bytes.
+PNG_METADATA_LIMIT = 262144  # Aggregate raw chunks plus expanded text.
+PNG_CHUNK_LIMIT = 1024
 MIME_EXTENSIONS = {'text/plain': {'.txt'}, 'application/json': {'.json'}, 'application/pdf': {'.pdf'},
                    'image/png': {'.png'}, 'image/jpeg': {'.jpg', '.jpeg'}, 'image/webp': {'.webp'}}
 
@@ -294,7 +326,7 @@ def readback(channel, identity):
     return discord_request('GET', f'/channels/{channel}/messages/{identity}')
 
 
-def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None, finch=None):
+def discord_request(method, path, payload=None, file=None, *, guild_scoped=False, audit_reason=None, research=None, finch=None, file_review=None):
     """Rook REST identity; general routes require the scoped tool's preflight.
 
     Legacy callers retain their narrow routes and JSON-only return contract.
@@ -333,6 +365,10 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
               or (method == 'POST' and re.fullmatch(write, path))
               or (method in ('PUT', 'DELETE') and re.fullmatch(reaction, path))):
         raise RpcError(-32602, 'InvalidDiscordRoute')
+    if file_review is not None:
+        if finch is None or method != 'POST' or file is None:
+            raise RpcError(-32602, 'FileReviewContextMismatch')
+        file_review.check(channel=path.split('/')[2], bot=finch.bot)
     host, address, _ = callback_target('https://discord.com/')
     conn = PinnedHTTPSConnection(host, address)
     try:
@@ -346,7 +382,9 @@ def discord_request(method, path, payload=None, file=None, *, guild_scoped=False
         if file is not None:
             if method != 'POST' or not path.endswith('/messages'):
                 raise RpcError(-32602, 'InvalidFileRoute')
-            body, headers['Content-Type'] = multipart_body(payload, file)
+            body, headers['Content-Type'] = multipart_body(payload, file, finch=finch is not None, file_review=file_review)
+        if file_review is not None:
+            file_review.check(file=file, channel=path.split('/')[2], bot=finch.bot)
         conn.request(method, '/api/v10' + path, body=body, headers=headers)
         response = conn.getresponse()
         maximum = 4194304 if guild_scoped else 262144
@@ -708,6 +746,16 @@ def file_send_request(body):
             and isinstance(arguments, dict) and 'file' in arguments) if isinstance(body, dict) and isinstance(params, dict) else False
 
 
+def finch_png_send_request(body):
+    if not file_send_request(body) or body['params']['name'] != 'reply_to_finch_request':
+        return False
+    value = body['params']['arguments']['file']
+    try:
+        return isinstance(value, dict) and file_media_type(value.get('content_type')) == 'image/png'
+    except RpcError:
+        return False
+
+
 def file_media_type(value):
     """Allowlisted media type plus at most one UTF-8 charset on UTF-8 text only.
 
@@ -735,14 +783,738 @@ def validate_filename(filename, mime):
     return mime
 
 
-def validate_file(filename, mime, data):
-    mime = validate_filename(filename, mime)
-    if not isinstance(data, bytes) or not 1 <= len(data) <= FILE_LIMIT:
-        raise RpcError(-32602, 'FileSizeRefused')
-    # Conservative markers, not a malware/PHI detector. Only non-sensitive files may be supplied.
+def scan_hard_file_markers(data):
+    # These denials cannot be overridden by a whole-file review. Identifiers
+    # (DOB/SSN) are not medical terminology eligible for the exception.
     if re.search(rb'(PRIVATE KEY|Authorization\s*:|Bearer\s+|(?:password|api[_-]?key|client_secret)\s*[:=]|'
-                 rb'\b(?:patient|dob|ssn|diagnosis|medical record)\b|<(?:html|script)\b|/(?:JavaScript|JS|Launch|OpenAction|AA|EmbeddedFile)\b)', data, re.I):
+                 rb'\b(?:dob|ssn)\b|<(?:html|script)\b|/(?:JavaScript|JS|Launch|OpenAction|AA|EmbeddedFile)\b)', data, re.I):
         raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+
+
+def medical_file_markers(data):
+    return re.search(rb'\b(?:patient|diagnosis|medical record)\b', data, re.I) is not None
+
+
+def scan_file_markers(data):
+    # Conservative markers, not a malware/PHI detector. No proximity heuristic.
+    scan_hard_file_markers(data)
+    if medical_file_markers(data):
+        raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+
+
+def file_limit(mime, *, finch=False):
+    return FINCH_PNG_LIMIT if finch and file_media_type(mime) == 'image/png' else FILE_LIMIT
+
+
+def bounded_png_inflate(parts, limit):
+    """One complete zlib stream; no unbounded decompress/flush or concatenated streams."""
+    decoder, total = zlib.decompressobj(), 0
+    for part in parts:
+        # Input and output windows cap transient allocations, including unconsumed_tail.
+        for offset in range(0, len(part), 65536):
+            pending = part[offset:offset + 65536]
+            while pending:
+                if decoder.eof:
+                    raise ValueError('trailing compressed bytes')
+                output = decoder.decompress(pending, min(65536, limit + 1 - total))
+                total += len(output)
+                if total > limit or decoder.unused_data:
+                    raise ValueError('expanded size or extra stream')
+                pending = decoder.unconsumed_tail
+                if output:
+                    yield output
+    if not decoder.eof:
+        raise ValueError('incomplete compressed stream')
+
+
+def png_decoded_rows(parts, width, height, channels):
+    """Real streaming 8-bit RGB/RGBA decoder: reconstruct samples, discard each row.
+
+    Work is bounded to 4 Mi pixels / 16 Mi sample operations. No bitmap allocation;
+    At most three 16 KiB row copies plus 64 KiB windows and a row assembly buffer.
+    """
+    if (channels not in (3, 4) or not 1 <= width <= PNG_DIMENSION_LIMIT
+            or not 1 <= height <= PNG_DIMENSION_LIMIT or width * height > PNG_PIXEL_LIMIT):
+        raise ValueError('dimensions')
+    stride, rows, pending = width * channels, 0, bytearray()
+    expected = (stride + 1) * height
+    if expected > PNG_INFLATED_LIMIT:
+        raise ValueError('expanded image size')
+    previous = bytes(stride)
+    for output in bounded_png_inflate(parts, expected):
+        pending.extend(output)
+        while len(pending) >= stride + 1:
+            mode, row = pending[0], bytearray(pending[1:stride + 1])
+            del pending[:stride + 1]
+            if mode > 4 or rows >= height:
+                raise ValueError('filter or row count')
+            if mode:
+                for i in range(stride):
+                    left = row[i - channels] if i >= channels else 0
+                    up = previous[i]
+                    upper_left = previous[i - channels] if i >= channels else 0
+                    if mode == 1:
+                        predictor = left
+                    elif mode == 2:
+                        predictor = up
+                    elif mode == 3:
+                        predictor = (left + up) // 2
+                    else:
+                        p = left + up - upper_left
+                        a, b, c = abs(p - left), abs(p - up), abs(p - upper_left)
+                        predictor = left if a <= b and a <= c else up if b <= c else upper_left
+                    row[i] = (row[i] + predictor) & 255
+            previous = bytes(row)
+            rows += 1
+            yield previous
+    if pending or rows != height:
+        raise ValueError('sample count')
+
+
+def png_text(kind, payload, remaining):
+    keyword, rest = payload.split(b'\x00', 1)
+    if (not 1 <= len(keyword) <= 79 or keyword.startswith(b' ') or keyword.endswith(b' ')
+            or b'  ' in keyword or any(not (32 <= c <= 126 or 161 <= c <= 255) for c in keyword)):
+        raise ValueError('keyword')
+    if kind == b'zTXt':
+        if not rest or rest[0] != 0:
+            raise ValueError('text compression method')
+        text = b''.join(bounded_png_inflate([rest[1:]], remaining))
+    elif kind == b'iTXt':
+        if len(rest) < 2 or rest[0] not in (0, 1) or rest[1] != 0:
+            raise ValueError('international text method')
+        language, translated, text = rest[2:].split(b'\x00', 2)
+        if not re.fullmatch(rb'[A-Za-z0-9-]*', language):
+            raise ValueError('language')
+        translated.decode('utf-8')
+        if rest[0]:
+            text = b''.join(bounded_png_inflate([text], remaining))
+        text.decode('utf-8')
+    else:
+        text = rest
+    if b'\x00' in text or len(text) > remaining:
+        raise ValueError('text bounds')
+    return text
+
+
+SVG_NUMBER = re.compile(r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?')
+SVG_SPACE = ' \t\r\n'
+
+
+def svg_operands(text, pos, count, *, adjacent=True):
+    """Consume exactly count SVG numbers with comma-wsp or lexical separators."""
+    values = []
+    for index in range(count):
+        before = pos
+        while pos < len(text) and text[pos] in SVG_SPACE:
+            pos += 1
+        separated = pos != before
+        if index and pos < len(text) and text[pos] == ',':
+            pos += 1
+            separated = True
+            while pos < len(text) and text[pos] in SVG_SPACE:
+                pos += 1
+        if index and not separated and (not adjacent or pos == len(text) or text[pos] not in '+-.'):
+            raise ValueError('SVG number separator')
+        token = SVG_NUMBER.match(text, pos)
+        if token is None:
+            raise ValueError('SVG number required')
+        value = float(token[0])
+        if not math.isfinite(value) or abs(value) > 1e6:
+            raise ValueError('SVG numeric bounds')
+        values.append(value)
+        pos = token.end()
+    return values, pos
+
+
+def svg_path(text):
+    """Bounded explicit absolute M/L/H/V/C/Z grammar, not general SVG paths."""
+    if not 1 <= len(text.encode('utf-8')) <= 4096:
+        raise ValueError('SVG path bytes')
+    arities = {'M': 2, 'L': 2, 'H': 1, 'V': 1, 'C': 6, 'Z': 0}
+    pos = operands = segments = commands = 0
+    while pos < len(text):
+        if text[pos] in SVG_SPACE:
+            pos += 1
+            continue
+        command = text[pos]
+        if command not in arities or (not commands and command != 'M'):
+            raise ValueError('SVG explicit absolute command required')
+        commands += 1
+        segments += command != 'M'  # Z counts; moves do not.
+        operands += arities[command]
+        if operands > 1024 or segments > 256:
+            raise ValueError('SVG path complexity')
+        _, pos = svg_operands(text, pos + 1, arities[command])
+    if not commands:
+        raise ValueError('SVG initial move required')
+
+
+def png_embedded_svg(data):
+    """Reject-only observed one-path SVG subset; never render or resolve resources."""
+    # Bound the XML before parsing; prohibit references even when predefined or
+    # numeric. This also precludes declaration/DTD/entity work in Expat itself.
+    if not 1 <= len(data) <= 8192:
+        raise ValueError('SVG XML bytes')
+    text = data.decode('utf-8')
+    # XML forbids NUL; without this Expat can autodetect BOM-less UTF-16.
+    if '\x00' in text:
+        raise ValueError('SVG XML NUL')
+    if '&' in text or '<!' in text or '<?' in text:
+        raise ValueError('SVG declarations or references')
+    namespace = 'http://www.w3.org/2000/svg'
+    depth = elements = declarations = 0
+
+    def refused(*args):
+        raise ValueError('SVG XML construct refused')
+
+    def declare(prefix, uri):
+        nonlocal declarations
+        declarations += 1
+        if prefix is not None or uri != namespace or depth or elements or declarations != 1:
+            refused()
+
+    def start(name, attrs):
+        nonlocal depth, elements
+        depth += 1
+        elements += 1
+        # Immediate callbacks bound depth/elements/attribute work; no XML tree.
+        expected = 'svg' if elements == 1 else 'path'
+        allowed = {'width', 'height', 'viewBox', 'fill'} if elements == 1 else {'d', 'fill'}
+        if (elements > 2 or depth != elements or name != namespace + '|' + expected
+                or declarations != 1 or len(attrs) > len(allowed) or not set(attrs) <= allowed):
+            refused()
+        for key, value in attrs.items():
+            if key == 'd':
+                svg_path(value)
+            elif len(value.encode('utf-8')) > 128:
+                refused()
+            elif key == 'fill':
+                if not re.fullmatch(r'(?:none|black|white|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6})', value):
+                    refused()
+            elif key in {'width', 'height'}:
+                number = value[:-2] if value.endswith('px') else value
+                if SVG_NUMBER.fullmatch(number) is None:
+                    refused()
+                numbers, end = svg_operands(number, 0, 1)
+                if end != len(number) or not 0 < numbers[0] <= 4096:
+                    refused()
+            elif key == 'viewBox':
+                numbers, end = svg_operands(value, 0, 4, adjacent=False)
+                if value[end:].strip(SVG_SPACE) or numbers[2] <= 0 or numbers[3] <= 0:
+                    refused()
+        if elements == 2 and 'd' not in attrs:
+            refused()
+
+    def end(name):
+        nonlocal depth
+        depth -= 1
+
+    def characters(value):
+        if value.strip(SVG_SPACE):
+            refused()
+
+    parser = expat.ParserCreate(encoding='utf-8', namespace_separator='|')
+    parser.StartNamespaceDeclHandler = declare
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = characters
+    parser.StartDoctypeDeclHandler = refused
+    parser.EntityDeclHandler = refused
+    parser.ExternalEntityRefHandler = refused
+    parser.ProcessingInstructionHandler = refused
+    parser.CommentHandler = refused
+    parser.StartCdataSectionHandler = refused
+    parser.XmlDeclHandler = refused
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError as exc:
+        raise ValueError('SVG malformed XML') from exc
+    if depth or elements != 2:
+        refused()
+
+
+def png_cabx(payload):
+    """Bounded uncompressed JUMBF framing, NOT C2PA provenance verification.
+
+    C2PA 2.4 A.3.2/11.1.4; ISO 19566-5 description/content boxes.
+    CBOR/JSON and PNG/JPEG bytes stay opaque and fully marker-scanned.
+    Embedded image/svg+xml alone has a bounded reject-only one-path XML grammar.
+    No decompression, URL resolution, signature check or metadata exemption.
+    """
+    if not payload or len(payload) > PNG_METADATA_LIMIT:
+        raise ValueError('JUMBF bounds')
+    scan_file_markers(payload)
+    count = 0
+    # Full content-type UUIDs, not FourCC-derived identities. The embedded-file
+    # type is distinct from its bfdb description and bidb data child boxes.
+    content_types = {
+        bytes.fromhex('6332706100110010800000aa00389b71'): b'c2pa',
+        bytes.fromhex('63326d6100110010800000aa00389b71'): b'c2ma',
+        bytes.fromhex('6332756d00110010800000aa00389b71'): b'c2um',
+        bytes.fromhex('6332617300110010800000aa00389b71'): b'c2as',
+        bytes.fromhex('6332636c00110010800000aa00389b71'): b'c2cl',
+        bytes.fromhex('6332637300110010800000aa00389b71'): b'c2cs',
+        bytes.fromhex('6332646200110010800000aa00389b71'): b'c2db',
+        bytes.fromhex('63626f7200110010800000aa00389b71'): b'cbor',
+        bytes.fromhex('6a736f6e00110010800000aa00389b71'): b'json',
+        bytes.fromhex('40cb0c32bb8a489da70b2ad6f47f4369'): b'embedded_file',
+    }
+    containers = {b'c2pa', b'c2ma', b'c2um', b'c2as'}
+    contents = {b'c2cl': b'cbor', b'c2cs': b'cbor', b'c2db': b'cbor',
+                b'cbor': b'cbor', b'json': b'json'}
+
+    def box(start, limit):
+        nonlocal count
+        count += 1
+        if count > 1024 or limit - start < 8:
+            raise ValueError('JUMBF box bounds')
+        size, kind = struct.unpack('>I4s', payload[start:start + 8])
+        # Explicit sizes only: neither zero-to-EOF nor XLBox is supported.
+        if size < 8 or size > limit - start:
+            raise ValueError('JUMBF box length')
+        return kind, start + 8, start + size
+
+    def superbox(start, limit, depth):
+        if depth > 8:
+            raise ValueError('JUMBF depth')
+        kind, pos, end = box(start, limit)
+        if kind != b'jumb':
+            raise ValueError('JUMBF superbox required')
+        kind, desc, next_pos = box(pos, end)
+        if kind != b'jumd' or next_pos - desc < 18:
+            raise ValueError('JUMBF description required')
+        uuid = payload[desc:desc + 16]
+        content = content_types.get(uuid)
+        if content is None:
+            raise ValueError('unsupported JUMBF content type')
+        toggles = payload[desc + 16]
+        if toggles & 3 != 3 or toggles & ~31:
+            raise ValueError('unsupported JUMBF toggles')
+        label_end = payload.find(b'\x00', desc + 17, next_pos)
+        if not desc + 17 < label_end <= desc + 17 + 1024:
+            raise ValueError('JUMBF label bounds')
+        scan_file_markers(payload[desc + 17:label_end])
+        label = payload[desc + 17:label_end].decode('utf-8')
+        if any(ord(c) < 32 or 127 <= ord(c) <= 159 or c in '/;?#\ufeff\uffff' for c in label):
+            raise ValueError('JUMBF label syntax')
+        if depth == 1 and (content != b'c2pa' or label != 'c2pa'):
+            raise ValueError('C2PA store required')
+        tail = label_end + 1 + (4 if toggles & 4 else 0) + (32 if toggles & 8 else 0)
+        if tail > next_pos:
+            raise ValueError('JUMBF optional field truncated')
+        if toggles & 16:
+            salt, begin, finish = box(tail, next_pos)
+            if salt != b'c2sh' or finish - begin not in {16, 32}:
+                raise ValueError('unsupported JUMBF private field')
+            scan_file_markers(payload[begin:finish])
+            tail = finish
+        if tail != next_pos:
+            raise ValueError('JUMBF description trailing bytes')
+        pos = next_pos
+        children = []
+        embedded_mime = None
+        while pos < end:
+            # Recurse without counting the child's header twice.
+            if end - pos >= 8 and payload[pos + 4:pos + 8] == b'jumb':
+                finish = superbox(pos, end, depth + 1)
+                child, begin = b'jumb', pos + 8
+            else:
+                child, begin, finish = box(pos, end)
+                # Isolate leaf boundaries: FourCC bytes must not hide word markers.
+                scan_file_markers(payload[begin:finish])
+            if child == b'free':
+                if finish != end or not children:
+                    raise ValueError('JUMBF padding order')
+            elif content in containers:
+                if child != b'jumb':
+                    raise ValueError('unsupported JUMBF container child')
+            elif content == b'embedded_file':
+                if child == b'bfdb' and not children:
+                    fields = payload[begin:finish]
+                    if not fields or fields[0] not in {0, 1}:
+                        raise ValueError('external or unsupported embedded file')
+                    strings = fields[1:].split(b'\x00', fields[0] + 2)
+                    if (len(strings) != fields[0] + 2 or strings[-1]
+                            or strings[0] not in {b'image/png', b'image/jpeg', b'image/svg+xml'}):
+                        raise ValueError('unsupported embedded media description')
+                    embedded_mime = strings[0]
+                    if fields[0]:
+                        name = strings[1].decode('utf-8')
+                        if not name or len(strings[1]) > 1024 or any(ord(c) < 32 for c in name):
+                            raise ValueError('embedded file name')
+                elif child != b'bidb' or children != [b'bfdb'] or begin == finish:
+                    raise ValueError('embedded file box order')
+                elif embedded_mime == b'image/svg+xml':
+                    png_embedded_svg(payload[begin:finish])
+            elif child != contents[content] or begin == finish:
+                raise ValueError('unsupported JUMBF content box')
+            children.append(child)
+            pos = finish
+        if not children or children == [b'free'] or (content == b'embedded_file' and children[:2] != [b'bfdb', b'bidb']):
+            raise ValueError('missing JUMBF content')
+        return end
+
+    if superbox(0, len(payload), 1) != len(payload):
+        raise ValueError('JUMBF trailing bytes or multiple stores')
+
+
+def validate_finch_png(data):
+    """Narrow PNG-only image-aware guard; unknown variants/chunks fail closed."""
+    try:
+        if len(data) > FINCH_PNG_LIMIT or not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise ValueError('signature')
+        offset, count, metadata_size = 8, 0, 0
+        seen, parts, ended_idat = set(), [], False
+        width = height = channels = 0
+        while offset < len(data):
+            count += 1
+            if count > PNG_CHUNK_LIMIT or len(data) - offset < 12:
+                raise ValueError('chunk bounds')
+            length = struct.unpack_from('>I', data, offset)[0]
+            kind = data[offset + 4:offset + 8]
+            end = offset + length + 12
+            if end > len(data) or not re.fullmatch(rb'[A-Za-z]{4}', kind) or kind[2] & 32:
+                raise ValueError('chunk length or type')
+            payload = data[offset + 8:end - 4]
+            crc = zlib.crc32(payload, zlib.crc32(kind))
+            if struct.unpack_from('>I', data, end - 4)[0] != crc:
+                raise ValueError('CRC')
+            if count == 1 and kind != b'IHDR':
+                raise ValueError('header first')
+            if kind == b'IHDR':
+                if count != 1 or length != 13:
+                    raise ValueError('header')
+                width, height, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', payload)
+                if (depth != 8 or color not in (2, 6) or compression or filtering or interlace
+                        or not 1 <= width <= PNG_DIMENSION_LIMIT or not 1 <= height <= PNG_DIMENSION_LIMIT
+                        or width * height > PNG_PIXEL_LIMIT):
+                    raise ValueError('unsupported image or dimensions')
+                channels = 3 if color == 2 else 4
+            elif kind == b'IDAT':
+                if ended_idat:
+                    raise ValueError('nonconsecutive image data')
+                parts.append(payload)
+            elif kind == b'IEND':
+                if length or not parts or end != len(data):
+                    raise ValueError('end or trailing bytes')
+            else:
+                if parts:
+                    ended_idat = True
+                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'gAMA', b'cHRM', b'sRGB', b'pHYs', b'caBX'}:
+                    raise ValueError('unsupported chunk')
+                if kind == b'caBX' and kind in seen:
+                    raise ValueError('duplicate C2PA store')
+                if kind not in {b'tEXt', b'zTXt', b'iTXt', b'caBX'}:
+                    sizes = {b'gAMA': 4, b'cHRM': 32, b'sRGB': 1, b'pHYs': 9}
+                    if parts or kind in seen or length != sizes[kind]:
+                        raise ValueError('metadata order or size')
+                    if ((kind == b'gAMA' and not int.from_bytes(payload, 'big'))
+                            or (kind == b'sRGB' and payload[0] > 3)
+                            or (kind == b'pHYs' and payload[8] > 1)):
+                        raise ValueError('metadata value')
+                metadata_size += length
+                if metadata_size > PNG_METADATA_LIMIT:
+                    raise ValueError('metadata bounds')
+                if kind == b'caBX':
+                    png_cabx(payload)
+                if kind in {b'tEXt', b'zTXt', b'iTXt'}:
+                    text = png_text(kind, payload, PNG_METADATA_LIMIT - metadata_size)
+                    # Count expanded text too; never hide compressed metadata from the guard.
+                    metadata_size += len(text)
+                    scan_file_markers(text)
+            # Only IDAT (validated by CRC and real decode below) is excluded.
+            if kind != b'IDAT':
+                scan_file_markers(data[offset:end])
+            seen.add(kind)
+            offset = end
+        if b'IEND' not in seen:
+            raise ValueError('missing end')
+        for _row in png_decoded_rows(parts, width, height, channels):
+            pass
+    except (ValueError, zlib.error, struct.error) as exc:
+        raise RpcError(-32602, 'InvalidOrUnsupportedPNG') from exc
+
+
+def file_review_binding(file):
+    return {'filename': file['filename'], 'content_type': file['content_type'],
+            'byte_length': len(file['data']), 'sha256': hashlib.sha256(file['data']).hexdigest()}
+
+
+def _finch_kernel_read(leaf):
+    # Kernel-only fixed proc paths, not an environment variable or caller file.
+    # The independently accepted confinement policy must deny mount/namespace
+    # changes and profile transitions; a profile name is not a policy audit.
+    path = f'/proc/{os.getpid()}/{leaf}'
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        value = os.read(fd, 32769)
+        if len(value) > 32768:
+            raise ValueError('unbounded kernel status')
+        return value.decode('ascii')
+    finally:
+        os.close(fd)
+
+
+def _finch_root_bytes(path, limit):
+    """Read a fixed root-administered configuration through pinned ancestry."""
+    pins = []
+    try:
+        if not path.is_absolute() or '..' in path.parts:
+            raise ValueError('unsafe receiving path')
+        parent = None
+        for index, name in enumerate(('/', *path.parts[1:])):
+            directory = index != len(path.parts) - 1
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                         | (os.O_DIRECTORY if directory else 0), dir_fd=parent)
+            pins.append((fd, parent, name, None, directory))
+            snapshot = _review_stat(os.fstat(fd), directory=directory)
+            pins[-1] = (fd, parent, name, snapshot, directory)
+            parent = fd
+        data = os.pread(pins[-1][0], limit + 1, 0)
+        if not 1 <= len(data) <= limit:
+            raise ValueError('receiving configuration size')
+        for fd, parent, name, snapshot, directory in pins:
+            if (_review_stat(os.fstat(fd), directory=directory) != snapshot
+                    or _review_stat(os.stat(name, dir_fd=parent, follow_symlinks=False), directory=directory) != snapshot):
+                raise ValueError('receiving configuration changed')
+        return data
+    finally:
+        for fd, *_ in reversed(pins):
+            os.close(fd)
+
+
+def _finch_receiving_contract():
+    raw = _finch_root_bytes(FINCH_RECEIVING_CONTRACT, 4096)
+    contract = json.loads(raw.decode('ascii'), object_pairs_hook=_review_json)
+    if (not isinstance(contract, dict) or set(contract) != {'schema', 'source_commit', 'source_sha256',
+            'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256', 'network_guard_sha256', 'network_facts_sha256'} or contract['schema'] != 'finch-receiving-contract-v1'
+            or not isinstance(contract['source_commit'], str)
+            or not re.fullmatch(r'[a-f0-9]{40}', contract['source_commit'])
+            or any(not isinstance(contract[key], str) or not re.fullmatch(r'[a-f0-9]{64}', contract[key])
+                   for key in ('source_sha256', 'launcher_sha256', 'profile_sha256', 'profile_abi_sha256', 'receiver_sha256', 'poster_sha256', 'network_guard_sha256', 'network_facts_sha256'))
+            or not _FINCH_SOURCE_BOOTSTRAP_OK or contract['source_sha256'] != FINCH_SOURCE_SHA256
+            or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != contract['source_sha256']
+            or hashlib.sha256(Path(__file__).with_name('receive_one_discord_message.py').read_bytes()).hexdigest() != contract['receiver_sha256']
+            or hashlib.sha256(Path(__file__).with_name('post_discord_message.py').read_bytes()).hexdigest() != contract['poster_sha256']
+            or hashlib.sha256(FINCH_LAUNCHER.read_bytes()).hexdigest() != contract['launcher_sha256']
+            or hashlib.sha256(_finch_root_bytes(FINCH_APPARMOR_ABI, 16384)).hexdigest() != contract['profile_abi_sha256']
+            or hashlib.sha256(_finch_root_bytes(FINCH_APPARMOR_POLICY, 16384)).hexdigest() != contract['profile_sha256']):
+        raise ValueError('receiving contract/source/policy mismatch')
+    contract_sha = hashlib.sha256(raw).hexdigest()
+    _finch_network_admission(contract, contract_sha)
+    return contract, contract_sha
+
+
+def _finch_network_admission(contract, contract_sha):
+    # Only root's current service-cgroup admission is usable. The privileged
+    # guard verifies exact nft readback before every start; the adapter cannot
+    # query/alter nft, mint this receipt, or move into another cgroup.
+    if hashlib.sha256(_finch_root_bytes(FINCH_NETWORK_GUARD, 65536)).hexdigest() != contract['network_guard_sha256']:
+        raise ValueError('network guard source drift')
+    raw = _finch_root_bytes(FINCH_NETWORK_FACTS, 32768)
+    if hashlib.sha256(raw).hexdigest() != contract['network_facts_sha256']:
+        raise ValueError('network facts drift')
+    facts = json.loads(raw.decode('ascii'), object_pairs_hook=_review_json)
+    admission = json.loads(_finch_root_bytes(FINCH_NETWORK_ADMISSION, 4096).decode('ascii'), object_pairs_hook=_review_json)
+    fields = {'schema', 'unit', 'cgroup', 'cgroup_id', 'boot_id', 'facts_sha256', 'guard_sha256',
+              'contract_sha256', 'kernel_sha256', 'expires', 'nonce'}
+    group = Path('/sys/fs/cgroup' + FINCH_CGROUP).lstat()
+    if (set(admission) != fields or admission['schema'] != 'finch-network-admission-v1'
+            or admission['unit'] != 'finch-mcp-adapter.service' or admission['cgroup'] != FINCH_CGROUP
+            or _finch_kernel_read('cgroup').strip() != '0::' + FINCH_CGROUP
+            or not stat.S_ISDIR(group.st_mode) or group.st_uid != 0 or group.st_mode & 0o022
+            or type(admission['cgroup_id']) is not int or admission['cgroup_id'] != group.st_ino
+            or admission['boot_id'] != Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+            or admission['boot_id'] != facts['boot_id']
+            or admission['facts_sha256'] != contract['network_facts_sha256']
+            or admission['guard_sha256'] != contract['network_guard_sha256']
+            or admission['contract_sha256'] != contract_sha
+            or type(admission['expires']) not in (int, float)
+            or not time.time() < admission['expires'] == facts['valid_until']
+            or not facts['verified_at'] <= time.time() < facts['valid_until'] <= facts['verified_at'] + 86400
+            or not isinstance(admission['kernel_sha256'], str) or not re.fullmatch(r'[a-f0-9]{64}', admission['kernel_sha256'])
+            or not isinstance(admission['nonce'], str) or not re.fullmatch(r'[a-f0-9]{32}', admission['nonce'])
+            or set(facts['namespace_ids']) != {'net', 'cgroup'}
+            or any(os.stat('/proc/self/ns/' + name).st_ino != number for name, number in facts['namespace_ids'].items())):
+        raise ValueError('missing or stale service network admission')
+
+
+def _finch_confinement():
+    """Receiving-host gate only; installing/loading the policy is parent-owned.
+
+    These kernel conditions are necessary, not sufficient: independent adoption
+    must verify the exact loaded policy, launcher, IPC paths and descriptor set.
+    Never substitute user-provided receipts or an environment variable here.
+    """
+    try:
+        status = {}
+        for line in _finch_kernel_read('status').splitlines():
+            key, sep, value = line.partition(':')
+            if not sep or key in status:
+                raise ValueError('malformed kernel status')
+            status[key] = value.strip()
+        for key in ('Uid', 'Gid'):
+            if status.get(key, '').split() != ['1000'] * 4:
+                raise ValueError('unexpected receiving identity')
+        if os.getresuid() != (1000, 1000, 1000) or os.getresgid() != (1000, 1000, 1000):
+            raise ValueError('kernel identity disagreement')
+        if status.get('NoNewPrivs') != '1' or status.get('Seccomp') != '2':
+            raise ValueError('required privilege/syscall restrictions missing')
+        for key in ('CapInh', 'CapPrm', 'CapEff', 'CapAmb', 'CapBnd'):
+            if not re.fullmatch(r'0{16}', status.get(key, '')):
+                raise ValueError('capability present or unknown')
+        label = _finch_kernel_read('attr/apparmor/current')
+        if label not in (FINCH_CONFINEMENT_LABEL, FINCH_CONFINEMENT_LABEL + '\n'):
+            raise ValueError('required enforcing profile missing')
+        return _finch_receiving_contract()[1]
+    except Exception as exc:
+        raise RpcError(-32602, 'FinchReceivingConfinementRequired') from exc
+
+
+def _review_stat(value, *, directory=False):
+    # Root is the trusted local attestation publisher, never the adapter user.
+    # Checking all parents prevents an app-writable rename or symlink substitute.
+    if (os.geteuid() == 0 or value.st_uid != 0 or value.st_mode & 0o022
+            or not (stat.S_ISDIR(value.st_mode) if directory else stat.S_ISREG(value.st_mode))
+            or (not directory and value.st_nlink != 1)):
+        raise ValueError('independently administered root-owned review custody required')
+    identity = (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
+    return identity if directory else identity + (value.st_nlink, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+
+
+def _review_json(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError('duplicate review field')
+        value[key] = item
+    return value
+
+
+@dataclass(frozen=True)
+class FinchFileReview:
+    """One local, privileged attestation; no public tool can create or select it.
+
+    Pins remain open until the reply attempt finishes. The process's Unix user
+    is trusted for ordinary adapter state, but cannot publish this exception.
+    Root compromise, forged human attestations and arbitrary in-process code
+    execution are not defended by local file permissions.
+    """
+    binding: str
+    raw: bytes
+    pins: tuple
+    current_binding: object
+    expires: float
+    auth_expires: float
+
+    @property
+    def sha256(self):
+        return hashlib.sha256(self.raw).hexdigest()
+
+    @classmethod
+    def open(cls, binding, current_binding, auth_expires):
+        pins = []
+        try:
+            _finch_confinement()
+            root = FINCH_REVIEW_ROOT
+            if not root.is_absolute() or '..' in root.parts:
+                raise ValueError('invalid fixed review root')
+            parts = ('/', *root.parts[1:], binding['request_id'] + '.json')
+            parent = None
+            for index, name in enumerate(parts):
+                directory = index != len(parts) - 1
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                fd = os.open(name, flags | (os.O_DIRECTORY if directory else 0), dir_fd=parent)
+                pins.append((fd, parent, name, None, directory))
+                snapshot = _review_stat(os.fstat(fd), directory=directory)
+                pins[-1] = (fd, parent, name, snapshot, directory)
+                parent = fd
+            raw = os.pread(pins[-1][0], 16385, 0)
+            if not 1 <= len(raw) <= 16384:
+                raise ValueError('review size')
+            record = json.loads(raw.decode('utf-8'), object_pairs_hook=_review_json,
+                                parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite number')))
+            if (not isinstance(record, dict) or set(record) != {'schema', 'binding', 'file_author', 'reviewer',
+                    'verdict', 'whole_file', 'exact_bytes', 'no_personal_data', 'no_secrets', 'no_active_content',
+                    'no_unreviewed_encoding', 'review_evidence', 'operator_approval', 'issued_at', 'expires'}
+                    or record['schema'] != 'finch-whole-file-review-v1'
+                    or canonical(record['binding']) != canonical(binding)
+                    or record['verdict'] != 'nonsensitive'
+                    or any(record[field] is not True for field in ('whole_file', 'exact_bytes', 'no_personal_data',
+                        'no_secrets', 'no_active_content', 'no_unreviewed_encoding'))):
+                raise ValueError('exact independent nonsensitive review required')
+            for key in ('file_author', 'reviewer', 'review_evidence'):
+                if (not isinstance(record[key], str) or not record[key].strip()
+                        or len(record[key]) > 512 or any(ord(c) < 32 for c in record[key])):
+                    raise ValueError('review provenance')
+            if record['reviewer'] in {record['file_author'], binding['subject'], binding['bot_id'], OPERATOR}:
+                raise ValueError('reviewer must be independent of author, sender and approver')
+            approval = record['operator_approval']
+            if (not isinstance(approval, dict) or set(approval) != {'operator_id', 'message_id', 'decision'}
+                    or approval['operator_id'] != OPERATOR or approval['decision'] != 'approve_exact_reviewed_file'
+                    or not isinstance(approval['message_id'], str)
+                    or not re.fullmatch(SNOWFLAKE['pattern'], approval['message_id'])):
+                raise ValueError('exact operator approval required')
+            now = time.time()
+            if (any(type(record[k]) not in (int, float) or not math.isfinite(record[k]) for k in ('issued_at', 'expires'))
+                    or not binding['request_created'] <= record['issued_at'] <= now < record['expires']
+                    or record['expires'] > binding['request_expires']):
+                raise ValueError('review must be fresh and bounded by this request')
+            review = cls(canonical(binding), raw, tuple(pins), current_binding, record['expires'], auth_expires)
+            review.check()
+            return review
+        except Exception as exc:
+            for fd, *_ in reversed(pins):
+                os.close(fd)
+            raise RpcError(-32602, 'FinchWholeFileReviewRequired') from exc
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *unused):
+        for fd, *_ in reversed(self.pins):
+            os.close(fd)
+
+    def check(self, *, file=None, metadata=None, channel=None, bot=None, sha256=None):
+        try:
+            _finch_confinement()
+            if (not _FINCH_SOURCE_BOOTSTRAP_OK
+                    or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != FINCH_SOURCE_SHA256
+                    or time.time() >= min(self.expires, self.auth_expires)
+                    or canonical(self.current_binding(self.sha256)) != self.binding):
+                raise ValueError('expired or changed context/source')
+            for fd, parent, name, snapshot, directory in self.pins:
+                if (_review_stat(os.fstat(fd), directory=directory) != snapshot
+                        or _review_stat(os.stat(name, dir_fd=parent, follow_symlinks=False), directory=directory) != snapshot):
+                    raise ValueError('review custody changed')
+            if os.pread(self.pins[-1][0], 16385, 0) != self.raw:
+                raise ValueError('review bytes changed')
+            binding = json.loads(self.binding)
+            if ((file is not None and file_review_binding(file) != binding['file'])
+                    or (metadata is not None and any(actual != binding['file'][key] for key, actual in (
+                        ('filename', metadata.get('filename')), ('content_type', file_media_type(metadata.get('content_type'))),
+                        ('byte_length', metadata.get('size')))))
+                    or (channel is not None and channel != binding['channel_id'])
+                    or (bot is not None and bot != binding['bot_id'])
+                    or (sha256 is not None and sha256 != binding['file']['sha256'])):
+                raise ValueError('file or destination changed')
+        except Exception as exc:
+            raise RpcError(-32602, 'FileReviewContextMismatch') from exc
+
+
+def file_candidate(filename, mime, data, *, finch=False):
+    """Structural inspection only, NEVER send authorization. Medical matches
+    must still pass validate_file with current-request custody before any POST.
+    """
+    mime = validate_filename(filename, mime)
+    if not isinstance(data, bytes) or not 1 <= len(data) <= file_limit(mime, finch=finch):
+        raise RpcError(-32602, 'FileSizeRefused')
+    if finch and mime == 'image/png':
+        validate_finch_png(data)
+        return {'filename': filename, 'content_type': mime, 'data': data}
+    scan_hard_file_markers(data)
     if mime in {'text/plain', 'application/json'}:
         try:
             text = data.decode('utf-8')
@@ -760,21 +1532,38 @@ def validate_file(filename, mime, data):
     return {'filename': filename, 'content_type': mime, 'data': data}
 
 
-def upload_file(value):
+def validate_file(filename, mime, data, *, finch=False, file_review=None):
+    file = file_candidate(filename, mime, data, finch=finch)
+    if file_review is not None:
+        if not finch or file['content_type'] != 'text/plain' or not isinstance(file_review, FinchFileReview):
+            raise RpcError(-32602, 'FileReviewContextMismatch')
+        file_review.check(file=file)
+    if not (finch and file['content_type'] == 'image/png') and medical_file_markers(data) and file_review is None:
+        raise RpcError(-32602, 'SensitiveOrActiveFileRefused')
+    return file
+
+
+def upload_candidate(value, *, finch=False):
     if not isinstance(value, dict) or set(value) != {'filename', 'content_type', 'content_base64'}:
         raise RpcError(-32602, 'InvalidFileParams')
     encoded = value['content_base64']
-    if not isinstance(encoded, str) or len(encoded) > 1398104:
+    limit = file_limit(value['content_type'], finch=finch)
+    if not isinstance(encoded, str) or len(encoded) > 4 * ((limit + 2) // 3):
         raise RpcError(-32602, 'FileSizeRefused')
     try:
         data = base64.b64decode(encoded, validate=True)
     except (ValueError, TypeError) as exc:
         raise RpcError(-32602, 'InvalidFileBase64') from exc
-    return validate_file(value['filename'], value['content_type'], data)
+    return file_candidate(value['filename'], value['content_type'], data, finch=finch)
 
 
-def multipart_body(payload, file):
-    file = validate_file(file['filename'], file['content_type'], file['data'])
+def upload_file(value, *, finch=False, file_review=None):
+    file = upload_candidate(value, finch=finch)
+    return validate_file(file['filename'], file['content_type'], file['data'], finch=finch, file_review=file_review)
+
+
+def multipart_body(payload, file, *, finch=False, file_review=None):
+    file = validate_file(file['filename'], file['content_type'], file['data'], finch=finch, file_review=file_review)
     boundary = 'rook-' + secrets.token_hex(24)
     data = (f'--{boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\nContent-Type: application/json\r\n\r\n'.encode()
             + canonical(payload).encode() +
@@ -783,11 +1572,13 @@ def multipart_body(payload, file):
     return data, 'multipart/form-data; boundary=' + boundary
 
 
-def attachment_target(metadata, channel):
+def attachment_target(metadata, channel, *, finch=False, file_review=None):
     """Only a REST-verified attachment's canonical Discord CDN URL; no caller URL."""
-    validate_filename(metadata.get('filename'), metadata.get('content_type'))
+    if file_review is not None:
+        file_review.check(metadata=metadata, channel=channel)
+    mime = validate_filename(metadata.get('filename'), metadata.get('content_type'))
     size = metadata.get('size')
-    if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= FILE_LIMIT:
+    if isinstance(size, bool) or not isinstance(size, int) or not 1 <= size <= file_limit(mime, finch=finch):
         raise RpcError(-32602, 'FileSizeRefused')
     identity = snowflake(metadata.get('id'))
     value = metadata.get('url')
@@ -808,8 +1599,10 @@ def attachment_target(metadata, channel):
     return value
 
 
-def download_attachment(metadata, channel):
-    target = attachment_target(metadata, channel)
+def download_attachment(metadata, channel, *, finch=False, file_review=None):
+    if file_review is not None:
+        file_review.check(channel=channel)
+    target = attachment_target(metadata, channel, finch=finch, file_review=file_review)
     host, address, path = callback_target(target)
     conn = PinnedHTTPSConnection(host, address)
     try:
@@ -823,30 +1616,37 @@ def download_attachment(metadata, channel):
         if (response.status != 200 or response_mime != file_media_type(metadata['content_type'])
                 or (declared is not None and (not declared.isdigit() or int(declared) != metadata['size']))):
             raise RpcError(-32030, 'AttachmentResponseRefused')
-        data = response.read(FILE_LIMIT + 1)
+        data = response.read(file_limit(metadata['content_type'], finch=finch) + 1)
         if len(data) != metadata['size']:
             raise RpcError(-32030, 'AttachmentSizeMismatch')
-        return validate_file(metadata['filename'], metadata['content_type'], data)['data']
+        return validate_file(metadata['filename'], metadata['content_type'], data, finch=finch, file_review=file_review)['data']
     finally:
         conn.close()
 
 
-def verified_file(message, identity, channel):
+def verified_file(message, identity, channel, *, finch=False, file_review=None):
+    if file_review is not None:
+        file_review.check(channel=channel, bot=message.get('author', {}).get('id'))
     matches = [a for a in message.get('attachments', []) if a.get('id') == identity]
     if len(matches) != 1:
         raise RpcError(-32602, 'AttachmentNotOnMessage')
     metadata = matches[0]
-    attachment_target(metadata, channel)
-    data = download_attachment(metadata, channel)
+    attachment_target(metadata, channel, finch=finch, file_review=file_review)
+    if file_review is not None:
+        data = download_attachment(metadata, channel, finch=finch, file_review=file_review)
+    else:
+        data = download_attachment(metadata, channel, finch=True) if finch else download_attachment(metadata, channel)
     if len(data) != metadata['size']:
         raise RpcError(-32030, 'AttachmentSizeMismatch')
-    validate_file(metadata['filename'], metadata['content_type'], data)
+    validate_file(metadata['filename'], metadata['content_type'], data, finch=finch, file_review=file_review)
     return metadata, data
 
 
-def finch_attachment_custody(metadata, channel, sha256):
+def finch_attachment_custody(metadata, channel, sha256, *, file_review=None):
     """No bytes/URL in receipts; exact gateway metadata binds verified CDN bytes."""
-    target = attachment_target(metadata, channel)
+    target = attachment_target(metadata, channel, finch=True, file_review=file_review)
+    if file_review is not None:
+        file_review.check(metadata=metadata, channel=channel, sha256=sha256)
     if not isinstance(sha256, str) or not re.fullmatch(r'[a-f0-9]{64}', sha256):
         raise RpcError(-32602, 'InvalidAttachmentDigest')
     return {'id': metadata['id'], 'filename': metadata['filename'],
@@ -914,18 +1714,32 @@ def reaction_emoji(value):
     return value, None, value
 
 
-def message_projection(value, channel):
+def actual_mentions_projection(value):
+    """Discord metadata only; null is unknown, [] is known empty, never parse text."""
+    mentions = value.get('mentions')
+    if not isinstance(mentions, list):
+        return {'mentions': None, 'mentions_truncated': False}
+    prefix = mentions[:100]
+    valid = all(isinstance(user, dict) and isinstance(user.get('id'), str)
+                and re.fullmatch(SNOWFLAKE['pattern'], user['id']) for user in prefix)
+    return {'mentions': [{'id': user['id']} for user in prefix] if valid else None,
+            'mentions_truncated': len(mentions) > 100}
+
+
+def message_projection(value, channel, *, finch=False):
     identity = snowflake(value.get('id'))
     if value.get('channel_id') != channel:
         raise RpcError(-32602, 'MessageContextMismatch')
     attachments = value.get('attachments', [])
     reactions = value.get('reactions', [])
-    return {'message_id': identity, 'author_id': value.get('author', {}).get('id'),
+    mentions = actual_mentions_projection(value) if finch else {}
+    return {**mentions,
+            'message_id': identity, 'author_id': value.get('author', {}).get('id'),
             'content': value.get('content', ''), 'timestamp': value.get('timestamp'),
             'url': f'https://discord.com/channels/{GUILD}/{channel}/{identity}',
             'attachments': [{k: a.get(k) for k in ('id', 'filename', 'content_type', 'size')} for a in attachments[:5]],
             'reactions': [{k: r.get(k) for k in ('emoji', 'count', 'me')} for r in reactions[:10]],
-            'truncated': len(attachments) > 5 or len(reactions) > 10}
+            'truncated': len(attachments) > 5 or len(reactions) > 10 or mentions.get('mentions_truncated', False)}
 
 
 def read_messages(arguments, *, research=None, finch=None):
@@ -960,7 +1774,7 @@ def read_messages(arguments, *, research=None, finch=None):
     for value in values:
         if finch and (not isinstance(value, dict) or value.get('guild_id', finch.guild) != finch.guild):
             raise RpcError(-32602, 'MessageContextMismatch')
-        projected = message_projection(value, channel)
+        projected = message_projection(value, channel, finch=finch is not None)
         result['messages'].append(projected)
         if len(canonical(result).encode()) > 65000:
             result['messages'].pop()
@@ -1348,7 +2162,19 @@ class Application:
         if config.finch:
             self.tools = json.loads(canonical([TOOL_DEFINITION, COMMUNICATION_TOOLS[0]]).replace('rook', 'finch').replace('Rook', 'Finch'))
             self.tools[0]['inputSchema']['properties']['file'] = json.loads(canonical(COMMUNICATION_TOOLS[1]['inputSchema']['properties']['file']))
+            schema = self.tools[0]['inputSchema']['properties']['file']
+            schema['properties']['content_base64']['maxLength'] = FINCH_PNG_ENCODED_LIMIT
+            # Union consumers may project each branch without parent constraints.
+            # Keep complete closed object definitions, including filename, in both.
+            schema['oneOf'] = [
+                object_schema({**schema['properties'],
+                    'content_type': {'type': 'string', 'const': 'image/png'},
+                    'content_base64': {'type': 'string', 'maxLength': FINCH_PNG_ENCODED_LIMIT}}),
+                object_schema({**schema['properties'],
+                    'content_type': {'type': 'string', 'enum': [mime for mime in MIME_EXTENSIONS if mime != 'image/png']},
+                    'content_base64': {'type': 'string', 'maxLength': 1398104}})]
             self.tools[0]['description'] = ('Reply once in the delivered request origin channel only; optional one bounded non-sensitive file. '
+                'PNG only: up to 3MiB, 8-bit noninterlaced RGB/RGBA, 4096 per dimension / 4194304 pixels; other files 1MiB. '
                 'Requires verified JWT scope AND RBAC permission finch.replies.write. No destination override or uncertain resend.')
             security = [{'type': 'oauth2', 'scopes': ['finch.replies.write']}]
             self.tools[0].update(securitySchemes=security,
@@ -1358,6 +2184,11 @@ class Application:
             self.tools[1]['inputSchema']['required'] = ['channel_id']
             self.event_definition = {**EVENT_DEFINITION, 'name': self.event,
                 'description': 'Literal Finch mention from Izaiah, Kael or Rook; one exact channel subscription, never cross-forwarded.',
+                'payloadSchema': {**EVENT_DEFINITION['payloadSchema'], 'properties': {
+                    **EVENT_DEFINITION['payloadSchema']['properties'],
+                    'mentions': {'type': ['array', 'null'], 'maxItems': 100,
+                                 'items': object_schema({'id': SNOWFLAKE})},
+                    'mentions_truncated': {'type': 'boolean'}}},
                 'inputSchema': object_schema({'guild_id': {'type': 'string', 'const': self.guild},
                                              'channel_id': {'type': 'string', 'enum': list(self.channels)}})}
         if config.metadata_only:
@@ -1375,11 +2206,15 @@ class Application:
                 self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', research=dot)
         if config.finch:
             if sender is send:
-                def finch_send(channel, wire, file=None):
+                def finch_send(channel, wire, file=None, *, file_review=None):
                     payload = {'content': wire, 'allowed_mentions': {'parse': [], 'replied_user': False}, 'flags': 4}
+                    # Notify only fixed Kael/Rook recipients whose literal tags are present.
+                    users = [identity for identity in (BOT, ROOK_BOT) if re.search(rf'<@!?{identity}>', wire)]
+                    if users:
+                        payload['allowed_mentions']['users'] = users
                     if file is not None:
                         payload['attachments'] = [{'id': 0, 'filename': file['filename']}]
-                    return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot)
+                    return discord_request('POST', f'/channels/{channel}/messages', payload, file, finch=dot, file_review=file_review)
                 self.sender = finch_send
             if reader is readback:
                 self.reader = lambda channel, identity: discord_request('GET', f'/channels/{channel}/messages/{identity}', finch=dot)
@@ -1864,6 +2699,17 @@ class Application:
                 sub.pop('rotate_until', None)
                 self.store.put('subscriptions', sub['id'], sub)
 
+    def finch_review_binding(self, principal, row, file_binding, reply_sha256):
+        """Attestation input contains no file contents or credential material."""
+        return {'file': file_binding, 'request_id': row['id'], 'message_id': row['message_id'],
+                'request_created': row['created'], 'request_expires': row['expires'],
+                'subject': principal.subject, 'request_subject': row['subject'],
+                'guild_id': row['guild_id'], 'channel_id': row['channel_id'], 'bot_id': self.bot,
+                'policy_sha256': self.policy, 'request_policy_sha256': row['policy'],
+                'current_policy_sha256': hashlib.sha256(canonical(self.config.policy_fields()).encode()).hexdigest(),
+                'source_sha256': FINCH_SOURCE_SHA256, 'reply_sha256': reply_sha256,
+                'receiving_contract_sha256': _finch_confinement()}
+
     def reply(self, principal, arguments):
         GUILD, CHANNEL, ROOK_BOT, REPLY_KIND = self.guild, self.channel, self.bot, self.reply_kind
         if self.config.metadata_only or self.store is None or self.sender is None or self.reader is None:
@@ -1875,14 +2721,16 @@ class Application:
                 or not arguments['text'].strip() or len(arguments['text']) > 1850):
             raise RpcError(-32602, 'InvalidParams')
         request_id, text = arguments['request_id'], arguments['text']
-        file = upload_file(arguments['file']) if self.config.finch and 'file' in arguments else None
+        # Hard denials and UTF-8/format bounds still precede request lookup.
+        # A candidate is never send authority; ready requests validate below.
+        file = upload_candidate(arguments['file'], finch=True) if self.config.finch and 'file' in arguments else None
         file_binding = ({'filename': file['filename'], 'content_type': file['content_type'], 'byte_length': len(file['data']),
                          'sha256': hashlib.sha256(file['data']).hexdigest()} if file else None)
         wire = f'{text}\n-# {REPLY_KIND} · {request_id}'
         if len(wire.encode('utf-16-le')) // 2 > 2000:
             raise RpcError(-32602, 'ReplyTooLarge')
         digest = hashlib.sha256(wire.encode()).hexdigest()
-        with self.store.lock:
+        with self.store.lock, ExitStack() as reviews:
             row = self.store.get('requests', request_id)
             if not row or row['subject'] != principal.subject or row['policy'] != self.policy:
                 raise RpcError(-32602, 'UnknownOrUnownedRequest')
@@ -1910,14 +2758,33 @@ class Application:
                         d.get('state') == 'acknowledged' and d.get('guild_id') == GUILD and d.get('channel_id') == CHANNEL))
                     for d in self.store.all('deliveries')):
                 raise RpcError(-32602, 'RequestExpiredOrUndelivered')
+            file_review = None
+            if file is not None:
+                if file['content_type'] == 'text/plain' and medical_file_markers(file['data']):
+                    binding = self.finch_review_binding(principal, row, file_binding, digest)
+                    def current_binding(review_sha256):
+                        current = self.store.get('requests', request_id)
+                        if (not current or current.get('state') not in {'ready', 'sending'}
+                                or (current['state'] == 'sending' and (
+                                    current.get('file_review_sha256') != review_sha256
+                                    or current.get('reply_effect_sha256') != effect_digest))):
+                            raise ValueError('review consumed or request changed')
+                        return self.finch_review_binding(principal, current, file_binding, digest)
+                    file_review = reviews.enter_context(FinchFileReview.open(binding, current_binding, principal.expires))
+                validate_file(file['filename'], file['content_type'], file['data'], finch=True, file_review=file_review)
             row.update(state='sending', reply_sha256=digest, auth_method='RS256-authenticated-tools/call',
                        auth_subject=principal.subject, auth_expires=principal.expires)
             if self.config.finch:
                 row.update(reply_effect_sha256=effect_digest, attachment=None)
+                if file_review is not None:
+                    row['file_review_sha256'] = file_review.sha256
             # Durable before any Discord POST; crashes/unknown outcomes never auto-resend.
             self.store.put('requests', request_id, row)
             try:
-                posted = self.sender(CHANNEL, wire, file) if self.config.finch else self.sender(CHANNEL, wire)
+                if file_review is not None:
+                    posted = self.sender(CHANNEL, wire, file, file_review=file_review)
+                else:
+                    posted = self.sender(CHANNEL, wire, file) if self.config.finch else self.sender(CHANNEL, wire)
                 reply_id = posted.get('id') if isinstance(posted, dict) else None
                 if not isinstance(reply_id, str) or not re.fullmatch(r'[1-9][0-9]{0,19}', reply_id):
                     raise ValueError()
@@ -1938,8 +2805,9 @@ class Application:
                         if not isinstance(items, list) or len(items) != (1 if file else 0):
                             raise ValueError('attachment count mismatch')
                         if file:
-                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL)
-                            custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest())
+                            review_args = {'file_review': file_review} if file_review is not None else {}
+                            metadata, data = verified_file(value, snowflake(items[0].get('id')), CHANNEL, finch=True, **review_args)
+                            custody = finch_attachment_custody(metadata, CHANNEL, hashlib.sha256(data).hexdigest(), **review_args)
                             if any(custody[key] != expected for key, expected in file_binding.items()):
                                 raise ValueError('attachment bytes or metadata mismatch')
                             attachments.append(custody)
@@ -2038,6 +2906,8 @@ class Application:
             payload = {'request_id': request_id, 'guild_id': GUILD, 'channel_id': CHANNEL, 'message_id': message,
                        'sender_id': author['id'], 'text': text,
                        'url': f'https://discord.com/channels/{GUILD}/{CHANNEL}/{message}'}
+            if self.config.finch:
+                payload.update(actual_mentions_projection(data))
             request = {'id': request_id, 'message_id': message, 'subject': self.config.subject, 'policy': self.policy,
                        'created': time.time(), 'expires': min(s['expires'] for s in subscriptions), 'state': 'ready'}
             if self.config.finch:
@@ -2119,10 +2989,14 @@ def make_handler(application, allowed_hosts):
                     probe = application.config.metadata_only and self.path == '/mcp'
                     length = int(self.headers.get('Content-Length', '0' if probe else '-1'))
                     if not (probe and length == 0):
-                        if not 0 < length <= FILE_HTTP_LIMIT or self.headers.get_content_type() != 'application/json':
+                        maximum = FINCH_PNG_HTTP_LIMIT if application.config.finch else FILE_HTTP_LIMIT
+                        if not 0 < length <= maximum or self.headers.get_content_type() != 'application/json':
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})
                             return
                         body = json.loads(self.rfile.read(length))
+                        if length > FILE_HTTP_LIMIT and not (application.config.finch and finch_png_send_request(body)):
+                            self.respond(400, {}, {'error': 'bounded_json_body_required'})
+                            return
                         if length > 32768 and not (file_send_request(body) or discord_api_request(body)
                                                    or (length <= 250000 and github_comment_request(body))):
                             self.respond(400, {}, {'error': 'bounded_json_body_required'})
