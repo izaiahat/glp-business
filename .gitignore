@@ -16,6 +16,7 @@
 !/tests/
 /tests/*
 !/tests/test_glp320_host_failure_sensor.py
+!/tests/test_cgroup_headroom_guardian.py
 !/tests/test_agent_exec_routing.py
 !/scripts/fable_parent_handoff.py
 !/tests/test_fable_parent_handoff.py
@@ -80,6 +81,7 @@
 /scripts/hermes_state_archive/tests/*
 !/.github/workflows/glp80-k3-source.yml
 !/.github/workflows/business-source-ci.yml
+!/.github/workflows/guardian-coordinator-ci.yml
 !/.github/workflows/glp333-reporting-generation.yml
 !/tests/test_glp333_reporting_generation.py
 !/tests/test_glp333_glp44_current_generation.py
