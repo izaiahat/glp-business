@@ -8,8 +8,22 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 724,
+  "tracked_count": 726,
   "files": {
+    "scripts/native_reply_consumer.py": {
+      "kind": "script",
+      "callers": [
+        "manual:reviewed-parent-terminal-notify-or-confirmed-handoff"
+      ],
+      "sha256": "b6bd66fcab2738c5abdafaa51bb7dd45e9bb935f42a5ff773aefca3885085068"
+    },
+    "tests/test_native_reply_consumer.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_receive_one_discord_message.py"
+      ],
+      "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
+    },
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
       "callers": [
@@ -2130,7 +2144,7 @@
         "scripts/rook_mcp_events.py"
       ],
       "kind": "script",
-      "sha256": "acebe71514ea317d8f2e7bcff3afeb2b1b62850afd02477ba0323f9775e4ddc8"
+      "sha256": "a09bb691f97f120d54226817f44322481635fefdc22eb1dc613982374c1dd371"
     },
     "scripts/reports_archiver.py": {
       "callers": [
@@ -3303,7 +3317,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "72992f19ed8c817c101dcbb2604ac14f5f2fcf9af3799261a2fad73b5b60bd60"
+      "sha256": "a29fc68c6cfbae421d6e61a4e2e635bb85e63a425942f07073437564ea5aebf2"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
