@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 742,
+  "tracked_count": 744,
   "files": {
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5007,6 +5007,20 @@
         "native Hermes d70cda5f4416 prompt projection"
       ],
       "sha256": "0271774ffdcbb1396318428775a4e5e5fc9b10889061525facfe6857b6679072"
+    },
+    "scripts/glp_weekly_seo_collect.py": {
+      "callers": [
+        "scripts/glp_weekly_seo_control.py"
+      ],
+      "kind": "script",
+      "sha256": "7246b775af0f4d40d0dfa696d39faf89adf58fc9bd6f7ac75b30637d6af7bd79"
+    },
+    "ops/glp/seo_weekly_cogny.py": {
+      "callers": [
+        "scripts/glp_weekly_seo_control.py"
+      ],
+      "kind": "script",
+      "sha256": "3c41fde4965f9fb457c196eb70a0faef22f66e0cd6bbbc5db49f05001a543a7f"
     }
   }
 }
