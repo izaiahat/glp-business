@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 749,
+  "tracked_count": 755,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -16,20 +16,6 @@
       ],
       "kind": "script",
       "sha256": "9193d22f42771f697ff2acfa0595f4bc7cdd0d85e1a3e2f17a9c61a90540e286"
-    },
-    ".github/workflows/native-reply-consumer.yml": {
-      "kind": "source_control",
-      "callers": [
-        "github:pull_request"
-      ],
-      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
-    },
-    "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
-      "kind": "source_control",
-      "callers": [
-        "manual:authorized-orchestrator"
-      ],
-      "sha256": "85b51b928b5d3023e0d4507198158211aad0828af5fd6e3fbaf68e00caf0eae7"
     },
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -177,18 +163,18 @@
       "sha256": "a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e",
       "predecessor_sha256": "35f99538dd648fe21b781766a0a81952ad222265e0aec552b42dda5563eaccbe",
       "runtime_contract": {
-        "code_and_selection_map_sha256": "5482f25b74d6eb6f458e98f603275839bc835baf980d983250220537d6bc291c",
-        "map_serialization": "JSON sorted keys compact separators UTF-8; GO_REFRESH_CONTRACT literal in this script",
-        "source_module_count": 17,
-        "selection_input_count": 3,
-        "selection_module_sha256": "ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e",
         "authenticated_pointer": {
           "path": "reports/glp-clinic-scout/seo-machine/current-content-base.json",
-          "sha256": "dce12bc2ebf5eddbcb122c54918f044a327fd183cd8a8642d000ae72cbad5190",
           "release_root": "reports/ops/glp43-wrangler-shape-repair-20260927/prepared-final381/release",
+          "sha256": "dce12bc2ebf5eddbcb122c54918f044a327fd183cd8a8642d000ae72cbad5190",
           "site_head": "38133df58fc5406adeb87ed88771cc6ceeb26342"
         },
-        "root_semantics": "Provenance only, not a universal current root or effect approval. Actual backlog caller chooses authenticated current predecessor/batch override, materializes a detached candidate and passes --release. CLI requires its complete exact protected code/selection contract before any ESM import. No obsolete candidate repair."
+        "code_and_selection_map_sha256": "5482f25b74d6eb6f458e98f603275839bc835baf980d983250220537d6bc291c",
+        "map_serialization": "JSON sorted keys compact separators UTF-8; GO_REFRESH_CONTRACT literal in this script",
+        "root_semantics": "Provenance only, not a universal current root or effect approval. Actual backlog caller chooses authenticated current predecessor/batch override, materializes a detached candidate and passes --release. CLI requires its complete exact protected code/selection contract before any ESM import. No obsolete candidate repair.",
+        "selection_input_count": 3,
+        "selection_module_sha256": "ea509fe3c1a2a261c66ad948e92a378892e046ea8e7ac43ff51656bdc48a492e",
+        "source_module_count": 17
       }
     },
     "tests/test_glp331_dependency_closure.py": {
@@ -2030,7 +2016,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "0a54b3d94a6c06c032cc76d015020bb5612ee0a903ecc7fde6cb207fe634d24e"
+      "sha256": "3092c53fb15d47f393cb0cf9143f43ec2413301960f1bb2f10ed5c45d48c04bb"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -2200,7 +2186,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8008acf04b82bf197ff18a144e9095cbb8de26869762122a3c589e8c9ed7f19d"
+      "sha256": "d3b8b1c370d98a61d6a5dd8fb4cb1d432f4894ef283134ffa8de75da053c4513"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3269,7 +3255,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "21f54e779d49ca1d2a5523aa09ad5739b6ccbe26e633bf0f8c20b7018d9f3bf9"
+      "sha256": "1669995d0bc7c3354525ef79628abb7f171f1ef95b4804e1dff693c95608f96c"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -5052,6 +5038,50 @@
     },
     "scripts/katalys_fresh_relationship.py": {
       "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
+    },
+    "ops/hermes-cron-scripts/pro_route_dispatch.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "a0e5401e0e5eeb1c33d8700606b35c8a2b1e02b3e0293e8a0db430123fbd7953"
+    },
+    "ops/pro-route.md": {
+      "callers": [],
+      "kind": "operations",
+      "sha256": "e0bef8e1db1e7461a732bbba94caa148ac7a74c578d5f53cdf897ca8b31a8322"
+    },
+    "scripts/pro_route.py": {
+      "callers": [],
+      "kind": "script",
+      "sha256": "350f0f5a64427c4e37defc856869b35938b1733d6bf44a6eb445639c4ef3c583"
+    },
+    "tests/test_pro_dispatch.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "c7feb25e434bd5bde699178a7cdfb6abba1a576578d1dfc69c6e8d11da3bc271"
+    },
+    "tests/test_pro_picker_family.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "fd5bbb10d15f71a2d632defbce7f02d97c2d04dc657881f0de35fc8ccb9abcb5"
+    },
+    "tests/test_pro_route.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
+    },
+    ".github/workflows/native-reply-consumer.yml": {
+      "kind": "source_control",
+      "callers": [
+        "github:pull_request"
+      ],
+      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
+    },
+    "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
+      "kind": "source_control",
+      "callers": [
+        "manual:authorized-orchestrator"
+      ],
+      "sha256": "85b51b928b5d3023e0d4507198158211aad0828af5fd6e3fbaf68e00caf0eae7"
     }
   }
 }
