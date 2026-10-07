@@ -1651,16 +1651,27 @@ def validate_rendered_article_contract(html: str, job: dict[str, Any]) -> None:
     if len(capture) != 1:
         raise RuntimeError("rendered_capture_form_count_invalid")
     form = capture[0]
-    source_page = job["target_route"].strip("/").replace("/", "-")
     required = [
-        f'name="source_page" value="{source_page}"',
-        f'name="lead_magnet_key" value="{source_page}-terms-checklist"',
-        'name="consent_version" value="glp-content-upgrade-v2-20260801"',
+        'name="source_page" value="guide-link"',
+        'name="lead_magnet_key" value="guide-link-resource"',
+        'name="consent_version" value="glp-guide-resource-v1-20261007"',
+        f'name="guide_path" value="{job["target_route"]}"',
+        'name="request_id" value=""',
         'type="email" name="email"',
         '<p class="capture-consent-note">By submitting your email,',
         'href="/privacy/"',
-        'Unsubscribe anytime.',
+        'you request one email containing a link to this guide.',
+        'The email service receives your email address and the guide link to deliver it.',
+        'This does not subscribe you to follow-up emails.',
+        '>Email me a link to this guide</button>',
     ]
+    if not job["target_route"].startswith("/guides/"):
+        source_page = job["target_route"].strip("/").replace("/", "-")
+        required = [f'name="source_page" value="{source_page}"',
+                    f'name="lead_magnet_key" value="{source_page}-terms-checklist"',
+                    'name="consent_version" value="glp-content-upgrade-v2-20260801"',
+                    'type="email" name="email"', '<p class="capture-consent-note">By submitting your email,',
+                    'href="/privacy/"', 'Unsubscribe anytime.']
     if (
         any(token not in form for token in required)
         or "payload.email_consent='true'" not in html
@@ -1669,7 +1680,9 @@ def validate_rendered_article_contract(html: str, job: dict[str, Any]) -> None:
     if re.search(r'<input\b[^>]*\bname="email_consent"', form):
         raise RuntimeError("rendered_capture_consent_control_invalid")
     input_names = set(re.findall(r'<input\b[^>]*\bname="([^"]+)"', form))
-    allowed_names = {"source_page", "lead_magnet_key", "consent_version", "email", "company"}
+    allowed_names = {"source_page", "lead_magnet_key", "consent_version", "email", "company", "guide_path", "request_id"}
+    if not job["target_route"].startswith("/guides/"):
+        allowed_names -= {"guide_path", "request_id"}
     if not input_names or not input_names <= allowed_names:
         raise RuntimeError("rendered_capture_health_field_forbidden")
     if any(token in html for token in ("Estimate your cost", "Compare programs", "Find my match")):
