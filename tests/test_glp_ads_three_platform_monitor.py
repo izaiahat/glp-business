@@ -486,6 +486,45 @@ def test_account_restriction_rule_triggers_for_meta_disable_reason():
     assert rule['triggered_platforms'] == ['meta']
 
 
+def test_neutral_test_is_excluded_from_affected_aggregate_and_disjoint_identity_is_unchanged(monkeypatch):
+    module = load_module()
+    queries = []
+    class FakePostHog:
+        def hogql(self, query):
+            queries.append(query)
+            if 'SELECT DISTINCT' in query:
+                assert 'notEmpty(toString(properties.cs_click_id))' in query
+                assert 'properties.is_test' not in query
+                return {'ok': True, 'rows': []}
+            assert "ifNull(toString(properties.is_test), '') NOT IN ('true', '1')" in query
+            return {'ok': True, 'rows': [[0, 0, 0, 0, 0, '1970-01-01T00:00:00Z']]}
+    class FakeD1:
+        def query(self, sql):
+            return []
+    monkeypatch.setattr(module, 'posthog_client', lambda: FakePostHog())
+    monkeypatch.setattr(module, 'd1_client', lambda: FakeD1())
+    assert module.collect_posthog()['status'] == 'PASS'
+    assert len(queries) == 2
+
+
+def test_neutral_test_is_excluded_before_existing_page_conversion_grouping(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / 'ops/glp/seo_data_rails.py'
+    spec = importlib.util.spec_from_file_location('neutral_qa_rails', path)
+    rails = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rails)
+    client = rails.PostHog.__new__(rails.PostHog)
+    queries = []
+    def read(query):
+        queries.append(query)
+        return {'ok': True, 'rows': []}
+    monkeypatch.setattr(client, 'hogql', read)
+    assert client.page_conversion()['ok'] is True
+    assert len(queries) == 1
+    assert "ifNull(toString(properties.is_test), '') NOT IN ('true', '1')" in queries[0]
+
+
 def test_posthog_measured_zero_is_healthy_and_does_not_serialize_ids(monkeypatch):
     module = load_module()
 

@@ -184,6 +184,109 @@ def stream_sources(checkout):
     return old, new
 
 
+# Coherent continuation of installed PR239 + PR255, including PR229 TEST reads.
+# Frozen source hashes are custody, never independent privacy acceptance.
+NEUTRAL_GENERATION = 'glp44-weekly-neutral-inputs-20261007'
+NEUTRAL_SOURCE = 'a400d15ac12d442177efc3dad64ada972fd86191'
+NEUTRAL_PREDECESSOR = '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab'
+NEUTRAL_OLD_REFS = {'systems/analytics-brain/collector.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'ops/glp/seo_data_rails.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'ops/glp/seo-weekly-installed-pins.json': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'scripts/glp_weekly_seo_analysis.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'scripts/glp_weekly_seo_ranking_report.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'scripts/glp_ads_three_platform_monitor.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
+ 'scripts/glp_weekly_seo_collect.py': 'f928c9b465c6c2bfbac2f0e9bfa1d6e65da52305',
+ 'ops/glp/seo_weekly_cogny.py': 'f928c9b465c6c2bfbac2f0e9bfa1d6e65da52305',
+ 'systems/analytics-brain/ads_monitor.py': 'cce1fac6a205406286d31f5b2106ef8d986bccc4'}
+NEUTRAL_BEFORE = {'systems/analytics-brain/collector.py': '55d733fbf9c8ecc6d3c3c99cb8e249d22673d42802085c1107f7d6e90f77ae7e',
+ 'ops/glp/seo_data_rails.py': '001df4f7300777376963207c018cfa36895af4ec745a024dcd9f799a5c5b8523',
+ 'ops/glp/seo-weekly-installed-pins.json': 'c3868b2920bdfb6db22b227236a1d41ffb22fa2e43e44b873423c31e4d6c6a3c',
+ 'scripts/glp_weekly_seo_analysis.py': 'ade345b5e961083d710a6faad5804d0e3dffee5fa9ddf1b19cbfbfe690729330',
+ 'scripts/glp_weekly_seo_ranking_report.py': '0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf',
+ 'scripts/glp_ads_three_platform_monitor.py': '7bb04b77bb476ca50e34acf446ba5c2641c2b7fe1401836f46f250aa66eee180',
+ 'scripts/glp_weekly_seo_collect.py': '7246b775af0f4d40d0dfa696d39faf89adf58fc9bd6f7ac75b30637d6af7bd79',
+ 'ops/glp/seo_weekly_cogny.py': '3c41fde4965f9fb457c196eb70a0faef22f66e0cd6bbbc5db49f05001a543a7f',
+ 'systems/analytics-brain/ads_monitor.py': '2382c134dd95d2b61716f948ff1ceb34215a6a815fe94435af6fc0569278f798'}
+NEUTRAL_AFTER = {'systems/analytics-brain/collector.py': 'd5753161764d917760b7806a01afa796b2b579d28b511c386608eeb82b52f681',
+ 'ops/glp/seo_data_rails.py': '5237654f900bd8231ec9a7cd7a94862b4c4427e2694098171bffb1fa13a9d319',
+ 'ops/glp/seo-weekly-installed-pins.json': '41279de91bfa043e469fc4b05c936296a9cfab72a12b91566fba89be67d18b16',
+ 'scripts/glp_weekly_seo_analysis.py': 'b2b215266e6a46b12ff00dda69e30fa158a14870f336fb24ffac7c85a0548655',
+ 'scripts/glp_weekly_seo_ranking_report.py': '35014412980214d5e68915d7aa19f218d6d74ea5efb0cd1412b460cb2473fae1',
+ 'scripts/glp_ads_three_platform_monitor.py': 'e3f463738757e985812870976099da8d585c19df7f8a73f753da61da34bf3bd1',
+ 'scripts/glp_weekly_seo_collect.py': '7d43d2bbc2937f88d5c1d06054c815104e6ccf833344cf70aa19ee0cd2c0d41a',
+ 'ops/glp/seo_weekly_cogny.py': '875db13999baf748014520f58942ae9b8b0567753f87e34cc2156cabec998533',
+ 'systems/analytics-brain/ads_monitor.py': 'ee9cf8db93d48d52700dc6e77d909bb2396734ff644b4f6b38cd0f24008b86d8'}
+NEUTRAL_MAP_BEFORE = '0306e497a344075bcbf9606b09cfca158e263548095823feae13b1497d24cf40'
+NEUTRAL_WRAPPER_BEFORE = '2e49f094fa1801f231e82897178c0f9be7d59e910eaefa5a48c2fe4839a55c4d'
+# These exact installed sources were first curated by this PR. Absence is
+# admitted only with the authenticated old bytes; conflicting baselines refuse.
+NEUTRAL_FIRST_CURATION = frozenset(('ops/glp/seo_weekly_cogny.py',
+                                    'scripts/glp_weekly_seo_collect.py',
+                                    'systems/analytics-brain/ads_monitor.py'))
+# Literal list consumed by the maintained static receiving census.
+NEUTRAL_PATHS = ('systems/analytics-brain/collector.py',
+ 'ops/glp/seo_data_rails.py',
+ 'ops/glp/seo-weekly-installed-pins.json',
+ 'scripts/glp_weekly_seo_analysis.py',
+ 'scripts/glp_weekly_seo_ranking_report.py',
+ 'scripts/glp_ads_three_platform_monitor.py',
+ 'scripts/glp_weekly_seo_collect.py',
+ 'ops/glp/seo_weekly_cogny.py',
+ 'systems/analytics-brain/ads_monitor.py',
+ 'reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json')
+
+
+def stage_neutral_pins(before, wrapper):
+    """Preserve historical A4 outputs; switch only the monitor and shared rail."""
+    import json
+    if (sha(before), sha(wrapper)) != (NEUTRAL_MAP_BEFORE, NEUTRAL_WRAPPER_BEFORE):
+        raise RuntimeError('unknown_neutral_artifact_preimage')
+    pins = json.loads(before)
+    for key, rel in (('monitor', MONITOR), ('posthog', RAILS)):
+        if pins[key] != {'path': str(BUSINESS / rel), 'sha256': NEUTRAL_BEFORE[rel]}:
+            raise RuntimeError('neutral_map_edge_moved:' + key)
+        pins[key]['sha256'] = NEUTRAL_AFTER[rel]
+    emitted = (json.dumps(pins, indent=2, sort_keys=True) + '\n').encode()
+    edges = wrapper_pins(wrapper)
+    if edges[str(BUSINESS / MAP)] != NEUTRAL_MAP_BEFORE:
+        raise RuntimeError('neutral_wrapper_edge_moved')
+    edges[str(BUSINESS / MAP)] = sha(emitted)
+    node = next(n for n in ast.parse(wrapper).body if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == 'PINS' for t in n.targets))
+    rows = wrapper.splitlines(keepends=True)
+    carrier = b''.join(rows[:node.lineno-1] + [('PINS = ' + repr(edges) + '\n').encode()] + rows[node.end_lineno:])
+    return emitted, carrier
+
+
+def neutral_sources(checkout):
+    """Authenticate exact old/new code and the complete twenty-member weekly map."""
+    import maxbounty_pin_release as p
+    old, new = {}, {}
+    for rel, ref in NEUTRAL_OLD_REFS.items():
+        p.git(checkout, 'merge-base', '--is-ancestor', ref, 'HEAD')
+        old[rel] = p.git(checkout, 'show', ref + ':' + rel)
+        new[rel] = p.git(checkout, 'show', NEUTRAL_SOURCE + ':' + rel)
+        if (sha(old[rel]) != NEUTRAL_BEFORE[rel] or sha(new[rel]) != NEUTRAL_AFTER[rel]
+                or new[rel] != p.git(checkout, 'show', 'HEAD:' + rel)
+                or p.read_regular(checkout / rel)[0] != new[rel]):
+            raise RuntimeError('neutral_source_binding_moved:' + rel)
+    before, after = map(p.strict_json, (old[WEEKLY_PINS], new[WEEKLY_PINS]))
+    if (before.get('schema') != 'glp-weekly-installed-source-pins-v1'
+            or after.get('schema') != before['schema'] or len(before.get('paths', {})) != 20
+            or before['paths'].keys() != after.get('paths', {}).keys()):
+        raise RuntimeError('neutral_full_twenty_pin_identity_required')
+    for absolute, expected in before['paths'].items():
+        rel = str(Path(absolute).relative_to(BUSINESS))
+        if (rel in old and sha(old[rel]) != expected
+                or after['paths'][absolute] != NEUTRAL_AFTER.get(rel, expected)):
+            raise RuntimeError('neutral_weekly_co_pin_moved:' + rel)
+    if (old[WEEKLY_ANALYSIS].count(sha(old[WEEKLY_PINS]).encode()) != 1
+            or new[WEEKLY_ANALYSIS] != old[WEEKLY_ANALYSIS].replace(
+                sha(old[WEEKLY_PINS]).encode(), sha(new[WEEKLY_PINS]).encode(), 1)):
+        raise RuntimeError('neutral_weekly_verifier_moved')
+    return old, new
+
+
 def authenticate(checkout, generation=GENERATION):
     """Bind executing producer/helpers, snapshots and reviewed source bytes."""
     import maxbounty_pin_release as p
@@ -217,7 +320,7 @@ def authenticate(checkout, generation=GENERATION):
                    for row in registry['artifacts']):
             raise RuntimeError('producer_not_registered:' + target)
     body = p.git(checkout, 'show', SOURCE + ':' + MONITOR)
-    if (sha(body) != AFTER or (checkout / MONITOR).read_bytes() != body
+    if generation != NEUTRAL_GENERATION and (sha(body) != AFTER or (checkout / MONITOR).read_bytes() != body
             or sha(p.git(checkout, 'show', SOURCE + '^:' + MONITOR)) != BEFORE):
         raise RuntimeError('approved_monitor_source_moved')
     if generation in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
@@ -252,7 +355,7 @@ def authenticate(checkout, generation=GENERATION):
                    for row in registry['artifacts']):
             raise RuntimeError('weekly_producer_not_registered')
         body = p.git(checkout, 'show', weekly_source + ':' + WEEKLY)
-    elif generation == STREAM_GENERATION:
+    elif generation in (STREAM_GENERATION, NEUTRAL_GENERATION):
         p.git(checkout, 'merge-base', '--is-ancestor', STREAM_PREDECESSOR, STREAM_SOURCE)
         p.git(checkout, 'merge-base', '--is-ancestor', STREAM_SOURCE, head)
         p.git(checkout, 'merge-base', '--is-ancestor', MANUAL_WEEKLY_SOURCE, head)
@@ -270,7 +373,11 @@ def authenticate(checkout, generation=GENERATION):
         if (sha(p.git(checkout, 'show', head + ':' + WEEKLY_SNAPSHOT)) != WEEKLY_BEFORE
                 or sha(p.git(checkout, 'show', head + ':tests/fixtures/glp341-a3-result.json')) != A3_HASH):
             raise RuntimeError('stream_historical_custody_moved')
-        old, new = stream_sources(checkout)
+        if generation == NEUTRAL_GENERATION:
+            p.git(checkout, 'merge-base', '--is-ancestor', NEUTRAL_SOURCE, head)
+            old, new = neutral_sources(checkout)
+        else:
+            old, new = stream_sources(checkout)
         for rel, approved in {**new, WEEKLY: p.git(checkout, 'show', MANUAL_WEEKLY_SOURCE + ':' + WEEKLY)}.items():
             if (p.git(checkout, 'show', head + ':' + rel) != approved
                     or p.read_regular(checkout / rel)[0] != approved
@@ -291,8 +398,8 @@ def plan(checkout, root, hermes, prepared_by, *, window=None, generation=GENERAT
     root, hermes = root.resolve(strict=True), hermes.resolve(strict=True)
     if not isinstance(prepared_by, str) or not prepared_by.strip():
         raise RuntimeError('preparer_required')
-    if generation == STREAM_GENERATION:
-        return _plan_stream(checkout, root, hermes, prepared_by, window=window)
+    if generation in (STREAM_GENERATION, NEUTRAL_GENERATION):
+        return _plan_stream(checkout, root, hermes, prepared_by, window=window, generation=generation)
     if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION):
         raise RuntimeError('unknown_a4_generation')
     weekly = generation in (WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION)
@@ -389,35 +496,41 @@ def _finish_plan(root, hermes, prepared_by, window, generation, head, source_hea
     return proposal, observed, staged
 
 
-def _plan_stream(checkout, root, hermes, prepared_by, *, window):
+def _plan_stream(checkout, root, hermes, prepared_by, *, window, generation=STREAM_GENERATION):
     import maxbounty_pin_release as p
     import sync_from_repo as syncer
-    head, _ = authenticate(checkout, generation=STREAM_GENERATION)
-    old, new = stream_sources(checkout)
-    observed = {root / rel: p.read_regular(root / rel) for rel in STREAM_PATHS}
+    head, _ = authenticate(checkout, generation=generation)
+    neutral = generation == NEUTRAL_GENERATION
+    paths = NEUTRAL_PATHS if neutral else STREAM_PATHS
+    old, new = neutral_sources(checkout) if neutral else stream_sources(checkout)
+    map_before = NEUTRAL_MAP_BEFORE if neutral else STREAM_MAP_BEFORE
+    wrapper_before = NEUTRAL_WRAPPER_BEFORE if neutral else STREAM_WRAPPER_BEFORE
+    observed = {root / rel: p.read_regular(root / rel) for rel in paths}
     observed[hermes / 'scripts' / WRAPPER] = p.read_regular(hermes / 'scripts' / WRAPPER)
     observed[root / syncer.STATE] = p.read_regular(root / syncer.STATE)
     state = p.strict_json(observed[root / syncer.STATE][0])
     if state.get('schema') != 1 or not isinstance(state.get('hashes'), dict):
         raise RuntimeError('source_import_baseline_moved')
     for rel, body in old.items():
-        if (observed[root / rel][0] != body or state['hashes'].get(rel) != sha(body)):
+        baselines = (None, sha(body)) if neutral and rel in NEUTRAL_FIRST_CURATION else (sha(body),)
+        if (observed[root / rel][0] != body or state['hashes'].get(rel) not in baselines):
             raise RuntimeError('stream_source_preimage_or_baseline_moved:' + rel)
-    if state['hashes'].get(MAP) != STREAM_MAP_BEFORE:
+    if state['hashes'].get(MAP) != map_before:
         raise RuntimeError('map_import_baseline_moved')
-    emitted, carrier = stage_stream_pins(observed[root / MAP][0],
-                                        observed[hermes / 'scripts' / WRAPPER][0])
+    stage = stage_neutral_pins if neutral else stage_stream_pins
+    emitted, carrier = stage(observed[root / MAP][0],
+                             observed[hermes / 'scripts' / WRAPPER][0])
     pins = p.strict_json(new[WEEKLY_PINS])
     if pins.get('schema') != 'glp-weekly-installed-source-pins-v1' or len(pins.get('paths', {})) != 20:
         raise RuntimeError('stream_full_twenty_pin_identity_required')
     staged = {root / rel: body for rel, body in new.items()}
     staged[root / MAP] = emitted
     staged[hermes / 'scripts' / WRAPPER] = carrier
-    for rel in STREAM_PATHS:
+    for rel in paths:
         state['hashes'][rel] = sha(staged[root / rel])
     staged[root / syncer.STATE] = p.json_bytes(state)
-    return _finish_plan(root, hermes, prepared_by, window, STREAM_GENERATION, head,
-                        STREAM_SOURCE, STREAM_WRAPPER_BEFORE, emitted, carrier,
+    return _finish_plan(root, hermes, prepared_by, window, generation, head,
+                        NEUTRAL_SOURCE if neutral else STREAM_SOURCE, wrapper_before, emitted, carrier,
                         observed, staged, strict_dependencies=True,
                         extra_expected=pins['paths'])
 
@@ -476,7 +589,7 @@ def adopt(checkout, root, hermes, review, *, scheduler, window=None, _source_own
     if not isinstance(review, dict) or not isinstance(review.get('proposal'), dict):
         raise RuntimeError('independent_review_required')
     generation = review['proposal'].get('generation')
-    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION):
+    if generation not in (GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION, NEUTRAL_GENERATION):
         raise RuntimeError('unknown_a4_generation')
     custody = root / 'reports/ops/pin-archive/glp345-a4' / generation
     intent = custody / 'cutover.json'
@@ -561,7 +674,7 @@ def main(argv=None):
     parser.add_argument('--root', type=Path, default=BUSINESS)
     parser.add_argument('--hermes', type=Path, default=HERMES)
     parser.add_argument('--prepared-by', default='F08 source owner')
-    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION), default=GENERATION)
+    parser.add_argument('--generation', choices=(GENERATION, WEEKLY_GENERATION, MANUAL_WEEKLY_GENERATION, STREAM_GENERATION, NEUTRAL_GENERATION), default=GENERATION)
     parser.add_argument('--window', type=Path)
     parser.add_argument('--review', type=Path)
     parser.add_argument('--apply', action='store_true')

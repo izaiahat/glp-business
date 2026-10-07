@@ -1031,7 +1031,15 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
         if(sliders.length!==1||rails.length!==1||sliders[0].getAttribute('aria-valuemin')!=='0'||
            sliders[0].getAttribute('aria-valuemax')!=='4')return null;
         const r=rails[0].getBoundingClientRect();return r.width>100&&r.height>10?{x:r.right-13,y:r.top+r.height/2}:null;})()'''
-    close_picker = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')==='true')b.click();return true;})()"
+    # The captured trigger toggles on pointerdown, not HTMLElement.click().
+    # Geometry is only an input target; unchanged closed/parent readback below
+    # still proves acceptance after the supported CDP press/release pair.
+    close_picker = '(()=>{' + COMPOSER_TEXT_JS + MODEL_PICKER_JS + r'''
+        if(composerText(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))!==''||
+           document.querySelectorAll('[data-message-author-role]').length)return null;
+        const b=pickerTrigger();if(!b||!pickerMenu()||!full6ProMaximum())return null;
+        const r=b.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+        return r.width>0&&r.height>0&&Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;})()'''
     closed_probe = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();return !!b&&b.getAttribute('aria-expanded')==='false'&&committed6ProMaximum();})()"
     fresh_click = '(()=>{' + MODEL_PICKER_JS + '''if(!committed6ProMaximum())return false;
         const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
@@ -1181,9 +1189,13 @@ for _ in range(10):
     if not _bound_js(tab['targetId'], fresh, {open_picker!r}): break
     selected=_bound_js(tab['targetId'], fresh, {full_picker_probe!r})
     if selected: break
-if RETAINED: _fresh()
 closed=False
-if _bound_js(tab['targetId'], fresh, {close_picker!r}):
+_fresh()
+close_geometry=_bound_js(tab['targetId'], fresh, {close_picker!r}) if selected else None
+if close_geometry:
+    for typ in ('mousePressed','mouseReleased'):
+        cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
+            x=close_geometry['x'], y=close_geometry['y'], button='left', clickCount=1)
     for _ in range(10):
         closed=_bound_js(tab['targetId'], fresh, {closed_probe!r})
         if closed: break

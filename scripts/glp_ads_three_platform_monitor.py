@@ -716,6 +716,7 @@ def collect_posthog() -> dict[str, Any]:
         FROM events
         WHERE event = 'affiliate_click'
           AND domain(properties.$current_url) = 'glpclinicscout.com'
+          AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1')
           AND timestamp >= toDateTime('{start_utc}')
     """
     identity_query = f"""
