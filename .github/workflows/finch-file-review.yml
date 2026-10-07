@@ -1,7 +1,7 @@
 name: finch-file-review
 on:
   pull_request:
-    branches: [main, baseline/finch-deployed-af5cc609-20261006]
+    branches: [main, baseline/finch-deployed-af5cc609-20261006, fix/finch-file-review-gate-20261006]
 permissions:
   contents: read
 jobs:
@@ -22,4 +22,18 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_file_review.py tests/test_rook_communication.py tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py
+          .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_finch_kernel_harness.py tests/test_finch_network.py tests/test_finch_receiving_sandbox.py tests/test_finch_file_review.py tests/test_rook_communication.py tests/test_rook_mcp_events.py tests/test_receive_one_discord_message.py
+      - name: Compile proposed AppArmor source without kernel load or cache writes
+        run: |
+          test -x /usr/sbin/apparmor_parser
+          /usr/sbin/apparmor_parser --version
+          if command -v aa-features-abi >/dev/null; then aa-features-abi --extract --stdout; fi
+          if test -r /etc/apparmor.d/abi/4.0; then
+            sha256sum /etc/apparmor.d/abi/4.0
+            if /usr/sbin/apparmor_parser --config-file=/dev/null --skip-kernel-load --skip-cache --kernel-features=/etc/apparmor.d/abi/4.0 --policy-features=/etc/apparmor.d/abi/4.0 --warn=rule-not-enforced --Werror ops/rook-mcp/finch-mcp-receiving-v1.apparmor; then
+              echo 'REFERENCE_ABI_COMPILE_PASSED: this is not receiving-kernel enforcement proof'
+            else
+              echo 'REFERENCE_ABI_COMPILE_FAILED'
+            fi
+          fi
+          /usr/sbin/apparmor_parser --config-file=/dev/null --skip-kernel-load --skip-cache --warn=rule-not-enforced --Werror ops/rook-mcp/finch-mcp-receiving-v1.apparmor
