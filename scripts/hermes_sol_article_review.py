@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Packet-only GLP article reviewer backed by Hermes/OpenAI Codex Sol.
+"""Packet-only GLP article reviewer backed by native Hermes/OpenAI Astra.
 
 This is the review transport used by the GLP article-review controller. It
 resolves the provider through Hermes, creates a Hermes ``AIAgent`` with an empty
@@ -20,8 +20,11 @@ from pathlib import Path
 from typing import Any
 
 TARGET_PROVIDER = "openai-codex"
-TARGET_MODEL = "gpt-5.6-sol"
-TARGET_EFFORT = "xhigh"
+TARGET_MODEL = "gpt-6-astra-900k"
+TARGET_EFFORT = "high"
+TARGET_TRANSPORT = "hermes-openai-codex-astra-independent"
+TARGET_SPEED = "normal"
+TARGET_SERVICE_TIER = "default"
 TARGET_API_MODE = "codex_responses"
 HERMES_PYTHON = Path("/home/ubuntu/.hermes/hermes-agent/venv/bin/python")
 DEFAULT_MAX_CONTEXT_CHARS = 2_100_000
@@ -240,13 +243,15 @@ def review_input(
         # (systems/seo-blog-machine/scripts/review_transports.py, operator
         # authorization 2026-08-18). This transport's isolation comes from
         # skip_context_files + skip_memory + an empty tool surface.
-        "transport_id": "hermes-openai-codex-sol",
+        "transport_id": TARGET_TRANSPORT,
         "context_isolated": True,
         "hermes_managed": True,
         "provider": args.provider,
         "model": args.model,
         "api_mode": runtime.get("api_mode", TARGET_API_MODE),
         "effort": args.effort,
+        "speed": TARGET_SPEED,
+        "service_tier": TARGET_SERVICE_TIER,
         "tools_disabled": args.disable_tools,
         "tool_count": runtime.get("tool_count", 0),
         "fallback_provider_count": runtime.get("fallback_provider_count", 0),
@@ -296,7 +301,7 @@ def hermes_agent_kwargs(
         "session_id": session_id,
         "max_iterations": 1,
         "reasoning_config": {"enabled": True, "effort": args.effort},
-        "request_overrides": {"timeout": float(args.timeout)},
+        "request_overrides": {"timeout": float(args.timeout), "service_tier": TARGET_SERVICE_TIER},
         "fallback_model": None,
         "credential_pool": runtime.get("credential_pool"),
     }
@@ -343,8 +348,11 @@ def run_hermes(
         sys.path.insert(0, str(hermes_checkout))
 
     from hermes_cli.runtime_provider import resolve_runtime_provider
+    from agent.reasoning_effort import codex_supported_efforts
     from run_agent import AIAgent
 
+    if args.effort not in codex_supported_efforts(args.model):
+        raise RuntimeError(f"hermes_review_effort_unsupported:{args.model}:{args.effort}")
     runtime = resolve_runtime_provider(requested=args.provider, target_model=args.model)
     if (
         runtime.get("provider") != TARGET_PROVIDER
@@ -356,7 +364,7 @@ def run_hermes(
             f"{runtime.get('provider')}:{runtime.get('requested_provider')}:{runtime.get('api_mode')}"
         )
 
-    session_id = f"glp_sol_review_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+    session_id = f"glp_astra_review_{int(time.time())}_{uuid.uuid4().hex[:8]}"
     agent = AIAgent(**hermes_agent_kwargs(runtime, args, session_id))
     started = time.monotonic()
     result: dict[str, Any] = {}
@@ -391,11 +399,15 @@ def run_hermes(
     if int(result.get("api_calls") or 0) != 1:
         raise RuntimeError(f"hermes_review_turn_count_invalid:{result.get('api_calls')}")
     execution = {
-        "transport_id": "hermes-openai-codex-sol",
+        "transport_id": TARGET_TRANSPORT,
         "context_isolated": True,
         "model_turns": int(result.get("api_calls") or 0),
         "provider": result["provider"],
         "model": result["model"],
+        "effort": args.effort,
+        "speed": TARGET_SPEED,
+        "service_tier": TARGET_SERVICE_TIER,
+        "service_tier_evidence": "explicit_request_override_not_provider_confirmation",
         "api_mode": TARGET_API_MODE,
         "session_id": result.get("session_id") or session_id,
         "api_calls": int(result.get("api_calls") or 0),
@@ -453,7 +465,7 @@ def secure_write(path: Path, content: str) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run a packet-only GLP review through Hermes-managed OpenAI Codex Sol."
+        description="Run a packet-only independent GLP review through native Hermes/OpenAI Astra."
     )
     parser.add_argument("--prompt", help="Inline review prompt.")
     parser.add_argument("--prompt-file", help="Review prompt file.")

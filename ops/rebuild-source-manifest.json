@@ -2388,7 +2388,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "8bbcd09b7e666ec14b0cdb8bd18a9d5d0892208b275b8fa9a64c63ced13e7f4c"
+      "sha256": "6516757cd44bfe1d1c4d76b84df21c3cfb9e1a20f043193050e301a534655fa8"
     },
     "systems/seo-blog-machine/scripts/selection_receipt.py": {
       "callers": [
@@ -2423,7 +2423,7 @@
         "GLP-73 B-01/F-01/T-01 source-only regressions"
       ],
       "kind": "test",
-      "sha256": "3c7c92c16175ab7a1b298d74bab4db1e6585611d983aac523a9620fe49e63fe4"
+      "sha256": "25bb4743f3db9212fbebaf9fa0771c090f3d47e9e432ae7ae7e7ed3b00ab22a6"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -4921,21 +4921,21 @@
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
-      "sha256": "392266f9225482069f02e64b7f1f9ef18b68ecb17c66c9d8169d695be934b5b8"
+      "sha256": "2eacda6f0d49f5a72f67b7bda358a43a0f8ed2442a2439cd16a8fa0ec6a0fe00"
     },
     "systems/seo-blog-machine/scripts/repair_opus_packet.py": {
       "kind": "packet_repair_worker",
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
-      "sha256": "ff019b3ffe6b6cd010cc7f257ebc0b56a23abe7abf413b9915f8375659fc9d31"
+      "sha256": "29b4015d3060a4f67e81684f6ffac44b5fcdf9c095010c9f67c867c361cabee8"
     },
     "ops/hermes-cron-prompts/glp-seo-buffer-refill.md": {
       "kind": "native_cron_prompt",
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "da11dd3338beb520ea3bf59f2ddd1982d47df91c595d07c7758ca15ed2c4c115"
+      "sha256": "0271774ffdcbb1396318428775a4e5e5fc9b10889061525facfe6857b6679072"
     }
   }
 }

@@ -11,8 +11,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-MODEL = "gpt-5.6-sol"  # post-reset switchover 2026-08-07: Sol xhigh (config reasoning_overrides clamps effort)
+MODEL = "gpt-6.1-sol"
+EFFORT = "high"
 PROVIDER = "openai-codex"
+SERVICE_TIER = "default"
+SPEED = "normal"
+HERMES_PYTHON = Path("/home/ubuntu/.hermes/hermes-agent/venv/bin/python")
 # Packet repairs routinely include fresh Firecrawl capture, line-level claim
 # binding, draft edits, and a final reread. Same-day receipts on 2026-08-21 show
 # useful completed edits being killed at the old 600-second ceiling. Give the
@@ -24,8 +28,9 @@ REPAIR_MAX_TURNS = 60
 
 def worker_command(prompt_text: str) -> list[str]:
     """Return the single authorized Hermes/OpenAI Codex Sol worker route."""
-    return ["hermes", "chat", "--provider", PROVIDER, "--model", MODEL,
-            "--reasoning", "xhigh", "--max-turns", str(REPAIR_MAX_TURNS),
+    return [str(HERMES_PYTHON), str(Path(__file__).resolve()), "--native-repair", "chat",
+            "--provider", PROVIDER, "--model", MODEL,
+            "--reasoning", EFFORT, "--max-turns", str(REPAIR_MAX_TURNS),
             "--source", "tool", "-Q", "-q", prompt_text]
 
 
@@ -148,6 +153,10 @@ After validation, reread changed files and return a terse list of exact changes.
         "effective_exit_code": effective_rc,
         "model": MODEL,
         "provider": PROVIDER,
+        "effort": EFFORT,
+        "speed": SPEED,
+        "service_tier": SERVICE_TIER,
+        "service_tier_evidence": "process_local_config_override_not_provider_confirmation",
         "plan_path": str(plan_path),
         "plan_sha256": sha(plan_path),
         "prompt_path": str(prompt_path),
@@ -169,4 +178,16 @@ After validation, reread changed files and return a terse list of exact changes.
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--native-repair"]:
+        # Supported native CLI with process-local overrides; no saved-config
+        # mutation, inherited Fast, paid provider or fallback model.
+        sys.path.insert(0, "/home/ubuntu/.hermes/hermes-agent")
+        from cli import CLI_CONFIG
+        from hermes_cli.main import main as hermes_main
+        CLI_CONFIG.setdefault("agent", {})["service_tier"] = SERVICE_TIER
+        CLI_CONFIG["fallback_providers"] = []
+        CLI_CONFIG.pop("fallback_model", None)
+        sys.argv = [sys.argv[0], *sys.argv[2:]]
+        hermes_main()
+        raise SystemExit(0)
     raise SystemExit(main())

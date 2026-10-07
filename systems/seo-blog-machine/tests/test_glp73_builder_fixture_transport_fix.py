@@ -158,3 +158,107 @@ def test_t01_runtime_isolation_denial_overrides_input_but_absence_replays():
         bad_input["review_input"]["context_isolated"] = False
         with pytest.raises(transports.TransportError, match="review_execution_pin_invalid"):
             transports.validate_raw_review_runtime(bad_input)
+
+
+def current_runtime(row):
+    raw = runtime(row)
+    for name in ("review_input", "review_runtime"):
+        raw[name].update(effort=row["effort"], speed="normal", service_tier="default")
+    return raw
+
+
+def test_current_astra_route_is_distinct_from_historical_sol():
+    transports = load("review_transports")
+    current = transports.transport(transports.DEFAULT_TRANSPORT_ID)
+    assert current["model"] == "gpt-6-astra-900k"
+    assert current["effort"] == "high"
+    assert current["speed"] == "normal"
+    assert current["service_tier"] == "default"
+    assert current["transport_id"] != transports.SOL_TRANSPORT["transport_id"]
+    assert transports.SOL_TRANSPORT["model"] == "gpt-5.6-sol"
+    assert transports.transport(None) == transports.SOL_TRANSPORT
+    assert transports.validate_raw_review_runtime(runtime(transports.SOL_TRANSPORT)) == transports.SOL_TRANSPORT
+    assert transports.validate_raw_review_runtime(current_runtime(current)) == current
+    for block in ("review_input", "review_runtime"):
+        for key, value in (("effort", "xhigh"), ("speed", "fast"), ("service_tier", "priority")):
+            raw = current_runtime(current)
+            raw[block][key] = value
+            with pytest.raises(transports.TransportError):
+                transports.validate_raw_review_runtime(raw)
+    raw = current_runtime(current)
+    del raw["review_runtime"]["service_tier"]
+    with pytest.raises(transports.TransportError):
+        transports.validate_raw_review_runtime(raw)
+
+
+def load_business_script(name):
+    root = Path(__file__).resolve().parents[3]
+    path = root / "scripts" / (name + ".py")
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_native_reviewer_pins_standard_and_refuses_legacy_or_tools():
+    wrapper = load_business_script("hermes_sol_article_review")
+    args = wrapper.build_parser().parse_args(["--prompt", "Synthetic regression", "--disable-tools"])
+    assert (args.provider, args.model, args.effort) == ("openai-codex", "gpt-6-astra-900k", "high")
+    wrapper.validate_target_args(args)
+    kwargs = wrapper.hermes_agent_kwargs({}, args, "offline-fixture")
+    assert kwargs["request_overrides"]["service_tier"] == "default"
+    assert kwargs["reasoning_config"]["effort"] == "high"
+    assert kwargs["fallback_model"] is None
+    assert kwargs["enabled_toolsets"] == []
+    assert kwargs["skip_context_files"] and kwargs["skip_memory"]
+    assert kwargs["session_db"] is None and kwargs["max_iterations"] == 1
+    inp = wrapper.review_input(args, "Synthetic regression", {})
+    assert inp["transport_id"] == "hermes-openai-codex-astra-independent"
+    assert inp["speed"] == "normal" and inp["service_tier"] == "default"
+    for field, bad in (("provider", "anthropic"), ("model", "gpt-5.6-sol"),
+                       ("model", "gpt-6.1-sol"), ("effort", "xhigh"), ("disable_tools", False)):
+        altered = copy.copy(args)
+        setattr(altered, field, bad)
+        with pytest.raises(ValueError):
+            wrapper.validate_target_args(altered)
+
+
+def test_repair_native_entry_overrides_config_without_persisting(monkeypatch):
+    import runpy
+    import sys
+    from types import SimpleNamespace
+    path = SCRIPTS / "repair_opus_packet.py"
+    spec = importlib.util.spec_from_file_location("repair_route_fixture", path)
+    assert spec is not None and spec.loader is not None
+    repair = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(repair)
+    cmd = repair.worker_command("Synthetic route only; no model call.")
+    assert cmd[1:4] == [str(path), "--native-repair", "chat"]
+    for flag, value in (("--provider", "openai-codex"), ("--model", "gpt-6.1-sol"),
+                        ("--reasoning", "high"), ("--max-turns", "60")):
+        assert cmd[cmd.index(flag) + 1] == value
+    config = {"agent": {"service_tier": "priority"}, "fallback_providers": [{"provider": "forbidden"}],
+              "fallback_model": {"provider": "forbidden"}}
+    observed = []
+    monkeypatch.setitem(sys.modules, "cli", SimpleNamespace(CLI_CONFIG=config))
+    monkeypatch.setitem(sys.modules, "hermes_cli.main", SimpleNamespace(main=lambda: observed.append(copy.deepcopy(config))))
+    monkeypatch.setattr(sys, "argv", cmd[1:])
+    with pytest.raises(SystemExit) as exit_result:
+        runpy.run_path(str(path), run_name="__main__")
+    assert exit_result.value.code == 0
+    assert observed == [{"agent": {"service_tier": "default"}, "fallback_providers": []}]
+
+
+def test_refill_prompt_projection_preserves_freshness_and_gate_contract():
+    root = Path(__file__).resolve().parents[3]
+    text = (root / "ops/hermes-cron-prompts/glp-seo-buffer-refill.md").read_text()
+    assert "gpt-5.6-sol" not in text
+    assert "gpt-6.1-sol at high" in text
+    assert "gpt-6-astra-900k at high" in text
+    assert "normal" in text and "no fallback" in text
+    for clause in ("Research each selected query independently with Firecrawl first",
+                   "newest same-day machine-owned", "full five normal cited repair/reseal/re-review rounds",
+                   "Never replay an old review job", "Only an exact PASS_OPUS_SEO_DRAFT receipt",
+                   "Never admit a HIGH packet", "zero publication/deploy/GSC/provider-write effects"):
+        assert clause in text
