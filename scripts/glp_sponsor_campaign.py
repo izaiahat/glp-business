@@ -396,7 +396,7 @@ def invoice_provider_hosts(values,local):
          and not any(same(row['host'],x['domain']) for x in local['suppression']['entries'])}
 
 
-def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=()):
+def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
  """Same job, same lock/orders ledger. Dry-run cannot request or send invoices."""
  import glp_sponsor_paypal as paypal
  path=STATE/'orders.json'
@@ -420,25 +420,35 @@ def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=()):
     try:
      approval=paypal.authorize_order(order,STATE,action)
      client.merchant(at) # Gate identity before reservation; this is read-only.
-     order['invoice_claim']={'action':action,'at':stamp(at),'approval_sha256':approval}
-     save(path,orders) # Unknown effects remain durably reserved; never retry.
-     result['financial_write_attempts']+=1
-     response=client.invoice_write(order,STATE,action,at)
-     result['financial_writes']+=1
-     if action=='draft':
-      invoice_id=response.get('id','')
-      if not re.fullmatch(paypal.INVOICE_ID,invoice_id):raise ValueError('paypal_draft_readback_missing')
-      order['invoice_id']=invoice_id;save(path,orders)
-      readback=client.request('GET','/v2/invoicing/invoices/'+invoice_id)
-      if readback.get('id')!=invoice_id or readback.get('status')!='DRAFT':raise ValueError('paypal_draft_readback_missing')
-      paypal.invoice_matches(readback,order)
-      order['invoice_drafted_at']=stamp(at)
-     else:
-      readback=client.request('GET','/v2/invoicing/invoices/'+order['invoice_id'])
-      if readback.get('id')!=order['invoice_id'] or readback.get('status') not in ('SENT','PAID','PAYMENT_PENDING'):raise ValueError('paypal_request_readback_missing')
-      paypal.invoice_matches(readback,order)
-      order['invoice_requested_at']=stamp(at)
-     order.pop('invoice_claim');save(path,orders)
+     # The registered job supplies its canonical ledger. Static finance_hosts
+     # is only initial admission (and an offline fixture seam), not a final
+     # permission surviving merchant authentication or other slow reads.
+     current_hosts=invoice_provider_hosts(read_values(),read_local()) if ledger is not None else finance_hosts
+     with canonical_send_boundary(ledger if ledger is not None else {},now(),ledger is not None):
+      host=order['provider_host']
+      if host not in current_hosts:raise ValueError('sponsor_invoice_provider_held')
+      if ledger is not None:
+       if any(same(host,row.get('host',email.split('@')[-1]))
+              and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items()):raise ValueError('sponsor_invoice_provider_stopped')
+      order['invoice_claim']={'action':action,'at':stamp(at),'approval_sha256':approval}
+      save(path,orders) # Unknown effects remain durably reserved; never retry.
+      result['financial_write_attempts']+=1
+      response=client.invoice_write(order,STATE,action,at)
+      result['financial_writes']+=1
+      if action=='draft':
+       invoice_id=response.get('id','')
+       if not re.fullmatch(paypal.INVOICE_ID,invoice_id):raise ValueError('paypal_draft_readback_missing')
+       order['invoice_id']=invoice_id;save(path,orders)
+       readback=client.request('GET','/v2/invoicing/invoices/'+invoice_id)
+       if readback.get('id')!=invoice_id or readback.get('status')!='DRAFT':raise ValueError('paypal_draft_readback_missing')
+       paypal.invoice_matches(readback,order)
+       order['invoice_drafted_at']=stamp(at)
+      else:
+       readback=client.request('GET','/v2/invoicing/invoices/'+order['invoice_id'])
+       if readback.get('id')!=order['invoice_id'] or readback.get('status') not in ('SENT','PAID','PAYMENT_PENDING'):raise ValueError('paypal_request_readback_missing')
+       paypal.invoice_matches(readback,order)
+       order['invoice_requested_at']=stamp(at)
+      order.pop('invoice_claim');save(path,orders)
     except (RuntimeError,OSError,ValueError,KeyError,TypeError):pass
    observation=paypal.poll_order(client,order,at,STATE)
   order['payment_readiness']=observation
@@ -485,7 +495,7 @@ def run(config,dry_run=False):
   finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
   finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
                  and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
-  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts)
+  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger)
   if enabled and config.get('require_canonical_reply_coverage') is True and reply_readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
   # An outstanding claim may already have delivered despite failed readback.

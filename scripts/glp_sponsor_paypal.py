@@ -189,6 +189,50 @@ def invoice_matches(invoice,order):
         raise ValueError('paypal_tip_or_partial_not_approved')
     total=250*len(items)
     if money(invoice['amount'])!=total:raise ValueError('paypal_invoice_gross_mismatch')
+    # Compare the complete writable projection, not a subset of invoice copy.
+    # Only documented server fields, computed no-adjustment totals and inert
+    # API defaults are normalized away. Unknown nested terms/rules fail closed.
+    import copy
+    if invoice.get('gratuity') and money(invoice['gratuity'])!=0:
+        raise ValueError('paypal_unapproved_amount_adjustment')
+    projection=copy.deepcopy(invoice)
+    for field in ('id','parent_id','status','links','due_amount','gratuity','payments','refunds'):
+        projection.pop(field,None)
+    amount=projection.pop('amount')
+    breakdown=amount.pop('breakdown',{})
+    if set(amount)!={'currency_code','value'} or set(breakdown)-{'item_total','tax_total'}:
+        raise ValueError('paypal_unapproved_amount_adjustment')
+    if ('item_total' in breakdown and money(breakdown['item_total'])!=total
+        or 'tax_total' in breakdown and money(breakdown['tax_total'])!=0):
+        raise ValueError('paypal_unapproved_amount_adjustment')
+    detail=projection['detail']
+    detail.pop('metadata',None)
+    invoice_date=detail.pop('invoice_date',None)
+    term=detail.get('payment_term',{})
+    # PayPal can materialize the receipt date for DUE_ON_RECEIPT. It is not
+    # permission to accept an arbitrary later due date or conditional discount.
+    if (term.get('term_type')=='DUE_ON_RECEIPT' and invoice_date
+        and term.get('due_date')==invoice_date):
+        dt.date.fromisoformat(invoice_date)
+        term.pop('due_date')
+    for field in ('memo','attachments'):
+        if not detail.get(field):detail.pop(field,None)
+    if not projection.get('additional_recipients'):projection.pop('additional_recipients',None)
+    projection['invoicer']['email_address']=projection['invoicer']['email_address'].lower()
+    recipients=projection['primary_recipients']
+    recipients[0]['billing_info']['email_address']=recipients[0]['billing_info']['email_address'].lower()
+    for item in projection['items']:
+        item.pop('id',None)
+        if set(item['unit_amount'])!={'currency_code','value'}:
+            raise ValueError('paypal_line_items_mismatch')
+        item['unit_amount']={'currency_code':'USD','value':format(money(item['unit_amount']),'.2f')}
+        for field in ('description','tax','discount'):
+            if not item.get(field):item.pop(field,None)
+        if item.get('unit_of_measure')=='QUANTITY':item.pop('unit_of_measure')
+    config=projection['configuration']
+    for field,value in (('tax_calculated_after_discount',True),('tax_inclusive',False),('has_conditional_rule',False)):
+        if config.get(field) is value:config.pop(field)
+    if projection!=expected:raise ValueError('paypal_invoice_approved_projection_mismatch')
     return total
 
 
@@ -199,7 +243,7 @@ def reporting_rows(client,created,at,merchant):
         raise ValueError('paypal_reporting_lifetime_unavailable')
     start=created;rows=[];latest=None
     while start<at:
-        end=min(start+dt.timedelta(days=30),at);page=1;collected=0;total=None
+        end=min(start+dt.timedelta(days=30),at);page=1;metadata=None;window_rows=[];seen=set()
         while True:
             query=urllib.parse.urlencode({'start_date':iso(start),'end_date':iso(end),
                 'fields':'transaction_info,payer_info,cart_info','balance_affecting_records_only':'Y',
@@ -207,15 +251,27 @@ def reporting_rows(client,created,at,merchant):
             report=client.request('GET','/v1/reporting/transactions?'+query)
             if report.get('account_number')!=merchant:raise ValueError('paypal_reporting_merchant_mismatch')
             pages=int(report['total_pages']);count=int(report['total_items'])
-            if pages>100 or count>50000 or int(report['page'])!=page or (total is not None and total!=count):
+            current=(count,pages,report['last_refreshed_datetime'],report.get('start_date'),report.get('end_date'))
+            if (not 0<=count<=50000 or not 0<=pages<=100 or int(report['page'])!=page
+                or pages not in ({0,1} if count==0 else {(count+499)//500})
+                or metadata is not None and metadata!=current):
                 raise ValueError('paypal_reporting_coverage_incomplete')
-            total=count;batch=report.get('transaction_details',[]);collected+=len(batch);rows.extend(batch)
+            metadata=current;batch=report.get('transaction_details',[])
+            if len(batch)!=min(500,max(0,count-500*(page-1))):
+                raise ValueError('paypal_reporting_coverage_incomplete')
+            for row in batch:
+                info=row['transaction_info']
+                identity=(info.get('transaction_id'),info.get('transaction_event_code'))
+                if not identity[0] or identity in seen:
+                    raise ValueError('paypal_reporting_coverage_incomplete')
+                seen.add(identity);window_rows.append(row)
             refreshed=dt.datetime.fromisoformat(report['last_refreshed_datetime'].replace('Z','+00:00'))
             if not dt.timedelta(0)<=at-refreshed<=dt.timedelta(hours=3):
                 raise ValueError('paypal_reporting_refresh_stale')
             latest=min(latest,refreshed) if latest else refreshed
             if page>=pages:
-                if collected!=count:raise ValueError('paypal_reporting_coverage_incomplete')
+                if len(seen)!=count:raise ValueError('paypal_reporting_coverage_incomplete')
+                rows.extend(window_rows)
                 break
             page+=1
         start=end

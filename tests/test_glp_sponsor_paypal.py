@@ -29,7 +29,8 @@ def order_fixture(tmp_path):
 def invoice_fixture(order):
     return {'id':order['invoice_id'],'status':'PAID','detail':{'reference':'GLP:example.invalid:fixture-initial',
             'invoice_number':'fixture-initial','currency_code':'USD','note':order['invoice_note'],
-            'terms_and_conditions':order['invoice_terms'],'metadata':{'create_time':'2026-10-06T00:00:00Z'}},
+            'terms_and_conditions':order['invoice_terms'],'payment_term':{'term_type':'DUE_ON_RECEIPT'},
+            'metadata':{'create_time':'2026-10-06T00:00:00Z'}},
             'invoicer':{'email_address':'ops@glpclinicscout.com'},
             'primary_recipients':[{'billing_info':{'email_address':order['recipient']}}],
             'items':[{'name':'Sponsor pilot setup','quantity':'1','unit_amount':{'currency_code':'USD','value':'250.00'}},
@@ -62,9 +63,11 @@ def fake_client(monkeypatch, invoice, report):
     return client
 
 
-def test_exact_paypal_transaction_not_mark_paid_proves_money(tmp_path,monkeypatch):
+@pytest.mark.parametrize('lifetime_days', [1, 38])
+def test_exact_paypal_transaction_not_mark_paid_proves_money(tmp_path,monkeypatch,lifetime_days):
     order=order_fixture(tmp_path)
     inv=invoice_fixture(order);report=report_fixture(order)
+    inv['detail']['metadata']['create_time']=paypal.iso(AT-dt.timedelta(days=lifetime_days))
     result=paypal.poll_order(fake_client(monkeypatch,inv,report),order,AT,tmp_path)
     assert result['payment_verified'] is True
     assert result['status']=='paid'
@@ -261,6 +264,177 @@ def test_actual_invoice_write_cannot_use_scope_as_identity(tmp_path,monkeypatch)
     monkeypatch.setattr(paypal,'BINDING',tmp_path/'absent-binding.json')
     monkeypatch.setattr(client,'_authorized',lambda *a:pytest.fail('missing identity reached effect'))
     with pytest.raises(OSError):client.invoice_write(order,tmp_path,'draft',AT)
+
+
+@pytest.mark.parametrize('failure', ['duplicate_final_credit', 'pages_drift', 'refresh_drift', 'valid_unique'])
+def test_two_page_reporting_requires_unique_stable_window_coverage(tmp_path, monkeypatch, failure):
+    import urllib.parse
+    order = order_fixture(tmp_path)
+    invoice = invoice_fixture(order)
+    report = report_fixture(order)
+    credit = copy.deepcopy(report['transaction_details'][0])
+    rows = [credit]
+    for number in range(499):
+        row = copy.deepcopy(credit)
+        row['transaction_info'].update(transaction_id=f'UNRELATED{number:08d}', invoice_id='unrelated')
+        row['cart_info']['paypal_invoice_id'] = 'INV2-UNRELATED'
+        rows.append(row)
+    first = {**report, 'page': 1, 'total_pages': 2, 'total_items': 501, 'transaction_details': rows}
+    final = {**first, 'page': 2, 'transaction_details': [copy.deepcopy(credit)]}
+    if failure != 'duplicate_final_credit':
+        final['transaction_details'][0]['transaction_info']['transaction_id'] = 'UNRELATED-FINAL'
+        final['transaction_details'][0]['transaction_info']['invoice_id'] = 'unrelated'
+        final['transaction_details'][0]['cart_info']['paypal_invoice_id'] = 'INV2-UNRELATED'
+        if failure == 'pages_drift':final['total_pages'] = 1
+        elif failure == 'refresh_drift':final['last_refreshed_datetime'] = '2026-10-07T00:30:00Z'
+    client = fake_client(monkeypatch, invoice, report)
+    def read(method, path, payload=None):
+        assert method == 'GET'
+        if path.startswith('/v2/invoicing/'):return copy.deepcopy(invoice)
+        page = int(urllib.parse.parse_qs(urllib.parse.urlparse(path).query)['page'][0])
+        return copy.deepcopy(first if page == 1 else final)
+    monkeypatch.setattr(client, 'request', read)
+    result = paypal.poll_order(client, order, AT, tmp_path)
+    if failure == 'valid_unique':
+        assert result['payment_verified'] is True and result['gross_usd'] == '500.00'
+    else:
+        assert result['status'] == 'unknown' and result['payment_verified'] is False
+    assert result['placement_allowed'] is False
+
+
+def test_approved_invoice_projection_retains_safe_server_fields(tmp_path, monkeypatch):
+    order = order_fixture(tmp_path)
+    approve_fixture(tmp_path, order, True)
+    invoice = invoice_fixture(order)
+    invoice['status'] = 'DRAFT'
+    invoice['detail'].update(invoice_date='2026-10-06', attachments=[], memo='')
+    invoice['detail']['payment_term']['due_date'] = '2026-10-06'
+    invoice['links'] = [{'rel': 'self', 'href': 'https://example.invalid/server-link'}]
+    invoice['additional_recipients'] = []
+    invoice['configuration'].update(tax_calculated_after_discount=True, tax_inclusive=False, has_conditional_rule=False)
+    invoice['amount']['breakdown'] = {'item_total': {'currency_code': 'USD', 'value': '500.00'},
+                                      'tax_total': {'currency_code': 'USD', 'value': '0.00'}}
+    for index, item in enumerate(invoice['items']):
+        item.update(id=f'server-item-{index}', unit_of_measure='QUANTITY', description='')
+        item['unit_amount']['value'] = '250.0'
+    original = copy.deepcopy(invoice)
+    client = fake_client(monkeypatch, invoice, report_fixture(order))
+    effects = []
+    monkeypatch.setattr(client, '_authorized', lambda *args: effects.append(args) or {})
+    client.invoice_write(order, tmp_path, 'request', AT)
+    assert len(effects) == 1
+    assert invoice == original # Projection never mutates the API readback.
+    invoice['status'] = 'PAID'
+    result = paypal.poll_order(client, order, AT, tmp_path)
+    assert result['payment_verified'] is True and result['gross_usd'] == '500.00'
+    assert result['placement_allowed'] is False
+
+
+@pytest.mark.parametrize('drift', ['payment_term', 'attachment', 'conditional_discount'])
+def test_unapproved_invoice_schema_cannot_send_or_verify_payment(tmp_path, monkeypatch, drift):
+    # Independent R2 paths, not a top-level attachments approximation.
+    order = order_fixture(tmp_path)
+    approve_fixture(tmp_path, order, True)
+    invoice = invoice_fixture(order)
+    invoice['status'] = 'DRAFT'
+    invoice['detail']['invoice_date'] = '2026-10-06'
+    if drift == 'payment_term':
+        invoice['detail']['payment_term'] = {'term_type': 'NET_90'}
+    elif drift == 'attachment':
+        invoice['detail']['attachments'] = [{'id': 'unapproved-file', 'reference_url': 'https://example.invalid/unapproved.pdf'}]
+    else:
+        invoice['detail']['payment_term']['conditional_rules'] = {'early_payment_discount': {
+            'discount_end_date': '2026-10-10', 'percent': '50', 'is_applied': False}}
+    client = fake_client(monkeypatch, invoice, report_fixture(order))
+    effects = []
+    monkeypatch.setattr(client, '_authorized', lambda *args: effects.append(args) or {})
+    try:
+        client.invoice_write(order, tmp_path, 'request', AT)
+    except (RuntimeError, ValueError, KeyError, TypeError):
+        pass
+    assert effects == [], f'Unapproved {drift} reached invoice send'
+    invoice['status'] = 'PAID'
+    result = paypal.poll_order(client, order, AT, tmp_path)
+    assert result['status'] == 'unknown' and result['payment_verified'] is False
+    assert result['placement_allowed'] is False
+
+
+@pytest.mark.parametrize('change', ['opt_out', 'registry_hold', 'suppression', 'stale_cursor', 'allowed'])
+def test_invoice_send_rechecks_committed_optout_before_claim(tmp_path, monkeypatch, change):
+    # Reuse independent review R1: commit a real canonical stop during the
+    # synthetic merchant read, before the real campaign claim/write boundary.
+    import json
+    import sqlite3
+    from test_glp_sponsor_campaign import offline_campaign, inputs
+    from test_glp_sponsor_boundary_repairs import inbox
+    config, mail, recipients = offline_campaign(tmp_path, monkeypatch)
+    recipients.clear()
+    config.update(paypal_read_only_polling=True, paypal_invoice_requests_enabled=True,
+                  require_canonical_reply_coverage=True)
+    monkeypatch.setattr(campaign, 'INBOX_DB', tmp_path/'inbox.sqlite')
+    inbox(campaign.INBOX_DB)
+    order = order_fixture(campaign.STATE)
+    order['invoice_action'] = 'request'
+    approve_fixture(campaign.STATE, order, True)
+    campaign.save(campaign.STATE/'orders.json', {order['order_id']: order})
+    campaign.save(campaign.STATE/'ledger.json', {order['recipient']: {'host': order['provider_host'], 'stopped': 'agreement_candidate'}})
+    sheet, _, local = inputs()
+    sheet[1][6] = 'https://example.invalid'
+    monkeypatch.setattr(campaign, 'read_values', lambda: sheet)
+    monkeypatch.setattr(campaign, 'read_local', lambda: local)
+    inv = invoice_fixture(order)
+    inv['status'] = 'DRAFT'
+    inv['detail']['invoice_date'] = '2026-10-06'
+    client = fake_client(monkeypatch, inv, report_fixture(order))
+    effects = []
+    committed = []
+    def merchant(at):
+        if not committed:
+            if change == 'opt_out':
+                stop = {'kind': 'opt_out', 'event_id': 'review-stop',
+                        'provider_hosts': [order['provider_host']], 'enrolled_addresses': [order['recipient']]}
+                with sqlite3.connect(campaign.INBOX_DB, timeout=0) as db:
+                    db.execute('INSERT INTO mailbox_actions VALUES(?,?,?,?,?,?)',
+                               ('review-stop','review-stop','sponsor_reply_stop','verified',json.dumps(stop),at.isoformat()))
+            elif change == 'registry_hold':sheet[1][10] = 'hold'
+            elif change == 'suppression':local['suppression']['entries'].append({'domain': order['provider_host']})
+            elif change == 'stale_cursor':
+                with sqlite3.connect(campaign.INBOX_DB) as db:
+                    db.execute("UPDATE provider_cursors SET last_complete_poll_at='2026-10-01T00:00:00+00:00'")
+            committed.append(True)
+        return 'FIXTURE-MERCHANT'
+    def assert_serialized():
+        assert campaign.load(campaign.STATE/'orders.json')[order['order_id']]['invoice_claim']['action'] == 'request'
+        with sqlite3.connect(campaign.INBOX_DB, timeout=0) as db:
+            with pytest.raises(sqlite3.OperationalError, match='locked'):
+                db.execute("INSERT INTO mailbox_actions VALUES('contender','contender','sponsor_reply_stop','verified','{}','now')")
+    def effect(method, path, payload=None):
+        assert_serialized()
+        effects.append((method,path))
+        inv['status'] = 'SENT'
+        return {}
+    original_read = client.request
+    readbacks = []
+    def read(method, path, payload=None):
+        if path.startswith('/v2/invoicing/') and inv['status'] == 'SENT' and not readbacks:
+            assert_serialized()
+            readbacks.append(True)
+        return original_read(method, path, payload)
+    monkeypatch.setattr(client, 'request', read)
+    monkeypatch.setattr(client, 'merchant', merchant)
+    monkeypatch.setattr(client, '_authorized', effect)
+    monkeypatch.setattr(paypal, 'PayPalClient', lambda: client)
+    result = campaign.run(config)
+    assert committed == [True]
+    assert result['sent'] == 0 and mail.deliveries == []
+    if change == 'allowed':
+        assert len(effects) == 1 and readbacks == [True]
+        assert campaign.load(campaign.STATE/'orders.json')[order['order_id']]['invoice_requested_at']
+    else:
+        assert effects == [] and result['payment_readiness']['financial_write_attempts'] == 0
+    assert 'invoice_claim' not in campaign.load(campaign.STATE/'orders.json')[order['order_id']]
+    if change == 'opt_out':
+        assert campaign.load(campaign.STATE/'ledger.json')[order['recipient']]['stopped'] == 'opt_out'
 
 
 def test_existing_job_persists_unknown_without_binding(tmp_path, monkeypatch):

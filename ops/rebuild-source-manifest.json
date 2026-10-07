@@ -4402,21 +4402,21 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "3d4354412b385a1434487fd77ea4b5dbf7e6b80572927a578a552b8d8d72c65d"
+      "sha256": "4aada3d496e3dd1845453109ce2bd904ab7ec5bf1b930f322dbfc9a82657843d"
     },
     "tests/test_glp_sponsor_paypal.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "664d77f2eb5651d58f39ebd988e11dd8e6abb297507f2ae7801b504002c671d6"
+      "sha256": "78f4ab6821e4ef7fca5b845d3751c9aae7698d7fc91d9196a94c4e9937d27cbd"
     },
     "scripts/glp_sponsor_campaign.py": {
       "kind": "script",
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "b8aed54a204dc2c659ea287a7de77072611d2010294320cf34a86b656456475e"
+      "sha256": "a6bfec4eb7a6d27b607ac8f9c3c349396917c389628787520cc801261427b4d0"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
