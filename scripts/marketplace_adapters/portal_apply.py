@@ -44,6 +44,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+# Retained host-only policy modules use sibling imports. The registered
+# `python -m` entry must resolve them without an operator PYTHONPATH override.
+# Bind only this caller's owning scripts directory, never a foreign checkout.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
 from . import _base as b
 from . import portal_lane as pl
 from scripts.affiliate_contract_policy import (
