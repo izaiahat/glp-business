@@ -127,12 +127,20 @@ def compile_packet(packet: Path) -> dict[str, Any]:
     route_key = meta["slug"].strip("/").replace("/", "-")
     expected_capture = {
         "action": "/api/content-upgrade",
-        "consentVersion": "glp-content-upgrade-v2-20260801",
-        "sourcePage": route_key,
-        "leadMagnetKey": f"{route_key}-terms-checklist",
+        "consentVersion": "glp-guide-resource-v1-20261007",
+        "sourcePage": "guide-link",
+        "leadMagnetKey": "guide-link-resource",
         "emailField": "email",
-        "healthDataFields": [],
+        "healthDataFields": ["guide_path"],
+        "guidePath": meta["slug"],
+        "purpose": "resource-delivery",
+        "followUpConsent": False,
+        "storedPageIdentifier": False,
     }
+    if not meta["slug"].startswith("/guides/"):
+        expected_capture = {"action": "/api/content-upgrade", "consentVersion": "glp-content-upgrade-v2-20260801",
+                            "sourcePage": route_key, "leadMagnetKey": f"{route_key}-terms-checklist",
+                            "emailField": "email", "healthDataFields": []}
     if any(capture.get(key) != value for key, value in expected_capture.items()):
         raise RuntimeError("capture_contract_invalid")
     ledger = json.loads((packet / "01-evidence-ledger.json").read_text())
@@ -210,7 +218,11 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "capture_surface": {"status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": capture["action"],
                             "source_page": capture["sourcePage"], "lead_magnet_key": capture["leadMagnetKey"],
                             "consent_version": capture["consentVersion"], "email_field": capture["emailField"],
-                            "health_data_fields": capture["healthDataFields"]},
+                            "health_data_fields": capture["healthDataFields"],
+                            **({"guide_path": capture["guidePath"], "purpose": capture["purpose"],
+                                "follow_up_consent": capture["followUpConsent"],
+                                "stored_page_identifier": capture["storedPageIdentifier"]}
+                               if meta["slug"].startswith("/guides/") else {})},
         "inbound_link_plan": serp.get("inbound_link_plan") or [],
         "serp_contract": {"path": str(packet / "02-serp-brief.json"),
                           "status": serp.get("status") or serp.get("schema_version") or "PASS",

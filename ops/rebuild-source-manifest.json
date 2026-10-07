@@ -8,10 +8,14 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 746,
+  "tracked_count": 747,
   "files": {
-    "scripts/katalys_fresh_relationship.py": {
-      "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
+    "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
+      "callers": [
+        "systems/seo-blog-machine/scripts/materialize_opus_run.py"
+      ],
+      "kind": "script",
+      "sha256": "9193d22f42771f697ff2acfa0595f4bc7cdd0d85e1a3e2f17a9c61a90540e286"
     },
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -492,7 +496,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c41d2f2f2ef38eafb9dfb67bd82c521a24baefeedb6b444693dab7b03fd4309f"
+      "sha256": "8c450b8f0039653344449a54cff287981afa0fd542f05d695d49be8fe94365ac"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -915,7 +919,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "093069a063e51bf35f7bc7e3dbeef7621dc38f7c331850e8706d1db29558d0fa"
+      "sha256": "d0f0101d25515cb06c51c27e08f9274af44365872cbfd03c97f676c2dfa3cfb3"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2328,7 +2332,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "4307abef334388606822d3946a8f22e3577a40e8a3781dd26627019c7afabd93"
+      "sha256": "4d40b857abc058ef0076cac9932a2e6f01ba9f37eadabc5f1e97a6f59f8d7d82"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -2349,7 +2353,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "878a60cd6e35c16c166e4869f091ac46abebe7f4a39a86ddea429ad95f93e742"
+      "sha256": "beae964ca0308f5e33cb932213be01104f801f6efab5456cdcd7f714d12644ea"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -2447,7 +2451,7 @@
         "GLP-7 publication-date binding regression"
       ],
       "kind": "test",
-      "sha256": "4f3a21d79b76a4a6afb3031e2fd6794faf7afb4ce7d56997ee0ddb4d0cd0eec0"
+      "sha256": "8e6d6abac533b5aba7f641e87c65dc0d1b52d0bfe6417f997c27f42ea30c7890"
     },
     "systems/seo-blog-machine/tests/test_text_only_image_fallback.py": {
       "callers": [
@@ -3836,7 +3840,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "5d6db83e5d488138eb66d7f9eb0672cc8c6924f1ee0eb52954b196dbd1eec4df"
+      "sha256": "00848e74f16f849281360be4be933c7184751693be4cbd7cce7626e5993b25fb"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -5031,6 +5035,9 @@
       ],
       "kind": "test",
       "sha256": "d4d6f4c7a4aa3074225268e84caa1de6d94c5e69907591cb6028165cf81dc1ab"
+    },
+    "scripts/katalys_fresh_relationship.py": {
+      "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
     }
   }
 }
