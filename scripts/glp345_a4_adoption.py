@@ -187,7 +187,7 @@ def stream_sources(checkout):
 # Coherent continuation of installed PR239 + PR255, including PR229 TEST reads.
 # Frozen source hashes are custody, never independent privacy acceptance.
 NEUTRAL_GENERATION = 'glp44-weekly-neutral-inputs-20261007'
-NEUTRAL_SOURCE = 'fd7cdd63daad6e462c504c80ba7ecb07912e4c4b'
+NEUTRAL_SOURCE = 'a400d15ac12d442177efc3dad64ada972fd86191'
 NEUTRAL_PREDECESSOR = '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab'
 NEUTRAL_OLD_REFS = {'systems/analytics-brain/collector.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
  'ops/glp/seo_data_rails.py': '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab',
@@ -208,9 +208,9 @@ NEUTRAL_BEFORE = {'systems/analytics-brain/collector.py': '55d733fbf9c8ecc6d3c3c
  'ops/glp/seo_weekly_cogny.py': '3c41fde4965f9fb457c196eb70a0faef22f66e0cd6bbbc5db49f05001a543a7f',
  'systems/analytics-brain/ads_monitor.py': '2382c134dd95d2b61716f948ff1ceb34215a6a815fe94435af6fc0569278f798'}
 NEUTRAL_AFTER = {'systems/analytics-brain/collector.py': 'd5753161764d917760b7806a01afa796b2b579d28b511c386608eeb82b52f681',
- 'ops/glp/seo_data_rails.py': '70af6013c32c4b197ea969571a2f2ee795dbe38a94d0e8caaadc3bc2f448e2c9',
- 'ops/glp/seo-weekly-installed-pins.json': 'd70e8e0791bd30f17fad7b743bf1f39ce1d54f032f9b823f4fd88737d5c8f07b',
- 'scripts/glp_weekly_seo_analysis.py': 'a2f11fb2bb16d542b5ee57c0d9b5f48a7186fea74e0e286be869af1ac250c681',
+ 'ops/glp/seo_data_rails.py': '5237654f900bd8231ec9a7cd7a94862b4c4427e2694098171bffb1fa13a9d319',
+ 'ops/glp/seo-weekly-installed-pins.json': '41279de91bfa043e469fc4b05c936296a9cfab72a12b91566fba89be67d18b16',
+ 'scripts/glp_weekly_seo_analysis.py': 'b2b215266e6a46b12ff00dda69e30fa158a14870f336fb24ffac7c85a0548655',
  'scripts/glp_weekly_seo_ranking_report.py': '35014412980214d5e68915d7aa19f218d6d74ea5efb0cd1412b460cb2473fae1',
  'scripts/glp_ads_three_platform_monitor.py': 'e3f463738757e985812870976099da8d585c19df7f8a73f753da61da34bf3bd1',
  'scripts/glp_weekly_seo_collect.py': '7d43d2bbc2937f88d5c1d06054c815104e6ccf833344cf70aa19ee0cd2c0d41a',

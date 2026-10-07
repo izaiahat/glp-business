@@ -43,7 +43,7 @@
       "callers": [
         "authorized parent install owner"
       ],
-      "sha256": "8d931ec72d3f66cf45cf5fad013489be7b04802cdf947016eb8cefba67636619"
+      "sha256": "03d79a62b31548c41e464500ec639bc1c581a06ff0e3809673919bf7b0326935"
     },
     "tests/test_glp345_a4_adoption.py": {
       "kind": "test",
