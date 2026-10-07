@@ -56,7 +56,7 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
         else:
             assert (ROOT/name).read_bytes() == original
     assert "p.git(repo, 'show', source_head+':'+name)" in (ROOT/'scripts/fleet_pin_release.py').read_text()
-    assert p.sha_bytes((ROOT/release.GLP331_SNAPSHOT).read_bytes()) == (
+    assert p.sha_bytes(p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+release.GLP331_SNAPSHOT)) == (
         '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9')
 
 
