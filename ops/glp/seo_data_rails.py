@@ -27,6 +27,7 @@ drops a probe. ``unmeasured`` is never inferred from another rail.
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import fcntl
 import hashlib
 import json
@@ -850,6 +851,19 @@ class GoogleRail:
     # the failure mode of forgetting is a plausible-looking wrong answer rather
     # than an error. Pass host_filter=None deliberately to read raw.
     GA4_PRODUCTION_HOSTS = ("glpclinicscout.com",)
+    GA4_CONSUMER_STREAM_ID = "15060837778"
+    GA4_NEUTRAL_PATHS = ("/", "/about/", "/privacy/", "/privacy/cookies/", "/terms/")
+
+    @classmethod
+    def ga4_neutral_filter(cls) -> dict[str, Any]:
+        """Approved consumer stream/neutral scope, separate from property diagnostics."""
+        return {"andGroup": {"expressions": [
+            {"filter": {"fieldName": name, "stringFilter": {
+                "matchType": "EXACT", "value": value, "caseSensitive": True}}}
+            for name, value in (("streamId", cls.GA4_CONSUMER_STREAM_ID),
+                                ("hostName", "glpclinicscout.com"))
+        ] + [{"filter": {"fieldName": "pagePath", "inListFilter": {
+            "values": list(cls.GA4_NEUTRAL_PATHS), "caseSensitive": True}}}]}}
 
     @staticmethod
     def ga4_host_filter(hosts: tuple[str, ...] = GA4_PRODUCTION_HOSTS) -> dict[str, Any]:
@@ -956,9 +970,62 @@ class PostHog:
                         headers={"Authorization": "Bearer " + self._key},
                         body={"query": {"kind": "HogQLQuery", "query": query}},
                         timeout=timeout)
+            # Only explicit arrays establish a successful read. Truthiness
+            # normalization would turn missing/null/false results into zero.
+            if (not isinstance(doc, dict) or not isinstance(doc.get("columns"), list)
+                    or not isinstance(doc.get("results"), list)):
+                raise ValueError("invalid_posthog_query_shape")
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": str(exc)[:300], "rows": []}
-        return {"ok": True, "columns": doc.get("columns") or [], "rows": doc.get("results") or []}
+        return {"ok": True, "columns": doc["columns"], "rows": doc["results"]}
+
+    def neutral_pageviews(self, *, start_date: str, end_date: str) -> dict[str, Any]:
+        """Fixed anonymous neutral aggregates; end_date is exclusive UTC midnight.
+
+        Health routes and click attribution are intentionally absent. Missing
+        pathname is never the homepage; TEST exclusion precedes aggregation.
+        The first eligible second conservatively follows the accepted promotion.
+        """
+        paths = ("/", "/providers/", "/compare/", "/privacy/",
+                 "/privacy/cookies/", "/terms/", "/about/")
+        start = max(dt.datetime.combine(dt.date.fromisoformat(start_date), dt.time()),
+                    dt.datetime(2026, 9, 27, 23, 41))
+        end = dt.datetime.combine(dt.date.fromisoformat(end_date), dt.time())
+        context = {"project": POSTHOG_PROJECT, "hostname": "glpclinicscout.com",
+                   "scope": "exact_host_and_approved_neutral_routes", "requested": True,
+                   "start_utc": start.isoformat() + "Z", "end_utc_exclusive": end.isoformat() + "Z",
+                   "neutral_route_paths": list(paths), "article_measurement": "UNMEASURED_BY_DESIGN",
+                   "click_attribution": "UNMEASURED_BY_DESIGN",
+                   "test_partition": "explicit_TEST_excluded_missing_classification_UNKNOWN"}
+        unknown = {"ok": False, "complete": False, "state": "UNKNOWN",
+                   "rows": [], "columns": ["path", "views"], "total_views": None,
+                   "affiliate_clicks": None, "context": context}
+        if start >= end:
+            return {**unknown, "state": "UNMEASURED_BY_DESIGN"}
+        query = f"""SELECT properties.$pathname AS path, count() AS views
+        FROM events
+        WHERE timestamp >= toDateTime('{start:%Y-%m-%d %H:%M:%S}')
+          AND timestamp < toDateTime('{end:%Y-%m-%d %H:%M:%S}')
+          AND properties.$host = 'glpclinicscout.com'
+          AND properties.$pathname IN ({', '.join(repr(p) for p in paths)})
+          AND event IN ('page_view', '$pageview')
+          AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1')
+        GROUP BY path ORDER BY path LIMIT {len(paths) + 1}"""
+        result = self.hogql(query)
+        rows = result.get("rows")
+        if (result.get("ok") is not True or result.get("columns") != ["path", "views"]
+                or not isinstance(rows, list) or len(rows) > len(paths)):
+            return unknown
+        seen = set()
+        for row in rows:
+            if (not isinstance(row, (list, tuple)) or len(row) != 2
+                    or not isinstance(row[0], str) or row[0] not in paths or row[0] in seen
+                    or type(row[1]) is not int or row[1] < 0):
+                return unknown
+            seen.add(row[0])
+        return {**unknown, "ok": True, "complete": True,
+                "state": "SOURCE_REPORTED", "rows": rows,
+                "total_views": sum(row[1] for row in rows)}
 
     def page_conversion(self, days: int = 30, host: str = "glpclinicscout.com") -> dict[str, Any]:
         """Per-path pageviews and conversion events for one host — the money metric per page.
@@ -980,6 +1047,7 @@ class PostHog:
         FROM events
         WHERE timestamp > now() - INTERVAL {int(days)} DAY
           AND domain(properties.$current_url) = '{host}'
+          AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1')
         GROUP BY page_path
         HAVING views > 0
         ORDER BY views DESC

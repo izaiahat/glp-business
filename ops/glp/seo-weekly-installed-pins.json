@@ -9,9 +9,9 @@
     "/home/ubuntu/business/ops/glp/seo_weekly_continuation.py": "bcb8878409f08e4e9a0561b8accf40cdbd369a469f3b1753934ba9aae08287d5",
     "/home/ubuntu/business/ops/glp/seo_weekly_modules.py": "42a420fecbc2c85ae40fee7f8eaef7b290eaf355ea5e68400f83ce77226942a7",
     "/home/ubuntu/business/ops/glp/seo_weekly_strategy.py": "98fea62df108541be783cddf3d17073e096ba3b9fecb79b1fbac393cf3008599",
-    "/home/ubuntu/business/scripts/glp_weekly_seo_collect.py": "7246b775af0f4d40d0dfa696d39faf89adf58fc9bd6f7ac75b30637d6af7bd79",
+    "/home/ubuntu/business/scripts/glp_weekly_seo_collect.py": "7d43d2bbc2937f88d5c1d06054c815104e6ccf833344cf70aa19ee0cd2c0d41a",
     "/home/ubuntu/business/scripts/glp_weekly_seo_control.py": "5a52510eab2b5cf98fa198a6cc1aa78a66ef137f59265bdcf67121cbad9f5260",
-    "/home/ubuntu/business/ops/glp/seo_data_rails.py": "001df4f7300777376963207c018cfa36895af4ec745a024dcd9f799a5c5b8523",
+    "/home/ubuntu/business/ops/glp/seo_data_rails.py": "5237654f900bd8231ec9a7cd7a94862b4c4427e2694098171bffb1fa13a9d319",
     "/home/ubuntu/business/ops/glp/cogny_client.py": "89e3deb9c9f95b169a6a3ed606cc1f8f514d3622b1733d1455a91d46d310d93f",
     "/home/ubuntu/business/ops/glp/seo_nonarticle_stage.py": "25d081b422d3692bf0f31c3be3b838c371d8ba9fd55b8263f988b2e08baccbe2",
     "/home/ubuntu/business/scripts/glp_weekly_seo_source_stage.py": "f76a83638516b4e70494fbf68f7f3863beb840b05ff52d3a962be78c689bbe19",
@@ -19,8 +19,8 @@
     "/home/ubuntu/business/ops/glp/seo_business_context.py": "def00df050f44bdc90305a9a3bc412af7a8f44e7cf0c70a78fef0ac2abf724b8",
     "/home/ubuntu/business/ops/glp/seo_weekly_r2_stage.py": "db0533ca02e2c843fee1d98aabdbc2f37c2e3ef9b03c5eb4a102d4a11d216a2e",
     "/home/ubuntu/business/ops/glp/seo_weekly_spend.py": "94871cc2383e4831d8cdc03c84d757b549367f9534a22f115a02ba2195f50158",
-    "/home/ubuntu/business/scripts/glp_weekly_seo_ranking_report.py": "0de2221792d33075a281153320e442c4f83ae98eee9640fb06dcb23bea2acdaf",
-    "/home/ubuntu/business/ops/glp/seo_weekly_cogny.py": "3c41fde4965f9fb457c196eb70a0faef22f66e0cd6bbbc5db49f05001a543a7f"
+    "/home/ubuntu/business/scripts/glp_weekly_seo_ranking_report.py": "35014412980214d5e68915d7aa19f218d6d74ea5efb0cd1412b460cb2473fae1",
+    "/home/ubuntu/business/ops/glp/seo_weekly_cogny.py": "875db13999baf748014520f58942ae9b8b0567753f87e34cc2156cabec998533"
   },
   "scope": "K6b registered weekly owner/source-stage/Cogny/context; one-time DFS claim only. Source pins are code identity, never independent acceptance."
 }

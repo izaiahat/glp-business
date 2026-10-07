@@ -332,7 +332,9 @@ def test_stream_successor_preserves_historical_outputs_and_exact_edges():
         '0306e497a344075bcbf9606b09cfca158e263548095823feae13b1497d24cf40',
         '2e49f094fa1801f231e82897178c0f9be7d59e910eaefa5a48c2fe4839a55c4d')
     before, after = map(json.loads, (old[0], emitted))
-    assert after['posthog']['sha256'] == a4.sha((ROOT / a4.RAILS).read_bytes())
+    # This is the frozen PR239 projection, not an alias for later source.
+    assert after['posthog']['sha256'] == a4.sha(subprocess.check_output(
+        ['git', '-C', str(ROOT), 'show', a4.STREAM_SOURCE + ':' + a4.RAILS]))
     assert {k for k in before if before[k] != after[k]} == {'posthog'}
     bp, ap = map(a4.wrapper_pins, (old[1], carrier))
     assert {k for k in bp if bp[k] != ap[k]} == {str(a4.BUSINESS / a4.MAP)}
@@ -498,7 +500,9 @@ except RuntimeError as exc:
 print(json.dumps(result))
 """
     results = {}
-    for name, revision in (('accepted', accepted), ('current', current)):
+    for name, revision in (('accepted', accepted),
+                           ('weekly', '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab'),
+                           ('current', current)):
         checkout = tmp_path / name
         subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
         subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', revision], check=True)
@@ -508,10 +512,12 @@ print(json.dumps(result))
     assert historical['collector_sha'] == a4.STREAM_COLLECTOR_AFTER
     assert historical['path_count'] == 20
     assert historical['changed_paths'] == [str(a4.BUSINESS / a4.RAILS)]
-    assert results['current']['stream_refusal'] == 'stream_source_binding_moved:' + a4.WEEKLY_PINS
+    assert results['weekly']['stream_refusal'] == 'stream_source_binding_moved:' + a4.WEEKLY_PINS
+    assert results['current']['stream_refusal'] == 'approved_monitor_source_moved'
+    assert results['current']['manual_refusal'] == 'approved_monitor_source_moved'
     # Neither historical nor latest head aliases the moved raw rail back into
     # the older manual generation; all original refusal semantics survive.
-    for result in results.values():
+    for result in (results['accepted'], results['weekly']):
         assert result['manual_refusal'] == 'approved_weekly_input_moved:ops/glp/seo_data_rails.py'
 
 
@@ -520,3 +526,89 @@ def test_no_window_cannot_apply(isolated):
     root, home, _, _ = isolated
     with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
         a4.adopt(ROOT, root, home, {}, scheduler=None)
+
+
+def test_neutral_successor_committed_custody_and_complete_plan(stream_isolated, monkeypatch):
+    """Real committed custody + disposable receiving fixture, never host admission."""
+    import glp345_a4_adoption as a4
+    import maintenance_inventory as inv
+    # The fixture patches authentication for native/DAC tests. Exercise the real
+    # committed binding in a clean interpreter first, with no installed imports.
+    probe = """
+import sys, json
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / 'scripts'))
+import glp345_a4_adoption as a4
+head, body = a4.authenticate(Path.cwd(), generation=a4.NEUTRAL_GENERATION)
+print(json.dumps({'head': head, 'collector': a4.sha(body)}))
+"""
+    proof = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=ROOT))
+    assert proof['head'] == subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
+    assert proof['collector'] == a4.NEUTRAL_AFTER[a4.COLLECTOR]
+    old, new = a4.neutral_sources(ROOT)
+    assert {rel: a4.sha(body) for rel, body in new.items()} == a4.NEUTRAL_AFTER
+    assert {rel: a4.sha(body) for rel, body in old.items()} == a4.NEUTRAL_BEFORE
+    # Use historical stream projection from the committed source, since the
+    # outer fixture replaces the function only for disposable dependencies.
+    frozen = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                                      '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab:scripts/glp345_a4_adoption.py'])
+    ns = {'__name__': 'frozen_projection'}
+    exec(compile(frozen, '<frozen A4 projection>', 'exec'), ns)
+    prior = ns['stage_stream_pins'](*a4.stage_weekly_pins(*a4.stage_pins(
+        (ROOT / a4.MAP_SNAPSHOT).read_bytes(), (ROOT / a4.WRAPPER_SNAPSHOT).read_bytes()),
+        generation=a4.MANUAL_WEEKLY_GENERATION))
+    emitted, carrier = a4.stage_neutral_pins(*prior)
+    bp, ap = map(json.loads, (prior[0], emitted))
+    assert {key for key in bp if bp[key] != ap[key]} == {'posthog', 'monitor'}
+    assert ap['posthog']['sha256'] == a4.NEUTRAL_AFTER[a4.RAILS]
+    assert ap['monitor']['sha256'] == a4.NEUTRAL_AFTER[a4.MONITOR]
+    bw, aw = map(a4.wrapper_pins, (prior[1], carrier))
+    assert {key for key in bw if bw[key] != aw[key]} == {str(a4.BUSINESS / a4.MAP)}
+    for bad in ((prior[0] + b' ', prior[1]), (prior[0], prior[1] + b' ')):
+        with pytest.raises(RuntimeError, match='unknown_neutral_artifact_preimage'):
+            a4.stage_neutral_pins(*bad)
+    # Keep the existing fixture's explicit host-only stand-ins and twenty-pin
+    # verifier; extend only selected members. Real source hashes are proven above.
+    root, home, window, target = stream_isolated
+    _, fixture_new = a4.stream_sources(ROOT)
+    new[a4.WEEKLY_PINS] = fixture_new[a4.WEEKLY_PINS]
+    monkeypatch.setattr(a4, 'neutral_sources', lambda _: (old, new))
+    monkeypatch.setattr(a4, 'stage_neutral_pins', a4.stage_stream_pins)
+    for rel, body in old.items():
+        put(root / rel, body)
+    put(root / a4.MAP, prior[0])
+    put(home / 'scripts' / a4.WRAPPER, prior[1])
+    state = {'schema': 1, 'hashes': {rel: a4.sha(body) for rel, body in old.items()}}
+    state['hashes'].update({a4.MAP: a4.NEUTRAL_MAP_BEFORE, 'untouched': 'a' * 64})
+    for rel in a4.NEUTRAL_FIRST_CURATION:
+        del state['hashes'][rel]
+    put(root / 'ops/.rebuild-sync-state.json', json.dumps(state).encode())
+    doc = json.loads((home / 'cron/jobs.json').read_bytes())
+    doc['jobs'][0]['script_sha256'] = a4.NEUTRAL_WRAPPER_BEFORE
+    put(home / 'cron/jobs.json', json.dumps(doc).encode())
+    target['script_sha256'] = a4.NEUTRAL_WRAPPER_BEFORE
+    original = copy.deepcopy(target)
+    original.update(enabled=True, state='scheduled', paused_reason=None)
+    window.original_job = lambda jid: copy.deepcopy(original)
+    proposal, observed, staged = a4.plan(ROOT, root, home, 'fixture author', window=window,
+                                         generation=a4.NEUTRAL_GENERATION)
+    assert set(staged) == {root / p for p in a4.NEUTRAL_PATHS} | {
+        home / 'scripts' / a4.WRAPPER, root / 'ops/.rebuild-sync-state.json'}
+    assert {root / p for p in a4.NEUTRAL_PATHS} <= inv.affected_paths(root, home)
+    assert proposal['source_head'] == a4.NEUTRAL_SOURCE
+    assert proposal['weekly_residual_drift'] == []
+    assert len(json.loads(staged[root / a4.WEEKLY_PINS])['paths']) == 20
+    assert all(p.read_bytes() == value[0] for p, value in observed.items())
+    staged_state = json.loads(staged[root / 'ops/.rebuild-sync-state.json'])
+    for rel in a4.NEUTRAL_FIRST_CURATION:
+        assert staged_state['hashes'][rel] == a4.NEUTRAL_AFTER[rel]
+        conflict = copy.deepcopy(state)
+        conflict['hashes'][rel] = '0' * 64
+        put(root / 'ops/.rebuild-sync-state.json', json.dumps(conflict).encode())
+        with pytest.raises(RuntimeError, match='stream_source_preimage_or_baseline_moved'):
+            a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.NEUTRAL_GENERATION)
+    put(root / 'ops/.rebuild-sync-state.json', json.dumps(state).encode())
+    changed = root / 'scripts/glp_weekly_seo_collect.py'
+    changed.write_bytes(changed.read_bytes() + b'\n')
+    with pytest.raises(RuntimeError, match='stream_source_preimage_or_baseline_moved'):
+        a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.NEUTRAL_GENERATION)
