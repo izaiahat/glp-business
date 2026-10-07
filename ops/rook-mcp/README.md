@@ -457,6 +457,10 @@ References: [iproute2 network namespaces](https://man7.org/linux/man-pages/man8/
 [systemd v255 service/ExecCondition semantics](https://github.com/systemd/systemd/blob/v255/man/systemd.service.xml),
 [exact invocation journal filtering](https://www.freedesktop.org/software/systemd/man/255/journalctl.html).
 
+The ordered host-only acceptance and rollback commands are in
+[FINCH_RECEIVING_RUNBOOK.md](FINCH_RECEIVING_RUNBOOK.md). That document is a
+source-bound plan, not an execution or deployment record.
+
 ### Mandatory receiving acceptance still outstanding
 
 1. Compile this exact AppArmor source with the receiving parser without loading

@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 763,
+  "tracked_count": 764,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -1235,7 +1235,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "d9cc1da1f358c6b4e53d56f54f541157cab98a7cbd087fb23c98251f17b4a5ca"
+      "sha256": "2885526123a041bbdf9af053a8cca7b297e35653ab2016b24f3b22518af356fa"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -5152,6 +5152,13 @@
         ".github/workflows/finch-file-review.yml"
       ],
       "sha256": "ec66f784e7a0e82e17de8ed754c5838be0e17c6ed8f604979d2a7e03cd73cd24"
+    },
+    "ops/rook-mcp/FINCH_RECEIVING_RUNBOOK.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "manual:parent-approved receiving acceptance sequence; commands not executed by source task"
+      ],
+      "sha256": "bc51e33ced967332293ddfba438c380d68b2cc8e25c6897923415ca9eea128e1"
     }
   }
 }
