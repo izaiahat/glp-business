@@ -1981,7 +1981,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "e226c99585c9bad5ceb01270988780b72e946167e97d99e5db53f836c0de4005"
+      "sha256": "1e758547c63e1e0b2ae14c29417d1d1b31f1047c0cea8bc93db730a16559589e"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [

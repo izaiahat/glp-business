@@ -2564,7 +2564,8 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     c = _terminal_unsent_pin(path.parent.name)
     def refuse(reason) -> NoReturn:
         raise SystemExit('TERMINAL_UNSENT_REFUSED_' + reason + ' ' + c['job'])
-    if (st.get('account') != account or (apply and authorize_preimage != c['held']) or
+    if (st.get('job') != c['job'] or hashlib.sha256(preimage).hexdigest() != c['held'] or
+            st.get('account') != account or (apply and authorize_preimage != c['held']) or
             (not apply and authorize_preimage is not None)):
         refuse('AUTHORITY')
     try:
