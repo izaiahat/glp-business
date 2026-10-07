@@ -235,5 +235,8 @@ class ReceiveOneOfflineGroup(unittest.IsolatedAsyncioTestCase):
                 replace(self.scope, **changes)
 
 
+# Keep focused consumer regressions in the existing CI-selected receive suite.
+from test_native_reply_consumer import NativeConsumerTests
+
 if __name__ == "__main__":
     unittest.main()
