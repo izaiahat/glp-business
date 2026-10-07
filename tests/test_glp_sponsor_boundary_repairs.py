@@ -123,6 +123,59 @@ def test_documented_professional_source_and_existing_bouncer_job_path(tmp_path,m
  assert disabled['status']=='disabled_pending_approval'
 
 
+@pytest.mark.parametrize('outcome',['uncertain_match','uncertain_verify','completed_verify'])
+def test_run_discovery_ttl_preserves_paid_attempt_custody(tmp_path,monkeypatch,outcome):
+ import subprocess
+ import glp_sponsor_readiness as ready
+ config,client,_=helpers.offline_campaign(tmp_path,monkeypatch)
+ config.update(professional_enrichment_enabled=True,bouncer_debits_enabled=True,apollo_read_only_discovery=True)
+ plan={'recipients':[],'exclusions':[{'host':'example.invalid','reason':'no_verified_business_purpose_contact'}],
+       'registry_rows':1,'candidate_rows':1}
+ monkeypatch.setattr(m,'recipients',lambda *a:plan)
+ monkeypatch.setattr(m,'service',lambda *a:pytest.fail('NO LIVE INBOX OR SEND'))
+ searches=[];matches=[];verifies=[]
+ def transport(method,path,payload):
+  assert method=='POST'
+  if path.endswith('/api_search'):
+   searches.append(m.now());return {'people':[{'id':'P1','title':'Head of Partnerships'}]}
+  assert path=='/api/v1/people/match'
+  assert all(payload[k] is False for k in ('reveal_personal_emails','reveal_phone_number','run_waterfall_email','run_waterfall_phone'))
+  matches.append(payload['id'])
+  if outcome=='uncertain_match':raise OSError('SYNTHETIC paid match result unknown')
+  return {'person':{'id':'P1','email':'jordan@example.invalid','title':'Head of Partnerships',
+                    'country':'United States','organization':{'primary_domain':'example.invalid'}}}
+ def runner(argv,**kwargs):
+  assert argv[1]==str(m.ROOT/'scripts/bouncer_shared_account_guard.py') and argv[2]=='verify-email'
+  verifies.append(argv[6])
+  if outcome=='uncertain_verify':raise subprocess.TimeoutExpired('SYNTHETIC verification',90)
+  return subprocess.CompletedProcess(argv,3,'SYNTHETIC blocked verification','')
+ monkeypatch.setattr(ready,'apollo_transport',transport)
+ monkeypatch.setattr(subprocess,'run',runner)
+ cache=m.STATE/'apollo-sourcing.private.json'
+ assert m.run(config)['sent']==0
+ before=m.load(cache)['example.invalid']
+ custody_keys=('attempted_at','search_response','enrichment_claim','enrichment_response',
+               'professional_contacts','verification_claim','verification_attempted_at')
+ custody={key:before[key] for key in custody_keys if key in before}
+ assert custody['attempted_at']==helpers.SEND_SLOT.isoformat() and matches==['P1']
+ if outcome=='uncertain_match':assert custody['enrichment_claim']=={'person_id':'P1','at':helpers.SEND_SLOT.isoformat()}
+ elif outcome=='uncertain_verify':assert custody['verification_claim']['at']==helpers.SEND_SLOT.isoformat()
+ else:assert custody['verification_attempted_at']==helpers.SEND_SLOT.isoformat()
+ expected_verifies=[] if outcome=='uncertain_match' else ['jordan@example.invalid']
+ assert verifies==expected_verifies and len(searches)==2
+ assert m.run(config)['sent']==0 and len(searches)==2 # Same-day hold is not TTL proof.
+ for days in (8,16,31):
+  later=(helpers.SEND_SLOT.astimezone(m.PT)+dt.timedelta(days=days)).astimezone(dt.timezone.utc)
+  monkeypatch.setattr(m,'now',lambda:later)
+  result=m.run(config)
+  assert result['sent']==0 and result['sourcing_readiness']['requests']==1
+  after=m.load(cache)['example.invalid']
+  assert {key:after[key] for key in custody_keys if key in after}==custody
+  assert after['captured_at_utc']==later.isoformat() # Discovery may refresh, paid custody may not.
+  assert matches==['P1'] and verifies==expected_verifies
+ assert len(searches)==5 and client.deliveries==[]
+
+
 @pytest.mark.parametrize('sender,expected_stops',[('legal@example.invalid',0),('partners@example.invalid',1)])
 def test_domain_only_privacy_mail_keeps_existing_escalation(tmp_path,monkeypatch,sender,expected_stops):
  from inbox_control_plane import control_plane as cp,sponsor_replies as sr

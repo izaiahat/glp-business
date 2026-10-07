@@ -238,9 +238,12 @@ def refresh_apollo_sources(plan,at,transport=None):
   retained=cache.get(h,{})
   if not readiness.current_evidence(retained,at,days=7) and calls<25:
    try:
-    retained=readiness.apollo_search(h,transport or readiness.apollo_transport)
-    retained['captured_at_utc']=stamp(at)
-    retained['evidence_sha256']=hashlib.sha256(json.dumps(retained,sort_keys=True).encode()).hexdigest()
+    sourcing=readiness.apollo_search(h,transport or readiness.apollo_transport)
+    sourcing['captured_at_utc']=stamp(at)
+    sourcing['evidence_sha256']=hashlib.sha256(json.dumps(sourcing,sort_keys=True).encode()).hexdigest()
+    # Discovery expires; paid attempt/claim/result custody does not. A fresh
+    # zero-credit search cannot reconcile or reopen an irreversible attempt.
+    retained.update(sourcing)
     cache[h]=retained;calls+=1
    except (RuntimeError,OSError,ValueError):
     missing+=1
