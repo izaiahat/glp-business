@@ -82,10 +82,10 @@ def _receipt(payload):
     meta = data.get("metadata", {}) if isinstance(data, dict) else {}
     if not isinstance(meta, dict):
         meta = {}
-    credit = payload.get("creditsUsed", meta.get("creditsUsed")) if isinstance(payload, dict) else None
+    credit = payload.get("creditsUsed", payload.get("credits_used", meta.get("creditsUsed", meta.get("credits_used")))) if isinstance(payload, dict) else None
     if not isinstance(credit, (int, float)) or isinstance(credit, bool):
         credit = None
-    ident = (payload.get("id") or payload.get("jobId") or meta.get("scrapeId")) if isinstance(payload, dict) else None
+    ident = (payload.get("id") or payload.get("jobId") or meta.get("scrapeId") or meta.get("scrape_id")) if isinstance(payload, dict) else None
     # Provider receipts may contain emails or tokens; identifiers have a bounded
     # restricted shape, otherwise hash instead of writing their raw values.
     if ident is not None:
@@ -186,9 +186,11 @@ class FirecrawlClient:
 
     def request(self, endpoint, payload=None, method="POST", timeout=120):
         url = endpoint if endpoint.startswith("https://") else API + endpoint.lstrip("/")
-        _endpoint(url)
-        if endpoint.strip("/") == "agent" and method == "POST" and not (payload or {}).get("maxCredits"):
-            raise ValueError("agent_maxCredits_required")
+        route = _endpoint(url)
+        if route == '/v2/agent' and method == 'POST':
+            cap = (payload or {}).get('maxCredits')
+            if not isinstance(cap, int) or isinstance(cap, bool) or cap <= 0:
+                raise ValueError('agent_maxCredits_required')
         request = urllib.request.Request(url, data=json.dumps(payload).encode() if payload is not None else None,
             headers={"Authorization": "Bearer " + (self.key or api_key()), "Content-Type": "application/json"}, method=method)
         with firecrawl_urlopen(request, caller=self.caller, run_id=self.run_id, timeout=timeout,

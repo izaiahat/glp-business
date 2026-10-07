@@ -44,7 +44,13 @@ def test_client_refuses_v1_and_uncapped_agent(tmp_path):
         client.request('https://api.firecrawl.dev/v1/search', {})
     with pytest.raises(ValueError):
         client.request('agent', {'prompt': 'test'})
+    with pytest.raises(ValueError):
+        client.request('https://api.firecrawl.dev/v2/agent', {'prompt': 'test'})
     assert not (tmp_path/'ledger').exists()
+
+
+def test_sdk_snake_case_credit_and_scrape_id():
+    assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sdk-id',1)
 
 
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
