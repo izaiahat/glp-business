@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 717,
+  "tracked_count": 722,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -475,7 +475,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ebe19e1e393782dcd8ddb77da94496246b41d924fddaf891a3712c64ffc74c9f"
+      "sha256": "18c787d57dd9d855b87a05bb860f1b74f66472ef15bc1e17a76b5daf69a91e73"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -537,7 +537,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "37cd9fb6862bfcf305da72f16bcecccbef2a85214f46b2c6c6832de44a67f390"
+      "sha256": "197226f14c9b983c9d6ce499ebd3f1e36fbb4ad66b064b7aba0040ad5a24a64d"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -4388,26 +4388,26 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "209a605d37443ffe2aea9e0ca4c3b9c4024781c8841f090eb113bccf19a87c70"
+      "sha256": "7a745ada51b7e33dd5d8ade1ba2d50e46ec21ff3fa73cb0b1384e16155071a37"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "466d9be7c70528cd5176ab885176316e84d2c41ad18418f0e401058fb6042592"
+      "sha256": "585a9effe864ae24f4f9e25ed3b800cfa5437b5ee476503941535efcbc195a23"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "e061550f0197c2986220aa2a98d17bffa8f9e214a7c0139d84c120a22ef901d9"
+      "sha256": "0f6e1f90298648c5c22a0e3ec1c7189f18dd49998ccb3b823bf13d336619854e"
     },
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "290870e70aa0608fc34ac412750c9500f69bf4211695bedb982e823dd05e931e"
+      "sha256": "2fa36e17af35823c2ad41646786d3761641577271d88f5a9d0738bf411397aad"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4421,7 +4421,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "aa884aa77d913a60cc22dc0cfa396e871964199b96f46dc9ddcbf6e686034fc1"
+      "sha256": "593dab8beee2f94fd0140600989d73b6f533f9bc7257055017b60bc8a08b89b7"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "kind": "script",
@@ -4830,6 +4830,41 @@
         "disposable native home"
       ],
       "sha256": "25bb3eb57f34aafbfdade08d94d21d31f1961581479a2e3bdeed001a2fe98a46"
+    },
+    "scripts/glp_sponsor_readiness.py": {
+      "kind": "source_control",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "f31a59a9034d6c9b7dd7aff257643779431312cc1c52276db4ab03faed602445"
+    },
+    "inbox_control_plane/sponsor_replies.py": {
+      "kind": "source_control",
+      "callers": [
+        "inbox_control_plane/control_plane.py"
+      ],
+      "sha256": "53e115bd02aa9264c28ffc01b8ee7a3be7dfb298fe679399f4cc88501f96c39b"
+    },
+    "tests/test_glp_sponsor_continuation.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "3e6a49a8dcfa7cacb2b112cdb9ce37dce55541aa00109e2884db2a9198521f56"
+    },
+    "scripts/bouncer_shared_account_guard.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py"
+      ],
+      "sha256": "fcf3bb032b213ddfaf751082c8e69fc9b04b5089cbfbc9beb96a4fc344144798"
+    },
+    "tests/test_glp_sponsor_boundary_repairs.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "e1556f61f0285c6782e76ddbf95aac9ef17d794ca48618dc8528949df78ee6fa"
     }
   }
 }
