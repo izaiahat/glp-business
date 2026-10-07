@@ -50,7 +50,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "76ca92a2ca1c0eb7ab75a3b9aceaae255ea585a377fe3dea049201ceb717cc00"
+      "sha256": "c279ed2a90a730d7e2f7841174352a132a7eb0ed58125252ea6c5fa7e9b326b5"
     },
     "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
       "kind": "source_control",
