@@ -912,16 +912,95 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 }'''
 
 
+# Current picker visibility belongs to its active view ancestor, not the row.
+# Keep the complete label, maximum badge, exact scale and actionable menu proof.
+MODEL_PICKER_JS = r'''function pickerActionable(e,visualThumb=false){
+        if(!e||!e.getClientRects().length)return false;
+        for(let p=e;p;p=p.parentElement){
+            const s=getComputedStyle(p);
+            const hidden=p.getAttribute('aria-hidden')==='true'&&!(visualThumb&&p===e&&p.getAttribute('role')==='slider');
+            if(p.hidden||p.inert||hidden||
+               p.getAttribute('aria-disabled')==='true'||p.disabled===true||
+               p.getAttribute('data-active')==='false'||
+               s.display==='none'||s.visibility==='hidden')return false;
+        }return true;
+}
+function pickerTrigger(){
+    const triggers=[...document.querySelectorAll('button[aria-label="Select ChatGPT model"]')].filter(e=>pickerActionable(e));
+    return triggers.length===1?triggers[0]:null;
+}
+function pickerMenu(){
+    const trigger=pickerTrigger();
+    if(!trigger||trigger.getAttribute('aria-expanded')!=='true')return null;
+    const menus=[...document.querySelectorAll('[id]')].filter(e=>e.id===trigger.getAttribute('aria-controls'));
+    return menus.length===1&&pickerActionable(menus[0])&&menus[0].getAttribute('role')==='menu'?menus[0]:null;
+}
+function committed6ProMaximum(){
+    const trigger=pickerTrigger();
+    // Require explicit committed maximum metadata. Missing/unknown values
+    // never authorize insertion; a preview or successful close is not a commit.
+    return !!trigger&&trigger.getAttribute('data-selected-reasoning-effort')==='maximum'&&
+        trigger.getAttribute('data-codex-intelligence-trigger')==='true'&&
+        trigger.getAttribute('data-composer-navigation-target')==='reasoning'&&
+        ['Pro','Thinking effort','6 Pro'].includes(trigger.innerText.trim());
+}
+function full6ProMaximum(){
+    const actionable=pickerActionable,menu=pickerMenu();
+    if(!menu)return false;
+    const views=[...menu.querySelectorAll('[data-model-picker-view=simple]')].filter(e=>actionable(e));
+    if(views.length!==1)return false;
+    const view=views[0];
+    const rows=[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')].filter(e=>actionable(e));
+    if(rows.length!==1)return false;
+    const row=rows[0],owner=row.closest('[aria-hidden]');
+    if(!owner||owner.getAttribute('aria-hidden')!=='false'||
+       row.innerText.trim().replace(/\s+/g,' ')!=='6 Pro')return false;
+    const badge=row.querySelector('[data-maximum=true]');
+    // The observed thumb is aria-hidden=true; its active Power menuitem is
+    // the accessible control. Never ignore hidden/inert ancestry or disablement.
+    const powers=[...view.querySelectorAll('[data-reasoning-slider][role=menuitem][aria-label=Power]')].filter(e=>actionable(e));
+    if(powers.length!==1)return false;
+    const sliders=[...powers[0].querySelectorAll('[role=slider]')].filter(e=>actionable(e,true));
+    if(!actionable(badge)||sliders.length!==1)return false;
+    const slider=sliders[0];
+    return slider.getAttribute('aria-valuemin')==='0'&&
+           slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
+}'''
+
+
 def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = (),
                  retained_tab: str | None = None, time_origin: float | None = None) -> dict:
     """Verify full 6 Pro/maximum gate and send; only explicit resume uses an existing target."""
     if retained_tab and (dry or type(time_origin) not in (int, float) or time_origin <= 0):
         raise ValueError('retained submission requires a bound document and effectful authority')
     payload = json.dumps(text)
+    full_picker_probe = '(()=>{' + MODEL_PICKER_JS + 'return full6ProMaximum();})()'
+    committed_probe = '(()=>{' + MODEL_PICKER_JS + 'return committed6ProMaximum();})()'
+    open_picker = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')!=='true')b.click();return true;})()"
+    maximum_geometry = '(()=>{' + MODEL_PICKER_JS + r'''const menu=pickerMenu();if(!menu)return null;
+        const views=[...menu.querySelectorAll('[data-model-picker-view=simple]')].filter(pickerActionable);
+        if(views.length!==1)return null;
+        const powers=[...views[0].querySelectorAll('[data-reasoning-slider][role=menuitem][aria-label=Power]')].filter(pickerActionable);
+        if(powers.length!==1)return null;
+        const sliders=[...powers[0].querySelectorAll('[role=slider]')].filter(e=>pickerActionable(e,true));
+        const rails=[...views[0].querySelectorAll('[data-model-picker-power-slider]')].filter(pickerActionable);
+        if(sliders.length!==1||rails.length!==1||sliders[0].getAttribute('aria-valuemin')!=='0'||
+           sliders[0].getAttribute('aria-valuemax')!=='4')return null;
+        const r=rails[0].getBoundingClientRect();return r.width>100&&r.height>10?{x:r.right-13,y:r.top+r.height/2}:null;})()'''
+    close_picker = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')==='true')b.click();return true;})()"
+    closed_probe = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();return !!b&&b.getAttribute('aria-expanded')==='false'&&committed6ProMaximum();})()"
+    fresh_click = '(()=>{' + MODEL_PICKER_JS + '''if(!committed6ProMaximum())return false;
+        const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
+        if(!b||b.disabled)return false;b.click();return true;})()'''
+    if retained_tab:
+        guard = (COMPOSER_TEXT_JS + 'if(performance.timeOrigin!==' + json.dumps(time_origin) +
+            "||composerText(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))!=='')return false;")
+        open_picker = open_picker.replace('(()=>{', '(()=>{' + guard, 1)
+        close_picker = close_picker.replace('(()=>{', '(()=>{' + guard, 1)
     # Retained sends must re-prove document, exact original draft and full
     # model/readiness in the synchronous evaluation that clicks Send.
     retained_click = ("(()=>{const retainedOrigin=" + json.dumps(time_origin) +
-        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + r'''
+        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + MODEL_PICKER_JS + r'''
         if(performance.timeOrigin!==retainedOrigin)return {clicked:false,reason:'document'};
         const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
         if(composerText(e)!==intended)return {clicked:false,reason:'composer'};
@@ -937,15 +1016,7 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
            document.querySelector('button[data-testid="stop-button"]')||
            /Reconnect Google Drive/.test(body)||
            (()=>{const main=document.querySelector('main');return !!main&&[...main.querySelectorAll('div[class*="group/activity-header"] span, button')].some(x=>x.textContent.trim()==='Thinking failed'&&(x.matches('button')||x.children.length===0));})())return {clicked:false,reason:'readiness'};
-        const model=[...document.querySelectorAll('button')].map(b=>b.innerText.trim()).find(t=>/^\s*\d+\s*Pro\s*$/.test(t)||/^\s*\d+(\.\d+)?\s*(Sol)?\s*$/.test(t));
-        const view=document.querySelector('[data-model-picker-view=simple]');
-        const rows=view?[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];
-        const slider=view&&view.querySelector('[data-reasoning-slider] [role=slider]');
-        const fullPicker=rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&
-          rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&
-          !!rows[0].querySelector('[data-maximum=true]')&&!!slider&&
-          slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
-        if((model && !/^\s*6\s*Pro\s*$/.test(model))||(!model&&!fullPicker))return {clicked:false,reason:'model'};
+        if(!committed6ProMaximum())return {clicked:false,reason:'model'};
         const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
         if(!b||b.disabled)return {clicked:false,reason:'send_disabled'};
         b.click();return {clicked:true};})()''')
@@ -1041,39 +1112,42 @@ for readiness_observations in range(1, 47):
     time.sleep(min(2, remaining))
 # Do not touch a model picker on a replacement document after the readiness wait.
 if RETAINED: _fresh()
-# On a fresh chat the trigger may display the selected effort (e.g. Medium),
-# not the model. Select maximum power only on the observed five-step picker;
-# never infer GPT-6 from a bare Pro trigger or from a slider click alone.
-if not st["model"]:
-    trigger="button[aria-label='Select ChatGPT model']"
-    label=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");return b?b.innerText.trim():null;}})()")
-    if label in ('Medium', 'Pro'):
-        if RETAINED: _fresh()
-        picker_guard=("performance.timeOrigin==="+json.dumps(ORIGIN)+"&&!!(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))&&!((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]')).innerText.trim())") if RETAINED else "true"
-        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!("+picker_guard+")||!b||b.innerText.trim()!=="+json.dumps(label)+")return false;b.click();return true;}})()")
-        if opened and label == 'Medium':
-            # The slider is visible only in the simple view. Its fifth tick was
-            # observed to show the full '6 Pro' model/effort row on acct2.
-            for _ in range(10):
-                geometry=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const s=v&&v.querySelector('[data-reasoning-slider] [role=slider]');const rail=v&&v.querySelector('[data-model-picker-power-slider]');if(!b||b.getAttribute('aria-expanded')!=='true'||!v||!s||!rail||s.getAttribute('aria-valuemin')!=='0'||s.getAttribute('aria-valuemax')!=='4'||s.getAttribute('aria-valuenow')!=='1')return null;const r=rail.getBoundingClientRect();return r.width>100&&r.height>10?{{x:r.right-13,y:r.top+r.height/2}}:null;}})()")
-                if geometry: break
-                time.sleep(0.3)
-            if geometry:
-                _fresh()
-                for typ in ('mousePressed','mouseReleased'):
-                    cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
-                        x=geometry['x'], y=geometry['y'], button='left', clickCount=1)
-        selected=False
-        if opened:
-            for _ in range(10):
-                time.sleep(0.3)
-                selected=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const rows=v?[...v.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];const slider=v&&v.querySelector('[data-reasoning-slider] [role=slider]');return !!b&&b.getAttribute('aria-expanded')==='true'&&rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&!!rows[0].querySelector('[data-maximum=true]')&&!!slider&&slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';}})()")
-                if selected: break
-            if RETAINED: _fresh()
-            _bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(("+picker_guard+")&&b&&b.getAttribute('aria-expanded')==='true')b.click();return true;}})()")
-            if selected: st['model']='6 Pro'
-if not st["model"] or not __import__("re").match(r"^\\s*6\\s*Pro\\s*$", st["model"]):
-    _binding_error("WRONG_MODEL", state=st)
+# All paths must commit through the supported maximum control, even when
+# button text or an open preview already says 6 Pro/maximum. Those are not
+# authoritative selected effort and must never skip this same gate.
+if RETAINED: _fresh()
+opened=_bound_js(tab['targetId'], fresh, {open_picker!r})
+geometry=None
+if opened:
+    for _ in range(10):
+        geometry=_bound_js(tab['targetId'], fresh, {maximum_geometry!r})
+        if geometry: break
+        time.sleep(0.3)
+if not geometry:
+    _binding_error('WRONG_MODEL', state=st, tab=tab['targetId'])
+_fresh()
+for typ in ('mousePressed','mouseReleased'):
+    cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
+        x=geometry['x'], y=geometry['y'], button='left', clickCount=1)
+selected=False
+for _ in range(10):
+    time.sleep(0.3)
+    # Some supported controls close the menu upon commit. Reopen for the full
+    # six/Pro/maximum/4-of-4 proof, while requiring committed metadata too.
+    if not _bound_js(tab['targetId'], fresh, {open_picker!r}): break
+    selected=(_bound_js(tab['targetId'], fresh, {full_picker_probe!r}) and
+              _bound_js(tab['targetId'], fresh, {committed_probe!r}))
+    if selected: break
+if RETAINED: _fresh()
+closed=False
+if _bound_js(tab['targetId'], fresh, {close_picker!r}):
+    for _ in range(10):
+        closed=_bound_js(tab['targetId'], fresh, {closed_probe!r})
+        if closed: break
+        time.sleep(0.3)
+if not selected or not closed or not _bound_js(tab['targetId'], fresh, {committed_probe!r}):
+    _binding_error('WRONG_MODEL', state=st, tab=tab['targetId'])
+st['model']='6 Pro'
 # Settle: ChatGPT re-mounts the composer a few seconds after load (measured 2026-09-16), which drops focus and
 # loses inserted text. Wait until the composer node identity has been stable for 8s before typing.
 def _cid():
@@ -1100,6 +1174,8 @@ def _exact(expected):
     return _bound_js(tab['targetId'], fresh, expression)
 def _prepare(prefix):
     _fresh()
+    if not _bound_js(tab['targetId'], fresh, {committed_probe!r}):
+        _binding_error('WRONG_MODEL', tab=tab['targetId'])
     # Focus alone does not prove a caret position. Restore and verify the exact
     # logical end before EVERY chunk, while refusing any changed prefix.
     expression="(()=>{{const prefix="+json.dumps(prefix)+";"+{prepare_js!r}+"}})()"
@@ -1137,7 +1213,7 @@ if RETAINED:
     if not ok['clicked']:
         _binding_error('retained_send_guard_failed', guard=ok['reason'], tab=tab['targetId'])
 else:
-    ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, "(()=>{{const b=document.querySelector('button[data-testid=\\"send-button\\"]')||document.querySelector('button[type=\\"submit\\"][aria-label=\\"Send\\"]');if(!b||b.disabled)return false;b.click();return true;}})()"))
+    ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, {fresh_click!r}))
 if not ok:
     print("RELAY_JSON:"+json.dumps({{"error":"SEND_DISABLED"}})); raise SystemExit(0)
 _sent=True
@@ -1234,7 +1310,10 @@ def cleanup_tabs() -> int:
                  (r.get('retry_blocked') and not (r.get('status') == 'failed' and r.get('reason') == 'THINKING_FAILED')))]
         if any(r.get('status') == 'running' and not r.get('tab') for r in live):
             raise SystemExit('CLEANUP_REFUSED unbound generating job')
-        protected = [tab for r in live for tab in (r.get('tab'), (r.get('error') or {}).get('tab')) if tab]
+        # A proof-attributed target may be absent from the original error. Protect
+        # it conservatively even if later evidence drift invalidates admission.
+        protected = [tab for r in live for tab in (r.get('tab'), (r.get('error') or {}).get('tab'),
+                     (r.get('terminal_unsent') or {}).get('retained_tab')) if tab]
         out = bu_json(BU_PRELUDE + f'''
 protected=set({protected!r})
 tabs=list_tabs()
@@ -2393,15 +2472,40 @@ TERMINAL_UNSENT_CURRENT = {
 }
 
 
-def _terminal_unsent_pin(job):
+def _terminal_unsent_pin(job, report=None):
     if job == TERMINAL_UNSENT_PR52['job']:
         return TERMINAL_UNSENT_PR52
-    return TERMINAL_UNSENT_CURRENT[job]
+    if job in TERMINAL_UNSENT_CURRENT:
+        return TERMINAL_UNSENT_CURRENT[job]
+    if not isinstance(report, str):
+        raise ValueError('REPORT_PATH')
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    matching = [r for r in json.loads(rp.read_bytes())['jobs'] if r.get('job') == job]
+    if len(matching) != 1:
+        raise ValueError('REPORT')
+    row = matching[0]
+    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL'):
+        raise ValueError('DISPOSITION')
+    c = {'job': job, 'held': row['job_sha256'], 'message': row['message_sha256'],
+         'manifest': row['manifest_sha256'], 'drive_prompt': row['drive_prompt_sha256'],
+         'ledger_lines': tuple(row['ledger_line_sha256']), 'tab': row['error_tab'],
+         'time_origin': row['time_origin'], 'status': 'failed', 'reason': row['reason'],
+         'backup': None, 'generic': True, 'target_evidence': row['target_evidence'],
+         'ledger_preimage_sha256': row['ledger_preimage_sha256'], 'ledger_preimage_bytes': row['ledger_preimage_bytes']}
+    if (any(not re.fullmatch(r'[0-9a-f]{64}', v) for v in
+            (c['held'], c['message'], c['manifest'], c['drive_prompt'], c['ledger_preimage_sha256'], *c['ledger_lines'])) or
+            type(c['ledger_preimage_bytes']) is not int or c['ledger_preimage_bytes'] <= 0 or
+            len(c['ledger_lines']) != 1 or not isinstance(c['tab'], str) or not c['tab'] or
+            type(c['time_origin']) not in (int, float) or c['time_origin'] <= 0):
+        raise ValueError('PINS')
+    return c
 
 
-def _current_terminal_unsent_custody(cfg, st, preimage, report):
+def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     """Exact no-resume incidents; no inference from an error's stale sent flag."""
-    c = TERMINAL_UNSENT_CURRENT[st['job']]
+    c = c or TERMINAL_UNSENT_CURRENT[st['job']]
     sha = lambda b: hashlib.sha256(b).hexdigest()
     error = st.get('error') or {}
     observed = error.get('state') or {}
@@ -2409,7 +2513,7 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report):
             st.get('status') != c['status'] or st.get('reason') != c['reason'] or
             st.get('retry_blocked') is not True or st.get('typed') is not False or st.get('sent') is not False or
             error.get('error') != c['reason'] or error.get('typed') is not False or error.get('sent') is not False or
-            error.get('tab') != c['tab'] or observed.get('url') != 'https://chatgpt.com/' or
+            (error.get('tab') != c['tab'] and not (c.get('generic') and error.get('tab') is None)) or observed.get('url') != 'https://chatgpt.com/' or
             observed.get('stop') is not False or observed.get('assistant_count') != 0 or observed.get('last_len') != 0 or
             any(k in st for k in ('resume_attempt', 'resume_history', 'resume_error', 'terminal_unsent')) or
             any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
@@ -2444,6 +2548,8 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report):
         raise ValueError('PACKET')
     ledger = ledger_path(cfg)
     custody[ledger] = ledger.read_bytes()
+    if c.get('generic') and sha(custody[ledger][:c['ledger_preimage_bytes']]) != c['ledger_preimage_sha256']:
+        raise ValueError('LEDGER_PREIMAGE')
     all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
     lines = [line for line, row in all_rows if row.get('job') == c['job']]
     n = len(c['ledger_lines'])
@@ -2455,7 +2561,7 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report):
         raise ValueError('REPORT_PATH')
     custody[rp] = rp.read_bytes()
     matching = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
-    expected = {'job': c['job'], 'disposition': 'terminal_unsent_obsolete', 'reason': c['reason'],
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_preinsert' if c.get('generic') else 'terminal_unsent_obsolete', 'reason': c['reason'],
                 'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': c['held'],
                 'message_sha256': c['message'], 'error_tab': c['tab'], 'time_origin': c['time_origin'],
                 'ledger_rows_sha256': sha(json.dumps(rows[:n], sort_keys=True, separators=(',', ':')).encode())}
@@ -2465,8 +2571,52 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report):
     return custody, rows
 
 
+def _generic_terminal_unsent_evidence(st, c, rows, custody):
+    """Prove one initial preinsert refusal, including a missing error.tab's attribution.
+
+    Historical evidence identifies the original document; it never substitutes for
+    the fresh locked strict-empty witness required by the registered apply path.
+    """
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    initial = rows[0]
+    if (initial.get('event') != 'submitted' or initial.get('phase') is not None or
+            initial.get('account') != st['account'] or initial.get('kind') != 'initial' or
+            initial.get('certainty') != 'reserved_may_send' or
+            any(initial.get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('LEDGER')
+    start = datetime.fromisoformat(initial['ts'])
+    end = datetime.fromisoformat(st['ts'])
+    if (start.tzinfo is None or end.tzinfo is None or
+            not start.timestamp()*1000 <= c['time_origin'] <= end.timestamp()*1000):
+        raise ValueError('DOCUMENT_INTERVAL')
+    records = {}
+    for key in ('preflight', 'observation'):
+        pin = c['target_evidence'][key]
+        ep = (BUSINESS / pin['path']).resolve()
+        if Path(pin['path']).is_absolute() or not ep.is_relative_to(BUSINESS.resolve()):
+            raise ValueError('EVIDENCE_PATH')
+        custody[ep] = ep.read_bytes()
+        if sha(custody[ep]) != pin['sha256']:
+            raise ValueError('EVIDENCE')
+        records[key] = json.loads(custody[ep])
+    before = {t['target_id'] for t in records['preflight']['targets']}
+    observed = records['observation']['browser']
+    candidates = [t for t in observed['metadata'] if t['target_id'] not in before and
+        t['url'] == 'https://chatgpt.com/' and start.timestamp()*1000 <= t['time_origin'] <= end.timestamp()*1000]
+    if (len(candidates) != 1 or candidates[0]['target_id'] != c['tab'] or
+            candidates[0]['time_origin'] != c['time_origin'] or
+            sum(t['target_id'] == c['tab'] and t['url'] == 'https://chatgpt.com/'
+                for t in observed['targets_before']) != 1):
+        raise ValueError('TARGET_ATTRIBUTION')
+
+
 def _terminal_unsent_custody(cfg, st, preimage, report):
     """Offline exact-byte proof shared by disposition and admission readback."""
+    if st.get('job') not in (TERMINAL_UNSENT_PR52['job'], *TERMINAL_UNSENT_CURRENT):
+        c = _terminal_unsent_pin(st['job'], report)
+        custody, rows = _current_terminal_unsent_custody(cfg, st, preimage, report, c)
+        _generic_terminal_unsent_evidence(st, c, rows, custody)
+        return custody, rows
     if st.get('job') in TERMINAL_UNSENT_CURRENT:
         return _current_terminal_unsent_custody(cfg, st, preimage, report)
     c = TERMINAL_UNSENT_PR52
@@ -2520,7 +2670,7 @@ def _terminal_unsent_custody(cfg, st, preimage, report):
 
 
 def _terminal_unsent_event(st, report, report_bytes, observed_at):
-    c = _terminal_unsent_pin(st['job'])
+    c = _terminal_unsent_pin(st['job'], report)
     return {'event': 'terminal_unsent', 'job': c['job'], 'account': st['account'],
             'preimage_sha256': c['held'], 'message_sha256': c['message'],
             'retained_tab': c['tab'], 'time_origin': c['time_origin'],
@@ -2534,8 +2684,7 @@ def _verified_terminal_unsent(st):
     Fail closed after any interrupted apply or changed evidence. Cleanup deliberately
     does NOT use this admission exception: retry_blocked still protects error.tab.
     """
-    if (st.get('job') not in (TERMINAL_UNSENT_PR52['job'], *TERMINAL_UNSENT_CURRENT) or
-            not isinstance(st.get('terminal_unsent'), dict)):
+    if not isinstance(st.get('terminal_unsent'), dict):
         return False
     try:
         # Sibling records project the directory name over job; that projection is
@@ -2543,7 +2692,7 @@ def _verified_terminal_unsent(st):
         if json.loads((JOBS / st['job'] / 'JOB.json').read_bytes()) != st:
             return False
         proof = st['terminal_unsent']
-        c = _terminal_unsent_pin(st['job'])
+        c = _terminal_unsent_pin(st['job'], proof['report'])
         n = len(c['ledger_lines'])
         backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + c['held'] + '.json')
         preimage = backup.read_bytes()
@@ -2561,7 +2710,10 @@ def _verified_terminal_unsent(st):
 
 def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize_preimage, account):
     """Registered, forward-only disposition; NEVER restores, clears or resends."""
-    c = _terminal_unsent_pin(path.parent.name)
+    try:
+        c = _terminal_unsent_pin(path.parent.name, report)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise SystemExit('TERMINAL_UNSENT_REFUSED_REPORT ' + path.parent.name)
     def refuse(reason) -> NoReturn:
         raise SystemExit('TERMINAL_UNSENT_REFUSED_' + reason + ' ' + c['job'])
     if (st.get('job') != c['job'] or hashlib.sha256(preimage).hexdigest() != c['held'] or
@@ -2575,15 +2727,16 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     backup = path.with_name('JOB.pre-terminal-unsent-' + c['held'] + '.json')
     if len(rows) != len(c['ledger_lines']) or backup.exists():
         refuse('HISTORY')
+    if c.get('generic') and len(custody[ledger_path(cfg)]) != c['ledger_preimage_bytes']:
+        refuse('LEDGER_PREIMAGE')
     if _legacy_live_jobs():
         refuse('LIVE_RUNNER')
     admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
                                 'require-held'], capture_output=True, text=True)
     if admission.returncode:
         refuse('ADMISSION')
-    # The untouched WRONG_MODEL incident has no retained target or continuation;
-    # its immutable source refusal was before insertion. No unrelated tab is
-    # inspected or discarded. Retained incidents still need fresh empty proof.
+    # Every report-bound document needs fresh strict-empty proof. Only the
+    # preserved older exact pin without a target keeps its original contract.
     if c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
         refuse('TAB_EVIDENCE')
     def recheck():
@@ -2628,6 +2781,10 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     Exact pinned obsolete PR52/current pre-insert jobs append terminal_unsent proof.
     The explicit report row must say disposition=terminal_unsent_obsolete;
     --apply also requires --authorize-preimage for the exact current JOB.
+    Reusable disposition=terminal_unsent_preinsert binds complete current JOB,
+    packet/message, whole-ledger preimage plus exact job row, frozen target
+    attribution and fresh same-document strict-empty proof. It appends only
+    STARTED/APPLIED and a terminal proof, never clears retry_blocked or cleans up.
     Only a DIFFERENT job can benefit from its verified terminal admission case.
     """
     incidents = {
@@ -2659,7 +2816,10 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
-        if job == TERMINAL_UNSENT_PR52['job'] or job in TERMINAL_UNSENT_CURRENT:
+        facts = json.loads((BUSINESS / report_path).read_bytes()) if report is not None else {}
+        terminal_requested = any(r.get('job') == job and r.get('disposition') == 'terminal_unsent_preinsert'
+                                 for r in facts.get('jobs', []))
+        if job == TERMINAL_UNSENT_PR52['job'] or job in TERMINAL_UNSENT_CURRENT or terminal_requested:
             return _reconcile_terminal_unsent(cfg, st, path, preimage, report_path,
                                               apply, authorize_preimage, selected_account)
         if authorize_preimage is not None:
