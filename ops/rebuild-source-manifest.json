@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 729,
+  "tracked_count": 732,
   "files": {
     "tests/test_glp341_weekly_adoption.py": {
       "kind": "test",
@@ -4915,6 +4915,27 @@
         "tests/test_receive_one_discord_message.py"
       ],
       "sha256": "1ae8c07b16d243564d6109dbb288299f2eb91f4a001610959361763fa2e715b7"
+    },
+    "scripts/hermes_sol_article_review.py": {
+      "kind": "review_transport",
+      "callers": [
+        "systems/seo-blog-machine/scripts/opus_review_loop.py"
+      ],
+      "sha256": "392266f9225482069f02e64b7f1f9ef18b68ecb17c66c9d8169d695be934b5b8"
+    },
+    "systems/seo-blog-machine/scripts/repair_opus_packet.py": {
+      "kind": "packet_repair_worker",
+      "callers": [
+        "systems/seo-blog-machine/scripts/opus_review_loop.py"
+      ],
+      "sha256": "ff019b3ffe6b6cd010cc7f257ebc0b56a23abe7abf413b9915f8375659fc9d31"
+    },
+    "ops/hermes-cron-prompts/glp-seo-buffer-refill.md": {
+      "kind": "native_cron_prompt",
+      "callers": [
+        "native Hermes d70cda5f4416 prompt projection"
+      ],
+      "sha256": "da11dd3338beb520ea3bf59f2ddd1982d47df91c595d07c7758ca15ed2c4c115"
     }
   }
 }
