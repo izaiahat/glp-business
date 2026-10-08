@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 786,
+  "tracked_count": 787,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -506,7 +506,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "04baca68582210bf3be84949a49e04fd591911009e4e6964e35e371ebe7bd86d"
+      "sha256": "99c0c3b572e9ff50c318703cc74b45c384cc873eb436209a1bfd90634487cc7f"
     },
     ".hermes.md": {
       "callers": [],
@@ -4805,6 +4805,13 @@
         ".github/workflows/glp110-archive-admission.yml"
       ],
       "sha256": "13fbfc81635887d417d308db5e7b0f5d1bd8e15bfcbe000c1319062ab3e620b9"
+    },
+    "tests/test_bounded_pruner_discovery_resume.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp110-archive-admission.yml"
+      ],
+      "sha256": "f845f36aa076e9cc38a0798049f135ebf30d86a0a556f3d89a82d4033703631c"
     },
     "ops/glp110-host-archive-admission.md": {
       "kind": "documentation",
