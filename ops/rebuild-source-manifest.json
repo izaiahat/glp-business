@@ -10,17 +10,42 @@
   "schema": "GLP_BUSINESS_SOURCE_V1",
   "tracked_count": 836,
   "files": {
-    "tests/test_glp336_host_completion.py": {
+    "tests/test_glp_sponsor_public_custody.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/glp336-host-completion.yml"
+        "scripts/run_tests.sh"
       ],
-      "sha256": "fd2537494a513fede14850852c840f8257d76daa3fa679b42996392fceb04670"
+      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
     },
-    ".github/workflows/glp336-host-completion.yml": {
-      "kind": "repository_control",
-      "callers": [],
-      "sha256": "9b551faac4afe1bcc77908ed3df9762d5263a33bd148e590f65f2b5785c04e05"
+    "tests/test_glp_sponsor_technical_receiving.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
+    },
+    "scripts/glp_affiliati_postback_ship.py": {
+      "kind": "registered_consumer",
+      "callers": [
+        "scripts/glp_host_ingress.py",
+        "ops/n8n-bridge/actions.json:affiliati_postback_ship"
+      ],
+      "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
+      "sha256": "f60b7ba2332cb8131da6434dcea583262a2b71040718d0c9cec9c26909db185c"
+    },
+    "tests/test_glp335_registered_current_contract.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8e0d2d8d6ddb7659b8669140fcb70c6685d8133a45f8a42d60c2faac6effec31"
+    },
+    "ops/glp335-current-consumer.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "scripts/glp_affiliati_postback_ship.py"
+      ],
+      "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
     },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -524,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c32874cdbd5dfa732ef1758652aeaf9dcbc09fd6f3b1c61baa2647899232b581"
+      "sha256": "35948f053274107fdd2b837a8c37a40c1a0b1c2a39a02139721920fe20d27b6e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -947,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "0db06280403a82b4ab9cf76c3210efebdeae1fe047987734081ac153928801ae"
+      "sha256": "054a41cfdf100618ecc337a1a13add2506479dff12b33d52ac0caecb87c9e5a7"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1709,7 +1734,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "7e3131afdc62a533e4c9ad63174a477307ae650805a66b8a5bcd74aa74e22a2b"
+      "sha256": "ba74365f408f60b28fcb22c12ac74ad833ffaacd894f2c0d8f113fcd3e4e8cef"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1847,7 +1872,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "2b689469afe425e97b5b63f491ff436bb38cdda71f5156b3d33819b680fe11a7"
+      "sha256": "496e99ee5bde31996db601c045a20c87944951f9f4ab7747c476f0ff9f8e5d15"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -2949,7 +2974,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "f1aa745abd42a1eecec23c2678bf5654032bbd62d4de0c9d35bca762c9e781d7"
+      "sha256": "2db7b2038218559833a49aeeaa1e7e3c82b5efdbad1b3804a18b5bed33a8accf"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
@@ -3903,7 +3928,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "92fa240c7132b0441ab48f379d22865ff94c1b05f9b702c13efdc146f0e3a674"
+      "sha256": "288130df273b32213af65b00f968796af93509590a90a1a5af9a2ca0aae598f6"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -5611,42 +5636,17 @@
       ],
       "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
     },
-    "scripts/glp_affiliati_postback_ship.py": {
-      "kind": "registered_consumer",
-      "callers": [
-        "scripts/glp_host_ingress.py",
-        "ops/n8n-bridge/actions.json:affiliati_postback_ship"
-      ],
-      "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
-      "sha256": "f60b7ba2332cb8131da6434dcea583262a2b71040718d0c9cec9c26909db185c"
-    },
-    "tests/test_glp335_registered_current_contract.py": {
+    "tests/test_glp336_host_completion.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        ".github/workflows/glp336-host-completion.yml"
       ],
-      "sha256": "8e0d2d8d6ddb7659b8669140fcb70c6685d8133a45f8a42d60c2faac6effec31"
+      "sha256": "fd2537494a513fede14850852c840f8257d76daa3fa679b42996392fceb04670"
     },
-    "ops/glp335-current-consumer.md": {
-      "kind": "instruction_or_policy",
-      "callers": [
-        "scripts/glp_affiliati_postback_ship.py"
-      ],
-      "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
-    },
-    "tests/test_glp_sponsor_public_custody.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
-    },
-    "tests/test_glp_sponsor_technical_receiving.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
+    ".github/workflows/glp336-host-completion.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "9b551faac4afe1bcc77908ed3df9762d5263a33bd148e590f65f2b5785c04e05"
     }
   }
 }
