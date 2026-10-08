@@ -106,6 +106,7 @@ def verify(site,state=STATE,at=None):
                 or not approval.get('evidence_path') or not re.fullmatch('[0-9a-f]{64}',str(approval.get('evidence_sha256','')))):
                 return denied()
             evidence=Path(approval['evidence_path'])
+            if not evidence.resolve().is_relative_to(state.resolve()):return denied()
             if evidence.is_symlink() or hashlib.sha256(evidence.read_bytes()).hexdigest()!=approval['evidence_sha256']:return denied()
             # Fresh eligibility and sticky reply/suppression checks precede the GETs.
             if order['provider_host'] not in eligible_hosts(state,at):return denied()

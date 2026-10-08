@@ -2865,7 +2865,7 @@
         "site:src/sponsor-pricing.mjs"
       ],
       "kind": "script",
-      "sha256": "9ed533c3e3c32ef1fae2213d3c4d81cb26dd458a3b0fcb60013bdbe6a50c00fd"
+      "sha256": "bf218ace3f75cd38beddef61db0b121ed317d9b5d7ed14cdad5cc64e10f0aa9e"
     },
     "tests/test_glp_sponsor_site_payment.py": {
       "callers": [
