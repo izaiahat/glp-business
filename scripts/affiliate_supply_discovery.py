@@ -1769,14 +1769,17 @@ def firecrawl_search():
 
     def search(query: str, limit: int = 10) -> list:
         request = urllib.request.Request(
-            "https://api.firecrawl.dev/v1/search",
+            "https://api.firecrawl.dev/v2/search",
             data=json.dumps({"query": query, "limit": int(limit)}).encode(),
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(request, timeout=120) as response:
+        from firecrawl_client import firecrawl_urlopen, search_rows
+        with firecrawl_urlopen(request, caller='affiliate_supply_discovery', timeout=120) as response:
             payload = json.load(response)
+        if payload.get('success') is not True:
+            raise RuntimeError('firecrawl_search_unavailable_not_empty')
         return [{"url": row.get("url"), "title": row.get("title"),
                  "description": row.get("description")}
-                for row in (payload.get("data") or []) if row.get("url")]
+                for row in search_rows(payload) if row.get("url")]
 
     return search
 
@@ -1794,12 +1797,13 @@ def firecrawl_scrape():
         if is_tracking_url(url):
             return {"status": "refused_tracking_url"}
         request = urllib.request.Request(
-            "https://api.firecrawl.dev/v1/scrape",
+            "https://api.firecrawl.dev/v2/scrape",
             data=json.dumps({"url": url, "formats": ["markdown"],
                              "onlyMainContent": True, "timeout": 45000}).encode(),
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=120) as response:
+            from firecrawl_client import firecrawl_urlopen
+            with firecrawl_urlopen(request, caller='affiliate_supply_discovery', timeout=120) as response:
                 payload = json.load(response)
         except Exception as exc:  # noqa: BLE001
             return {"status": f"error:{type(exc).__name__}"}
