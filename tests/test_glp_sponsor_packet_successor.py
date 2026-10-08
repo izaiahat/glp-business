@@ -155,3 +155,39 @@ def test_snapshot_uses_committed_source_not_uncommitted_owner_edits(tmp_path):
         assert z.read(CLIENT)==b'# successor client fixture\n'
     assert (dep/CLIENT).read_text()=='# uncommitted other-owner edit'
     assert result['dependency_head']==head
+
+
+@pytest.mark.parametrize('case',['accepted','authority_tamper','sender_drift'])
+def test_attestation_successor_seals_only_exact_authority_and_reviewed_receiver(tmp_path,monkeypatch,case):
+    source,dep,head,packet,members=fixture(tmp_path)
+    p=producer()
+    import inspect
+    assert 'operator_attestation' in inspect.signature(p.build_successor).parameters,'technical producer cannot seal the accepted operator-attestation receiver'
+    authority=source/p.ATTESTATION;authority.parent.mkdir(parents=True,exist_ok=True)
+    authority.write_bytes(b'SYNTHETIC OPERATOR DEPLOYMENT RECORD - NOT LIVE')
+    monkeypatch.setattr(p,'ATTESTATION_SHA256',hashlib.sha256(authority.read_bytes()).hexdigest())
+    (source/p.PAYPAL).write_bytes(b'# synthetic operator attestation receiver\n')
+    if case=='authority_tamper':authority.write_bytes(b'TAMPERED AUTHORITY')
+    if case=='sender_drift':(source/'scripts/glp_sponsor_campaign.py').write_bytes(b'# changed sender\n')
+    git(source,'add',str(authority.relative_to(source)),p.PAYPAL,'scripts/glp_sponsor_campaign.py')
+    git(source,'commit','-qm','synthetic reviewed technical source')
+    git(source,'update-ref','refs/remotes/origin/main',git(source,'rev-parse','HEAD'))
+    out=tmp_path/'attestation-successor'
+    if case!='accepted':
+        with pytest.raises(ValueError,match='authority_mismatch' if case=='authority_tamper' else 'nontechnical_source_drift'):
+            p.build_successor(packet,hashlib.sha256(packet.read_bytes()).hexdigest(),source,dep,head,out,operator_attestation=True)
+        assert not out.exists()
+        return
+    result=p.build_successor(packet,hashlib.sha256(packet.read_bytes()).hexdigest(),source,dep,head,out,operator_attestation=True)
+    assert result['status']=='UNAPPROVED_TECHNICAL_SUCCESSOR' and result['operator_approved'] is False
+    assert result['operator_attestation_receiver'] is True
+    with zipfile.ZipFile(out/'sponsor-review-packet.zip') as z:
+        new={name:z.read(name) for name in z.namelist()}
+    assert new[p.ATTESTATION]==authority.read_bytes()
+    assert new[p.PAYPAL]==(source/p.PAYPAL).read_bytes()
+    for name,data in members.items():
+        if name not in {p.PAYPAL,CLIENT,MANIFEST}:assert new[name]==data
+    sealed=json.loads(new[MANIFEST])
+    assert all(hashlib.sha256(new[name]).hexdigest()==sha for name,sha in sealed.items())
+    assert set(result['changed_members'])=={p.PAYPAL,p.ATTESTATION,CLIENT,READER,MANIFEST}
+    assert not list(out.rglob('approval.json')) and not list(out.rglob('activation.json'))

@@ -22,6 +22,9 @@ import zipfile
 MANIFEST = 'ops/sponsor-machine/assets.json'
 CLIENT = 'scripts/firecrawl_client.py'
 READER = 'scripts/glp328_readonly_evidence.py'
+PAYPAL = 'scripts/glp_sponsor_paypal.py'
+ATTESTATION = 'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md'
+ATTESTATION_SHA256 = '9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2'
 REQUIRED = {
     'ops/sponsor-machine/campaign.json', 'ops/sponsor-machine/copy.json',
     'scripts/glp_sponsor_campaign.py', 'scripts/glp_sponsor_paypal.py',
@@ -74,7 +77,7 @@ def safe_name(name):
 
 
 def build_successor(packet, expected_sha256, source_checkout, dependency_checkout,
-                    dependency_head, output):
+                    dependency_head, output, operator_attestation=False):
     packet, source_checkout, dependency_checkout, output = map(
         Path, (packet, source_checkout, dependency_checkout, output))
     original = packet.read_bytes()
@@ -113,14 +116,20 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
         raise ValueError('predecessor_not_disabled_first')
     # All unchanged sealed source is required at the merged sponsor revision.
     # Read immutable Git objects, never mutable worktree files.
+    allowed={CLIENT,READER,MANIFEST}
+    if operator_attestation:allowed.add(PAYPAL)
     for rel, old_bytes in members.items():
-        if rel in sealed and (rel.endswith('.py') or rel.startswith('ops/sponsor-machine/')) and rel not in (CLIENT, READER, MANIFEST):
+        if rel in sealed and (rel.endswith('.py') or rel.startswith('ops/sponsor-machine/')) and rel not in allowed:
             if git(source_checkout, 'show', source_head + ':' + rel) != old_bytes:
                 raise ValueError('nontechnical_source_drift:' + rel)
     updates = {
         CLIENT: git(dependency_checkout, 'show', dependency_head + ':' + CLIENT),
         READER: git(source_checkout, 'show', source_head + ':' + READER),
     }
+    if operator_attestation:
+        authority=git(source_checkout,'show',source_head+':'+ATTESTATION)
+        if sha(authority)!=ATTESTATION_SHA256:raise ValueError('operator_attestation_authority_mismatch')
+        updates.update({PAYPAL:git(source_checkout,'show',source_head+':'+PAYPAL),ATTESTATION:authority})
     new_members = {**members, **updates}
     new_manifest = {**sealed, **{p: sha(b) for p, b in updates.items()}}
     new_members[MANIFEST] = (json.dumps(new_manifest, indent=2, sort_keys=True) + '\n').encode()
@@ -128,11 +137,11 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
     with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for info in infos:
             archive.writestr(info, new_members[info.filename])
-        if READER not in members:
-            info = zipfile.ZipInfo(READER, (1980, 1, 1, 0, 0, 0))
+        for added in sorted(set(new_members)-set(members)):
+            info = zipfile.ZipInfo(added, (1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
-            archive.writestr(info, updates[READER])
+            archive.writestr(info, new_members[added])
     successor = buf.getvalue()
     result = {
         'schema': 'sponsor.technical_successor.v1',
@@ -146,7 +155,8 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
         'changed_members': sorted(p for p in new_members if members.get(p) != new_members[p]),
         'technical_sources': {p: {'previous_sha256': sha(members[p]) if p in members else None,
                                   'successor_sha256': sha(b)} for p, b in updates.items()},
-        'unchanged_members': sorted(p for p in members if p not in (MANIFEST, CLIENT, READER)),
+        'unchanged_members': sorted(p for p in members if p not in set(updates)|{MANIFEST}),
+        'operator_attestation_receiver': operator_attestation,
         'preserved': 'Exact original packet remains immutable; unchanged copy/cadence and rendered assets retained. New hash needs separate exact authority; no old receipt is transplanted.',
         'effects': {'installs': 0, 'sends': 0, 'financial_writes': 0, 'deploys': 0, 'approval_writes': 0},
     }
@@ -166,9 +176,10 @@ def main():
     parser.add_argument('--dependency-checkout', type=Path, required=True)
     parser.add_argument('--dependency-head', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--operator-attestation',action='store_true',help='Seal the independently accepted ownership receiver and exact existing operator record, not provider BUSINESS/email evidence.')
     args = parser.parse_args()
     result = build_successor(args.packet, args.expected_sha256, args.checkout,
-                             args.dependency_checkout, args.dependency_head, args.output)
+                             args.dependency_checkout, args.dependency_head, args.output,args.operator_attestation)
     print(json.dumps(result, sort_keys=True))
 
 
