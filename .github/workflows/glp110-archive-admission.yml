@@ -34,4 +34,4 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python -m pytest -q -p no:cacheprovider tests/test_glp110_archive_admission.py
+          python -m pytest -q -p no:cacheprovider tests/test_glp110_archive_admission.py tests/test_bounded_pruner_discovery_resume.py

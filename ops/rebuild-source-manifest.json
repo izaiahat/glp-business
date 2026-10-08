@@ -4816,7 +4816,7 @@
       "callers": [
         "github-actions"
       ],
-      "sha256": "4a8819a31c775941f9453d87cbc9e6e9873542d36c30dd83a868edea78f34fe9"
+      "sha256": "46b49ab915fbbc1b0f61d2a09f19ac57e641a3045c2c2c1602269c1000429963"
     },
     "scripts/evidence_preserving_pruner.py": {
       "kind": "script",
@@ -4830,7 +4830,7 @@
       "callers": [
         "scripts/evidence_preserving_pruner.py"
       ],
-      "sha256": "ec8eab96698faf8ab835c0ab7d4c6ef9e0d85421321b1a84ce0ed68d31e5b91e"
+      "sha256": "1df97930f018b8d81119996f5aac1efc952417bf00093b227df31648263118f6"
     },
     "ops/pipeline-tool-contracts.json": {
       "kind": "instruction_or_policy",
