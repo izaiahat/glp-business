@@ -561,3 +561,7 @@
 !/tests/test_glp268_remaining_callers.py
 !/tests/test_glp268_visible_catalogs.py
 !/ops/glp268-remaining-callers.md
+# GLP335 existing registered Affiliati consumer (no receiver/runtime imports)
+!/scripts/glp_affiliati_postback_ship.py
+!/tests/test_glp335_registered_current_contract.py
+!/ops/glp335-current-consumer.md

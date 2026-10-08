@@ -8,8 +8,31 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 838,
+  "tracked_count": 841,
   "files": {
+    "scripts/glp_affiliati_postback_ship.py": {
+      "kind": "registered_consumer",
+      "callers": [
+        "scripts/glp_host_ingress.py",
+        "ops/n8n-bridge/actions.json:affiliati_postback_ship"
+      ],
+      "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
+      "sha256": "f60b7ba2332cb8131da6434dcea583262a2b71040718d0c9cec9c26909db185c"
+    },
+    "tests/test_glp335_registered_current_contract.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8e0d2d8d6ddb7659b8669140fcb70c6685d8133a45f8a42d60c2faac6effec31"
+    },
+    "ops/glp335-current-consumer.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "scripts/glp_affiliati_postback_ship.py"
+      ],
+      "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
+    },
     "scripts/glp_xentraffic_enumerate.py": {
       "kind": "script",
       "callers": [
@@ -585,7 +608,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "517e40caf6ada03346ef77ce27e676d68a75db936375f1baca6b149cff490664"
+      "sha256": "821067a4b61159fbff5613ac2dc1d49bc9d601c5ebbfa21cb89e2d45ba7ab357"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -595,7 +618,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "df35c7ff6fe3399d17e702118f50754c94a10984e453df063f3195c5231f4996"
+      "sha256": "d1afd40c6a328434af170acee64a8e4eebe58c76269627f39450325342297cb5"
     },
     ".hermes.md": {
       "callers": [],
