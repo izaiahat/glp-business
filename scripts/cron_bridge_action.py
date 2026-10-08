@@ -658,6 +658,36 @@ def finish_action(action, args, job, state, state_path, *, call=None):
                                          r["receipt"], note[:900], job)
         return effects
     if action == "pricing_refresh":
+        emitted = machine_receipt(job)
+        if emitted.get("schema") == "glp.price_freshness.v1":
+            count = emitted.get("active_provider_count")
+            completed = emitted.get("completed_provider_count")
+            pages = emitted.get("successful_pages")
+            if (not isinstance(count, int) or isinstance(count, bool) or count < 1
+                    or completed != count or emitted.get('primary_pages_successful') != count
+                    or not isinstance(pages, int) or pages < count
+                    or emitted.get("failed_primary_pages") != 0 or emitted.get('failed_pages') != 0):
+                raise TerminalRefusal("FAIL_INCOMPLETE_COHORT", "price_monitor_cohort_incomplete")
+            coverage = emitted.get('price_coverage')
+            if (emitted.get('source_monitor_status') != 'SOURCE_MONITOR_COMPLETE'
+                    or not isinstance(coverage, dict)
+                    or coverage.get('status') not in ('PRICE_VALIDATION_COMPLETE', 'PRICE_VALIDATION_INCOMPLETE')):
+                raise TerminalRefusal('FAIL_UNATTESTED_PRICE_COVERAGE', 'price_monitor_coverage_unattested')
+            note = (f"Source monitor complete: {count} providers, {pages} pages; "
+                    f"price validation {coverage['status']}: "
+                    f"{coverage.get('fully_validated_rows', 0)}/{coverage.get('typed_rows', 0)} unique typed rows fully validated, "
+                    f"{coverage.get('cached_validated_rows', 0)} cached-supported, "
+                    f"{coverage.get('unknown_rows', 0)} unknown, {coverage.get('legacy_rows_skipped', 0)} legacy rows skipped; "
+                    f"{emitted.get('confirmed_changes', 0)} confirmed price fields; "
+                    f"{emitted.get('review_required', 0)} price-change review rows; "
+                    f"{emitted.get('evidence_unknown_rows', 0)} evidence gaps; "
+                    f"{emitted.get('unsupported_extraction_rows', 0)} unsupported extraction rows. "
+                    "Prices are not removed on source failures; publication is a separate F06 effect.")
+            effects = {"providers_monitored": count, "pages_monitored": pages}
+            if emitted.get('confirmed_changes', 0):
+                effects['notification'] = post_once(note + " Registry intake: " + str(emitted.get('receipt')), job, state, state_path)
+            effects['heartbeat'] = heartbeat('pricing_refresh', count, emitted['receipt'], note, job)
+            return effects
         r = machine_receipt(job, schema="glp.pricing_refresh.v1")
         verdicts = r.get("row_verdicts") or {}
         checked = sum(float(verdicts.get(key) or 0) for key in ("unchanged", "evidence_lost", "capture_failed"))

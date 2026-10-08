@@ -59,12 +59,18 @@ def test_accepted_branch_yields_exact_provenanced_diff_and_f06_intent(work):
     sema = provider['medications'][0]['facts']
     assert sema['amount_usd']['value'] == 249 and sema['period']['value'] == 'month'
     assert provider['cancellation_terms']['facts']['notice_days']['value'] == 7
-    facts = list(sema.values()) + list(provider['cancellation_terms']['facts'].values())
-    for fact in facts:
+    for fact in sema.values():
+        assert fact['artifact_needed'] is None
         for evidence in fact['evidence']:
+            assert set(evidence) == {'source_url', 'capture_sha256', 'capture_path', 'captured_at_utc', 'quote'}
+            assert len(evidence['capture_sha256']) == 64
+            assert evidence['capture_path'] == 'data/pricing-evidence/' + evidence['capture_sha256'] + '.md'
             assert evidence['source_url'].startswith('https://example-telehealth.com/')
-            assert len(evidence['content_sha256']) == 64
             assert evidence['captured_at_utc'].startswith('2026-10-01T')
+    for fact in provider['cancellation_terms']['facts'].values():
+        for evidence in fact['evidence']:
+            assert len(evidence['content_sha256']) == 64
+            assert 'capture_key' in evidence
     # Unknown values are not invented by unrelated evidence.
     assert provider['medications'][1]['facts']['amount_usd']['value'] is None
     assert adopted['providers']['held-clinic'] == json.loads(before)['providers']['held-clinic']
