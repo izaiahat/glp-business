@@ -248,6 +248,11 @@ def test_price_coverage_requires_full_field_support_and_counts_unique_rows():
     assert coverage['unknown_rows'] == 0
     assert coverage['status'] == 'PRICE_VALIDATION_COMPLETE'
     assert 'prices_unchanged' not in coverage
+    results[0]['conflicting_source_rows'] = [row['row_id']]
+    coverage = p.price_coverage(active, results)
+    assert coverage['fully_validated_rows'] == 0
+    assert coverage['unknown_rows'] == 1
+    assert coverage['status'] == 'PRICE_VALIDATION_INCOMPLETE'
 
 
 def test_selects_all_active_us_and_preserves_holds_fella_aliases():

@@ -661,6 +661,9 @@ def price_coverage(active, results):
                 for r in provider['rows'] if r.get('price_kind') and r.get('row_id')}
     validated = {(p['program_id'], rid) for p in results for rid in p.get('fully_validated_row_ids', [])} & expected
     cached = {(p['program_id'], rid) for p in results for rid in p.get('cached_validated_row_ids', [])} & expected
+    conflicting = {(p['program_id'], rid) for p in results for rid in p.get('conflicting_source_rows', [])}
+    validated -= conflicting
+    cached -= conflicting
     observed = {(p['program_id'], rid) for p in results for rid in p.get('observed_row_ids', [])} & expected
     legacy = sum(not r.get('price_kind') for p in active.values() for r in p['rows'])
     unknown = expected - validated - cached
@@ -794,6 +797,9 @@ def run(args, client=None):
         claims['claims'] = [claim for claim in unique.values() if claim['row_id'] not in conflicting_rows]
         if conflicting_rows:
             pending_rows.update(conflicting_rows)
+            unknown_rows.update(conflicting_rows)
+            validated_rows.difference_update(conflicting_rows)
+            cached_rows.difference_update(conflicting_rows)
             item['conflicting_source_rows'] = sorted(conflicting_rows)
         if claims['claims']:
             as_of = utc()
