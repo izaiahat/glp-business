@@ -15,14 +15,14 @@
       "callers": [
         "systemd:kael-audit.service"
       ],
-      "sha256": "61b630f1170643f2c8c4a7a8af6624a88f2a52d500908e5f7b69bac2ab497397"
+      "sha256": "50a54869204bd9816b728acc893ca183f95ee506e76973da32b2e70cd4d6d3b7"
     },
     "tests/test_host_health_audit.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/host-health-audit.yml"
       ],
-      "sha256": "0c8d1a5cf294f78aa406494037aa34fcc9d7df320e2a0667f46b5837c78c4ff2"
+      "sha256": "e3302ac4b3cc697525d9dab7ecf81fcc9638f86e7210b6e782a335f2de2f4c52"
     },
     "ops/systemd/kael-audit-host-health.conf": {
       "kind": "source_control",
