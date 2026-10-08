@@ -408,6 +408,8 @@ def _run_admitted(phase: str, *, fixture: Path | None = None, alert_sink: Path |
         collector = {"status": "FAIL_OBSERVABILITY_COMPATIBILITY", "output_count": 0}
     else:
         command = [sys.executable, str(COLLECTOR), "--phase", collector_phase]
+        if phase == "monthly":
+            command.extend(["--decision-class", "profitability"])
         if fixture:
             command.extend(["--fixture", str(fixture)])
         if output_dir:

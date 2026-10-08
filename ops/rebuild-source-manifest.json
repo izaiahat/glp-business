@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 828,
+  "tracked_count": 829,
   "files": {
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -512,7 +512,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "bbf5dfead5b93ea8135089cec1cc22d59d7c13abee8ecf609db8fbedd2704fa9"
+      "sha256": "1d67264492ea1084c9634b5433a54e32d86868332bd6d4ff35a2b0a69092dc13"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1779,7 +1779,7 @@
         "direct:cadence"
       ],
       "kind": "script",
-      "sha256": "4d51a627d7a5208238ab7ce7622772c118d9b141497942bf9ed8bd6d4587bcb2"
+      "sha256": "89249038b5d6ee11ca61d60ca828f8362e09038b7b7b77ff7f230b792dd09b8b"
     },
     "scripts/glp_application_dedupe.py": {
       "callers": [
@@ -5584,6 +5584,13 @@
         "GitHub pull_request exact-head CI"
       ],
       "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+    },
+    "tests/test_glp_analytics_brain_monthly_profitability.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d7b7bb99d5c7cb95f323f01c052e0c2364cb3f2011ea066f29dda4d73b1f30a5"
     },
     "tests/test_glp80_registry_adoption.py": {
       "kind": "test",
