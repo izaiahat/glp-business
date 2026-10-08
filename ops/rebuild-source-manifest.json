@@ -1674,7 +1674,7 @@
     "scripts/glp328_readonly_evidence.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "2eda0f37ce482559aa5d327f8b4ea92674ab39448cb6f4881a8124a165c52ac5"
+      "sha256": "bf1854217b20be3b551994f882b1e7fb4c4971930ed195cec42c714dbc4fbaee"
     },
     "scripts/glp34_package_only.inc.py": {
       "callers": [
