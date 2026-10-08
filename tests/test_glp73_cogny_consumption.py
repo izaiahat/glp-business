@@ -67,8 +67,80 @@ class CognyInputs(unittest.TestCase):
             node=next(n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='r2_candidates' for t in n.targets)
                       and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Name) and n.value.func.id=='sorted')
             ns['r2_candidates']=[{**a,'priority':'P1'}, {k:v for k,v in {**b,'priority':'P1','route':'/guides/existing/','gsc_queries':[{'query':'target query'}]}.items() if k != 'target_query'}]
-            exec(compile(ast.Module(body=[node],type_ignores=[]),'r2_update_carrier.py','exec'),ns)
+            helpers=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='r2_cogny_preference']
+            ns.update(cogny_preference=m.preference,Any=object)
+            exec(compile(ast.Module(body=helpers+[node],type_ignores=[]),'r2_update_carrier.py','exec'),ns)
             self.assertEqual(ns['r2_candidates'][0]['topic_id'],'b')
+
+    def apply_r2_preferences(self, rows, strategy):
+        """Execute maintained run ordering/recording on native candidate shapes."""
+        import ast
+        tree=ast.parse((PATH.parent/'r2_update_carrier.py').read_text())
+        m=self.load()
+        ns={'r2_candidates':rows,'cogny_strategy':strategy,
+            'cogny_preference':m.preference,'cogny_preference_score':m.preference_score,
+            'Any':object}
+        helpers=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='r2_cogny_preference']
+        assignments=[n for n in ast.walk(tree) if isinstance(n,ast.Assign)
+                     and any(isinstance(t,ast.Name) and t.id=='r2_candidates' for t in n.targets)
+                     and (isinstance(n.value,ast.ListComp) or
+                          isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Name) and n.value.func.id=='sorted')]
+        self.assertEqual(len(assignments),2)
+        exec(compile(ast.Module(body=helpers+sorted(assignments,key=lambda n:n.lineno),type_ignores=[]),
+                     'r2_update_carrier.py','exec'),ns)
+        return ns['r2_candidates']
+
+    def native_candidates(self, articles, metrics):
+        import sys
+        from unittest import mock
+        with mock.patch.object(sys,'path',[str(PATH.parent),*sys.path]):
+            s=importlib.util.spec_from_file_location('native_existing_updates',PATH.parent/'existing_article_updates.py')
+            m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+        return m.select_update_candidates(articles,metrics,as_of=dt.date(2026,10,8))['r2_candidates']
+
+    def test_r2_preserves_native_class_a_first_even_with_preferred_non_a_p1(self):
+        articles=[{'article_id':name,'canonical_path':'/guides/'+name+'/','published_at':'2026-01-01'}
+                  for name in ['class-a','other-p1']]
+        metrics={'/guides/class-a/':{'position':15,'impressions':100,'queries':[
+                    {'query':'synthetic class a','impressions':100,'position':15}]},
+                 '/guides/other-p1/':{'position':3,'impressions':100,'affiliate_clicks':5,'queries':[
+                    {'query':'synthetic other','impressions':100,'position':3}]}}
+        rows=self.native_candidates(articles,metrics)
+        self.assertEqual([r['article_id'] for r in rows],['class-a','other-p1'])
+        self.assertTrue(all('target_query' not in r and 'query' not in r for r in rows))
+        strategy={'refresh_list':[{'route':'/guides/other-p1/','priority':1}]}
+        actual=self.apply_r2_preferences(rows,strategy)
+        self.assertEqual([r['article_id'] for r in actual],['class-a','other-p1'])
+        self.assertEqual(actual[1]['cogny_strategy_preference']['source'],'refresh_list')
+        self.assertEqual([r['priority'] for r in actual],['P1','P1'])
+
+    def test_r2_native_gsc_queries_exact_topic_and_page2_sort_and_record(self):
+        articles=[{'article_id':name,'canonical_path':'/guides/'+name+'/','published_at':'2026-01-01'}
+                  for name in ['earlier','preferred']]
+        metrics={'/guides/'+name+'/':{'position':15,'impressions':100,'queries':[
+                    {'query':name+' primary','position':15,'impressions':60},
+                    {'query':name+' secondary','position':16,'impressions':40}]}
+                 for name in ['earlier','preferred']}
+        rows=self.native_candidates(articles,metrics)
+        for field in ['topic_priorities','page2_targets']:
+            with self.subTest(field=field):
+                strategy={field:[{'query':'preferred secondary','route':'/guides/preferred/','priority':2,
+                                  'evidence_class':'LOW_VOLUME_CONTEXT'}], 'refresh_list':[]}
+                actual=self.apply_r2_preferences(rows,strategy)
+                self.assertEqual([r['article_id'] for r in actual],['preferred','earlier'])
+                p=actual[0]['cogny_strategy_preference']
+                self.assertEqual(p['source'],field);self.assertEqual(p['score'],0.125)
+                self.assertFalse(p['publication_authorized'])
+                self.assertIsNone(actual[1]['cogny_strategy_preference'])
+                for query,route in [('different','/guides/preferred/'),
+                                    ('preferred secondary','/guides/wrong/')]:
+                    negative={field:[{'query':query,'route':route,'priority':1}], 'refresh_list':[]}
+                    unchanged=self.apply_r2_preferences(rows,negative)
+                    self.assertEqual([r['article_id'] for r in unchanged],[r['article_id'] for r in rows])
+                    self.assertTrue(all(r['cogny_strategy_preference'] is None for r in unchanged))
+                self.assertEqual({r['route'] for r in actual},{r['route'] for r in rows})
+        unknown=self.apply_r2_preferences(rows,None)
+        self.assertTrue(all(r['cogny_strategy_preference'] is None for r in unknown))
 
     def test_missing_is_unknown_not_empty_or_publication_authority(self):
         m=self.load()

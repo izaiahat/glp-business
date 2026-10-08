@@ -30,7 +30,7 @@ from existing_article_updates import (
     validate_r2_execution_contract,
 )
 from machine_config import load_config
-from weekly_strategy_consumer import load_strategy as load_cogny_strategy, preference as cogny_preference, preference_score as cogny_preference_score
+from weekly_strategy_consumer import load_strategy as load_cogny_strategy, preference as cogny_preference
 from selection_receipt import write_immutable_receipt
 
 BUSINESS = Path("/home/ubuntu/business")
@@ -46,6 +46,20 @@ PUBLISHED_LEDGER = BUSINESS / "reports/glp-clinic-scout/seo-machine/published-to
 HOLD_LEDGER = BUSINESS / "reports/glp-clinic-scout/seo-machine/article-hold-ledger.json"
 BASE_STATE = BUSINESS / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
 UPDATE_LEDGER = BUSINESS / "reports/glp-clinic-scout/seo-machine/article-update-event-ledger.json"
+
+
+def r2_cogny_preference(strategy: dict[str, Any] | None, row: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve exact preferences from the native candidate's observed queries.
+
+    A route-only refresh preference still works without a query. Multiple GSC
+    queries contribute preferences, never additive demand or new authority.
+    """
+    queries = [row.get("target_query"), row.get("query")]
+    queries.extend(item.get("query") for item in row.get("gsc_queries") or []
+                   if isinstance(item, dict))
+    matches = [value for query in queries
+               if (value := cogny_preference(strategy, query, row.get("route"), "r2_refresh"))]
+    return max(matches, key=lambda value: value["score"]) if matches else None
 
 
 def canonical(value: Any) -> bytes:
@@ -1101,10 +1115,10 @@ def run(
     # quota is minted from a recommendation, including low-volume page2 advice.
     r2_candidates = sorted(r2_candidates, key=lambda row: (
         str(row.get("priority") or ""),
-        -cogny_preference_score(cogny_strategy, row.get("target_query") or row.get("query"), row.get("route"), "r2_refresh"),
+        0 if row.get("priority") == "P1" and row.get("opportunity_class") == "A" else 1,
+        -(r2_cogny_preference(cogny_strategy, row) or {}).get("score", 0.0),
     ))
-    r2_candidates = [{**row, "cogny_strategy_preference": cogny_preference(
-        cogny_strategy, row.get("target_query") or row.get("query"), row.get("route"), "r2_refresh")}
+    r2_candidates = [{**row, "cogny_strategy_preference": r2_cogny_preference(cogny_strategy, row)}
         for row in r2_candidates]
     weekly_payload = {**weekly_payload, "cogny_weekly_strategy": cogny_meta,
                       "weekly_plan": {**(weekly_payload.get("weekly_plan") or {}), "selected": r2_candidates}}
