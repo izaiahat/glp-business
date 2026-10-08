@@ -64,11 +64,19 @@ def accept(c, body):
         row = c.execute('SELECT * FROM intents WHERE intent_id=?', (key,)).fetchone()
         if row['digest'] != digest:
             raise ValueError('intent_conflict')
+    if kind == 'cogny_completion' and row['job_id'] is None:
+        update(c, key, job_id=payload['job_id'])
+        row = c.execute('SELECT * FROM intents WHERE intent_id=?', (key,)).fetchone()
     return public(row)
 
 
 def public(row):
-    return {k: row[k] for k in ('intent_id', 'kind', 'status', 'job_id', 'created_at', 'updated_at')}
+    out = {k: row[k] for k in ('intent_id', 'kind', 'status', 'job_id', 'created_at', 'updated_at')}
+    if row['kind'] == 'cogny_completion':
+        out['task_id'] = json.loads(row['payload'])['task_id']
+        if row['status'] == 'completed':
+            out['result_custody'] = json.loads(row['receipt'] or '{}').get('result_custody')
+    return out
 
 
 def bridge(path, payload=None):
@@ -103,7 +111,7 @@ def release_receipt(job):
 
 def drain(c, call=bridge):
     # Caller holds the stable drain flock, including through external POST/GET.
-    rows = c.execute("SELECT * FROM intents WHERE status IN ('acknowledged','running') ORDER BY created_at").fetchall()
+    rows = c.execute("SELECT * FROM intents WHERE status IN ('acknowledged','running') OR (kind='cogny_completion' AND status='held') ORDER BY created_at").fetchall()
     results = []
     for row in rows:
         key, kind = row['intent_id'], row['kind']
@@ -111,10 +119,24 @@ def drain(c, call=bridge):
             update(c, key, status='completed', receipt=json.dumps({'self_test': True, 'deploys': 0}))
         elif kind == 'cogny_completion':
             from scripts import glp_cogny_queue_drain as cogny
-            from ops.glp.cogny_client import connect as cogny_connect
             payload = json.loads(row['payload'])
-            result = cogny.mode_resume(cogny_connect(retries=1), payload['job_id'], payload['task_id'])
-            update(c, key, status='completed' if result.get('ok') else 'held', receipt=json.dumps(result))
+            if row['status'] == 'held':
+                # Only the old early-callback disposition may converge, and only
+                # from exact durable success. Never replay held completions/releases.
+                previous = json.loads(row['receipt'] or '{}')
+                matches = [r for r in cogny.load_state()['dispatches']
+                           if r.get('job_id') == payload['job_id'] and r.get('task_id') == payload['task_id']]
+                if previous.get('reason') != 'job_not_terminal' or len(matches) != 1 or not cogny.completion_owned(matches[0]):
+                    continue
+                result = {'ok': True, 'reason': 'matched_durable_completion', **payload,
+                          'result_custody': matches[0]['result_custody']}
+            else:
+                from ops.glp.cogny_client import connect as cogny_connect
+                result = cogny.mode_resume(cogny_connect(retries=1), payload['job_id'], payload['task_id'])
+            transient = result.get('reason') in {'job_not_terminal', 'completion_ack_unknown_no_replay',
+                                                'completion_readback_missing'}
+            update(c, key, status='completed' if result.get('ok') else ('running' if transient else 'held'),
+                   job_id=payload['job_id'], receipt=json.dumps(result))
         else:
             job = None
             if row['status'] == 'acknowledged':

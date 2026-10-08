@@ -57,7 +57,7 @@ def test_cogny_no_foreign_resume_and_no_completion_replay(tmp_path):
         def call(self, *a, **kw):
             pytest.fail('completed or foreign task must not call remote')
     assert not m.mode_resume(Client(), 'foreign', 'foreign', state_path=p)['ok']
-    assert m.mode_resume(Client(), 'job1', 'task1', state_path=p)['ok']
+    assert m.mode_resume(Client(), 'job1', 'task1', state_path=p)['reason'] == 'completed_result_unqualified_no_replay'
 
 
 def test_cogny_early_resume_cannot_complete_task(tmp_path):
@@ -81,7 +81,8 @@ def test_cogny_claim_complete_ack_once(tmp_path, monkeypatch):
         def call(self, name, args=None, **kw):
             if name == 'get_queue_status':
                 return {'stats': {'pending': 0 if self.claims else 1},
-                        'tasks': [{'id': 'task1', 'status': 'completed' if self.completes else 'pending'}]}
+                        'tasks': [{'id': 'task1', 'skill_id': 'seo-audit', 'task_type': 'analysis',
+                                   'status': 'completed' if self.completes else 'pending'}]}
             if name == 'get_next_task':
                 self.claims += 1
                 return {'hasTask': True, 'task': {'id': 'task1', 'skill_id': 'seo-audit', 'task_type': 'analysis'}}
@@ -96,9 +97,13 @@ def test_cogny_claim_complete_ack_once(tmp_path, monkeypatch):
         assert m.load_state(path)['dispatches'][0]['status'] == 'dispatch_uncertain'
         return {'job_id': 'job1', 'status': 'running'}
     result = m.mode_dispatch(client, '', 60, m.MODEL, poster=poster, state_path=path)
+    rec = m.load_state(path)['dispatches'][0]
+    report = Path(rec['report_dir']) / 'report.md'
+    report.write_text('Fixture evidence')
     Path(result['agent_receipt']).write_text(json.dumps({'task_id': 'task1', 'ok': True,
-        'result_summary': 'Fixture evidence', 'report_path': str(tmp_path / 'report'), 'findings': []}))
-    terminal = lambda _: {'job_id': 'job1', 'status': 'done', 'rc': 0}
+        'custody_id': rec['custody_id'], 'result_summary': 'Fixture evidence',
+        'report_path': str(report), 'findings': []}))
+    terminal = lambda _: {'job_id': 'job1', 'action': 'hermes_chat', 'status': 'done', 'rc': 0}
     assert m.mode_resume(client, 'job1', 'task1', terminal, path)['ok']
     assert m.mode_resume(client, 'job1', 'task1', terminal, path)['ok']
     assert (client.claims, client.completes) == (1, 1)

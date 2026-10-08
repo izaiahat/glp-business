@@ -8,8 +8,20 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 829,
+  "tracked_count": 831,
   "files": {
+    "tests/test_glp336_host_completion.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp336-host-completion.yml"
+      ],
+      "sha256": "ccbf9e24a214f9dce1acbc8d14a214c93c2acc5a83cfc4f40e7f45a5de325a39"
+    },
+    ".github/workflows/glp336-host-completion.yml": {
+      "kind": "repository_control",
+      "callers": [],
+      "sha256": "9b551faac4afe1bcc77908ed3df9762d5263a33bd148e590f65f2b5785c04e05"
+    },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
       "callers": [
@@ -4627,14 +4639,14 @@
         "systemd:glp-host-ingress",
         "systemd:glp-host-custody"
       ],
-      "sha256": "0989cd700e189fcb4e3ff162b9550390bccc4231a9e16ac2bcf4e721eda4c94e"
+      "sha256": "2d5aa63b6bf9416d94e74928c7a21ff587cb2900e485351430aeeff0ca544b7d"
     },
     "tests/test_host_custody.py": {
       "kind": "test",
       "callers": [
         "CI"
       ],
-      "sha256": "89c3d0538960d4e5c3ae7166ae6a6103384385e9759acf727b21630e1974e3bd"
+      "sha256": "44c27ed438e6fb91c1235a47d466409b96bbb8da45cad427e5f02005f02d9202"
     },
     "ops/systemd/glp-host-ingress.service": {
       "kind": "config",
@@ -4662,7 +4674,7 @@
       "callers": [
         "host:cogny-task-drain"
       ],
-      "sha256": "630570a8fe3f24afc088ff49e0da2af9c73d8fc5c1f7c1e8aa8cd2351bab0177"
+      "sha256": "0f4793d0bb38513a2944e7e519bb7018191e260684a97a3a3b6a2ee827a02b5d"
     },
     "ops/glp/cogny_client.py": {
       "kind": "script",
