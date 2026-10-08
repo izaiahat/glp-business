@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 780,
+  "tracked_count": 785,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -5261,6 +5261,41 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
+    },
+    "scripts/host_health_audit.py": {
+      "kind": "script",
+      "callers": [
+        "systemd:kael-audit.service"
+      ],
+      "sha256": "50a54869204bd9816b728acc893ca183f95ee506e76973da32b2e70cd4d6d3b7"
+    },
+    "tests/test_host_health_audit.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/host-health-audit.yml"
+      ],
+      "sha256": "e3302ac4b3cc697525d9dab7ecf81fcc9638f86e7210b6e782a335f2de2f4c52"
+    },
+    "ops/systemd/kael-audit-host-health.conf": {
+      "kind": "source_control",
+      "callers": [
+        "authorized:kael-audit-drop-in-install"
+      ],
+      "sha256": "7b6316ab12c2f33038070cf934f2be5dd537acc6b551af0ee57529e4b29a591d"
+    },
+    "ops/systemd/GLP-349-host-safety.md": {
+      "kind": "source_control",
+      "callers": [
+        "manual:GLP-349-parent-install-and-acceptance"
+      ],
+      "sha256": "f94080af7d6bf09ceba69653d6cb2fd8f3cb309f7b2eb85908ec4a3b8041baf1"
+    },
+    ".github/workflows/host-health-audit.yml": {
+      "kind": "source_control",
+      "callers": [
+        "github:pull_request"
+      ],
+      "sha256": "d47d555454a3812062034046d2844129574a0a717aec567752d1da509a73cb12"
     }
   }
 }
