@@ -8,8 +8,13 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 821,
+  "tracked_count": 822,
   "files": {
+    "tests/test_glp80_registry_adoption.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
+    },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
       "callers": [
@@ -525,7 +530,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "90af486856c809fecceec90f825c1fd15fe43756b8d009a5640bd03412326856"
+      "sha256": "280be6ed9c4534dbff46ad815c4050acc645b89bc35f5c70de96a4ae5b5f990c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1228,7 +1233,7 @@
     "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "fe3705b35f340c18de92fb0b49e9c8131f2f905651b9f774433f163ff0adbb9b"
+      "sha256": "185b207ca0025925a845a3ca004d977957ec623bcddeceeb8ffeffdbe3ef90e0"
     },
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
@@ -1717,7 +1722,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "f0cdfcc8645b6e6dcf61ef3674a5c82e54931578945d5d68a0a9118f53d9a2a1"
+      "sha256": "c49d9d1fca9bcd86a67685b569796bfd370ef3b719c45fba550d80bcf0f254ef"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],

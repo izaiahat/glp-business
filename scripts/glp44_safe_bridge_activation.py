@@ -470,6 +470,85 @@ class RegistryHost(LinuxHost):
         self.cached_registration()
 
 
+# GLP80 is a separate fixed successor, not a relaxation of the GLP338 edge.
+# The accepted PR267 source cohort is received atomically under the same source
+# lease before the existing unit loads its registry. Old caller/control evidence
+# remains immutable; receiving-owner exclusion still covers pre-lock readers.
+PRICING_BEFORE = {
+    REGISTRY_REL: '32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47',
+    'ops/scheduled-source-drift-manifest.json': '6e57371aabd589a670dbd0583cd7c0e4847fd818cc258f7fdd27355a4ded0b55',
+    'scripts/cron_bridge_action.py': 'ba31d4048228616b2a87bc4690ad99a28bdf9bc03e09090c3171cf7595974d3d',
+    'scripts/glp_price_freshness.py': None,
+    'tools/glp/price_evidence_delta.py': '7b9fa0dd2d5b1d0c1ea1f10c4dbff6da3c2b626a7e7bd18d7357b980238ee93a',
+}
+PRICING_AFTER = {
+    REGISTRY_REL: '0593f4c6c25c3be7726e8c3b5c5cd77c14c3857b09c25ab66e999dc18da67fb1',
+    'ops/scheduled-source-drift-manifest.json': '855fa1f97b1c975f2ba49c322d4ae45ce3229627acf8cd234ff3696d257599c7',
+    'scripts/cron_bridge_action.py': '0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1',
+    'scripts/glp_price_freshness.py': 'c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd',
+    'tools/glp/price_evidence_delta.py': 'ff56e5f7fb8f9a4db812597e4ce423a08b0aefeb306870d6667ba9de4a1ea8ce',
+}
+
+
+class PricingRegistryHost(RegistryHost):
+    """Only accepted GLP80 five-path adoption; all actual drain gates inherited."""
+
+    def source(self):
+        require(hashlib.sha256(read_regular(BRIDGE)).hexdigest() == REGISTRY_BRIDGE_SHA256,
+                'unchanged_registry_bridge_mismatch')
+        for rel, expected in (PRICING_AFTER if self.imported else PRICING_BEFORE).items():
+            path = BUSINESS / rel
+            require(not path.is_symlink(), 'pricing_symlink_refused:' + rel)
+            actual = hashlib.sha256(read_regular(path)).hexdigest() if path.exists() else None
+            require(actual == expected, 'pricing_generation_mismatch:' + rel)
+
+    def journal(self, **fields):
+        LinuxHost.journal(self, **dict(fields, pricing_before=PRICING_BEFORE,
+                                     pricing_after=PRICING_AFTER,
+                                     accepted_source_merge='1dcafc20a9b5722bb2249a1b8911d66e0e49ea40'))
+
+    def validate_checkout(self):
+        git = ['/usr/bin/git', '-c', 'safe.directory=' + str(self.checkout), '-C', str(self.checkout)]
+        require(not self.command(git + ['status', '--porcelain', '--untracked-files=no']).strip(),
+                'registry_checkout_not_clean')
+        rel = 'scripts/glp44_safe_bridge_activation.py'
+        require(self.command(git + ['show', 'HEAD:' + rel]).encode() == read_regular(self.checkout / rel),
+                'registry_producer_not_committed')
+        for rel, expected in PRICING_AFTER.items():
+            require(hashlib.sha256(read_regular(self.checkout / rel)).hexdigest() == expected,
+                    'pricing_candidate_mismatch:' + rel)
+
+    def scoped_sync(self, apply, adoption):
+        import threading
+        require(not adoption, 'pricing_no_baseline_override')
+        require(threading.active_count() == 1, 'registry_controller_must_be_single_threaded')
+        require(os.geteuid() == 0, 'registry_controller_root_required')
+        gid = os.getegid()
+        try:
+            os.setegid(1000)
+            os.seteuid(1000)
+            return self.syncer.sync(BUSINESS, self.checkout, apply, (),
+                                    tuple(PRICING_AFTER), _source_owner=self.owner)
+        finally:
+            os.seteuid(0)
+            os.setegid(gid)
+
+    def restart(self):
+        require(getattr(self, 'owner', None) is not None and not self.imported,
+                'registry_handoff_required_no_replay')
+        require(self.scoped_sync(False, ()) == 0, 'registry_preview_refused')
+        self.source()
+        require(drained(self, self.resident_identity, {}), 'registry_preimport_drain_changed')
+        self.journal(phase='IMPORTING_PRICING_REGISTRY')
+        require(self.scoped_sync(True, ()) == 0, 'registry_import_uncertain')
+        self.imported = True
+        self.source()
+        require(self.scoped_sync(False, ()) == 0, 'registry_zero_diff_refused')
+        require(drained(self, self.resident_identity, {}), 'registry_prerestart_drain_changed')
+        self.journal(phase='PRICING_REGISTRY_IMPORTED_RESTARTING')
+        LinuxHost.restart(self)
+
+
 class Refused(RuntimeError):
     pass
 
@@ -527,20 +606,31 @@ def activate(host, expected_identity, timeout=3600):
         result = {'phase': 'VERIFIED', 'old_identity': expected_identity,
                   'new_identity': new_identity, 'accepted_ids': sorted(retained),
                   'bridge_sha256': getattr(host, 'bridge_sha256', APPROVED_BRIDGE_SHA256)}
+        if isinstance(host, PricingRegistryHost):
+            result['registry_sha256'] = PRICING_AFTER[REGISTRY_REL]
+            result['received_source_sha256'] = PRICING_AFTER
         host.journal(**result)
         host.open_ingress()
     return result
 
 
 def main(argv=None):
+    global CONTROL
+    previous_control = CONTROL
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', nargs='?', choices=['plan', 'activate', 'status', 'registry-plan', 'activate-registry'], default='plan')
+    parser.add_argument('mode', nargs='?', choices=['plan', 'activate', 'status', 'registry-plan',
+                        'activate-registry', 'pricing-registry-plan', 'activate-pricing-registry'], default='plan')
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--pid', type=int)
     parser.add_argument('--start-ticks', type=int)
-    parser.add_argument('--wait-seconds', type=int, default=3600)
+    parser.add_argument('--wait-seconds', '--wait', type=int, default=3600)
     parser.add_argument('--job-id')
     args = parser.parse_args(argv)
+    if args.mode == 'pricing-registry-plan':
+        print(json.dumps({'status': 'SOURCE_ONLY_PLAN', 'before': PRICING_BEFORE,
+                          'after': PRICING_AFTER, 'importer_sha256': '29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1',
+                          'runtime_authorization': False}, sort_keys=True))
+        return 0
     if args.mode == 'registry-plan':
         print(json.dumps({'status': 'SOURCE_ONLY_PLAN', 'bridge_sha256': REGISTRY_BRIDGE_SHA256,
                           'registry_before': REGISTRY_BEFORE, 'registry_after': REGISTRY_AFTER,
@@ -553,10 +643,12 @@ def main(argv=None):
                           'runtime_authorization': False}, sort_keys=True))
         return 0
     try:
-        require(args.mode not in {'activate', 'activate-registry'} or args.apply,
+        require(args.mode not in {'activate', 'activate-registry', 'activate-pricing-registry'} or args.apply,
                 'apply_required_separate_operator_authority')
         require(os.geteuid() == 0, 'root_network_capability_required')
         require(0 <= args.wait_seconds <= 86400, 'invalid_wait')
+        if args.mode == 'activate-pricing-registry':
+            CONTROL = Path('/run/glp80-price-registry-activation')
         CONTROL.mkdir(mode=0o700, exist_ok=True)
         info = CONTROL.lstat()
         require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0
@@ -564,7 +656,8 @@ def main(argv=None):
         fd = os.open(CONTROL / 'controller.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            host = RegistryHost() if args.mode == 'activate-registry' else LinuxHost()
+            host = (PricingRegistryHost() if args.mode == 'activate-pricing-registry' else
+                    RegistryHost() if args.mode == 'activate-registry' else LinuxHost())
             if args.mode == 'status':
                 route = '/job/' + args.job_id if args.job_id else '/health'
                 value = host.get(route)
@@ -587,6 +680,8 @@ def main(argv=None):
                           'gate_automatically_released': False,
                           'receipt': str(CONTROL / 'activation.jsonl')}, sort_keys=True))
         return 2
+    finally:
+        CONTROL = previous_control
 
 
 if __name__ == '__main__':
