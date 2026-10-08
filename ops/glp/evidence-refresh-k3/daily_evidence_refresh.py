@@ -69,7 +69,7 @@ def check_pins(pin_file=PIN_FILE):
     pins = read(pin_file)
     required = {str(ENGINE), str(ENGINE.with_name('evidence_refresh_verify.mjs')), str(SCHEMA),
                 str(NATIVE_EVIDENCE), str(NATIVE_PRODUCER), str(NATIVE_AFFILIATE_RELEASE), str(NATIVE_MATERIALIZER), str(NATIVE_BUILDER),
-                str(TAXONOMY_PRODUCER), str(TAXONOMY_POLICIES)}
+                str(TAXONOMY_PRODUCER), str(TAXONOMY_POLICIES), str(ROOT / 'scripts/firecrawl_client.py')}
     if set(pins['sources']) != required:
         raise RuntimeError('SOURCE_PIN_SET_INVALID')
     for path, digest in pins['sources'].items():

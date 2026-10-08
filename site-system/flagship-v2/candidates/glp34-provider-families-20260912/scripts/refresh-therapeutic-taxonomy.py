@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUSINESS = ROOT.parents[3]
 sys.path.insert(0, str(BUSINESS / 'scripts'))
 from affiliate_direct_evidence_capture import _firecrawl_key
+from firecrawl_client import firecrawl_urlopen
 
 REPORTS = BUSINESS / 'reports/ops/glp38-20260915/taxonomy-refresh'
 REGISTRY = ROOT / 'data/program-registry.json'
@@ -219,12 +220,23 @@ def check_previous_row(current, previous):
         raise ValueError('program_changed_during_capture')
 
 
+CAPTURE_MEMO = None  # scoped to one main() invocation, never a cross-run cache
+REFRESH_DAYS = 30
+
+
+def due(row, now):
+    value = row.get('verified_as_of')
+    if not value:
+        return True
+    return now.date() >= dt.date.fromisoformat(value[:10]) + dt.timedelta(days=REFRESH_DAYS)
+
+
 def capture(url, dest):
     started = dt.datetime.now(dt.timezone.utc).isoformat()
     request_body = {'url': url, 'formats': ['markdown', 'links'], 'onlyMainContent': False, 'maxAge': 0}
     request = urllib.request.Request('https://api.firecrawl.dev/v2/scrape', data=json.dumps(request_body).encode(),
         headers={'Authorization': 'Bearer ' + _firecrawl_key(), 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with firecrawl_urlopen(request, caller='therapeutic_taxonomy_refresh', timeout=120) as response:
         raw = response.read()
     received = dt.datetime.now(dt.timezone.utc).isoformat()
     document = json.loads(raw)
@@ -241,6 +253,24 @@ def capture(url, dest):
             raise ValueError('source_host_changed')
     if meta.get('cachedAt') and dt.datetime.fromisoformat(meta['cachedAt'].replace('Z', '+00:00')) < dt.datetime.fromisoformat(started):
         raise ValueError('stale_cache_refused')
+    return receipt
+
+
+def memoized_capture(url, dest):
+    if CAPTURE_MEMO is not None and url in CAPTURE_MEMO:
+        saved = CAPTURE_MEMO[url]
+        if isinstance(saved, Exception):
+            raise saved
+        dest.write_bytes(encoded(saved))
+        return saved
+    try:
+        receipt = capture(url, dest)
+    except Exception as exc:
+        if CAPTURE_MEMO is not None:
+            CAPTURE_MEMO[url] = exc
+        raise
+    if CAPTURE_MEMO is not None:
+        CAPTURE_MEMO[url] = receipt
     return receipt
 
 
@@ -276,7 +306,7 @@ def verify_sources(pid, row, policy, run):
     captures, assertions = [], {field: {} for field in FIELDS}
     for index, source in enumerate(sources):
         path = run / f'{pid}-source-{index}.json'
-        receipt = capture(source['url'], path)
+        receipt = memoized_capture(source['url'], path)
         fragment = {field: list(source['quotes'].get(field, {})) for field in FIELDS}
         found = support(fragment, source, receipt['response']['data']['markdown'])
         for field in FIELDS:
@@ -346,6 +376,16 @@ for(const id of x.ids) {
 
 
 def main():
+    import fcntl
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    with (REPORTS / 'refresh.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return run_main()
+
+
+def run_main():
+    global CAPTURE_MEMO
+    CAPTURE_MEMO = {}
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--program', choices=sorted(POLICIES), action='append')
     args = parser.parse_args()
@@ -353,21 +393,34 @@ def main():
     run = REPORTS / ('run-' + dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ'))
     run.mkdir(parents=True)
     before = json.loads(REGISTRY.read_text())
+    now = dt.datetime.now(dt.timezone.utc)
+    pending_path = REPORTS / 'review-pending.json'
+    pending = json.loads(pending_path.read_text()) if pending_path.exists() else {}
     proposals, findings = {}, []
     for pid in ids:
         policy = POLICIES[pid]
+        row = before['therapeutic_taxonomy']['programs'].get(pid, {})
         try:
             row, correction = prepare_reviewed_correction(before, pid)
             row = prepare_qualified_source_row(row, pid)
             if policy.get('review_required'):
-                raise ValueError('policy_review_required:' + policy['review_required'])
+                raise ValueError('policy_review_required:' + policy.get('finding', 'source review required'))
+            parent_key = sha(encoded({'row': row, 'policy': policy}))
+            previous = pending.get(pid, {})
+            if previous.get('parent_sha256') == parent_key and now < dt.datetime.fromisoformat(previous['next_attempt_at']):
+                findings.append({'program_id': pid, 'status': 'REVIEW_PENDING_BACKOFF', 'next_attempt_at': previous['next_attempt_at']})
+                continue
+            if correction is None and not due(row, now):
+                findings.append({'program_id': pid, 'status': 'NOT_DUE'})
+                pending.pop(pid, None)
+                continue
             if 'sources' in policy:
                 manifest = verify_sources(pid, row, policy, run)
             else:
                 if policy['url'] not in row['source_urls']:
                     raise ValueError('reviewed_source_not_in_program')
                 primary_path = run / (pid + '-primary.json')
-                primary = capture(policy['url'], primary_path)
+                primary = memoized_capture(policy['url'], primary_path)
                 navigation = [(policy['url'], primary_path, primary)]
                 selected, url = primary, policy['url']
                 if policy.get('intermediate_url'):
@@ -375,13 +428,13 @@ def main():
                     if middle not in primary['response']['data'].get('links', []):
                         raise ValueError('intermediate_no_longer_linked_by_program')
                     middle_path = run / (pid + '-intermediate.json')
-                    selected = capture(middle, middle_path)
+                    selected = memoized_capture(middle, middle_path)
                     navigation.append((middle, middle_path, selected))
                 if policy.get('linked_url'):
                     url = policy['linked_url']
                     if url not in selected['response']['data'].get('links', []):
                         raise ValueError('supplement_no_longer_linked_by_program')
-                    selected = capture(url, run / (pid + '-linked.json'))
+                    selected = memoized_capture(url, run / (pid + '-linked.json'))
                 assertions = support(row, policy, selected['response']['data']['markdown'])
                 selected_path = run / (pid + ('-linked.json' if policy.get('linked_url') else '-primary.json'))
                 manifest = {'program_id': pid, 'source_url': url, 'verified_as_of': selected['received_at'][:10],
@@ -411,12 +464,15 @@ def main():
             findings.append({'program_id': pid, 'status': 'SUPPORTED', 'finding': policy.get('finding')})
         except Exception as exc:
             findings.append({'program_id': pid, 'status': 'REVIEW_REQUIRED', 'condition': str(exc)})
+            pending[pid] = {'parent_sha256': sha(encoded({'row': locals().get('row', {}), 'policy': policy})),
+                            'next_attempt_at': (now + dt.timedelta(days=7)).isoformat()}
     result = {'producer': str(Path(__file__)), 'requested': ids, 'findings': findings, 'written': []}
     lock = BUSINESS / 'scripts/candidate_build_lock.py'
     acquired = False
     try:
         if not proposals:
-            raise ValueError('no_supported_programs')
+            result['status'] = 'NOT_DUE' if all(f['status'] == 'NOT_DUE' for f in findings) else 'REVIEW_REQUIRED'
+            return 0 if result['status'] == 'NOT_DUE' else 1
         acquired_run = subprocess.run([sys.executable, str(lock), 'acquire', '--seat', 'glp-design', '--reason', 'taxonomy refresh'], capture_output=True, text=True)
         result['lock_acquire'] = {'exit_code': acquired_run.returncode, 'output': acquired_run.stdout}
         if acquired_run.returncode:
@@ -460,11 +516,17 @@ def main():
             row = readback['therapeutic_taxonomy']['programs'][pid]
             assert row == candidate['therapeutic_taxonomy']['programs'][pid], 'exact_row_readback_failed'
             result['written'].append({'program_id': pid, 'verified_as_of': row['verified_as_of'], 'normalized_sha256': row['normalized_sha256']})
-        result['status'] = 'PASS' if len(proposals) == len(ids) else 'REVIEW_REQUIRED'
+        for pid in proposals:
+            pending.pop(pid, None)
+        result['status'] = 'PASS' if all(f['status'] in ('SUPPORTED', 'NOT_DUE') for f in findings) else 'REVIEW_REQUIRED'
     except Exception as exc:
         result['status'] = 'BLOCKED'
         result['condition'] = str(exc)
     finally:
+        pending_temp = pending_path.with_suffix('.tmp')
+        pending_temp.write_bytes(encoded(pending))
+        os.replace(pending_temp, pending_path)
+        CAPTURE_MEMO = None
         if acquired:
             released = subprocess.run([sys.executable, str(lock), 'release', '--seat', 'glp-design'], capture_output=True, text=True)
             result['lock_release'] = {'exit_code': released.returncode, 'output': released.stdout}

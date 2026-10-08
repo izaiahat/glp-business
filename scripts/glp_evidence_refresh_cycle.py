@@ -243,7 +243,8 @@ def live_fetch(url):
     request = urllib.request.Request('https://api.firecrawl.dev/v2/scrape',
         data=json.dumps({'url': url, 'formats': ['markdown'], 'onlyMainContent': True, 'maxAge': 0}).encode(),
         headers={'Authorization': 'Bearer ' + _firecrawl_key(), 'Content-Type': 'application/json'}, method='POST')
-    with urllib.request.urlopen(request, timeout=90) as response:
+    from firecrawl_client import firecrawl_urlopen
+    with firecrawl_urlopen(request, caller='glp_evidence_refresh_cycle', timeout=90) as response:
         return json.load(response)
 
 
@@ -276,6 +277,12 @@ def missing_excerpts(excerpt, body):
 
 
 def run_cycle(ledger, config, historical_generated_at, now, max_age_days, directory, fetch, adopt):
+    # main owns the existing adoption lock. This state does not renew evidence,
+    # change pins, or grant acceptance: it suppresses re-fetching unresolved work.
+    pending_path = directory.parent / 'review-pending.json'
+    pending = json.loads(pending_path.read_text()) if pending_path.exists() else {}
+    parent_keys = {r['capture_id']: sha(encoded({'record': r, 'observations': [o for o in config['observations']
+                  if o['capture_id'] == r['capture_id']]})) for r in ledger['records']}
     report = {'schema': 'glp-preexpiry-cycle-v1', 'started_at': utc(),
         'standing_acceptance_receipt': str(STANDING_ACCEPTANCE_RECEIPT),
         'lead_days': LEAD_DAYS, 'max_age_days_from_guard': max_age_days,
@@ -290,6 +297,14 @@ def run_cycle(ledger, config, historical_generated_at, now, max_age_days, direct
             continue
         if stopped:
             item['status'] = 'NOT_ATTEMPTED_AFTER_SOURCE_REFUSAL'
+            continue
+
+        previous = pending.get(record['capture_id'], {})
+        if (previous.get('parent_sha256') == parent_keys[record['capture_id']]
+                and now < instant(previous['next_attempt_at'])):
+            item.update(status='REVIEW_PENDING_BACKOFF', decision_required=previous['decision_required'],
+                        next_attempt_at=previous['next_attempt_at'],
+                        capture_path=previous.get('capture_path'), content_sha256=previous.get('content_sha256'))
             continue
 
         started = utc()
@@ -316,9 +331,16 @@ def run_cycle(ledger, config, historical_generated_at, now, max_age_days, direct
             missing = list(dict.fromkeys(proof['missing_retained_excerpts'] + [q
                 for check in proof['observation_checks'] for q in check['missing_excerpts']]))
             proof['material_change'] = {'retained_claims_supported': not changed, 'missing_claims': missing}
-            item.update(status='ESCALATED' if changed else 'READY_FOR_ADOPTION')
+            unchanged_pending = (previous.get('parent_sha256') == parent_keys[record['capture_id']]
+                and previous.get('content_sha256') == proof['content_sha256'])
+            item.update(status='ESCALATED' if changed or unchanged_pending else 'READY_FOR_ADOPTION')
+            if unchanged_pending:
+                item['content_idempotent'] = True
             if changed:
                 item['decision_required'] = 'MATERIAL_REVIEW_REQUIRED'
+            elif unchanged_pending:
+                item['decision_required'] = previous['decision_required']
+                item['content_idempotent'] = True
         except Exception as exc:
             # No retry, mirror, cached fallback or substitute after refusal.
             proof['fetched_at'] = utc()
@@ -351,10 +373,26 @@ def run_cycle(ledger, config, historical_generated_at, now, max_age_days, direct
             for item, _, _ in ready:
                 item.update(status=status, error=str(exc))
             stopped = True
+    for item in report['records']:
+        cid = item['capture_id']
+        if item['status'] in ('ESCALATED', 'ADOPTION_OUTCOME_UNKNOWN', 'EXECUTION_FAILED', 'SOURCE_REFUSED'):
+            proof_path = Path(item['capture_path']) if item.get('capture_path') else None
+            proof = json.loads(proof_path.read_text()) if proof_path else {}
+            pending[cid] = {'parent_sha256': parent_keys[cid],
+                'decision_required': item.get('decision_required', item.get('error', item['status'])),
+                'content_sha256': proof.get('content_sha256'), 'capture_path': item.get('capture_path'),
+                'next_attempt_at': (now + timedelta(days=7 if item['status'] == 'ESCALATED' else 1)).isoformat()}
+        elif (item['status'] not in ('REVIEW_PENDING_BACKOFF', 'NOT_ATTEMPTED_AFTER_SOURCE_REFUSAL')
+              or pending.get(cid, {}).get('parent_sha256') != parent_keys[cid]):
+            pending.pop(cid, None)
+    pending_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = pending_path.with_suffix('.tmp')
+    tmp.write_bytes(encoded(pending))
+    os.replace(tmp, pending_path)
     report['finished_at'] = utc()
     report['status'] = ('EXECUTION_FAILED' if any(r['status'] == 'EXECUTION_FAILED' for r in report['records'])
         else 'SOURCE_REFUSED' if stopped else 'COMPLETED_WITH_ESCALATIONS'
-        if any(r['status'] == 'ESCALATED' for r in report['records']) else 'COMPLETED'
+        if any(r['status'] in ('ESCALATED', 'REVIEW_PENDING_BACKOFF') for r in report['records']) else 'COMPLETED'
         if any(r['due'] for r in report['records']) else 'NOT_DUE')
     immutable(directory / 'run.json', encoded(report))
     return report
