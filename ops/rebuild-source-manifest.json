@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 831,
+  "tracked_count": 834,
   "files": {
     "tests/test_glp_sponsor_public_custody.py": {
       "kind": "test",
@@ -19,6 +19,30 @@
       "kind": "test",
       "callers": ["scripts/run_tests.sh"],
       "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
+    },
+    "scripts/glp_affiliati_postback_ship.py": {
+      "kind": "registered_consumer",
+      "callers": [
+        "scripts/glp_host_ingress.py",
+        "ops/n8n-bridge/actions.json:affiliati_postback_ship"
+      ],
+      "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
+      "sha256": "f60b7ba2332cb8131da6434dcea583262a2b71040718d0c9cec9c26909db185c"
+    },
+    "tests/test_glp335_registered_current_contract.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8e0d2d8d6ddb7659b8669140fcb70c6685d8133a45f8a42d60c2faac6effec31"
+    },
+    "ops/glp335-current-consumer.md": {
+      "kind": "instruction_or_policy",
+      "callers": [
+        "scripts/glp_affiliati_postback_ship.py"
+      ],
+      "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
+
     },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -522,7 +546,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1d67264492ea1084c9634b5433a54e32d86868332bd6d4ff35a2b0a69092dc13"
+      "sha256": "c32874cdbd5dfa732ef1758652aeaf9dcbc09fd6f3b1c61baa2647899232b581"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -532,7 +556,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9c6dd8ff1a8b173ecf625cd336a7388ec81f5f4048e24b82f2e81b5a711bd36e"
+      "sha256": "0e63b0d80751bf89be80a5f873f4c02ab2036e4a921b8cc5fd3cdeba29e5d03e"
     },
     ".hermes.md": {
       "callers": [],
