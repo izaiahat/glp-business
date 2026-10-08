@@ -168,7 +168,12 @@ def financial_input_rows(observations, reporter):
     money = {'reported_amount', 'reported_payout'}
     labels = {'resource', 'event_type', 'source_status', 'amount_unit', 'amount_semantics', 'payout_semantics'}
     for observation in observations:
-        for index, record in enumerate(observation.get('records', [])):
+        source_records = (
+            (field, index, record)
+            for field in ('records', 'accounting_projection')
+            for index, record in enumerate(observation.get(field, []))
+        )
+        for field, index, record in source_records:
             if not isinstance(record, dict) or reporter._noncommercial(record):
                 continue
             if any('fella' in str(record.get(k, '')).casefold() for k in ('program_id', 'provider_slug')):
@@ -188,7 +193,7 @@ def financial_input_rows(observations, reporter):
             # pointer; copying raw fields could expose customer attributes.
             rows.append(projected | {
                 'observation_sha256': reporter.digest(observation),
-                'source_pointer': '/records/' + str(index),
+                'source_pointer': '/' + field + '/' + str(index),
                 'period_purpose': observation.get('period_purpose'),
                 'start_inclusive': observation.get('start_inclusive'),
                 'end_exclusive': observation.get('end_exclusive'),
