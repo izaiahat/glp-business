@@ -57,6 +57,7 @@
 !/ops/glp/evidence-refresh-k3/review_evidence.py
 !/ops/glp/evidence-refresh-k3/compose_current_base.py
 !/ops/glp/evidence-refresh-k3/registered_taxonomy.py
+!/tests/test_glp80_registry_adoption.py
 !/tests/test_glp80_registered_taxonomy_intake.py
 !/tests/test_glp80_daily_progress.py
 !/ops/glp/evidence-refresh-k3/SOURCE-PINS.json
