@@ -24,6 +24,9 @@ def classify(body,subject,headers,received_at):
     elif re.search(r'delivery status notification|undeliverable|delivery failure|mail delivery failed',text):kind='bounce'
     elif re.search(r'out of office|on vacation|away from (?:the )?office|automatic reply',text) or headers.get('Auto-Submitted','').lower()=='auto-replied':kind='out_of_office'
     elif re.search(r'\b(?:agree|accept|proceed|book the|let.s do)\b',body,re.I) and not re.search(r'\b(?:not|no|don.t|decline)\b',body,re.I):kind='agreement_candidate'
+    elif re.search(r'\b(?:not interested|no thanks|not a fit|decline|no thank you)\b',body,re.I):kind='not_interested'
+    elif re.search(r'\b(?:interested|send (?:me |us )?(?:the )?(?:details|next steps)|tell (?:me|us) more)\b',body,re.I) and not re.search(r'\b(?:not|don.t)\b',body,re.I):kind='interested'
+    elif '?' in body or re.search(r'^\s*(?:what|how|when|where|can you|could you)\b',body,re.I):kind='question'
     else:kind='human_reply_or_review'
     result={'kind':kind,'auto_resume':False}
     if kind=='out_of_office':

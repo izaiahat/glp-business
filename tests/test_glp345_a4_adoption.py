@@ -528,7 +528,7 @@ def test_no_window_cannot_apply(isolated):
         a4.adopt(ROOT, root, home, {}, scheduler=None)
 
 
-def test_neutral_successor_committed_custody_and_complete_plan(stream_isolated, monkeypatch):
+def test_neutral_successor_committed_custody_and_complete_plan(stream_isolated, monkeypatch, tmp_path):
     """Real committed custody + disposable receiving fixture, never host admission."""
     import glp345_a4_adoption as a4
     import maintenance_inventory as inv
@@ -542,10 +542,19 @@ import glp345_a4_adoption as a4
 head, body = a4.authenticate(Path.cwd(), generation=a4.NEUTRAL_GENERATION)
 print(json.dumps({'head': head, 'collector': a4.sha(body)}))
 """
-    proof = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=ROOT))
-    assert proof['head'] == subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
-    assert proof['collector'] == a4.NEUTRAL_AFTER[a4.COLLECTOR]
-    old, new = a4.neutral_sources(ROOT)
+    # Neutral admission is an immutable historical generation, not the newer
+    # GLP-44 collector. Exercise its exact accepted checkout rather than changing
+    # Historical custody is verified in its accepted checkout.
+    custody = tmp_path / 'neutral-custody'
+    accepted = '23e1ab197c4fabc50cc8aab46347945d47502018'
+    subprocess.check_call(['git', '-C', str(ROOT), 'worktree', 'add', '--detach', str(custody), accepted])
+    try:
+        proof = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=custody))
+        assert proof['head'] == accepted
+        assert proof['collector'] == a4.NEUTRAL_AFTER[a4.COLLECTOR]
+        old, new = a4.neutral_sources(custody)
+    finally:
+        subprocess.check_call(['git', '-C', str(ROOT), 'worktree', 'remove', str(custody)])
     assert {rel: a4.sha(body) for rel, body in new.items()} == a4.NEUTRAL_AFTER
     assert {rel: a4.sha(body) for rel, body in old.items()} == a4.NEUTRAL_BEFORE
     # Use historical stream projection from the committed source, since the
@@ -571,7 +580,10 @@ print(json.dumps({'head': head, 'collector': a4.sha(body)}))
     # verifier; extend only selected members. Real source hashes are proven above.
     root, home, window, target = stream_isolated
     _, fixture_new = a4.stream_sources(ROOT)
-    new[a4.WEEKLY_PINS] = fixture_new[a4.WEEKLY_PINS]
+    fixture_pins = json.loads(fixture_new[a4.WEEKLY_PINS])
+    weekly_collector = 'scripts/glp_weekly_seo_collect.py'
+    fixture_pins['paths'][str(a4.BUSINESS / weekly_collector)] = a4.sha(new[weekly_collector])
+    new[a4.WEEKLY_PINS] = json.dumps(fixture_pins).encode()
     monkeypatch.setattr(a4, 'neutral_sources', lambda _: (old, new))
     monkeypatch.setattr(a4, 'stage_neutral_pins', a4.stage_stream_pins)
     for rel, body in old.items():

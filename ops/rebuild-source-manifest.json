@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 775,
+  "tracked_count": 783,
   "files": {
     "scripts/host_health_audit.py": {
       "kind": "script",
@@ -106,7 +106,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "2cc50179f471a5f27bca009dcb36845a73f71014b05d6454842870592205f06b"
+      "sha256": "f9405782ab5d90111abdef5b3b52cd5af27764dc0a40f36f2c6a5195546544ce"
     },
     "ops/glp345-a4/SOURCE-PINS.predecessor.json": {
       "kind": "source_control",
@@ -736,7 +736,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "41279de91bfa043e469fc4b05c936296a9cfab72a12b91566fba89be67d18b16"
+      "sha256": "565c5dda1867203929a45f7d1c8870d4ae68c8636cf1e787d7907e467566c5d8"
     },
     "ops/glp/seo_business_context.py": {
       "callers": [
@@ -1141,7 +1141,7 @@
         "hermes:020bcdd7f0e1"
       ],
       "kind": "script",
-      "sha256": "484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e"
+      "sha256": "7137024ef3d811435dcd6c08f411bde7923c5ce130a6e0b2b83da205490d54fc"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],
@@ -2029,7 +2029,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "b2b215266e6a46b12ff00dda69e30fa158a14870f336fb24ffac7c85a0548655"
+      "sha256": "1c877ff1227f46bbc55a0d2368fb9085db348f5059f3222fcd00b34e1afeb3fb"
     },
     "scripts/glp_weekly_seo_control.py": {
       "callers": [
@@ -2065,7 +2065,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "3092c53fb15d47f393cb0cf9143f43ec2413301960f1bb2f10ed5c45d48c04bb"
+      "sha256": "9e00c804e7586b79b2f2d9807a86bc91799b9d45cef1d3a66e1f19005eb8ac87"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -2235,7 +2235,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dd23deb4d1018315e23a6d339062a8ac174f37a92bae95062cd8053bb63eb9dd"
+      "sha256": "98862267de4d4cd7de31ae7305f536ac520d0b170ebdb2b616f36afe9b05ddc6"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3304,7 +3304,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "1669995d0bc7c3354525ef79628abb7f171f1ef95b4804e1dff693c95608f96c"
+      "sha256": "aad4fc5ecf899852e18f1efc5f9cb7a293c5154da8807334d530777b7816b708"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -3553,7 +3553,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "2a187868ce70407ce827224c23924fdabd9269111099aafb92b2c8999cfd0ba7"
+      "sha256": "6e57371aabd589a670dbd0583cd7c0e4847fd818cc258f7fdd27355a4ded0b55"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3574,7 +3574,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "e01915ed36b4d0f52af6dabee5ccfb085338d3b5a4f00e87671d061703c55a26"
+      "sha256": "91ffde8014345491b756fc7d008e8b2e6baec2dce85c220a16ba7cf319abddab"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4472,26 +4472,26 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "a6bfec4eb7a6d27b607ac8f9c3c349396917c389628787520cc801261427b4d0"
+      "sha256": "6b02be915865c1c5e9e1bac3a662f72d87db949b10e61af5a6bcf523e34cc104"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "0947a81691f91da07cc01c78f4d8f412eed37cd5712f906c9ec5648f141c5b70"
+      "sha256": "dd0a94824b57d3bd17727b5d242aa261f993b325c01f867ab3478c4f21b27be7"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "0f6e1f90298648c5c22a0e3ec1c7189f18dd49998ccb3b823bf13d336619854e"
+      "sha256": "bbb8e3c77d2e5ffcb4f2f96087ed32540af5fbde0b2c6ce61667473844783263"
     },
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "30f4413527be869711da5109590a5b9b620b421164c1fbb8f20f76ed1945f276"
+      "sha256": "acae3df1bd2de39e8c5ee8d82ea4aa4a2eb4da0168dae442910eb0ce80255a88"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4935,14 +4935,14 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "f31a59a9034d6c9b7dd7aff257643779431312cc1c52276db4ab03faed602445"
+      "sha256": "4f988082d932ffb1da57dce951827cfd7cfc7fd068c4964864f171583acf3284"
     },
     "inbox_control_plane/sponsor_replies.py": {
       "kind": "source_control",
       "callers": [
         "inbox_control_plane/control_plane.py"
       ],
-      "sha256": "53e115bd02aa9264c28ffc01b8ee7a3be7dfb298fe679399f4cc88501f96c39b"
+      "sha256": "3ca1515dc6cdd477592e2087e738595f5c85fdbb0a0370ca61e63bd124ace42f"
     },
     "tests/test_glp_sponsor_continuation.py": {
       "kind": "test",
@@ -5069,7 +5069,7 @@
         "scripts/glp_weekly_seo_control.py"
       ],
       "kind": "script",
-      "sha256": "7d43d2bbc2937f88d5c1d06054c815104e6ccf833344cf70aa19ee0cd2c0d41a"
+      "sha256": "da84df1d232b734959e4cf84ad741edb9a7c868a9e70a5da11c15475f0be27bf"
     },
     "ops/glp/seo_weekly_cogny.py": {
       "callers": [
@@ -5083,7 +5083,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "d4d6f4c7a4aa3074225268e84caa1de6d94c5e69907591cb6028165cf81dc1ab"
+      "sha256": "05e328373b9568a40fe59fa488ae49a56a482d4942e278a732806fecb38a18c1"
     },
     "scripts/katalys_fresh_relationship.py": {
       "sha256": "1629a39a5c6fd94ec6e43966cb99039d2c7f383aabeee37ba825824646e3586d"
@@ -5224,6 +5224,63 @@
       "callers": [],
       "kind": "test",
       "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
+    },
+    "scripts/glp_sponsor_alexandria.py": {
+      "kind": "script",
+      "callers": [
+        "authorized sponsor preapproval business-contact research"
+      ],
+      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
+    },
+    "tests/test_glp_sponsor_alexandria.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
+    },
+    "tests/test_glp_sponsor_autonomous.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
+    },
+    "ops/glp/weekly_strategy_sync.py": {
+      "callers": [
+        "scripts/glp_weekly_strategy_report.py"
+      ],
+      "kind": "script",
+      "sha256": "59d20dea64c4bf2578d695755c7becabfc23f0794e4e04fc9063a7070d3b5dbe"
+    },
+    "tests/test_glp44_strategy_sync.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "922bb0476e3c534670d072c257ad480e91494ba9c34d5ef337ae1f9db9d46b4c"
+    },
+    "ops/glp/weekly_strategy_inputs.py": {
+      "callers": [
+        "scripts/glp_weekly_seo_collect.py",
+        "scripts/glp_weekly_strategy_report.py"
+      ],
+      "kind": "script",
+      "sha256": "d60df3ea3605385b1bcf04268a50ea8d2c2fd8dda2bbc361252531ab890f51c7"
+    },
+    "scripts/glp_weekly_strategy_report.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/weekly_strategy_review_gate.py"
+      ],
+      "kind": "script",
+      "sha256": "e9b0fe110aae512712487127073adf5ed2389fbc8e987dcf2f602f231ec5eba6"
+    },
+    "tests/test_glp44_strategy_report.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "f5556d35f94c3df2e51e3116c5e899e946583ada9a2cbc01360076cd09b75fff"
     }
   }
 }
