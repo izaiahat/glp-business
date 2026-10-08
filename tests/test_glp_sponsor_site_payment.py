@@ -224,6 +224,9 @@ def native_observer(tmp_path,monkeypatch):
         with sqlite3.connect(database) as db:
             db.execute('INSERT INTO mailbox_actions(action_id,event_id,action,status,provider_receipt_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
                 (event,event,'sponsor_reply_stop','verified',json.dumps(receipt),paypal.iso(AT),paypal.iso(AT)))
+        # sqlite3's context manager commits but does not close. Finish fixture
+        # WAL checkpointing now, not during the observer's read-only assertion.
+        db.close()
     return types.SimpleNamespace(state=tmp_path,site=site,db=database,sheet=sheet,local=local,
                                  client=client,stop=stop,clock=clock,bridge=bridge)
 
@@ -271,3 +274,68 @@ def test_observer_native_reply_fold_preserves_agreement_and_sticky_history(nativ
     expected=not any(kind in {'opt_out','bounce','not_interested'} for kind in history)
     assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is expected
     assert {p.name:p.read_bytes() for p in e.state.glob('*.json')}==before
+
+
+@pytest.mark.parametrize('history',[
+    ['interested'],['interested','agreement_candidate'],
+    ['agreement_candidate','interested'],['opt_out','interested','agreement_candidate'],
+    ['not_interested','interested','agreement_candidate'],
+    ['bounce','interested','agreement_candidate']])
+def test_observer_real_classifier_interest_is_nonsticky_stop(native_observer,history):
+    from inbox_control_plane import sponsor_replies
+    e=native_observer
+    bodies={'interested':'We are interested, send us the details.',
+            'agreement_candidate':'We agree, proceed.', 'opt_out':'Please unsubscribe.',
+            'not_interested':'No thanks, not interested.',
+            'bounce':'Delivery status notification: undeliverable.'}
+    for index,kind in enumerate(history):
+        classified=sponsor_replies.classify(bodies[kind],'Re: sponsor',{},paypal.iso(AT))
+        assert classified['kind']==kind
+        assert classified['auto_resume'] is False
+        e.stop(classified['kind'],str(index))
+    (e.state/'ledger.json').write_text('{}')
+    before={p.name:p.read_bytes() for p in e.state.glob('*.json')}
+    db_before=e.db.read_bytes()
+    expected=history==['interested','agreement_candidate']
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is expected
+    assert {p.name:p.read_bytes() for p in e.state.glob('*.json')}==before
+    assert e.db.read_bytes()==db_before
+
+
+def test_observer_unrelated_classified_interest_is_provider_scoped(native_observer):
+    from inbox_control_plane import sponsor_replies
+    import sqlite3
+    e=native_observer
+    classified=sponsor_replies.classify('Send us the details.','Re: sponsor',{},paypal.iso(AT))
+    assert classified['kind']=='interested'
+    e.stop(classified['kind'])
+    with sqlite3.connect(e.db) as db:
+        raw=json.loads(db.execute('SELECT provider_receipt_json FROM mailbox_actions').fetchone()[0])
+        raw.update(provider_hosts=['other.invalid'],enrolled_addresses=['partner@other.invalid'])
+        db.execute('UPDATE mailbox_actions SET provider_receipt_json=?',(json.dumps(raw),))
+    before=e.db.read_bytes()
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is True
+    assert e.db.read_bytes()==before
+
+
+@pytest.mark.parametrize('receipt',[
+    {'kind':'unknown_future_kind','provider_hosts':['other.invalid']},
+    {'kind':'interested','provider_hosts':[]},
+    {'kind':'interested','provider_hosts':'other.invalid'},
+    {'kind':'interested','provider_hosts':['']},
+    {'kind':'interested','provider_hosts':[None]},
+    {'provider_hosts':['other.invalid']}])
+def test_observer_unknown_or_malformed_interest_custody_still_denies(native_observer,receipt):
+    import sqlite3
+    e=native_observer
+    e.stop('interested')
+    with sqlite3.connect(e.db) as db:
+        db.execute('UPDATE mailbox_actions SET provider_receipt_json=?',(json.dumps(receipt),))
+    # Empty enrollment exercises the observer's provider-history validation;
+    # it must still reject bad custody without the campaign's row-fold seam.
+    (e.state/'ledger.json').write_text('{}')
+    before=e.db.read_bytes()
+    with pytest.raises(ValueError,match='canonical_reply_custody_unknown'):
+        e.bridge.eligible_hosts(e.state,AT)
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is False
+    assert e.db.read_bytes()==before

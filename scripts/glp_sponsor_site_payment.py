@@ -69,7 +69,9 @@ def eligible_hosts(state,at):
         # this is in-memory evaluation, never enrollment or suppression repair.
         canonical_stops={host:None for host in hosts}
         sticky={'opt_out','unsubscribe','complaint','bounce','not_interested'}
-        known=sticky|{'question','out_of_office','human_reply_or_review','agreement_candidate'}
+        # The maintained classifier emits interested: pause until a later
+        # agreement candidate, without making interest a sticky adverse stop.
+        known=sticky|{'interested','question','out_of_office','human_reply_or_review','agreement_candidate'}
         for (raw,) in db.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified' ORDER BY created_at,action_id"):
             receipt=json.loads(raw,object_pairs_hook=unique)
             kind=receipt.get('kind')

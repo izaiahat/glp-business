@@ -2881,14 +2881,14 @@
         "site:src/sponsor-pricing.mjs"
       ],
       "kind": "script",
-      "sha256": "fd5dc0fd71a640841af3a3aa716fc5048585b47fa842dd1d6c4b27a5152a87ec"
+      "sha256": "e93963ddf6d7e263ba66aeb7f287319a214b590054b61403bf8cb2786a11d593"
     },
     "tests/test_glp_sponsor_site_payment.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "1b09d98990c22c977f1e6566d023e04d2a19aba3d1a857e7b9724e93afe4667e"
+      "sha256": "94185c58f34787ca2e29add0435c4b9fbbf214390c9a6ec26fbf9706ca1d2e9d"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
