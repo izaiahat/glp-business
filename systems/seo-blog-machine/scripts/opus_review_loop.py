@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Packet-bound Sol review, bounded repair, and publication handoff.
+"""Packet-bound Astra review with bounded source repair and autonomous retry.
 
-This controller implements OPUS-REVIEW-PATH-20260802.md. It never grants topic
-authority: an upstream per-topic GO must already exist and hash-verify. It invokes
-gpt-5.6-sol only through Hermes-managed openai-codex with tools disabled. PASS
-may call one manifest-bound publication command; BLOCKED may call one bounded
-repair command and re-review, for at most five normal rounds. A separately
-hash-bound Bridge extension may run at most three rounds and terminalizes to
-HOLD rather than blocking later operator-GO topics.
+The standing article policy permits no per-refusal human approval. Each batch
+retains the five-gate rubric and yields after five rounds so passing alternatives
+can reach the host publisher. Retry means fresh repair/reseal/re-review, not PASS.
+Historical extension validators remain only for old receipt readers.
 """
 from __future__ import annotations
 
@@ -607,6 +604,8 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
     job = read_json(job_path)
     if job.get("schema") != "glp-opus-seo-review-job-v1":
         raise RuntimeError("review_job_contract_invalid")
+    if job.get("bridge_extension") is not None:
+        raise RuntimeError("operator_extension_retired_rematerialize_for_autonomous_review")
     extension = validate_bridge_extension(job)
     if review_only_once and extension:
         raise RuntimeError("review_only_bridge_extension_forbidden")
@@ -616,6 +615,8 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
     # Which authorized transport runs this job. Jobs written before the
     # 2026-08-18 dual-transport authorization carry no field and stay on Sol.
     active_transport = review_transports.transport(job.get("review_transport"))
+    if active_transport["transport_id"] != review_transports.ASTRA_TRANSPORT["transport_id"]:
+        raise RuntimeError("astra_only_current_article_review_rematerialize_legacy_job")
     wrapper = Path(active_transport["wrapper"])
     if (sha_file(wrapper) != job.get("review_wrapper_sha256")
             or sha_file(RUBRIC) != job.get("rubric_sha256")
@@ -710,7 +711,15 @@ def run(job_path: Path, apply: bool, *, review_only_once: bool = False) -> dict[
     escalation = {
         "schema": "glp-opus-seo-bridge-escalation-v1", "status": "BLOCKED_OPUS_NONCONVERGENCE",
         "created_at_utc": now(), "job_id": job["job_id"], "topic_id": job["topic_id"],
-        "rounds": rounds, "publication_invoked": False, "bridge_escalation_required": True,
+        "rounds": rounds, "publication_invoked": False,
+        # Yield this bounded batch to other candidates; the registered refill
+        # resumes source repair in a fresh job rather than asking an operator.
+        # Refusal never becomes PASS and never authorizes publication.
+        "bridge_escalation_required": False,
+        "operator_card_created": False, "queue_may_advance": True,
+        "autonomous_retry_required": True,
+        "retry_policy": "repair_rematerialize_rereview_next_refill",
+        "publication_policy": "host_consumes_only_passing_buffer_alternative",
     }
     escalation["escalation_sha256"] = payload_hash(escalation, "escalation_sha256")
     atomic_json(history / "bridge-escalation.json", escalation)
