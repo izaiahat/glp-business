@@ -352,7 +352,7 @@ class RegistryHost(LinuxHost):
         path = self.checkout / 'scripts/sync_from_repo.py'
         data = read_regular(path)
         require(hashlib.sha256(data).hexdigest() ==
-                '87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001',
+                '29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1',
                 'registry_importer_generation_mismatch')
         module = types.ModuleType('registry_scoped_importer')
         module.__file__ = str(path)

@@ -452,3 +452,103 @@ def test_safety_oracles_equal_authenticated_installed_predecessor():
     assert set(nodes) == names
     digest = hashlib.sha256('\n'.join(nodes[n] for n in sorted(nodes)).encode()).hexdigest()
     assert digest == 'fa3ed2ae517e6bd327cfd24ce6d809e5e1bfd8615b9fa3437655d0c0e773313f'
+
+
+def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(tmp_path):
+    """Real registered producer + SQLite restore, scratch only; not live coverage."""
+    import hashlib
+    import os
+    import sqlite3
+    import tarfile
+    home = tmp_path / 'hermes'
+    (home / 'cron').mkdir(parents=True)
+    (home / 'memories').mkdir()
+    payloads = {'config.yaml': b'fixture: true\n', '.env': b'FIXTURE_ONLY=yes\n',
+                'auth.json': b'{}\n', 'cron/jobs.json': b'[]\n',
+                'cron/cron.db': b'', 'SOUL.md': b'fixture\n',
+                'memories/MEMORY.md': b'fixture memory\n'}
+    for name, data in payloads.items():
+        (home / name).write_bytes(data)
+    # A large fake session file must never be copied/snapshotted by this producer.
+    with (home / 'state.db').open('wb') as f:
+        f.truncate(12 * 1024**3)
+    ledgers = ('executions.db', 'deliveries.db', 'notepad.db')
+    connections = []
+    try:
+        for name in ledgers:
+            conn = sqlite3.connect(home / 'cron' / name)
+            connections.append(conn)
+            assert conn.execute('pragma journal_mode=wal').fetchone()[0] == 'wal'
+            conn.execute('pragma wal_autocheckpoint=0')
+            conn.execute('create table proof(value text)')
+            conn.execute('insert into proof values (?)', ('committed-in-wal-'+name,))
+            conn.commit()
+            assert (home / 'cron' / (name+'-wal')).stat().st_size > 0
+        producer = Path(__file__).resolve().parents[1] / 'scripts/hermes-state-backup.sh'
+        backup_root = tmp_path / 'backups'
+        env = {**os.environ, 'HERMES_HOME': str(home),
+               'HERMES_BACKUP_ROOT': str(backup_root), 'TMPDIR': str(tmp_path)}
+        run = subprocess.run(['bash', str(producer)], env=env, capture_output=True,
+                             text=True, timeout=90)
+        assert run.returncode == 0, run.stdout + run.stderr
+        artifacts = list(backup_root.glob('hermes-state-????????.tar.gz'))
+        assert len(artifacts) == 1
+        artifact = artifacts[0]
+        assert artifact.stat().st_mode & 0o777 == 0o600
+        assert backup_root.stat().st_mode & 0o777 == 0o700
+        with tarfile.open(artifact) as tar:
+            members = {m.name: m for m in tar.getmembers()}
+            assert len(members) == len(tar.getmembers())
+            assert 'state.db' not in members
+            assert not any(n.endswith(('-wal', '-shm')) for n in members)
+            for name, payload in payloads.items():
+                member_file = tar.extractfile(name)
+                assert member_file is not None
+                assert member_file.read() == payload
+            coverage_file = tar.extractfile('backup-coverage.json')
+            assert coverage_file is not None
+            manifest = json.load(coverage_file)
+            assert manifest['session_store']['status'] == 'NOT_INCLUDED'
+            assert manifest['producer_sha256'] == hashlib.sha256(producer.read_bytes()).hexdigest()
+            for name in ledgers:
+                member = 'cron/' + name
+                assert member in members, 'scheduled backup omits modern cron ledger: '+name
+                assert members[member].mode == 0o600
+                snapshot = tmp_path / ('snapshot-'+name)
+                member_file = tar.extractfile(member)
+                assert member_file is not None
+                snapshot.write_bytes(member_file.read())
+                os.chmod(snapshot, 0o600)
+                restored = tmp_path / ('restored-'+name)
+                src = sqlite3.connect('file:'+str(snapshot)+'?mode=ro', uri=True)
+                dst = sqlite3.connect(restored)
+                src.backup(dst)
+                src.close()
+                assert dst.execute('pragma quick_check').fetchone()[0] == 'ok'
+                assert dst.execute('select value from proof').fetchall() == [('committed-in-wal-'+name,)]
+                dst.close()
+                assert manifest['ledgers'][member]['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
+        # Corrupt a required present ledger. Prior good archive survives; no partial publish.
+        prior = artifact.read_bytes()
+        for conn in connections:
+            conn.close()
+        connections.clear()
+        (home / 'cron' / 'deliveries.db').write_bytes(b'not a sqlite database')
+        failed = subprocess.run(['bash', str(producer)], env=env, capture_output=True, timeout=90)
+        assert failed.returncode != 0
+        assert artifact.read_bytes() == prior
+        assert not list(backup_root.glob('*.partial.*'))
+        assert not list(backup_root.glob('.snapshot-*'))
+        # An outside symlink cannot be chmodded or truncated by output publication.
+        outside = tmp_path / 'outside'
+        outside.write_bytes(b'untouched')
+        os.chmod(outside, 0o644)
+        artifact.unlink()
+        artifact.symlink_to(outside)
+        refused = subprocess.run(['bash', str(producer)], env=env, capture_output=True, timeout=90)
+        assert refused.returncode != 0
+        assert outside.read_bytes() == b'untouched'
+        assert outside.stat().st_mode & 0o777 == 0o644
+    finally:
+        for conn in connections:
+            conn.close()
