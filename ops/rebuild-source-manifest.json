@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 834,
+  "tracked_count": 836,
   "files": {
     "tests/test_glp336_host_completion.py": {
       "kind": "test",
@@ -947,7 +947,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "5bdabf28fbf0ecd1b5b683f01c4820f4eec9e2e0e50506ee811da7ab5fba83f4"
+      "sha256": "0db06280403a82b4ab9cf76c3210efebdeae1fe047987734081ac153928801ae"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1709,7 +1709,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "84563d737facfef9374fa3ff546fef0604fe2c61c332b983cf325ffdcd3279ed"
+      "sha256": "7e3131afdc62a533e4c9ad63174a477307ae650805a66b8a5bcd74aa74e22a2b"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1847,7 +1847,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "274d984de251f0d6e51e4d3e2d488e97b46c3f3603fb93958ae89652fbdcae04"
+      "sha256": "2b689469afe425e97b5b63f491ff436bb38cdda71f5156b3d33819b680fe11a7"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -2214,7 +2214,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "425a1a4b6259adc84b2f99672119dff1e5ae5f7b31a6ee4f05125e104481d217"
+      "sha256": "9e5f60e385772c429e3c9666524dcbe30ae04756755726242d7441e84ba79f4f"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2907,14 +2907,14 @@
         "tests/test_glp_sponsor_packet_successor.py"
       ],
       "kind": "script",
-      "sha256": "a0ea75bdd9ba0d7a9ddea220ab6f7f301b943e78087f0e006ab59b3504fec9f9"
+      "sha256": "26390892060543b384c85038a85ade19d1a591d34d33a0b9ef97b3bcb5ed78e7"
     },
     "tests/test_glp_sponsor_packet_successor.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "bcf0298cac20b24d28d050b2201e917daf3efdf575efa6142bbc60d70ddad277"
+      "sha256": "9284ab874e1126f6609b5217b2523d46c53e413483a661a9fa4e69b3cf375b9b"
     },
     "tests/test_glp328_cold_wal.py": {
       "callers": [
@@ -2949,7 +2949,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "144c6072563271ab5004c2bd42f554883fa8adeeeaa6e90791453bd0595a95ae"
+      "sha256": "f1aa745abd42a1eecec23c2678bf5654032bbd62d4de0c9d35bca762c9e781d7"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
@@ -3903,7 +3903,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "e07c707f0f33ea87cd9fa24dd0150266a325d9ba68e5a279bb1ce018dba49f19"
+      "sha256": "92fa240c7132b0441ab48f379d22865ff94c1b05f9b702c13efdc146f0e3a674"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4507,7 +4507,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "6b02be915865c1c5e9e1bac3a662f72d87db949b10e61af5a6bcf523e34cc104"
+      "sha256": "a36157c3678feedbd5d013dedbbb430dab08ab7ed7184d42734d4c95affaea48"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4526,7 +4526,7 @@
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "acae3df1bd2de39e8c5ee8d82ea4aa4a2eb4da0168dae442910eb0ce80255a88"
+      "sha256": "c602aed3ae55d6acacb36be9c132bd8d4f94e1e71268c9d28ec3d553f32e7316"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
@@ -4540,7 +4540,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "593dab8beee2f94fd0140600989d73b6f533f9bc7257055017b60bc8a08b89b7"
+      "sha256": "096868f982787ca55e0324c6e071e19d47a612a06128fc96854026cae5793daa"
     },
     "scripts/f13_atop_retention_launcher.c": {
       "kind": "script",
@@ -4998,7 +4998,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "885421b612fe64599a18f4d3df2c566a9808e20ebf05c66d7a6973971fbe865c"
+      "sha256": "809f034f5a35f3765345b5f5a8c02532aafe316b25a689f96e9d25012f1c0032"
     },
     "scripts/glp_sponsor_paypal.py": {
       "kind": "script",
@@ -5633,6 +5633,20 @@
         "scripts/glp_affiliati_postback_ship.py"
       ],
       "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
+    },
+    "tests/test_glp_sponsor_public_custody.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
+    },
+    "tests/test_glp_sponsor_technical_receiving.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
     }
   }
 }
