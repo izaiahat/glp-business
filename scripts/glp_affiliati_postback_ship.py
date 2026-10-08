@@ -32,6 +32,10 @@ LOCK_PATH = Path('/home/ubuntu/.hermes/locks/glp-price-index-weekly.lock')
 RECEIPT_DIR = BUSINESS / 'reports/ops/job-receipts'
 ENDPOINT = 'https://glpclinicscout.com/api/postback/affiliati'
 D1_ID = 'bcb91d2d-c3f1-4c55-93e3-070587e86d60'
+# Pinned receiver: String(env.AFFILIATI_POSTBACK_ACCOUNT_REF || "15309") gates the
+# owned-click join, so the runtime override must be proven, not inferred from bytes.
+ACCOUNT_REF = '15309'
+ACCOUNT_REF_VAR = 'AFFILIATI_POSTBACK_ACCOUNT_REF'
 # Exact accepted October 3 F06 cohort, not permission to accept successors.
 ACCEPTED = {
     'deployment_id': '8bb93c91-59fe-4a3b-b050-a956479c6ef5',
@@ -137,6 +141,23 @@ def validate_current_release() -> dict[str, Any]:
             'deployment_id': pointer['deployment_id'], 'site_head': pointer['site_head']}
 
 
+def effective_account_ref(env_vars: Any) -> str:
+    """Absent uses the pinned default; only verifiable plain text may override.
+
+    Opaque (secret) or malformed metadata stays UNKNOWN and refuses; no secret
+    value is ever retrieved to resolve it.
+    """
+    if not isinstance(env_vars, dict):
+        raise ShipError('receiver_account_binding_invalid')
+    if ACCOUNT_REF_VAR not in env_vars:
+        return ACCOUNT_REF
+    var = env_vars[ACCOUNT_REF_VAR]
+    if (not isinstance(var, dict) or var.get('type') != 'plain_text'
+            or var.get('value') != ACCOUNT_REF):
+        raise ShipError('receiver_account_binding_invalid')
+    return ACCOUNT_REF
+
+
 def reconcile(client=None) -> dict[str, Any]:
     local = validate_current_release()
     client = client if client is not None else CloudflareClient(read_token())
@@ -149,16 +170,19 @@ def reconcile(client=None) -> dict[str, Any]:
                 or item.get('d1_databases', {}).get('GLP_DB', {}).get('id') != D1_ID
                 or item.get('env_vars', {}).get('AFFILIATI_POSTBACK_KEY', {}).get('type') != 'secret_text'):
             raise ShipError('canonical_receiver_readback_invalid')
+        effective_account_ref(item.get('env_vars'))
     config = project.get('deployment_configs', {}).get('production', {})
     if (config.get('d1_databases', {}).get('GLP_DB', {}).get('id') != D1_ID
             or config.get('env_vars', {}).get('AFFILIATI_POSTBACK_KEY', {}).get('type') != 'secret_text'):
         raise ShipError('production_receiver_bindings_invalid')
+    effective_account_ref(config.get('env_vars'))
     if validate_current_release() != local:
         raise ShipError('release_inputs_changed_during_readback')
     return {**local, 'status': 'SKIP_ALREADY_INSTALLED', 'mode': 'accepted_current_release_reconciliation',
             'production_deployment_id': local['deployment_id'],
             'canonical_readback': {'id': canonical['id'], 'site_head': deployment_commit(canonical),
-                                   'D1_id': D1_ID, 'secret_binding_type': 'secret_text'},
+                                   'D1_id': D1_ID, 'secret_binding_type': 'secret_text',
+                                   'account_ref': ACCOUNT_REF},
             'effects': {'deployments': 0, 'D1_writes': 0, 'Sheet_writes': 0, 'provider_mutations': 0,
                         'tracking_requests': 0, 'receiver_changes': 0},
             'proof_limit': 'Accepted F06 terminal reconciliation only; not a new deployment, conversion, commission or cash.'}

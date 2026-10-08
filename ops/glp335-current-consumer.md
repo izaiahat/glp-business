@@ -17,7 +17,11 @@ semantics are preserved unchanged, not reimplemented in this consumer.
 
 Verify local terminal, manifest, receiver/contract bindings and live canonical
 project plus exact deployment detail. Emit `SKIP_ALREADY_INSTALLED` only when all
-agree; return the real publication terminal binding in the job receipt. Unknown
+agree; return the real publication terminal binding in the job receipt. The
+pinned receiver honours runtime `AFFILIATI_POSTBACK_ACCOUNT_REF` (default 15309),
+so the canonical, exact-deployment and production-config readbacks must each show
+it absent or `plain_text` exactly `15309`; opaque, wrong or malformed refuses and
+no secret value is read to resolve it. Unknown
 cohorts and mismatches refuse, with no deployment fallback. The receiver's older
 candidate/remote-migration fields are historical source facts, not reclassified
 by this consumer. No receiver code, store, runtime binding or carrier is changed.

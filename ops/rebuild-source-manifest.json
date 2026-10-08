@@ -17,21 +17,21 @@
         "ops/n8n-bridge/actions.json:affiliati_postback_ship"
       ],
       "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
-      "sha256": "a01dfaa03c7538e0eeb581dca40200528c0e3fa1553b8ebabd2f98a1ed4809e9"
+      "sha256": "e6824f33c7aebbc76b2db795ae903c9746aaef9766081157693fbfa7a36fbc01"
     },
     "tests/test_glp335_registered_current_contract.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "c3547ae7cf8c17d152ed275c6ecf477f5ec3ef652320bc9aae277971426fbf41"
+      "sha256": "d256b0822f3d06a77e516dc52a07632bf9d4597270564aaaff3a6c241d4d7341"
     },
     "ops/glp335-current-consumer.md": {
       "kind": "instruction_or_policy",
       "callers": [
         "scripts/glp_affiliati_postback_ship.py"
       ],
-      "sha256": "52cc9eac513858f4626a4adf4353e2ca9d495993a2d4c576601e705e393e1e7a"
+      "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
     },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",

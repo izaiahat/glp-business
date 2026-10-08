@@ -185,3 +185,48 @@ def test_registered_stdout_host_terminal_receipt_correlation(tmp_path, monkeypat
         assert ingress.accept(db, body)['status'] == 'completed'
         assert ingress.drain(db, lambda *args: pytest.fail('completed intent replay'))['unresolved'] == 0
         assert len(list((tmp_path / 'receipts').iterdir())) == 1
+
+
+ACCOUNT_REF_CASES = {
+    # label: (env var metadata or None for absent, expected refusal)
+    'default_absent': (None, False),
+    'plain_text_15309': ({'type': 'plain_text', 'value': '15309'}, False),
+    'plain_text_99999_false_acceptance': ({'type': 'plain_text', 'value': '99999'}, True),
+    'secret_text_opaque': ({'type': 'secret_text'}, True),
+    'malformed_value': ({'type': 'plain_text', 'value': '15309x'}, True),
+    'malformed_padded': ({'type': 'plain_text', 'value': ' 15309'}, True),
+    'malformed_empty': ({'type': 'plain_text', 'value': ''}, True),
+    'malformed_number': ({'type': 'plain_text', 'value': 15309}, True),
+    'malformed_shape': ('15309', True),
+}
+
+
+@pytest.mark.parametrize('readback', ['canonical', 'detail', 'production_config'])
+@pytest.mark.parametrize('case', sorted(ACCOUNT_REF_CASES))
+def test_account_ref_override_validated_in_every_readback(tmp_path, monkeypatch, readback, case):
+    """Labeled offline fixture: the pinned receiver honours AFFILIATI_POSTBACK_ACCOUNT_REF
+    (default 15309), so each authenticated readback must prove the effective account."""
+    ship = load()
+    fixture_release(ship, tmp_path, monkeypatch)
+    deny_effects(monkeypatch)
+    client = FixtureClient(ship)
+    canonical, detail, config = (
+        json.loads(json.dumps(client.item)) for _ in range(3))
+    client.project = lambda: (client.calls.append('project_GET') or
+        {'name': 'glp-clinic-scout', 'production_branch': 'main', 'subdomain': 'glp-clinic-scout.pages.dev',
+         'canonical_deployment': canonical, 'deployment_configs': {'production': config}})
+    client.request = lambda method, path: (client.calls.append((method, path)) or detail)
+    env_var, refuses = ACCOUNT_REF_CASES[case]
+    target = {'canonical': canonical, 'detail': detail, 'production_config': config}[readback]
+    if env_var is not None:
+        target['env_vars']['AFFILIATI_POSTBACK_ACCOUNT_REF'] = env_var
+    if refuses:
+        with pytest.raises(ship.ShipError, match='receiver_account_binding_invalid'):
+            ship.reconcile(client)
+    else:
+        result = ship.reconcile(client)
+        assert result['status'] == 'SKIP_ALREADY_INSTALLED'
+        assert result['canonical_readback']['account_ref'] == '15309'
+        assert set(result['effects'].values()) == {0}
+        assert 'MUST_NOT_EXPORT' not in json.dumps(result)
+    assert len(client.calls) == 2  # metadata reads only; no secret value retrieval
