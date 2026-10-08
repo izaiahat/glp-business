@@ -119,6 +119,16 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
         src = dst = None
         try:
             src = sqlite3.connect(source.as_uri()+'?mode=ro', uri=True, timeout=0.0)
+            if is_state:
+                if src.execute('pragma journal_mode').fetchone()[0] != 'wal':
+                    raise ValueError('current state capture requires WAL for nonblocking snapshot')
+                wal = Path(str(source)+'-wal')
+                wal_before = wal.stat().st_size if wal.exists() else 0
+                # Pin a coherent WAL read generation. Without this, unrelated
+                # writer commits can restart a multi-GiB online backup forever.
+                # WAL writers remain admitted; only checkpoint truncation waits.
+                src.execute('begin')
+                src.execute('select count(*) from sqlite_schema').fetchone()
             page_size = src.execute('pragma page_size').fetchone()[0]
             logical_bytes = page_size * src.execute('pragma page_count').fetchone()[0]
             # Reserve full staging + worst-case tar/gzip output (1% overhead)
@@ -133,9 +143,14 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             deadline = time.monotonic()+(1800 if is_state else 15)
             def progress(status, remaining, total):
                 if (time.monotonic() >= deadline or total * page_size > limit
-                        or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)):
+                        or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
+                        or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
                     raise TimeoutError('bounded ledger snapshot refused: '+rel)
             src.backup(dst, pages=256, progress=progress, sleep=0.1)
+            # Release the private source read generation before validation and
+            # compression, minimizing checkpoint delay without signalling holders.
+            src.close()
+            src = None
             # Flatten ONLY private destination; never checkpoint/VACUUM source.
             dst.execute('pragma journal_mode=delete')
             if [r[0] for r in dst.execute('pragma quick_check')] != ['ok'] or snapshot.stat().st_size > limit:
