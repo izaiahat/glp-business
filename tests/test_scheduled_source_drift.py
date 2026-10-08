@@ -299,8 +299,8 @@ def test_all_committed_host_cron_source_row_shapes_are_resolved(tmp_path):
     (hermes/'cron/jobs.json').write_text('{"jobs":[]}')
     result = load().audit(root, hermes, crontab_ids=[row['id'] for row in rows])
     assert result['host_cron_jobs']==34 and result['checked']==54
-    assert result['checked'] - result['counts']['unknown']==expected_checks==46
-    assert result['counts']['unknown']==8  # explicit bare interpreter bindings
+    assert result['checked'] - result['counts']['unknown']==expected_checks==47  # GLP80 adds the reviewed existing price payload.
+    assert result['counts']['unknown']==7  # Former bare price payload now has an exact reviewed binding.
     assert all(f['reason']=='invalid_or_absent_pin' for f in result['findings'])
 
 
@@ -321,7 +321,16 @@ def test_f09_reviewed_active_native_inventory_matches_exact_source(job_id, filen
     assert row['surface'] == 'native'
     assert row['path'] == '/home/ubuntu/.hermes/scripts/' + filename
     assert row['source'] == 'ops/hermes-cron-scripts/' + filename
-    assert sha((ROOT/row['source']).read_bytes()) == accepted_hash
+    source = (ROOT/row['source']).read_bytes()
+    if filename == 'affiliate_supply_discovery_daily.sh':
+        # Candidate v2 producer pin is not a live adoption. Preserve the exact
+        # reviewed inventory/predecessor oracle, allowing only this pin edit.
+        assert sha(source) == '4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8'
+        successor = b'b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf'
+        assert source.count(successor) == 1
+        assert sha((ROOT/'scripts/affiliate_supply_discovery.py').read_bytes()).encode() == successor
+        source = source.replace(successor, b'8f882b3fc6ae1d6fc81590c94c84b1e28c1f094e273b7b0643c013366682ca7f')
+    assert sha(source) == accepted_hash
     assert row['reviewed_sha256'] == accepted_hash
     assert row['payloads'] == []
 
@@ -346,7 +355,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = 'ba31d4048228616b2a87bc4690ad99a28bdf9bc03e09090c3171cf7595974d3d'
+    launcher_pin = '0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
@@ -390,6 +399,15 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert len(strategy_rows) == 1 and strategy_rows[0]['payloads'] == []
     assert strategy_rows[0]['reviewed_sha256'] == '484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e'
     strategy_rows[0]['reviewed_sha256'] = strategy_pin
+    # GLP-80: only the existing pricing action's payload registration changes.
+    pricing_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:daf0c212391b0319']
+    assert len(pricing_rows) == 1
+    assert pricing_rows[0]['sources'][1] == {'path': '/home/ubuntu/business/scripts/glp_pricing_refresh.py'}
+    pricing_source = 'scripts/glp_price_freshness.py'
+    pricing_pin = 'c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd'
+    assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
+    pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
+        'source': pricing_source, 'reviewed_sha256': pricing_pin}
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 
