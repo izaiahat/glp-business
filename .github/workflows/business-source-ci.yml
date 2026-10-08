@@ -190,6 +190,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp44_collector_release.py tests/test_glp44_fastpath_direct.py
+      - name: GLP44 monthly profitability mapping (offline, exact head; no registered run)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_glp_analytics_brain_monthly_profitability.py -v
       - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)
         run: .venv/bin/python -m pytest -q systems/analytics-brain/tests/test_expectations.py
       - name: Publication-date binding regression (no deployment)
