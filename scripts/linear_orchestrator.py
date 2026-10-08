@@ -21,6 +21,13 @@
         installed_files [{path,sha256}] matching current live bytes AND authenticated merged
         glp-business source. Evidence may be check/runtime, with at least one runtime receipt.
         No source authoring, reinstallation, job/send execution or effect approval occurs here.
+        Approved GLP109 two-account exception: protected_review.native binds coordinator_session_id
+        and author/reviewer {session_id,path,sha256,write_message_id,tool_result_message_id}.
+        Runtime SessionDB parent/_delegate_from and successful exact write_file bytes authenticate
+        distinct completed author/reviewer/coordinator sessions and designated Astra acceptance.
+        The non-author operator adopts that review in one comment and accepts in a different comment;
+        both bind Native independent review SHA256: <canonical native object SHA256>. No agent
+        impersonation, third account, file-only identity or native fallback on missing rows.
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --ordinary [--check-only]
         Ordinary completion: linear-ordinary-completion-v1, COMPLETE, exact issue,
         scope ordinary-code|ordinary-runtime|ordinary-readonly-runtime, protected_effects [],
@@ -514,6 +521,108 @@ def _lint_ordinary_result(path, iss):
         raise SystemExit('ordinary completion evidence unavailable/invalid: ' + str(exc)) from None
 
 
+NATIVE_REVIEW_DB = Path.home() / '.hermes' / 'state.db'
+
+
+def _lint_glp109_native_review(custody, data, iss, result_path, parent, independent, payload):
+    """Verify the retained GLP109 Astra review, not a third Linear identity.
+
+    SessionDB sessions/messages are runtime-owned provenance at the existing local
+    runtime/coordinator trust boundary, not an OS-isolated signature. Read only the
+    named native rows. The shorter-lived async ledger is not the custody source;
+    retained session parent/_delegate_from and successful write_file records are.
+    Missing/pruned custody refuses; a filesystem report never substitutes for it.
+    """
+    import re
+    import sqlite3
+
+    def require(condition, message):
+        if not condition:
+            raise SystemExit('protected native review refused: ' + message)
+
+    require(iss['identifier'] == 'GLP-109' and data['scope'] == 'protected-runtime',
+            'native exception is only the approved GLP109 retained runtime')
+    require(parent['user']['id'] == OPERATOR_USER_ID and
+            independent['user']['id'] == OPERATOR_USER_ID and
+            data['author_id'] != OPERATOR_USER_ID,
+            'non-author operator must authenticate adoption and coordinator acceptance')
+    require(set(custody) == {'coordinator_session_id', 'author', 'reviewer'}, 'exact native custody required')
+    coordinator = custody['coordinator_session_id']
+    author = custody['author']['session_id']
+    reviewer = custody['reviewer']['session_id']
+    require(all(isinstance(v, str) and v for v in (coordinator, author, reviewer)) and
+            len({coordinator, author, reviewer}) == 3, 'distinct author, reviewer and coordinator sessions required')
+    native_digest = hashlib.sha256(json.dumps(custody, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    for row in (parent, independent):
+        require(re.findall(r'^Native independent review SHA256: (.+)$', row['body'], re.M) == [native_digest],
+                'authenticated native custody binding missing, ambiguous or stale')
+    reports = Path(__file__).resolve().parents[1] / 'reports'
+    try:
+        # mode=ro never creates a DB, changes schemas or uses native helpers which
+        # open write transactions. Hold one read snapshot across all custody rows.
+        with sqlite3.connect(NATIVE_REVIEW_DB.resolve().as_uri() + '?mode=ro', uri=True, timeout=5) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            require(conn.execute('SELECT id FROM sessions WHERE id=?', (coordinator,)).fetchone(),
+                    'native coordinator session missing')
+            artifacts = {}
+            for role in ('author', 'reviewer'):
+                binding = custody[role]
+                require(set(binding) == {'session_id', 'path', 'sha256', 'write_message_id', 'tool_result_message_id'},
+                        'exact native artifact binding required')
+                session = conn.execute('SELECT parent_session_id,model,model_config,ended_at,end_reason '
+                                       'FROM sessions WHERE id=?', (binding['session_id'],)).fetchone()
+                require(session and session['parent_session_id'] == coordinator and
+                        json.loads(session['model_config'])['_delegate_from'] == coordinator and
+                        session['ended_at'] is not None and session['end_reason'] == 'agent_close',
+                        'completed native child linkage missing')
+                if role == 'reviewer':
+                    require(session['model'] == 'gpt-6-astra-900k', 'designated Astra review required')
+                source = Path(binding['path'])
+                require(source.is_absolute() and source.is_file() and not source.is_symlink() and
+                        source.resolve().is_relative_to(reports.resolve()) and
+                        re.fullmatch(r'[a-f0-9]{64}', binding['sha256']), 'reports-only native artifact required')
+                content = source.read_bytes()
+                require(hashlib.sha256(content).hexdigest() == binding['sha256'], 'native report bytes changed')
+                require(type(binding['write_message_id']) is int and type(binding['tool_result_message_id']) is int,
+                        'native message IDs required')
+                write = conn.execute('SELECT * FROM messages WHERE id=?', (binding['write_message_id'],)).fetchone()
+                result = conn.execute('SELECT * FROM messages WHERE id=?', (binding['tool_result_message_id'],)).fetchone()
+                require(write and result and write['role'] == 'assistant' and result['role'] == 'tool' and
+                        write['session_id'] == result['session_id'] == binding['session_id'] and
+                        result['tool_name'] == 'write_file' and
+                        write['timestamp'] <= result['timestamp'] <= session['ended_at'],
+                        'native report write/result custody missing')
+                calls = [call for call in json.loads(write['tool_calls'])
+                         if call.get('id') == result['tool_call_id'] and
+                         call.get('function', {}).get('name') == 'write_file']
+                require(len(calls) == 1, 'unique native write_file call required')
+                args = json.loads(calls[0]['function']['arguments'])
+                receipt = json.loads(result['content'])
+                require(args['path'] == str(source) and args['content'].encode() == content and
+                        receipt.get('verified') is True and receipt.get('resolved_path') == str(source.resolve()) and
+                        receipt.get('bytes_written') == len(content), 'native write bytes or successful receipt mismatch')
+                require(source.read_bytes() == content, 'native artifact changed during validation')
+                artifacts[role] = json.loads(content)
+    except (sqlite3.Error, KeyError, TypeError, ValueError, OSError) as exc:
+        raise SystemExit('protected native review custody unavailable/invalid: ' + str(exc)) from None
+    authored = artifacts['author']
+    source = authored['source']
+    require(authored['issue'] == iss['identifier'] and source['pr'] == data['pr']['url'] and
+            source['head'] == data['pr']['head_sha'] and source['merge'] == data['pr']['merge_sha'] and
+            source['installed_sha256'] in [f['sha256'] for f in data['installed_files']],
+            'native execution author source binding changed')
+    accepted = artifacts['reviewer']
+    require(accepted['verdict'] == 'ACCEPT_FULL_RETAINED_SCHEDULER_RUNTIME_EVIDENCE' and
+            accepted['issue'] == iss['identifier'] and accepted['issue_id'] == iss['id'] and
+            accepted['candidate'] == str(Path(result_path).resolve()) and
+            accepted['description_sha256'] == data['description_sha256'] and
+            accepted['protected_evidence_sha256'] == payload and
+            accepted['author_id'] == data['author_id'] and accepted['parent_viewer_id'] == parent['user']['id'],
+            'native independent acceptance is missing or stale for exact scope/evidence/author')
+
+
 def _lint_protected_result(path, iss, *, runtime=False):
     """Verify retained protected receipts, never authorize a new effect.
 
@@ -522,8 +631,11 @@ def _lint_protected_result(path, iss, *, runtime=False):
     JSON, excluding only review/protected_review). Parent separately binds the exact
     independent comment/body. Execution identity is parent-attested, not inferred
     from shared GitHub accounts; the authenticated independent user must differ
-    from both the attested author and parent. Missing real identity separation is
-    a blocker, not permission to invent a reviewer or rewrite a historical brief.
+    from both the attested author and parent. GLP109's explicitly approved native
+    exception instead verifies distinct completed native child sessions and exact
+    artifact-write custody; the non-author operator authenticates adoption and
+    coordinator acceptance in separate bound comments. It never infers identity
+    from an editable report label or missing runtime history.
     """
     import base64
     import re
@@ -607,10 +719,14 @@ def _lint_protected_result(path, iss, *, runtime=False):
         parent, independent = rows
         require(parent['user']['id'] in (OPERATOR_USER_ID, '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'),
                 'authenticated coordinator acceptance required')
-        require(independent['id'] != parent['id'] and
-                independent['user']['id'] not in (author, parent['user']['id']),
-                'separate non-author independent protected acceptance required')
         protected_review = data['protected_review']
+        require(independent['id'] != parent['id'], 'separate adoption and coordinator comments required')
+        if 'native' in protected_review:
+            require(runtime, 'native review cannot bypass non-code independent acceptance')
+            _lint_glp109_native_review(protected_review['native'], data, iss, path, parent, independent, payload)
+        else:
+            require(independent['user']['id'] not in (author, parent['user']['id']),
+                    'separate non-author independent protected acceptance required')
         require(re.findall(r'^Independent protected acceptance: (.+)$', parent['body'], re.M) ==
                 [protected_review['comment_id'] + ' ' + protected_review['body_sha256']],
                 'parent must bind designated independent protected acceptance')

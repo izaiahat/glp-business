@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 827,
+  "tracked_count": 828,
   "files": {
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -512,7 +512,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "90af486856c809fecceec90f825c1fd15fe43756b8d009a5640bd03412326856"
+      "sha256": "bbf5dfead5b93ea8135089cec1cc22d59d7c13abee8ecf609db8fbedd2704fa9"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -522,7 +522,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99c0c3b572e9ff50c318703cc74b45c384cc873eb436209a1bfd90634487cc7f"
+      "sha256": "9c6dd8ff1a8b173ecf625cd336a7388ec81f5f4048e24b82f2e81b5a711bd36e"
     },
     ".hermes.md": {
       "callers": [],
@@ -1178,7 +1178,7 @@
     "ops/linear/SOP.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "55cdedbff0106e21aedc5c846e1aaa760078f6ddd4c072dcdcddadfb7bdf424e"
+      "sha256": "68c3d6555878006d06976e4b82adf4aba7e3bcac361525a4f6f4a0eee6b03b03"
     },
     "ops/linear/TRIAGE-INTAKE.md": {
       "callers": [],
@@ -1215,7 +1215,7 @@
     "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "fe3705b35f340c18de92fb0b49e9c8131f2f905651b9f774433f163ff0adbb9b"
+      "sha256": "185b207ca0025925a845a3ca004d977957ec623bcddeceeb8ffeffdbe3ef90e0"
     },
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
@@ -1704,7 +1704,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "f0cdfcc8645b6e6dcf61ef3674a5c82e54931578945d5d68a0a9118f53d9a2a1"
+      "sha256": "c49d9d1fca9bcd86a67685b569796bfd370ef3b719c45fba550d80bcf0f254ef"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2046,7 +2046,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "abbff6a85b4aa2fb50788eb8d36b5d7391c06197265b5037f78879377e6f8744"
+      "sha256": "19f4a3b9dde97aca1a4cd452a99878cf0b3c478368dcb92892480b660ad3b7ec"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -2100,7 +2100,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "12382d7c4400bd29a3499ac48211a4da55e877c4c95a75f05876cc648640f2d9"
+      "sha256": "07d729257819ddffbfdc33d104dd2cd5ec9ff49c3aa3d1ce1b50382533c9ea97"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -3337,7 +3337,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "7bcd467a136ab4515a75225d95f96543eb8a825372e0bc25e059157d9eedcafc"
+      "sha256": "b46aac4765287c24ae095c9cab5f8c36c098d26187279d488c39bb2897897343"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -4848,7 +4848,7 @@
       "callers": [
         ".github/workflows/glp110-archive-admission.yml"
       ],
-      "sha256": "cd9a7222c914c3385ec31241c58a5fb333c6a82222aaebf0bdf65f37977e9aaf"
+      "sha256": "308277146984a5ab328b900a5f0106de9a5a0d65e845d93d753e8074e47d3c97"
     },
     "ops/glp110-host-archive-admission.md": {
       "kind": "documentation",
@@ -5584,6 +5584,13 @@
         "GitHub pull_request exact-head CI"
       ],
       "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+    },
+    "tests/test_glp80_registry_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
     }
   }
 }

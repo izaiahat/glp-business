@@ -48,6 +48,12 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: GLP109 protected two-account native custody (offline, exact head; no live writes)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py
       - name: Sponsor persistent continuation (offline fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -144,7 +150,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py tests/test_glp76_review_publication_date.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
-        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
+        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py tests/test_glp80_registry_adoption.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
