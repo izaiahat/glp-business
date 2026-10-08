@@ -142,10 +142,93 @@ def campaign_config():
  return config
 
 
+# This is one already-reviewed technical transition, not an arbitrary successor
+# authorizer. The immutable personal approval stays in approval.json. Only the
+# parent/coordinator may write technical-receiving.json after independent review;
+# local custody has the same trust boundary as the existing personal receipt.
+TECHNICAL_PREDECESSOR_SHA256='7ec96bf1fe44ef69fc4c7a5c2f1090420bff3d6e15140d00c02c1ac93444d95c'
+TECHNICAL_SOURCE_SHA256={
+ 'scripts/firecrawl_client.py':'aae3a1609a432cb1cf14d116119ce30336b69f2839f371d65eeade92a0381cce',
+ 'scripts/glp328_readonly_evidence.py':'bf1854217b20be3b551994f882b1e7fb4c4971930ed195cec42c714dbc4fbaee',
+ 'scripts/glp_sponsor_paypal.py':'99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7',
+ 'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':'9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2',
+}
+
+
+def technical_packet_members(packet):
+ import zipfile,stat
+ from pathlib import PurePosixPath
+ try:
+  with zipfile.ZipFile(packet) as archive:
+   infos=archive.infolist();names=[i.filename for i in infos]
+   if (len(names)!=len(set(names)) or sum(i.file_size for i in infos)>16*1024*1024
+       or any(not n or '\\' in n or PurePosixPath(n).is_absolute() or '..' in PurePosixPath(n).parts or str(PurePosixPath(n))!=n for n in names)
+       or any(i.is_dir() or stat.S_ISLNK(i.external_attr>>16) for i in infos)):
+    raise RuntimeError('technical_packet_member_ambiguous')
+   return {n:archive.read(n) for n in names}
+ except (zipfile.BadZipFile,KeyError,ValueError,TypeError) as error:
+  raise RuntimeError('technical_packet_binding_missing') from error
+
+
+def technical_equivalence(previous,current,sender_sha256):
+ """Exact original outward/economics/cadence/assets; four fixed technical pins.
+
+ Sender changes are allowed only at the exact independently reviewed digest
+ recorded by the receiving parent, never via a caller-supplied path allowlist.
+ """
+ manifest='ops/sponsor-machine/assets.json';sender='scripts/glp_sponsor_campaign.py'
+ allowed=set(TECHNICAL_SOURCE_SHA256)|{manifest,sender}
+ if set(current)!=set(previous)|set(TECHNICAL_SOURCE_SHA256):raise RuntimeError('technical_packet_scope_changed')
+ for rel,data in previous.items():
+  if rel not in allowed and current[rel]!=data:raise RuntimeError('technical_outward_bytes_changed:'+rel)
+ for rel,sha in TECHNICAL_SOURCE_SHA256.items():
+  if hashlib.sha256(current[rel]).hexdigest()!=sha:raise RuntimeError('technical_source_not_reviewed:'+rel)
+ if (not re.fullmatch('[0-9a-f]{64}',str(sender_sha256))
+     or hashlib.sha256(current[sender]).hexdigest()!=sender_sha256):raise RuntimeError('technical_sender_not_reviewed')
+ for members in (previous,current):
+  sealed=json.loads(members[manifest])
+  if not isinstance(sealed,dict) or manifest in sealed:raise RuntimeError('technical_manifest_invalid')
+  for rel,sha in sealed.items():
+   if rel not in members or hashlib.sha256(members[rel]).hexdigest()!=sha:raise RuntimeError('technical_manifest_binding_missing')
+ old=json.loads(previous[manifest]);new=json.loads(current[manifest])
+ if set(new)!=set(old)|set(TECHNICAL_SOURCE_SHA256):raise RuntimeError('technical_manifest_scope_changed')
+ if any(new.get(rel)!=sha for rel,sha in old.items() if rel not in allowed):raise RuntimeError('technical_manifest_outward_changed')
+ if new.get(sender)!=sender_sha256 or any(new.get(rel)!=sha for rel,sha in TECHNICAL_SOURCE_SHA256.items()):raise RuntimeError('technical_manifest_source_missing')
+
+
+def coordinator_technical_ready(approval,config):
+ # Never reuse the old message as approval of the successor. This branch accepts
+ # only the actual original personal approval plus a distinct coordinator act.
+ if (approval.get('actor')!='Izaiah Tilton' or approval.get('packet_sha256')!=TECHNICAL_PREDECESSOR_SHA256
+     or approval.get('decision')!='APPROVE SPONSOR PACKET '+TECHNICAL_PREDECESSOR_SHA256
+     or approval.get('discord_message_id')!='1557532710128324609'):
+  raise RuntimeError('exact_operator_approval_missing')
+ path=STATE/'technical-receiving.json'
+ if not path.is_file():raise RuntimeError('exact_operator_approval_missing')
+ receipt=load(path)
+ fields={'schema','actor','coordinator','parent_session_id','packet_sha256','predecessor_sha256','decision','reviewed_source_head','reviewed_sender_sha256','reviewed_technical_sources'}
+ if (set(receipt)!=fields or receipt.get('schema')!='sponsor.coordinator_technical_receiving.v1'
+     or receipt.get('actor')!='coordinator' or receipt.get('coordinator')!='Kael'
+     or receipt.get('parent_session_id')!='20260922_191215_fffbbb'
+     or receipt.get('packet_sha256')!=config.get('packet_sha256')
+     or receipt.get('predecessor_sha256')!=TECHNICAL_PREDECESSOR_SHA256
+     or receipt.get('decision')!='RECEIVE SPONSOR TECHNICAL SUCCESSOR '+config.get('packet_sha256','')
+     or not re.fullmatch('[0-9a-f]{40}',str(receipt.get('reviewed_source_head','')))
+     or receipt.get('reviewed_technical_sources')!=TECHNICAL_SOURCE_SHA256):
+  raise RuntimeError('coordinator_technical_receiving_invalid')
+ predecessor=ROOT/'reports/ops/sponsor-autonomous-20261007/review-packet/sponsor-review-packet.zip'
+ if digest(predecessor)!=TECHNICAL_PREDECESSOR_SHA256:raise RuntimeError('technical_predecessor_changed')
+ packet=ROOT/'reports/ops/sponsor-machine-20261003/sponsor-review-packet.zip'
+ technical_equivalence(technical_packet_members(predecessor),technical_packet_members(packet),receipt['reviewed_sender_sha256'])
+
+
 def approval_ready(config):
  if config.get('send_enabled') is not True:return False
  approval=load(STATE/'approval.json')
- if approval.get('actor')!='Izaiah Tilton' or approval.get('packet_sha256')!=config.get('packet_sha256') or approval.get('decision')!='APPROVE SPONSOR PACKET '+config.get('packet_sha256',''):raise RuntimeError('exact_operator_approval_missing')
+ if approval.get('discord_message_id')=='1557532710128324609' and approval.get('packet_sha256')!=TECHNICAL_PREDECESSOR_SHA256:
+  raise RuntimeError('original_personal_message_scope_changed')
+ if approval.get('actor')!='Izaiah Tilton' or approval.get('packet_sha256')!=config.get('packet_sha256') or approval.get('decision')!='APPROVE SPONSOR PACKET '+config.get('packet_sha256',''):
+  coordinator_technical_ready(approval,config)
  if not approval.get('discord_message_id') or not config.get('postal_address'):raise RuntimeError('approval_or_postal_address_incomplete')
  packet=ROOT/'reports/ops/sponsor-machine-20261003/sponsor-review-packet.zip'
  if digest(packet)!=config['packet_sha256']:raise RuntimeError('packet_bytes_changed')

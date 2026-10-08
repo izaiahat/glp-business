@@ -2,8 +2,9 @@
 """Prepare an UNAPPROVED, technical-only successor of an immutable sponsor ZIP.
 
 Never installs, activates, writes approval receipts or uses the network. The
-existing sender's complete-archive/hash guard is unchanged: the operator must
-approve the NEW hash separately. Copy, cadence, PDFs and capture evidence are
+default path still requires exact operator approval. The narrow coordinator
+guard proposal instead requires separate parent technical receiving of unchanged
+personal-approved scope. Copy, cadence, PDFs and capture evidence are
 retained byte for byte, not regenerated. Candidate dependencies are labelled
 unmerged; they are never represented as a supported installation.
 """
@@ -77,12 +78,17 @@ def safe_name(name):
 
 
 def build_successor(packet, expected_sha256, source_checkout, dependency_checkout,
-                    dependency_head, output, operator_attestation=False):
+                    dependency_head, output, operator_attestation=False, include_coordinator_guard=False):
     packet, source_checkout, dependency_checkout, output = map(
         Path, (packet, source_checkout, dependency_checkout, output))
     original = packet.read_bytes()
     if not re.fullmatch('[0-9a-f]{64}', expected_sha256) or sha(original) != expected_sha256:
         raise ValueError('predecessor_packet_hash_mismatch')
+    if include_coordinator_guard:
+        import glp_sponsor_campaign as receiving
+        if expected_sha256 != receiving.TECHNICAL_PREDECESSOR_SHA256:
+            raise ValueError('coordinator_predecessor_not_approved')
+        operator_attestation = True
     if output.exists() or output.is_symlink():
         raise ValueError('output_already_exists')
     if any(output.resolve().is_relative_to(p.resolve()) for p in (source_checkout, dependency_checkout)):
@@ -92,7 +98,7 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
         raise ValueError('dependency_head_mismatch')
     source_merged = merged(source_checkout, source_head)
     dependency_merged = merged(dependency_checkout, dependency_head)
-    if not source_merged:
+    if not source_merged and not include_coordinator_guard:
         raise ValueError('sponsor_source_not_merged')
     with zipfile.ZipFile(io.BytesIO(original)) as archive:
         infos = archive.infolist()
@@ -118,6 +124,7 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
     # Read immutable Git objects, never mutable worktree files.
     allowed={CLIENT,READER,MANIFEST}
     if operator_attestation:allowed.add(PAYPAL)
+    if include_coordinator_guard:allowed.add('scripts/glp_sponsor_campaign.py')
     for rel, old_bytes in members.items():
         if rel in sealed and (rel.endswith('.py') or rel.startswith('ops/sponsor-machine/')) and rel not in allowed:
             if git(source_checkout, 'show', source_head + ':' + rel) != old_bytes:
@@ -130,9 +137,16 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
         authority=git(source_checkout,'show',source_head+':'+ATTESTATION)
         if sha(authority)!=ATTESTATION_SHA256:raise ValueError('operator_attestation_authority_mismatch')
         updates.update({PAYPAL:git(source_checkout,'show',source_head+':'+PAYPAL),ATTESTATION:authority})
+    if include_coordinator_guard:
+        sender = 'scripts/glp_sponsor_campaign.py'
+        updates[sender] = git(source_checkout,'show',source_head+':'+sender)
+        if updates[sender] != Path(receiving.__file__).read_bytes():
+            raise ValueError('coordinator_guard_not_committed_source')
     new_members = {**members, **updates}
     new_manifest = {**sealed, **{p: sha(b) for p, b in updates.items()}}
     new_members[MANIFEST] = (json.dumps(new_manifest, indent=2, sort_keys=True) + '\n').encode()
+    if include_coordinator_guard:
+        receiving.technical_equivalence(members,new_members,sha(updates[sender]))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for info in infos:
@@ -160,6 +174,11 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
         'preserved': 'Exact original packet remains immutable; unchanged copy/cadence and rendered assets retained. New hash needs separate exact authority; no old receipt is transplanted.',
         'effects': {'installs': 0, 'sends': 0, 'financial_writes': 0, 'deploys': 0, 'approval_writes': 0},
     }
+    if include_coordinator_guard:
+        result.update(coordinator_technical_receiving_required=True,
+                      approval_required='RECEIVE SPONSOR TECHNICAL SUCCESSOR '+sha(successor),
+                      personal_approval_scope='Immutable original exact hash/copy/cadence; NOT a new operator message',
+                      preserved='Original personal approval and archive immutable; independent exact-head acceptance then parent-only technical receiving required. No receipt is generated.')
     if packet.read_bytes() != original:
         raise ValueError('predecessor_changed_during_build')
     output.mkdir(parents=True, exist_ok=False)
@@ -177,9 +196,10 @@ def main():
     parser.add_argument('--dependency-head', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--operator-attestation',action='store_true',help='Seal the independently accepted ownership receiver and exact existing operator record, not provider BUSINESS/email evidence.')
+    parser.add_argument('--include-coordinator-guard',action='store_true',help='Propose only the maintained receiving guard plus the four fixed reviewed technical dependencies; never writes receiving authority. Unmerged source is labelled candidate only.')
     args = parser.parse_args()
     result = build_successor(args.packet, args.expected_sha256, args.checkout,
-                             args.dependency_checkout, args.dependency_head, args.output,args.operator_attestation)
+                             args.dependency_checkout, args.dependency_head, args.output,args.operator_attestation,args.include_coordinator_guard)
     print(json.dumps(result, sort_keys=True))
 
 

@@ -10,6 +10,11 @@
   "schema": "GLP_BUSINESS_SOURCE_V1",
   "tracked_count": 828,
   "files": {
+    "tests/test_glp_sponsor_technical_receiving.py": {
+      "kind": "test",
+      "callers": ["scripts/run_tests.sh"],
+      "sha256": "d91f83a2880f2f77daa7be612eb38f31273d224871dec2245766b05af2bf6708"
+    },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
       "callers": [
@@ -2202,7 +2207,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "425a1a4b6259adc84b2f99672119dff1e5ae5f7b31a6ee4f05125e104481d217"
+      "sha256": "e81e85b465f6ce0e2f33d3f2a2f58fc28323cef9c0606d477f5b49799c560b55"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2895,14 +2900,14 @@
         "tests/test_glp_sponsor_packet_successor.py"
       ],
       "kind": "script",
-      "sha256": "a0ea75bdd9ba0d7a9ddea220ab6f7f301b943e78087f0e006ab59b3504fec9f9"
+      "sha256": "acfdf208eb32c117a6e38272e5c9c8d9d66659195f145c88cc18b5d972162b80"
     },
     "tests/test_glp_sponsor_packet_successor.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "bcf0298cac20b24d28d050b2201e917daf3efdf575efa6142bbc60d70ddad277"
+      "sha256": "9284ab874e1126f6609b5217b2523d46c53e413483a661a9fa4e69b3cf375b9b"
     },
     "tests/test_glp328_cold_wal.py": {
       "callers": [
@@ -4495,7 +4500,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "6b02be915865c1c5e9e1bac3a662f72d87db949b10e61af5a6bcf523e34cc104"
+      "sha256": "ca4c97e48d9a1a080077a032558a2d895a9612305b8c55e6be827499bd51c26a"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4514,7 +4519,7 @@
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
       "callers": [],
-      "sha256": "acae3df1bd2de39e8c5ee8d82ea4aa4a2eb4da0168dae442910eb0ce80255a88"
+      "sha256": "409d5e8995910963ee27954afef919ece79f711b48f1e19076f70a4a7f6ed44a"
     },
     "ops/hermes-cron-scripts/glp_sponsor_campaign.sh": {
       "kind": "source_control",
