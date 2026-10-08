@@ -1061,10 +1061,95 @@ class TestDiscordAPI:
         assert not self.calls
 
 
+class TestAllowedOrigins:
+    ORIGINS = ('https://chatgpt.com', 'https://chat.openai.com')
+    INVALID = ('https://evil.example', 'null', '*', 'http://chatgpt.com',
+               'https://chatgpt.com/', 'https://chatgpt.com:443',
+               'https://chatgpt.com.evil.example', 'https://sub.chatgpt.com',
+               'https://chatgpt.com@evil.example', 'https://CHATGPT.COM',
+               'https://chatgpt.com https://chat.openai.com')
+
+    @pytest.mark.parametrize('origins', [(), ORIGINS[:1], ORIGINS[1:], ORIGINS])
+    @pytest.mark.parametrize('metadata_only', [False, True])
+    def test_cli_http_origin_and_host_boundaries(self, tmp_path, monkeypatch, origins, metadata_only):
+        """Real CLI, application and HTTP parser; no listener, credentials or Discord."""
+        m = module()
+        class MemorySocket:
+            def __init__(self, raw): self.input = io.BytesIO(raw); self.output = bytearray()
+            def makefile(self, *args): return self.input
+            def settimeout(self, timeout): assert timeout == 10
+            def sendall(self, data): self.output.extend(data)
+        class FakeHTTP:
+            def __init__(self, address, handler):
+                assert address == ('127.0.0.1', 8765)
+                self.handler = handler
+        async def run(app, server, cursor, seconds):
+            assert tuple(app.config.allowed_origins) == origins
+            assert app.config.policy_fields() == {**config(m).policy_fields(),
+                                                 'subject': None if metadata_only else 'auth0|operator'}
+            data = m.canonical(rpc(m, 'server/discover')).encode()
+            def request(extra='', host='127.0.0.1:8765'):
+                raw = (f'POST /mcp HTTP/1.1\r\nHost: {host}\r\n'
+                       f'MCP-Protocol-Version: {m.VERSION}\r\nContent-Type: application/json\r\n'
+                       f'Content-Length: {len(data)}\r\n{extra}\r\n').encode() + data
+                sock = MemorySocket(raw)
+                server.handler(sock, ('127.0.0.1', 1), server)
+                return bytes(sock.output)
+            assert request().startswith(b'HTTP/1.1 401')
+            for origin in self.ORIGINS + self.INVALID + ('',):
+                response = request(f'Origin: {origin}\r\n')
+                status = 401 if origin in origins else 403
+                assert response.startswith(f'HTTP/1.1 {status}'.encode()), origin
+                assert b'Access-Control-Allow-Origin:' not in response
+                if status == 401:
+                    assert b'WWW-Authenticate:' in response
+                else:
+                    assert b'origin_refused' in response
+            for origin in self.ORIGINS:
+                header = f'Origin: {origin}\r\n'
+                assert request(header, host='evil.example').startswith(b'HTTP/1.1 403')
+                for duplicate in (header, 'origin: https://evil.example\r\n',
+                                  'Host: 127.0.0.1:8765\r\n'):
+                    response = request(header + duplicate)
+                    assert response.startswith(b'HTTP/1.1 403')
+                    assert b'host_or_duplicate_header_refused' in response
+            return 0
+        monkeypatch.setattr(m, 'HTTPServer', FakeHTTP)
+        monkeypatch.setattr(m, 'run_adapter', run)
+        monkeypatch.setattr(m.os, 'umask', lambda *args: None)
+        args = ['--issuer', 'https://tenant.example/', '--audience', 'https://rook.example/mcp',
+                '--local-tunnel-metadata', '--port', '8765', '--max-run-seconds', '1']
+        if metadata_only:
+            args += ['--metadata-only']
+        else:
+            args += ['--operator-subject', 'auth0|operator', '--state-dir', str(tmp_path / 'private'),
+                     '--after-message', '100']
+        for origin in origins:
+            args += ['--allowed-origin', origin]
+        assert m.main(args) == 0
+
+    @pytest.mark.parametrize('origin', INVALID + ('',))
+    def test_unapproved_configuration_refused(self, origin, monkeypatch):
+        from dataclasses import replace
+        m = module()
+        with pytest.raises(ValueError):
+            replace(config(m), allowed_origins=(origin,))
+        monkeypatch.setattr(m, 'Application', lambda *a, **k: pytest.fail('startup must not occur'))
+        with pytest.raises(SystemExit) as exc:
+            m.main(['--issuer', 'https://tenant.example/', '--audience', 'https://rook.example/mcp',
+                    '--local-tunnel-metadata', '--port', '8765', '--max-run-seconds', '1',
+                    '--metadata-only', '--allowed-origin', origin])
+        assert exc.value.code == 2
+
+
 class TestAuthDiscovery:
-    def test_real_jwt_verification_and_discovery(self, tmp_path):
+    @pytest.mark.parametrize('origin', [None, 'https://chatgpt.com', 'https://chat.openai.com'])
+    def test_real_jwt_verification_and_discovery(self, tmp_path, origin):
+        from dataclasses import replace
         m = module()
         cfg = config(m)
+        if origin:
+            cfg = replace(cfg, allowed_origins=(origin,))
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         jwk = jwt.PyJWK.from_json(jwt.algorithms.RSAAlgorithm.to_jwk(key.public_key()), algorithm='RS256')
         class Keys:
@@ -1090,6 +1175,14 @@ class TestAuthDiscovery:
         status, headers, body = app.handle('POST', '/mcp', {'MCP-Protocol-Version': m.VERSION}, rpc(m, 'server/discover'))
         assert status == 401 and 'resource_metadata' in headers['WWW-Authenticate']
         headers = {'Authorization': 'Bearer ' + token, 'MCP-Protocol-Version': m.VERSION}
+        if origin:
+            headers['Origin'] = origin
+        for delta, expected in (({'sub': 'auth0|other'}, 401), ({'aud': 'other'}, 401),
+                                ({'iss': 'https://evil.example/'}, 401), ({'exp': 1}, 401),
+                                ({'scope': ''}, 403), ({'permissions': []}, 403)):
+            bad = jwt.encode({**claims, **delta}, key, algorithm='RS256')
+            assert app.handle('POST', '/mcp', {**headers, 'Authorization': 'Bearer ' + bad},
+                              rpc(m, 'server/discover'))[0] == expected
         status, _, body = app.handle('POST', '/mcp', headers, rpc(m, 'server/discover'))
         assert status == 200
         assert body['result']['resultType'] == 'complete'

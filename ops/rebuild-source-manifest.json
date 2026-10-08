@@ -1280,7 +1280,7 @@
         "manual:parent-owned launch requirements; rollout held"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "2885526123a041bbdf9af053a8cca7b297e35653ab2016b24f3b22518af356fa"
+      "sha256": "9f42b0a72d1e213f05f8db3b8ee85c1889cf99e39d643c4a51f9f4e3de0e9329"
     },
     "ops/rook-mcp/requirements.txt": {
       "callers": [
@@ -2230,7 +2230,7 @@
         "manual:parent-owned bounded HTTP tunnel adapter; rollout held"
       ],
       "kind": "script",
-      "sha256": "b3c99fff316e9a2bcfe0fdbc5304d8ba7592a04150cd6c56d91d13b6debe32b8"
+      "sha256": "9ed6901eb52c76afaf3cce4a8fb8d32ed97418d3a8abbc8752f8eaa387d00bc2"
     },
     "scripts/root_custody/phased.py": {
       "callers": [],
@@ -3421,7 +3421,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "86bd8a1fd88094bc495ef30fea11703563505810ac4114f8a242bd501094c7e9"
+      "sha256": "1247a4ea5f9f55c2a0e698b00b876c5bc78304f2845574af9ea733fb59a1b998"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [
