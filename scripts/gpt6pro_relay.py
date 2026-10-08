@@ -736,8 +736,19 @@ def _paced_send(callback):
 
 
 def bu_json(script: str, timeout: int = 300) -> dict:
-    envelope = load_config().get('envelope', {})
+    cfg = load_config()
+    envelope = cfg.get('envelope', {})
     cap = min(3, envelope.get('max_concurrent_chats_per_account', 3)) + 2
+    # Terminal dispositions release active capacity but must retain their exact
+    # evidence tabs. Account for only byte/journal-verified terminal custody;
+    # ordinary uncertain targets get NO extra allowance. Active admission stays
+    # three/account and six/IP under the existing global reservation lock.
+    accounts = [a for a in cfg.get('accounts', [])
+                if f"http://127.0.0.1:{a.get('cdp_port', 9340)}" == BU_ENV['BU_CDP_URL']]
+    if len(accounts) == 1:
+        retained = {t for s in sibling_bindings(accounts[0]['label'], '')
+                    if _verified_terminal_unsent(s) for t in custody_tabs(s)}
+        cap += len(retained)
     preamble = ('import time\n_pace_path=' + repr(str(BUSINESS / 'ops/gpt6pro-relay/locks/page-load-ip.clock')) +
                 '\n_page_gap=' + repr(max(60, 60 / max(0.01, envelope.get('max_page_loads_per_min_per_ip', 1)))) + '\n')
     preamble = ('\n_tab_cap=' + repr(cap) + '\n_submit_gap=' +
@@ -1006,6 +1017,24 @@ function committed6ProMaximum(){
         return owners===1&&accepted;
     }catch(_){return false;}
 }
+function picker6ProLabel(row,view){
+    const label=row.innerText.trim().replace(/\s+/g,' ');
+    if(label==='6 Pro')return true;
+    // Observed default-family UI abbreviates 6 Pro as Pro. Never trust
+    // Pro alone: require the same picker to name exactly one selected GPT-6
+    // family, the explicit default-family/effort-only schema, and the existing
+    // maximum/4-of-4 gate below. The CLOSED incoming-parent gpt-6-pro/null
+    // witness remains mandatory before typing and again at Send.
+    if(label!=='Pro')return false;
+    const owner=row.closest('[data-explicit-model]');
+    const badge=row.querySelector('[data-maximum=true][data-effort-only=true]');
+    if(!owner||owner.getAttribute('data-explicit-model')!=='false'||
+       !badge||badge.getAttribute('data-effort-only')!=='true')return false;
+    const selected=[...view.querySelectorAll('[role=menuitemradio][aria-checked=true]')];
+    return selected.length===1&&selected[0].innerText.trim()==='GPT-6'&&
+        selected[0].getAttribute('aria-checked')==='true'&&
+        selected[0].getAttribute('data-model-selected')==='true';
+}
 function full6ProMaximum(){
     const actionable=pickerActionable,menu=pickerMenu();
     if(!menu)return false;
@@ -1016,7 +1045,7 @@ function full6ProMaximum(){
     if(rows.length!==1)return false;
     const row=rows[0],owner=row.closest('[aria-hidden]');
     if(!owner||owner.getAttribute('aria-hidden')!=='false'||
-       row.innerText.trim().replace(/\s+/g,' ')!=='6 Pro')return false;
+       !picker6ProLabel(row,view))return false;
     const badge=row.querySelector('[data-maximum=true]');
     // The observed thumb is aria-hidden=true; its active Power menuitem is
     // the accessible control. Never ignore hidden/inert ancestry or disablement.
@@ -1336,6 +1365,10 @@ if EXISTING_ONLY:
     if _conversation(_here(tab))!=want: _binding_error('legacy_tab_mismatch', expected=want, tab=tab)
 else:
     tab=_bound_tab(want, {tab!r}, {list(protected)!r})
+# Chrome virtualizes background transcripts. Activate only the already proved
+# exact target; never navigate or reload a nonterminal chat to obtain text.
+activate_tab(tab)
+time.sleep(1)
 probe=lambda expression: _bound_js(tab, want, expression)
 st=_state(probe)
 if RELOAD and not st["stop"] and not st["thinking_failed"]:
@@ -2518,6 +2551,19 @@ TERMINAL_UNSENT_PR52 = {
 # Acct2's consumed UNKNOWN job is deliberately absent; stale error flags cannot
 # establish unsent custody. These pins do not broaden PR52/canary exceptions.
 TERMINAL_UNSENT_CURRENT = {
+    # Exact first-attempt refusal at _new_tab, before creation/typing; no retry.
+    'route-glp-80-0165c8c734145a8044438815': {
+        'job': 'route-glp-80-0165c8c734145a8044438815',
+        'held': 'ca026a94c263e6f45054353f8a1e8b6e35e5e23598d6c841ae58cb1cd508af8f',
+        'status': 'failed', 'reason': 'TAB_CAP', 'backup': None,
+        'message': '7589e8921ddfaddcafeb70455662cdb81127ffeccfc9219ec348e85dbe6a7a5e',
+        'manifest': '2c21a666b44ef1f713e068d16032024bb23984588104bf212bdf8ee38a7b21d3',
+        'drive_prompt': '2abe3e55eb9ff67175ad183df94b25641eafbce260dad3bc3fca81419fc97838',
+        'ledger_lines': ('06b6e63b2ecebb6a370dff8af6d227378a04564807d9927ccb33d38df80596c6',),
+        'tab': None, 'time_origin': None, 'pretarget': True,
+        'attempt_log': 'ops/gpt6pro-relay/route/logs/route-glp-80-0165c8c734145a8044438815-submit-1791412306196753224.log',
+        'attempt_log_sha256': 'b03698bdca2fcf66eed6a716acf7dcfb3faf99b0aac9363d70fec1334164c0e9',
+    },
     'glp44-canonical-sensor-partition-20261006': {
         'job': 'glp44-canonical-sensor-partition-20261006',
         'held': 'a9217c279914d3a72be56525e3b01215fc9424a5ebcf9dd7a190f247bf436575',
@@ -2698,12 +2744,29 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     sha = lambda b: hashlib.sha256(b).hexdigest()
     error = st.get('error') or {}
     observed = error.get('state') or {}
+    attempt_custody = {}
+    if c.get('pretarget'):
+        # Closed pinned incident schema, no target or stale readiness inference.
+        if (c['job'] != 'route-glp-80-0165c8c734145a8044438815' or c.get('generic') or
+                c['tab'] is not None or c['time_origin'] is not None or
+                error != {'error': 'TAB_CAP', 'typed': False, 'sent': False, 'count': 5, 'cap': 5}):
+            raise ValueError('PRETARGET')
+        lp = (BUSINESS / c['attempt_log']).resolve()
+        if Path(c['attempt_log']).is_absolute() or not lp.is_relative_to(BUSINESS.resolve()):
+            raise ValueError('LOG_PATH')
+        log_bytes = lp.read_bytes()
+        if (sha(log_bytes) != c['attempt_log_sha256'] or
+                log_bytes != ('SEND_FAILED TAB_CAP ' + json.dumps(error) + '\n').encode()):
+            raise ValueError('ATTEMPT_LOG')
+        attempt_custody[lp] = log_bytes
+    readiness_invalid = (not c.get('pretarget') and
+        (observed.get('url') != 'https://chatgpt.com/' or observed.get('stop') is not False or
+         observed.get('assistant_count') != 0 or observed.get('last_len') != 0))
     if (sha(preimage) != c['held'] or json.loads(preimage) != st or
             st.get('status') != c['status'] or st.get('reason') != c['reason'] or
             st.get('retry_blocked') is not True or st.get('typed') is not False or st.get('sent') is not False or
             error.get('error') != c['reason'] or error.get('typed') is not False or error.get('sent') is not False or
-            (error.get('tab') != c['tab'] and not (c.get('generic') and error.get('tab') is None)) or observed.get('url') != 'https://chatgpt.com/' or
-            observed.get('stop') is not False or observed.get('assistant_count') != 0 or observed.get('last_len') != 0 or
+            (error.get('tab') != c['tab'] and not (c.get('generic') and error.get('tab') is None)) or readiness_invalid or
             any(k in st for k in ('resume_attempt', 'resume_history', 'resume_error', 'terminal_unsent')) or
             any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
         raise ValueError('STATE')
@@ -2714,6 +2777,7 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     if c['backup']:
         pins['JOB.pre-readiness-reconcile-' + c['backup'] + '.json'] = c['backup']
     custody = {d / name: (d / name).read_bytes() for name in pins}
+    custody.update(attempt_custody)
     if any(sha(custody[d / name]) != digest for name, digest in pins.items()):
         raise ValueError('CUSTODY')
     if c['backup']:
@@ -2745,6 +2809,12 @@ def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
     if tuple(map(sha, lines[:n])) != c['ledger_lines']:
         raise ValueError('LEDGER')
     rows = [json.loads(line) for line in lines]
+    if c.get('pretarget') and (len(c['ledger_lines']) != 1 or
+            rows[0].get('event') != 'submitted' or rows[0].get('kind') != 'initial' or
+            rows[0].get('certainty') != 'reserved_may_send' or rows[0].get('phase') is not None or
+            rows[0].get('account') != st['account'] or
+            any(rows[0].get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('RESERVATION')
     rp = (BUSINESS / report).resolve()
     if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
         raise ValueError('REPORT_PATH')

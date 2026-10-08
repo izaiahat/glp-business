@@ -65,6 +65,7 @@ class FakeCDP:
         self.app_samples = []
         self.app_overrides = {}
         self.on_run = lambda: None
+        self.on_activate = lambda tid: None
 
     def list_tabs(self):
         return [{"targetId": tid, "url": p["url"]} for tid, p in self.pages.items()]
@@ -327,7 +328,7 @@ class FakeCDP:
         clock.monotonic = lambda: self.clock
         env = {"cdp": self.cdp, "js": self.js, "list_tabs": self.list_tabs, "switch_tab": self.switch_tab,
                "current_tab": self.current_tab, "goto_url": self.goto_url, "wait_for_load": lambda: None,
-               "activate_tab": lambda tid: None, "close_tab": lambda tid: self.pages.pop(tid)}
+               "activate_tab": self.on_activate, "close_tab": lambda tid: self.pages.pop(tid)}
         out = io.StringIO()
         with mock.patch.dict(sys.modules, {"time": clock}), redirect_stdout(out):
             try:
@@ -383,6 +384,22 @@ class BindingTests(unittest.TestCase):
               "submitted": relay.now_iso(), **extra}
         relay.job_write(name, st)
         return st
+
+    def test_bound_poll_activates_virtualized_target_without_reload_or_completion(self):
+        self.browser.pages['wanted'] = {'url': WANT, 'text': '', 'composer': '', 'messages': True, 'stop': True}
+        activated = []
+        def render(tid):
+            activated.append(tid)
+            self.browser.pages[tid]['text'] = 'visible streaming answer'
+        self.browser.on_activate = render
+        result = relay.read_reply(WANT, 'wanted', existing_only=True)
+        self.assertEqual(result['text'], 'visible streaming answer')
+        self.assertTrue(result['state']['stop'])
+        self.assertEqual(activated, ['wanted'])
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_postinsert_guard_terminal_preserves_unknown_and_draft(self):
         """Exact custody branch, never an error-string or empty-page waiver."""
@@ -1747,7 +1764,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         """No replay: exact WRONG_MODEL/readiness pins, UNKNOWN stays held."""
         import copy
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
-        jobs = [('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
+        jobs = [('route-glp-80-0165c8c734145a8044438815', 'failed', 'TAB_CAP'),
+                ('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
                 ('pro-glp96-intake-design-closer-20261003', 'unsent_reconciled', 'SECURITY_INTERSTITIAL')]
         pins, originals = {}, {}
         report = 'reports/current-terminal-facts.json'
@@ -1772,6 +1790,8 @@ console.log(JSON.stringify(fixtures.map(f => {
                               'assistant_count': 0, 'last_len': 0}}}
             if tab:
                 original['error']['tab'] = tab
+            if reason == 'TAB_CAP':
+                original['error'] = {'error': reason, 'typed': False, 'sent': False, 'count': 5, 'cap': 5}
             old_bytes = json.dumps(original).encode()
             backup = sha(old_bytes) if tab else None
             held = dict(original)
@@ -1802,6 +1822,10 @@ console.log(JSON.stringify(fixtures.map(f => {
                  'backup': backup, 'tab': tab, 'time_origin': origin,
                  'status': status, 'reason': reason}
             pins[job] = c
+            if reason == 'TAB_CAP':
+                log = self.root / 'reports/tabcap-submit.log'
+                log.write_text('SEND_FAILED TAB_CAP ' + json.dumps(original['error']) + '\n')
+                c.update(pretarget=True, attempt_log=str(log.relative_to(self.root)), attempt_log_sha256=sha(log.read_bytes()))
             facts.append({'job': job, 'disposition': 'terminal_unsent_obsolete', 'reason': reason,
                 'typed': False, 'sent': False, 'submission_bound': False,
                 'job_sha256': c['held'], 'message_sha256': c['message'], 'error_tab': tab,
@@ -1853,6 +1877,12 @@ console.log(JSON.stringify(fixtures.map(f => {
                     witness.return_value = False
                     with self.assertRaises(SystemExit): call(job)
                     witness.return_value = True
+                if c.get('pretarget'):
+                    log = self.root / c['attempt_log']
+                    saved = log.read_bytes()
+                    log.write_bytes(saved + b'drift')
+                    with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'): call(job)
+                    log.write_bytes(saved)
                 pre_ledger = relay.ledger_path(self.cfg).read_bytes()
                 self.assertEqual(call(job, '--apply', '--authorize-preimage', c['held'])[0], 0)
                 terminal = relay.job_state(job)
