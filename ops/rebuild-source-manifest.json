@@ -585,7 +585,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0edf80224f20c140ce83eae6fa02bea5d5c8ca877246ae18f27ad57cd6c7e7fd"
+      "sha256": "517e40caf6ada03346ef77ce27e676d68a75db936375f1baca6b149cff490664"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1852,7 +1852,7 @@
         "direct:cadence"
       ],
       "kind": "script",
-      "sha256": "4d51a627d7a5208238ab7ce7622772c118d9b141497942bf9ed8bd6d4587bcb2"
+      "sha256": "89249038b5d6ee11ca61d60ca828f8362e09038b7b7b77ff7f230b792dd09b8b"
     },
     "scripts/glp_application_dedupe.py": {
       "callers": [
@@ -5657,6 +5657,13 @@
         "GitHub pull_request exact-head CI"
       ],
       "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+    },
+    "tests/test_glp_analytics_brain_monthly_profitability.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d7b7bb99d5c7cb95f323f01c052e0c2364cb3f2011ea066f29dda4d73b1f30a5"
     },
     "tests/test_glp80_registry_adoption.py": {
       "kind": "test",
