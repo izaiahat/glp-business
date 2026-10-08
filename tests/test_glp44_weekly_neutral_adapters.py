@@ -25,7 +25,7 @@ def load_without_host_imports(rel, **bindings):
         or isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
         and ast.unparse(n.value.func) == 'sys.path.insert'
         or isinstance(n, ast.If) and '__name__' in ast.unparse(n.test))]
-    ns = {'__name__': 'offline_weekly', **bindings}
+    ns = {'__name__': 'offline_weekly', '__file__':str(ROOT/rel), **bindings}
     exec(compile(tree, str(ROOT / rel), 'exec'), ns)
     return ns
 
@@ -81,6 +81,9 @@ def test_weekly_source_stage_requests_bounded_posthog(tmp_path, monkeypatch):
     stub.collect = collect
     stub.read_binding = lambda b: json.loads(Path(b['path']).read_text())
     monkeypatch.setitem(sys.modules, stub.__name__, stub)
+    estate=types.ModuleType('ops.glp.weekly_strategy_inputs')
+    estate.estate_snapshot=runpy.run_path(str(ROOT/'ops/glp/weekly_strategy_inputs.py'))['estate_snapshot']
+    monkeypatch.setitem(sys.modules,estate.__name__,estate)
     ns.update(B=base, RecordedCogny=Cogny, capture_page=lambda route, store: (route, {}, None))
     result = ns['run'](tmp_path / 'collected', report_date=dt.date(2026, 10, 7))
     inputs = json.loads(Path(result['manifest']['path']).read_text())['inputs']
