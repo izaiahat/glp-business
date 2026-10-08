@@ -47,36 +47,81 @@ def tree_stats(path, *, cutoff=None, deadline=None, protected=lambda p: False, a
 
 
 def discovery(root, cursor, *, deadline, skip):
-    """Incremental no-follow scandir DFS with mutation-safe handled-name cursors."""
+    """No-follow DFS; durable progress is acknowledged names, never offsets.
+
+    Retain each live parent's iterator and handled set across child visits, so
+    wide sibling trees are not repeatedly enumerated from the beginning. These
+    caches are invocation-local and closed on every exit. A fresh sweep after
+    any progress discovers siblings added while visiting children; a sweep with
+    no new names finishes the frame. Each resumed invocation enumerates afresh.
+    Eligibility, skip checks and the caller's effect gates are never cached.
+    """
     root = Path(root).absolute()
     frames = cursor.setdefault('frames', [[str(root), []]])
     if any(not isinstance(frame[1], list) for frame in frames):
         frames[:] = [[str(root), []]]
-    while frames:
-        if time.monotonic() >= deadline:
-            raise ScanBudget()
-        directory, handled = frames[-1]
-        parent = Path(directory)
-        if (parent != root and root not in parent.parents) or parent.is_symlink() or skip(parent):
-            frames.pop(); continue
-        visited = set(handled)
-        try:
-            with os.scandir(parent) as entries:
-                for entry in entries:
-                    if time.monotonic() >= deadline:
-                        raise ScanBudget()
-                    if entry.name in visited:
-                        continue
-                    path = Path(entry.path)
-                    if entry.is_symlink() or skip(path):
-                        handled.append(entry.name); visited.add(entry.name); continue
-                    is_dir = entry.is_dir(follow_symlinks=False)
-                    descend = yield path, is_dir
-                    # Advance only AFTER the caller completes the gate/effect.
-                    handled.append(entry.name); visited.add(entry.name)
-                    if is_dir and descend:
-                        frames.append([str(path), []]); break
-                else:
-                    frames.pop()
-        except (FileNotFoundError, PermissionError):
-            frames.pop()
+    live = {}
+
+    def drop():
+        frame = frames.pop()
+        state = live.pop(id(frame), None)
+        if state is not None:
+            state['entries'].close()
+
+    try:
+        while frames:
+            if time.monotonic() >= deadline:
+                raise ScanBudget()
+            frame = frames[-1]
+            directory, handled = frame
+            parent = Path(directory)
+            if (parent != root and root not in parent.parents) or parent.is_symlink() or skip(parent):
+                drop(); continue
+            try:
+                state = live.get(id(frame))
+                if state is None:
+                    state = {'entries': os.scandir(parent), 'visited': set(handled), 'advanced': False}
+                    live[id(frame)] = state
+                try:
+                    entry = next(state['entries'])
+                except StopIteration:
+                    state['entries'].close()
+                    if state['advanced']:
+                        state['entries'] = os.scandir(parent)
+                        state['advanced'] = False
+                    else:
+                        drop()
+                    continue
+                if time.monotonic() >= deadline:
+                    raise ScanBudget()
+                if entry.name in state['visited']:
+                    continue
+                path = Path(entry.path)
+                # DirEntry type bits can predate a caller mutation while this
+                # parent iterator was suspended. Read the current no-follow type.
+                try:
+                    mode = path.lstat().st_mode
+                except FileNotFoundError:
+                    handled.append(entry.name)
+                    state['visited'].add(entry.name)
+                    state['advanced'] = True
+                    continue
+                if stat.S_ISLNK(mode) or skip(path):
+                    handled.append(entry.name)
+                    state['visited'].add(entry.name)
+                    state['advanced'] = True
+                    continue
+                is_dir = stat.S_ISDIR(mode)
+                descend = yield path, is_dir
+                # Advance only AFTER the caller completes the gate/effect.
+                handled.append(entry.name)
+                state['visited'].add(entry.name)
+                state['advanced'] = True
+                if is_dir and descend:
+                    frames.append([str(path), []])
+            except (FileNotFoundError, PermissionError):
+                drop()
+    finally:
+        for state in live.values():
+            state['entries'].close()
+
