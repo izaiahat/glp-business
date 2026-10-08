@@ -74,11 +74,14 @@ def fixture_release(ship, tmp_path, monkeypatch):
         'auth': {'secret_binding': 'AFFILIATI_POSTBACK_KEY'},
         'persistence': {'database_binding': 'GLP_DB', 'd1_database_id': ship.D1_ID},
     }))
+    attribution = release / 'src/affiliati-attribution.mjs'
+    attribution.parent.mkdir()
+    attribution.write_text('// offline fixture imported module; no executable code\n')
     manifest = tmp_path / 'manifest.json'
     manifest.write_text(json.dumps({
         'site_head': ship.ACCEPTED['site_head'], 'release_root': str(release),
         'release_tree_sha256': 'fixture-release-tree',
-        'release_rows': [{'path': str(p.relative_to(release)), 'sha256': ship.sha_file(p)} for p in (source, contract)],
+        'release_rows': [{'path': str(p.relative_to(release)), 'sha256': ship.sha_file(p)} for p in (source, attribution, contract)],
     }))
     terminal = tmp_path / 'terminal.json'
     terminal.write_text(json.dumps({
@@ -185,6 +188,36 @@ def test_registered_stdout_host_terminal_receipt_correlation(tmp_path, monkeypat
         assert ingress.accept(db, body)['status'] == 'completed'
         assert ingress.drain(db, lambda *args: pytest.fail('completed intent replay'))['unresolved'] == 0
         assert len(list((tmp_path / 'receipts').iterdir())) == 1
+
+
+@pytest.mark.parametrize('mutation', ['valid', 'drift', 'missing', 'symlink'])
+def test_imported_attribution_module_bound_before_provider_read(tmp_path, monkeypatch, mutation):
+    """One existing receiver import must remain in its accepted manifest cohort."""
+    ship = load()
+    pointer, _, _ = fixture_release(ship, tmp_path, monkeypatch)
+    deny_effects(monkeypatch)
+    module = Path(json.loads(pointer.read_text())['release_root']) / 'src/affiliati-attribution.mjs'
+    original = module.read_bytes()
+    if mutation == 'drift':
+        module.write_bytes(original + b'// drift\n')
+    elif mutation == 'missing':
+        module.unlink()
+    elif mutation == 'symlink':
+        target = tmp_path / 'identical-module.mjs'
+        target.write_bytes(original)
+        module.unlink()
+        module.symlink_to(target)
+    client = FixtureClient(ship)
+    if mutation == 'valid':
+        result = ship.reconcile(client)
+        assert result['status'] == 'SKIP_ALREADY_INSTALLED'
+        assert result['inputs']['src/affiliati-attribution.mjs'] == ship.binding(module)
+        assert set(result['effects'].values()) == {0}
+        assert len(client.calls) == 2
+    else:
+        with pytest.raises(ship.ShipError, match='receiver_manifest_binding_invalid'):
+            ship.reconcile(client)
+        assert client.calls == []
 
 
 ACCOUNT_REF_CASES = {

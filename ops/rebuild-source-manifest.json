@@ -17,14 +17,14 @@
         "ops/n8n-bridge/actions.json:affiliati_postback_ship"
       ],
       "scope": "Existing fixed accepted modern F06 reconciliation only; exact receiver/terminal cohort, canonical deployment and binding readback. No overlay, deploy, secret mutation, callback, revenue write or held provider activation. Exact live predecessor is retained in this branch's first commit for supported baseline adoption.",
-      "sha256": "e6824f33c7aebbc76b2db795ae903c9746aaef9766081157693fbfa7a36fbc01"
+      "sha256": "f60b7ba2332cb8131da6434dcea583262a2b71040718d0c9cec9c26909db185c"
     },
     "tests/test_glp335_registered_current_contract.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "d256b0822f3d06a77e516dc52a07632bf9d4597270564aaaff3a6c241d4d7341"
+      "sha256": "8e0d2d8d6ddb7659b8669140fcb70c6685d8133a45f8a42d60c2faac6effec31"
     },
     "ops/glp335-current-consumer.md": {
       "kind": "instruction_or_policy",

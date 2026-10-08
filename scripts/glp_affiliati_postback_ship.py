@@ -119,7 +119,8 @@ def validate_current_release() -> dict[str, Any]:
             or terminal.get('immutable_closure', {}).get('release_tree_sha256') != pointer.get('release_tree_sha256')
             or terminal.get('immutable_closure', {}).get('public_tree_sha256') != pointer.get('public_tree_sha256')):
         raise ShipError('terminal_release_chain_invalid')
-    for rel in ('functions/api/postback/affiliati.js', 'data/affiliati-postback-contract.json'):
+    for rel in ('functions/api/postback/affiliati.js', 'src/affiliati-attribution.mjs',
+                'data/affiliati-postback-contract.json'):
         path = release / rel
         rows = [r for r in manifest.get('release_rows', []) if r.get('path') == rel]
         if path.is_symlink() or not path.is_file() or len(rows) != 1 or sha_file(path) != rows[0]['sha256']:
