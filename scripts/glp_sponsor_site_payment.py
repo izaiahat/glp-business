@@ -63,11 +63,24 @@ def eligible_hosts(state,at):
         db.execute('BEGIN')
         readiness=campaign.consume_reply_stops(ledger,db=db,at=at)
         if readiness['status']!='read_complete':raise ValueError('reply_coverage_unknown')
-        opted_out=set()
-        for (raw,) in db.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified'"):
+        # Canonical provider-bound stops remain authoritative even when no
+        # campaign enrollment survives. Fold them chronologically with the
+        # campaign's sticky adverse kinds and agreement-candidate semantics;
+        # this is in-memory evaluation, never enrollment or suppression repair.
+        canonical_stops={host:None for host in hosts}
+        sticky={'opt_out','unsubscribe','complaint','bounce','not_interested'}
+        known=sticky|{'question','out_of_office','human_reply_or_review','agreement_candidate'}
+        for (raw,) in db.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified' ORDER BY created_at,action_id"):
             receipt=json.loads(raw,object_pairs_hook=unique)
-            if receipt.get('kind')=='opt_out':opted_out.update(receipt['provider_hosts'])
-    return {host for host in hosts if not any(campaign.same(host,h) for h in opted_out)
+            kind=receipt.get('kind')
+            provider_hosts=receipt.get('provider_hosts')
+            if (kind not in known or not isinstance(provider_hosts,list) or not provider_hosts
+                or any(not isinstance(h,str) or not h.strip() for h in provider_hosts)):
+                raise ValueError('canonical_reply_custody_unknown')
+            for host in hosts:
+                if any(campaign.same(host,h) for h in provider_hosts) and canonical_stops[host] not in sticky:
+                    canonical_stops[host]=kind
+    return {host for host in hosts if canonical_stops[host] in (None,'agreement_candidate')
             and not any(campaign.same(host,row.get('host',email.split('@')[-1]))
             and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
 
@@ -124,6 +137,12 @@ def verify(site,state=STATE,at=None):
             if tokens!=set(order.get('allocated_transaction_ids',[])):return denied()
             if any(tokens.intersection(other.get('allocated_transaction_ids',[]))
                    for key,other in orders.items() if key!=reference):return denied()
+            # Polling can outlive reply freshness or allow another canonical
+            # writer to commit a stop. The campaign lock does not cover that
+            # writer, registry or suppression: reread them in a new read-only
+            # snapshot with the current clock immediately before admission.
+            fresh_at=dt.datetime.now(dt.timezone.utc)
+            if not start<=fresh_at<end or order['provider_host'] not in eligible_hosts(state,fresh_at):return denied()
             # Never cache a positive result or mutate an allocation/payment record.
             return {'payment_verified':True,'source':'paypal_authenticated_invoice_reporting_observer',
                     'order_reference':reference,'site_order_sha256':digest,

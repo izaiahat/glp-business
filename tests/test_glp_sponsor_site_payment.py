@@ -140,10 +140,10 @@ def test_native_reply_snapshot_requires_freshness_and_sticky_optout(tmp_path,mon
     import glp_sponsor_site_payment as bridge
     dbpath=tmp_path/'inbox.sqlite'
     with sqlite3.connect(dbpath) as db:
-        db.execute('CREATE TABLE mailbox_actions(action,status,provider_receipt_json)')
+        db.execute("CREATE TABLE mailbox_actions(action,status,provider_receipt_json,created_at DEFAULT '',action_id INTEGER PRIMARY KEY)")
         if mode=='optout_then_agreement':
             for kind in ('opt_out','agreement_candidate'):
-                db.execute('INSERT INTO mailbox_actions VALUES(?,?,?)',('sponsor_reply_stop','verified',json.dumps({'kind':kind,'provider_hosts':['example.invalid']})))
+                db.execute('INSERT INTO mailbox_actions(action,status,provider_receipt_json) VALUES(?,?,?)',('sponsor_reply_stop','verified',json.dumps({'kind':kind,'provider_hosts':['example.invalid']})))
     before=dbpath.read_bytes()
     monkeypatch.setattr(campaign,'INBOX_DB',dbpath)
     monkeypatch.setattr(campaign,'read_local',lambda:{'suppression':{'complete':True}})
@@ -160,3 +160,114 @@ def test_native_reply_snapshot_requires_freshness_and_sticky_optout(tmp_path,mon
     else:assert bridge.eligible_hosts(tmp_path,AT)==({'example.invalid'} if mode=='fresh' else set())
     assert dbpath.read_bytes()==before
     assert not (tmp_path/'ledger.json').exists()
+
+
+@pytest.fixture
+def native_observer(tmp_path,monkeypatch):
+    """Real canonical Ledger/poller closure; synthetic-only external transports."""
+    import sqlite3
+    import types
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+    from inbox_control_plane import control_plane as cp
+    import glp_sponsor_campaign as campaign
+    import glp_sponsor_site_payment as bridge
+    from test_glp_sponsor_campaign import inputs
+    for name in ('PRIVATE_ROOT','RAW_ROOT','ATTACHMENT_ROOT','BACKUP_ROOT','REPORT_ROOT','DAILY_AUDIT_DIR'):
+        monkeypatch.setattr(cp,name,tmp_path/name)
+    clock=[AT]
+    class Frozen(dt.datetime):
+        @classmethod
+        def now(cls,tz=None):return clock[0]
+    monkeypatch.setattr(bridge,'dt',types.SimpleNamespace(datetime=Frozen,timezone=dt.timezone,timedelta=dt.timedelta))
+    monkeypatch.setattr(cp,'utc_now',lambda:AT.isoformat())
+    class Response:
+        def __init__(self,value):self.value=value
+        def execute(self):return self.value
+    class EmptyGmail:
+        def __init__(self,box):self.box=box
+        def users(self):return self
+        def messages(self):return self
+        def getProfile(self,**kw):return Response({'emailAddress':self.box['canonical_address']})
+        def list(self,**kw):return Response({'messages':[]})
+    monkeypatch.setattr(cp,'gmail_service_for',EmptyGmail)
+    monkeypatch.setattr(cp,'sync_operator_decisions',lambda *a,**kw:{'failed':0})
+    monkeypatch.setattr(cp,'project_kael_daily_audits',lambda *a,**kw:{'status':'pass','projected':0,'existing':0,'invalid':[]})
+    monkeypatch.setattr(cp,'dispatch_outbox',lambda *a,**kw:{'failed':0})
+    from inbox_control_plane import affiliate_decision_queue
+    monkeypatch.setattr(affiliate_decision_queue,'dispatch',lambda *a,**kw:{'status':'pass'})
+    registry={'mailboxes':[{'mailbox_id':box,'venture':'SYNTHETIC','company':'SYNTHETIC',
+        'canonical_address':box+'@example.invalid','provider':'gmail','adapter':'gmail_api_readonly',
+        'auth_reference':'SYNTHETIC-NO-CREDENTIAL','owner':'SYNTHETIC','lifecycle':'active',
+        'poll_seconds':300,'freshness_sla_seconds':900,'inbound_surface':'email','routing_policy':'SYNTHETIC'}
+        for box in ('glp_ops_gmail','glp_izaiah_gmail')]}
+    database=tmp_path/'inbox.sqlite'
+    ledger=cp.Ledger(database)
+    try:
+        ledger.sync_registry(registry)
+        assert cp.run_poll(ledger,registry,bootstrap=True,dispatch=False,limit=20)['status']=='pass'
+    finally:ledger.close()
+    monkeypatch.setattr(campaign,'INBOX_DB',database)
+    monkeypatch.setattr(campaign,'ROOT',tmp_path/'not-live')
+    order,site=fixture(tmp_path)
+    (tmp_path/'ledger.json').write_text(json.dumps({'partner@example.invalid':{'host':'example.invalid'}}))
+    sheet,_,local=inputs()
+    row=sheet[1];row[2]='Synthetic Fixture Provider';row[6]='https://example.invalid'
+    sheet=[sheet[0]]+[['']*27 for _ in range(20)]+[row]
+    monkeypatch.setattr(campaign,'read_values',lambda:copy.deepcopy(sheet))
+    monkeypatch.setattr(campaign,'read_local',lambda:copy.deepcopy(local))
+    assert bridge.eligible_hosts(tmp_path,AT)=={'example.invalid'}
+    client=fake_client(monkeypatch,invoice_fixture(order),report_fixture(order))
+    monkeypatch.setattr(paypal,'PayPalClient',lambda:client)
+    def stop(kind,event='synthetic-stop'):
+        receipt={'kind':kind,'event_id':event,'provider_hosts':['example.invalid'],
+                 'enrolled_addresses':['partner@example.invalid']}
+        with sqlite3.connect(database) as db:
+            db.execute('INSERT INTO mailbox_actions(action_id,event_id,action,status,provider_receipt_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+                (event,event,'sponsor_reply_stop','verified',json.dumps(receipt),paypal.iso(AT),paypal.iso(AT)))
+    return types.SimpleNamespace(state=tmp_path,site=site,db=database,sheet=sheet,local=local,
+                                 client=client,stop=stop,clock=clock,bridge=bridge)
+
+
+@pytest.mark.parametrize('case',['opt_out','hold','suppression','stale_cursor','elapsed_freshness'])
+def test_observer_rereads_current_admission_after_get(native_observer,monkeypatch,case):
+    import sqlite3
+    e=native_observer
+    original=e.client.request
+    mutated=[]
+    def request(*args,**kwargs):
+        result=original(*args,**kwargs)
+        if not mutated:
+            mutated.append(True)
+            if case=='opt_out':e.stop('opt_out')
+            elif case=='hold':e.sheet[-1][10]='hold'
+            elif case=='suppression':e.local['suppression']['entries']=[{'domain':'example.invalid'}]
+            elif case=='elapsed_freshness':e.clock[0]=AT+dt.timedelta(seconds=901)
+            else:
+                with sqlite3.connect(e.db) as db:db.execute("UPDATE provider_cursors SET last_complete_poll_at='2026-10-01T00:00:00Z'")
+        return result
+    monkeypatch.setattr(e.client,'request',request)
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is False
+    assert mutated==[True]
+
+
+@pytest.mark.parametrize('kind',['not_interested','bounce','question'])
+def test_observer_missing_enrollment_keeps_provider_stop(native_observer,kind):
+    e=native_observer
+    e.stop(kind)
+    (e.state/'ledger.json').write_text('{}')
+    before={p.name:p.read_bytes() for p in e.state.glob('*.json')}
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is False
+    assert {p.name:p.read_bytes() for p in e.state.glob('*.json')}==before
+
+
+@pytest.mark.parametrize('history',[[],['agreement_candidate'],['question','agreement_candidate'],
+                                    ['opt_out','agreement_candidate'],['bounce','agreement_candidate'],
+                                    ['not_interested','agreement_candidate']])
+def test_observer_native_reply_fold_preserves_agreement_and_sticky_history(native_observer,history):
+    e=native_observer
+    for index,kind in enumerate(history):e.stop(kind,str(index))
+    (e.state/'ledger.json').write_text('{}')
+    before={p.name:p.read_bytes() for p in e.state.glob('*.json')}
+    expected=not any(kind in {'opt_out','bounce','not_interested'} for kind in history)
+    assert e.bridge.verify(e.site,e.state,AT)['payment_verified'] is expected
+    assert {p.name:p.read_bytes() for p in e.state.glob('*.json')}==before
