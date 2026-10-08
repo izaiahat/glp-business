@@ -499,6 +499,215 @@ def protected_runtime_completion(protected_noncode_completion, monkeypatch):
     return target, path, data, writes, parent, independent, calls, remote
 
 
+@pytest.fixture
+def native_glp109_completion(protected_runtime_completion, monkeypatch, tmp_path):
+    """Offline SQLite native custody; never uses the real host DB or identities."""
+    import sqlite3
+    target, path, data, writes, parent, independent, *rest = protected_runtime_completion
+    target.update(identifier='GLP-109')
+    data['issue'] = 'GLP-109'
+    independent['user']['id'] = parent['user']['id']
+    db = tmp_path / 'native-state.db'
+    monkeypatch.setattr(lo, 'NATIVE_REVIEW_DB', db, raising=False)
+    c = sqlite3.connect(db)
+    c.executescript('''CREATE TABLE sessions (id TEXT, parent_session_id TEXT, model TEXT,
+        model_config TEXT, ended_at REAL, end_reason TEXT);
+        CREATE TABLE messages (id INTEGER, session_id TEXT, role TEXT, tool_call_id TEXT,
+        tool_name TEXT, tool_calls TEXT, content TEXT, timestamp REAL);''')
+    coordinator = 'native-coordinator'
+    custody: dict = {'coordinator_session_id': coordinator}
+    c.execute('INSERT INTO sessions VALUES (?,?,?,?,?,?)', (coordinator, None, 'model', '{}', None, None))
+    author_report = {'issue': 'GLP-109', 'source': {'pr': data['pr']['url'],
+        'head': data['pr']['head_sha'], 'merge': data['pr']['merge_sha'],
+        'installed_sha256': data['installed_files'][0]['sha256']}}
+    # Native custody lives only in protected_review, outside the frozen payload.
+    refresh_protected_bindings(data, parent, independent)
+    payload = digest(json.dumps({k: v for k, v in data.items() if k not in ('review', 'protected_review')},
+                                sort_keys=True, separators=(',', ':')))
+    reviewer_report = {'issue': 'GLP-109', 'issue_id': target['id'],
+        'verdict': 'ACCEPT_FULL_RETAINED_SCHEDULER_RUNTIME_EVIDENCE', 'candidate': str(path),
+        'description_sha256': data['description_sha256'], 'protected_evidence_sha256': payload,
+        'author_id': data['author_id'], 'parent_viewer_id': parent['user']['id']}
+    for index, (role, report, model) in enumerate([
+        ('author', author_report, 'gpt-6.1-sol'),
+        ('reviewer', reviewer_report, 'gpt-6-astra-900k')], 1):
+        session = 'native-' + role
+        report_path = path.parent / (role + '.json')
+        content = json.dumps(report)
+        report_path.write_text(content)
+        call_id = 'call-' + role
+        call = {'id': call_id, 'function': {'name': 'write_file',
+                'arguments': json.dumps({'path': str(report_path), 'content': content})}}
+        c.execute('INSERT INTO sessions VALUES (?,?,?,?,?,?)', (session, coordinator, model,
+            json.dumps({'_delegate_from': coordinator}), 30, 'agent_close'))
+        c.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?,?)',
+            (index * 10, session, 'assistant', None, None, json.dumps([call]), '', 10))
+        c.execute('INSERT INTO messages VALUES (?,?,?,?,?,?,?,?)',
+            (index * 10 + 1, session, 'tool', call_id, 'write_file', None,
+             json.dumps({'verified': True, 'resolved_path': str(report_path),
+                         'bytes_written': len(content.encode())}), 20))
+        custody[role] = {'session_id': session, 'path': str(report_path),
+            'sha256': digest(content), 'write_message_id': index * 10,
+            'tool_result_message_id': index * 10 + 1}
+    c.commit()
+    c.close()
+    native_digest = digest(json.dumps(custody, sort_keys=True, separators=(',', ':')))
+    line = '\nNative independent review SHA256: ' + native_digest
+    independent['body'] += line
+    data['protected_review'].update(body_sha256=digest(independent['body']), native=custody)
+    parent['body'] = (parent['body'].split('\nIndependent protected acceptance:')[0] +
+        '\nIndependent protected acceptance: ' + independent['id'] + ' ' + digest(independent['body']) + line)
+    data['review']['body_sha256'] = digest(parent['body'])
+    path.write_text(json.dumps(data))
+    return target, path, data, writes, parent, independent, db, rest
+
+
+def test_two_account_native_independent_runtime_check_only(native_glp109_completion, capsys):
+    target, path, _, writes, *_ = native_glp109_completion
+    lo.pass_issue(target, path, {}, protected_runtime=True, check_only=True)
+    assert json.loads(capsys.readouterr().out)['validated'] is True
+    assert writes == []
+
+
+def test_two_account_native_receipt_precedes_done(native_glp109_completion):
+    target, path, _, writes, *_ = native_glp109_completion
+    lo.pass_issue(target, path, lo.states(), protected_runtime=True)
+    assert [w[0] for w in writes] == ['comment', 'state']
+    receipt = json.loads(writes[0][2].split('```json')[1].split('```')[0])
+    assert receipt['result_sha256'] == lo.sha(path)
+    assert writes[1] == ('state', target['id'], 'done')
+
+
+@pytest.mark.parametrize('defect', [
+    'missing_db', 'missing_session', 'missing_write', 'missing_result', 'fake_session',
+    'self_review', 'coordinator_review', 'wrong_parent', 'missing_native_delegate',
+    'unfinished', 'wrong_model', 'unverified_write', 'wrong_tool', 'wrong_call',
+    'wrong_writer', 'wrong_result_session', 'wrong_write_content', 'duplicate_call',
+    'wrong_path', 'changed_report', 'changed_report_resigned', 'late_result',
+    'author_source_changed', 'stale_review_scope', 'wrong_candidate', 'refused_verdict',
+    'author_actor_adopts', 'same_comment', 'other_issue', 'duplicate_native_binding',
+    'unbound_native', 'missing_native', 'stale_payload', 'changed_evidence', 'changed_source',
+])
+def test_native_two_account_refuses_fake_self_stale_or_pruned_custody(
+        native_glp109_completion, defect):
+    import sqlite3
+    target, path, data, writes, parent, independent, db, _ = native_glp109_completion
+    native = data['protected_review']['native']
+    with sqlite3.connect(db) as c:
+        if defect == 'missing_session':
+            c.execute("DELETE FROM sessions WHERE id='native-reviewer'")
+        elif defect == 'missing_write':
+            c.execute('DELETE FROM messages WHERE id=20')
+        elif defect == 'missing_result':
+            c.execute('DELETE FROM messages WHERE id=21')
+        elif defect == 'wrong_parent':
+            c.execute("UPDATE sessions SET parent_session_id='different' WHERE id='native-reviewer'")
+        elif defect == 'missing_native_delegate':
+            c.execute("UPDATE sessions SET model_config='{}' WHERE id='native-reviewer'")
+        elif defect == 'unfinished':
+            c.execute("UPDATE sessions SET ended_at=NULL WHERE id='native-reviewer'")
+        elif defect == 'wrong_model':
+            c.execute("UPDATE sessions SET model='gpt-6.1-sol' WHERE id='native-reviewer'")
+        elif defect in ('wrong_tool', 'wrong_call', 'wrong_result_session', 'late_result'):
+            column, value = {'wrong_tool': ('tool_name', 'read_file'),
+                'wrong_call': ('tool_call_id', 'fake-call'),
+                'wrong_result_session': ('session_id', 'native-author'),
+                'late_result': ('timestamp', 100)}[defect]
+            c.execute('UPDATE messages SET ' + column + '=? WHERE id=21', (value,))
+        elif defect == 'wrong_writer':
+            c.execute("UPDATE messages SET session_id='native-author' WHERE id=20")
+        elif defect == 'unverified_write':
+            receipt = json.loads(c.execute('SELECT content FROM messages WHERE id=21').fetchone()[0])
+            receipt['verified'] = False
+            c.execute('UPDATE messages SET content=? WHERE id=21', (json.dumps(receipt),))
+        elif defect in ('wrong_write_content', 'duplicate_call'):
+            calls = json.loads(c.execute('SELECT tool_calls FROM messages WHERE id=20').fetchone()[0])
+            if defect == 'duplicate_call':
+                calls.append(calls[0])
+            else:
+                args = json.loads(calls[0]['function']['arguments'])
+                args['content'] = '{}'
+                calls[0]['function']['arguments'] = json.dumps(args)
+            c.execute('UPDATE messages SET tool_calls=? WHERE id=20', (json.dumps(calls),))
+        elif defect in ('author_source_changed', 'stale_review_scope', 'wrong_candidate', 'refused_verdict'):
+            # Even a native-written report cannot accept stale/wrong source/scope.
+            role = 'author' if defect == 'author_source_changed' else 'reviewer'
+            entry = native[role]
+            report = json.loads(Path(entry['path']).read_text())
+            if role == 'author':
+                report['source']['head'] = '0' * 40
+            else:
+                report[{'stale_review_scope': 'protected_evidence_sha256',
+                        'wrong_candidate': 'candidate', 'refused_verdict': 'verdict'}[defect]] = 'WRONG'
+            content = json.dumps(report)
+            Path(entry['path']).write_text(content)
+            entry['sha256'] = digest(content)
+            calls = json.loads(c.execute('SELECT tool_calls FROM messages WHERE id=?',
+                                        (entry['write_message_id'],)).fetchone()[0])
+            args = json.loads(calls[0]['function']['arguments'])
+            args['content'] = content
+            calls[0]['function']['arguments'] = json.dumps(args)
+            c.execute('UPDATE messages SET tool_calls=? WHERE id=?',
+                      (json.dumps(calls), entry['write_message_id']))
+            receipt = json.loads(c.execute('SELECT content FROM messages WHERE id=?',
+                                           (entry['tool_result_message_id'],)).fetchone()[0])
+            receipt['bytes_written'] = len(content.encode())
+            c.execute('UPDATE messages SET content=? WHERE id=?',
+                      (json.dumps(receipt), entry['tool_result_message_id']))
+    if defect == 'missing_db':
+        db.unlink()
+    elif defect == 'fake_session':
+        native['reviewer']['session_id'] = 'fabricated'
+    elif defect == 'self_review':
+        native['reviewer'] = native['author'].copy()
+    elif defect == 'coordinator_review':
+        native['reviewer']['session_id'] = native['coordinator_session_id']
+    elif defect == 'wrong_path':
+        native['reviewer']['path'] = str(path)
+    elif defect in ('changed_report', 'changed_report_resigned'):
+        Path(native['reviewer']['path']).write_text('{}')
+        if defect == 'changed_report_resigned':
+            native['reviewer']['sha256'] = digest('{}')
+    elif defect == 'author_actor_adopts':
+        independent['user']['id'] = data['author_id']
+    elif defect == 'same_comment':
+        independent['id'] = parent['id']
+        data['protected_review']['comment_id'] = parent['id']
+    elif defect == 'other_issue':
+        target['identifier'] = data['issue'] = 'GLP-110'
+    elif defect == 'stale_payload':
+        data['unverified'] = 'Changed after real independent review.'
+        refresh_protected_bindings(data, parent, independent)
+        data['protected_review']['native'] = native
+    elif defect == 'changed_evidence':
+        Path(data['evidence'][0]['path']).write_text('stale')
+    elif defect == 'changed_source':
+        Path(data['installed_files'][0]['path']).write_text('stale source')
+    # Rebind the fixture comments to changed custody, so tests exercise the native
+    # authority rather than merely failing the comment hash for edited hints.
+    native_digest = digest(json.dumps(native, sort_keys=True, separators=(',', ':')))
+    line = '\nNative independent review SHA256: ' + native_digest
+    for row in (parent, independent):
+        row['body'] = row['body'].split('\nNative independent review SHA256:')[0] + line
+    if defect == 'duplicate_native_binding':
+        independent['body'] += line
+    elif defect == 'unbound_native':
+        independent['body'] = independent['body'].split('\nNative independent review SHA256:')[0]
+    elif defect == 'missing_native':
+        data['protected_review'].pop('native')
+    data['protected_review']['body_sha256'] = digest(independent['body'])
+    parent['body'] = (parent['body'].split('\nIndependent protected acceptance:')[0] +
+        '\nIndependent protected acceptance: ' + independent['id'] + ' ' + digest(independent['body']) + line)
+    data['review']['body_sha256'] = digest(parent['body'])
+    path.write_text(json.dumps(data))
+    before = path.read_bytes()
+    with pytest.raises(SystemExit):
+        lo.pass_issue(target, path, lo.states(), protected_runtime=True)
+    assert writes == [] and path.read_bytes() == before
+    if defect == 'missing_db':
+        assert not db.exists()  # Read-only lookup cannot manufacture runtime custody.
+
+
 def test_protected_installed_runtime_requires_code_provenance_not_noncode_arm(
         protected_runtime_completion, capsys):
     target, path, _, writes, _, _, calls, _ = protected_runtime_completion
