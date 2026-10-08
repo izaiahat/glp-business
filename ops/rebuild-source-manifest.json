@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 786,
+  "tracked_count": 788,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -2859,6 +2859,20 @@
       ],
       "kind": "test",
       "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
+    },
+    "scripts/glp_sponsor_packet_successor.py": {
+      "callers": [
+        "tests/test_glp_sponsor_packet_successor.py"
+      ],
+      "kind": "script",
+      "sha256": "5ece8e959acecb8dd529892c7990faa1891a2320bb85d31c0543632d7e2c6226"
+    },
+    "tests/test_glp_sponsor_packet_successor.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "55fb291cf74a841c354f8fd687cf89d051a161845652b83dd678816756b329db"
     },
     "tests/test_glp328_cold_wal.py": {
       "callers": [
