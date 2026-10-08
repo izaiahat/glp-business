@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 832,
+  "tracked_count": 833,
   "files": {
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -535,7 +535,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c32874cdbd5dfa732ef1758652aeaf9dcbc09fd6f3b1c61baa2647899232b581"
+      "sha256": "8a8df57cd2bace7a7f05340a42e854bc9bb48e2e90f675c98b003d508bf1d73d"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2241,12 +2241,19 @@
       "kind": "script",
       "sha256": "f23afdbfe3040d2c19712a57a5ac6ddb4cf977d2af142af1ccd7a040f83b4716"
     },
+    "tests/test_site_tree_materializer_q9.py": {
+      "callers": [
+        "GLP110 Q9 materializer copy-admission and report-exclusion acceptance"
+      ],
+      "kind": "test",
+      "sha256": "33a74356ce00a9251353574e879514ed7230e068ebc7a8c573be14900c498041"
+    },
     "scripts/site_tree_materializer.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "2adb0420d48aeb4ac9eeaf6227093757a7143d1b815334598679f04f2a8a460b"
+      "sha256": "b8f53e88784475150945f29c37954d579697032caf04dadc5a30317436e8e508"
     },
     "scripts/skill_router.py": {
       "callers": [],
