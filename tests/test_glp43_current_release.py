@@ -96,6 +96,35 @@ class CurrentReleaseTests(unittest.TestCase):
             self.assertEqual(self.publish(), 1)
             self.assertEqual(len(self.deploy_calls), 1)
 
+    def test_d1_pallas_third_cohort_is_exact_and_preserves_both_predecessors(self):
+        """Synthetic third cohort; all production pins remain external evidence."""
+        self.d1_fixture()
+        successor = copy.deepcopy(c.CURRENT_D1)
+        with (mock.patch.dict(c.CURRENT_D1, {"head":"0"*40,"gate_sha256":"0"*64,"package_sha256":"1"*64}),
+              mock.patch.object(c, "CURRENT_D1_PALLAS", successor, create=True)):
+            self.assertEqual(c.current_rollback(self.head, successor['gate_sha256'], successor['package_sha256']), self.fixture_base)
+            keys = ('head','gate_sha256','package_sha256')
+            import itertools
+            cohorts = (c.CURRENT_D1, c.CURRENT_D1_SUCCESSOR, successor)
+            for indexes in itertools.product(range(3), repeat=3):
+                supplied = {key:cohorts[index][key] for key,index in zip(keys,indexes)}
+                if len(set(indexes)) == 1:
+                    self.assertEqual(c.current_d1_binding(**supplied), cohorts[indexes[0]])
+                else:
+                    with self.subTest(mixed=indexes), self.assertRaisesRegex(c.GateError, 'current_d1_successor_binding_mismatch'):
+                        c.current_d1_binding(**supplied)
+            self.prepare()
+            self.assertEqual(self.prepared_data['source']['runtime'], successor['runtime'])
+            for name in ('functions','src','data'):
+                broken = copy.deepcopy(successor)
+                broken['runtime'][name]['tree_sha256'] = 'f'*64
+                with self.subTest(runtime=name), mock.patch.object(c, 'CURRENT_D1_PALLAS', broken), self.assertRaises(c.GateError):
+                    c.current_prepared(self.prepared, c.sha_file(self.prepared / 'PREPARED.json'))
+            self.approve_fixture()
+            self.assertEqual(self.publish(), 0, self.last)
+            self.assertEqual(self.publish(), 1)
+            self.assertEqual(len(self.deploy_calls), 1)
+
     def test_d1_current_predecessor_prepare_publish_exact_binding(self):
         self.d1_fixture()
         historical = c.CURRENT_ROLLBACK
