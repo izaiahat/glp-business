@@ -3407,6 +3407,20 @@ class SheetSyncModeSpec:
 
 
 SHEET_SYNC_MODES: dict[str, SheetSyncModeSpec] = {
+    "operator_relationship_ended": SheetSyncModeSpec(
+        key="operator_relationship_ended",
+        plan_schema="affiliate-operator-relationship-ended-plan-v1",
+        write_schema="affiliate-operator-relationship-ended-write-v1",
+        mutable_columns=(10, 19, 20, 21, 23, 24),
+        required_columns=(10, 19, 20, 21, 23, 24),
+        allowed_status=frozenset({"ended_operator_contract_termination"}),
+        required_flags={19: "FALSE", 20: "FALSE"},
+        evidence_fields=(("event_id", "text"), ("checked_at_utc", "timestamp")),
+        note_must_cite=("event_id",),
+        allowed_link_qa=frozenset({"link_retired_operator_contract_ended"}),
+        forbid_wired_live_source=False,
+        description="Exact GLP-347 operator disposition; retained termination mail, no API-status claim.",
+    ),
     "network_cancelled": SheetSyncModeSpec(
         key="network_cancelled",
         plan_schema="affiliate-network-cancelled-plan-v1",
@@ -5238,6 +5252,7 @@ SHEET_SYNC_KIND_MODE = {
     "rejection": "rejection",
     "network_paused": "network_paused_disposition",
     "network_cancelled": "network_cancelled",
+    "operator_relationship_ended": "operator_relationship_ended",
     "status_correction": "status_correction",
     "partner_email_hold": "partner_email_hold",
     "deployed_live": "deployed_live",
@@ -6218,6 +6233,9 @@ def sheet_sync_plan_rows(mode: str, plan: dict[str, Any]) -> list[dict[str, Any]
             provider_metadata.validate_entry(spec.key, entry, _REPO_ROOT)
         if spec.key == "partner_email_hold":
             require_partner_email_hold(entry)
+        if spec.key == "operator_relationship_ended":
+            import pallas_relationship_ending
+            pallas_relationship_ending.validate(entry)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry)
         if spec.key == "maxbounty_publisher_id":
@@ -6844,6 +6862,9 @@ def require_sheet_sync_preconditions(
     for entry in rows:
         if spec.key == "partner_email_hold":
             require_partner_email_hold(entry, values)
+        if spec.key == "operator_relationship_ended":
+            import pallas_relationship_ending
+            pallas_relationship_ending.validate(entry, values)
         if spec.key == "katalys_tracking_ready":
             require_katalys_tracking_ready(entry, values)
         if entry.get("create"):
