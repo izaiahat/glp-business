@@ -169,6 +169,9 @@ def test_native_editorial_labels_and_cautions_do_not_need_fake_source_text():
                     qualifiers=row['qualifiers'], conditions_quote=raw)
     assert not p.review(row, proposal, raw, proposal['source_url'])
     assert p.classify_price_observation(row, proposal, raw, proposal['source_url'])['status'] == 'CONFIRMED_CHANGE'
+    changed_conditions = raw + ' Rate limited to new accounts with a twelve-week commitment.'
+    proposal['conditions_quote'] = changed_conditions
+    assert 'new_or_ambiguous_conditions' in p.review(row, proposal, changed_conditions, proposal['source_url'])
 
 
 def test_omitted_multiline_intro_and_known_unknown_are_not_full_validation():

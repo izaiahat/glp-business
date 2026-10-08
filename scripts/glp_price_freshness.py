@@ -444,6 +444,10 @@ def offer_context_errors(row, proposed, text):
     old_quotes = [e.get('quote', '') for fact in row.get('facts', {}).values() for e in fact.get('evidence', [])]
     old_quotes += [e.get('quote', '') for e in row.get('evidence', [])]
     same_offer = any(without_amounts(conditions) in without_amounts(q) for q in old_quotes)
+    if old_quotes and not same_offer:
+        # Currency-only successor scope cannot adjudicate newly worded terms,
+        # even when a novel restriction does not match a known keyword list.
+        errors.append('new_or_ambiguous_conditions')
     for qualifier in row.get('qualifiers', []):
         qualifier_amounts = re.findall(r'\$[\d,.]+', qualifier)
         if any(token not in conditions for token in qualifier_amounts):
