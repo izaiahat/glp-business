@@ -81,6 +81,46 @@ _LOGIN_SELECTORS = frozenset({
 })
 _BUTTON_SELECTORS = frozenset({"button", "button:visible"})
 _READS = {
+    "maxbounty_search": r"""(() => {
+      const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';};
+      const tables=Array.from(document.querySelectorAll('table')).filter(shown);
+      const rows=tables.flatMap(t=>Array.from(t.querySelectorAll('tbody tr')).filter(shown).map(tr=>({
+        text:tr.innerText,cells:Array.from(tr.querySelectorAll('td')).map(e=>e.innerText.trim()),
+        links:Array.from(tr.querySelectorAll('a[href]')).filter(shown)
+          .filter(a=>/^https:\/\/affiliates.maxbounty.com\/campaign\/[0-9]+$/.test(a.href))
+          .map(a=>({name:a.innerText.trim(),href:a.href,program_id:a.href.split('/').pop()}))})));
+      const buttons=Array.from(document.querySelectorAll('button.page-link')).filter(shown)
+        .filter(e=>/^[0-9]+$/.test(e.innerText.trim()))
+        .map(e=>({number:Number(e.innerText.trim()),active:e.parentElement.classList.contains('active'),disabled:e.disabled}));
+      const options=Array.from(document.querySelectorAll('select[name=m] option:checked'));
+      return {rows,buttons,category_label:options.length===1?options[0].innerText.trim():'',
+        empty_marker_present:rows.length===0&&/no campaigns|no results|nothing found|no records/i.test(document.body.innerText)};
+    })()""",
+    "maxbounty_sections": """(() => {
+      const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';};
+      const names=['Coupon','Campaign Description','Terms','Campaign Terms','Search Restrictions','Email Restrictions','Display Restrictions','Social Restrictions','Rates','Landing Pages'];
+      const headings=Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],dt,strong,[class*=card-header]')).filter(shown);
+      const sections={};
+      for(const name of names){const hs=headings.filter(h=>h.innerText.trim().toLowerCase()===name.toLowerCase());
+        if(hs.length!==1)continue;
+        const box=hs[0].closest('.card,section,article,[class*=panel],[class*=section]')||hs[0].parentElement;
+        if(!box||!shown(box))continue;
+        sections[name]={text:box.innerText.trim(),links:Array.from(box.querySelectorAll('a[href]')).filter(shown).map(a=>a.href)};}
+      return {sections,title_headings:headings.filter(h=>h.matches('h1')).map(h=>h.innerText.trim())};
+    })()""",
+    "visible_tables": """(() => {
+      const visible=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+        return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';};
+      return {tables:Array.from(document.querySelectorAll('table')).filter(visible).map(t=>({
+        headers:Array.from(t.querySelectorAll('thead th')).filter(visible).map(e=>e.innerText.trim()),
+        rows:Array.from(t.querySelectorAll('tbody tr')).filter(visible).map(tr=>({
+          cells:Array.from(tr.querySelectorAll('td')).map(e=>e.innerText.trim()),
+          links:Array.from(tr.querySelectorAll('a[href]')).filter(visible).map(a=>({href:a.href,text:a.innerText.trim()}))
+        }))})),
+        pagers:Array.from(document.querySelectorAll('nav,[role=navigation],.pagination')).filter(visible)
+          .map(e=>({text:e.innerText,links:Array.from(e.querySelectorAll('a[href]')).filter(visible)
+            .map(a=>({href:a.href,text:a.innerText.trim(),rel:a.rel,disabled:a.getAttribute('aria-disabled')==='true'}))}))};
+    })()""",
     "title": "document.title",
     "body_text": "document.body?.innerText||''",
     "buttons": """(() => Array.from(document.querySelectorAll('button'))
@@ -226,6 +266,24 @@ class FreshAIBrowserReadDriver:
             expression = "(" + expression + ")(" + json.dumps(arg) + ")"
         self._guard()
         return self._call(operation, self._js, expression)
+
+    def maxbounty_search_snapshot(self):
+        parts = urlsplit(self._guard())
+        if parts.netloc != 'affiliates.maxbounty.com' or parts.path != '/search':
+            raise FreshAIBrowserRequired('maxbounty_exact_search_page_required')
+        return self._read('maxbounty_search')
+
+    def maxbounty_campaign_sections(self):
+        parts = urlsplit(self._guard())
+        if (parts.netloc != 'affiliates.maxbounty.com'
+                or not re.fullmatch(r'/campaign/[1-9][0-9]*', parts.path)
+                or parts.query or parts.fragment):
+            raise FreshAIBrowserRequired('maxbounty_exact_campaign_page_required')
+        return self._read('maxbounty_sections')
+
+    def visible_tables(self):
+        """Fixed visible table/pager projection; no inputs, fetch or app state."""
+        return self._read('visible_tables')
 
     def title(self):
         return self._read("title")

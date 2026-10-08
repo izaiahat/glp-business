@@ -549,3 +549,15 @@
 !/ops/glp/seo_nonarticle_emitter.py
 !/scripts/glp_weekly_seo_source_stage.py
 !/tests/test_glp75_weekly_producer_repairs.py
+
+# GLP268 remaining maintained caller sources (no live state)
+!/scripts/glp_xentraffic_enumerate.py
+!/scripts/glp_maxbounty_lane.py
+!/scripts/xentraffic_fresh_catalog.py
+!/scripts/maxbounty_fresh_catalog.py
+!/scripts/marketplace_adapters/xentraffic.py
+!/scripts/marketplace_adapters/maxbounty.py
+!/scripts/marketplace_adapters/maxbounty_discovery.py
+!/tests/test_glp268_remaining_callers.py
+!/tests/test_glp268_visible_catalogs.py
+!/ops/glp268-remaining-callers.md
