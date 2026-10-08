@@ -15,6 +15,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: GLP73 autonomous article and Alexandria contracts (offline, exact head)
+        run: |
+          python3 -m unittest discover -s tests -p test_glp73_autonomous_articles.py -v
+          python3 -m unittest discover -s tests -p test_glp73_article_research.py -v
+          python3 -m unittest discover -s tests -p test_glp73_cogny_consumption.py -v
       - name: Verify exact head and package-only regressions (stdlib, no credentials)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

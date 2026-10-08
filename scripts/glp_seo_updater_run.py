@@ -69,7 +69,7 @@ OUTPUT_HEALTH = BUSINESS / "scripts/business_output_health_sensor.py"
 OUTPUT_HEALTH_RECEIPT = BUSINESS / "reports/ops/output-health-latest.json"
 RELEASES = BUSINESS / "site-system/flagship-v2/releases"
 PYTHON = Path("/usr/bin/python3.12")
-REVIEW_TRANSPORT = review_transports.policy_opus_transport()["transport_id"]
+REVIEW_TRANSPORT = review_transports.ASTRA_TRANSPORT["transport_id"]
 REVIEW_REQUEST_ROOT = BUSINESS / "reports/glp-clinic-scout/seo-machine/r2-review-requests"
 AUTHORITY_ATTEMPT_LIMIT = 3
 PACKET_AUTHORITY_RETRY_SCOPE = "PACKET_OR_AUTHORITY"
@@ -2204,6 +2204,33 @@ def execute(target_pt_date: str | None = None) -> dict[str, Any]:
             os.close(descriptor)
 
 
+def current_review_pool(pacing, *, now=None):
+    """Fresh active Codex quota observation; not an account-selection override.
+
+    Codex reports named windows, not Claude's session_left_pct. Missing windows
+    and known depleted windows refuse; unknown is never converted to capacity.
+    The subscription wrapper still owns actual inference admission/no fallback.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    pools = [p for p in pacing.get('pools', [])
+             if p.get('provider') == 'openai-codex' and p.get('role') == 'ACTIVE']
+    if len(pools) != 1:
+        raise RuntimeError('review_pool_unknown')
+    pool = pools[0]
+    try:
+        fetched = dt.datetime.fromisoformat(str(pool.get('fetched_at') or '').replace('Z', '+00:00'))
+        age = (now - fetched).total_seconds()
+        windows = pool.get('windows') or {}
+        remaining = [w.get('remaining_pct') for w in windows.values()]
+        valid = (pool.get('freshness') == 'live' and 0 <= age <= 7200
+                 and bool(remaining) and all(type(value) in (int, float) and 0 < value <= 100 for value in remaining))
+    except (TypeError, ValueError, AttributeError):
+        valid = False
+    if not valid:
+        raise RuntimeError('review_pool_no_fresh_headroom')
+    return pool
+
+
 def execute_review_only(request_path: str, request_sha256: str) -> dict[str, Any]:
     """One hash-bound advisory review; never enter update/reconcile/publish code."""
     path = Path(request_path)
@@ -2237,18 +2264,9 @@ def execute_review_only(request_path: str, request_sha256: str) -> dict[str, Any
     before = {rel: sha(packet / rel) for rel in subjects}
     if before != request.get("subject_sha256"):
         raise RuntimeError("review_subject_binding_invalid")
-    transport = review_transports.policy_opus_transport()
+    transport = review_transports.transport(REVIEW_TRANSPORT)
     pacing = read_json(BUSINESS / "ops/subscription-capacity/PACING.json")
-    pools = [p for p in pacing.get("pools", []) if p.get("label") == "claude-code-live"]
-    if len(pools) != 1:
-        raise RuntimeError("review_pool_unknown")
-    pool = pools[0]
-    fetched = dt.datetime.fromisoformat(str(pool.get("fetched_at") or "").replace('Z', '+00:00'))
-    age = (dt.datetime.now(dt.timezone.utc) - fetched).total_seconds()
-    if (pool.get("freshness") != "live" or not 0 <= age <= 7200
-            or float(pool.get("weekly_left_pct") or 0) <= 0
-            or float(pool.get("session_left_pct") or 0) <= 0):
-        raise RuntimeError("review_pool_no_fresh_headroom")
+    pool = current_review_pool(pacing)
     GLOBAL_LOCK.parent.mkdir(parents=True, exist_ok=True)
     with GLOBAL_LOCK.open('a+') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
