@@ -8,66 +8,43 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 821,
+  "tracked_count": 822,
   "files": {
-    "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/article_carrier_run.py"
-      ],
-      "sha256": "5aee868768234397a1bbb750d79e69ce1a8b2c2859f40fe8b68c2b072fe5252f"
-    },
-    "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/glp_topic_supply_bridge.py"
-      ],
-      "sha256": "6cbd5712015d6301260b727f635d99c9be8f3704953a5b6781eed8f10456dfe4"
-    },
-    "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py": {
-      "kind": "script",
-      "callers": [
-        "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py",
-        "systems/seo-blog-machine/scripts/select_opus_content_queue.py",
-        "systems/seo-blog-machine/scripts/r2_update_carrier.py"
-      ],
-      "sha256": "24b407a1ebc4bcd225e10984750d8b7db10b4b9b862f38d8a2760b0c3b0fcf96"
-    },
-    "tests/test_glp73_cogny_consumption.py": {
+    "tests/test_glp80_registry_adoption.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "17c352fe02c51852dccbbb43918e42a1637012adfb2d1dfdd4336bd60bb9d67c"
+      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
     },
-    "ops/hermes-cron-prompts/glp-seo-r2-refresh.md": {
-      "kind": "native_cron_prompt",
+    "tests/test_glp80_registered_price_refresh.py": {
+      "kind": "test",
       "callers": [
-        "native:a0e87c0a4569"
+        ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "1d553918ff355950103fd3e8b53657137e8961ecbad96266f0925eceb266b1ed"
+      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
     },
-    "systems/seo-blog-machine/scripts/article_research.py": {
+    "scripts/glp_price_freshness.py": {
       "kind": "script",
       "callers": [
-        "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
-        "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
+        "registered pricing_refresh cron action",
+        "manual:GLP-80"
       ],
-      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+      "sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
     },
-    "tests/test_glp73_autonomous_articles.py": {
+    "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "8ddffe295e6e6e0963d7c5f0143e20f301f7021baa1806d68d8ab5186678947b"
+      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
     },
-    "tests/test_glp73_article_research.py": {
-      "kind": "test",
+    ".github/workflows/glp80-price-freshness.yml": {
+      "kind": "ci",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        "GitHub pull_request exact-head CI"
       ],
-      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+      "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
     },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -555,7 +532,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "db8fa8a0372afa559f5c13ccdbd41b931c1a797e7655a32a0fd8aa33fac42952"
+      "sha256": "bbf5dfead5b93ea8135089cec1cc22d59d7c13abee8ecf609db8fbedd2704fa9"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -565,7 +542,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "99c0c3b572e9ff50c318703cc74b45c384cc873eb436209a1bfd90634487cc7f"
+      "sha256": "9c6dd8ff1a8b173ecf625cd336a7388ec81f5f4048e24b82f2e81b5a711bd36e"
     },
     ".hermes.md": {
       "callers": [],
@@ -1258,7 +1235,7 @@
     "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "fe3705b35f340c18de92fb0b49e9c8131f2f905651b9f774433f163ff0adbb9b"
+      "sha256": "185b207ca0025925a845a3ca004d977957ec623bcddeceeb8ffeffdbe3ef90e0"
     },
     "ops/n8n-bridge/bridge.py": {
       "callers": [],
@@ -1747,7 +1724,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "f0cdfcc8645b6e6dcf61ef3674a5c82e54931578945d5d68a0a9118f53d9a2a1"
+      "sha256": "c49d9d1fca9bcd86a67685b569796bfd370ef3b719c45fba550d80bcf0f254ef"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -5249,6 +5226,34 @@
       "kind": "test",
       "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
     },
+    "tests/test_glp328_cold_wal.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
+    },
+    "scripts/glp_sponsor_alexandria.py": {
+      "kind": "script",
+      "callers": [
+        "authorized sponsor preapproval business-contact research"
+      ],
+      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
+    },
+    "tests/test_glp_sponsor_alexandria.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
+    },
+    "tests/test_glp_sponsor_autonomous.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
+    },
     "ops/glp/weekly_strategy_sync.py": {
       "callers": [
         "scripts/glp_weekly_strategy_report.py"
@@ -5284,34 +5289,6 @@
       ],
       "kind": "test",
       "sha256": "f5556d35f94c3df2e51e3116c5e899e946583ada9a2cbc01360076cd09b75fff"
-    },
-    "scripts/glp_sponsor_alexandria.py": {
-      "kind": "script",
-      "callers": [
-        "authorized sponsor preapproval business-contact research"
-      ],
-      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
-    },
-    "tests/test_glp_sponsor_alexandria.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
-    },
-    "tests/test_glp_sponsor_autonomous.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
-    },
-    "tests/test_glp328_cold_wal.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
     },
     "scripts/pallas_relationship_ending.py": {
       "callers": [
@@ -5363,34 +5340,64 @@
       ],
       "sha256": "d47d555454a3812062034046d2844129574a0a717aec567752d1da509a73cb12"
     },
-    "tests/test_glp80_registered_price_refresh.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp80-price-freshness.yml"
-      ],
-      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
-    },
-    "scripts/glp_price_freshness.py": {
+    "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py": {
       "kind": "script",
       "callers": [
-        "registered pricing_refresh cron action",
-        "manual:GLP-80"
+        "scripts/article_carrier_run.py"
       ],
-      "sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
+      "sha256": "5aee868768234397a1bbb750d79e69ce1a8b2c2859f40fe8b68c2b072fe5252f"
     },
-    "tests/test_glp80_price_freshness.py": {
+    "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_topic_supply_bridge.py"
+      ],
+      "sha256": "6cbd5712015d6301260b727f635d99c9be8f3704953a5b6781eed8f10456dfe4"
+    },
+    "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py": {
+      "kind": "script",
+      "callers": [
+        "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py",
+        "systems/seo-blog-machine/scripts/select_opus_content_queue.py",
+        "systems/seo-blog-machine/scripts/r2_update_carrier.py"
+      ],
+      "sha256": "24b407a1ebc4bcd225e10984750d8b7db10b4b9b862f38d8a2760b0c3b0fcf96"
+    },
+    "tests/test_glp73_cogny_consumption.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/glp80-price-freshness.yml"
+        ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
+      "sha256": "17c352fe02c51852dccbbb43918e42a1637012adfb2d1dfdd4336bd60bb9d67c"
     },
-    ".github/workflows/glp80-price-freshness.yml": {
-      "kind": "ci",
+    "ops/hermes-cron-prompts/glp-seo-r2-refresh.md": {
+      "kind": "native_cron_prompt",
       "callers": [
-        "GitHub pull_request exact-head CI"
+        "native:a0e87c0a4569"
       ],
-      "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+      "sha256": "1d553918ff355950103fd3e8b53657137e8961ecbad96266f0925eceb266b1ed"
+    },
+    "systems/seo-blog-machine/scripts/article_research.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
+        "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
+      ],
+      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+    },
+    "tests/test_glp73_autonomous_articles.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8ddffe295e6e6e0963d7c5f0143e20f301f7021baa1806d68d8ab5186678947b"
+    },
+    "tests/test_glp73_article_research.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
     },
     "tests/test_bounded_pruner_discovery_resume.py": {
       "kind": "test",
