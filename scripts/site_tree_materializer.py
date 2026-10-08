@@ -1086,7 +1086,7 @@ def copytree_linked(
         caller_ignore = ignore
 
         def report_ignore(directory: str, names: list[str]) -> set[str]:
-            ignored = set(caller_ignore(directory, names)) if caller_ignore else set()
+            ignored = set(caller_ignore(directory, list(names))) if caller_ignore else set()
             return ignored | {name for name in names if name == "node_modules"}
 
         ignore = report_ignore

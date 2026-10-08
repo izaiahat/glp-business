@@ -129,6 +129,26 @@ class Q9Tests(unittest.TestCase):
         self.assertFalse((self.reports / "snapshot/skip.txt").exists())
         self.assertTrue((self.reports / "snapshot/keep.txt").exists())
 
+    def test_callback_list_mutation_cannot_remove_report_default(self):
+        visited = []
+
+        def caller(directory, names):
+            visited.append(directory)
+            if "node_modules" in names:
+                names.remove("node_modules")
+            return [name for name in names if name == "skip.txt"]
+
+        destination = self.reports / "callback-mutates-list"
+        report = materializer.copytree_linked(self.source, destination, ignore=caller)
+        self.assertFalse((destination / "node_modules").exists(), report)
+        self.assertFalse((destination / "nested/node_modules").exists(), report)
+        self.assertFalse((destination / "skip.txt").exists())
+        self.assertEqual(report["ignored_paths"], ["nested/node_modules", "node_modules", "skip.txt"])
+        self.assertEqual(report["linked_files"], 5)
+        self.assertEqual(len(visited), 4)
+        self.assertEqual(len(visited), len(set(visited)))
+        self.assertTrue((destination / "node_modules-not/keep.txt").is_file())
+
     def test_nonreport_candidates_and_report_lookalikes_retain_node_modules(self):
         for parent in (self.root, self.business / "reports-other"):
             parent.mkdir(exist_ok=True)

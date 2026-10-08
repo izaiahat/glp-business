@@ -958,7 +958,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "3d7179a42b90ca50fc83201a9d8e9ddca48b8e59def7e73acebce727bc5ce2e8"
+      "sha256": "d86ebd79a73b11ccec0b8ef8f489f9fe5435d045f306f3138f620333e1e8a527"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2246,14 +2246,14 @@
         "GLP110 Q9 materializer copy-admission and report-exclusion acceptance"
       ],
       "kind": "test",
-      "sha256": "33a74356ce00a9251353574e879514ed7230e068ebc7a8c573be14900c498041"
+      "sha256": "5a8be85a8c580383822ed88c8f380a575fc97bc7a10183a45006ae0e5d330449"
     },
     "scripts/site_tree_materializer.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "b8f53e88784475150945f29c37954d579697032caf04dadc5a30317436e8e508"
+      "sha256": "a9a8840cd6e3d748cf46747bcd477fc4419acdc83ac89c2b364d276ef0a1c917"
     },
     "scripts/skill_router.py": {
       "callers": [],
@@ -3921,7 +3921,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "d3a17e8fc01ce0e97c43b5e6ed55666e506a90666048dd88c279f87a606e5c1b"
+      "sha256": "527e7a0dfceb49d7a5ec953a7a17f573b774093ab24362f4dfc257d652f49fb8"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
