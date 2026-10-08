@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import sqlite3
 # -I ignores PYTHONPATH/current directory; only this maintained sibling source
 # directory is admitted. The site invokes the fixed installed path, not argv.
 sys.path.insert(0,str(Path(__file__).resolve().parent))
@@ -53,7 +54,21 @@ def eligible_hosts(state,at):
     if not local['suppression']['complete']:raise ValueError('suppression_incomplete')
     hosts=campaign.invoice_provider_hosts(campaign.read_values(),local)
     ledger=read(state/'ledger.json') if (state/'ledger.json').exists() else {}
-    return {host for host in hosts if not any(campaign.same(host,row.get('host',email.split('@')[-1]))
+    # Read the canonical snapshot and freshness closure, applying reply stops
+    # only to this in-memory ledger. Never advance its cursor or write a stop.
+    import sqlite3
+    from contextlib import closing
+    with closing(sqlite3.connect(campaign.INBOX_DB.as_uri()+'?mode=ro',uri=True,timeout=5)) as db:
+        db.execute('PRAGMA query_only=ON')
+        db.execute('BEGIN')
+        readiness=campaign.consume_reply_stops(ledger,db=db,at=at)
+        if readiness['status']!='read_complete':raise ValueError('reply_coverage_unknown')
+        opted_out=set()
+        for (raw,) in db.execute("SELECT provider_receipt_json FROM mailbox_actions WHERE action='sponsor_reply_stop' AND status='verified'"):
+            receipt=json.loads(raw,object_pairs_hook=unique)
+            if receipt.get('kind')=='opt_out':opted_out.update(receipt['provider_hosts'])
+    return {host for host in hosts if not any(campaign.same(host,h) for h in opted_out)
+            and not any(campaign.same(host,row.get('host',email.split('@')[-1]))
             and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
 
 
@@ -113,7 +128,7 @@ def verify(site,state=STATE,at=None):
                     'order_reference':reference,'site_order_sha256':digest,
                     'transaction_ids':observed['transaction_ids'], 'observed_at':observed['observed_at'],
                     'reporting_refreshed_at':observed['reporting_refreshed_at']}
-    except (RuntimeError,OSError,ValueError,KeyError,TypeError,AttributeError):
+    except (RuntimeError,OSError,ValueError,KeyError,TypeError,AttributeError,OverflowError,sqlite3.Error):
         return denied() # No arbitrary exceptions, raw response, payer or credentials.
 
 

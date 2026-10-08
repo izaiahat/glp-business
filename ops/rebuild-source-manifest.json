@@ -2865,14 +2865,14 @@
         "site:src/sponsor-pricing.mjs"
       ],
       "kind": "script",
-      "sha256": "bc6b9a3567becdcf93365593461d54306c9e3c65f8890d53fb29c6db10489098"
+      "sha256": "9ed533c3e3c32ef1fae2213d3c4d81cb26dd458a3b0fcb60013bdbe6a50c00fd"
     },
     "tests/test_glp_sponsor_site_payment.py": {
       "callers": [
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "eaacf90adb7d486164a8c37b47ebbceca967fa919d0411c510b127fe4c88ac09"
+      "sha256": "57742ecdb8f138698b61b0aefc46a675e5e67d2b3313f7891b7c0da17df75b71"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [

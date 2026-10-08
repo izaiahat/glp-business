@@ -131,3 +131,32 @@ def test_host_observer_to_existing_native_site_assets(tmp_path,monkeypatch):
     proof=json.loads(run.stdout)
     assert proof['observer_to_inventory_to_native_assets']=='PASS'
     assert proof['financial_writes']==proof['public_writes']==proof['deploys']==0
+
+
+@pytest.mark.parametrize('mode',['fresh','stale','optout_then_agreement','new_human_reply'])
+def test_native_reply_snapshot_requires_freshness_and_sticky_optout(tmp_path,monkeypatch,mode):
+    import sqlite3
+    import glp_sponsor_campaign as campaign
+    import glp_sponsor_site_payment as bridge
+    dbpath=tmp_path/'inbox.sqlite'
+    with sqlite3.connect(dbpath) as db:
+        db.execute('CREATE TABLE mailbox_actions(action,status,provider_receipt_json)')
+        if mode=='optout_then_agreement':
+            for kind in ('opt_out','agreement_candidate'):
+                db.execute('INSERT INTO mailbox_actions VALUES(?,?,?)',('sponsor_reply_stop','verified',json.dumps({'kind':kind,'provider_hosts':['example.invalid']})))
+    before=dbpath.read_bytes()
+    monkeypatch.setattr(campaign,'INBOX_DB',dbpath)
+    monkeypatch.setattr(campaign,'read_local',lambda:{'suppression':{'complete':True}})
+    monkeypatch.setattr(campaign,'read_values',lambda:[])
+    monkeypatch.setattr(campaign,'invoice_provider_hosts',lambda *a:{'example.invalid'})
+    def consume(ledger,db,at):
+        assert db.execute('PRAGMA query_only').fetchone()[0]==1
+        if mode=='new_human_reply':ledger['hello@example.invalid']={'host':'example.invalid','stopped':'human_reply_or_review'}
+        if mode=='optout_then_agreement':ledger['hello@example.invalid']={'host':'example.invalid','stopped':'agreement_candidate'}
+        return {'status':'unknown' if mode=='stale' else 'read_complete'}
+    monkeypatch.setattr(campaign,'consume_reply_stops',consume)
+    if mode=='stale':
+        with pytest.raises(ValueError):bridge.eligible_hosts(tmp_path,AT)
+    else:assert bridge.eligible_hosts(tmp_path,AT)==({'example.invalid'} if mode=='fresh' else set())
+    assert dbpath.read_bytes()==before
+    assert not (tmp_path/'ledger.json').exists()
