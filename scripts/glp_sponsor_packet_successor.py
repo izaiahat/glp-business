@@ -147,6 +147,9 @@ def build_successor(packet, expected_sha256, source_checkout, dependency_checkou
     new_members[MANIFEST] = (json.dumps(new_manifest, indent=2, sort_keys=True) + '\n').encode()
     if include_coordinator_guard:
         receiving.technical_equivalence(members,new_members,sha(updates[sender]))
+        for rel,digest in receiving.TECHNICAL_ADMISSION_SOURCE_SHA256.items():
+            if sha(git(source_checkout,'show',source_head+':'+rel)) != digest:
+                raise ValueError('coordinator_classifier_source_not_reviewed:'+rel)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for info in infos:

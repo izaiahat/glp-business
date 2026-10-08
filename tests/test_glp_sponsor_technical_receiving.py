@@ -42,6 +42,8 @@ def fixture(tmp_path, monkeypatch):
              'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':b'synthetic deployment authority'}
     pins={n:hashlib.sha256(b).hexdigest() for n,b in updates.items()}
     monkeypatch.setattr(c,'TECHNICAL_SOURCE_SHA256',pins,raising=False)
+    admission={n:b'# synthetic fixed admission closure\n' for n in c.TECHNICAL_ADMISSION_SOURCE_SHA256}
+    monkeypatch.setattr(c,'TECHNICAL_ADMISSION_SOURCE_SHA256',{n:hashlib.sha256(b).hexdigest() for n,b in admission.items()})
     new={**original,**updates,'scripts/glp_sponsor_campaign.py':b'# reviewed receiving guard'}
     new.pop('ops/sponsor-machine/assets.json')
     new=sealed(new)
@@ -59,6 +61,8 @@ def fixture(tmp_path, monkeypatch):
              'reviewed_technical_sources':pins}
     c.save(state/'technical-receiving.json',receipt)
     config={'send_enabled':True,'packet_sha256':c.digest(packet),'postal_address':'Synthetic only','require_full_source_binding':True}
+    for n,b in admission.items():
+        p=c.ROOT/n;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(b)
     return config,receipt,new,install,predecessor
 
 
@@ -68,6 +72,14 @@ def test_coordinator_receives_new_technical_bytes_without_relabelling_personal_a
     assert c.approval_ready(config) is True
     assert (c.STATE/'approval.json').read_bytes()==old_approval
     assert predecessor.read_bytes()==old_zip
+
+
+@pytest.mark.parametrize('path',list(c.TECHNICAL_ADMISSION_SOURCE_SHA256))
+def test_changed_discovery_or_classifier_dependency_refuses_receiving(tmp_path,monkeypatch,path):
+    config,*_=fixture(tmp_path,monkeypatch)
+    (c.ROOT/path).write_bytes(b'# tampered admission behavior')
+    with pytest.raises(RuntimeError,match='technical_admission_source_changed'):
+        c.approval_ready(config)
 
 
 @pytest.mark.parametrize('case',['missing','impersonation','wrong_parent','wrong_coordinator','discord_transplant','source_head','sender_pin','source_pin','decision','predecessor','copy','config','asset','capture','extra_member','changed_source','installed_tamper','loose_rehash','old_receipt','forged_successor_personal_message','predecessor_tamper'])

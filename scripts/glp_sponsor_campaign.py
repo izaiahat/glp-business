@@ -45,6 +45,140 @@ def same(a,b):
  return policy._same_adverse_org(a,b)
 def normalize(name):return re.sub('[^a-z0-9]','',re.sub(r'\[.*?\]|\|.*| - .*','',name.lower()))
 
+def source_on_provider(url,host):
+ from urllib.parse import urlsplit
+ try:
+  u=urlsplit(url);h=(u.hostname or '').lower()
+  return u.scheme in ('http','https') and not u.username and not u.password and u.port in (None,80,443) and (h==host or h.endswith('.'+host)) and not u.query
+ except (TypeError,ValueError):return False
+
+
+def public_page_hits(markup):
+ """Visible text/mailto/Cloudflare publication, not strings hidden in scripts."""
+ from html.parser import HTMLParser
+ class Page(HTMLParser):
+  def __init__(self):super().__init__(convert_charrefs=True);self.text=[];self.methods={};self.positions={};self.hidden=0
+  def handle_starttag(self,tag,attrs):
+   if tag in ('script','style'):self.hidden+=1
+   if self.hidden:return
+   attrs=dict(attrs);href=attrs.get('href') or ''
+   if href.lower().startswith('mailto:'):
+    address=href[7:].split('?')[0].lower();self.methods[address]='mailto';self.positions[address]=len(' '.join(self.text))
+   token=attrs.get('data-cfemail','')
+   if token:
+    try:
+     b=bytes.fromhex(token);address=''.join(chr(x^b[0]) for x in b[1:]).lower();self.methods[address]='cloudflare_obfuscated';self.positions[address]=len(' '.join(self.text))
+    except (ValueError,IndexError):pass
+  def handle_endtag(self,tag):
+   if tag in ('script','style'):self.hidden=max(0,self.hidden-1)
+  def handle_data(self,data):
+   if not self.hidden:self.text.append(data)
+ page=Page();page.feed(markup);text=' '.join(' '.join(page.text).split())
+ for address in re.findall(r'[a-zA-Z0-9][a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',text):page.methods.setdefault(address.lower(),'published_text')
+ hits=[]
+ for address,how in page.methods.items():
+  offset=text.lower().find(address)
+  if offset<0:offset=page.positions.get(address,-1)
+  context=text[max(0,offset-180):offset+len(address)+180] if offset>=0 else ''
+  hits.append({'address':address,'how':how,'excerpt':context})
+ return hits,text
+
+
+def public_business_contact(host,organization,at,exact_email=None):
+ """Filter every actual captured candidate BEFORE selection. No guessed alias.
+
+ Historical captures retain their honest decoded-UTF8 representation; new
+ effect-boundary captures retain Requests decompressed content bytes. Neither
+ is mislabelled wire bytes. Support/creator/infrastructure routes do not qualify.
+ """
+ import glp_sponsor_readiness as readiness
+ d=organization.get('discovery',{});rows=[d.get('contact_evidence') or {}]+list(d.get('candidates') or [])
+ for ev in rows:
+  address=str(ev.get('address') or '').lower()
+  if (not address or (exact_email and address!=exact_email) or address.count('@')!=1
+      or not BUSINESS_LOCALS.fullmatch(address.split('@')[0]) or not same(address.split('@')[1],host)
+      or ev.get('tier',d.get('contact_tier')) not in ('partnerships','named_on_partnerships_page')
+      or not source_on_provider(ev.get('found_on'),host)
+      or not readiness.current_evidence({'captured_at_utc':ev.get('captured_at_utc'),'evidence_sha256':ev.get('page_sha256')},at)):continue
+  for page in d.get('_markup',[]):
+   if (page.get('final_url',page.get('url'))!=ev['found_on'] or not source_on_provider(page.get('url'),host)
+       or not source_on_provider(page.get('final_url',page.get('url')),host)):continue
+   markup=page.get('html','')
+   try:
+    if page.get('body_representation')=='requests_decompressed_content':
+     body=base64.b64decode(page['body_base64'],validate=True)
+     if body.decode(page['encoding'],errors='replace')!=markup:continue
+    else:body=markup.encode('utf-8','replace') # exact retained historical representation, NOT original response bytes
+   except (ValueError,KeyError,LookupError,TypeError):continue
+   if hashlib.sha256(body).hexdigest()!=ev['page_sha256'] or page.get('sha256')!=ev['page_sha256']:continue
+   hits,_=public_page_hits(markup)
+   for hit in hits:
+    method='published_text' if ev.get('how')=='visible_text' else ev.get('how')
+    if hit['address']!=address or hit['how']!=method:continue
+    context=hit['excerpt']
+    if (not re.search(r'partnership|affiliat|business development|marketing|sponsor',context,re.I)
+        or re.search(r'patient|billing|customer support|affiliate support|creator recruitment|personal journey|infrastructure',context,re.I)):continue
+    return {**ev,'address':address,'how':hit['how'],'excerpt':context}
+ return None
+
+
+def scope_evidence_current(host,organization,at):
+ """Supplemental US/medication snippets must be anchored in retained first-party text."""
+ import glp_sponsor_readiness as readiness
+ out=[]
+ for ev in organization.get('scope_evidence',[]):
+  if not source_on_provider(ev.get('source_url'),host) or not readiness.current_evidence({'captured_at_utc':ev.get('observed_utc'),'evidence_sha256':ev.get('sha256')},at):continue
+  for page in organization.get('discovery',{}).get('_markup',[]):
+   markup=page.get('html','')
+   if page.get('final_url',page.get('url'))!=ev['source_url'] or hashlib.sha256(markup.encode('utf-8','replace')).hexdigest()!=ev['sha256']:continue
+   _,text=public_page_hits(markup);normalize_text=lambda s:' '.join(str(s).split()).casefold()
+   if not all(not ev.get(k) or normalize_text(ev[k]) in normalize_text(text) for k in ('country_excerpt','medication_provider_excerpt')):continue
+   country=str(ev.get('country_excerpt') or '')
+   medication=str(ev.get('medication_provider_excerpt') or '')
+   if ev.get('country')=='US' and not (re.search(r'United States|U\.S\.|USA|all 50 states',country,re.I) or re.search(r'\bUS\b',country)):continue
+   if medication and not re.search(r'GLP|semaglutide|tirzepatide|prescrib|weight.loss',medication,re.I):continue
+   out.append(ev);break
+ return out
+
+
+def fresh_public_contact(recipient,at):
+ """Existing pre-send refresh: exact address, <=2 requests/25s/10s timeout.
+
+ No generic discovery reranking or root rebinding; reject redirects BEFORE an
+ off-property request. Keep response content bytes privately, not wire claims.
+ """
+ import requests,time
+ from urllib.parse import urljoin
+ url=recipient['contact_evidence']['found_on'];host=recipient['host'];start=time.monotonic();chain=[]
+ if not source_on_provider(url,host):return None
+ for _ in range(2):
+  remaining=25-(time.monotonic()-start)
+  if remaining<=0:return None
+  try:
+   with requests.get(url,headers={'Accept':'text/html','Accept-Encoding':'gzip, deflate'},timeout=min(10,remaining),allow_redirects=False,stream=True) as response:
+    if not source_on_provider(response.url,host):return None
+    if response.status_code in (301,302,303,307,308):
+     target=urljoin(url,response.headers.get('Location',''))
+     if not target or target==url or not source_on_provider(target,host):return None
+     chain.append({'request_url':url,'status':response.status_code,'location':target});url=target;continue
+    if response.status_code!=200:return None
+    chunks=[];length=0
+    for chunk in response.iter_content(chunk_size=65536):
+     length+=len(chunk)
+     if length>2*1024*1024 or time.monotonic()-start>25:return None
+     chunks.append(chunk)
+    body=b''.join(chunks);encoding=response.encoding or 'utf-8';markup=body.decode(encoding,errors='replace');sha=hashlib.sha256(body).hexdigest()
+    captured=stamp(now());hits,_=public_page_hits(markup)
+    candidates=[{**hit,'tier':'partnerships','found_on':response.url,'page_sha256':sha,'captured_at_utc':captured} for hit in hits]
+    page={'url':url,'final_url':response.url,'html':markup,'sha256':sha,'fetched_at_utc':captured,'bytes':len(body),
+          'encoding':encoding,'body_representation':'requests_decompressed_content','body_base64':base64.b64encode(body).decode(),'redirect_chain':chain}
+    organization={'discovery':{'candidates':candidates,'_markup':[page]}}
+    save(STATE/'contact-captures'/(hashlib.sha256(recipient['email'].encode()).hexdigest()+'.json'),organization['discovery'])
+    return public_business_contact(host,organization,now(),exact_email=recipient['email'])
+  except (requests.RequestException,ValueError,LookupError,TypeError):return None
+ return None
+
+
 def recipients(values,discovery,local):
  """Census every registry row; only public business-purpose contacts survive.
 
@@ -61,7 +195,7 @@ def recipients(values,discovery,local):
  for r in rows:
   if not r['eligible']:exclusions.append(r);continue
   raw=values[r['row']-1]+['']*27;h=r['host'];name=r['program'];reason=''
-  scope=discovery.get('organizations',{}).get(h,{}).get('scope_evidence',[])
+  scope=scope_evidence_current(h,discovery.get('organizations',{}).get(h,{}),now())
   med_evidenced=any(x.get('medication_provider_excerpt') for x in scope)
   us_evidenced=any(x.get('country')=='US' and re.search(r'customers|residents|areaServed|PostalAddress|available|across|pricing|states|doctors|WW USA',x.get('country_excerpt',''),re.I) and not re.search(r'copyright|usa-today|1 out of 5',x.get('country_excerpt',''),re.I) for x in scope)
   if any(same(h,b) for b in held_hosts) or normalize(name) in held_names or 'fella' in name.lower():reason='held_or_excluded_organization'
@@ -76,15 +210,18 @@ def recipients(values,discovery,local):
   organization=discovery.get('organizations',{}).get(h,{})
   professional=readiness.professional_contact(h,organization.get('professional_contacts',[]),now())
   reason='';d=organization.get('discovery',{});email=str(d.get('contact_email') or '').lower();ev=d.get('contact_evidence') or {}
+  public=None if professional else public_business_contact(h,organization,now())
   if professional:
    email=professional['email'].lower();ev=professional
+  elif public:email=public['address'];ev=public
   if not local['suppression']['complete']:reason='suppression_ledger_incomplete'
   elif any(same(h,x['domain']) for x in local['suppression']['entries']):reason='suppressed_organization'
   elif any(same(h,x['domain']) for x in local['conversations']):reason='existing_legacy_conversation'
   elif h in ('nuimage.com','nuimagemedical.com') or re.search(r'nu\s*image',rs[0]['program'],re.I):reason='nu_image_warm_conversation_excluded'
   elif not professional and (not email or not BUSINESS_LOCALS.fullmatch(email.split('@')[0]) or not same(email.split('@')[-1],h)):reason='no_verified_business_purpose_contact'
-  elif not professional and d.get('contact_tier') not in ('partnerships','named_on_partnerships_page'):reason='contact_purpose_unverified'
-  elif not professional and (not ev.get('page_sha256') or not ev.get('found_on') or ev.get('address','').lower()!=email or not ev.get('captured_at_utc') or ev.get('how') not in ('mailto','cloudflare_obfuscated','visible_text')):reason='contact_evidence_incomplete'
+  elif not professional and ev.get('tier',d.get('contact_tier')) not in ('partnerships','named_on_partnerships_page'):reason='contact_purpose_unverified'
+  elif not professional and (not ev.get('page_sha256') or not ev.get('found_on') or ev.get('address','').lower()!=email or not ev.get('captured_at_utc') or ev.get('how') not in ('mailto','cloudflare_obfuscated','visible_text','published_text')):reason='contact_evidence_incomplete'
+  elif not professional and not public:reason='public_source_or_role_evidence_unknown'
   if reason:exclusions.append({'host':h,'rows':[r['row'] for r in rs],'reason':reason});continue
   if any(same(h,c['host']) or email==c['email'] for c in candidates):
    exclusions.append({'host':h,'reason':'organization_contact_deduplicated'});continue
@@ -153,6 +290,14 @@ TECHNICAL_SOURCE_SHA256={
  'scripts/glp_sponsor_paypal.py':'99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7',
  'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md':'9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2',
 }
+# Exact current classifier closure, newly bound by the sealed sender's
+# immutable code pins. These bytes are NOT permission to change shared discovery
+# behavior or import its older application cadence into this campaign.
+TECHNICAL_ADMISSION_SOURCE_SHA256={
+ 'scripts/glp328_outreach_policy.py':'1f3bb51c465a98fd5bc3da566f44e20731587123d2200792bc31e9b09fde3d21',
+ 'scripts/affiliate_provider_row_scope.py':'4c2eb769723efbde2c7cb6fcb5f5bd7da2b236333dc1376098cd08056db4af90',
+ 'scripts/affiliate_sheet_schema_guard.py':'c224fd6c67547af345e8d06fefaadc95f37816df70091d3ad088a3ae472c0d99',
+}
 
 
 def technical_packet_members(packet):
@@ -220,6 +365,8 @@ def coordinator_technical_ready(approval,config):
  if digest(predecessor)!=TECHNICAL_PREDECESSOR_SHA256:raise RuntimeError('technical_predecessor_changed')
  packet=ROOT/'reports/ops/sponsor-machine-20261003/sponsor-review-packet.zip'
  technical_equivalence(technical_packet_members(predecessor),technical_packet_members(packet),receipt['reviewed_sender_sha256'])
+ for rel,sha in TECHNICAL_ADMISSION_SOURCE_SHA256.items():
+  if not (ROOT/rel).is_file() or digest(ROOT/rel)!=sha:raise RuntimeError('technical_admission_source_changed:'+rel)
 
 
 def approval_ready(config):
@@ -647,7 +794,7 @@ def run(config,dry_run=False):
   remaining={0:max(0,int(config.get('new_provider_daily_cap',config.get('batch_cap',25)))-used[0]),1:max(0,int(config.get('follow_up_daily_cap',25))-used[1])}
   total_remaining=max(0,config.get('batch_cap',25)-sent_today)
   next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled else 0
-  selected={0:0,1:0};sent_by_kind={0:0,1:next_steps};previews=[];sent_count=next_steps;read_client=None
+  selected={0:0,1:0};sent_by_kind={0:0,1:next_steps};previews=[];sent_count=next_steps;read_client=None;boundary_exclusions=[]
   for recipient in plan['recipients']:
    stage=due(recipient,ledger,at)
    if stage is None:continue
@@ -670,27 +817,49 @@ def run(config,dry_run=False):
     current_contact=readiness.professional_contact(recipient['host'],[recipient['contact_evidence']],at)
     if not current_contact:continue
    else:
-    import glp_provider_contact_discovery as discovery_source
-    current=discovery_source.discover(recipient['organization'],[recipient['contact_evidence']['found_on']],max_pages=2,timeout=10,budget_s=25)
-    if current.get('contact_email','').lower()!=recipient['email'] or current.get('contact_tier') not in ('partnerships','named_on_partnerships_page'):continue
+    current=fresh_public_contact(recipient,now())
+    if not current:
+     boundary_exclusions.append({'host':recipient['host'],'reason':'current_exact_public_contact_unqualified'});continue
    if read_client is None:read_client=service('read')
    previous=ledger.setdefault(recipient['email'],{})
    allowed,reason=mail_admit(recipient,previous,read_client)
    if not allowed:previous['stopped']=reason;save(STATE/'ledger.json',ledger);continue
    # Re-read suppression immediately before effect, unioned with all own stops.
    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
+   send_client=service('send') # Complete potentially blocking authentication BEFORE the final claim gate.
    with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True):
+    # Re-read the LAST shared-ledger decision after all contact/mail/auth work,
+    # using effect-boundary time, not run-start time. This is a read, never a debit.
+    boundary_at=now();boundary_pt=boundary_at.astimezone(PT)
+    if boundary_pt.weekday() not in config.get('send_days',[0,1,2,3,4]) or boundary_pt.hour!=9:
+     boundary_exclusions.append({'host':recipient['host'],'reason':'outside_approved_09_PT_send_window'});continue
+    if config.get('require_bouncer') is True:
+     verified=readiness.bouncer_readiness(recipient['email'],ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',boundary_at)
+     if verified['send_eligible'] is not True:
+      boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_verification_'+verified['status']});continue
+    if recipient.get('contact_source')=='alexandria_apollo' and not readiness.professional_contact(recipient['host'],[recipient['contact_evidence']],boundary_at):
+     boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_professional_contact_expired'});continue
     # Stops committed during contact/mail/suppression reads win before claim.
-    if due(recipient,ledger,at)!=stage:continue
+    if due(recipient,ledger,boundary_at)!=stage:continue
     previous.update(host=recipient['host'],organization=recipient['organization'],contact_source=recipient.get('contact_source','published_business_contact'),variant=rendered['variant'])
-    previous['claimed']={'stage':stage,'at':stamp(),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
-    receipt=send_message(service('send'),rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
+    previous['claimed']={'stage':stage,'at':stamp(boundary_at),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
+    receipt=send_message(send_client,rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
     previous.setdefault('sent',[]).append(receipt);previous.pop('claimed');save(STATE/'ledger.json',ledger);sent_count+=1;sent_by_kind[kind]+=1
   verification_counts={}
   for recipient in plan['recipients']:
    status=recipient.get('verification',{}).get('status','unknown')
    verification_counts[status]=verification_counts.get(status,0)+1
   receipt={'interested_next_step_count':next_steps,'reply_readiness':reply_readiness,'sourcing_readiness':sourcing_readiness,'payment_readiness':payment_readiness,'verification_readiness':verification_counts,'new_provider_count':sent_by_kind[0],'follow_up_count':sent_by_kind[1],'new_provider_preview_count':selected[0],'follow_up_preview_count':selected[1],'daily_capacity_used':{'new_providers':used[0],'follow_ups':used[1]},'campaign':CAMPAIGN,'run_type':'registered_dry_run' if dry_run else 'scheduled','generated_utc':stamp(at),'send_enabled':enabled,'sent':sent_count,'eligible_recipient_count':len(plan['recipients']),'first_batch_count':len(previews),'registry_rows':plan['registry_rows'],'candidate_rows':plan['candidate_rows'],'previews':previews,'exclusions':plan['exclusions']}
+  receipt.update(send_boundary_exclusions=boundary_exclusions,denominators={
+   'registry_rows':'registry census; not organizations or qualified recipients',
+   'candidate_rows':'initial eligible registry rows before US/medication/contact gates',
+   'eligible_recipient_count':'purpose-qualified initial plan; not final transport admission',
+   'first_batch_count':'rendered previews before final contact/mail/stop/verifier checks',
+   'verification_readiness':'initial plan verification observations; not final send admission',
+   'final_admission_checked':enabled,'new_provider_count':'actual reconciled initial sends in this run',
+   'follow_up_count':'actual reconciled follow-up and interested-reply sends in this run',
+   'target_new_provider_daily_cap':config.get('new_provider_daily_cap',config.get('batch_cap',25)),
+   'current_new_provider_supply':None})
   save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
 
