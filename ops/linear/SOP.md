@@ -57,6 +57,29 @@ history carries metadata changes; closure retains result-receipt-before-state or
 Half-admitting (state moved, project still `Triage`, `triage` label kept) is the defect that
 produced GLP-148/161/163; `triage_placement_problem` now refuses it and exits non-zero.
 
+## GLP109 approved two-account protected runtime closure
+
+`OPERATOR-DECISION-20261008-two-account-closure.md` permits only GLP109 to use
+`protected_review.native` instead of a third Linear signer. The native object has
+`coordinator_session_id` and `author`/`reviewer` objects with `session_id`, `path`,
+`sha256`, `write_message_id`, `tool_result_message_id`. SessionDB's retained
+sessions/messages must prove distinct completed native author/reviewer/coordinator,
+native parent and `_delegate_from`, designated Astra, and successful `write_file`
+calls whose exact bytes equal both reports. The reviewed report must bind the
+exact candidate path, issue, description, frozen payload and author/coordinator;
+the author report binds installed source PR/head/merge/hash. The runtime-owned
+session history is authority, not report labels; missing history fails closed.
+
+The non-author operator posts a factual adoption (`Independent protected acceptance
+verified:`), **not an impersonated agent signature**, then a distinct coordinator
+comment. Both retain all normal scope/evidence/author bindings and additionally
+`Native independent review SHA256: <SHA256 of canonical native JSON>`. Coordinator
+acceptance still binds the adoption comment/body hash. Add only `review` and
+`protected_review` to the frozen RESULT; all runtime/source/CI/lint checks and
+receipt-before-Done remain. Other issues and the three-identity path are unchanged.
+Independent Astra must accept the repair before installation; parent alone closes.
+This uses the existing local runtime/coordinator trust boundary, not OS isolation.
+
 ## Evidence — `scripts/linear_evidence.py`
 
 ```sh

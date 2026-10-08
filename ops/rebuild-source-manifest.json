@@ -12,7 +12,9 @@
   "files": {
     "tests/test_glp80_registry_adoption.py": {
       "kind": "test",
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
     },
     "tests/test_glp80_registered_price_refresh.py": {
@@ -530,7 +532,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "280be6ed9c4534dbff46ad815c4050acc645b89bc35f5c70de96a4ae5b5f990c"
+      "sha256": "bbf5dfead5b93ea8135089cec1cc22d59d7c13abee8ecf609db8fbedd2704fa9"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -953,7 +955,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "09e71534e132e8660b77195b974cc96e360693d1a96f02aef27362b25e2bd5ba"
+      "sha256": "5bdabf28fbf0ecd1b5b683f01c4820f4eec9e2e0e50506ee811da7ab5fba83f4"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1196,7 +1198,7 @@
     "ops/linear/SOP.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "55cdedbff0106e21aedc5c846e1aaa760078f6ddd4c072dcdcddadfb7bdf424e"
+      "sha256": "68c3d6555878006d06976e4b82adf4aba7e3bcac361525a4f6f4a0eee6b03b03"
     },
     "ops/linear/TRIAGE-INTAKE.md": {
       "callers": [],
@@ -1715,7 +1717,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "23e97328c655cfdec4109179c57278f46730624ee1567ee5473e35f9db4a760b"
+      "sha256": "84563d737facfef9374fa3ff546fef0604fe2c61c332b983cf325ffdcd3279ed"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1853,7 +1855,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "1df7f69e343f2ed9eeb40648a1e7aeb612656cbdd53534dcfa493de83ffffdb4"
+      "sha256": "274d984de251f0d6e51e4d3e2d488e97b46c3f3603fb93958ae89652fbdcae04"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -2118,7 +2120,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "12382d7c4400bd29a3499ac48211a4da55e877c4c95a75f05876cc648640f2d9"
+      "sha256": "07d729257819ddffbfdc33d104dd2cd5ec9ff49c3aa3d1ce1b50382533c9ea97"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -2920,7 +2922,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "b597ec56b7613358c24b656da3180f1773bb686ffd03382a966a91bcca2e3e05"
+      "sha256": "144c6072563271ab5004c2bd42f554883fa8adeeeaa6e90791453bd0595a95ae"
     },
     "tests/test_glp44_bridge_fence_successor.py": {
       "callers": [],
@@ -3320,7 +3322,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "7bcd467a136ab4515a75225d95f96543eb8a825372e0bc25e059157d9eedcafc"
+      "sha256": "b46aac4765287c24ae095c9cab5f8c36c098d26187279d488c39bb2897897343"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -3874,7 +3876,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "e9f290a6dcc1062152321ef99bc4cf4dae88a1e81ba486c2791e6a0a6418849c"
+      "sha256": "e07c707f0f33ea87cd9fa24dd0150266a325d9ba68e5a279bb1ce018dba49f19"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
