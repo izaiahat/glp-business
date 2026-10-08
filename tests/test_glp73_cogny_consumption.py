@@ -91,12 +91,22 @@ class CognyInputs(unittest.TestCase):
         return ns['r2_candidates']
 
     def native_candidates(self, articles, metrics):
-        import sys
-        from unittest import mock
-        with mock.patch.object(sys,'path',[str(PATH.parent),*sys.path]):
-            s=importlib.util.spec_from_file_location('native_existing_updates',PATH.parent/'existing_article_updates.py')
-            m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
-        return m.select_update_candidates(articles,metrics,as_of=dt.date(2026,10,8))['r2_candidates']
+        # Execute maintained pure producer + weekly selector, without importing
+        # unrelated host-only analytics or substituting any selection decision.
+        import ast
+        import re
+        tree=ast.parse((PATH.parent/'existing_article_updates.py').read_text())
+        names={'canonical_route','_strict_date','article_age_days','select_update_candidates','weekly_plan'}
+        constants={'WEEKLY_TIER_UNITS','DAILY_UPDATE_QUOTAS','NET_NEW_WEEKLY_TARGET'}
+        body=[ast.ImportFrom(module='__future__',names=[ast.alias(name='annotations')],level=0)]
+        body.extend(n for n in tree.body if
+                    isinstance(n,ast.FunctionDef) and n.name in names or
+                    isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in constants for t in n.targets))
+        ns={'dt':dt,'re':re}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=body,type_ignores=[])),
+                     'existing_article_updates.py','exec'),ns)
+        selected=ns['select_update_candidates'](articles,metrics,as_of=dt.date(2026,10,8))['r2_candidates']
+        return ns['weekly_plan'](selected)['selected']
 
     def test_r2_preserves_native_class_a_first_even_with_preferred_non_a_p1(self):
         articles=[{'article_id':name,'canonical_path':'/guides/'+name+'/','published_at':'2026-01-01'}

@@ -4022,7 +4022,7 @@ let ctx;
         html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
         html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p><br class="ProseMirror-trailingBreak"></p></div>'
         node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
-        left, right = node.index('const output={};'), node.index('}finally{await cdp')
+        left, right = node.index('const output={};'), node.index('}finally{await cleanup')
         node = node[:left] + r'''
 const rl=require('readline').createInterface({input:process.stdin,crlfDelay:Infinity});
 process.stdout.write(JSON.stringify({ready:true})+'\n');
@@ -4030,9 +4030,11 @@ for await(const line of rl){const r=JSON.parse(line);if(r.stop)break;
 try{process.stdout.write(JSON.stringify({value:await js(r.expression)})+'\n');}
 catch(e){process.stdout.write(JSON.stringify({error:e.message})+'\n');}}
 ''' + node[right:]
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryFile(mode='w+') as diagnostics:
+            # Interactive CDP reads stdout incrementally; drain stage diagnostics
+            # to a file so an unread stderr pipe cannot stall the fixture.
             proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True, env={**os.environ, 'TMPDIR': tmp})
+                                    stderr=diagnostics, text=True, env={**os.environ, 'TMPDIR': tmp})
             try:
                 self.assertEqual(json.loads(proc.stdout.readline()), {'ready': True})
                 def native(expression):
@@ -4140,7 +4142,8 @@ window.props=props;window.owner=owner;
                         self.assertEqual(native('document.querySelector("button").getAttribute("data-selected-reasoning-effort")'), 'medium')
                 proc.stdin.write(json.dumps({'stop':True})+'\n'); proc.stdin.flush(); proc.stdin.close()
                 proc.wait(timeout=15)
-                self.assertEqual(proc.returncode, 0, proc.stderr.read())
+                diagnostics.seek(0)
+                self.assertEqual(proc.returncode, 0, diagnostics.read())
             finally:
                 if proc.poll() is None: proc.kill(); proc.wait()
 
