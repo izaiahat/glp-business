@@ -4022,7 +4022,7 @@ let ctx;
         html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
         html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p><br class="ProseMirror-trailingBreak"></p></div>'
         node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
-        left, right = node.index('const output={};'), node.index('}finally{await cdp')
+        left, right = node.index('const output={};'), node.index('}finally{await cleanup')
         node = node[:left] + r'''
 const rl=require('readline').createInterface({input:process.stdin,crlfDelay:Infinity});
 process.stdout.write(JSON.stringify({ready:true})+'\n');
@@ -4030,9 +4030,11 @@ for await(const line of rl){const r=JSON.parse(line);if(r.stop)break;
 try{process.stdout.write(JSON.stringify({value:await js(r.expression)})+'\n');}
 catch(e){process.stdout.write(JSON.stringify({error:e.message})+'\n');}}
 ''' + node[right:]
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryFile(mode='w+') as diagnostics:
+            # Interactive CDP reads stdout incrementally; drain stage diagnostics
+            # to a file so an unread stderr pipe cannot stall the fixture.
             proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, text=True, env={**os.environ, 'TMPDIR': tmp})
+                                    stderr=diagnostics, text=True, env={**os.environ, 'TMPDIR': tmp})
             try:
                 self.assertEqual(json.loads(proc.stdout.readline()), {'ready': True})
                 def native(expression):
@@ -4140,7 +4142,8 @@ window.props=props;window.owner=owner;
                         self.assertEqual(native('document.querySelector("button").getAttribute("data-selected-reasoning-effort")'), 'medium')
                 proc.stdin.write(json.dumps({'stop':True})+'\n'); proc.stdin.flush(); proc.stdin.close()
                 proc.wait(timeout=15)
-                self.assertEqual(proc.returncode, 0, proc.stderr.read())
+                diagnostics.seek(0)
+                self.assertEqual(proc.returncode, 0, diagnostics.read())
             finally:
                 if proc.poll() is None: proc.kill(); proc.wait()
 
@@ -4348,14 +4351,137 @@ window.props=props;window.owner=owner;
             self.assertEqual(row['clicks'], int(row['name'] == 'correct'), row['name'])
 
 
+class OfflineComposerLifecycleTests(unittest.TestCase):
+    """Real fixture CDP/cleanup with synthetic child streams, never Chrome."""
+
+    HARNESS = r'''
+const {EventEmitter}=require('events'),{PassThrough}=require('stream');
+let killed=false;
+cp.spawn=()=>{
+  const child=new EventEmitter();child.exitCode=null;child.signalCode=null;
+  child.stdio=[null,null,new PassThrough(),new PassThrough(),new PassThrough()];
+  child.stderr=child.stdio[2];
+  child.kill=signal=>{killed=true;child.signalCode=signal;
+    setImmediate(()=>{child.emit('exit',null,signal);child.emit('close',null,signal);});return true;};
+  child.stdio[3].on('data',bytes=>{
+    const msg=JSON.parse(bytes.toString().replace(/\0$/,''));
+    if(f.mode==='hang-close' && msg.method==='Probe.work')
+      setImmediate(()=>child.stdio[4].write(JSON.stringify({id:msg.id,result:{}})+'\0'));
+  });
+  if(f.mode!=='hang-close')setImmediate(()=>{
+    if(f.mode==='exit'){child.exitCode=1;child.emit('exit',1,null);child.emit('close',1,null);}
+    else if(f.mode==='eof')child.stdio[4].end();
+    else if(f.mode==='read-error')child.stdio[4].emit('error',new Error('synthetic'));
+    else if(f.mode==='write-error')child.stdio[3].emit('error',new Error('synthetic'));
+    else if(f.mode==='spawn-error')child.emit('error',new Error('synthetic'));
+  });
+  return child;
+};
+'''
+
+    def test_child_termination_rejects_pending_and_future_cdp_requests(self):
+        source=NATIVE_COMPOSER_FIXTURE.split('(async()=>{try{',1)[0]
+        source=source.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));",
+                              "const f=JSON.parse(fs.readFileSync(0,'utf8'));"+self.HARNESS)
+        source+=r'''
+let settled=false,rejected=false;
+cdp('Target.createTarget',{url:'about:blank'}).then(()=>settled=true,()=>{settled=true;rejected=true;});
+setTimeout(async()=>{
+  let futureRejected=false;
+  const future=cdp('Runtime.evaluate').then(()=>{},()=>{futureRejected=true;});
+  await Promise.race([future,new Promise(resolve=>setTimeout(resolve,50))]);
+  console.log(JSON.stringify({settled,rejected,futureRejected,pending:pending.size}));
+  fs.rmSync(dir,{recursive:true,force:true});process.exit(0);
+},50);
+'''
+        for mode in ['exit','eof','read-error','write-error','spawn-error']:
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                result=REAL_SUBPROCESS_RUN(['node','-e',source],text=True,input=json.dumps({'mode':mode}),
+                                          capture_output=True,timeout=3,env={**__import__('os').environ,'TMPDIR':tmp})
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(json.loads(result.stdout),
+                                 {'settled':True,'rejected':True,'futureRejected':True,'pending':0})
+
+    def test_hung_browser_close_arms_kill_and_removes_profile(self):
+        source=NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));",
+                    "const f=JSON.parse(fs.readFileSync(0,'utf8'));"+self.HARNESS)
+        start=source.index("const target=(await cdp('Target.createTarget'")
+        end=source.index('}finally',start)
+        source=source[:start]+"await cdp('Probe.work');\n"+source[end:]
+        source+="\nprocess.on('exit',()=>console.log(JSON.stringify({killed,profileExists:fs.existsSync(dir)})));"
+        with tempfile.TemporaryDirectory() as tmp:
+            result=REAL_SUBPROCESS_RUN(['node','-e',source],text=True,input=json.dumps({'mode':'hang-close'}),
+                                      capture_output=True,timeout=5,env={**__import__('os').environ,'TMPDIR':tmp})
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(json.loads(result.stdout),{'killed':True,'profileExists':False})
+            self.assertEqual(list(Path(tmp).iterdir()),[])
+
+
 NATIVE_COMPOSER_FIXTURE = r'''
 const fs=require('fs'),cp=require('child_process'),os=require('os'),path=require('path');
 const f=JSON.parse(fs.readFileSync(0,'utf8'));
 const dir=fs.mkdtempSync(path.join(process.env.TMPDIR,'pro-composer-native-'));
-const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
-let next=0,buf='',pending=new Map();
-chrome.stdio[4].on('data',b=>{buf+=b;let pos;while((pos=buf.indexOf('\0'))>=0){const msg=JSON.parse(buf.slice(0,pos));buf=buf.slice(pos+1);if(msg.id&&pending.has(msg.id)){const [yes,no]=pending.get(msg.id);pending.delete(msg.id);msg.error?no(new Error(msg.error.message)):yes(msg.result);}}});
-function cdp(method,params={},sessionId){return new Promise((yes,no)=>{const id=++next;pending.set(id,[yes,no]);chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0');});}
+const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{detached:process.platform!=='win32',stdio:['ignore','ignore','pipe','pipe','pipe']});
+let next=0,buf='',pending=new Map(),terminalError=null,childClosed=false,cleanupPromise;
+// Only method/stage/exit metadata is logged: never expressions or DOM contents.
+const trace=stage=>process.stderr.write('NATIVE_FIXTURE '+stage+'\n');
+function fail(reason){
+  if(terminalError)return;
+  terminalError=new Error(reason);trace(reason+' pending='+pending.size);
+  for(const [yes,no] of pending.values())no(terminalError);
+  pending.clear();
+}
+chrome.on('error',()=>fail('CHILD_ERROR'));
+chrome.on('exit',(code,signal)=>{trace('CHILD_EXIT code='+code+' signal='+signal);fail('CHILD_EXIT');});
+chrome.on('close',()=>{childClosed=true;fail('CHILD_CLOSE');});
+for(const [index,label] of [[3,'WRITE'],[4,'READ']]){
+  chrome.stdio[index].on('error',()=>fail('PIPE_'+label+'_ERROR'));
+  chrome.stdio[index].on('close',()=>fail('PIPE_'+label+'_CLOSE'));
+}
+chrome.stdio[4].on('end',()=>fail('PIPE_READ_EOF'));
+// Drain Chrome diagnostics without exposing raw profile paths or stderr text.
+let stderrBytes=0;
+chrome.stderr.on('data',b=>{stderrBytes+=b.length;});
+chrome.stderr.on('error',()=>fail('CHROME_STDERR_ERROR'));
+chrome.stdio[4].on('data',b=>{
+  buf+=b;let pos;
+  while((pos=buf.indexOf('\0'))>=0){
+    let msg;try{msg=JSON.parse(buf.slice(0,pos));}catch(e){fail('CDP_INVALID_JSON');return;}
+    buf=buf.slice(pos+1);
+    if(msg.id&&pending.has(msg.id)){
+      const [yes,no,method]=pending.get(msg.id);pending.delete(msg.id);trace('DONE '+msg.id+' '+method);
+      msg.error?no(new Error('CDP_ERROR '+method)):yes(msg.result);
+    }
+  }
+});
+function cdp(method,params={},sessionId){return new Promise((yes,no)=>{
+  if(terminalError){no(terminalError);return;}
+  const id=++next;pending.set(id,[yes,no,method]);trace('CALL '+id+' '+method);
+  try{chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0',e=>{if(e)fail('PIPE_WRITE_ERROR');});}
+  catch(e){fail('PIPE_WRITE_ERROR');}
+});}
+// Leave time for bounded cleanup before Python's unchanged 30s outer timeout.
+const deadline=setTimeout(()=>{process.exitCode=1;fail('FIXTURE_DEADLINE');cleanup().catch(()=>{});},25000);
+function cleanup(){
+  if(cleanupPromise)return cleanupPromise;
+  cleanupPromise=(async()=>{
+    clearTimeout(deadline);
+    const closed=new Promise(resolve=>childClosed?resolve():chrome.once('close',resolve));
+    const fallback=setTimeout(()=>{
+      trace('KILL_FALLBACK');
+      try{if(process.platform!=='win32'&&chrome.pid)process.kill(-chrome.pid,'SIGKILL');else chrome.kill('SIGKILL');}
+      catch(e){if(e.code!=='ESRCH')throw e;}
+    },2000);
+    try{
+      // Arm fallback BEFORE asking Chrome to close; never await its CDP reply.
+      if(!terminalError)cdp('Browser.close').catch(()=>{});
+      await closed;
+    }finally{
+      clearTimeout(fallback);fs.rmSync(dir,{recursive:true,force:true});
+      trace('CLEANUP profile_removed='+!fs.existsSync(dir)+' stderr_bytes='+stderrBytes);
+    }
+  })();return cleanupPromise;
+}
 let sid;
 async function js(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},sid);if(r.exceptionDetails)throw new Error('FIXTURE_JS_EXCEPTION');return r.result.value;}
 (async()=>{try{
@@ -4382,7 +4508,7 @@ process.stdout.write(JSON.stringify(output));return;
 output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify(c.text)+');window.clicks=0;');if(c.mutate)await js(c.mutate);const expr=c.expression.replace('const retainedOrigin=12345.5;', 'const retainedOrigin=performance.timeOrigin;');output.cases.push({name:c.name,result:await js(expr),clicks:await js('window.clicks')});}
 const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
 process.stdout.write(JSON.stringify(output));
-}finally{await cdp('Browser.close').catch(()=>{});}})().catch(e=>{process.stderr.write(e.message);process.exitCode=1;}).finally(()=>{chrome.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));setTimeout(()=>{chrome.kill('SIGKILL');},2000).unref();});
+}finally{await cleanup();}})().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=1;});
 '''.replace('__MODEL_OWNER_FIXTURE__', json.dumps(MODEL_OWNER_FIXTURE + '''
 const trigger=document.querySelector('button[aria-label="Select ChatGPT model"]');
 trigger.setAttribute('aria-expanded','false');

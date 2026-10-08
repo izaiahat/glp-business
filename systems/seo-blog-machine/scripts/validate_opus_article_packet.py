@@ -15,28 +15,19 @@ from selection_receipt import (
 from existing_article_updates import _routes_in, _substantive_projection
 from r2_update_carrier import object_hash, validate_r2_packet_contract, validate_update_authority
 from machine_config import load_config
+from article_research import packet_research_valid
 
 DEFAULT_CONFIG = Path("/home/ubuntu/business/systems/seo-blog-machine/config/verticals/glp-clinic-scout.json")
 
 HERE = Path(__file__).resolve().parent
 COMPILER = HERE / "compile_review_packet_article.py"
 ROUTE_PATTERN = re.compile(r"^/(?:guides|best|reviews|cost|tools)/[a-z0-9]+(?:-[a-z0-9]+)*/$")
-# The DEPLOYED renderer decides which namespaces can exist as catalog articles.
-# ``scripts/build-staging.mjs`` (``addGuideMetadata``) throws
-# ``article_canonical_path_invalid`` for anything outside /guides/ and /best/;
-# /cost/, /tools/ and /reviews/ pages on the live site are hand-built statics,
-# not batch articles. ROUTE_PATTERN above is deliberately wider because
-# selection and link plans legitimately reference those static routes.
-#
-# 2026-08-18: a packet minted at /cost/glp1-pills-cost/ passed selection, the
-# deterministic validator and a full five-gate review, entered the standing
-# buffer, and only died inside ``npm run build`` — after the entire research +
-# review spend. This check moves the renderer's own contract to the front of the
-# chain. Keep it byte-identical to the renderer: the parity test in
-# tests/test_renderer_article_route_namespace.py asserts the live accepted
-# base still carries exactly this pattern.
-RENDERER_ARTICLE_ROUTE_SOURCE = r"^\/(?:guides|best)\/[a-z0-9-]+\/$"
-RENDERER_ARTICLE_ROUTE_PATTERN = re.compile(r"^/(?:guides|best)/[a-z0-9-]+/$")
+# Coupled with the reviewed site addGuideMetadata successor. /reviews/ articles
+# use the source-driven renderer, not the provider-profile generator. Route
+# collisions, held providers, selection and all evidence gates still apply.
+# Adopt the site successor before installing this admission predicate.
+RENDERER_ARTICLE_ROUTE_SOURCE = r"^\/(?:guides|best|reviews)\/[a-z0-9-]+\/$"
+RENDERER_ARTICLE_ROUTE_PATTERN = re.compile(r"^/(?:guides|best|reviews)/[a-z0-9-]+/$")
 PRIMARY_MEDICAL_HOSTS = (
     "fda.gov", "hhs.gov", "nih.gov", "ncbi.nlm.nih.gov",
     "pubmed.ncbi.nlm.nih.gov", "cms.gov", "ftc.gov", "uscourts.gov",
@@ -488,7 +479,7 @@ def deterministic_repair_request(
         "r2_new_outbound_internal_link_present",
         "organization_author", "article_and_faq_schema_requested", "capture_contract",
         "two_column_tables", "forbidden_patterns_absent", "no_affiliate_cta",
-        "prose_free_of_html_markup", "inbound_link_plan_publishable",
+        "prose_free_of_html_markup",
     }
     claim_checks = {
         "all_citations_known", "all_claim_quote_ids_known", "all_article_claim_sources_known",
@@ -496,8 +487,8 @@ def deterministic_repair_request(
         "article_source_minimum_and_map_complete", "article_source_ids_unique",
         "primary_medical_source_present",
     }
-    evidence_checks = {"evidence_status"}
-    serp_checks = {"serp_top_10", "serp_wedge_present"}
+    evidence_checks = {"evidence_status", "alexandria_claim_ledger"}
+    serp_checks = {"serp_top_10", "serp_wedge_present", "inbound_link_plan_publishable"}
     immutable_checks = {
         "authority_topic_ready", "authority_topic_id_present", "authority_topic_ids_exact",
         "authority_matches_requested_topic_id", "authority_matches_requested_route",
@@ -534,6 +525,19 @@ def deterministic_repair_request(
                 "site route that is absent from the authority-bound predecessor. A separate inbound_link_plan "
                 "points from another article to this route and does not satisfy this outbound-link requirement. "
                 "Preserve every passing check and never add filler or fabricate claims, evidence, citations, or sources."
+            )
+        elif name == "alexandria_claim_ledger" and repairable:
+            required_fix = (
+                "Use maintained article_research.py to capture the selected topic's clinical/regulatory evidence; "
+                "bind its exact manifest and complete research_claim_ledger in 01, with one row per 05 claim. "
+                "Preserve real capture dates, classify claims truthfully, and bind exact quotations. "
+                "Never invent a response, quote, clinical applicability or successful discovery."
+            )
+        elif name == "inbound_link_plan_publishable" and repairable:
+            required_fix = (
+                "Repair 02-serp-brief.json.inbound_link_plan using an actual mutable article in the current "
+                "configured catalog, not a sitemap-only or redirected page. Preserve the selected target "
+                "route, immutable authority and every selection binding; add a reader-useful contextual link."
             )
         elif repairable:
             required_fix = (
@@ -631,6 +635,7 @@ def validate(packet: Path, expected_topic_id: str | None = None,
     queue_authority = authority.get("queue_authority") or {}
     parity_target = int(article.get("serp_contract", {}).get("parity_target_words") or 3000)
     checks = {
+        "alexandria_claim_ledger": packet_research_valid(packet, selected["target_query"]),
         "authority_topic_id_present": len(topic_id) >= 12,
         "authority_topic_ready": (queue_authority.get("evidence_state") or authority.get("evidence_state")
                                   or authority.get("authorization", {}).get("queue_evidence_state")) == "READY_FOR_RESEARCH",
