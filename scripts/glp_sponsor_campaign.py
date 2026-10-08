@@ -126,7 +126,21 @@ def due(recipient,ledger,at):
  if not sent:return 0
  if len(sent)>=3:return None
  initial=dt.datetime.fromisoformat(sent[0]['sent_at'])
- return len(sent) if at>=initial+dt.timedelta(days=DAY_DELAYS[len(sent)]) else None
+ last=dt.datetime.fromisoformat(sent[-1]['sent_at'])
+ earliest=max(initial+dt.timedelta(days=DAY_DELAYS[len(sent)]),last+dt.timedelta(days=4 if len(sent)==1 else 6))
+ return len(sent) if at>=earliest else None
+
+def campaign_config():
+ config=load(ROOT/'ops/sponsor-machine/campaign.json')
+ activation=STATE/'activation.json'
+ if activation.exists():
+  switch=load(activation)
+  if (set(switch)!={'send_enabled','packet_sha256'} or type(switch['send_enabled']) is not bool
+      or not re.fullmatch('[0-9a-f]{64}',str(switch.get('packet_sha256','')))):
+   raise ValueError('sponsor_activation_invalid')
+  config.update(switch)
+ return config
+
 
 def approval_ready(config):
  if config.get('send_enabled') is not True:return False
@@ -153,6 +167,7 @@ def approval_ready(config):
  if config.get('require_full_source_binding') is True:
   required={'scripts/glp_sponsor_campaign.py','scripts/glp_sponsor_paypal.py','scripts/glp_sponsor_readiness.py','ops/sponsor-machine/campaign.json','ops/sponsor-machine/copy.json','inbox_control_plane/control_plane.py','inbox_control_plane/sponsor_replies.py'}
   if config.get('bouncer_debits_enabled') is True:required.add('scripts/bouncer_shared_account_guard.py')
+  if config.get('professional_enrichment_enabled') is True:required.add('scripts/firecrawl_client.py')
   if not required.issubset(manifest):raise RuntimeError('current_sponsor_source_binding_missing')
  for rel,sha in manifest.items():
   if digest(ROOT/rel)!=sha:raise RuntimeError('approved_asset_changed:'+rel)
@@ -271,7 +286,11 @@ def refresh_professional_sources(plan,discovery,at,config,transport=None,bouncer
  cache_path=STATE/'apollo-sourcing.private.json'
  cache=load(cache_path) if cache_path.exists() else {}
  gaps={'no_verified_business_purpose_contact','contact_purpose_unverified','contact_evidence_incomplete'}
- targets=sorted({r['host'] for r in plan['exclusions'] if r.get('reason') in gaps})[:25]
+ targets=sorted({r['host'] for r in plan['exclusions'] if r.get('reason') in gaps})
+ # Failed/ambiguous prior contacts retain holds but cannot permanently occupy
+ # the first 25 source positions and starve every later eligible provider.
+ targets=[h for h in targets if not cache.get(h,{}).get('attempted_at')
+          or readiness.professional_contact(h,cache.get(h,{}).get('professional_contacts',[]),at)][:25]
  counts={'status':'completed_bounded','enrichment_requests':0,'verification_requests':0,'verified':0,'unknown_or_blocked':0}
  for host in targets:
   if host in ('nuimage.com','nuimagemedical.com'):continue
@@ -343,6 +362,7 @@ def consume_reply_stops(ledger,db=None,at=None):
     for email,entry in ledger.items():
      host=entry.get('host',email.split('@')[-1])
      if email in stop['enrolled_addresses'] or any(same(host,h) for h in stop['provider_hosts']):
+      if entry.get('stopped') in {'opt_out','unsubscribe','complaint','bounce','not_interested'}:continue
       if entry.get('stop_event_id')==stop['event_id']:continue
       entry.update(stopped=stop['kind'],stop_event_id=stop['event_id'],reply_state=stop)
       result['applied']+=1
@@ -472,6 +492,35 @@ def refresh_paypal_orders(config,at,dry_run=False,finance_hosts=(),ledger=None):
  return result
 
 
+def send_interested_next_steps(ledger,config,finance_hosts,capacity):
+ """One approved information reply per enrolled provider, never an invoice.
+
+ Uses the existing send/receipt path and canonical stop lock. The claim has no
+ timeout: an ambiguous response is a reconciliation hold, not a retry.
+ """
+ sent=0
+ for email,entry in ledger.items():
+  if sent>=capacity:break
+  if (entry.get('stopped')!='interested' or not entry.get('sent') or not entry.get('stop_event_id')
+      or entry.get('next_step_claim') or entry.get('next_step_receipt') or entry.get('host') not in finance_hosts):continue
+  event=entry['stop_event_id']
+  item=load(ROOT/'ops/sponsor-machine/copy.json')['interested_next_step']
+  preview={'to':email,'from':SENDER,'subject':item['subject'],
+           'body':item['body'].replace('{organization}',entry['organization'])+footer(config),'attachments':[]}
+  client=service('send')
+  # Authentication can take time. Re-read current registry and suppression at
+  # the same final boundary as invoice admission; canonical opt-outs win next.
+  current_hosts=invoice_provider_hosts(read_values(),read_local())
+  with canonical_send_boundary(ledger,now(),True):
+   if entry.get('stopped')!='interested' or entry.get('stop_event_id')!=event or entry['host'] not in current_hosts:continue
+   entry['next_step_claim']={'event_id':event,'at':stamp(),'packet_sha256':config['packet_sha256']}
+   save(STATE/'ledger.json',ledger)
+   receipt=send_message(client,preview,entry,[])
+   entry['next_step_receipt']=receipt;entry.pop('next_step_claim');save(STATE/'ledger.json',ledger)
+   sent+=1
+ return sent
+
+
 def run(config,dry_run=False):
  STATE.mkdir(parents=True,exist_ok=True)
  with (STATE/'run.lock').open('a') as lock:
@@ -506,13 +555,16 @@ def run(config,dry_run=False):
   split='new_provider_daily_cap' in config
   used={0:0,1:0}
   for entry in ledger.values():
+   for reply in (entry.get('next_step_receipt'),entry.get('next_step_claim')):
+    if reply and dt.datetime.fromisoformat(reply.get('sent_at',reply.get('at'))).astimezone(PT).date()==pt.date():used[1]+=1
    for i,s in enumerate(entry.get('sent',[])):
     if dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date():used[int(i>0)]+=1
    claim=entry.get('claimed')
    if claim and dt.datetime.fromisoformat(claim['at']).astimezone(PT).date()==pt.date():used[int(claim['stage']>0)]+=1
   remaining={0:max(0,int(config.get('new_provider_daily_cap',config.get('batch_cap',25)))-used[0]),1:max(0,int(config.get('follow_up_daily_cap',25))-used[1])}
   total_remaining=max(0,config.get('batch_cap',25)-sent_today)
-  selected={0:0,1:0};sent_by_kind={0:0,1:0};previews=[];sent_count=0;read_client=None
+  next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled else 0
+  selected={0:0,1:0};sent_by_kind={0:0,1:next_steps};previews=[];sent_count=next_steps;read_client=None
   for recipient in plan['recipients']:
    stage=due(recipient,ledger,at)
    if stage is None:continue
@@ -555,17 +607,14 @@ def run(config,dry_run=False):
   for recipient in plan['recipients']:
    status=recipient.get('verification',{}).get('status','unknown')
    verification_counts[status]=verification_counts.get(status,0)+1
-  receipt={'reply_readiness':reply_readiness,'sourcing_readiness':sourcing_readiness,'payment_readiness':payment_readiness,'verification_readiness':verification_counts,'new_provider_count':sent_by_kind[0],'follow_up_count':sent_by_kind[1],'new_provider_preview_count':selected[0],'follow_up_preview_count':selected[1],'daily_capacity_used':{'new_providers':used[0],'follow_ups':used[1]},'campaign':CAMPAIGN,'run_type':'registered_dry_run' if dry_run else 'scheduled','generated_utc':stamp(at),'send_enabled':enabled,'sent':sent_count,'eligible_recipient_count':len(plan['recipients']),'first_batch_count':len(previews),'registry_rows':plan['registry_rows'],'candidate_rows':plan['candidate_rows'],'previews':previews,'exclusions':plan['exclusions']}
+  receipt={'interested_next_step_count':next_steps,'reply_readiness':reply_readiness,'sourcing_readiness':sourcing_readiness,'payment_readiness':payment_readiness,'verification_readiness':verification_counts,'new_provider_count':sent_by_kind[0],'follow_up_count':sent_by_kind[1],'new_provider_preview_count':selected[0],'follow_up_preview_count':selected[1],'daily_capacity_used':{'new_providers':used[0],'follow_ups':used[1]},'campaign':CAMPAIGN,'run_type':'registered_dry_run' if dry_run else 'scheduled','generated_utc':stamp(at),'send_enabled':enabled,'sent':sent_count,'eligible_recipient_count':len(plan['recipients']),'first_batch_count':len(previews),'registry_rows':plan['registry_rows'],'candidate_rows':plan['candidate_rows'],'previews':previews,'exclusions':plan['exclusions']}
   save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
 
 def main():
  sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'ops'),str(ROOT)]
  ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true');args=ap.parse_args()
- config=load(CONFIG)
- if (STATE/'activation.json').exists():
-  activation=load(STATE/'activation.json')
-  config.update({k:activation[k] for k in ('send_enabled','packet_sha256') if k in activation})
+ config=campaign_config()
  r=run(config,dry_run=args.dry_run)
  if args.dry_run:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
  elif r['send_enabled']:print(f"Sponsor outreach: {r['sent']} sent; eligible {r['eligible_recipient_count']}. Replies stop follow-ups.")
