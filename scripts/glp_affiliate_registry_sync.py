@@ -17,7 +17,7 @@ from urllib.parse import urlsplit, parse_qs
 
 ROOT = Path('/home/ubuntu/business')
 SCHEMA = 'glp-affiliate-registry-sync-v1'
-ADVERSE = re.compile(r'cancelled|canceled|terminated|withdraw|relationship_gone|paused|rejected|^hold|^excluded|suppressed', re.I)
+ADVERSE = re.compile(r'cancelled|canceled|terminated|withdraw|relationship_gone|paused|rejected|^hold|^excluded|suppressed|^ended_operator_contract_termination$', re.I)
 
 
 def digest(path):
@@ -144,11 +144,17 @@ def project(registry, mappings, snapshot, receipts=(), root=ROOT):
             'sheet_row': number, 'relationship_status': cells[10] or None,
             'source_checked_at': str(cells[24]) or None,
             'promotion_denied': bool(ADVERSE.search(str(cells[10]))),
-            'lifecycle': ('withdrawn' if re.search(r'cancelled|canceled|terminated|withdraw|relationship_gone', str(cells[10]), re.I)
+            'lifecycle': ('ended' if cells[10] == 'ended_operator_contract_termination' else 'withdrawn' if re.search(r'cancelled|canceled|terminated|withdraw|relationship_gone', str(cells[10]), re.I)
                           else 'paused' if 'paused' in str(cells[10]) else 'reported'),
             'reported_information': True,
         }
         terms = verified_terms(receipts, cells, identity, root)
+        if current['lifecycle'] == 'ended':
+            if identity != ('katalys','1622'):
+                raise ValueError('operator_ended_exact_relationship_required')
+            current.update(ended_effective_at='2026-09-30', editorial_retained=True,
+                           source_kind='operator_disposition_from_authenticated_termination_mail',
+                           source_event_id='evt_a53e6b7c535958b272d91cc7528e')
         if terms:
             current['terms'] = terms
         elif previous and previous.get('terms', {}).get('commission_terms') == cells[16]:
@@ -158,14 +164,16 @@ def project(registry, mappings, snapshot, receipts=(), root=ROOT):
             current['promotion_denied'] = True
             current['lifecycle'] = previous.get('lifecycle', 'reported')
             current['reactivation_requires_separate_approval'] = True
+            if previous.get('lifecycle') == 'ended':
+                current = {**previous, 'reactivation_requires_separate_approval':True}
         if previous and previous.get('adverse_history'):
             current['adverse_history'] = previous['adverse_history']
-        if current['lifecycle'] == 'withdrawn':
+        if current['lifecycle'] in {'withdrawn','ended'}:
             history = list(current.get('adverse_history', []))
-            observation = {'state':'withdrawn','relationship':':'.join(identity),
+            observation = {'state':current['lifecycle'],'relationship':':'.join(identity),
                            'source_kind':'authenticated_sole_writer_sheet_readback',
                            'source_checked_at':current['source_checked_at'],
-                           'sheet_row':number,'relationship_status':cells[10]}
+                           'sheet_row':number,'relationship_status':current['relationship_status']}
             if observation not in history:history.append(observation)
             current['adverse_history'] = history
         if current != previous:

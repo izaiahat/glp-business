@@ -39,7 +39,11 @@ def _capture_sqlite_snapshot(path, private):
     DB pending/reserved/shared bytes prevent rollback writes and mode changes;
     SHM lock bytes plus its dead-man switch prevent WAL writes, checkpoint/reset,
     recovery and SHM reinitialization.
-    Missing SHM in WAL mode is unsupported, not permission to ignore the WAL.
+    Missing SHM is supported only for a cold, fully checkpointed WAL database:
+    acquire an exclusive main-file lock, revalidate identity/header, and require
+    both sidecars absent. O_RDWR is used solely to acquire that kernel write
+    lock; no source bytes or SQLite sidecars are written. Any WAL without SHM
+    still refuses. The ordinary live-WAL path remains SHM-locked.
     Ordinary SQLite locking is required (no nolock/immutable/noncooperating writers).
     Run ONLY in a freshly exec'd process: closing any source descriptor in a
     process with an existing SQLite connection drops that connection's POSIX locks.
@@ -50,16 +54,17 @@ def _capture_sqlite_snapshot(path, private):
     # Unsupported kernels/filesystems return an error; there is no lock fallback.
     ofd_setlk = getattr(fcntl, 'F_OFD_SETLK', 37)
     with ExitStack() as handles:
-            def open_read(p):
-                fd = os.open(p, os.O_RDONLY | os.O_NOFOLLOW | os.O_NOATIME | os.O_NONBLOCK)
+            def open_read(p, lock_write=False):
+                fd = os.open(p, (os.O_RDWR if lock_write else os.O_RDONLY)
+                             | os.O_NOFOLLOW | os.O_NOATIME | os.O_NONBLOCK)
                 handles.callback(os.close, fd)
                 if not stat.S_ISREG(os.fstat(fd).st_mode):
                     raise OSError('sqlite_snapshot_not_regular')
                 return fd
 
-            def lock(fd, start, length):
+            def lock(fd, start, length, kind=fcntl.F_RDLCK):
                 fcntl.fcntl(fd, ofd_setlk,
-                            struct.pack('hhqqi', fcntl.F_RDLCK, os.SEEK_SET, start, length, 0))
+                            struct.pack('hhqqi', kind, os.SEEK_SET, start, length, 0))
 
             db = open_read(path)
             lock(db, 0x40000000, 512)
@@ -68,10 +73,34 @@ def _capture_sqlite_snapshot(path, private):
                 raise OSError('sqlite_snapshot_header_unsupported')
             shm = None
             if header[18:20] == b'\x02\x02':
-                shm = open_read(Path(str(path) + '-shm'))  # never create it
-                lock(shm, 120, 9)  # Unix VFS: eight WAL locks + dead-man switch
-                if os.fstat(shm).st_size < 32768:
-                    raise OSError('sqlite_snapshot_shm_incomplete')
+                try:
+                    shm = open_read(Path(str(path) + '-shm'))  # never create it
+                except FileNotFoundError:
+                    # Every ordinary Unix-VFS WAL connection retains a shared
+                    # main-DB lock. Exclusive OFD ownership therefore excludes
+                    # existing connections AND new ones before checking absence.
+                    # Release our read lock before taking a conflicting lock on
+                    # a distinct descriptor; trust no pre-gap source bytes.
+                    identity = os.fstat(db)
+                    lock(db, 0x40000000, 512, fcntl.F_UNLCK)
+                    cold = open_read(path, lock_write=True)
+                    lock(cold, 0x40000000, 512, fcntl.F_WRLCK)
+                    current = os.fstat(cold)
+                    if ((identity.st_dev, identity.st_ino) != (current.st_dev, current.st_ino)
+                            or current != path.stat(follow_symlinks=False)
+                            or os.pread(cold, 100, 0) != header):
+                        raise OSError('sqlite_snapshot_cold_identity_changed')
+                    for suffix in ('-shm', '-wal'):
+                        try:
+                            Path(str(path) + suffix).lstat()
+                        except FileNotFoundError:
+                            continue
+                        raise OSError('sqlite_snapshot_cold_sidecar_present')
+                    db = cold
+                else:
+                    lock(shm, 120, 9)  # Unix VFS: eight WAL locks + dead-man switch
+                    if os.fstat(shm).st_size < 32768:
+                        raise OSError('sqlite_snapshot_shm_incomplete')
             journal = Path(str(path) + '-journal')
             if journal.exists() and journal.stat().st_size:
                 raise OSError('sqlite_snapshot_journal_recovery_required')
