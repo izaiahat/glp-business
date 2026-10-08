@@ -8,66 +8,16 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 794,
+  "tracked_count": 797,
   "files": {
-    "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/article_carrier_run.py"
-      ],
-      "sha256": "5aee868768234397a1bbb750d79e69ce1a8b2c2859f40fe8b68c2b072fe5252f"
+    "ops/pallas-predecessor-migration.md": {
+      "sha256": "b14781e5d40eaa3d290f8c5f4a4038ade12303cc7512df1553aed51b48976bcc"
     },
-    "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/glp_topic_supply_bridge.py"
-      ],
-      "sha256": "6cbd5712015d6301260b727f635d99c9be8f3704953a5b6781eed8f10456dfe4"
+    "scripts/pallas_predecessor_migration.py": {
+      "sha256": "96f1fe55bf8e19148470f5aced68ed049046c679cbf0ef31b34aa4f3e1b40b2c"
     },
-    "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py": {
-      "kind": "script",
-      "callers": [
-        "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py",
-        "systems/seo-blog-machine/scripts/select_opus_content_queue.py",
-        "systems/seo-blog-machine/scripts/r2_update_carrier.py"
-      ],
-      "sha256": "24b407a1ebc4bcd225e10984750d8b7db10b4b9b862f38d8a2760b0c3b0fcf96"
-    },
-    "tests/test_glp73_cogny_consumption.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "17c352fe02c51852dccbbb43918e42a1637012adfb2d1dfdd4336bd60bb9d67c"
-    },
-    "ops/hermes-cron-prompts/glp-seo-r2-refresh.md": {
-      "kind": "native_cron_prompt",
-      "callers": [
-        "native:a0e87c0a4569"
-      ],
-      "sha256": "1d553918ff355950103fd3e8b53657137e8961ecbad96266f0925eceb266b1ed"
-    },
-    "systems/seo-blog-machine/scripts/article_research.py": {
-      "kind": "script",
-      "callers": [
-        "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
-        "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
-      ],
-      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
-    },
-    "tests/test_glp73_autonomous_articles.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "8ddffe295e6e6e0963d7c5f0143e20f301f7021baa1806d68d8ab5186678947b"
-    },
-    "tests/test_glp73_article_research.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+    "tests/test_pallas_predecessor_migration.py": {
+      "sha256": "f102cf6597d8e0a255d975e44b83cfb81d43a779f8175a22b9d95026e1ff4f61"
     },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -555,7 +505,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f1793b232141de1478f7a507c90a2ffc3fd3177ffbb0c3e2dc180085a1b6f5c5"
+      "sha256": "90af486856c809fecceec90f825c1fd15fe43756b8d009a5640bd03412326856"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1517,6 +1467,21 @@
       "kind": "script",
       "sha256": "aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3"
     },
+    "scripts/pallas_relationship_ending.py": {
+      "callers": [
+        "scripts/glp_sheet_sync_drain.py",
+        "manual:GLP-347 exact approved relationship ending"
+      ],
+      "kind": "script",
+      "sha256": "1b647bcca499e20af8495f5eda5a39e45be27d05e06bbfe68c655e8641273a35"
+    },
+    "scripts/glp_affiliate_registry_sync.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_affiliate_sync_job.py"
+      ],
+      "sha256": "037979554a29ea9e0feec557d9700dadba5231c295e6376ff92e9b4fced5174f"
+    },
     "scripts/affiliate_sheet_schema_guard.py": {
       "callers": [
         "migration-survivor"
@@ -1747,7 +1712,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "96d7c096d5cfe37eb244e3df3f6022852a0a3c4055be6fcd60b02223e498d4d7"
+      "sha256": "f0cdfcc8645b6e6dcf61ef3674a5c82e54931578945d5d68a0a9118f53d9a2a1"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2292,7 +2257,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001"
+      "sha256": "29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -4736,13 +4701,6 @@
       ],
       "sha256": "8d6e20f1f8f8978ee22d57eb169f01ce4784fd9230f5216526b7735000995237"
     },
-    "scripts/glp_affiliate_registry_sync.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/glp_affiliate_sync_job.py"
-      ],
-      "sha256": "037979554a29ea9e0feec557d9700dadba5231c295e6376ff92e9b4fced5174f"
-    },
     "scripts/glp_affiliate_release.py": {
       "kind": "script",
       "callers": [
@@ -4764,6 +4722,13 @@
         "host cron"
       ],
       "sha256": "50645fd2db1c8df0ef51546269ec9c84fa366981805553decd2337ffa9935c4f"
+    },
+    "tests/test_pallas_relationship_ending.py": {
+      "callers": [
+        "ci:GLP347"
+      ],
+      "kind": "test",
+      "sha256": "49c11cd9d2403e7c92cd8af63446a9fbd4fa80d0dca8e4e2d27bee6d957284ad"
     },
     "tests/test_glp_affiliate_registry_sync.py": {
       "kind": "test",
@@ -5306,28 +5271,6 @@
       ],
       "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
     },
-    "tests/test_glp328_cold_wal.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
-    },
-    "scripts/pallas_relationship_ending.py": {
-      "callers": [
-        "scripts/glp_sheet_sync_drain.py",
-        "manual:GLP-347 exact approved relationship ending"
-      ],
-      "kind": "script",
-      "sha256": "1b647bcca499e20af8495f5eda5a39e45be27d05e06bbfe68c655e8641273a35"
-    },
-    "tests/test_pallas_relationship_ending.py": {
-      "callers": [
-        "ci:GLP347"
-      ],
-      "kind": "test",
-      "sha256": "49c11cd9d2403e7c92cd8af63446a9fbd4fa80d0dca8e4e2d27bee6d957284ad"
-    },
     "scripts/host_health_audit.py": {
       "kind": "script",
       "callers": [
@@ -5362,6 +5305,72 @@
         "github:pull_request"
       ],
       "sha256": "d47d555454a3812062034046d2844129574a0a717aec567752d1da509a73cb12"
+    },
+    "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/article_carrier_run.py"
+      ],
+      "sha256": "5aee868768234397a1bbb750d79e69ce1a8b2c2859f40fe8b68c2b072fe5252f"
+    },
+    "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_topic_supply_bridge.py"
+      ],
+      "sha256": "6cbd5712015d6301260b727f635d99c9be8f3704953a5b6781eed8f10456dfe4"
+    },
+    "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py": {
+      "kind": "script",
+      "callers": [
+        "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py",
+        "systems/seo-blog-machine/scripts/select_opus_content_queue.py",
+        "systems/seo-blog-machine/scripts/r2_update_carrier.py"
+      ],
+      "sha256": "24b407a1ebc4bcd225e10984750d8b7db10b4b9b862f38d8a2760b0c3b0fcf96"
+    },
+    "tests/test_glp73_cogny_consumption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "17c352fe02c51852dccbbb43918e42a1637012adfb2d1dfdd4336bd60bb9d67c"
+    },
+    "ops/hermes-cron-prompts/glp-seo-r2-refresh.md": {
+      "kind": "native_cron_prompt",
+      "callers": [
+        "native:a0e87c0a4569"
+      ],
+      "sha256": "1d553918ff355950103fd3e8b53657137e8961ecbad96266f0925eceb266b1ed"
+    },
+    "systems/seo-blog-machine/scripts/article_research.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
+        "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
+      ],
+      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+    },
+    "tests/test_glp73_autonomous_articles.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8ddffe295e6e6e0963d7c5f0143e20f301f7021baa1806d68d8ab5186678947b"
+    },
+    "tests/test_glp73_article_research.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+    },
+    "tests/test_glp328_cold_wal.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
     }
   }
 }

@@ -146,13 +146,20 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
 
 
 def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
-                 _discovery_preimage=None, _shared_bridge_preimage=None):
+                 _discovery_preimage=None, _shared_bridge_preimage=None, _pallas_migration=None):
     root = root.resolve(strict=True)
+    pallas_fixed = {}
+    if _pallas_migration is not None:
+        if _discovery_preimage is not None or _shared_bridge_preimage is not None or adopt_reviewed_baseline:
+            raise ValueError('pallas migration cannot combine admission mechanisms')
+        from scripts.pallas_predecessor_migration import validate_admission
+        pallas_fixed = validate_admission(root, checkout, _pallas_migration, tuple(only))
     if _shared_bridge_preimage is not None:
         from scripts.shared_bridge_predecessor_migration import SELECTED, PREDECESSOR
         if _shared_bridge_preimage != PREDECESSOR or set(only) != set(SELECTED) or len(only) != 2:
             raise ValueError('shared bridge migration requires the fixed paired selection')
-    migration = _discovery_preimage is not None or _shared_bridge_preimage is not None
+    migration = (_discovery_preimage is not None or _shared_bridge_preimage is not None
+                 or _pallas_migration is not None)
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":
         raise ValueError("unknown source manifest schema")
@@ -229,7 +236,13 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
             continue
         baseline = previous.get(p)
         if p in previous:
-            if (_shared_bridge_preimage is not None and p == 'scripts/cron_bridge_action.py'
+            if p in pallas_fixed:
+                fixed_baseline, fixed_predecessor, fixed_successor = pallas_fixed[p]
+                if (baseline, current, target) != (fixed_baseline, fixed_predecessor, fixed_successor):
+                    conflicts.append(p)
+                else:
+                    changed.append(p)
+            elif (_shared_bridge_preimage is not None and p == 'scripts/cron_bridge_action.py'
                     and current == _shared_bridge_preimage):
                 from scripts.shared_bridge_predecessor_migration import BASELINE, SUCCESSOR
                 if baseline != BASELINE or target != SUCCESSOR:
