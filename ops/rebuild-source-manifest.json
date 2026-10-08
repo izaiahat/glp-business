@@ -2030,7 +2030,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "494b0edb5d1c0dc6605c6ac86045694abb944462578a6191bbe6e11fc84b4f20"
+      "sha256": "abbff6a85b4aa2fb50788eb8d36b5d7391c06197265b5037f78879377e6f8744"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4804,7 +4804,7 @@
       "callers": [
         ".github/workflows/glp110-archive-admission.yml"
       ],
-      "sha256": "13fbfc81635887d417d308db5e7b0f5d1bd8e15bfcbe000c1319062ab3e620b9"
+      "sha256": "cd9a7222c914c3385ec31241c58a5fb333c6a82222aaebf0bdf65f37977e9aaf"
     },
     "tests/test_bounded_pruner_discovery_resume.py": {
       "kind": "test",
