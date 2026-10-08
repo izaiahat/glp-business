@@ -513,8 +513,8 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
             "pending_before": pending, "output_count": 1 if job_id else 0}
 
 
-def read_agent_receipt(path: str | Path) -> dict:
-    """Read the agent's receipt.
+def read_agent_receipt(path: str | Path) -> tuple[dict, bytes]:
+    """Read the agent's receipt and retain the exact bytes parsed for custody.
 
     ``_unreadable`` distinguishes "the agent never wrote a receipt" from "the
     agent wrote a receipt saying it failed". The second still carries a real
@@ -523,14 +523,15 @@ def read_agent_receipt(path: str | Path) -> dict:
     """
     p = Path(path)
     if not p.is_file():
-        return {"_unreadable": "agent_receipt_missing: %s" % p}
+        return {"_unreadable": "agent_receipt_missing: %s" % p}, b''
     try:
-        doc = json.loads(p.read_text(encoding="utf-8"))
+        raw = p.read_bytes()
+        doc = json.loads(raw.decode('utf-8'))
     except Exception as exc:  # noqa: BLE001
-        return {"_unreadable": "agent_receipt_unparseable: %s" % str(exc)[:200]}
+        return {"_unreadable": "agent_receipt_unparseable: %s" % str(exc)[:200]}, b''
     if not isinstance(doc, dict):
-        return {"_unreadable": "agent_receipt_not_an_object"}
-    return doc
+        return {"_unreadable": "agent_receipt_not_an_object"}, b''
+    return doc, raw
 
 
 def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
@@ -566,7 +567,7 @@ def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
     return fresh, skipped
 
 
-def result_custody(rec: dict, receipt: dict, job: dict) -> dict:
+def result_custody(rec: dict, receipt: dict, job: dict, receipt_bytes: bytes) -> dict:
     """Job owns a fresh reserved directory, not a reusable daily path string."""
     if (not rec.get('custody_id') or receipt.get('custody_id') != rec['custody_id']
             or job.get('action') != 'hermes_chat'):
@@ -576,7 +577,7 @@ def result_custody(rec: dict, receipt: dict, job: dict) -> dict:
         raise ValueError('result_custody_unqualified')
     paths = [Path(rec['agent_receipt']), Path(receipt['report_path'])]
     hashes = []
-    for path in paths:
+    for index, path in enumerate(paths):
         if not path.is_absolute():
             path = BUSINESS / path
         if (not path.is_file() or any(p.is_symlink() for p in (path, *path.parents))
@@ -585,6 +586,12 @@ def result_custody(rec: dict, receipt: dict, job: dict) -> dict:
         raw = path.read_bytes()
         if not raw.strip():
             raise ValueError('result_custody_unqualified')
+        if index == 0:
+            # Reread only detects drift. Proof authenticates the parsed buffer,
+            # including its summary, findings and report path, never a new read.
+            if raw != receipt_bytes:
+                raise ValueError('result_custody_unqualified')
+            raw = receipt_bytes
         hashes.append(hashlib.sha256(raw).hexdigest())
     return {'task_id': rec['task_id'], 'job_id': rec['job_id'], 'custody_id': rec['custody_id'],
             'receipt_sha256': hashes[0], 'report_sha256': hashes[1]}
@@ -641,14 +648,14 @@ def mode_resume(client: Any, job_id: str = "", task_id: str = "",
     job = (job_status or bridge_job_status)(job_id)
     if job.get('job_id') != job_id or job.get('status') not in {'done', 'error'}:
         return {**out, 'reason': 'job_not_terminal'}
-    receipt = read_agent_receipt(rec.get('agent_receipt') or '')
+    receipt, receipt_bytes = read_agent_receipt(rec.get('agent_receipt') or '')
     if (job.get('status') != 'done' or type(job.get('rc')) is not int or job['rc'] != 0
             or receipt.get('_unreadable') or receipt.get('task_id') != task_id
             or receipt.get('ok') is not True or not receipt.get('result_summary')
             or not receipt.get('report_path')):
         return {**out, 'reason': 'analysis_not_successful', 'rc': job.get('rc')}
     try:
-        proof = result_custody(rec, receipt, job)
+        proof = result_custody(rec, receipt, job, receipt_bytes)
     except (ValueError, KeyError, OSError, TypeError):
         return {**out, 'reason': 'result_custody_unqualified'}
     fresh, skipped = dedupe_findings(client, receipt.get('findings') or [])

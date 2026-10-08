@@ -159,6 +159,69 @@ def test_only_matched_early_held_callback_converges_from_durable_completion(loca
         assert client.calls.count('complete_task') == 1
 
 
+def test_receipt_parse_hash_race_cannot_complete_or_converge_held_intent(local, monkeypatch):
+    """Actual reader consumes B, then custody sees restored A: no misbound proof."""
+    rec, receipt, report = bound(local)
+    original_bytes = receipt.read_bytes()
+    original = json.loads(original_bytes)
+    other_report = report.with_name('transient-report.md')
+    other_report.write_text('Transient synthetic report')
+    changed = {**original, 'result_summary': 'Transient summary must not be submitted',
+               'report_path': str(other_report),
+               'findings': [{'title': 'Transient finding', 'body': 'Must not be filed'}]}
+    transient_bytes = json.dumps(changed).encode()
+    actual_read = cogny.read_agent_receipt
+
+    def transient_read(path):
+        receipt.write_bytes(transient_bytes)
+        try:
+            return actual_read(path)
+        finally:
+            receipt.write_bytes(original_bytes)
+
+    class CapturingClient(Client):
+        def __init__(self):
+            super().__init__()
+            self.submissions = []
+
+        def call(self, name, args=None, **kwargs):
+            if name == 'complete_task':
+                self.submissions.append(args)
+            return super().call(name, args, **kwargs)
+
+    client = CapturingClient()
+    monkeypatch.setattr(cogny, 'read_agent_receipt', transient_read)
+    body = {'intent_id': 'race-held-336', 'kind': 'cogny_completion',
+            'payload': {'task_id': rec['task_id'], 'job_id': rec['job_id']}}
+    with ingress.connect(local / 'race-intents.sqlite3') as c:
+        ingress.accept(c, body)
+        ingress.update(c, body['intent_id'], status='held',
+                       receipt=json.dumps({'reason': 'job_not_terminal'}))
+        result = cogny.mode_resume(client, rec['job_id'], rec['task_id'], job_status=done)
+        assert result['reason'] == 'result_custody_unqualified' and not result['ok']
+        saved = cogny.load_state()['dispatches'][0]
+        assert saved['status'] == 'in_flight' and not cogny.completion_owned(saved)
+        assert not saved.get('result_custody') and not client.submissions
+        ingress.drain(c, call=lambda *args: pytest.fail('held effect replay'))
+        assert c.execute('SELECT status FROM intents').fetchone()[0] == 'held'
+
+        # Stable original bytes remain eligible, and terminal repeats never replay.
+        monkeypatch.setattr(cogny, 'read_agent_receipt', actual_read)
+        result = cogny.mode_resume(client, rec['job_id'], rec['task_id'], job_status=done)
+        assert result['ok']
+        proof = result['result_custody']
+        assert proof['receipt_sha256'] == hashlib.sha256(original_bytes).hexdigest()
+        assert proof['report_sha256'] == hashlib.sha256(report.read_bytes()).hexdigest()
+        assert client.submissions == [{'taskId': rec['task_id'], 'findings': [],
+            'resultSummary': original['result_summary'] + '\n\nFull report: ' + str(report)}]
+        ingress.drain(c, call=lambda *args: pytest.fail('held effect replay'))
+        terminal = ingress.public(c.execute('SELECT * FROM intents').fetchone())
+        assert terminal['status'] == 'completed' and terminal['result_custody'] == proof
+        cogny.mode_resume(client, rec['job_id'], rec['task_id'], job_status=done)
+        ingress.drain(c, call=lambda *args: pytest.fail('terminal effect replay'))
+        assert client.calls.count('complete_task') == 1
+
+
 def test_disabled_lane_does_not_heartbeat_or_claim(local, monkeypatch):
     monkeypatch.setattr(cogny, 'ENABLED', False)
     client = Client([task()])
