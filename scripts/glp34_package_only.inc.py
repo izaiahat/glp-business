@@ -322,10 +322,26 @@ CURRENT_D1_SUCCESSOR = {
 }
 
 
+# Genuine corrected merged-source R8 native PASS/package; preserve both prior cohorts.
+CURRENT_D1_PALLAS = {
+    "head": "55ba9f1076eaa53f4c3f978baf2b68e0748675cf",
+    "git_tree": "d25fca602e371546bb9303c642e47b3f3ebd7b17",
+    "gate_sha256": "804a94c370e00cc18ac33705ef6f6773712570f514143d3343e360f0eb7793d9",
+    "package_sha256": "d8660f48346b84572d381f5ba099cb27d44df050c5a846b0075794d9f269744f",
+    "built_source_sha256": "5d3f5b030fa9d6a79a3a04406445e53dc9887f3cef05999796aa51cb01e97990",
+    "rollback": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+    "runtime": {
+        "functions": {"tree_sha256": "035a9e01876ad73bd3a93802283e9f7f2d01e55cb1464a25d15ae32f24060b34", "file_count": 18, "total_bytes": 238861},
+        "src": {"tree_sha256": "0a6170396a7f138855ccacfe5ae1eb7a08d6edcdde0fda47095a4fcd76d345a8", "file_count": 135, "total_bytes": 2573456},
+        "data": {"tree_sha256": "766e996a5b30f0e5133e2f5a6b915a2b33b0085d2ae7cd8276dc61eb113ca384", "file_count": 912, "total_bytes": 89358621},
+    },
+}
+
+
 def current_d1_binding(head: str, gate_sha256: str, package_sha256: str) -> dict[str, Any] | None:
     keys = ("head", "gate_sha256", "package_sha256")
     supplied = (head, gate_sha256, package_sha256)
-    hits = [binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR) if binding is not None
+    hits = [binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR, CURRENT_D1_PALLAS) if binding is not None
             and any(value == binding[key] for key, value in zip(keys, supplied))]
     if not hits:
         return None
@@ -435,7 +451,7 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
     expected_functions = 18 if gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") else 17
-    d1_binding = next((binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR)
+    d1_binding = next((binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR, CURRENT_D1_PALLAS)
                        if binding is not None and head == binding["head"]), None)
     d1_current = gate.get("schema") == "glp-d1-release-result-v1" and d1_binding is not None
     if d1_current:
