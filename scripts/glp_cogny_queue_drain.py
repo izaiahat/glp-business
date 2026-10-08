@@ -58,6 +58,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import functools
+import hashlib
 import tempfile
 import datetime as dt
 import json
@@ -65,6 +66,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
@@ -301,7 +303,7 @@ def receipt_path_for(task_id: str, stamp: str) -> str:
     return str(ROOT / stamp[:8] / f"agent-receipt-{task_id[:8]}.json")
 
 
-def build_brief(task: dict, receipt_file: str, report_dir: str) -> str:
+def build_brief(task: dict, receipt_file: str, report_dir: str, custody_id: str = '') -> str:
     """The agent brief. Carries the skill playbook VERBATIM plus our guardrails."""
     skill_content = str(task.get("skill_content") or "").strip()
     context = task.get("context")
@@ -356,6 +358,7 @@ automatically by the `glp/three-engine-telemetry` machine. No human is watching 
    ```json
    {{
      "task_id": "{task.get('id')}",
+     "custody_id": "{custody_id}",
      "ok": true,
      "result_summary": "<what you found, with the numbers — this becomes the Cogny task summary>",
      "report_path": "<path to the report you wrote>",
@@ -382,17 +385,20 @@ against the open backlog, and completes the task. Writing the receipt IS finishi
 # modes
 # ---------------------------------------------------------------------------
 
+def queue_counts(queue: Any) -> dict:
+    stats = queue.get('stats', {}) if isinstance(queue, dict) and not queue.get('cogny_error') else {}
+    return {key: stats.get(key) if type(stats.get(key)) is int and stats[key] >= 0 else None
+            for key in ('pending', 'in_progress', 'completed')}
+
+
 def mode_status(client: Any) -> dict:
     queue = client.call("get_queue_status", {}, allow_error=True)
     findings = client.call("list_findings", {"limit": 100}, allow_error=True)
     rows = findings.get("findings") if isinstance(findings, dict) else findings
-    stats = (queue or {}).get("stats") or {}
-    return {"schema": SCHEMA, "mode": "status", "ok": True,
-            "pending": int(stats.get("pending") or 0),
-            "in_progress": int(stats.get("in_progress") or 0),
-            "completed": int(stats.get("completed") or 0),
-            "open_findings": len(rows or []),
-            "output_count": int(stats.get("pending") or 0)}
+    counts = queue_counts(queue)
+    return {"schema": SCHEMA, "mode": "status", "ok": all(v is not None for v in counts.values()),
+            **counts, "open_findings": len(rows) if isinstance(rows, list) else None,
+            "output_count": counts['pending']}
 
 
 @custody
@@ -400,22 +406,21 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
                   poster: Callable | None = None, now: dt.datetime | None = None,
                   state_path: str | Path | None = None) -> dict:
     state = load_state(state_path)
+    if not ENABLED:
+        return {'schema': SCHEMA, 'mode': 'dispatch', 'ok': False, 'dispatched': False,
+                'reason': 'disabled', 'output_count': 0}
     if state.get('claim_uncertain') or any(r.get('status') not in {'completed', 'completed_no_receipt'}
                                          for r in state['dispatches']):
         return {'schema': SCHEMA, 'mode': 'dispatch', 'ok': False, 'dispatched': False,
                 'reason': 'prior_custody_unresolved', 'output_count': 0}
     stamp = (now or dt.datetime.now(dt.timezone.utc)).strftime("%Y%m%dT%H%M%SZ")
 
-    client.call("heartbeat", {"agent_harness": "n8n-bridge", "harness_version": "1.0",
-                              "skill_version": "1.0.0", "model_name": model or MODEL},
-                allow_error=True)
-
     queue = client.call("get_queue_status", {}, allow_error=True)
     if isinstance(queue, dict) and queue.get("cogny_error"):
         return {"schema": SCHEMA, "mode": "dispatch", "ok": False, "dispatched": False,
                 "reason": "queue_read_failed", "error": str(queue.get("cogny_error"))[:300],
                 "output_count": 0}
-    stats = (queue or {}).get("stats") or {}
+    stats = queue_counts(queue)
     if type(stats.get('pending')) is not int or stats['pending'] < 0:
         raise ValueError('queue_denominator_unknown')
     pending = stats['pending']
@@ -424,11 +429,18 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
         # telemetry ROWS, not to a work queue that is legitimately drained.
         return {"schema": SCHEMA, "mode": "dispatch", "ok": True, "dispatched": False,
                 "reason": "queue_empty", "pending": 0,
-                "in_progress": int(stats.get("in_progress") or 0),
-                "completed": int(stats.get("completed") or 0), "output_count": 0}
+                "in_progress": stats['in_progress'],
+                "completed": stats['completed'], "output_count": 0}
 
-    if not isinstance(stats.get('pending'), int) or stats.get('pending') < 0:
-        raise ValueError('queue_denominator_unknown')
+    # get_next_task has no selector: every possible pending claim must qualify.
+    candidates = [r for r in queue.get('tasks', []) if isinstance(r, dict) and r.get('status') == 'pending']
+    if (len(candidates) != pending or len({r.get('id') for r in candidates}) != pending
+            or any(not r.get('skill_id') or r.get('task_type') != 'analysis'
+                   or not may_dispatch(r, state, now)['ok'] for r in candidates)):
+        return {'schema': SCHEMA, 'mode': 'dispatch', 'ok': False, 'dispatched': False,
+                'reason': 'pending_scope_unqualified', 'output_count': 0}
+    client.call('heartbeat', {'agent_harness': 'host-cogny-drain', 'harness_version': '1.0',
+                             'skill_version': '1.0.0', 'model_name': model or MODEL}, allow_error=True)
     state['claim_uncertain'] = {'at': utc_now(), 'pending_before': pending}
     save_state(state, state_path)
     task = client.call("get_next_task", {}, allow_error=True)
@@ -445,6 +457,9 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
     save_state(state, state_path)
 
     verdict = may_dispatch(row, {'dispatches': state['dispatches'][:-1]}, now)
+    if not any(all(row.get(k) == candidate.get(k) for k in ('id', 'skill_id', 'task_type'))
+               for candidate in candidates):
+        verdict = {'ok': False, 'why': 'claimed_scope_changed_since_preflight'}
     if not verdict.get("ok"):
         rec = {"task_id": task_id, "pt_day": pt_day(now), "dispatched_utc": utc_now(now),
                "status": "refused", "why": verdict.get("why"),
@@ -455,16 +470,17 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
                 "reason": "refused", "why": verdict.get("why"), "task_id": task_id,
                 "skill_id": row.get("skill_id"), "output_count": 0}
 
-    report_dir = f"reports/glp-clinic-scout/seo-machine/cogny-audits/{stamp[:8]}"
-    receipt_file = receipt_path_for(task_id, stamp)
-    Path(receipt_file).parent.mkdir(parents=True, exist_ok=True)
-    brief = build_brief(row, receipt_file, report_dir)
+    custody_id = uuid.uuid4().hex
+    report_dir = str(ROOT / stamp[:8] / custody_id)
+    receipt_file = str(Path(report_dir) / 'agent-receipt.json')
+    Path(report_dir).mkdir(parents=True, exist_ok=False)
+    brief = build_brief(row, receipt_file, report_dir, custody_id)
 
     if poster is None:
         poster = ((lambda p, t, cb, m: _sink_write(p, t, cb, task_id, m))
                   if sink() else bridge_hermes_chat)
     claim.update({'status': 'dispatch_uncertain', 'agent_receipt': receipt_file,
-                  'report_dir': report_dir, 'pt_day': pt_day(now)})
+                  'report_dir': report_dir, 'pt_day': pt_day(now), 'custody_id': custody_id})
     save_state(state, state_path)
     try:
         res = poster(brief, budget_s, callback_url, model) or {}
@@ -497,8 +513,8 @@ def mode_dispatch(client: Any, callback_url: str, budget_s: int, model: str,
             "pending_before": pending, "output_count": 1 if job_id else 0}
 
 
-def read_agent_receipt(path: str | Path) -> dict:
-    """Read the agent's receipt.
+def read_agent_receipt(path: str | Path) -> tuple[dict, bytes]:
+    """Read the agent's receipt and retain the exact bytes parsed for custody.
 
     ``_unreadable`` distinguishes "the agent never wrote a receipt" from "the
     agent wrote a receipt saying it failed". The second still carries a real
@@ -507,14 +523,15 @@ def read_agent_receipt(path: str | Path) -> dict:
     """
     p = Path(path)
     if not p.is_file():
-        return {"_unreadable": "agent_receipt_missing: %s" % p}
+        return {"_unreadable": "agent_receipt_missing: %s" % p}, b''
     try:
-        doc = json.loads(p.read_text(encoding="utf-8"))
+        raw = p.read_bytes()
+        doc = json.loads(raw.decode('utf-8'))
     except Exception as exc:  # noqa: BLE001
-        return {"_unreadable": "agent_receipt_unparseable: %s" % str(exc)[:200]}
+        return {"_unreadable": "agent_receipt_unparseable: %s" % str(exc)[:200]}, b''
     if not isinstance(doc, dict):
-        return {"_unreadable": "agent_receipt_not_an_object"}
-    return doc
+        return {"_unreadable": "agent_receipt_not_an_object"}, b''
+    return doc, raw
 
 
 def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
@@ -550,6 +567,45 @@ def dedupe_findings(client: Any, findings: list) -> tuple[list, list]:
     return fresh, skipped
 
 
+def result_custody(rec: dict, receipt: dict, job: dict, receipt_bytes: bytes) -> dict:
+    """Job owns a fresh reserved directory, not a reusable daily path string."""
+    if (not rec.get('custody_id') or receipt.get('custody_id') != rec['custody_id']
+            or job.get('action') != 'hermes_chat'):
+        raise ValueError('result_custody_unqualified')
+    directory = Path(rec['report_dir'])
+    if directory.name != rec['custody_id']:
+        raise ValueError('result_custody_unqualified')
+    paths = [Path(rec['agent_receipt']), Path(receipt['report_path'])]
+    hashes = []
+    for index, path in enumerate(paths):
+        if not path.is_absolute():
+            path = BUSINESS / path
+        if (not path.is_file() or any(p.is_symlink() for p in (path, *path.parents))
+                or not path.resolve().is_relative_to(directory.resolve())):
+            raise ValueError('result_custody_unqualified')
+        raw = path.read_bytes()
+        if not raw.strip():
+            raise ValueError('result_custody_unqualified')
+        if index == 0:
+            # Reread only detects drift. Proof authenticates the parsed buffer,
+            # including its summary, findings and report path, never a new read.
+            if raw != receipt_bytes:
+                raise ValueError('result_custody_unqualified')
+            raw = receipt_bytes
+        hashes.append(hashlib.sha256(raw).hexdigest())
+    return {'task_id': rec['task_id'], 'job_id': rec['job_id'], 'custody_id': rec['custody_id'],
+            'receipt_sha256': hashes[0], 'report_sha256': hashes[1]}
+
+
+def completion_owned(rec: dict) -> bool:
+    proof = rec.get('result_custody') or {}
+    return (rec.get('status') == 'completed' and bool(rec.get('completion_ack'))
+            and bool(rec.get('submitted_result_summary'))
+            and proof.get('task_id') == rec.get('task_id')
+            and proof.get('job_id') == rec.get('job_id')
+            and bool(proof.get('receipt_sha256')) and bool(proof.get('report_sha256')))
+
+
 @custody
 def mode_resume(client: Any, job_id: str = "", task_id: str = "",
                 job_status: Callable | None = None,
@@ -565,34 +621,48 @@ def mode_resume(client: Any, job_id: str = "", task_id: str = "",
     rec = matches[0]
     task_id, job_id = rec['task_id'], rec.get('job_id')
     out.update(task_id=task_id, job_id=job_id)
-    if rec.get('status') == 'completed' and rec.get('completion_ack'):
+    if completion_owned(rec):
         return {**out, 'ok': True, 'reason': 'already_acknowledged',
                 'findings_created': rec.get('findings_created', 0),
-                'report_path': rec.get('report_path')}
+                'report_path': rec.get('report_path'), 'result_custody': rec['result_custody']}
+    if rec.get('status') == 'completed':
+        return {**out, 'reason': 'completed_result_unqualified_no_replay'}
     if rec.get('status') in {'completion_uncertain', 'completion_awaiting_readback'}:
         queue = client.call('get_queue_status', {})
         remote = [r for r in queue.get('tasks', []) if r.get('id') == task_id]
-        if len(remote) == 1 and remote[0].get('status') == 'completed':
+        # Status alone does not establish who submitted the result after a lost ACK.
+        submitted = rec.get('submitted_result_summary')
+        owns_result = (len(remote) == 1 and bool(submitted) and bool(rec.get('result_custody'))
+                       and (rec.get('completion_response', {}).get('success') is True
+                            or any(remote[0].get(k) == submitted
+                                   for k in ('result_summary', 'resultSummary', 'result'))))
+        if owns_result and remote[0].get('status') == 'completed':
             rec.update(status='completed', completion_ack={'readback': remote[0]}, resolved_utc=utc_now())
             save_state(state, state_path)
             return {**out, 'ok': True, 'reason': 'completion_reconciled',
                     'findings_created': rec.get('findings_created', 0),
-                    'report_path': rec.get('report_path')}
+                    'report_path': rec.get('report_path'), 'result_custody': rec['result_custody']}
         return {**out, 'reason': 'completion_ack_unknown_no_replay'}
     if not job_id or rec.get('status') != 'in_flight':
         return {**out, 'reason': 'dispatch_unresolved'}
     job = (job_status or bridge_job_status)(job_id)
     if job.get('job_id') != job_id or job.get('status') not in {'done', 'error'}:
         return {**out, 'reason': 'job_not_terminal'}
-    receipt = read_agent_receipt(rec.get('agent_receipt') or '')
-    if (job.get('rc') != 0 or receipt.get('_unreadable') or receipt.get('task_id') != task_id
+    receipt, receipt_bytes = read_agent_receipt(rec.get('agent_receipt') or '')
+    if (job.get('status') != 'done' or type(job.get('rc')) is not int or job['rc'] != 0
+            or receipt.get('_unreadable') or receipt.get('task_id') != task_id
             or receipt.get('ok') is not True or not receipt.get('result_summary')
             or not receipt.get('report_path')):
         return {**out, 'reason': 'analysis_not_successful', 'rc': job.get('rc')}
+    try:
+        proof = result_custody(rec, receipt, job, receipt_bytes)
+    except (ValueError, KeyError, OSError, TypeError):
+        return {**out, 'reason': 'result_custody_unqualified'}
     fresh, skipped = dedupe_findings(client, receipt.get('findings') or [])
-    summary = str(receipt['result_summary']) + '\n\nFull report: ' + str(receipt['report_path'])
+    summary = (str(receipt['result_summary']) + '\n\nFull report: ' + str(receipt['report_path']))[:20000]
     rec.update(status='completion_uncertain', report_path=receipt['report_path'],
-               findings_created=len(fresh), findings_skipped_open=len(skipped))
+               findings_created=len(fresh), findings_skipped_open=len(skipped),
+               result_custody=proof, submitted_result_summary=summary)
     save_state(state, state_path)
     res = client.call('complete_task', {'taskId': task_id, 'resultSummary': summary[:20000],
                                       'findings': fresh}, allow_error=True)
@@ -609,16 +679,77 @@ def mode_resume(client: Any, job_id: str = "", task_id: str = "",
     save_state(state, state_path)
     return {**out, 'ok': True, 'reason': 'completed', 'output_count': max(1, len(fresh)),
             'findings_created': len(fresh), 'findings_skipped_open': len(skipped),
-            'report_path': receipt['report_path']}
+            'report_path': receipt['report_path'], 'result_custody': proof}
+
+
+def host_callback(path: str, body: dict | None = None) -> dict:
+    """Only the existing fixed host ingress receives the existing bearer token.
+
+    Never use bridge capability callbacks for this envelope. No redirects, proxy,
+    arbitrary destination/header configuration or raw transport exceptions.
+    """
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    request = urllib.request.Request('http://127.0.0.1:8790' + path,
+        data=None if body is None else json.dumps(body).encode(),
+        headers={'Authorization': 'Bearer ' + BRIDGE_TOKEN_FILE.read_text().strip(),
+                 'Content-Type': 'application/json'})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    with opener.open(request, timeout=30) as response:
+        if response.status != (200 if body is None else 202):
+            raise ValueError('callback_http_ack_unqualified')
+        return json.load(response)
+
+
+@custody
+def notify_host(job_id: str, task_id: str, state_path=None) -> dict:
+    state = load_state(state_path)
+    matches = [r for r in state['dispatches'] if r.get('job_id') == job_id and r.get('task_id') == task_id]
+    if len(matches) != 1:
+        return {'ok': False, 'reason': 'exact_dispatch_not_found'}
+    rec = matches[0]
+    if rec.get('callback_terminal_ack') and completion_owned(rec):
+        return {'ok': True, **rec['callback_terminal_ack']}
+    intent_id = 'cogny-' + hashlib.sha256(json.dumps([task_id, job_id]).encode()).hexdigest()
+    rec['callback_intent_id'] = intent_id
+    save_state(state, state_path)  # reserve immutable identity before POST
+    body = {'intent_id': intent_id, 'kind': 'cogny_completion',
+            'payload': {'job_id': job_id, 'task_id': task_id}}
+    try:
+        ack = host_callback('/intents/' + intent_id) if rec.get('callback_ack') else host_callback('/intents', body)
+        if (ack.get('intent_id') != intent_id or ack.get('kind') != 'cogny_completion'
+                or ack.get('job_id') != job_id or ack.get('task_id') != task_id
+                or ack.get('status') not in {'acknowledged', 'running', 'held', 'completed'}):
+            raise ValueError('callback_binding_mismatch')
+        rec['callback_ack'] = ack
+        if ack['status'] == 'completed':
+            if not completion_owned(rec) or ack.get('result_custody') != rec.get('result_custody'):
+                raise ValueError('callback_completion_unowned')
+            rec['callback_terminal_ack'] = ack
+        save_state(state, state_path)
+        return {'ok': ack['status'] != 'held', **ack}
+    except Exception:
+        # POST may have committed; same identity is safe to reconcile, never new work.
+        return {'ok': False, 'reason': 'callback_ack_unknown', 'intent_id': intent_id}
 
 
 def mode_tick(client):
     state = load_state()
-    pending = [r for r in state['dispatches'] if r.get('status') != 'completed']
+    pending = [r for r in state['dispatches'] if r.get('status') != 'completed'
+               or not r.get('callback_terminal_ack')]
     if pending:
         row = pending[0]
-        return mode_resume(client, row.get('job_id', ''), row.get('task_id', ''))
-    return mode_dispatch(client, '', BUDGET_S, MODEL)
+        result = mode_resume(client, row.get('job_id', ''), row.get('task_id', ''))
+    else:
+        # Host notification is job-local after the dispatch identity is durable;
+        # shared bridge callback_url remains for n8n capability receivers only.
+        result = mode_dispatch(client, '', BUDGET_S, MODEL)
+    if result.get('job_id') and result.get('task_id'):
+        callback = notify_host(result['job_id'], result['task_id'])
+        result['callback'] = callback
+        result['ok'] = bool(result.get('ok') and callback.get('ok'))
+    return result
 
 
 # ---------------------------------------------------------------------------
