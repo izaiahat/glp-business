@@ -36,7 +36,7 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "2998f195f434d9d12e730bfb1a8a23863618473a289cca1e06086f2a49730bac"
+      "sha256": "aae3a1609a432cb1cf14d116119ce30336b69f2839f371d65eeade92a0381cce"
     },
     "scripts/glp_reddit_daily_scout.py": {
       "kind": "script",
@@ -50,7 +50,7 @@
       "callers": [
         "manual:registered price verification"
       ],
-      "sha256": "a4df7f3ec12225e15ab4e58fc724bfb663a427f5499c62224698e8254df5b70b"
+      "sha256": "92e966d4f0218ee240bff9af5b9d869956227c23fb13518a35a234c647f83808"
     },
     "scripts/research_glp_batch2_fda_warning_provenance.py": {
       "kind": "script",
@@ -127,14 +127,14 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "d17176febdb93762f0202aff7a80c06bc1082563c824f38a0fe9463c10d3441a"
+      "sha256": "ad76344e79acc1677f5e32e47972770665ab1c0a7e97e08ea3fddea7fbd9967b"
     },
     "tests/test_firecrawl_credit_loops.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "d1d6b1871b1925d7b02f7e6478a89bfa01f51f1d61190f66027bf528eb32936a"
+      "sha256": "162041d8914b28f1d03f79629b212c1f1a43ba0cc48c8558eb8c6c171f56165a"
     },
     "ops/firecrawl/README.md": {
       "kind": "documentation",
@@ -1052,7 +1052,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "9c1302c8ca50a28d03f8fcafd003a3273dc0d5f636dd29cf177ea852c1789980"
+      "sha256": "09e71534e132e8660b77195b974cc96e360693d1a96f02aef27362b25e2bd5ba"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1978,7 +1978,7 @@
         "crontab:40"
       ],
       "kind": "script",
-      "sha256": "426f9b06e61e2beae4b1e05a938c4a7ea4c8f32f543eb7bd40569188f184e626"
+      "sha256": "d261bfb6686cca8fdc4f398aa9cdd91763dca25bd4cdd67f6e9905948b472e97"
     },
     "scripts/glp_g6_weekly_traction_report.py": {
       "callers": [
@@ -3973,7 +3973,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "6e393a35fbe51c3905a93dfcef67e3eff4527a3771c5dd3be16a0a0a606e0d67"
+      "sha256": "e9f290a6dcc1062152321ef99bc4cf4dae88a1e81ba486c2791e6a0a6418849c"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [

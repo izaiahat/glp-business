@@ -265,12 +265,12 @@ def firecrawl_fetch(url: str, api_key: str, proxy: str = 'basic') -> dict[str, A
 
 def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | None) -> dict[str, Any]:
     errors: list[str] = []
-    for fetcher in (
+    for attempt, fetcher in enumerate((
         lambda: browser_fetch(browser, url, program_id) if browser is not None else (_ for _ in ()).throw(RuntimeError("playwright_unavailable")),
         lambda: requests_fetch(url),
         lambda: firecrawl_fetch(url, firecrawl_key, 'basic') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
         lambda: firecrawl_fetch(url, firecrawl_key, 'enhanced') if firecrawl_key else (_ for _ in ()).throw(RuntimeError("firecrawl_key_unavailable")),
-    ):
+    )):
         try:
             result = fetcher()
             if result.get("http_status") and 200 <= int(result["http_status"]) < 400 and result.get("text"):
@@ -278,6 +278,10 @@ def fetch_source(browser: Any, url: str, program_id: str, firecrawl_key: str | N
             errors.append(f"{result.get('method')}:{result.get('http_status')}")
         except Exception as exc:
             errors.append(type(exc).__name__)
+            # A dispatched Firecrawl effect with no result is uncertain. Only
+            # an explicit completed response permits basic-to-enhanced fallback.
+            if attempt >= 2:
+                break
     return {
         "method": "all_fetch_methods_failed",
         "requested_url": url,

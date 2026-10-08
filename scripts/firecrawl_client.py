@@ -40,13 +40,20 @@ def api_key():
 
 def search_rows(payload, sources=("web", "news")):
     """v2 groups results in data.web/news; don't iterate dict keys as rows."""
-    if not isinstance(payload, dict) or payload.get("success") is False:
-        return []
-    data = payload.get("data", {})
-    if not isinstance(data, dict):
-        return []
-    return [row for source in sources for row in (data.get(source) or [])
-            if isinstance(row, dict) and row.get("url")]
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        raise ValueError("firecrawl_search_failed_not_empty")
+    data = payload.get("data")
+    if not isinstance(data, dict) or not sources or sources[0] not in data:
+        raise ValueError("firecrawl_search_grouped_data_missing")
+    rows = []
+    for source in sources:
+        if source not in data:
+            continue
+        group = data[source]
+        if not isinstance(group, list) or any(not isinstance(row, dict) for row in group):
+            raise ValueError("firecrawl_search_grouped_data_invalid")
+        rows.extend(row for row in group if row.get("url"))
+    return rows
 
 
 def _hash(value):
@@ -86,12 +93,10 @@ def _receipt(payload):
     if not isinstance(credit, (int, float)) or isinstance(credit, bool):
         credit = None
     ident = (payload.get("id") or payload.get("jobId") or meta.get("scrapeId") or meta.get("scrape_id")) if isinstance(payload, dict) else None
-    # Provider receipts may contain emails or tokens; identifiers have a bounded
-    # restricted shape, otherwise hash instead of writing their raw values.
+    # Provider identifiers are opaque untrusted data, not a credential-safe
+    # alphabet. Hash every non-null identifier and retain correlation only.
     if ident is not None:
-        ident = str(ident)
-        if len(ident) > 100 or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in ident):
-            ident = "sha256:" + _hash(ident)
+        ident = "sha256:" + _hash(ident)
     return ident, credit
 
 

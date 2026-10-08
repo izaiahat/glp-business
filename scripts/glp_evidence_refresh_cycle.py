@@ -382,7 +382,8 @@ def run_cycle(ledger, config, historical_generated_at, now, max_age_days, direct
                 'decision_required': item.get('decision_required', item.get('error', item['status'])),
                 'content_sha256': proof.get('content_sha256'), 'capture_path': item.get('capture_path'),
                 'next_attempt_at': (now + timedelta(days=7 if item['status'] == 'ESCALATED' else 1)).isoformat()}
-        elif item['status'] != 'REVIEW_PENDING_BACKOFF':
+        elif (item['status'] not in ('REVIEW_PENDING_BACKOFF', 'NOT_ATTEMPTED_AFTER_SOURCE_REFUSAL')
+              or pending.get(cid, {}).get('parent_sha256') != parent_keys[cid]):
             pending.pop(cid, None)
     pending_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = pending_path.with_suffix('.tmp')

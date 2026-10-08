@@ -13,8 +13,10 @@ import firecrawl_client as fc
 def test_grouped_v2_search_fixture():
     payload = {'success': True, 'id': 'search-id', 'data': {'web': [{'url': 'https://a', 'title': 'A'}, {'title': 'no URL'}], 'news': [{'url': 'https://b'}], 'images': [{'url': 'https://image'}]}}
     assert [r['url'] for r in fc.search_rows(payload)] == ['https://a', 'https://b']
-    assert fc.search_rows({'data': [{'url': 'v1'}]}) == []
-    assert fc.search_rows({'success': False, 'data': payload['data']}) == []
+    with pytest.raises(ValueError):
+        fc.search_rows({'data': [{'url': 'v1'}]})
+    with pytest.raises(ValueError):
+        fc.search_rows({'success': False, 'data': payload['data']})
 
 
 def test_concurrent_secret_free_ledger(tmp_path):
@@ -27,7 +29,7 @@ def test_concurrent_secret_free_ledger(tmp_path):
     text = path.read_text()
     rows = [json.loads(line) for line in text.splitlines()]
     assert len(rows) == 40 and len({r['operation_id'] for r in rows}) == 40
-    assert all(r['creditsUsed'] == 5 and r['scrape_search_id'] == 'safe-id' for r in rows)
+    assert all(r['creditsUsed'] == 5 and r['scrape_search_id'] == 'sha256:' + fc._hash('safe-id') for r in rows)
     assert 'secret' not in text and 'person@' not in text and 'sensitive' not in text
     assert path.stat().st_mode & 0o777 == 0o600
     assert fc.record_operation('test', '/v2/search', outcome='success', ledger_path=path)['creditsUsed'] is None
@@ -50,7 +52,7 @@ def test_client_refuses_v1_and_uncapped_agent(tmp_path):
 
 
 def test_sdk_snake_case_credit_and_scrape_id():
-    assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sdk-id',1)
+    assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sha256:' + fc._hash('sdk-id'),1)
 
 
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
@@ -81,3 +83,43 @@ def test_price_proxy_sequence(monkeypatch,basic_ok,expected):
     result=price.fetch_source(None,'https://example.invalid/pricing','fixture','fixture-only')
     assert result['text']
     assert calls==expected
+
+
+def test_opaque_receipt_ids_are_hashed(tmp_path):
+    opaque = 'fc-' + 'fixture' * 8
+    row = fc.record_operation('test', '/v2/scrape', payload={'id': opaque},
+                              outcome='success', ledger_path=tmp_path/'ops')
+    assert opaque not in (tmp_path/'ops').read_text()
+    assert row['scrape_search_id'] == 'sha256:' + fc._hash(opaque)
+
+
+def test_price_ambiguous_basic_effect_stops_fallback(monkeypatch, tmp_path):
+    import requests
+    import glp_price_verification as price
+    calls = []
+    monkeypatch.setattr(fc, 'LEDGER', tmp_path/'ops')
+    def post(*args, **kwargs):
+        calls.append(kwargs['json']['proxy'])
+        raise requests.Timeout('offline ambiguous effect')
+    monkeypatch.setattr(requests, 'post', post)
+    monkeypatch.setattr(price, 'requests_fetch', lambda u: (_ for _ in ()).throw(OSError('offline')))
+    result = price.fetch_source(None, 'https://example.invalid/pricing', 'fixture', 'fixture-only')
+    assert calls == ['basic']
+    assert result['text'] == ''
+    assert result['http_status'] is None
+
+
+@pytest.mark.parametrize('data', [None, 'missing', [], {}, {'web': None}, {'web': {}}, {'news': []}])
+def test_actual_affiliate_caller_refuses_invalid_grouped_search(monkeypatch, tmp_path, data):
+    import io
+    import affiliate_supply_discovery as supply
+    import glp_price_verification as price
+    payload = {'success': True}
+    if data != 'missing':
+        payload['data'] = data
+    monkeypatch.setattr(price, 'env_value', lambda name: 'fixture-only')
+    monkeypatch.setattr(fc, 'LEDGER', tmp_path/'ops')
+    monkeypatch.setattr(fc.urllib.request, 'urlopen', lambda *a, **kw: io.BytesIO(json.dumps(payload).encode()))
+    with pytest.raises((ValueError, RuntimeError)):
+        supply.firecrawl_search()('fixture query')
+    assert fc.search_rows({'success': True, 'data': {'web': []}}, sources=('web',)) == []

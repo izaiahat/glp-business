@@ -63,3 +63,27 @@ def test_taxonomy_url_memo_and_failure_reuse(tmp_path,monkeypatch):
     now=dt.datetime(2026,10,7,tzinfo=dt.timezone.utc)
     assert not module.due({'verified_as_of':'2026-09-08'},now)
     assert module.due({'verified_as_of':'2026-09-07'},now)
+
+
+def test_unattempted_pending_hold_survives_other_source_refusal(tmp_path):
+    import json
+    records = [{'capture_id': n, 'disposition': 'ACCEPTED', 'cached_at': '2026-08-01T00:00:00Z',
+                'requested_url': f'https://example.invalid/{n}', 'resolved_url': f'https://example.invalid/{n}',
+                'exact_quote': 'Old offer'} for n in ('first', 'pending')]
+    def fetch(url):
+        return {'success': True, 'data': {'markdown': 'New offer' if url.endswith('/pending') else 'Old offer',
+                'metadata': {'statusCode': 200, 'sourceURL': url,
+                             'scrapeId': '00000000-0000-0000-0000-000000000001'}}}
+    def adopt(pairs):
+        return ({r['capture_id']: {'status': 'ADOPTED'} for r, p in pairs}, {})
+    args = ({'records': records}, {'observations': []}, '2026-08-01T00:00:00Z')
+    cycle.run_cycle(*args, dt.datetime(2026, 10, 7, tzinfo=dt.timezone.utc), 45, tmp_path/'one', fetch, adopt)
+    path = tmp_path/'review-pending.json'
+    previous = json.loads(path.read_text())['pending']
+    report = cycle.run_cycle(*args, dt.datetime(2026, 10, 8, tzinfo=dt.timezone.utc), 45, tmp_path/'two',
+        lambda u: (_ for _ in ()).throw(TimeoutError('offline')), adopt)
+    assert report['records'][1]['status'] == 'NOT_ATTEMPTED_AFTER_SOURCE_REFUSAL'
+    assert json.loads(path.read_text())['pending'] == previous
+    # The same unchanged parent still backs off after the unrelated refusal clears.
+    third = cycle.run_cycle(*args, dt.datetime(2026, 10, 9, tzinfo=dt.timezone.utc), 45, tmp_path/'three', fetch, adopt)
+    assert third['records'][1]['status'] == 'REVIEW_PENDING_BACKOFF'
