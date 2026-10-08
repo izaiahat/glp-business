@@ -549,3 +549,8 @@
 !/ops/glp/seo_nonarticle_emitter.py
 !/scripts/glp_weekly_seo_source_stage.py
 !/tests/test_glp75_weekly_producer_repairs.py
+
+# GLP335 existing registered Affiliati consumer (no receiver/runtime imports)
+!/scripts/glp_affiliati_postback_ship.py
+!/tests/test_glp335_registered_current_contract.py
+!/ops/glp335-current-consumer.md
