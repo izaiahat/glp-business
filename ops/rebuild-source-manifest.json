@@ -13,12 +13,12 @@
     "tests/test_glp_sponsor_public_custody.py": {
       "kind": "test",
       "callers": ["scripts/run_tests.sh"],
-      "sha256": "9c7675d31110ab1b990b61a5faeea21b31827118dfd6702549d36138eefdf711"
+      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
     },
     "tests/test_glp_sponsor_technical_receiving.py": {
       "kind": "test",
       "callers": ["scripts/run_tests.sh"],
-      "sha256": "80cbfa49f27d4f9978e6ae12fb166ee7c1e7f0f513a641d7a36230237ac359fd"
+      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
     },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -4505,7 +4505,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "3ef7364b1e312867ed231d9e3295fe68e4aac66cdf0b5cb6e02879afaeb2c423"
+      "sha256": "a36157c3678feedbd5d013dedbbb430dab08ab7ed7184d42734d4c95affaea48"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4996,7 +4996,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "885421b612fe64599a18f4d3df2c566a9808e20ebf05c66d7a6973971fbe865c"
+      "sha256": "809f034f5a35f3765345b5f5a8c02532aafe316b25a689f96e9d25012f1c0032"
     },
     "scripts/glp_sponsor_paypal.py": {
       "kind": "script",

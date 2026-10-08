@@ -136,7 +136,13 @@ def scope_evidence_current(host,organization,at):
    country=str(ev.get('country_excerpt') or '')
    medication=str(ev.get('medication_provider_excerpt') or '')
    if ev.get('country')=='US' and not (re.search(r'United States|U\.S\.|USA|all 50 states',country,re.I) or re.search(r'\bUS\b',country)):continue
-   if medication and not re.search(r'GLP|semaglutide|tirzepatide|prescrib|weight.loss',medication,re.I):continue
+   # Custody of a keyword is not an affirmative medication-provider claim.
+   # Ambiguous/negative or nonclinical scope remains unknown, not admitted.
+   if medication:
+    if (not MEDICATION.search(medication)
+        or re.search(r"\b(?:no|not|never|without|cannot|can't|don't|doesn't|isn't|aren't|unable|marketing|advertising|coaching|education|demonstrations?)\b",medication,re.I)
+        or not re.search(r'\b(?:we|our (?:doctors|clinicians|providers|prescribers))\s+(?:prescribe|offer|provide)\b',medication,re.I)
+        or not re.search(r'\b(?:prescribe|prescription|medication|treatment)\b',medication,re.I)):continue
    out.append(ev);break
  return out
 
@@ -350,7 +356,15 @@ def coordinator_technical_ready(approval,config):
   raise RuntimeError('exact_operator_approval_missing')
  path=STATE/'technical-receiving.json'
  if not path.is_file():raise RuntimeError('exact_operator_approval_missing')
- receipt=load(path)
+ def unique_authority_object(pairs):
+  result={}
+  for key,value in pairs:
+   if key in result:raise ValueError('duplicate_json_key:'+key)
+   result[key]=value
+  return result
+ # Decode this new authority representation strictly at every object depth;
+ # field-set validation after permissive decoding cannot detect contradictions.
+ receipt=json.loads(path.read_text(),object_pairs_hook=unique_authority_object)
  fields={'schema','actor','coordinator','parent_session_id','packet_sha256','predecessor_sha256','decision','reviewed_source_head','reviewed_sender_sha256','reviewed_technical_sources'}
  if (set(receipt)!=fields or receipt.get('schema')!='sponsor.coordinator_technical_receiving.v1'
      or receipt.get('actor')!='coordinator' or receipt.get('coordinator')!='Kael'
@@ -837,7 +851,7 @@ def run(config,dry_run=False):
      verified=readiness.bouncer_readiness(recipient['email'],ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',boundary_at)
      if verified['send_eligible'] is not True:
       boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_verification_'+verified['status']});continue
-    if recipient.get('contact_source')=='alexandria_apollo' and not readiness.professional_contact(recipient['host'],[recipient['contact_evidence']],boundary_at):
+    if recipient.get('contact_source')=='apollo' and not readiness.professional_contact(recipient['host'],[recipient['contact_evidence']],boundary_at):
      boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_professional_contact_expired'});continue
     # Stops committed during contact/mail/suppression reads win before claim.
     if due(recipient,ledger,boundary_at)!=stage:continue

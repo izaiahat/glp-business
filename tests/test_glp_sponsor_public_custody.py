@@ -60,6 +60,34 @@ def test_supplemental_provider_scope_requires_current_quoted_first_party_custody
  assert bool(c.scope_evidence_current('example.com',org,AT))==(case=='valid')
 
 
+@pytest.mark.parametrize('medication,accepted',[
+ ('Our doctors prescribe GLP-1 medication',True),
+ ('We provide GLP-1 treatment',True),
+ ('We provide weight loss marketing services, not medical care',False),
+ ('We do not prescribe GLP-1 medication',False),
+ ('Our doctors never prescribe GLP-1 medication',False),
+ ('We offer GLP-1 marketing services to doctors',False),
+ ('Our doctors prescribe vitamins',False),
+ ('GLP-1 prescription services are not offered here',False),
+ ('We prescribe GLP-1 medication for marketing demonstrations, not patients',False),
+ ('We provide weight loss coaching, not prescriptions',False),
+])
+def test_supplemental_scope_requires_affirmative_medication_provider_not_keywords(tmp_path,monkeypatch,medication,accepted):
+ from test_glp_sponsor_campaign import inputs
+ monkeypatch.setattr(c,'ROOT',tmp_path);monkeypatch.setattr(c,'now',lambda:AT)
+ sheet,_,local=inputs();sheet[1][2]='Example Services';sheet[1][3]='';sheet[1][7]=''
+ org=organization();page=org['discovery']['_markup'][0]
+ country='Available to customers in the United States'
+ page['html']+=f'<p>{country}. {medication}.</p>';page['sha256']=hashlib.sha256(page['html'].encode()).hexdigest()
+ org['discovery']['contact_evidence']['page_sha256']=page['sha256']
+ org['scope_evidence']=[{'source_url':page['final_url'],'country':'US','country_excerpt':country,
+                         'medication_provider_excerpt':medication,'sha256':page['sha256'],'observed_utc':AT.isoformat()}]
+ assert bool(c.scope_evidence_current('example.com',org,AT)) is accepted
+ plan=c.recipients(sheet,{'organizations':{'example.com':org}},local)
+ assert len(plan['recipients'])==int(accepted)
+ if not accepted:assert plan['exclusions'][0]['reason']=='not_glp_medication_provider'
+
+
 class Response:
  def __init__(self,url,body=b'',status=200,location=None):
   self.url=url;self.status_code=status;self.encoding='utf-8';self.headers={'Location':location} if location else {};self.body=body

@@ -74,6 +74,22 @@ def test_coordinator_receives_new_technical_bytes_without_relabelling_personal_a
     assert predecessor.read_bytes()==old_zip
 
 
+@pytest.mark.parametrize('case',['actor','nested_source','nested_source_equal'])
+def test_technical_receiving_refuses_duplicate_keys_before_authority_validation(tmp_path,monkeypatch,case):
+    config,receipt,*_=fixture(tmp_path,monkeypatch)
+    text=json.dumps(receipt)
+    if case=='actor':
+        text=text.replace('"actor": "coordinator"','"actor": "Izaiah Tilton", "actor": "coordinator"')
+    else:
+        path='scripts/firecrawl_client.py';pin=receipt['reviewed_technical_sources'][path]
+        first=pin if case=='nested_source_equal' else '0'*64
+        text=text.replace(json.dumps(path)+': '+json.dumps(pin),
+                          json.dumps(path)+': '+json.dumps(first)+', '+json.dumps(path)+': '+json.dumps(pin))
+    (c.STATE/'technical-receiving.json').write_text(text)
+    with pytest.raises(ValueError,match='duplicate_json_key:'):
+        c.approval_ready(config)
+
+
 @pytest.mark.parametrize('path',list(c.TECHNICAL_ADMISSION_SOURCE_SHA256))
 def test_changed_discovery_or_classifier_dependency_refuses_receiving(tmp_path,monkeypatch,path):
     config,*_=fixture(tmp_path,monkeypatch)
