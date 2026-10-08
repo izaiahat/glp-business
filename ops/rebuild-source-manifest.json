@@ -5382,34 +5382,6 @@
       ],
       "sha256": "810362c327ad30527861a7fb03b161027ec4fbf8551d001d4390b7e768141adf"
     },
-    "tests/test_glp328_cold_wal.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
-    },
-    "scripts/glp_sponsor_alexandria.py": {
-      "kind": "script",
-      "callers": [
-        "authorized sponsor preapproval business-contact research"
-      ],
-      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
-    },
-    "tests/test_glp_sponsor_alexandria.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
-    },
-    "tests/test_glp_sponsor_autonomous.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
-    },
     "ops/glp/weekly_strategy_sync.py": {
       "callers": [
         "scripts/glp_weekly_strategy_report.py"
