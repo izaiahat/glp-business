@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Daily private config/auth/jobs/SOUL/memories + bounded cron-ledger backup.
+# Daily private config/auth/jobs/SOUL/memories + WAL-safe session/cron backup.
 # Registered entry: 0 4 * * * bash /home/ubuntu/business/scripts/hermes-state-backup.sh
 # SQLite online backup API only: never raw tar of live ledgers/WAL/state.db.
-# Current state.db is NOT included; historical archives are not its backup.
+# Current state.db uses online backup, never quiesced archival or live raw copy.
 # Same-day atomic replacement and existing 14-day retention scope preserved.
 set -Eeuo pipefail
 umask 077
@@ -61,26 +61,48 @@ def private_member(member):
     member.mode = 0o700 if member.isdir() else 0o600
     return member
 
-# Fixed scope, no DB discovery. Growth refuses rather than raw-copy fallback.
+# Fixed scope, no DB discovery. Growth/capacity refuses, never raw-copy fallback.
 MAX_LEDGER_BYTES = 8 * 1024**2
+MIN_FREE_BYTES = 2 * 1024**3
+
+def free_bytes():
+    v = os.statvfs(root)
+    return v.f_bavail * v.f_frsize
+
+def digest(path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for chunk in iter(lambda: f.read(1024**2), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+class HeadroomWriter:
+    def __init__(self, target):
+        self.target = target
+    def write(self, data):
+        if free_bytes() < MIN_FREE_BYTES + len(data):
+            raise ValueError('archive write headroom refused')
+        return self.target.write(data)
+
 manifest = {'schema': 1, 'at': now.isoformat(),
     'producer_sha256': hashlib.sha256(producer.read_bytes()).hexdigest(),
     'sqlite_version': sqlite3.sqlite_version,
     'snapshot_api': 'sqlite3.Connection.backup (SQLite online backup API)',
-    'consistency': 'independent per-ledger snapshots; not a cross-store checkpoint',
-    'ledgers': {}, 'session_store': {'path': 'state.db', 'status': 'NOT_INCLUDED',
-        'reason': 'Requires separately authorized destination and real full SQLite staging capacity.'}}
+    'consistency': 'independent per-database snapshots; not a cross-store checkpoint',
+    'ledgers': {}, 'session_store': {'path': 'state.db', 'status': 'MISSING'}}
 log('hermes-state-backup start (out='+str(out)+')')
 with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
     stage = Path(stage_name)  # exclusive private 0700 staging
     snapshots = {}
-    for name in ('executions.db', 'deliveries.db', 'notepad.db', 'cron.db'):
-        rel = 'cron/'+name
+    for name in ('executions.db', 'deliveries.db', 'notepad.db', 'cron.db', 'state.db'):
+        is_state = name == 'state.db'
+        rel = name if is_state else 'cron/'+name
+        records = {'state.db': manifest['session_store']} if is_state else manifest['ledgers']
         source = home / rel
         if not source.exists():
             if source.is_symlink():
                 raise ValueError('dangling ledger symlink: '+rel)
-            manifest['ledgers'][rel] = {'status': 'MISSING'}
+            records[rel] = {'status': 'MISSING'}
             continue
         if source.is_symlink() or source.parent.is_symlink() or not source.is_file():
             raise ValueError('unsafe ledger source: '+rel)
@@ -92,23 +114,31 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             snapshots[rel] = snapshot
             continue
         for p in (source, Path(str(source)+'-wal')):
-            if p.exists() and p.stat().st_size > MAX_LEDGER_BYTES:
+            if not is_state and p.exists() and p.stat().st_size > MAX_LEDGER_BYTES:
                 raise ValueError('ledger exceeds bounded staging scope: '+rel)
         src = dst = None
         try:
             src = sqlite3.connect(source.as_uri()+'?mode=ro', uri=True, timeout=0.0)
             page_size = src.execute('pragma page_size').fetchone()[0]
-            if page_size * src.execute('pragma page_count').fetchone()[0] > MAX_LEDGER_BYTES:
+            logical_bytes = page_size * src.execute('pragma page_count').fetchone()[0]
+            # Reserve full staging + worst-case tar/gzip output (1% overhead)
+            # plus 2 GiB for ordinary live growth. No source checkpoint or pause.
+            # Permit up to 1 GiB of concurrent committed growth, pre-reserved.
+            limit = logical_bytes + 1024**3 if is_state else MAX_LEDGER_BYTES
+            if is_state and free_bytes() < limit * 202 // 100 + MIN_FREE_BYTES:
+                raise ValueError('insufficient private state snapshot/archive headroom')
+            if logical_bytes > limit:
                 raise ValueError('logical ledger exceeds staging bound: '+rel)
             dst = sqlite3.connect(snapshot)
-            deadline = time.monotonic()+15
+            deadline = time.monotonic()+(1800 if is_state else 15)
             def progress(status, remaining, total):
-                if time.monotonic() >= deadline or total * page_size > MAX_LEDGER_BYTES:
+                if (time.monotonic() >= deadline or total * page_size > limit
+                        or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)):
                     raise TimeoutError('bounded ledger snapshot refused: '+rel)
             src.backup(dst, pages=256, progress=progress, sleep=0.1)
             # Flatten ONLY private destination; never checkpoint/VACUUM source.
             dst.execute('pragma journal_mode=delete')
-            if [r[0] for r in dst.execute('pragma quick_check')] != ['ok'] or snapshot.stat().st_size > MAX_LEDGER_BYTES:
+            if [r[0] for r in dst.execute('pragma quick_check')] != ['ok'] or snapshot.stat().st_size > limit:
                 raise ValueError('invalid/oversize ledger snapshot: '+rel)
         finally:
             if dst is not None:
@@ -116,9 +146,16 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             if src is not None:
                 src.close()
         snapshots[rel] = snapshot
-        manifest['ledgers'][rel] = {'status': 'SNAPSHOT_OK', 'quick_check': 'ok',
+        record = {'status': 'SNAPSHOT_OK', 'quick_check': 'ok',
             'bytes': snapshot.stat().st_size,
-            'sha256': hashlib.sha256(snapshot.read_bytes()).hexdigest()}
+            'sha256': digest(snapshot)}
+        if is_state:
+            manifest['session_store'] = {'path': rel, **record}
+            manifest['session_store']['headroom_before_archive_bytes'] = free_bytes()
+            if free_bytes() < snapshot.stat().st_size * 101 // 100 + MIN_FREE_BYTES:
+                raise ValueError('insufficient state archive publication headroom')
+        else:
+            manifest['ledgers'][rel] = record
     coverage = stage / 'backup-coverage.json'
     with os.fdopen(os.open(coverage, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'w') as f:
         os.fchmod(f.fileno(), 0o600)
@@ -128,7 +165,7 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
     # Explicit creation mode, not umask alone: inherited default ACLs can ignore it.
     with os.fdopen(os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as target:
         os.fchmod(target.fileno(), 0o600)
-        with tarfile.open(fileobj=target, mode='w:gz', dereference=False) as tar:
+        with tarfile.open(fileobj=HeadroomWriter(target), mode='w:gz', dereference=False) as tar:
             for rel in ('config.yaml', '.env', 'auth.json', 'cron/jobs.json', 'SOUL.md', 'memories'):
                 source = home / rel
                 if source.is_symlink() or source.parent.is_symlink():
@@ -151,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
         os.fsync(fd)
     finally:
         os.close(fd)
-log('wrote '+str(out)+' ('+str(out.stat().st_size)+' bytes); state.db NOT_INCLUDED')
+log('wrote '+str(out)+' ('+str(out.stat().st_size)+' bytes); state.db '+manifest['session_store']['status'])
 # Preserve find -mtime +N semantics: whole 24-hour days, strictly >N.
 deleted = 0
 for old in root.glob('hermes-state-????????.tar.gz'):

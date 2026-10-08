@@ -469,12 +469,19 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
                 'memories/MEMORY.md': b'fixture memory\n'}
     for name, data in payloads.items():
         (home / name).write_bytes(data)
-    # A large fake session file must never be copied/snapshotted by this producer.
-    with (home / 'state.db').open('wb') as f:
-        f.truncate(12 * 1024**3)
     ledgers = ('executions.db', 'deliveries.db', 'notepad.db')
     connections = []
     try:
+        state = sqlite3.connect(home / 'state.db')
+        connections.append(state)
+        state.execute('pragma journal_mode=wal')
+        state.execute('pragma wal_autocheckpoint=0')
+        state.execute('create table messages(id integer primary key, content text)')
+        state.execute("create virtual table messages_fts using fts5(content, content='messages', content_rowid='id')")
+        state.execute("create trigger messages_ai after insert on messages begin insert into messages_fts(rowid, content) values(new.id, new.content); end")
+        state.execute("insert into messages(content) values('committed recovery fixture')")
+        state.commit()
+        state.execute("insert into messages(content) values('uncommitted fixture must not restore')")
         for name in ledgers:
             conn = sqlite3.connect(home / 'cron' / name)
             connections.append(conn)
@@ -499,7 +506,8 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
         with tarfile.open(artifact) as tar:
             members = {m.name: m for m in tar.getmembers()}
             assert len(members) == len(tar.getmembers())
-            assert 'state.db' not in members
+            assert 'state.db' in members
+            assert members['state.db'].mode == 0o600
             assert not any(n.endswith(('-wal', '-shm')) for n in members)
             for name, payload in payloads.items():
                 member_file = tar.extractfile(name)
@@ -508,7 +516,25 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
             coverage_file = tar.extractfile('backup-coverage.json')
             assert coverage_file is not None
             manifest = json.load(coverage_file)
-            assert manifest['session_store']['status'] == 'NOT_INCLUDED'
+            assert manifest['session_store']['status'] == 'SNAPSHOT_OK'
+            snapshot = tmp_path / 'state-snapshot.db'
+            with snapshot.open('xb') as target:
+                os.fchmod(target.fileno(), 0o600)
+                import shutil
+                member_file = tar.extractfile('state.db')
+                assert member_file is not None
+                shutil.copyfileobj(member_file, target)
+            restored = tmp_path / 'state-restored.db'
+            with restored.open('xb') as target:
+                os.fchmod(target.fileno(), 0o600)
+            with sqlite3.connect(snapshot) as src, sqlite3.connect(restored) as dst:
+                src.backup(dst)
+                assert dst.execute('pragma quick_check').fetchall() == [('ok',)]
+                assert dst.execute('select count(*) from messages').fetchone()[0] == 1
+                assert dst.execute("select count(*) from messages_fts where messages_fts match 'recovery'").fetchone()[0] == 1
+                assert dst.execute("select count(*) from messages_fts where messages_fts match 'uncommitted'").fetchone()[0] == 0
+                dst.execute("insert into messages_fts(messages_fts, rank) values('integrity-check', 1)")
+            assert manifest['session_store']['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
             assert manifest['producer_sha256'] == hashlib.sha256(producer.read_bytes()).hexdigest()
             for name in ledgers:
                 member = 'cron/' + name
@@ -528,8 +554,20 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
                 assert dst.execute('select value from proof').fetchall() == [('committed-in-wal-'+name,)]
                 dst.close()
                 assert manifest['ledgers'][member]['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
-        # Corrupt a required present ledger. Prior good archive survives; no partial publish.
         prior = artifact.read_bytes()
+        # Exact producer with scratch-only statvfs simulation, no live pressure.
+        injection = tmp_path / 'low-space-python'
+        injection.mkdir()
+        (injection / 'sitecustomize.py').write_text(
+            'import os\nfrom types import SimpleNamespace\n'
+            'os.statvfs = lambda p: SimpleNamespace(f_bavail=1, f_frsize=1)\n')
+        refused = subprocess.run(['bash', str(producer)],
+            env={**env, 'PYTHONPATH': str(injection)}, capture_output=True, timeout=90)
+        assert refused.returncode != 0
+        assert b'insufficient private state snapshot/archive headroom' in refused.stderr
+        assert artifact.read_bytes() == prior
+        assert not list(backup_root.glob('.snapshot-*'))
+        # Corrupt a required present ledger. Prior good archive survives; no partial publish.
         for conn in connections:
             conn.close()
         connections.clear()
