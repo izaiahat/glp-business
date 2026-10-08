@@ -19,7 +19,7 @@ def _column(value):
     return re.sub(r'[^a-z0-9]', '', str(value).lower())
 
 
-def project_catalog(snapshot):
+def project_catalog(snapshot, *, expected_start=1):
     """Project a single unambiguous visible table. Unknown is never an API total."""
     candidates = []
     for table in snapshot.get('tables') or []:
@@ -50,19 +50,35 @@ def project_catalog(snapshot):
                        'category': values.get('category', ''), 'payout': values.get('payout', ''),
                        'visibility': values.get('visibility', ''),
                        'relationship': {'offer_affiliate_status': values.get('affiliate_status', '').lower()}})
-    totals = set()
+    ranges = set()
     next_links = set()
+    # Full-line grammar prevents 1,000 / 1.5 / malformed suffixes becoming 1.
+    integer = r'(?:[1-9][0-9]{0,2}(?:,[0-9]{3})+|0|[1-9][0-9]*)'
+    pattern = rf'(?:Showing\s+)?({integer})\s*(?:-|–|to)\s*({integer})\s+of\s+({integer})(?:\s+(?:entries|offers|results))?'
     for pager in snapshot.get('pagers') or []:
-        # Only a visible range/total, never the count of table rows or nav links.
-        matches = re.findall(r'\b\d+\s*(?:-|–|to)\s*\d+\s+of\s+(\d+)\b', str(pager.get('text', '')), re.I)
-        totals.update(int(total) for total in matches)
+        # Pager link labels may occupy other lines; never accept a numeric prefix.
+        for line in str(pager.get('text', '')).splitlines():
+            if not re.search(r'\bof\b', line, re.I):
+                continue
+            match = re.fullmatch(pattern, line.strip(), re.I)
+            if match is None:
+                raise SessionError('xentraffic_visible_published_total_or_pager_unknown')
+            start, end, total = (int(value.replace(',', '')) for value in match.groups())
+            if not ((total == 0 and start == end == 0 and not offers and expected_start == 1)
+                    or (total > 0 and start == expected_start and start <= end <= total
+                        and end - start + 1 == len(offers))):
+                raise SessionError('xentraffic_visible_published_total_or_pager_unknown')
+            ranges.add((start, end, total))
         for link in pager.get('links') or []:
             if (link.get('disabled') is not True and
                     (link.get('rel') == 'next' or str(link.get('text', '')).strip().lower() == 'next')):
                 next_links.add(str(link.get('href', '')))
-    if len(totals) != 1 or len(next_links) > 1:
+    if len(ranges) != 1 or len(next_links) > 1:
         raise SessionError('xentraffic_visible_published_total_or_pager_unknown')
-    return {'offers': offers, 'paging': {'total_count': totals.pop()}}, next(iter(next_links), None)
+    _, end, total = ranges.pop()
+    if end == total and next_links:
+        raise SessionError('xentraffic_visible_published_total_or_pager_unknown')
+    return {'offers': offers, 'paging': {'total_count': total}}, next(iter(next_links), None)
 
 
 class FreshVisibleCatalogReader:
@@ -76,6 +92,7 @@ class FreshVisibleCatalogReader:
         self.driver = driver
         self.owned_session = driver.owned_session
         self.number = 0
+        self.seen_count = 0
         self.next_url = None
         self.names = {}
         self.started = False
@@ -115,7 +132,8 @@ class FreshVisibleCatalogReader:
                         or parts.path != '/offers' or parts.fragment or parts.username or parts.password):
                     raise SessionError('xentraffic_visible_pager_outside_catalog')
                 self.driver.goto(self.next_url)
-            payload, self.next_url = project_catalog(self.driver.visible_tables())
+            payload, self.next_url = project_catalog(self.driver.visible_tables(), expected_start=self.seen_count + 1)
+            self.seen_count += len(payload['offers'])
             self.names.update({row['network_offer_id']: row['name'] for row in payload['offers']})
             self.number = number
             return payload

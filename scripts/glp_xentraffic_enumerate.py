@@ -318,6 +318,7 @@ def main(argv: list[str] | None = None, *, fresh_reader=None) -> int:
         "raw_detail": details,
     })
 
+    state_updated = False
     if verdict == "COMPLETE" and args.read_only != '1':
         write_private(STATE_PATH, {
             "schema": SCHEMA + ".state",
@@ -332,6 +333,7 @@ def main(argv: list[str] | None = None, *, fresh_reader=None) -> int:
                 | set(details)),
             "sheet_program_ids": previous.get("sheet_program_ids") or [],
         })
+        state_updated = True
 
     summary = {
         "offers": len(offers),
@@ -343,7 +345,7 @@ def main(argv: list[str] | None = None, *, fresh_reader=None) -> int:
         "details_fetched": len(details),
         "deltas": len(deltas),
         "queue_rows": len(queue_rows),
-        "state_updated": verdict == "COMPLETE",
+        "state_updated": state_updated,
         "note": note,
     }
     payload = {

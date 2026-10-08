@@ -49,7 +49,9 @@ class FreshVisibleListingTransport:
         self.driver.goto(target)
         raw = self.driver.maxbounty_search_snapshot()
         buttons = raw.get('buttons') or []
-        rows = [{**link, 'listing_text': row['text'], 'cells': row['cells']}
+        # Persist only the fixed visible projection, never arbitrary link fields.
+        rows = [{'name': link['name'], 'href': link['href'], 'program_id': link['program_id'],
+                 'listing_text': row['text'], 'cells': row['cells']}
                 for row in raw.get('rows') or [] for link in row.get('links') or []]
         snapshot = {'url': self.driver.url, 'page_number': number,
                     'category_label': raw.get('category_label', ''),

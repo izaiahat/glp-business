@@ -132,6 +132,102 @@ console.log(JSON.stringify({fixture_only:true,operations:Object.keys(exprs).leng
 
 
 
+@pytest.mark.parametrize('hidden_kind', ['cell', 'descendant'])
+def test_hidden_dom_recording_vm_and_real_mb_main_persistence(monkeypatch, tmp_path, capsys, hidden_kind):
+    # Same counterexample as the independent review, plus a nested hidden span.
+    # The VM reports every hidden getter and rejects all credential/effect reads.
+    program = r'''
+const fs=require('node:fs'),vm=require('node:vm');
+const expressions=JSON.parse(fs.readFileSync(0,'utf8'));
+function run(secret,kind){
+ let hiddenReads=0,sensitive=0,effects=0;
+ function node(text,visible=true,extra={}){
+  const n={getBoundingClientRect:()=>({width:visible?10:0,height:visible?10:0}),
+   _visible:visible,querySelectorAll:()=>[],getAttribute:()=>null,...extra};
+  Object.defineProperty(n,'innerText',{get(){if(!visible)hiddenReads++;return text;}});
+  Object.defineProperty(n,'textContent',{get(){hiddenReads++;throw Error('textContent');}});
+  Object.defineProperty(n,'value',{get(){sensitive++;throw Error('input value');}});
+  n.click=n.submit=()=>{effects++;throw Error('mutation');};return n;
+ }
+ const a=node('Fixture wellness',true,{href:'https://affiliates.maxbounty.com/campaign/707'});
+ const hidden=node(secret,false);
+ const cell=node('Fixture wellness',true,{querySelectorAll:s=>s==='*'&&kind==='descendant'?[hidden]:[]});
+ const cells=kind==='cell'?[cell,hidden]:[cell];
+ const row=node('Fixture wellness',true,{querySelectorAll:s=>s==='td'?cells:s==='a[href]'?[a]:s==='*'?[...cells,a, ...(kind==='descendant'?[hidden]:[])]:[]});
+ const headers=kind==='cell'?[node('Name'),node('Notes',false)]:[node('Name')];
+ const table=node('',true,{querySelectorAll:s=>s==='tbody tr'?[row]:s==='thead th'?headers:[]});
+ const option=node('Health (1)');
+ const document={body:node('Dashboard Campaigns'),querySelectorAll:s=>s==='table'?[table]:s==='select[name=m] option:checked'?[option]:[]};
+ Object.defineProperty(document,'cookie',{get(){sensitive++;throw Error('cookie');}});
+ const ctx={document,getComputedStyle:e=>({visibility:e._visible?'visible':'hidden',display:e._visible?'block':'none'}),fetch:()=>{effects++;throw Error('network');}};
+ for(const key of ['localStorage','sessionStorage'])Object.defineProperty(ctx,key,{get(){sensitive++;throw Error('storage');}});
+ const result={};for(const [k,expr] of Object.entries(expressions)){
+  try{result[k]={projection:vm.runInNewContext(expr,ctx)};}catch(e){result[k]={refused:true};}
+ }
+ return {result,hiddenReads,sensitive,effects};
+}
+const a=run('SYNTHETIC_HIDDEN_SECRET_A',process.argv[1]),b=run('SYNTHETIC_HIDDEN_SECRET_B',process.argv[1]);
+console.log(JSON.stringify({a,b}));
+'''
+    expressions = {name: fresh._READS[name] for name in ('visible_tables', 'maxbounty_search')}
+    result = subprocess.run(['node', '-e', program, hidden_kind], input=json.dumps(expressions), text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    recorded = json.loads(result.stdout)
+    assert recorded['a'] == recorded['b']
+    assert {k: recorded['a'][k] for k in ('hiddenReads', 'sensitive', 'effects')} == {
+        'hiddenReads': 0, 'sensitive': 0, 'effects': 0}
+    projections = recorded['a']['result']
+    if hidden_kind == 'cell':
+        assert projections['visible_tables']['projection']['tables'][0]['headers'] == ['Name', '']
+        assert projections['visible_tables']['projection']['tables'][0]['rows'][0]['cells'] == ['Fixture wellness', '']
+    else:
+        assert all(value == {'refused': True} for value in projections.values())
+
+    import glp_maxbounty_lane as lane
+    assert Path(lane.__file__).resolve() == ROOT / 'scripts/glp_maxbounty_lane.py'
+    assert Path(lane.mb.__file__).resolve() == ROOT / 'scripts/marketplace_adapters/maxbounty.py'
+    url = ['https://affiliates.maxbounty.com/dashboard']
+    def js(expression):
+        if expression == 'location.href': return url[0]
+        if expression == fresh._READS['body_text']: return 'ops@glpclinicscout.com\nDashboard Campaigns'
+        if expression == fresh._READS['title']: return 'MaxBounty'
+        if expression == fresh._READS['maxbounty_sections']: return {'title_headings': ['Fixture wellness'], 'sections': {}}
+        if expression == fresh._READS['buttons']: return ['Build tracking link']
+        if expression == fresh._READS['maxbounty_search']:
+            operation = projections['maxbounty_search']
+            if operation.get('refused'): raise RuntimeError('SYNTHETIC_HIDDEN_SECRET_A')
+            return operation['projection']
+        pytest.fail('unexpected browser operation')
+    driver = fresh.FreshAIBrowserReadDriver(js=js, goto_url=lambda target: url.__setitem__(0, target),
+        wait_for_load=lambda: None, allowed_hosts=['affiliates.maxbounty.com'], owned_session='SYNTHETIC_ONLY')
+    monkeypatch.setattr(lane, 'RUN_ROOT', tmp_path)
+    monkeypatch.setattr(lane, 'repo_rel', str)
+    monkeypatch.setattr(lane, 'read_sheet_snapshot', lambda: {'login_url': 'https://affiliates.maxbounty.com/login'})
+    monkeypatch.setattr(lane, 'previous_approval_baseline', lambda *a: {
+        'previous_approved_ids': [], 'baseline_sources': [{'source': 'SYNTHETIC_ONLY'}]})
+    for name in ('bind_required_site_identities', 'update_coupon_model', 'draft_applications', 'queue_all', 'heartbeat', 'route_error'):
+        monkeypatch.setattr(lane, name, lambda *a: pytest.fail('downstream effect'))
+    assert lane.main(['--mode', 'read-only', '--queue', 'off', '--run-id', 'hidden'], fresh_driver=driver) == 2
+    files = list(tmp_path.rglob('*.json'))
+    assert files
+    persisted = '\n'.join(p.read_text() for p in files)
+    assert 'SYNTHETIC_HIDDEN_SECRET' not in persisted + capsys.readouterr().out
+    receipt = json.loads((tmp_path / 'run-hidden/run-receipt.json').read_text())
+    assert all(value == 0 for value in receipt['effects'].values())
+    if hidden_kind == 'cell':
+        assert list((tmp_path / 'run-hidden/search-category-pages').glob('*.json'))
+        assert 'approved_account_scope_unproven' in persisted
+        assert lane.main(['--mode', 'read-only', '--queue', 'off', '--run-id', 'positive'],
+                         fresh_driver=driver, discovery_options={'scopes': [
+                             {'key': 's', 'kind': 'search', 'value': 'wellness'},
+                             {'key': 'c', 'kind': 'category', 'value': '58'}]}) == 0
+        positive = json.loads((tmp_path / 'run-positive/run-receipt.json').read_text())
+        assert positive['status'] == 'PASS_READ_ONLY'
+        assert all(value == 0 for value in positive['effects'].values())
+        assert not any('SYNTHETIC_HIDDEN_SECRET' in p.read_text() for p in tmp_path.rglob('*.json'))
+    driver.close()
+
+
 def test_isolated_cli_entries_are_blocked_before_authentication():
     for name in ('glp_xentraffic_enumerate.py','glp_maxbounty_lane.py'):
         result = subprocess.run([sys.executable, str(ROOT/'scripts'/name), '--queue','off'], cwd=ROOT, capture_output=True, text=True)

@@ -72,8 +72,63 @@ def test_xt_normal_main_consumes_fresh_reader_and_preserves_no_effect_hold(monke
     receipt = json.loads(capsys.readouterr().out)
     assert calls[0] == "principal" and len(calls) == 2
     assert receipt["summary"]["completeness"] == "COMPLETE"
+    assert receipt["summary"]["state_updated"] is (read_only == '0')
     assert receipt["read_method"] == "fresh_ai_browser_vault"
     assert receipt["effects"]["provider_mutations"] == 0
+
+
+@pytest.mark.parametrize('range_text,expected', [
+    ('Showing 1 to 1 of 1,000', 2), ('Showing 1 to 1 of 1.5', 2),
+    ('Showing 1 to 100 of 1', 2), ('Showing 0 to 0 of 1', 2),
+    ('Showing 2 to 1 of 1', 2), ('Showing 1 to 2 of 2', 2),
+    ('Showing 1 to 1 of 1,00', 2), ('Showing 1 to 1 of 1foo', 2),
+    ('Showing 1 to 1 of 1', 0), ('Showing 1 to 1 of 2', 0),
+])
+def test_xt_actual_main_validates_complete_published_range(monkeypatch, tmp_path, capsys, range_text, expected):
+    lane = load(monkeypatch, 'xt_range_candidate', 'scripts/glp_xentraffic_enumerate.py')
+    from scripts.affiliate_fresh_browser import FreshAIBrowserReadDriver, _READS
+    from scripts.xentraffic_fresh_catalog import FreshVisibleCatalogReader
+    url = [lane.xt.PORTAL_URL + '/dashboard']
+    snapshot = {'tables': [{'headers': ['Offer ID', 'Name', 'Status'],
+                           'rows': [{'cells': ['7', 'Fixture wellness', 'Active']}]}],
+                'pagers': [{'text': range_text, 'links': []}]}
+    pages = [snapshot]
+    if expected == 0 and range_text.endswith('of 2'):
+        import copy
+        second = copy.deepcopy(snapshot)
+        second['tables'][0]['rows'][0]['cells'][0] = '8'
+        second['pagers'][0]['text'] = 'Showing 2 to 2 of 2'
+        pages.append(second)
+        snapshot['pagers'][0]['links'] = [{'text': 'Next', 'rel': 'next',
+            'href': lane.xt.PORTAL_URL + '/offers?page=2', 'disabled': False}]
+    pages = iter(pages)
+    def js(expression):
+        if expression == 'location.href': return url[0]
+        if expression == _READS['body_text']: return 'ops@glpclinicscout.com\nPartner ID: 4384'
+        if expression == _READS['visible_tables']: return next(pages)
+        pytest.fail('unexpected browser operation')
+    driver = FreshAIBrowserReadDriver(js=js, goto_url=lambda target: url.__setitem__(0, target),
+        wait_for_load=lambda: None, allowed_hosts=[lane.xt.PORTAL_URL.split('/')[2]], owned_session='SYNTHETIC_ONLY')
+    monkeypatch.setattr(lane, 'load_state', lambda: {'offers': []})
+    monkeypatch.setattr(lane, 'RUN_ROOT', tmp_path)
+    monkeypatch.setattr(lane, 'STATE_PATH', tmp_path / 'state.json')
+    monkeypatch.setattr(lane, 'repo_rel', str)
+    for name in ('heartbeat', 'queue_rows_for'):
+        monkeypatch.setattr(lane, name, lambda *a: pytest.fail('downstream effect'))
+    assert lane.main(['--queue', 'off', '--heartbeat', '0', '--read-only', '1'],
+                     fresh_reader=FreshVisibleCatalogReader(driver)) == expected
+    receipt = json.loads(capsys.readouterr().out)
+    if expected == 2:
+        assert receipt['status'] == 'BLOCKED'
+        assert receipt['summary'] == {'offers': None, 'reported_total': None, 'completeness': 'UNKNOWN'}
+    else:
+        total = 2 if range_text.endswith('of 2') else 1
+        assert receipt['status'] == 'PASS'
+        assert receipt['summary']['completeness'] == 'COMPLETE'
+        assert receipt['summary']['reported_total'] == receipt['summary']['offers'] == total
+        assert receipt['summary']['state_updated'] is False
+    assert not (tmp_path / 'state.json').exists()
+    driver.close()
 
 
 def test_mb_default_enumeration_never_instantiates_legacy_session(monkeypatch):

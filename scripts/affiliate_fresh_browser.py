@@ -82,13 +82,17 @@ _LOGIN_SELECTORS = frozenset({
 _BUTTON_SELECTORS = frozenset({"button", "button:visible"})
 _READS = {
     "maxbounty_search": r"""(() => {
-      const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';};
+      const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.visibility!=='collapse'&&s.display!=='none';};
+      // Never read hidden innerText. Keep hidden cell slots; mixed descendant
+      // layouts are unsupported and refuse before any receipt is returned.
+      const text=e=>{if(!shown(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!shown(n)))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
       const tables=Array.from(document.querySelectorAll('table')).filter(shown);
-      const rows=tables.flatMap(t=>Array.from(t.querySelectorAll('tbody tr')).filter(shown).map(tr=>({
-        text:tr.innerText,cells:Array.from(tr.querySelectorAll('td')).map(e=>e.innerText.trim()),
+      const rows=tables.flatMap(t=>Array.from(t.querySelectorAll('tbody tr')).filter(shown).map(tr=>{
+        const cells=Array.from(tr.querySelectorAll('td')).map(text);
+        return {text:cells.filter(Boolean).join(' '),cells,
         links:Array.from(tr.querySelectorAll('a[href]')).filter(shown)
           .filter(a=>/^https:\/\/affiliates.maxbounty.com\/campaign\/[0-9]+$/.test(a.href))
-          .map(a=>({name:a.innerText.trim(),href:a.href,program_id:a.href.split('/').pop()}))})));
+          .map(a=>({name:text(a),href:a.href,program_id:a.href.split('/').pop()}))};}));
       const buttons=Array.from(document.querySelectorAll('button.page-link')).filter(shown)
         .filter(e=>/^[0-9]+$/.test(e.innerText.trim()))
         .map(e=>({number:Number(e.innerText.trim()),active:e.parentElement.classList.contains('active'),disabled:e.disabled}));
@@ -110,16 +114,19 @@ _READS = {
     })()""",
     "visible_tables": """(() => {
       const visible=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);
-        return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';};
+        return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.visibility!=='collapse';};
+      const text=e=>{if(!visible(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!visible(n)))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
+      const cell=e=>{if(['colspan','rowspan'].some(k=>!['1',null].includes(e.getAttribute(k))))throw Error('visible_table_layout_unknown');return text(e);};
       return {tables:Array.from(document.querySelectorAll('table')).filter(visible).map(t=>({
-        headers:Array.from(t.querySelectorAll('thead th')).filter(visible).map(e=>e.innerText.trim()),
+        // Preserve header/cell positions even when a column is hidden.
+        headers:Array.from(t.querySelectorAll('thead th')).map(cell),
         rows:Array.from(t.querySelectorAll('tbody tr')).filter(visible).map(tr=>({
-          cells:Array.from(tr.querySelectorAll('td')).map(e=>e.innerText.trim()),
-          links:Array.from(tr.querySelectorAll('a[href]')).filter(visible).map(a=>({href:a.href,text:a.innerText.trim()}))
+          cells:Array.from(tr.querySelectorAll('td')).map(cell),
+          links:Array.from(tr.querySelectorAll('a[href]')).filter(visible).map(a=>({href:a.href,text:text(a)}))
         }))})),
         pagers:Array.from(document.querySelectorAll('nav,[role=navigation],.pagination')).filter(visible)
-          .map(e=>({text:e.innerText,links:Array.from(e.querySelectorAll('a[href]')).filter(visible)
-            .map(a=>({href:a.href,text:a.innerText.trim(),rel:a.rel,disabled:a.getAttribute('aria-disabled')==='true'}))}))};
+          .map(e=>({text:text(e),links:Array.from(e.querySelectorAll('a[href]')).filter(visible)
+            .map(a=>({href:a.href,text:text(a),rel:a.rel,disabled:a.getAttribute('aria-disabled')==='true'}))}))};
     })()""",
     "title": "document.title",
     "body_text": "document.body?.innerText||''",
