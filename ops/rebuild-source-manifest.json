@@ -60,7 +60,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "217e88a01c85ca9df7c120ad511d9baa8d6d8e9e0954c9ea2ada2d8a8d9204b0"
+      "sha256": "c2e4d39b99a5b0ac54da3504590af9e9d880946237a33e72c4b20fab4fc999f7"
     },
     "tests/test_glp73_article_research.py": {
       "kind": "test",
@@ -74,7 +74,7 @@
         "systems/seo-blog-machine/scripts/materialize_opus_run.py"
       ],
       "kind": "script",
-      "sha256": "b0514cd143c66fc5a4a312a47e57a5e57136fbcffd9a8221ee01c4da62ef30c6"
+      "sha256": "51add5e7e7b861322c2bf9982b6107fb72364c684a03dc787d3aa058c973ddb5"
     },
     "scripts/native_reply_consumer.py": {
       "kind": "script",

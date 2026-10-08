@@ -28,6 +28,23 @@ class ArticleRoutes(unittest.TestCase):
         for route in ['/cost/price/', '/tools/calculator/', '/reviews/a/b/', '/reviews/a?b/', '/reviews/../']:
             self.assertIsNone(pattern.fullmatch(route), route)
 
+class RepairScope(unittest.TestCase):
+    def test_new_evidence_and_inbound_failures_have_real_source_repair_scope(self):
+        from collections import defaultdict
+        path = SCRIPTS / 'validate_opus_article_packet.py'
+        tree = ast.parse(path.read_text())
+        node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'deterministic_repair_request')
+        ns = {'json': json, 'Any': object}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), ns)
+        result = ns['deterministic_repair_request']({'alexandria_claim_ledger':False,'inbound_link_plan_publishable':False,'selection_receipt_bound':False}, defaultdict(int), parity_min_words=2400, parity_max_words=3600)
+        rows = {r['check']:r for r in result}
+        self.assertTrue(rows['alexandria_claim_ledger']['repairable'])
+        self.assertIn('01-evidence-ledger.json', rows['alexandria_claim_ledger']['allowed_subject_files'])
+        self.assertIn('02-serp-brief.json', rows['inbound_link_plan_publishable']['allowed_subject_files'])
+        self.assertFalse(rows['selection_receipt_bound']['repairable'])
+        self.assertEqual(rows['selection_receipt_bound']['allowed_subject_files'], [])
+        for row in result: self.assertNotIn('00-authority.json', row['allowed_subject_files'])
+
 class R2ReviewRoute(unittest.TestCase):
     def test_r2_uses_same_current_astra_route_as_new_articles(self):
         sys.path.insert(0, str(SCRIPTS))

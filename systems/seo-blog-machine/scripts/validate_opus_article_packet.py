@@ -479,7 +479,7 @@ def deterministic_repair_request(
         "r2_new_outbound_internal_link_present",
         "organization_author", "article_and_faq_schema_requested", "capture_contract",
         "two_column_tables", "forbidden_patterns_absent", "no_affiliate_cta",
-        "prose_free_of_html_markup", "inbound_link_plan_publishable",
+        "prose_free_of_html_markup",
     }
     claim_checks = {
         "all_citations_known", "all_claim_quote_ids_known", "all_article_claim_sources_known",
@@ -487,8 +487,8 @@ def deterministic_repair_request(
         "article_source_minimum_and_map_complete", "article_source_ids_unique",
         "primary_medical_source_present",
     }
-    evidence_checks = {"evidence_status"}
-    serp_checks = {"serp_top_10", "serp_wedge_present"}
+    evidence_checks = {"evidence_status", "alexandria_claim_ledger"}
+    serp_checks = {"serp_top_10", "serp_wedge_present", "inbound_link_plan_publishable"}
     immutable_checks = {
         "authority_topic_ready", "authority_topic_id_present", "authority_topic_ids_exact",
         "authority_matches_requested_topic_id", "authority_matches_requested_route",
@@ -525,6 +525,19 @@ def deterministic_repair_request(
                 "site route that is absent from the authority-bound predecessor. A separate inbound_link_plan "
                 "points from another article to this route and does not satisfy this outbound-link requirement. "
                 "Preserve every passing check and never add filler or fabricate claims, evidence, citations, or sources."
+            )
+        elif name == "alexandria_claim_ledger" and repairable:
+            required_fix = (
+                "Use maintained article_research.py to capture the selected topic's clinical/regulatory evidence; "
+                "bind its exact manifest and complete research_claim_ledger in 01, with one row per 05 claim. "
+                "Preserve real capture dates, classify claims truthfully, and bind exact quotations. "
+                "Never invent a response, quote, clinical applicability or successful discovery."
+            )
+        elif name == "inbound_link_plan_publishable" and repairable:
+            required_fix = (
+                "Repair 02-serp-brief.json.inbound_link_plan using an actual mutable article in the current "
+                "configured catalog, not a sitemap-only or redirected page. Preserve the selected target "
+                "route, immutable authority and every selection binding; add a reader-useful contextual link."
             )
         elif repairable:
             required_fix = (
