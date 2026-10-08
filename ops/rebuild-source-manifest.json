@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 797,
+  "tracked_count": 798,
   "files": {
+    "tests/test_glp80_registered_price_refresh.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp80-price-freshness.yml"
+      ],
+      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
+    },
     "scripts/glp_price_freshness.py": {
       "kind": "script",
       "callers": [
