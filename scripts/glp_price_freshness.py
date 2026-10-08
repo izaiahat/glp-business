@@ -130,8 +130,13 @@ def extraction_schema(rows):
                                    'eligibility_text': {'type': ['string', 'null']},
                                    'quote': {'type': ['string', 'null']}, 'source_url': {'type': 'string'}}}},
                 'rows': {'type': 'array', 'minItems': len(rows), 'maxItems': len(rows), 'items': {'type': 'object', 'additionalProperties': False,
-                    'required': ['row_id', 'medication_id', 'price_kind', 'identity_quote', 'source_url', 'fields'],
-                    'properties': {'row_id': {'type': 'string', **({'enum': [r['row_id'] for r in rows]} if rows else {})}, 'medication_id': {'type': 'string'},
+                    'required': ['row_id', 'medication_id', 'price_kind', 'identity_quote', 'source_url', 'fields',
+                                 'plan_label', 'plan_quote', 'qualifiers', 'conditions_quote'],
+                    'properties': {'plan_label': {'type': ['string', 'null']},
+                                   'plan_quote': {'type': ['string', 'null']},
+                                   'qualifiers': {'type': 'array', 'items': {'type': 'string'}},
+                                   'conditions_quote': {'type': ['string', 'null']},
+                                   'row_id': {'type': 'string', **({'enum': [r['row_id'] for r in rows]} if rows else {})}, 'medication_id': {'type': 'string'},
                                    'price_kind': {'type': ['string', 'null']},
                                    'identity_quote': {'type': ['string', 'null']}, 'source_url': {'type': 'string'},
                                    'fields': {'type': 'array', 'items': {'type': 'object', 'additionalProperties': False,
@@ -196,7 +201,8 @@ def field_in_quote(field, value, quote):
 
 
 def period_at_amount(field, value, quote, fields):
-    monetary = 'amount_usd' if field == 'period' else field.removesuffix('_period') + '_usd'
+    monetary = {'period': 'amount_usd', 'billing_period': 'amount_usd',
+                'supply_period': 'amount_usd', 'equivalent_period': 'equivalent_usd'}.get(field, field.removesuffix('_period') + '_usd')
     amount = next((f.get('value') for f in fields if f.get('field') == monetary), None)
     if not isinstance(amount, (int, float)) or isinstance(amount, bool):
         return field_in_quote(field, value, quote)
@@ -324,19 +330,131 @@ def classify_price_observation(row, proposed, text, source_url):
     identity_bound = (proposed.get('row_id') == row.get('row_id')
                       and proposed.get('source_url') == source_url
                       and proposed.get('medication_id') == row.get('medication_id'))
+    offer_bound = not offer_context_errors(row, proposed, text)
     if not candidates:
-        status = 'PRICE_CHANGE_REVIEW_REQUIRED' if terms and identity_bound else 'NO_PRICE_CHANGE_DETECTED'
+        status = ('PRICE_CHANGE_REVIEW_REQUIRED' if terms and identity_bound and offer_bound else
+                  'EVIDENCE_UNKNOWN' if errors else 'NO_PRICE_CHANGE_DETECTED')
     else:
-        bound = all(proposed.get('row_id') == row.get('row_id') and proposed.get('source_url') == source_url
+        bound = offer_bound and all(proposed.get('row_id') == row.get('row_id') and proposed.get('source_url') == source_url
                 and proposed.get('medication_id') == row.get('medication_id')
                 and isinstance(f.get('quote'), str) and f['quote'] in text
                 and amount_route_supported(row, f['value'], f['quote'])
+                and amount_offer_supported(row, f['field'], f['value'], proposed.get('conditions_quote') or f['quote'])
                 and re.search(r'(?<![\d.])\$\s*' + re.escape(f"{f['value']:g}") + r'(?:\.00)?(?![\d.])', f['quote'])
                 for f in candidates)
         status = ('UNSUPPORTED_EXTRACTION' if not bound else 'PRICE_CHANGE_REVIEW_REQUIRED' if errors else 'CONFIRMED_CHANGE')
     return {'status': status, 'review_required': status == 'PRICE_CHANGE_REVIEW_REQUIRED',
             'validation_errors': errors, 'proposal': proposed,
             'changed_fields': [f['field'] for f in candidates + terms]}
+
+
+def source_plan_anchor(row):
+    """Registry display labels are often editorial, NOT verbatim plan names.
+
+    Keep the exact requested label as identity, but bind source text to an
+    attested plan anchor; never require invented 'Reported S32 offer' wording.
+    """
+    label = row.get('plan_label') or ''
+    if label.startswith('Reported S32 offer:'):
+        return None
+    old_quotes = [e.get('quote', '') for fact in row.get('facts', {}).values() for e in fact.get('evidence', [])]
+    old_quotes += [e.get('quote', '') for e in row.get('evidence', [])]
+    if any(label.casefold() in q.casefold() for q in old_quotes) or not old_quotes:
+        return label
+    # Conservative native-label bridge: only retain explicit commercial anchors
+    # which were quoted in the before row; route alone is not a plan anchor.
+    candidates = re.findall(r'\b(?:month-to-month|\d+[- ]month|quarterly|annual|standard|starter bundle|starter|bundle|membership)\b', label, re.I)
+    return next((term for term in candidates if any(term.casefold() in q.casefold() for q in old_quotes)), label)
+
+
+def amount_offer_supported(row, field, amount, quote):
+    """Bind dollars within one plan clause and the exact intro/renewal phase.
+
+    Never borrow a monthly equivalent from another prepaid plan. Multiple
+    occurrences or phases are ambiguous, even when every dollar is literal.
+    """
+    cleaned = quote.replace(',', '')
+    matches = list(re.finditer(r'\$\s*' + re.escape(f'{amount:g}') + r'(?:\.00)?(?![\d.])', cleaned))
+    if len(matches) != 1:
+        return False
+    match = matches[0]
+    start = cleaned.rfind(';', 0, match.start()) + 1
+    ends = [x for x in (cleaned.find(';', match.end()),) if x >= 0]
+    clause = cleaned[start:min(ends) if ends else len(cleaned)]
+    plan = source_plan_anchor(row)
+    if plan and plan.casefold() not in clause.casefold():
+        return False
+    named_plans = list(re.finditer(r'\b(?:[\w-]+\s+){1,3}plan\b', cleaned[start:match.start()], re.I))
+    if plan and named_plans and 'plan' in plan.casefold() and plan.casefold() not in named_plans[-1][0].casefold():
+        return False
+    if row.get('plan_label', '').startswith('Reported S32 offer:') and re.search(r'\bplan\b', clause, re.I):
+        old = [e.get('quote', '') for f in row.get('facts', {}).values() for e in f.get('evidence', [])]
+        shape = lambda q: re.sub(r'\$[\d,.]+', '$AMOUNT', q).strip().casefold()
+        if not any(shape(clause) == shape(q) for q in old):
+            return False
+    before = cleaned[start:match.start()]
+    after = cleaned[match.end():min(ends) if ends else len(cleaned)].split('$', 1)[0]
+    phases = list(re.finditer(r'\b(first|initial|intro\w*|new patient|then|ongoing|renew\w*|thereafter)\b', before, re.I))
+    marker = phases[-1][0].casefold() if phases else None
+    if marker is None:
+        # "for the first month only" and "ongoing" can follow an amount.
+        trailing = re.search(r'\b(first|initial|intro\w*|new patient|ongoing|renew\w*|thereafter)\b', after, re.I)
+        marker = trailing[0].casefold() if trailing else None
+    phase = 'intro' if marker and re.match(r'first|initial|intro|new patient', marker) else 'ongoing' if marker else None
+    if field in ('intro_usd', 'ongoing_usd'):
+        if phase != field.removesuffix('_usd'):
+            return False
+    elif row.get('price_kind') in ('floor_from', 'monthly_cash') and re.search(r'\bfirst\b|\binitial\b|\bintro\w*\b|\bthen\b|\brenew\w*\b', clause, re.I):
+        return False
+    if row.get('price_kind') not in ('prepaid_bundle', 'monthly_equivalent_of_billing_period') and re.search(r'\bprepaid\b|\bprepay\w*\b|\bupfront\b|\bannual\b|\byearly\b', clause, re.I):
+        return False
+    return True
+
+
+def offer_context_errors(row, proposed, text):
+    # Native rows have an explicit plan label. Unlabelled historic unit fixtures
+    # remain useful for the medication guard, but cannot stage a native row.
+    if not row.get('plan_label'):
+        return []
+    errors = []
+    plan_quote = proposed.get('plan_quote')
+    conditions = proposed.get('conditions_quote')
+    anchor = source_plan_anchor(row)
+    if (proposed.get('plan_label') != row['plan_label'] or not isinstance(plan_quote, str)
+            or not plan_quote or plan_quote not in text
+            or (anchor and anchor.casefold() not in plan_quote.casefold())):
+        errors.append('plan_identity_not_supported')
+    if proposed.get('qualifiers') != row.get('qualifiers', []):
+        errors.append('qualifiers_missing_or_changed')
+    # Whole paragraph (including multiline pricing), not a suffix-stripped line.
+    blocks = [block.strip() for block in re.split(r'\n\s*\n', text)]
+    containing = [block for block in blocks if isinstance(conditions, str) and conditions and conditions in block]
+    if not isinstance(conditions, str) or not conditions or len(containing) != 1 or conditions != containing[0]:
+        errors.append('complete_conditions_not_supported')
+        return errors
+    following = blocks[blocks.index(containing[0]) + 1:][:1]
+    if following and re.match(r'(?i)^[*_#\s]*(?:then|only|first|intro|for the first|billed|renew|prepaid|annual)\b', following[0]):
+        errors.append('adjacent_conditions_omitted')
+    # Qualifiers include editorial cautions ("UNKNOWN", cash-vs-equivalent),
+    # so do not pretend the provider literally published those display strings.
+    # Preserve them exactly; source-bound conditional wording must be attested
+    # either literally or by an unchanged complete source offer excerpt.
+    def without_amounts(value):
+        return re.sub(r'\s+', ' ', re.sub(r'\$[\d,.]+', '$AMOUNT', value)).strip().casefold()
+    old_quotes = [e.get('quote', '') for fact in row.get('facts', {}).values() for e in fact.get('evidence', [])]
+    old_quotes += [e.get('quote', '') for e in row.get('evidence', [])]
+    same_offer = any(without_amounts(conditions) in without_amounts(q) for q in old_quotes)
+    for qualifier in row.get('qualifiers', []):
+        qualifier_amounts = re.findall(r'\$[\d,.]+', qualifier)
+        if any(token not in conditions for token in qualifier_amounts):
+            errors.append('qualifier_amount_changed')
+        if qualifier.casefold() not in conditions.casefold() and not same_offer:
+            errors.append('qualifier_not_supported')
+    # New eligibility/dose/duration restrictions need review, not a dollar patch.
+    restriction = r'\bonly\b|\beligib\w*\b|\bminimum\b|\bcommit\w*\b|\bexpires?\b|\bnew patient\b|\bselect\b|\brequir\w*\b|\bdose\b|\bdiscount\b|\bpromo\w*\b|\bshipping\b|\blabs?\b|\bfees?\b|\bexclud\w*\b'
+    if re.search(restriction, conditions, re.I) and not same_offer:
+        errors.append('new_or_ambiguous_conditions')
+    return errors
 
 
 def review(row, proposed, text, source_url):
@@ -346,7 +464,7 @@ def review(row, proposed, text, source_url):
     billing cadence, renewal, dose or terms from a dollar token elsewhere on page.
     Numeric monetary fields must occur in a medication-labelled quotation.
     """
-    errors = []
+    errors = offer_context_errors(row, proposed, text)
     if proposed.get('source_url') != source_url or proposed.get('row_id') != row.get('row_id'):
         errors.append('source_or_row_identity_mismatch')
     if proposed.get('medication_id') != row.get('medication_id') or proposed.get('price_kind') != row.get('price_kind'):
@@ -361,7 +479,8 @@ def review(row, proposed, text, source_url):
     for f in fields:
         name, value, quote = f.get('field'), f.get('value'), f.get('quote')
         old = row.get('facts', {}).get(name, {}).get('value')
-        if value is None:
+        if value is None or value == 'UNKNOWN':
+            errors.append('extracted_fact_unknown:' + str(name))
             if old not in (None, 'UNKNOWN'):
                 errors.append('attested_field_missing:' + str(name))
             continue
@@ -378,6 +497,9 @@ def review(row, proposed, text, source_url):
             clean_quote = quote.replace(',', '')
             if not amount.search(clean_quote) or not amount_route_supported(row, value, quote):
                 errors.append('amount_medication_quote_mismatch:' + name)
+            context = proposed.get('conditions_quote') or quote
+            if not amount_offer_supported(row, name, value, context):
+                errors.append('amount_plan_phase_or_basis_mismatch:' + name)
         elif not isinstance(value, str) or not (period_at_amount(name, value, quote, fields) if name == 'period' or str(name).endswith('_period') else field_in_quote(name, value, quote)):
             errors.append('field_value_absent:' + str(name))
         # Kind changes/new conditions cannot be silently accepted by a numeric diff.
@@ -464,11 +586,17 @@ def extract(client, pid, provider, url, rows, artifact_prefix=None):
               'For identity_quote, quote the medication name, formulation/route AND offer context together; '
               'a price-only excerpt is NEVER a medication identity quote. Keep raw markdown formatting. '
               'For each dollar fact provide a verbatim source line containing its medication name AND price. '
+              'Extract plan_label exactly as requested (editorial display labels are not verbatim source names), '
+              'plan_quote binding its attested source_plan_anchor and offer, and the unchanged qualifiers array. '
+              'A Reported S32 offer has no named plan anchor: bind medication/route/kind and refuse ambiguous alternative plans. '
+              'conditions_quote must be the COMPLETE literal medication/plan pricing source line, including '
+              'first/renewal, prepaid/upfront, eligibility, duration, dose, fee and expiration restrictions. '
+              'Missing or newly ambiguous conditions are null/review, never omitted to accept a price. '
               'For every period field quote the exact billing-period wording tied to THAT amount, not another plan. '
               'Include generic offers separately. Source URL must be ' + url + '. Provider ' + provider +
               '. Known row identities, kinds and fields (values deliberately withheld): ' +
-              json.dumps([{k: r.get(k) for k in ('row_id', 'medication_id', 'label', 'price_kind')} |
-                          {'fields': list(r.get('facts', {}))} for r in rows]))
+              json.dumps([{k: r.get(k) for k in ('row_id', 'medication_id', 'label', 'price_kind', 'plan_label', 'qualifiers')} |
+                          {'fields': list(r.get('facts', {})), 'source_plan_anchor': source_plan_anchor(r)} for r in rows]))
     # Retry only a completed, retained response with a conclusive schema error.
     # A transport timeout is ambiguous and is NOT blindly replayed here.
     for attempt in (1, 2):
@@ -523,9 +651,27 @@ def diligence(client, provider, out):
     return facts
 
 
+def price_coverage(active, results):
+    """Unique typed-row evidence support, separate from fetched page coverage."""
+    expected = {(pid, r['row_id']) for pid, provider in active.items()
+                for r in provider['rows'] if r.get('price_kind') and r.get('row_id')}
+    validated = {(p['program_id'], rid) for p in results for rid in p.get('fully_validated_row_ids', [])} & expected
+    cached = {(p['program_id'], rid) for p in results for rid in p.get('cached_validated_row_ids', [])} & expected
+    observed = {(p['program_id'], rid) for p in results for rid in p.get('observed_row_ids', [])} & expected
+    legacy = sum(not r.get('price_kind') for p in active.values() for r in p['rows'])
+    unknown = expected - validated - cached
+    return {'status': 'PRICE_VALIDATION_INCOMPLETE' if unknown or legacy else 'PRICE_VALIDATION_COMPLETE',
+            'typed_rows': len(expected), 'fully_validated_rows': len(validated),
+            'cached_validated_rows': len(cached - validated), 'supported_rows': len(validated | cached),
+            'unknown_rows': len(unknown), 'unobserved_rows': len(expected - observed - cached),
+            'legacy_rows_skipped': legacy,
+            'providers_without_price_rows': sum(not p['rows'] for p in active.values()),
+            'unknown_row_ids': sorted(rid for _, rid in unknown),
+            'meaning': 'Full-field raw-source support only; not adoption, renewed fact dates or proof prices unchanged.'}
+
+
 def run(args, client=None):
-    pointer = read(BUSINESS / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')
-    release = Path(args.release or pointer['release_root']).resolve()
+    release = Path(args.release or read(BUSINESS / 'reports/glp-clinic-scout/seo-machine/current-content-base.json')['release_root']).resolve()
     registry = read(release / 'data/program-registry.json')
     matrix_path = release / 'data/provider-pricing-matrix.json'
     matrix = read(matrix_path)
@@ -537,7 +683,7 @@ def run(args, client=None):
     state_dir.mkdir(parents=True, exist_ok=True)
     client = client or client_for(out.name)
     report = {'schema': SCHEMA, 'run_type': 'manual_requested' if args.manual_registered else 'scheduled_requested',
-              'loaded_source_sha256': LOADED_SOURCE_SHA256, 'extractor_version': 2,
+              'loaded_source_sha256': LOADED_SOURCE_SHA256, 'extractor_version': 3,
               'started_at_utc': utc(), 'release_root': str(release),
               'registry_sha256': digest((release / 'data/program-registry.json').read_bytes()),
               'matrix_sha256': digest(matrix_path.read_bytes()), 'active_provider_count': len(active),
@@ -553,6 +699,7 @@ def run(args, client=None):
         item = {'program_id': pid, 'provider': provider['provider'], 'primary_url': provider['primary_url'],
                 'pages': [], 'confirmed_changes': 0, 'review_required': 0}
         pending_rows, unknown_rows, unsupported_rows = set(), set(), set()
+        validated_rows, cached_rows, observed_rows = set(), set(), set()
         claims = {'schema': delta.CLAIMS_SCHEMA, 'program_id': pid, 'claims': [], 'captures': {},
                   'first_party_hosts': sorted({urlsplit(u).hostname for u in provider['urls']})}
         for url in provider['urls']:
@@ -570,8 +717,8 @@ def run(args, client=None):
                 is_changed = changed(cache.get('markdown'), text, data.get('changeTracking'))
                 page.update(status='CHANGED' if is_changed else 'SAME', content_sha256=digest(text))
                 rows_sha256 = digest(json.dumps(provider['rows'], sort_keys=True))
-                if is_changed or cache.get('extractor_version') != 2 or cache.get('reviewed_hash') != digest(text) or cache.get('rows_sha256') != rows_sha256:
-                    typed = [r for r in provider['rows'] if r.get('row_id') and r.get('facts')]
+                if is_changed or cache.get('extractor_version') != 3 or cache.get('reviewed_hash') != digest(text) or cache.get('rows_sha256') != rows_sha256:
+                    typed = [r for r in provider['rows'] if r.get('price_kind') and r.get('row_id') and r.get('facts')]
                     response, data = extract(client, pid, provider['provider'], url, typed, folder / (key + '-extraction'))
                     page['extraction_attempts'] = data['extraction_attempts']
                     put(folder / (key + '-extraction.json'), response)
@@ -594,6 +741,9 @@ def run(args, client=None):
                         verdict = classify_price_observation(row, by_id.get(row['row_id'], {}), text, url)
                         proposal, errors = verdict['proposal'], verdict['validation_errors']
                         reviews.append({'row_id': row['row_id'], **verdict})
+                        observed_rows.add(row['row_id'])
+                        if not errors:
+                            validated_rows.add(row['row_id'])
                         if errors:
                             unknown_rows.add(row['row_id'])
                         if verdict['review_required']:
@@ -621,7 +771,11 @@ def run(args, client=None):
                     page['evidence_unknown_rows'] = sum(bool(x['validation_errors']) for x in reviews)
                     put(folder / (key + '-normalized-extraction.json'), {'rows': [r['proposal'] for r in reviews]})
                     cache['reviewed_hash'] = digest(text) if not page['evidence_unknown_rows'] and not page.get('confirmed_delta_fields') else None
-                cache.update(markdown=text, source_url=url, last_observed_at_utc=utc(), rows_sha256=rows_sha256, extractor_version=2)
+                    cache['fully_validated_row_ids'] = sorted(r['row_id'] for r in reviews if not r['validation_errors'])
+                else:
+                    cached_rows.update(cache.get('fully_validated_row_ids', []))
+                    page['price_validation'] = 'CACHE_MATCH_PRIOR_FULL_FIELD_VALIDATION'
+                cache.update(markdown=text, source_url=url, last_observed_at_utc=utc(), rows_sha256=rows_sha256, extractor_version=3)
                 put(checkpoint, cache)
             except Exception as exc:
                 page.update(status='ERROR', error=f'{type(exc).__name__}:{exc}')
@@ -648,6 +802,9 @@ def run(args, client=None):
             else:
                 pending_rows.update(claim['row_id'] for claim in claims['claims'])
                 item['branch_refused'] = branch['acceptance']
+        item['fully_validated_row_ids'] = sorted(validated_rows)
+        item['cached_validated_row_ids'] = sorted(cached_rows)
+        item['observed_row_ids'] = sorted(observed_rows)
         item['review_required'] = len(pending_rows)
         item['price_review_row_ids'] = sorted(pending_rows)
         item['evidence_unknown_row_ids'] = sorted(unknown_rows)
@@ -676,9 +833,15 @@ def run(args, client=None):
                   unsupported_extraction_rows=sum(len(p['unsupported_extraction_row_ids']) for p in report['providers']),
                   review_required=sum(p['review_required'] for p in report['providers']))
     report['failed_primary_pages'] = len(report['providers']) - report['primary_pages_successful']
-    report['status'] = ('FULL_REFRESH_COMPLETE' if not report['failed_pages'] else
+    report['status'] = ('SOURCE_MONITOR_COMPLETE' if not report['failed_pages'] else
                         'PARTIAL_PRIMARY_SOURCE_FAILURE' if report['failed_primary_pages'] else 'PARTIAL_AUXILIARY_SOURCE_FAILURE')
+    report['source_monitor_status'] = report['status']
+    report['price_coverage'] = price_coverage(active, report['providers'])
+    report['price_validation_status'] = report['price_coverage']['status']
     report['publication_status'] = 'READY_FOR_REGISTRY_ADOPTION' if report['confirmed_changes'] else 'NO_CONFIRMED_PRICE_CHANGE'
+    report['price_refresh_status'] = 'NO_FACTS_ADOPTED_BY_SOURCE_MONITOR'
+    report['prices_unchanged'] = None
+    report['cli_scope'] = 'Source-monitor execution only; price validation and adoption outcomes are separate.'
     put(out / 'RESULT.json', report)
     print(json.dumps({k: v for k, v in report.items() if k != 'providers'}))
     return report
@@ -742,11 +905,14 @@ def stage_candidate(run_dir, candidate):
             if len(extracted) != 1 or review(before, extracted[0], raw.decode(), cap['source_url']):
                 raise ValueError('automated_review_drift')
             stored = 'data/price-refresh-captures/' + cap['content_sha256'] + '.md'
-            dst = candidate / stored
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            if dst.exists() and dst.read_bytes() != raw:
-                raise ValueError('capture_collision')
-            dst.write_bytes(raw)
+            # The ledger receipt and typed facts address the SAME authenticated
+            # bytes under their respective contracts, never a reserialized body.
+            for relative in (stored, 'data/pricing-evidence/' + cap['content_sha256'] + '.md'):
+                dst = candidate / relative
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if dst.exists() and dst.read_bytes() != raw:
+                    raise ValueError('capture_collision')
+                dst.write_bytes(raw)
             witnesses.append({'program_id': pid, 'row_id': rid, 'before': before, 'after': after,
                     'extraction': extracted[0], 'source_url': cap['source_url'],
                     'captured_at_utc': cap['captured_at_utc'], 'reviewed_at_utc': utc(),

@@ -16,14 +16,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "02abcac4218c3ccc6e945886c4d12126df4571a503f73e890000f570d0e1c6f1"
+      "sha256": "56dc81d63063d62182e39f8e730a53dcd39b8d4ad18b6a8f619d76808342c3a4"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "87eb4dbe2416c024b549b6638ce1599fc19c10313e17398de722651270c499dd"
+      "sha256": "0bb84a73bf31b6c6620b4965b53eff83a537b80b1213dcfbf078a87573e204c7"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
@@ -1623,7 +1623,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "4ad3934d599973a19eb6155cb1c8db9b5e2b9a6ed245f06b18ae0d1a84bd8718"
+      "sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -4499,14 +4499,14 @@
         "GLP-344 F04 monthly price-evidence registry delta"
       ],
       "kind": "script",
-      "sha256": "654f5caedca36b3bac6c9154a40cf2999cc8b51f611c9670d394b63274990649"
+      "sha256": "ff56e5f7fb8f9a4db812597e4ce423a08b0aefeb306870d6667ba9de4a1ea8ce"
     },
     "tests/test_glp344_price_evidence_delta.py": {
       "callers": [
         "tools/glp/price_evidence_delta.py"
       ],
       "kind": "test",
-      "sha256": "9dee58fb32a4ba29cf6ee056203faa3aac5c53a61efef2a42ab6122d2ff45934"
+      "sha256": "76d07b7e419eeab0c3b65de413202865228429ca5131eb7ba9bfb678ca8b3c9b"
     },
     "tests/fixtures/glp344-price-evidence/captures/pricing-later.md": {
       "callers": [

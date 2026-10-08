@@ -39,7 +39,7 @@ def test_unchanged_price_with_schema_nulls_is_unknown_evidence_not_price_review(
     result['identity_quote'] = None
     result['fields'][1]['value'] = None
     verdict = p.classify_price_observation(row, result, quote, result['source_url'])
-    assert verdict['status'] == 'NO_PRICE_CHANGE_DETECTED'
+    assert verdict['status'] == 'EVIDENCE_UNKNOWN'
     assert verdict['review_required'] is False
     assert verdict['validation_errors']
 
@@ -135,6 +135,116 @@ def test_medication_context_is_not_just_a_number_somewhere_on_page():
     result['identity_quote'] = 'Compounded semaglutide injection'
     result['fields'][0]['quote'] = 'Tirzepatide $21/month.'
     assert p.review(row, result, 'Compounded semaglutide injection\nTirzepatide $21/month.', result['source_url'])
+
+
+@pytest.mark.parametrize('kind,oldvalues,newvalues,raw', [
+    ('intro_then_ongoing', {'intro_usd': 99, 'intro_period': 'month', 'ongoing_usd': 249, 'ongoing_period': 'month'},
+     {'intro_usd': 249, 'intro_period': 'month', 'ongoing_usd': 99, 'ongoing_period': 'month'},
+     'Compounded semaglutide injection Standard plan: first month $99/month, then $249/month ongoing.'),
+    ('floor_from', {'amount_usd': 249, 'period': '/month'}, {'amount_usd': 99, 'period': '/month'},
+     'Compounded semaglutide injection: Standard plan starts from $249/month; annual prepaid plan starts from $99/month, billed $1188 upfront.'),
+    ('floor_from', {'amount_usd': 249, 'period': '/month'}, {'amount_usd': 99, 'period': '/month'},
+     'Compounded semaglutide injection Standard plan starts from $99/month for the first month only, then $249/month.'),
+])
+def test_exact_amount_is_not_proof_of_plan_phase_or_new_conditions(kind, oldvalues, newvalues, raw):
+    row, proposed, _ = fixture()
+    row.update(price_kind=kind, plan_label='Standard plan', qualifiers=[],
+               facts={k: {'value': v} for k, v in oldvalues.items()})
+    proposed.update(price_kind=kind, identity_quote=raw, plan_label='Standard plan',
+                    plan_quote=raw, qualifiers=[], conditions_quote=raw,
+                    fields=[{'field': k, 'value': v, 'quote': raw} for k, v in newvalues.items()])
+    verdict = p.classify_price_observation(row, proposed, raw, proposed['source_url'])
+    assert verdict['validation_errors']
+    assert verdict['status'] != 'CONFIRMED_CHANGE'
+
+
+def test_native_editorial_labels_and_cautions_do_not_need_fake_source_text():
+    row, proposal, raw = fixture()
+    row.update(plan_label='Reported S32 offer: Compounded semaglutide (injection)',
+               qualifiers=['Advertised starting price; selected checkout charge UNKNOWN.'])
+    old_raw = raw.replace('$21', '$12')
+    for fact in row['facts'].values():
+        fact['evidence'] = [{'quote': old_raw}]
+    proposal.update(plan_label=row['plan_label'], plan_quote=raw,
+                    qualifiers=row['qualifiers'], conditions_quote=raw)
+    assert not p.review(row, proposal, raw, proposal['source_url'])
+    assert p.classify_price_observation(row, proposal, raw, proposal['source_url'])['status'] == 'CONFIRMED_CHANGE'
+
+
+def test_omitted_multiline_intro_and_known_unknown_are_not_full_validation():
+    row, proposal, raw = fixture()
+    row.update(plan_label='Standard plan', qualifiers=[])
+    raw = raw.replace('injection starts', 'injection Standard plan starts')
+    proposal.update(identity_quote=raw, plan_label=row['plan_label'], plan_quote=raw,
+                    qualifiers=[], conditions_quote=raw)
+    for field in proposal['fields']:
+        field['quote'] = raw
+    assert p.review(row, proposal, raw + '\nFor the first month only.', proposal['source_url'])
+    row['facts']['billing_period'] = {'value': 'UNKNOWN'}
+    proposal['fields'].append({'field': 'billing_period', 'value': None, 'quote': None})
+    assert 'extracted_fact_unknown:billing_period' in p.review(row, proposal, raw, proposal['source_url'])
+
+
+def test_run_reports_source_complete_but_unknown_prices_without_changing_facts(tmp_path):
+    from types import SimpleNamespace
+    row, extracted, raw = fixture()
+    raw += '\n\nConfined synthetic source-monitor test; this is not a live provider or publication receipt.'
+    row.update(plan_label='Standard plan', qualifiers=[])
+    for field in extracted['fields']:
+        field.update(value=None, quote=None)
+    extracted.update(plan_label='Standard plan', plan_quote=None, qualifiers=[], conditions_quote=None)
+    release = tmp_path / 'release'
+    p.put(release / 'data/program-registry.json', {'programs': [
+        {'program_id': 'clinic', 'provider': 'Clinic', 'commercial_state': 'live',
+         'official_base_url': extracted['source_url'], 'service_markets': ['US']}],
+        'provider_dynamic_profiles': {'profiles': {'clinic': {'provider': 'Clinic',
+            'official_base_url': extracted['source_url'], 'source_urls': [extracted['source_url']]}}}})
+    matrix = {'providers': {'clinic': {'medications': [row, {'medication_id': 'legacy'}]}}}
+    p.put(release / 'data/provider-pricing-matrix.json', matrix)
+    p.put(release / 'data/affiliate-activation-selection.json', {})
+    before = (release / 'data/provider-pricing-matrix.json').read_bytes()
+    class Client:
+        def scrape(self, payload, **kwargs):
+            data = {'markdown': raw, 'metadata': {'statusCode': 200, 'sourceURL': payload['url']}}
+            if any(isinstance(f, dict) and f.get('type') == 'json' for f in payload['formats']):
+                data['json'] = {'offers': [], 'uncertainties': [], 'row_observations': {row['row_id']: extracted}}
+            return {'success': True, 'data': data}
+    report = p.run(SimpleNamespace(release=str(release), output=str(tmp_path / 'report'),
+        state=str(tmp_path / 'state'), manual_registered=False,
+        concurrency=1, diligence=False), Client())
+    assert report['status'] == 'SOURCE_MONITOR_COMPLETE'
+    assert report['price_validation_status'] == 'PRICE_VALIDATION_INCOMPLETE'
+    assert report['price_coverage']['fully_validated_rows'] == 0
+    assert report['price_coverage']['unknown_rows'] == 1
+    assert report['price_coverage']['legacy_rows_skipped'] == 1
+    assert report['prices_unchanged'] is None
+    assert report['confirmed_changes'] == 0
+    assert (release / 'data/provider-pricing-matrix.json').read_bytes() == before
+
+
+def test_price_coverage_never_infers_unchanged_from_complete_fetches():
+    row, _, _ = fixture()
+    active = {'clinic': {'rows': [row, {'medication_id': 'legacy'}]}, 'no-rows': {'rows': []}}
+    result = p.price_coverage(active, [{'program_id': 'clinic', 'fully_validated_row_ids': [],
+                                      'cached_validated_row_ids': [], 'evidence_unknown_row_ids': [row['row_id']]}])
+    assert result['status'] == 'PRICE_VALIDATION_INCOMPLETE'
+    assert result['typed_rows'] == 1
+    assert result['fully_validated_rows'] == 0
+    assert result['unknown_rows'] == 1
+    assert result['legacy_rows_skipped'] == 1
+    assert result['providers_without_price_rows'] == 1
+
+
+def test_price_coverage_requires_full_field_support_and_counts_unique_rows():
+    row, _, _ = fixture()
+    active = {'clinic': {'rows': [row]}}
+    results = [{'program_id': 'clinic', 'fully_validated_row_ids': [row['row_id'], row['row_id']],
+                'cached_validated_row_ids': [], 'evidence_unknown_row_ids': [row['row_id']]}]
+    coverage = p.price_coverage(active, results)
+    assert coverage['fully_validated_rows'] == 1
+    assert coverage['unknown_rows'] == 0
+    assert coverage['status'] == 'PRICE_VALIDATION_COMPLETE'
+    assert 'prices_unchanged' not in coverage
 
 
 def test_selects_all_active_us_and_preserves_holds_fella_aliases():
@@ -268,11 +378,28 @@ def test_adoption_uses_existing_writer_and_refuses_source_drift(tmp_path):
                        '2026-10-03T00:00:00+00:00', [])
 
 
-def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path, monkeypatch):
-    from types import SimpleNamespace
+def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path):
+    import os
+    site = Path(os.environ.get('GLP80_SITE_SOURCE', ''))
+    if not (site / 'src/pricing-evidence-v2.mjs').is_file():
+        pytest.skip('paired-repo native acceptance requires GLP80_SITE_SOURCE')
     row, extracted, raw = fixture()
+    row['row_id'] = 'clinic:s32-0:compounded-semaglutide-injection'
+    extracted['row_id'] = row['row_id']
+    row.update(plan_label='Standard plan', calculator_eligibility='display_only',
+               qualifiers=[], unknown_components=['Eligibility requires clinical review'])
+    raw = 'Compounded semaglutide injection Standard plan starts from $21/month.'
+    extracted.update(plan_label='Standard plan', plan_quote=raw, qualifiers=[], conditions_quote=raw, identity_quote=raw)
+    for field in extracted['fields']:
+        field['quote'] = raw
+    old_raw = raw.replace('$21', '$12')
+    old_sha = p.digest(old_raw)
+    old_witness = {'source_url': extracted['source_url'], 'capture_sha256': old_sha,
+                   'capture_path': 'data/pricing-evidence/' + old_sha + '.md',
+                   'captured_at_utc': '2026-10-06T00:00:00Z', 'quote': old_raw}
+    row.update(evidence=[old_witness], identity_evidence=[old_witness])
     for fact in row['facts'].values():
-        fact['evidence'] = []
+        fact.update(evidence=[old_witness], artifact_needed=None)
     candidate, run = tmp_path / 'candidate', tmp_path / 'run'
     folder = run / 'clinic'
     folder.mkdir(parents=True)
@@ -305,12 +432,44 @@ def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path, monkeypa
         'release_root': str(tmp_path / 'live'), 'providers': [{'program_id': 'clinic'}],
         'registry_sha256': p.digest((candidate / 'data/program-registry.json').read_bytes()),
         'matrix_sha256': p.digest((candidate / 'data/provider-pricing-matrix.json').read_bytes())})
-    # Only the external CLI boundary is stubbed; the real F04 writer/review/CAS run.
-    monkeypatch.setattr(p.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout='{}', stderr=''))
+    # Confined real Node subprocess; execute the actual paired native row gate
+    # and receiver, not a stub of subprocess.run or a fabricated PASS response.
+    scripts = candidate / 'scripts'
+    scripts.mkdir()
+    native = (site / 'src/pricing-evidence-v2.mjs').resolve().as_uri()
+    receiver = (site / 'src/price-refresh-evidence.mjs').resolve().as_uri()
+    renderer = (site / 'src/typed-price-labels.mjs').resolve().as_uri()
+    (candidate / old_witness['capture_path']).parent.mkdir(parents=True)
+    (candidate / old_witness['capture_path']).write_text(old_raw)
+    (scripts / 'validate-provider-pricing-matrix.mjs').write_text(
+        "import {readFileSync} from 'node:fs';\n"
+        f"import {{validatePriceRow}} from {json.dumps(native)};\n"
+        f"import {{applyPriceRefreshEvidence}} from {json.dumps(receiver)};\n"
+        f"import {{typedPriceText,renderTypedPrice}} from {json.dumps(renderer)};\n"
+        "const root=process.cwd();\n"
+        "const matrix=JSON.parse(readFileSync(root+'/data/provider-pricing-matrix.json'));\n"
+        "const ledger=JSON.parse(readFileSync(root+'/data/price-refresh-ledger.json'));\n"
+        "const row=matrix.providers.clinic.medications[0];\n"
+        "const errors=validatePriceRow(row,{root});\n"
+        "if(errors.length)throw new Error(JSON.stringify(errors));\n"
+        "const result=applyPriceRefreshEvidence(root,{clinic:{medications:[ledger.entries[0].before]}});\n"
+        "if(JSON.stringify(result.clinic.medications[0])!==JSON.stringify(row))throw new Error('receiver mismatch');\n"
+        "console.log(JSON.stringify({native_errors:errors,price_text:typedPriceText(row),html:renderTypedPrice(row)}));\n")
     receipt = p.stage_candidate(run, candidate)
     assert receipt['status'] == 'STAGED_VALIDATED'
     assert receipt['rows'] == 1
-    assert p.read(candidate / 'data/provider-pricing-matrix.json')['providers']['clinic']['medications'][0]['facts']['amount_usd']['value'] == 21
+    rendered = json.loads(receipt['stdout'])
+    assert rendered['native_errors'] == []
+    assert '$21' in rendered['price_text']
+    assert 'Standard plan' in rendered['html']
+    assert '$12' not in rendered['price_text']
+    after = p.read(candidate / 'data/provider-pricing-matrix.json')['providers']['clinic']['medications'][0]
+    assert after['facts']['amount_usd']['value'] == 21
+    assert after['facts']['amount_usd']['artifact_needed'] is None
+    evidence = after['facts']['amount_usd']['evidence'][0]
+    assert evidence['capture_sha256'] == p.digest(raw)
+    assert (candidate / evidence['capture_path']).read_text() == raw
+    assert set(evidence) == {'capture_path', 'capture_sha256', 'source_url', 'captured_at_utc', 'quote'}
     witness = p.read(candidate / 'data/price-refresh-ledger.json')['entries'][0]
     assert witness['before'] == row
     assert (candidate / witness['markdown_path']).read_text() == raw
@@ -342,7 +501,10 @@ def test_bridge_reports_monitoring_not_publication(monkeypatch, tmp_path):
     import cron_bridge_action as bridge
     row = {'schema': p.SCHEMA, 'active_provider_count': 2, 'completed_provider_count': 2,
            'primary_pages_successful': 2, 'successful_pages': 3, 'failed_pages': 0, 'failed_primary_pages': 0,
-           'confirmed_changes': 0, 'review_required': 4, 'receipt': 'fixture'}
+           'confirmed_changes': 0, 'review_required': 4, 'receipt': 'fixture',
+           'source_monitor_status': 'SOURCE_MONITOR_COMPLETE',
+           'price_coverage': {'status': 'PRICE_VALIDATION_INCOMPLETE', 'typed_rows': 61,
+                              'fully_validated_rows': 0, 'unknown_rows': 61, 'legacy_rows_skipped': 11}}
     monkeypatch.setattr(bridge, 'machine_receipt', lambda *a, **kw: row)
     calls = []
     monkeypatch.setattr(bridge, 'heartbeat', lambda *a: calls.append(a) or {'status': 'fixture'})
