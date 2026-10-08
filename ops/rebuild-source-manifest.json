@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 795,
+  "tracked_count": 798,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -496,7 +496,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f1793b232141de1478f7a507c90a2ffc3fd3177ffbb0c3e2dc180085a1b6f5c5"
+      "sha256": "90af486856c809fecceec90f825c1fd15fe43756b8d009a5640bd03412326856"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1688,7 +1688,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "96d7c096d5cfe37eb244e3df3f6022852a0a3c4055be6fcd60b02223e498d4d7"
+      "sha256": "f0cdfcc8645b6e6dcf61ef3674a5c82e54931578945d5d68a0a9118f53d9a2a1"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2233,7 +2233,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001"
+      "sha256": "29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -5369,6 +5369,15 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+    },
+    "ops/pallas-predecessor-migration.md": {
+      "sha256": "b14781e5d40eaa3d290f8c5f4a4038ade12303cc7512df1553aed51b48976bcc"
+    },
+    "scripts/pallas_predecessor_migration.py": {
+      "sha256": "96f1fe55bf8e19148470f5aced68ed049046c679cbf0ef31b34aa4f3e1b40b2c"
+    },
+    "tests/test_pallas_predecessor_migration.py": {
+      "sha256": "f102cf6597d8e0a255d975e44b83cfb81d43a779f8175a22b9d95026e1ff4f61"
     }
   }
 }
