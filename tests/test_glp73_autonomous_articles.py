@@ -28,6 +28,17 @@ class ArticleRoutes(unittest.TestCase):
         for route in ['/cost/price/', '/tools/calculator/', '/reviews/a/b/', '/reviews/a?b/', '/reviews/../']:
             self.assertIsNone(pattern.fullmatch(route), route)
 
+class ReviewAliases(unittest.TestCase):
+    def test_redirected_native_review_is_not_net_new_article_supply(self):
+        path = SCRIPTS / 'select_opus_content_queue.py'
+        nodes = [n for n in ast.parse(path.read_text()).body if isinstance(n, ast.FunctionDef) and n.name == 'redirected_review_routes']
+        self.assertEqual(len(nodes), 1, 'redirect alias preauthoring exclusion missing')
+        ns = {'re':re, 'Path':Path}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), ns)
+        with tempfile.TemporaryDirectory() as work:
+            p=Path(work)/'_redirects';p.write_text('/reviews/shed/ /reviews/shedrx/ 301\n/reviews/* /providers/ 301\n/guides/old/ /guides/new/ 301\n')
+            self.assertEqual(ns['redirected_review_routes'](p), {'/reviews/shed/'})
+
 class RepairScope(unittest.TestCase):
     def test_new_evidence_and_inbound_failures_have_real_source_repair_scope(self):
         from collections import defaultdict

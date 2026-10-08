@@ -793,6 +793,16 @@ def load_keyword_gap_overlay(path: Path) -> tuple[list[dict[str, Any]], set[str]
     return rows, clusters, file_spec(resolved)
 
 
+def redirected_review_routes(path: Path) -> set[str]:
+    """Existing native review aliases are not unpublished article opportunities."""
+    routes = set()
+    for line in path.read_text().splitlines():
+        columns = line.split()
+        if len(columns) >= 2 and re.fullmatch(r"/reviews/[a-z0-9]+(?:-[a-z0-9]+)*/", columns[0]):
+            routes.add(columns[0])
+    return routes
+
+
 def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
     if args.limit != 1:
         raise RuntimeError("selection_limit_must_equal_one")
@@ -837,7 +847,9 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
     terminal_routes |= receipt_routes
     release_root = Path(resolution["pointer"]["release_root"])
     sitemap_path = (release_root / "public/sitemap.xml").resolve(strict=True)
+    redirect_path = (release_root / "public/_redirects").resolve(strict=True)
     live_routes = current_catalog_routes(config) | sitemap_routes(sitemap_path, config["vertical"]["domain"])
+    live_routes |= redirected_review_routes(redirect_path)
     gsc_rows, gsc_window = gsc_preference(database_path)
     demand_table, demand_meta = load_demand_multipliers(getattr(args, "demand_sidecar", DEMAND_SIDECAR))
     configured_class_weights = {
@@ -1013,6 +1025,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
             "current_content_base_state": resolution["state"],
             "current_content_base_resolution": resolution,
             "sitemap_readback": file_spec(sitemap_path),
+            "review_alias_redirect_readback": file_spec(redirect_path),
             "observability_database": file_spec(database_path),
             "observability_window": gsc_window,
             "terminal_receipts": terminal_specs,
