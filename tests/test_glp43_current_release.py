@@ -96,6 +96,35 @@ class CurrentReleaseTests(unittest.TestCase):
             self.assertEqual(self.publish(), 1)
             self.assertEqual(len(self.deploy_calls), 1)
 
+    def test_d1_pallas_third_cohort_is_exact_and_preserves_both_predecessors(self):
+        """Synthetic third cohort; all production pins remain external evidence."""
+        self.d1_fixture()
+        successor = copy.deepcopy(c.CURRENT_D1)
+        with (mock.patch.dict(c.CURRENT_D1, {"head":"0"*40,"gate_sha256":"0"*64,"package_sha256":"1"*64}),
+              mock.patch.object(c, "CURRENT_D1_PALLAS", successor, create=True)):
+            self.assertEqual(c.current_rollback(self.head, successor['gate_sha256'], successor['package_sha256']), self.fixture_base)
+            keys = ('head','gate_sha256','package_sha256')
+            import itertools
+            cohorts = (c.CURRENT_D1, c.CURRENT_D1_SUCCESSOR, successor)
+            for indexes in itertools.product(range(3), repeat=3):
+                supplied = {key:cohorts[index][key] for key,index in zip(keys,indexes)}
+                if len(set(indexes)) == 1:
+                    self.assertEqual(c.current_d1_binding(**supplied), cohorts[indexes[0]])
+                else:
+                    with self.subTest(mixed=indexes), self.assertRaisesRegex(c.GateError, 'current_d1_successor_binding_mismatch'):
+                        c.current_d1_binding(**supplied)
+            self.prepare()
+            self.assertEqual(self.prepared_data['source']['runtime'], successor['runtime'])
+            for name in ('functions','src','data'):
+                broken = copy.deepcopy(successor)
+                broken['runtime'][name]['tree_sha256'] = 'f'*64
+                with self.subTest(runtime=name), mock.patch.object(c, 'CURRENT_D1_PALLAS', broken), self.assertRaises(c.GateError):
+                    c.current_prepared(self.prepared, c.sha_file(self.prepared / 'PREPARED.json'))
+            self.approve_fixture()
+            self.assertEqual(self.publish(), 0, self.last)
+            self.assertEqual(self.publish(), 1)
+            self.assertEqual(len(self.deploy_calls), 1)
+
     def test_d1_current_predecessor_prepare_publish_exact_binding(self):
         self.d1_fixture()
         historical = c.CURRENT_ROLLBACK
@@ -727,6 +756,120 @@ class CurrentReleaseTests(unittest.TestCase):
         self.assertEqual(json.loads(self.pointer.read_text())["deployment_id"], NEW_ID)
         self.assertEqual(self.promote_fixture(), 1)
         self.assertEqual(self.selections, [NEW_ID]); self.assertEqual(self.rollbacks, [])
+        self.assert_promotion_custody()
+
+    def test_existing_promotion_uses_exact_cohort_predecessor_without_global_adoption(self):
+        """Synthetic journals/approval; real cohort pins and native source validator."""
+        self.promotion_fixture()
+        # Exercise every maintained cohort without monkeypatching its pins.
+        historical = c.CURRENT_ROLLBACK
+        for cohort in (c.CURRENT_D1, c.CURRENT_D1_SUCCESSOR, c.CURRENT_D1_PALLAS):
+            with self.subTest(head=cohort['head']):
+                prepared = copy.deepcopy(self.prepared_data)
+                prepared.update(site_head=cohort['head'], rollback_deployment_id=cohort['rollback'],
+                                package_manifest_sha256=cohort['package_sha256'],
+                                build_receipt={'sha256': cohort['gate_sha256']})
+                prepared['predecessor_pointer']['deployment_id'] = cohort['rollback']
+                original = copy.deepcopy(self.original_data)
+                original.update(site_head=cohort['head'], rollback_deployment_id=cohort['rollback'])
+                original['stages']['pages_deploy_intent'].update(
+                    commit_hash=cohort['head'], predecessor_id=cohort['rollback'])
+                original['stages']['pages_deployment']['commit_hash'] = cohort['head']
+                original['stages']['rollback_intent']['deployment_id'] = cohort['rollback']
+                self.original_receipt.write_bytes(c.json_bytes(original))
+                args = argparse.Namespace(authorize_production=True, authorize_existing_promotion=True,
+                    site_head=cohort['head'], candidate_deployment_id=NEW_ID,
+                    expected_prepared_manifest_sha256=self.promotion_args['expected-prepared-manifest-sha256'],
+                    expected_approval_sha256=self.promotion_args['expected-approval-sha256'],
+                    expected_rolled_back_receipt_sha256=c.sha_file(self.original_receipt))
+                before = self.original_receipt.read_bytes()
+                binding = c.current_promotion_source(args, prepared, self.original_receipt)
+                self.assertEqual(binding['predecessor_id'], cohort['rollback'])
+                self.assertEqual(self.original_receipt.read_bytes(), before)
+                for location in ('prepared', 'pointer', 'journal', 'upload-intent', 'rollback-intent'):
+                    broken = copy.deepcopy(prepared)
+                    journal = copy.deepcopy(original)
+                    if location == 'prepared': broken['rollback_deployment_id'] = historical
+                    elif location == 'pointer': broken['predecessor_pointer']['deployment_id'] = historical
+                    elif location == 'journal': journal['rollback_deployment_id'] = historical
+                    elif location == 'upload-intent': journal['stages']['pages_deploy_intent']['predecessor_id'] = historical
+                    else: journal['stages']['rollback_intent']['deployment_id'] = historical
+                    self.original_receipt.write_bytes(c.json_bytes(journal))
+                    args.expected_rolled_back_receipt_sha256 = c.sha_file(self.original_receipt)
+                    with self.subTest(mismatch=location), self.assertRaises(c.GateError):
+                        c.current_promotion_source(args, broken, self.original_receipt)
+                self.original_receipt.write_bytes(before)
+                args.expected_rolled_back_receipt_sha256 = c.sha_bytes(before)
+                # A re-pinned journal does not authorize a mixed source tuple.
+                broken = copy.deepcopy(prepared)
+                broken['package_manifest_sha256'] = '0' * 64
+                with self.assertRaisesRegex(c.GateError, 'current_d1_successor_binding_mismatch'):
+                    c.current_promotion_source(args, broken, self.original_receipt)
+                for field, value in (('authorize_existing_promotion', False),
+                                     ('expected_approval_sha256', '0' * 64),
+                                     ('expected_prepared_manifest_sha256', '0' * 64),
+                                     ('candidate_deployment_id', cohort['rollback']), ('site_head', '0' * 40)):
+                    refused = argparse.Namespace(**{**vars(args), field: value})
+                    with self.subTest(guard=field), self.assertRaises(c.GateError):
+                        c.current_promotion_source(refused, prepared, self.original_receipt)
+        self.assertEqual(c.CURRENT_ROLLBACK, historical)
+        self.assertEqual(self.selections, [])
+        self.assertEqual(self.deploy_calls, [])
+        self.assertEqual(self.builds, [])
+        self.assertEqual(self.calls, [])
+
+    def test_r8_existing_promotion_native_selection_rollback_and_no_replay(self):
+        """Synthetic provider/prepared fixture; exact production R8 cohort pins."""
+        self.promotion_fixture()
+        cohort = c.CURRENT_D1_PALLAS
+        self.head = cohort['head']
+        self.fixture_base = cohort['rollback']
+        self.pointer.write_bytes(c.json_bytes({'deployment_id': self.fixture_base,
+            'release_root': '/synthetic/prior', 'manifest': {}, 'final_receipt': {}}))
+        self.current = self.deployment(self.fixture_base, '0' * 40)
+        self.deployments = [copy.deepcopy(self.current)]
+        self.candidate = self.deployment(NEW_ID, self.head)
+        with mock.patch.object(c, 'current_d1_predecessor', return_value=None):
+            predecessor = c.current_pointer(self.fixture_base)
+        self.prepared_data.update(site_head=self.head, rollback_deployment_id=self.fixture_base,
+            package_manifest_sha256=cohort['package_sha256'], build_receipt={'sha256': cohort['gate_sha256']},
+            predecessor_pointer=predecessor)
+        (self.prepared / 'PREPARED.json').write_bytes(c.json_bytes(self.prepared_data))
+        self.approve_fixture()
+        self.promotion_args.update(**{'site-head': self.head,
+            'expected-prepared-manifest-sha256': c.sha_file(self.prepared / 'PREPARED.json'),
+            'expected-approval-sha256': c.sha_file(self.approval)})
+        self.run_dir = c.SEO_REPORT_ROOT / ('current-release-' + self.head)
+        self.run_dir.mkdir()
+        self.original_receipt = self.run_dir / 'CURRENT-RECEIPT.json'
+        self.original_data.update(site_head=self.head, rollback_deployment_id=self.fixture_base,
+            binding={'prepared_manifest_sha256': self.promotion_args['expected-prepared-manifest-sha256'],
+                     'approval_sha256': self.promotion_args['expected-approval-sha256']})
+        self.original_data['stages']['pages_deploy_intent'].update(commit_hash=self.head, predecessor_id=self.fixture_base)
+        self.original_data['stages']['pages_deployment']['commit_hash'] = self.head
+        self.original_data['stages']['rollback_intent']['deployment_id'] = self.fixture_base
+        self.original_receipt.write_bytes(c.json_bytes(self.original_data))
+        self.original_bytes, self.original_stat = self.original_receipt.read_bytes(), self.original_receipt.stat()
+        self.promotion_args['expected-rolled-back-receipt-sha256'] = c.sha_bytes(self.original_bytes)
+        self.promotion_receipt = self.run_dir / ('CURRENT-PROMOTION-' + NEW_ID + '.json')
+        before = self.pointer.read_bytes()
+        # Exact tuple selection is real; prepared-byte/toolchain authentication
+        # is tested elsewhere. This intercept prevents any real compiler/upload.
+        with mock.patch.object(c, 'current_prepared', return_value=self.prepared_data):
+            self.readback_fail = True
+            self.assertEqual(self.promote_fixture(), 1)
+            self.assertTrue(self.promotion_receipt.exists(), self.last)
+            receipt = json.loads(self.promotion_receipt.read_bytes())
+            self.assertEqual(receipt['status'], 'BLOCKED_ROLLED_BACK')
+            self.assertEqual(receipt['binding']['predecessor_id'], self.fixture_base)
+            self.assertEqual(receipt['stages']['existing_candidate_selection_intent']['predecessor_id'], self.fixture_base)
+            self.assertEqual(receipt['stages']['rollback_intent'], {'deployment_id': self.fixture_base})
+            self.assertEqual(self.current['id'], self.fixture_base)
+            self.assertEqual(self.pointer.read_bytes(), before)
+            self.assertEqual(self.promote_fixture(), 1)
+        self.assertEqual(self.selections, [NEW_ID])
+        self.assertEqual(self.rollbacks, ['/deployments/' + self.fixture_base + '/rollback'])
+        self.assertEqual(c.CURRENT_ROLLBACK, '8291d24b-a1c6-4340-bd42-2efa9f2ba2b7')
         self.assert_promotion_custody()
 
     def test_current_existing_promotion_native_rollback_and_postcas_guards(self):

@@ -74,6 +74,13 @@ def build(tmp_path):
     return source,dep,head,packet,members,out,result
 
 
+def test_coordinator_guard_requires_the_actual_original_authority(tmp_path):
+    source,dep,head,packet,members=fixture(tmp_path)
+    with pytest.raises(ValueError,match='coordinator_predecessor_not_approved'):
+        producer().build_successor(packet,hashlib.sha256(packet.read_bytes()).hexdigest(),source,dep,head,
+                                  tmp_path/'proposal',include_coordinator_guard=True)
+
+
 def test_successor_preserves_all_outward_bytes_and_original_packet(tmp_path):
     source,dep,head,packet,members,out,result=build(tmp_path)
     assert result['status']=='UNAPPROVED_TECHNICAL_SUCCESSOR'

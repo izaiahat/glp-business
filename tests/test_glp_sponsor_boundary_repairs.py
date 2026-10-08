@@ -95,6 +95,41 @@ def test_self_authenticated_payment_and_relationship_never_count_as_evidence():
  assert ready.payment_readiness(order,lambda cid:capture)['payment_verified'] is False
  assert ready.relationship('example.invalid',{'provider_host':'example.invalid','status':'approved','network':'Invented','program_id':'P1','captured_at_utc':helpers.SEND_SLOT.isoformat(),'evidence_sha256':'a'*64},helpers.SEND_SLOT)['variant']=='cold'
 
+@pytest.mark.parametrize('elapsed',[0,2])
+def test_real_apollo_recipient_freshness_is_rechecked_after_send_auth(tmp_path,monkeypatch,elapsed):
+ import glp_sponsor_readiness as ready
+ real_recipients=m.recipients
+ config,client,_=helpers.offline_campaign(tmp_path,monkeypatch);client.fail=None
+ monkeypatch.setattr(m,'INBOX_DB',tmp_path/'absent.sqlite')
+ sheet,discovery,local=helpers.inputs()
+ evidence={'email':'director@example.com','country':'US','title':'Head of Partnerships',
+           'organization_domain':'example.com','source':'apollo','person_id':'synthetic-p1',
+           'captured_at_utc':(helpers.SEND_SLOT-dt.timedelta(days=30)+dt.timedelta(seconds=1)).isoformat(),
+           'evidence_sha256':'b'*64}
+ discovery['organizations']['example.com']={'professional_contacts':[evidence]}
+ m.save(m.ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
+ monkeypatch.setattr(m,'recipients',real_recipients)
+ monkeypatch.setattr(m,'read_values',lambda:sheet);monkeypatch.setattr(m,'read_local',lambda:local)
+ clock=[helpers.SEND_SLOT];monkeypatch.setattr(m,'now',lambda:clock[0])
+ config['require_bouncer']=True
+ shared=m.ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl'
+ shared.write_text(json.dumps({'email_hash':ready.email_hash(evidence['email']),'event':'verify_email',
+                              'http_status':200,'provider_status':'deliverable','send_eligible':True,
+                              'blockers':[],'ts':helpers.SEND_SLOT.isoformat()})+'\n')
+ assert real_recipients(sheet,discovery,local)['recipients'][0]['contact_source']=='apollo'
+ def auth(mode='read'):
+  if mode=='send':clock[0]+=dt.timedelta(seconds=elapsed)
+  return client
+ monkeypatch.setattr(m,'service',auth)
+ result=m.run(config)
+ assert result['sent']==(1 if elapsed==0 else 0)
+ if elapsed:
+  assert client.deliveries==[]
+  assert result['send_boundary_exclusions']==[{'host':'example.com','reason':'boundary_professional_contact_expired'}]
+  ledger=m.STATE/'ledger.json'
+  assert not ledger.exists() or 'claimed' not in m.load(ledger).get(evidence['email'],{})
+
+
 def test_documented_professional_source_and_existing_bouncer_job_path(tmp_path,monkeypatch):
  import subprocess,hashlib
  config={'professional_enrichment_enabled':True,'bouncer_debits_enabled':True}

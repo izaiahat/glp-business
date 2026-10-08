@@ -26,6 +26,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m unittest discover -s tests -p test_glp42_package_only.py -v
+          python3 -m unittest tests.test_glp43_current_release.CurrentReleaseTests.test_existing_promotion_uses_exact_cohort_predecessor_without_global_adoption tests.test_glp43_current_release.CurrentReleaseTests.test_r8_existing_promotion_native_selection_rollback_and_no_replay -v
   python-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15

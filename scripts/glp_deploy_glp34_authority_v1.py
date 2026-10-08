@@ -1810,10 +1810,26 @@ CURRENT_D1_SUCCESSOR = {
 }
 
 
+# Genuine corrected merged-source R8 native PASS/package; preserve both prior cohorts.
+CURRENT_D1_PALLAS = {
+    "head": "55ba9f1076eaa53f4c3f978baf2b68e0748675cf",
+    "git_tree": "d25fca602e371546bb9303c642e47b3f3ebd7b17",
+    "gate_sha256": "804a94c370e00cc18ac33705ef6f6773712570f514143d3343e360f0eb7793d9",
+    "package_sha256": "d8660f48346b84572d381f5ba099cb27d44df050c5a846b0075794d9f269744f",
+    "built_source_sha256": "5d3f5b030fa9d6a79a3a04406445e53dc9887f3cef05999796aa51cb01e97990",
+    "rollback": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+    "runtime": {
+        "functions": {"tree_sha256": "035a9e01876ad73bd3a93802283e9f7f2d01e55cb1464a25d15ae32f24060b34", "file_count": 18, "total_bytes": 238861},
+        "src": {"tree_sha256": "0a6170396a7f138855ccacfe5ae1eb7a08d6edcdde0fda47095a4fcd76d345a8", "file_count": 135, "total_bytes": 2573456},
+        "data": {"tree_sha256": "766e996a5b30f0e5133e2f5a6b915a2b33b0085d2ae7cd8276dc61eb113ca384", "file_count": 912, "total_bytes": 89358621},
+    },
+}
+
+
 def current_d1_binding(head: str, gate_sha256: str, package_sha256: str) -> dict[str, Any] | None:
     keys = ("head", "gate_sha256", "package_sha256")
     supplied = (head, gate_sha256, package_sha256)
-    hits = [binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR) if binding is not None
+    hits = [binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR, CURRENT_D1_PALLAS) if binding is not None
             and any(value == binding[key] for key, value in zip(keys, supplied))]
     if not hits:
         return None
@@ -1923,7 +1939,7 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
     expected_functions = 18 if gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") else 17
-    d1_binding = next((binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR)
+    d1_binding = next((binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR, CURRENT_D1_PALLAS)
                        if binding is not None and head == binding["head"]), None)
     d1_current = gate.get("schema") == "glp-d1-release-result-v1" and d1_binding is not None
     if d1_current:
@@ -2597,24 +2613,29 @@ def current_promotion_source(args: argparse.Namespace, prepared: dict[str, Any],
     binding = {"prepared_manifest_sha256": args.expected_prepared_manifest_sha256,
                "approval_sha256": args.expected_approval_sha256}
     stages = original.get("stages", {})
+    # Select only the maintained exact head/gate/package cohort, as preparation
+    # does. Caller IDs and mutable runtime globals cannot adopt a predecessor.
+    rollback = current_rollback(prepared["site_head"], prepared["build_receipt"]["sha256"],
+                                prepared["package_manifest_sha256"])
     if (not args.authorize_existing_promotion or not re.fullmatch(r"[0-9a-f]{40}", args.site_head)
             or args.site_head != prepared["site_head"] or not DEPLOYMENT_ID.fullmatch(args.candidate_deployment_id)
-            or args.candidate_deployment_id == CURRENT_ROLLBACK
+            or args.candidate_deployment_id == rollback
+            or prepared["rollback_deployment_id"] != rollback
             or original.get("schema") != "glp43-current-deploy-receipt-v1"
             or original.get("status") != "BLOCKED_ROLLED_BACK" or original.get("binding") != binding
-            or original.get("site_head") != args.site_head or original.get("rollback_deployment_id") != CURRENT_ROLLBACK
+            or original.get("site_head") != args.site_head or original.get("rollback_deployment_id") != rollback
             or original.get("deploy_directory") != prepared["deploy_directory"]
             or stages.get("pages_deploy_cli", {}).get("returncode") != 0
             or stages.get("pages_deploy_intent", {}).get("commit_hash") != args.site_head
-            or stages.get("pages_deploy_intent", {}).get("predecessor_id") != CURRENT_ROLLBACK
+            or stages.get("pages_deploy_intent", {}).get("predecessor_id") != rollback
             or stages.get("pages_deployment") != {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
-            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or stages.get("rollback_intent") != {"deployment_id": rollback}
             or "pointer_intent" in stages or "pointer_cas" in stages
-            or prepared["predecessor_pointer"].get("deployment_id") != CURRENT_ROLLBACK):
+            or prepared["predecessor_pointer"].get("deployment_id") != rollback):
         fail("current_promotion_source_or_authorization_mismatch")
     return {**binding, "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
             "candidate_deployment_id": args.candidate_deployment_id, "site_head": args.site_head,
-            "predecessor_id": CURRENT_ROLLBACK, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
+            "predecessor_id": rollback, "predecessor_pointer_sha256": prepared["predecessor_pointer"]["sha256"]}
 
 
 # Fixed reviewed forward edges are bound to actual rolled-back journals.
@@ -2635,7 +2656,7 @@ def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[st
     prior = current_json(prior_path, prior_sha)
     stages, effects = prior.get("stages"), prior.get("effects")
     selection = {"deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head,
-                 "predecessor_id": CURRENT_ROLLBACK,
+                 "predecessor_id": binding["predecessor_id"],
                  "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
                  "effect": "select_existing_successful_production_deployment"}
     if (prior.get("schema") != "glp43-current-promotion-receipt-v1"
@@ -2646,7 +2667,7 @@ def current_promotion_terminal_source(args: argparse.Namespace, binding: dict[st
             or stages.get("existing_candidate_selection_result") != {"returned": True}
             or stages.get("existing_candidate_selection_confirmed") != {
                 "deployment_id": args.candidate_deployment_id, "commit_hash": args.site_head}
-            or stages.get("rollback_intent") != {"deployment_id": CURRENT_ROLLBACK}
+            or stages.get("rollback_intent") != {"deployment_id": binding["predecessor_id"]}
             or "pointer_intent" in stages or "pointer_cas" in stages
             or effects != {
                 "pages_deployments": 0, "existing_candidate_selection_post_intents": 1,
@@ -2686,6 +2707,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
     run_dir = SEO_REPORT_ROOT / ("current-release-" + prepared["site_head"])
     original_path = run_dir / "CURRENT-RECEIPT.json"
     binding = current_promotion_source(args, prepared, original_path)
+    rollback = binding["predecessor_id"]
     renewing = (args.authorize_renewed_promotion or args.expected_terminal_promotion_sha256 is not None
                 or args.authorize_rolled_back_successor_renewal or args.authorize_post_identity_promotion)
     third_renewal = args.authorize_post_identity_promotion
@@ -2718,7 +2740,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
         deployment_id, head = args.candidate_deployment_id, args.site_head
         receipt_path = (run_dir / ("CURRENT-PROMOTION-" + deployment_id + "-SUCCESSOR-"
                                    + binding["terminal_promotion_sha256"] + ".json") if renewing else prior_path)
-        selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": CURRENT_ROLLBACK,
+        selection = {"deployment_id": deployment_id, "commit_hash": head, "predecessor_id": rollback,
                      "original_receipt_sha256": args.expected_rolled_back_receipt_sha256,
                      "effect": "select_existing_successful_production_deployment"}
         recheck_source()
@@ -2735,7 +2757,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
             current = production_deployment(client.project())
             if (not isinstance(candidate, dict) or candidate.get("id") != deployment_id
                     or deployment_commit(candidate) != head or not successful_production(candidate)
-                    or current.get("id") != CURRENT_ROLLBACK or not successful_production(current)):
+                    or current.get("id") != rollback or not successful_production(current)):
                 fail("current_promotion_predecessor_or_candidate_mismatch")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
@@ -2752,7 +2774,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
             # Cloudflare documents /rollback as selecting a prior successful
             # production deployment; it uploads/builds nothing.
             immediate = production_deployment(client.project())
-            if immediate.get("id") != CURRENT_ROLLBACK or not successful_production(immediate):
+            if immediate.get("id") != rollback or not successful_production(immediate):
                 fail("current_canonical_changed_before_promotion")
             current_prepared(root, args.expected_prepared_manifest_sha256)
             current_approval(args, prepared)
@@ -2775,7 +2797,7 @@ def run_promote_current_existing(args: argparse.Namespace) -> dict[str, Any]:
             current = production_deployment(client.project())
             if "rollback_intent" in stages:
                 # An uncertain guarded rollback also cannot be repeated.
-                if current.get("id") == CURRENT_ROLLBACK and successful_production(current):
+                if current.get("id") == rollback and successful_production(current):
                     verify_signed_predecessor(prepared["predecessor_pointer"])
                     receipt["status"] = "BLOCKED_ROLLED_BACK"
                 fail("current_prior_rollback_no_replay")
