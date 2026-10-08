@@ -305,13 +305,38 @@ CURRENT_D1 = {
 }
 
 
+# Accepted calculator/SEO/PostHog cohort: terminal native PASS, not the
+# retained failed fbd gate. Shares the authenticated actual predecessor above.
+CURRENT_D1_SUCCESSOR = {
+    "head": "c7c1236e8d77d90d5f5de0eb822c48575e7d32e2",
+    "git_tree": "34a65feb20390c9a916223e6ba0a3d7ecf0e1d53",
+    "gate_sha256": "6d90cf6d66681ef4f06c4a8ddaf815f1bad161c3813d45bd1428f066dedcb09e",
+    "package_sha256": "9e19f6be566962167f91c5d325f6ef7a8644fd12a0135664ff938d75b4485c6d",
+    "built_source_sha256": "4b5fcd5d6eda98e1fbb004a4ca29b4941ac352f0619175615471cce037230a0d",
+    "rollback": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+    "runtime": {
+        "functions": {"tree_sha256": "73592cec67a88cb22dd8db4f40e333673d7db08d1c565e9dfaacd5e182b2a3d8", "file_count": 18, "total_bytes": 244471},
+        "src": {"tree_sha256": "7b2f7eceffb4490576a08ad7bb71c65ee7f9d41133a0c352f5a6c671277fc924", "file_count": 134, "total_bytes": 2553802},
+        "data": {"tree_sha256": "377bc36368f27f68113429a9ba9553d2a9241f8867d4db119c2974ca8d77ff81", "file_count": 912, "total_bytes": 89358000},
+    },
+}
+
+
+def current_d1_binding(head: str, gate_sha256: str, package_sha256: str) -> dict[str, Any] | None:
+    keys = ("head", "gate_sha256", "package_sha256")
+    supplied = (head, gate_sha256, package_sha256)
+    hits = [binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR) if binding is not None
+            and any(value == binding[key] for key, value in zip(keys, supplied))]
+    if not hits:
+        return None
+    if len(hits) != 1 or supplied != tuple(hits[0][key] for key in keys):
+        fail("current_d1_successor_binding_mismatch")
+    return hits[0]
+
+
 def current_rollback(head: str, gate_sha256: str, package_sha256: str) -> str:
-    if (head == CURRENT_D1["head"] or gate_sha256 == CURRENT_D1["gate_sha256"]
-            or package_sha256 == CURRENT_D1["package_sha256"]):
-        if (head, gate_sha256, package_sha256) != tuple(CURRENT_D1[k] for k in ("head", "gate_sha256", "package_sha256")):
-            fail("current_d1_successor_binding_mismatch")
-        return CURRENT_D1["rollback"]
-    return CURRENT_ROLLBACK
+    binding = current_d1_binding(head, gate_sha256, package_sha256)
+    return binding["rollback"] if binding is not None else CURRENT_ROLLBACK
 
 
 def current_d1_predecessor(raw: bytes) -> None:
@@ -410,10 +435,12 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
             fail("current_untracked_runtime_source")
         closures[name] = file_closure(source / name)
     expected_functions = 18 if gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1") else 17
-    d1_current = gate.get("schema") == "glp-d1-release-result-v1" and head == CURRENT_D1["head"]
+    d1_binding = next((binding for binding in (CURRENT_D1, CURRENT_D1_SUCCESSOR)
+                       if binding is not None and head == binding["head"]), None)
+    d1_current = gate.get("schema") == "glp-d1-release-result-v1" and d1_binding is not None
     if d1_current:
-        if (gate.get("head") != head or tree != CURRENT_D1["git_tree"]
-                or digest != CURRENT_D1["built_source_sha256"] or closures != CURRENT_D1["runtime"]):
+        if (gate.get("head") != head or tree != d1_binding["git_tree"]
+                or digest != d1_binding["built_source_sha256"] or closures != d1_binding["runtime"]):
             fail("current_d1_runtime_closure_drift")
         expected_functions = 18
     if (closures["functions"]["file_count"] != expected_functions
@@ -626,9 +653,10 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     if rollback == CURRENT_D1["rollback"]:
         current_d1_predecessor(base64.b64decode(value["predecessor_pointer"]["bytes_base64"], validate=True))
         current_d1_routes(current_routes((root / "deploy-public/_worker.js").read_bytes()))
-        if (value["source"]["git_tree"] != CURRENT_D1["git_tree"]
-                or value["source"]["built_source_sha256"] != CURRENT_D1["built_source_sha256"]
-                or {name: file_closure(root / "release" / name) for name in ("functions", "src", "data")} != CURRENT_D1["runtime"]
+        binding = current_d1_binding(value["site_head"], value["build_receipt"]["sha256"], value["package_manifest_sha256"])
+        if (binding is None or value["source"]["git_tree"] != binding["git_tree"]
+                or value["source"]["built_source_sha256"] != binding["built_source_sha256"]
+                or {name: file_closure(root / "release" / name) for name in ("functions", "src", "data")} != binding["runtime"]
                 or package.get("rollback_deployment_id") != rollback):
             fail("current_d1_prepared_binding_drift")
     if (package_tree(root / "release/public") != (value["public_tree_sha256"], package["files"])

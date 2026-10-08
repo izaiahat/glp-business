@@ -63,6 +63,39 @@ class CurrentReleaseTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(c, "CURRENT_D1", fixture, create=True))
         return prior, terminal_path, routes
 
+    def test_d1_exact_additive_successor_uses_current_predecessor_and_whole_runtime(self):
+        """Synthetic additive seam; not a native PASS or production approval."""
+        self.d1_fixture()
+        successor = copy.deepcopy(c.CURRENT_D1)
+        # Keep predecessor pins/routes unchanged while the historical source
+        # tuple remains distinct. No production constant is changed by this test.
+        with (mock.patch.dict(c.CURRENT_D1, {
+                "head": "0" * 40, "gate_sha256": "0" * 64,
+                "package_sha256": "1" * 64}),
+              mock.patch.object(c, "CURRENT_D1_SUCCESSOR", successor, create=True)):
+            self.assertEqual(c.current_rollback(self.head, successor["gate_sha256"],
+                                               successor["package_sha256"]), self.fixture_base)
+            for key in ("head", "gate_sha256", "package_sha256"):
+                mixed = {k: successor[k] for k in ("head", "gate_sha256", "package_sha256")}
+                mixed[key] = c.CURRENT_D1[key]
+                with self.subTest(mixed=key), self.assertRaisesRegex(c.GateError, "current_d1_successor_binding_mismatch"):
+                    c.current_rollback(**mixed)
+            self.prepare()
+            self.assertEqual(self.prepared_data["source"]["runtime"], successor["runtime"])
+            self.assertEqual(self.prepared_data["rollback_deployment_id"], self.fixture_base)
+            # Re-authenticate the sealed full closure at publish entry, not just
+            # the original source check. Unknown source tuples still refuse.
+            c.current_prepared(self.prepared, c.sha_file(self.prepared / "PREPARED.json"))
+            for name in ("functions", "src", "data"):
+                broken = copy.deepcopy(successor)
+                broken["runtime"][name]["tree_sha256"] = "f" * 64
+                with self.subTest(runtime=name), mock.patch.object(c, "CURRENT_D1_SUCCESSOR", broken), self.assertRaises(c.GateError):
+                    c.current_prepared(self.prepared, c.sha_file(self.prepared / "PREPARED.json"))
+            self.approve_fixture()
+            self.assertEqual(self.publish(), 0, self.last)
+            self.assertEqual(self.publish(), 1)
+            self.assertEqual(len(self.deploy_calls), 1)
+
     def test_d1_current_predecessor_prepare_publish_exact_binding(self):
         self.d1_fixture()
         historical = c.CURRENT_ROLLBACK
