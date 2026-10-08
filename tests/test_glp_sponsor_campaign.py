@@ -22,8 +22,10 @@ def inputs():
  row=['']*27
  row[2]='Example GLP-1 Provider (US)';row[3]='GLP-1';row[6]='https://example.com';row[7]='US GLP-1 provider';row[10]='approved_active_not_wired';row[25]='glp1-weightloss'
  sheet=[list(policy.EXPECTED_HEADERS),row]
- evidence={'address':'partners@example.com','how':'mailto','found_on':'https://example.com/partners','page_sha256':'a'*64,'captured_at_utc':NOW.isoformat()}
- discovery={'organizations':{'example.com':{'discovery':{'contact_email':'partners@example.com','contact_tier':'partnerships','contact_evidence':evidence}}}}
+ import hashlib
+ html='<p>Commercial partnerships: <a href="mailto:partners@example.com">partners@example.com</a></p>';sha=hashlib.sha256(html.encode()).hexdigest()
+ evidence={'address':'partners@example.com','how':'mailto','found_on':'https://example.com/partners','page_sha256':sha,'captured_at_utc':NOW.isoformat()}
+ discovery={'organizations':{'example.com':{'discovery':{'contact_email':'partners@example.com','contact_tier':'partnerships','contact_evidence':evidence,'_markup':[{'url':evidence['found_on'],'final_url':evidence['found_on'],'html':html,'sha256':sha}]}}}}
  local={'suppression':{'complete':True,'entries':[]},'conversations':[]}
  return sheet,discovery,local
 
@@ -47,6 +49,25 @@ def test_stopped_contacts_do_not_consume_new_provider_allowance(tmp_path,monkeyp
  assert result['sent']==25
  assert result['new_provider_count']==25
  assert len(client.deliveries)==25
+
+
+@pytest.mark.parametrize('late_change',['expiry','latest_negative'])
+def test_final_verifier_reads_boundary_time_and_latest_decision(tmp_path,monkeypatch,late_change):
+ import glp_sponsor_readiness as ready
+ config,client,rows=offline_campaign(tmp_path,monkeypatch);client.fail=None;rows[:]=rows[:1]
+ config['require_bouncer']=True
+ path=m.ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl'
+ evidence={'email_hash':ready.email_hash(rows[0]['email']),'event':'verify_email','http_status':200,'provider_status':'deliverable','send_eligible':True,'blockers':[],'ts':(SEND_SLOT-dt.timedelta(days=7)+dt.timedelta(seconds=1)).isoformat()}
+ path.write_text(json.dumps(evidence)+'\n')
+ clock=[SEND_SLOT];monkeypatch.setattr(m,'now',lambda:clock[0])
+ def blocking_mail(*a):
+  if late_change=='expiry':clock[0]=SEND_SLOT+dt.timedelta(seconds=2)
+  else:path.write_text(json.dumps(evidence)+'\n'+json.dumps({**evidence,'send_eligible':False,'provider_status':'undeliverable','blockers':['negative'],'ts':SEND_SLOT.isoformat()})+'\n')
+  return True,''
+ monkeypatch.setattr(m,'mail_admit',blocking_mail)
+ result=m.run(config)
+ assert result['sent']==0 and not client.deliveries
+ assert not any(row.get('claimed') for row in m.load(m.STATE/'ledger.json').values()) if (m.STATE/'ledger.json').exists() else True
 
 
 def test_bouncer_cache_unknown_and_latest_negative_fail_closed(tmp_path):
@@ -126,6 +147,7 @@ def test_registry_suppression_hold_and_business_purpose():
  local['suppression']['entries']=[];sheet[1][10]='hold'
  assert not m.recipients(sheet,discovery,local)['recipients']
  sheet[1][10]='approved_active_not_wired';discovery['organizations']['example.com']['discovery']['contact_email']='support@example.com'
+ discovery['organizations']['example.com']['discovery']['contact_evidence']['address']='support@example.com'
  assert not m.recipients(sheet,discovery,local)['recipients']
 
 def test_followup_schedule_stop_and_uncertain_claim():
@@ -178,6 +200,7 @@ def offline_campaign(tmp_path,monkeypatch):
               'contact_evidence':{'found_on':f'https://provider{i:02}.invalid/partners'}} for i in range(27)]
  monkeypatch.setattr(m,'recipients',lambda *a:{'recipients':recipients,'registry_rows':27,'candidate_rows':27,'exclusions':[]})
  monkeypatch.setattr(m,'mail_admit',lambda *a:(True,''))
+ monkeypatch.setattr(m,'fresh_public_contact',lambda r,at:r['contact_evidence'])
  contacts=ModuleType('glp_provider_contact_discovery')
  contacts.discover=lambda name,*a,**k:{'contact_email':recipients[int(name.split()[-1])]['email'],'contact_tier':'partnerships'}
  monkeypatch.setitem(sys.modules,contacts.__name__,contacts)
