@@ -8,8 +8,17 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 785,
+  "tracked_count": 788,
   "files": {
+    "ops/pallas-predecessor-migration.md": {
+      "sha256": "b14781e5d40eaa3d290f8c5f4a4038ade12303cc7512df1553aed51b48976bcc"
+    },
+    "scripts/pallas_predecessor_migration.py": {
+      "sha256": "96f1fe55bf8e19148470f5aced68ed049046c679cbf0ef31b34aa4f3e1b40b2c"
+    },
+    "tests/test_pallas_predecessor_migration.py": {
+      "sha256": "f102cf6597d8e0a255d975e44b83cfb81d43a779f8175a22b9d95026e1ff4f61"
+    },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
         "systems/seo-blog-machine/scripts/materialize_opus_run.py"
@@ -496,7 +505,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3b97c18d463c82d65e87687d381cf11a5b711d745954423d5224eaa4a6c9cc14"
+      "sha256": "65e72db48aa42f83947cb87ddcd2c1009d2e5bca69a4c962ea83aded2796833e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2248,7 +2257,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "87f68ff777ac1a6aaa0fc87937b68b18a6d61a9d7080d820add0f222c1c03001"
+      "sha256": "29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
