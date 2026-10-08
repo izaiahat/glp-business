@@ -1,0 +1,29 @@
+name: host-health-audit
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/host_health_audit.py
+      - tests/test_host_health_audit.py
+      - ops/systemd/kael-audit-host-health.conf
+      - .github/workflows/host-health-audit.yml
+permissions:
+  contents: read
+jobs:
+  bounded-no-effect-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact head and offline unknown-is-not-zero regression
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m venv .venv
+          .venv/bin/python -m pip install pytest
+          .venv/bin/python -m pytest -q tests/test_host_health_audit.py
+          python3 -m py_compile scripts/host_health_audit.py
