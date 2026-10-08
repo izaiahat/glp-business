@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 788,
+  "tracked_count": 790,
   "files": {
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -2186,7 +2186,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "c5e0b7568c455495193331adb980fd6554eb01f71b6c398ceb2b740a1386aece"
+      "sha256": "07469881dba99ab52cd21d327845b78b0b63589e4c886db0133693440a344912"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2859,6 +2859,20 @@
       ],
       "kind": "test",
       "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
+    },
+    "scripts/glp_sponsor_site_payment.py": {
+      "callers": [
+        "site:src/sponsor-pricing.mjs"
+      ],
+      "kind": "script",
+      "sha256": "bc6b9a3567becdcf93365593461d54306c9e3c65f8890d53fb29c6db10489098"
+    },
+    "tests/test_glp_sponsor_site_payment.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "eaacf90adb7d486164a8c37b47ebbceca967fa919d0411c510b127fe4c88ac09"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
