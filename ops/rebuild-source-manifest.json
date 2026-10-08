@@ -8,22 +8,8 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 836,
+  "tracked_count": 846,
   "files": {
-    "tests/test_glp_sponsor_public_custody.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
-    },
-    "tests/test_glp_sponsor_technical_receiving.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
-    },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
       "callers": [
@@ -46,6 +32,79 @@
         "scripts/glp_affiliati_postback_ship.py"
       ],
       "sha256": "0903152a408918cbdae63e520eef945e9648a60e6de171edb2d848e2fb7e2dfa"
+    },
+    "scripts/glp_xentraffic_enumerate.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/affiliate_best_terms_machine.py"
+      ],
+      "sha256": "d233da0718e22c26c462cae63b49e1c3ffd54954b6db2583204925f7f022cb52"
+    },
+    "scripts/marketplace_adapters/xentraffic.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_xentraffic_enumerate.py",
+        "scripts/xentraffic_fresh_catalog.py"
+      ],
+      "sha256": "f749159f8456bd0d772b64aa3f5e1c5062b403232d651de02c129e349af03159"
+    },
+    "scripts/xentraffic_fresh_catalog.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_xentraffic_enumerate.py"
+      ],
+      "sha256": "9b9c8baf42b84b044f0097abb240102214517af79ea9f3b9ffac9da2d3f30ea9"
+    },
+    "scripts/glp_maxbounty_lane.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_application_machine.py",
+        "scripts/affiliate_provider_metadata.py",
+        "scripts/glp_wire_in_ready_queue.py"
+      ],
+      "sha256": "948a0fea100cdcc7ca577c5486911ee3fb5be553fdf6dece02465355014f8879"
+    },
+    "scripts/marketplace_adapters/maxbounty.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_maxbounty_lane.py",
+        "scripts/maxbounty_fresh_catalog.py"
+      ],
+      "sha256": "4dfc285e06ab8086316fc4e5ab05b3dfae8ce011ee5ddf483b5d9e49bf8d45b2"
+    },
+    "scripts/marketplace_adapters/maxbounty_discovery.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/marketplace_adapters/maxbounty.py",
+        "scripts/maxbounty_fresh_catalog.py"
+      ],
+      "sha256": "853e7cb8f16856d570d9f842a29a500d61cf1258387207d2c678406d3b72268e"
+    },
+    "scripts/maxbounty_fresh_catalog.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/marketplace_adapters/maxbounty.py"
+      ],
+      "sha256": "99836aa8cd623526c27413d71286bbef54daf2dd6fcfe4223017a28453798dbf"
+    },
+    "tests/test_glp268_remaining_callers.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "9841e09f7f6a4f2ef32cf7ce6ca156ef80762003a73335306c4e2a9b5e52319d"
+    },
+    "tests/test_glp268_visible_catalogs.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "28c4596c80489f8352d160913cd1c669c9402938a412d7a415df479a30bfc7f4"
+    },
+    "ops/glp268-remaining-callers.md": {
+      "kind": "instruction_or_policy",
+      "callers": [],
+      "sha256": "438b26176ef49f035b57604099e2b10b4f246dea9165118d046c8c35828a0fa1"
     },
     "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
@@ -549,7 +608,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "35948f053274107fdd2b837a8c37a40c1a0b1c2a39a02139721920fe20d27b6e"
+      "sha256": "ec916eef08f4909fffa6987d7563f0fa7fe6869e0183c5547a6e5475364242b2"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -559,7 +618,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "0e63b0d80751bf89be80a5f873f4c02ab2036e4a921b8cc5fd3cdeba29e5d03e"
+      "sha256": "d1afd40c6a328434af170acee64a8e4eebe58c76269627f39450325342297cb5"
     },
     ".hermes.md": {
       "callers": [],
@@ -4932,7 +4991,7 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "script",
-      "sha256": "3fa0238e3c3830b120ca98b9f9c67db708b0c5406110333d4397961679acfe58"
+      "sha256": "2f016889b8dee7c858f700560ecc07e4698ba9f89a4668036784306408306822"
     },
     "ops/glp268-affiliate-access.md": {
       "callers": [
@@ -5635,6 +5694,20 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
+    },
+    "tests/test_glp_sponsor_public_custody.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5678fd4ed4350cba6db0501e16a614bb1b76ede2e374b20bd73f104f0259bc4a"
+    },
+    "tests/test_glp_sponsor_technical_receiving.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "b28a32078214aa63c3885f7cb908d40aebb39a94e4c00e9178ee424be07d8e4d"
     },
     "tests/test_glp336_host_completion.py": {
       "kind": "test",
