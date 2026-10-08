@@ -447,6 +447,7 @@ def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path):
     native = (site / 'src/pricing-evidence-v2.mjs').resolve().as_uri()
     receiver = (site / 'src/price-refresh-evidence.mjs').resolve().as_uri()
     renderer = (site / 'src/typed-price-labels.mjs').resolve().as_uri()
+    surfaces = (site / 'tests/helpers/price-refresh-surfaces.mjs').resolve().as_uri()
     (candidate / old_witness['capture_path']).parent.mkdir(parents=True)
     (candidate / old_witness['capture_path']).write_text(old_raw)
     (scripts / 'validate-provider-pricing-matrix.mjs').write_text(
@@ -454,6 +455,7 @@ def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path):
         f"import {{validatePriceRow}} from {json.dumps(native)};\n"
         f"import {{applyPriceRefreshEvidence}} from {json.dumps(receiver)};\n"
         f"import {{typedPriceText,renderTypedPrice}} from {json.dumps(renderer)};\n"
+        f"import {{provePriceSurfaces}} from {json.dumps(surfaces)};\n"
         "const root=process.cwd();\n"
         "const matrix=JSON.parse(readFileSync(root+'/data/provider-pricing-matrix.json'));\n"
         "const ledger=JSON.parse(readFileSync(root+'/data/price-refresh-ledger.json'));\n"
@@ -462,12 +464,17 @@ def test_stage_candidate_exercises_writer_and_witness_handoff(tmp_path):
         "if(errors.length)throw new Error(JSON.stringify(errors));\n"
         "const result=applyPriceRefreshEvidence(root,{clinic:{medications:[ledger.entries[0].before]}});\n"
         "if(JSON.stringify(result.clinic.medications[0])!==JSON.stringify(row))throw new Error('receiver mismatch');\n"
-        "console.log(JSON.stringify({native_errors:errors,price_text:typedPriceText(row),html:renderTypedPrice(row)}));\n")
+        "const surfaces=provePriceSurfaces(row,root+'/rendered-surfaces');\n"
+        "console.log(JSON.stringify({native_errors:errors,price_text:typedPriceText(row),html:renderTypedPrice(row),surfaces}));\n")
     receipt = p.stage_candidate(run, candidate)
     assert receipt['status'] == 'STAGED_VALIDATED'
     assert receipt['rows'] == 1
     rendered = json.loads(receipt['stdout'])
     assert rendered['native_errors'] == []
+    assert len(rendered['surfaces']['surfaces']) == 10
+    assert rendered['surfaces']['structured_data'] == {
+        'offers': 0, 'products': 0, 'source': 'actual provider-detail renderer'}
+    assert rendered['surfaces']['numeric_projection'] == 'NOT_PROMOTED'
     assert '$21' in rendered['price_text']
     assert 'Standard plan' in rendered['html']
     assert '$12' not in rendered['price_text']

@@ -299,8 +299,8 @@ def test_all_committed_host_cron_source_row_shapes_are_resolved(tmp_path):
     (hermes/'cron/jobs.json').write_text('{"jobs":[]}')
     result = load().audit(root, hermes, crontab_ids=[row['id'] for row in rows])
     assert result['host_cron_jobs']==34 and result['checked']==54
-    assert result['checked'] - result['counts']['unknown']==expected_checks==46
-    assert result['counts']['unknown']==8  # explicit bare interpreter bindings
+    assert result['checked'] - result['counts']['unknown']==expected_checks==47  # GLP80 adds the reviewed existing price payload.
+    assert result['counts']['unknown']==7  # Former bare price payload now has an exact reviewed binding.
     assert all(f['reason']=='invalid_or_absent_pin' for f in result['findings'])
 
 
@@ -390,6 +390,15 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert len(strategy_rows) == 1 and strategy_rows[0]['payloads'] == []
     assert strategy_rows[0]['reviewed_sha256'] == '484d54ce051eba4507742e824d93c2e60e1806d7624fd3caadc3bb29acc5053e'
     strategy_rows[0]['reviewed_sha256'] = strategy_pin
+    # GLP-80: only the existing pricing action's payload registration changes.
+    pricing_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:daf0c212391b0319']
+    assert len(pricing_rows) == 1
+    assert pricing_rows[0]['sources'][1] == {'path': '/home/ubuntu/business/scripts/glp_pricing_refresh.py'}
+    pricing_source = 'scripts/glp_price_freshness.py'
+    pricing_pin = 'c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd'
+    assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
+    pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
+        'source': pricing_source, 'reviewed_sha256': pricing_pin}
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 

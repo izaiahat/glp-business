@@ -23,14 +23,14 @@
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "b7bcf18edab58893df5a302667b3a68ea21757388b1df2d7d40b4eb905fc5814"
+      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
       "callers": [
         "GitHub pull_request exact-head CI"
       ],
-      "sha256": "907e9f85eb18aeb499f5d7b13160af23d3132f4c94357b876d2a8f9020042e4b"
+      "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
     },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -3526,7 +3526,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "9ef37732ef8bdf46944c2dd96a64dafad4c96f05648e43fb572c574610f5a502"
+      "sha256": "855fa1f97b1c975f2ba49c322d4ae45ce3229627acf8cd234ff3696d257599c7"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3547,7 +3547,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "64e82f245361d1a3af73444f41851ec7d5273621a9261f6c4c685af96f5701e2"
+      "sha256": "1bd3213b5ce70b7ea26af8c46b79990843d2d40c100df4493a36f1bb4cd8424b"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4880,7 +4880,7 @@
         "scripts/cron_bridge_action.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "32d9d635a43761cc425f5275b682cc8929f7c4916536bc169358a3023cff2a47"
+      "sha256": "0593f4c6c25c3be7726e8c3b5c5cd77c14c3857b09c25ab66e999dc18da67fb1"
     },
     "tests/test_glp320_host_failure_sensor.py": {
       "sha256": "20949a9880d3c86679b7aa898e0d8122465dc2a28b8609456e53ddcb156f2c72"
