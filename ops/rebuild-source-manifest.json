@@ -8,43 +8,23 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 822,
+  "tracked_count": 828,
   "files": {
-    "tests/test_glp80_registry_adoption.py": {
+    "tests/test_glp_sponsor_paypal_attestation.py": {
       "kind": "test",
       "callers": [
-        ".github/workflows/business-source-ci.yml"
+        "scripts/run_tests.sh"
       ],
-      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
+      "sha256": "6427f18a356d698f77be51d99e8a7902f1247f1a9ef689fe99c665e763819f6b"
     },
-    "tests/test_glp80_registered_price_refresh.py": {
-      "kind": "test",
+    "ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md": {
+      "kind": "data",
       "callers": [
-        ".github/workflows/glp80-price-freshness.yml"
+        "scripts/glp_sponsor_paypal.py",
+        "scripts/glp_sponsor_packet_successor.py"
       ],
-      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
-    },
-    "scripts/glp_price_freshness.py": {
-      "kind": "script",
-      "callers": [
-        "registered pricing_refresh cron action",
-        "manual:GLP-80"
-      ],
-      "sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
-    },
-    "tests/test_glp80_price_freshness.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/glp80-price-freshness.yml"
-      ],
-      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
-    },
-    ".github/workflows/glp80-price-freshness.yml": {
-      "kind": "ci",
-      "callers": [
-        "GitHub pull_request exact-head CI"
-      ],
-      "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+      "purpose": "Exact nonsecret direct operator record required by the independently reviewed ownership receiver; not a provider BUSINESS/email fact or financial approval.",
+      "sha256": "9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2"
     },
     "systems/seo-blog-machine/scripts/validate_opus_article_packet.py": {
       "callers": [
@@ -2222,7 +2202,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "dfe22c6ab678c3863432e3ed11c8306d72535b6b4c1668179f1594d04c70c0b5"
+      "sha256": "425a1a4b6259adc84b2f99672119dff1e5ae5f7b31a6ee4f05125e104481d217"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2895,6 +2875,41 @@
       ],
       "kind": "test",
       "sha256": "6c4b580d7254fffa33cef2754b14bc54bd3973b46d7cff3b26ff4c494f8d89c8"
+    },
+    "scripts/glp_sponsor_site_payment.py": {
+      "callers": [
+        "site:src/sponsor-pricing.mjs"
+      ],
+      "kind": "script",
+      "sha256": "e93963ddf6d7e263ba66aeb7f287319a214b590054b61403bf8cb2786a11d593"
+    },
+    "tests/test_glp_sponsor_site_payment.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "94185c58f34787ca2e29add0435c4b9fbbf214390c9a6ec26fbf9706ca1d2e9d"
+    },
+    "scripts/glp_sponsor_packet_successor.py": {
+      "callers": [
+        "tests/test_glp_sponsor_packet_successor.py"
+      ],
+      "kind": "script",
+      "sha256": "a0ea75bdd9ba0d7a9ddea220ab6f7f301b943e78087f0e006ab59b3504fec9f9"
+    },
+    "tests/test_glp_sponsor_packet_successor.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "bcf0298cac20b24d28d050b2201e917daf3efdf575efa6142bbc60d70ddad277"
+    },
+    "tests/test_glp328_cold_wal.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
     },
     "tests/test_glp328_readonly_evidence.py": {
       "callers": [
@@ -4454,6 +4469,27 @@
       ],
       "sha256": "ecdb5fff08f434a694ced9a81e2b2975cebb47e2b787544410d2529751bffb58"
     },
+    "scripts/glp_sponsor_alexandria.py": {
+      "kind": "script",
+      "callers": [
+        "authorized sponsor preapproval business-contact research"
+      ],
+      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
+    },
+    "tests/test_glp_sponsor_alexandria.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
+    },
+    "tests/test_glp_sponsor_autonomous.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
+    },
     "scripts/glp_sponsor_campaign.py": {
       "kind": "script",
       "callers": [
@@ -4957,7 +4993,7 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "4aada3d496e3dd1845453109ce2bd904ab7ec5bf1b930f322dbfc9a82657843d"
+      "sha256": "99751607fcb43551b7f58ca7d5b9236291786aaf0e8a503abce98ce2cd71d3f7"
     },
     "tests/test_glp_sponsor_paypal.py": {
       "kind": "test",
@@ -5225,34 +5261,6 @@
       "callers": [],
       "kind": "test",
       "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
-    },
-    "tests/test_glp328_cold_wal.py": {
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "kind": "test",
-      "sha256": "c813298be0638996430f2300b1cdc4208fa0deca1003b1b800571ebc5b7a25d6"
-    },
-    "scripts/glp_sponsor_alexandria.py": {
-      "kind": "script",
-      "callers": [
-        "authorized sponsor preapproval business-contact research"
-      ],
-      "sha256": "0b4376a54ed956b27db61ef4f824075845210cdeefa76d80929014b796da3a8d"
-    },
-    "tests/test_glp_sponsor_alexandria.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "fa92c5385fbf9e7658ceb61d77300acafb82aa264b2ea62b2cb88dcade597ad3"
-    },
-    "tests/test_glp_sponsor_autonomous.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "de141abeb623262fe3658c66b1a030943b5fd6b7afe491c03281a70293912416"
     },
     "ops/glp/weekly_strategy_sync.py": {
       "callers": [
@@ -5547,6 +5555,42 @@
         "affiliate evidence producers"
       ],
       "sha256": "e3013fcf9fd86417ff465310aa10c2f0fdb689af4b585bd48fec763790aced85"
+    },
+    "tests/test_glp80_registered_price_refresh.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp80-price-freshness.yml"
+      ],
+      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
+    },
+    "scripts/glp_price_freshness.py": {
+      "kind": "script",
+      "callers": [
+        "registered pricing_refresh cron action",
+        "manual:GLP-80"
+      ],
+      "sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
+    },
+    "tests/test_glp80_price_freshness.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/glp80-price-freshness.yml"
+      ],
+      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
+    },
+    ".github/workflows/glp80-price-freshness.yml": {
+      "kind": "ci",
+      "callers": [
+        "GitHub pull_request exact-head CI"
+      ],
+      "sha256": "b2b3a2f89643332f22e6394e08f820978fa89200c3b72f53e8d5318fd3f80406"
+    },
+    "tests/test_glp80_registry_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
     }
   }
 }

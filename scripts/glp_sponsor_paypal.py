@@ -18,6 +18,8 @@ from pathlib import Path
 
 SECRET = Path('/home/ubuntu/.hermes/secrets/paypal-glp/app.json')
 BINDING = SECRET.parent/'account-binding.json'
+OPERATOR_ATTESTATION = Path(__file__).resolve().parents[1]/'ops/linear/approvals/OPERATOR-DECISION-20261008-paypal-ownership-attestation.md'
+OPERATOR_ATTESTATION_SHA256 = '9b5cd76a5e81c5d7e5e1328888f6501ebafb1fb4bbb9621da9ea855dae5981e2'
 MERCHANT_EMAIL = 'ops@glpclinicscout.com'
 BASE = 'https://api-m.paypal.com'
 INVOICE_ID = r'INV2-[A-Z0-9-]+'
@@ -87,24 +89,90 @@ class PayPalClient:
             {'send_to_invoicer':False,'send_to_recipient':True,'additional_recipients':[]})
 
     def merchant(self, at):
-        # Client-credentials userinfo currently returns only sub/user_id, NOT the
-        # business email. A reviewed authenticated account/app binding is required.
+        # Ownership may be provider-authenticated OR the exact direct operator
+        # attestation. Neither path establishes settlement or invoice authority.
         if BINDING.is_symlink() or BINDING.stat().st_uid!=os.getuid() or BINDING.stat().st_mode & 0o077:
             raise RuntimeError('paypal_account_binding_permissions')
         binding=json.loads(BINDING.read_text())
-        if (binding.get('actor')!='Izaiah Tilton' or binding.get('business_email')!=MERCHANT_EMAIL
-            or binding.get('account_type')!='BUSINESS' or not binding.get('merchant_id')
-            or binding.get('client_id_sha256')!=hashlib.sha256(self.app['client_id'].encode()).hexdigest()
-            or binding.get('source')!='authenticated_paypal_account_and_app'
-            or not binding.get('approval_message_id') or not binding.get('evidence_path')
-            or hashlib.sha256(Path(binding['evidence_path']).read_bytes()).hexdigest()!=binding.get('evidence_sha256')):
-            raise RuntimeError('paypal_account_binding_missing')
-        query=urllib.parse.urlencode({'start_date':iso(at-dt.timedelta(days=1)), 'end_date':iso(at),
-                                     'page_size':1,'fields':'transaction_info'})
-        report=self.request('GET','/v1/reporting/transactions?'+query)
-        if report.get('account_number')!=binding['merchant_id']:
+        common=(binding.get('actor')=='Izaiah Tilton' and bool(binding.get('merchant_id'))
+                and binding.get('client_id_sha256')==hashlib.sha256(self.app['client_id'].encode()).hexdigest())
+        if binding.get('source')=='operator_attested_paypal_account_and_app':
+            operator_attestation_authority()
+            valid=(binding.get('operator_attestation_path')==str(OPERATOR_ATTESTATION)
+                and binding.get('operator_attestation_sha256')==OPERATOR_ATTESTATION_SHA256
+                and binding.get('authority_kind')=='direct_operator_session_attestation'
+                and binding.get('venture')=='GLP Clinic Scout'
+                and binding.get('observed_account_source')=='authenticated_paypal_reporting_account_number'
+                and not binding.get('business_email') and not binding.get('account_type')
+                and not binding.get('approval_message_id'))
+        else:
+            valid=(binding.get('business_email')==MERCHANT_EMAIL and binding.get('account_type')=='BUSINESS'
+                and binding.get('source')=='authenticated_paypal_account_and_app'
+                and bool(binding.get('approval_message_id')) and bool(binding.get('evidence_path'))
+                and hashlib.sha256(Path(binding['evidence_path']).read_bytes()).hexdigest()==binding.get('evidence_sha256'))
+        if not common or not valid:raise RuntimeError('paypal_account_binding_missing')
+        if reporting_merchant(self,at)!=binding['merchant_id']:
             raise RuntimeError('paypal_merchant_mismatch')
         return binding['merchant_id']
+
+
+def operator_attestation_authority():
+    if (OPERATOR_ATTESTATION.is_symlink() or OPERATOR_ATTESTATION.stat().st_uid!=os.getuid()
+        or hashlib.sha256(OPERATOR_ATTESTATION.read_bytes()).hexdigest()!=OPERATOR_ATTESTATION_SHA256):
+        raise RuntimeError('paypal_operator_attestation_unbound')
+    return OPERATOR_ATTESTATION_SHA256
+
+
+def reporting_merchant(client,at):
+    query=urllib.parse.urlencode({'start_date':iso(at-dt.timedelta(days=1)), 'end_date':iso(at),
+                                 'page_size':1,'fields':'transaction_info'})
+    report=client.request('GET','/v1/reporting/transactions?'+query)
+    merchant=report.get('account_number')
+    if not isinstance(merchant,str) or not re.fullmatch(r'[A-Za-z0-9-]{1,128}',merchant):
+        raise RuntimeError('paypal_current_account_identity_unknown')
+    return merchant
+
+
+def receive_operator_attestation(client,at):
+    """Receive the pinned genuine operator decision, with read-only API identity.
+
+    Writes only the existing private binding under the existing campaign lock;
+    never an approval, paid verdict, invoice, account or credential. An existing
+    binding must verify and is not overwritten. No caller-supplied authority.
+    """
+    import tempfile
+    import glp_sponsor_campaign as campaign
+    import fcntl
+    operator_attestation_authority()
+    campaign.STATE.mkdir(parents=True,exist_ok=True)
+    with (campaign.STATE/'run.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        if BINDING.exists() or BINDING.is_symlink():
+            client.merchant(at)
+            return {'status':'verified_existing','ownership_source':json.loads(BINDING.read_text())['source'],
+                    'financial_write_attempts':0,'binding_writes':0}
+        if (BINDING.parent.is_symlink() or BINDING.parent.stat().st_uid!=os.getuid()
+            or BINDING.parent.stat().st_mode & 0o077):
+            raise RuntimeError('paypal_account_binding_permissions')
+        merchant=reporting_merchant(client,at)
+        operator_attestation_authority() # Revalidate after the external read.
+        binding={'actor':'Izaiah Tilton','venture':'GLP Clinic Scout',
+            'source':'operator_attested_paypal_account_and_app',
+            'authority_kind':'direct_operator_session_attestation',
+            'operator_attestation_path':str(OPERATOR_ATTESTATION),
+            'operator_attestation_sha256':OPERATOR_ATTESTATION_SHA256,
+            'merchant_id':merchant,'observed_account_source':'authenticated_paypal_reporting_account_number',
+            'client_id_sha256':hashlib.sha256(client.app['client_id'].encode()).hexdigest(),
+            'observed_at':iso(at),'business_email':None,'account_type':None}
+        fd,temp=tempfile.mkstemp(prefix='.account-binding-',dir=BINDING.parent)
+        try:
+            with os.fdopen(fd,'w') as stream:
+                json.dump(binding,stream,sort_keys=True);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+            # Hard-link exclusive creation: never replace a concurrent binding.
+            os.link(temp,BINDING)
+        finally:Path(temp).unlink(missing_ok=True)
+        return {'status':'received','ownership_source':binding['source'],
+                'financial_write_attempts':0,'binding_writes':1}
 
 
 def iso(at):
@@ -337,3 +405,16 @@ def poll_order(client, order, at, state):
     except (RuntimeError,OSError,ValueError,KeyError,TypeError):
         # Do not surface arbitrary exception strings (may contain response/PII).
         return unknown('paypal_account_invoice_or_transaction_unconfirmed')
+
+
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser(description='Receive the existing direct operator ownership attestation; no financial operations.')
+    parser.add_argument('--receive-operator-attestation',action='store_true',required=True)
+    parser.parse_args()
+    try:
+        result=receive_operator_attestation(PayPalClient(),dt.datetime.now(dt.timezone.utc))
+        print(json.dumps(result,sort_keys=True))
+    except (RuntimeError,OSError,ValueError,KeyError,TypeError):
+        print(json.dumps({'status':'refused','reason':'paypal_attestation_or_current_identity_unconfirmed','financial_write_attempts':0}))
+        raise SystemExit(2)
