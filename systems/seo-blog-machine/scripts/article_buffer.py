@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -175,13 +176,21 @@ def validate_topic_provenance(
     ):
         fail("buffer_topic_provenance_reason_invalid")
     gap_source = provenance.get("gap_source")
+    strategy_gap = isinstance(gap_source, dict) and (
+        gap_source.get("type") == "strategy_competitor_gap"
+        and gap_source.get("opportunity_type") == "competitor_gap_new_topic"
+        and gap_source.get("opportunity_class") is None
+        and gap_source.get("source_opportunity_id") is None
+    )
     if (
         not isinstance(gap_source, dict)
-        or gap_source.get("type") != "keyword_gap"
-        or gap_source.get("opportunity_type") != "weekly_keyword_gap"
-        or gap_source.get("opportunity_class") not in {"B", "C"}
-        or not isinstance(gap_source.get("source_opportunity_id"), str)
-        or not gap_source["source_opportunity_id"].strip()
+        or (not strategy_gap and (
+            gap_source.get("type") != "keyword_gap"
+            or gap_source.get("opportunity_type") != "weekly_keyword_gap"
+            or gap_source.get("opportunity_class") not in {"B", "C"}
+            or not isinstance(gap_source.get("source_opportunity_id"), str)
+            or not gap_source["source_opportunity_id"].strip()
+        ))
         or gap_source.get("operator_directive_id") != selected.get("operator_directive_id")
     ):
         fail("buffer_topic_provenance_gap_source_invalid")
@@ -199,23 +208,61 @@ def validate_topic_provenance(
     ):
         fail("buffer_topic_provenance_evidence_invalid")
     artifacts = provenance.get("source_artifacts")
-    overlay = (artifacts or {}).get("keyword_gap_strategy_overlay")
-    opportunity = (artifacts or {}).get("keyword_gap_opportunity_artifact")
-    receipt_overlay = (selection_receipt.get("inputs") or {}).get(
-        "keyword_gap_strategy_overlay"
-    )
-    if (
-        not isinstance(artifacts, dict)
-        or not isinstance(overlay, dict)
-        or overlay != receipt_overlay
-        or not Path(str(overlay.get("path") or "")).is_absolute()
-        or len(str(overlay.get("sha256") or "")) != 64
-        or not isinstance(opportunity, dict)
-        or not Path(str(opportunity.get("path") or "")).is_absolute()
-        or len(str(opportunity.get("sha256") or "")) != 64
-        or len(str(opportunity.get("artifact_sha256") or "")) != 64
-    ):
-        fail("buffer_topic_provenance_source_artifacts_invalid")
+    if strategy_gap:
+        if not isinstance(artifacts, dict):
+            fail("buffer_topic_provenance_source_artifacts_invalid")
+        # A strategy rotation is not a weekly opportunity. Preserve its actual
+        # authority, rather than inventing a weekly class or opportunity ID.
+        sources = {}
+        for key in ("strategy_map", "strategy_queue"):
+            spec = (artifacts or {}).get(key)
+            if (not isinstance(spec, dict)
+                    or spec != (selection_receipt.get("inputs") or {}).get(key)
+                    or not Path(str(spec.get("path") or "")).is_absolute()):
+                fail("buffer_topic_provenance_strategy_input_invalid")
+            try:
+                path = _verify_spec(spec, "strategy")
+                sources[key] = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(sources[key], dict):
+                    fail("buffer_topic_provenance_strategy_document_invalid")
+            except (RuntimeError, OSError, UnicodeError, json.JSONDecodeError):
+                fail("buffer_topic_provenance_strategy_pin_invalid")
+        rows = [row for row in (sources["strategy_queue"].get("queue") or [])
+                if isinstance(row, dict)
+                and row.get("target_query") == selected.get("target_query")
+                and row.get("target_route") == selected.get("target_route")]
+        if len(rows) != 1 or any(rows[0].get(key) != selected.get(key)
+                                 for key in ("cluster_id", "queue_position", "depth_stage")):
+            fail("buffer_topic_provenance_strategy_queue_invalid")
+        clusters = [row.get("id") for row in (sources["strategy_map"].get("clusters") or [])
+                    if isinstance(row, dict)]
+        if not selected.get("cluster_id") or clusters.count(selected["cluster_id"]) != 1:
+            fail("buffer_topic_provenance_strategy_cluster_invalid")
+        volume = keyword_evidence.get("merged_search_volume")
+        if (isinstance(volume, bool) or not isinstance(volume, (int, float))
+                or not math.isfinite(volume) or volume <= 0):
+            fail("buffer_topic_provenance_strategy_demand_invalid")
+        if (not isinstance(selected.get("predecessor_proof"), dict)
+                or selected["predecessor_proof"].get("satisfied") is not True):
+            fail("buffer_topic_provenance_strategy_predecessor_invalid")
+    else:
+        overlay = (artifacts or {}).get("keyword_gap_strategy_overlay")
+        opportunity = (artifacts or {}).get("keyword_gap_opportunity_artifact")
+        receipt_overlay = (selection_receipt.get("inputs") or {}).get(
+            "keyword_gap_strategy_overlay"
+        )
+        if (
+            not isinstance(artifacts, dict)
+            or not isinstance(overlay, dict)
+            or overlay != receipt_overlay
+            or not Path(str(overlay.get("path") or "")).is_absolute()
+            or len(str(overlay.get("sha256") or "")) != 64
+            or not isinstance(opportunity, dict)
+            or not Path(str(opportunity.get("path") or "")).is_absolute()
+            or len(str(opportunity.get("sha256") or "")) != 64
+            or len(str(opportunity.get("artifact_sha256") or "")) != 64
+        ):
+            fail("buffer_topic_provenance_source_artifacts_invalid")
     try:
         authority = json.loads(topic_authority_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):

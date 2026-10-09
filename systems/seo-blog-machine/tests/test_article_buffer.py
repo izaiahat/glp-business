@@ -254,6 +254,68 @@ def build_candidate(
     return packet, receipt_path, control
 
 
+def strategy_provenance_fixture(tmp_path: Path):
+    packet, _, _ = build_candidate(tmp_path, "strategy savings", "/guides/savings/", "strategy")
+    receipt_path = Path(json.loads((packet / "00-authority.json").read_text())["selection_receipt"]["path"])
+    receipt = json.loads(receipt_path.read_text())
+    selected = receipt["selected"][0]
+    authority_path = Path(receipt["inputs"]["topic_queue"]["path"])
+    authority = json.loads(authority_path.read_text())
+    directive = authority["queue"][0]["competitor_gap"]
+    directive.update(opportunity_type="competitor_gap_new_topic", opportunity_class=None,
+                     source_opportunity_id=None)
+    authority["queue"][0]["keyword_evidence"] = {"merged_search_volume": 100, "provider_count": 2}
+    authority_path.write_text(json.dumps(authority))
+    receipt["inputs"]["topic_queue"]["sha256"] = sha(authority_path)
+    selected.update(cluster_id="savings", queue_position=3, depth_stage="pillar", opportunity_class=None)
+    provenance = selected["topic_provenance"]
+    provenance["keyword_evidence"] = dict(authority["queue"][0]["keyword_evidence"])
+    provenance["gap_source"].update(type="strategy_competitor_gap",
+                                  opportunity_type="competitor_gap_new_topic",
+                                  opportunity_class=None, source_opportunity_id=None)
+    strategy_map = tmp_path / "strategy-map.json"
+    strategy_map.write_text(json.dumps({"clusters": [{"id": "savings"}]}))
+    strategy_queue = tmp_path / "strategy-queue.json"
+    strategy_queue.write_text(json.dumps({"queue": [{
+        "target_query": selected["target_query"], "target_route": selected["target_route"],
+        "cluster_id": "savings", "queue_position": 3, "depth_stage": "pillar",
+        "requires_pillar_predecessor": False}]}))
+    provenance["source_artifacts"] = {
+        "strategy_map": {"path": str(strategy_map), "sha256": sha(strategy_map)},
+        "strategy_queue": {"path": str(strategy_queue), "sha256": sha(strategy_queue)},
+    }
+    receipt["inputs"].update(provenance["source_artifacts"])
+    return receipt, selected, authority_path
+
+
+def test_strategy_competitor_provenance_uses_real_strategy_authority(tmp_path):
+    receipt, selected, authority_path = strategy_provenance_fixture(tmp_path)
+    provenance = buffer.validate_topic_provenance(receipt, selected, authority_path)
+    assert provenance["gap_source"]["opportunity_type"] == "competitor_gap_new_topic"
+    assert provenance["gap_source"]["source_opportunity_id"] is None
+
+
+@pytest.mark.parametrize("tamper", ["queue_hash", "input_binding", "route", "cluster", "evidence", "demand"])
+def test_strategy_competitor_provenance_refuses_unbound_authority(tmp_path, tamper):
+    receipt, selected, authority_path = strategy_provenance_fixture(tmp_path)
+    spec = selected["topic_provenance"]["source_artifacts"]["strategy_queue"]
+    if tamper == "queue_hash":
+        Path(spec["path"]).write_text("{}")
+    elif tamper == "input_binding":
+        receipt["inputs"]["strategy_queue"] = {**spec, "sha256": "0" * 64}
+    elif tamper in {"route", "cluster"}:
+        data = json.loads(Path(spec["path"]).read_text())
+        data["queue"][0]["target_route" if tamper == "route" else "cluster_id"] = "other"
+        Path(spec["path"]).write_text(json.dumps(data))
+        spec["sha256"] = sha(Path(spec["path"]))
+    elif tamper == "evidence":
+        selected["topic_provenance"]["evidence"][0]["url"] = "https://wrong.example/"
+    elif tamper == "demand":
+        selected["topic_provenance"]["keyword_evidence"]["merged_search_volume"] = 0
+    with pytest.raises(RuntimeError, match="buffer_topic_provenance_"):
+        buffer.validate_topic_provenance(receipt, selected, authority_path)
+
+
 def admit_candidate(
     root: Path,
     packet: Path,

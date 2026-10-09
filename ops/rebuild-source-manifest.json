@@ -8,16 +8,21 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 902,
+  "tracked_count": 905,
   "files": {
     "scripts/article_health_acceptance.py": {
       "kind": "script",
-      "callers": ["scripts/linear_close.py", "scripts/linear_orchestrator.py"],
+      "callers": [
+        "scripts/linear_close.py",
+        "scripts/linear_orchestrator.py"
+      ],
       "sha256": "f718a0d58435f10037148e6bd3d56cbfc44912ff97138a8742acfa1ba34f52cd"
     },
     "tests/test_article_health_acceptance.py": {
       "kind": "test",
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "sha256": "859c52409a671307692e8a1ca245ef75383faf378da46621cb2320dba7747d83"
     },
     "scripts/article_source_carrier.py": {
@@ -597,7 +602,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9ff58c10445f8189ee2b3ecff1f47473645ce1db79d1d9e4cc4087d7dbb9042c"
+      "sha256": "71d8fa9c5c1dea5d90230f733e8430dc4705657f498f83b40110879a09420f9c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2046,7 +2051,7 @@
     "scripts/glp_seo_updater_run.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "53509bd13ee8c84258bd0ddb8680831640556b93aedd9316480feb8da53904a1"
+      "sha256": "6c107417d827a5c14b89b0766d87f9ddbd2a3c7b6efb088c5091128093c80f66"
     },
     "scripts/glp_served_test_contract.py": {
       "callers": [
@@ -2185,7 +2190,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "56a44896364b718791ad9056f11428f8eb2122c9cc09eb1d39307afe4b8e37bd"
+      "sha256": "878187f0b290cdedd110b8a8277da9483330d9ac9659bb4da7af8c4f105a2bb4"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -2412,7 +2417,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "bbe084a359543812b471ae4ad3543f94d4bb286878de3d5f87ee96d5ba6bc2e3"
+      "sha256": "3ef3b38cdbda989360b00417b3ea4218969e77954ef049e51242744b7395331c"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -2482,7 +2487,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144"
+      "sha256": "228c3347d0cdd32a11efe438aadab6c2bfe74bd881f68fc081407e5fa1fc6d91"
     },
     "systems/seo-blog-machine/scripts/machine_config.py": {
       "callers": [
@@ -2531,7 +2536,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "test",
-      "sha256": "abe92f23173f1c117dff3b8967bc1ad2dc967a1a22722e248689b08207067b33"
+      "sha256": "ea1617647976657f9ca05a97769c962439e6c4d70bcb2578dac0f6fcc28b0c11"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
@@ -4150,7 +4155,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "562c6cbd5241c870afe1ef7fe3579a8a1ddc7f17da8e648ed060db3c1be64026"
+      "sha256": "602cead8781db2b2a459d8fad7258d6564e5a741d851664203a53e9f854b6092"
     },
     "systems/seo-blog-machine/tests/test_article_successor.py": {
       "callers": [
@@ -4164,7 +4169,7 @@
         "GLP-7 packet repair rollback and no-replay regression"
       ],
       "kind": "test",
-      "sha256": "af2c0619e033cc8500623b66646890bb4afe91f162ab9a2f25448058a690937e"
+      "sha256": "3951b5ce124548b74dcb409d5e438b28c8d038ac05a70f17360ac2c8dae9c781"
     },
     "tests/test_awin_paused_registration_release.py": {
       "callers": [
@@ -4488,7 +4493,7 @@
       "callers": [
         "registered topic_supply_mint producer"
       ],
-      "sha256": "0ad7ebe29e0cdf9de773a7d1c6f0b8f6dbc0e88cbb35155249916335f20eeb86"
+      "sha256": "026798f1fd5af76bf339e93e0a3524b734e2b41ce4b00994b46bc7fe07609227"
     },
     "tests/test_glp75_topic_supply_inputs.py": {
       "kind": "test",
@@ -5807,12 +5812,12 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "d9d5776c79790f370cddd80d495ac2015f55a1cdfce79a2386bf0809e2fe3d8a"
+      "sha256": "f3233be9ea1c6cc914f96841e2a914f00d64d12ddc2b4ee4c1c6ba3c92f20e9f"
     },
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "6e925a87c3bd2d4a2456ae2a27179edebeab4c7f27df10f215bcd5bb6c38f2fd"
+      "sha256": "bb6cd9bcae1bcf1df68c31e2742080300eda2efe46895d4ed4c87f326de1cf17"
     },
     "ops/n8n-workflow-registry.json": {
       "callers": [
@@ -6090,6 +6095,25 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "d406cba2a314f586de11b61d3fe48f2ff1387fd37dacb41893a516f3907ae39d"
+    },
+    "tests/test_seo_updater_child_diagnostic.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/seo-updater-diagnostics.yml"
+      ],
+      "sha256": "863b172a8f905e733a884eded0bcf880c1057600eadfeb04ea96fa374a7e543e"
+    },
+    ".github/workflows/seo-updater-diagnostics.yml": {
+      "kind": "ci",
+      "callers": [],
+      "sha256": "cbb8dbc3c6eebbe3ca7233b5517603829a7a0d750889e7dab54a26197ab4856b"
+    },
+    "tests/test_weekly_strategy_updater_adoption.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d47c57d59e9b3dea0574e5895a4aab51c530f47d770f7fa6449b9a435c312026"
     }
   }
 }

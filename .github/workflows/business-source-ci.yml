@@ -61,6 +61,12 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: S4 weekly strategy updater adoption (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
       - name: Host disk automatic pruner classes and registry clone retention (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

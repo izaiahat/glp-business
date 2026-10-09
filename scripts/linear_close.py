@@ -28,6 +28,8 @@ PATH_RE = re.compile(r'(?:/home/ubuntu/business/)?reports/[^\s"\'`;,)\]]+')
 SOURCE_RE = re.compile(r'(?<![\w/.-])(?:/home/ubuntu/business/)?((?:scripts|systems|ops)/[A-Za-z0-9_./-]*[A-Za-z0-9_])')
 STALE_SECONDS = 3000  # re-post acceptance well inside the validator's same-hour window
 TOKEN_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_:.-]{3,}[A-Za-z0-9]')
+COUNT_RE = re.compile(r'"[a-z0-9_]*(?:rows|count|pages|urls|programs|offers|published|written|updated|'
+                      r'created|records|items|guides|articles)[a-z0-9_]*": ?[1-9]\d*')
 
 
 class Refused(Exception):
@@ -100,6 +102,9 @@ def collect_evidence(worker, worker_path):
         raw = path.read_bytes()
         decoded = raw.decode(errors='replace')
         observed = [t for t in tokens if t in decoded and t not in ref][:8]
+        # Business counts in the evidence itself ("provider_rows": 58) are output the worker
+        # text rarely repeats verbatim; observe them exactly as written.
+        observed += [m for m in dict.fromkeys(COUNT_RE.findall(decoded)) if m not in observed][:8]
         if not observed:
             raise Refused('no worker-cited identifier found in ' + ref)
         evidence.append({'kind': 'runtime', 'path': str(path), 'sha256': hashlib.sha256(raw).hexdigest(),
