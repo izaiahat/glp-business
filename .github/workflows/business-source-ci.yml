@@ -20,6 +20,14 @@ jobs:
           python3 -m unittest discover -s tests -p test_glp73_autonomous_articles.py -v
           python3 -m unittest discover -s tests -p test_glp73_article_research.py -v
           python3 -m unittest discover -s tests -p test_glp73_cogny_consumption.py -v
+      - name: Q9 copy admission and report exclusions (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          printf 'Q9_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
+          python3 -B -m unittest discover -s tests -p test_site_tree_materializer_q9.py -v
       - name: Verify exact head and package-only regressions (stdlib, no credentials)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -60,7 +68,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py
       - name: Sponsor persistent continuation (offline fixtures, exact head; no activation)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

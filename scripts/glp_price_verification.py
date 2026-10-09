@@ -241,7 +241,7 @@ def firecrawl_fetch(url: str, api_key: str, proxy: str = 'basic') -> dict[str, A
         FIRECRAWL_URL,
         caller='glp_price_verification',
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
-        json={"url": url, "formats": ["markdown"], "onlyMainContent": False, "waitFor": 7000, "proxy": proxy},
+        json={"url": url, "formats": ["markdown"], "onlyMainContent": False, "proxy": proxy},
         timeout=180,
     )
     try:
