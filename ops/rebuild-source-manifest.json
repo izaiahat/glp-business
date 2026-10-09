@@ -8,8 +8,23 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 926,
+  "tracked_count": 928,
   "files": {
+    "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
+      "kind": "script",
+      "callers": [
+        "hermes:f0c6a95a371c"
+      ],
+      "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
+      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
+    },
+    "tests/test_reconciliation_b2_worker_pin.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
+    },
     "scripts/glp_affiliate_daily_decisions_report.py": {
       "kind": "registered_producer",
       "callers": [
