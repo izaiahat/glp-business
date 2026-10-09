@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 894,
+  "tracked_count": 895,
   "files": {
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "kind": "script",
@@ -572,7 +572,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "64d3a3205db700875ea49264143f9c041010d4c822d9ad7d2ad16632ac9d5c83"
+      "sha256": "b2896fcca11c855c64d0cf292cb7c0a2f382f83562fcfd657fbdf41cc2a83cb5"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1677,7 +1677,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "f127d1f59febe62815078487bae0da3208ee2db7cd09ffc8824d0017bb9cd187"
+      "sha256": "837cfe587856c281d0f87eb5774c5052d998bd5222aadd152e5d3ddbcf778b2c"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -2436,7 +2436,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "cd585000a53ef211f49d1eaed811f394b046983f2df7c899c5ba3f97893d0c43"
+      "sha256": "71c94f7f504465560680cd42c14a547becc06de027564fcb5a50bf1cdeffeb90"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -2534,7 +2534,7 @@
         "GLP-7 publication-date binding regression"
       ],
       "kind": "test",
-      "sha256": "28dc7d268a8e5d0b17ee5e700cf7402c8f2e3fa66961e701021af7a0d5f25eb1"
+      "sha256": "6d4e8e9e81aa96efa746b8b8bad63099b5934adbe7a9ba867ec0b43132c58ded"
     },
     "systems/seo-blog-machine/tests/test_text_only_image_fallback.py": {
       "callers": [
@@ -2794,6 +2794,13 @@
       ],
       "kind": "test",
       "sha256": "7db417e648734fa69134ef74d8b5ba20e2ede8018c2014348e3d52289112a7f1"
+    },
+    "tests/test_article_remint_no_effect.py": {
+      "callers": [
+        "cron_bridge_action"
+      ],
+      "kind": "test",
+      "sha256": "203f29c03fb52a1bf450e08bf20fb84f48ebcb01014868fe3ce3e830902a6574"
     },
     "tests/test_cron_bridge_action.py": {
       "callers": [
@@ -3622,7 +3629,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "f7f6cfd857f177d32701e9e6a7d455992bdeab88a2b3bf695e8275b9b7db8c08"
+      "sha256": "5362aa1780f480b9a67d2f9b71309e7f8838acf068b991255f04aad3813b19a9"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3643,7 +3650,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "296014eb7dc6e25d1d0ac5d0f67dd5a6ea02ef02f8c31071bede8777b22aeff1"
+      "sha256": "5137656c092aa0b967f7439717dc1b44f01bab50e9e4e6f655be8bb649877139"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
