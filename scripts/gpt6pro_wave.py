@@ -37,7 +37,7 @@ def has_capacity(account, envelope):
     importlib.reload(relay)
     rows = relay.active_registry()
     return (len(rows) < min(6, envelope['max_concurrent_chats_per_ip']) and
-            sum(row['account'] == account for row in rows) < min(3, envelope['max_concurrent_chats_per_account']))
+            sum(row['account'] == account for row in rows) < min(2, envelope['max_concurrent_chats_per_account']))
 
 
 def main():
