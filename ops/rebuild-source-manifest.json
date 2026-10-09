@@ -5101,7 +5101,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "208a46012868b88b46cc4afcc80b01da3f530ad0c375363d3daf30d0f157ada1"
+      "sha256": "51eb6c80d7b534bd0e922c079a1a7b13198ec6c4de72925877f081974e0f6cf0"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5421,7 +5421,7 @@
         "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
         "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
       ],
-      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+      "sha256": "aec30e8025a0693c26c19818e13beb16a75dda1bbfb7d7cafea189bc78517edb"
     },
     "tests/test_glp73_autonomous_articles.py": {
       "kind": "test",
@@ -5435,7 +5435,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+      "sha256": "7ad3c00c0dbc8346f914e6fc74580104a1fd2353319516d012f034fa905119d6"
     },
     "tests/test_bounded_pruner_discovery_resume.py": {
       "kind": "test",
