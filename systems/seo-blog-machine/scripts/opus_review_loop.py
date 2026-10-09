@@ -410,6 +410,17 @@ and Resend owner records are not applicable; do not invent retention/deletion fa
 For every actual email-capture variant, the consent and privacy owner-record requirements remain.
 Gate B, clinical/claim checks, Fella/provider holds and all other A-E requirements remain unchanged.
 
+## Deterministic title constraints apply to every Gate E repair
+
+The unchanged packet validator requires title length 50–60 characters. A concrete number,
+year or factual hook does not waive that bound. Never prescribe an exact out-of-range
+replacement title as a mandatory repair; supply a truthful
+50–60-character title that addresses the finding without inventing a new claim. Topic ID,
+target query and selected route remain immutable. Regenerate derived article and QA
+bindings after any title change, and require the unchanged validator to pass before
+reviewing the successor. All original clinical and claim findings remain blocking until
+fixed with their exact evidence; this constraint does not narrow gates A-E or waive review.
+
 ## Commercial-link classification schema
 
 For Gate C, the canonical three-way declaration is `commercial_link_taxonomy` in 06-article.json,
