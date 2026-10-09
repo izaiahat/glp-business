@@ -20,6 +20,31 @@ def assignment(name):
     exec(compile(ast.Module(body=[node], type_ignores=[]), '<maintained route predicate>', 'exec'), scope)
     return scope[name]
 
+class ReviewPromptAuthority(unittest.TestCase):
+    def test_current_transport_supersedes_historical_rubric_without_changing_gates(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import opus_review_loop
+        import review_transports
+        rubric = 'Historical Sol/xhigh only.\n### Gate A — evidence\nEvery claim requires a quote.\n'
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            rubric_path = root / 'rubric.md'
+            rubric_path.write_text(rubric)
+            job = {'review_transport': review_transports.ASTRA_TRANSPORT['transport_id']}
+            with patch.object(opus_review_loop, 'RUBRIC', rubric_path):
+                prompt = opus_review_loop.build_prompt(job, {'manifest_sha256': 'a' * 64}, root / 'manifest.json', 1, root).read_text()
+            self.assertIn('Current invocation authority supersedes historical transport instructions', prompt)
+            for value in ('hermes-openai-codex-astra-independent', 'gpt-6-astra-900k', 'high', 'default'):
+                self.assertIn(value, prompt)
+            self.assertIn('Historical transports are receipt-reading only', prompt)
+            self.assertIn(rubric, prompt)
+            self.assertIn('PASS requires all five PASS and zero findings', prompt)
+            self.assertEqual(rubric_path.read_text(), rubric)
+            with patch.object(opus_review_loop, 'RUBRIC', rubric_path):
+                with self.assertRaises(review_transports.TransportError):
+                    opus_review_loop.build_prompt({'review_transport':'unapproved'}, {'manifest_sha256':'a'*64}, root/'manifest.json', 2, root)
+
+
 class ArticleRoutes(unittest.TestCase):
     def test_reviews_are_articles_and_unsafe_routes_stay_rejected(self):
         pattern = assignment('RENDERER_ARTICLE_ROUTE_PATTERN')

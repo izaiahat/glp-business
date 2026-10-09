@@ -343,6 +343,9 @@ def build_context_bundle(job: dict[str, Any], manifest: dict[str, Any], round_nu
 
 def build_prompt(job: dict[str, Any], manifest: dict[str, Any], manifest_path: Path, round_number: int, history: Path) -> Path:
     rubric = RUBRIC.read_text(encoding="utf-8")
+    active_transport = review_transports.transport(job.get("review_transport"))
+    invocation_identity = {key: active_transport.get(key) for key in
+                           ("transport_id", "provider", "model", "effort", "service_tier", "authorized_since")}
     extension_note = ""
     if job.get("bridge_extension"):
         ruling = read_json(Path(job["bridge_extension"]["ruling"]["path"]))
@@ -383,6 +386,18 @@ Your entire response MUST be ONLY one JSON object, with no preamble, markdown fe
 or tool-call syntax, matching this shape:
 
 {json.dumps(schema, indent=2)}
+
+## Current invocation authority supersedes historical transport instructions
+
+The reviewed transport registry authorizes this job's actual invocation:
+{json.dumps(invocation_identity, sort_keys=True)}
+The Astra/high/default row is authorized since 2026-10-07. Historical transports are receipt-reading only
+under the current native OpenAI invocation policy. Historical Sol-only or Claude instructions in the
+preserved rubric below do not override this current transport identity. This succession changes REVIEW
+TRANSPORT ONLY: it does not waive packet identity/isolation, tool-free one-turn review, actual runtime
+receipt verification, claim substantiation, privacy, medical safety, any gate A-E, or the zero-findings PASS bar.
+Do not require switching models solely to satisfy a superseded transport instruction. Block any real
+mismatch between the supplied packet's declared runtime and the actual invocation identity above.
 
 ## Governing rubric
 
