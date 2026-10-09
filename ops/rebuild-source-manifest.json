@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 854,
+  "tracked_count": 858,
   "files": {
     "tests/test_firecrawl_glp350_serp.py": {
       "kind": "test",
@@ -615,7 +615,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "645015b2be28cdd21fd8386a9899aac527adf72e66f9fc22573f7d2568c80af3"
+      "sha256": "ef07685074dcb18b68ad0d2b1a969bfe40e38cc4513f7872ad2304f83a3ee129"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -5775,6 +5775,27 @@
       "callers": [],
       "kind": "test",
       "sha256": "95e62b9352f9020db0b9a22fb96f2ad7198dbdb6ea02a090f709151e4a5b7ed6"
+    },
+    "ops/cron.d/glp-paused-program-monitor": {
+      "kind": "cron",
+      "callers": [
+        "host cron"
+      ],
+      "sha256": "0af02fa58f5be429cf0317a7610af0a9d27d3282e103e24678ae32e0bd25fa21"
+    },
+    "scripts/glp_paused_program_monitor.py": {
+      "kind": "script",
+      "callers": [
+        "ops/cron.d/glp-paused-program-monitor"
+      ],
+      "sha256": "179c2b726bc97ab6b7cc7a08d4c3ba0a25f803be0c37319082b1469189d9ef48"
+    },
+    "tests/test_glp_paused_program_monitor.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "42e5f1da3e50240e85513f81cf41f5ed283f3932f4f0b2871bc8d6ad50e27f51"
     }
   }
 }
