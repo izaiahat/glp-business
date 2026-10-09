@@ -2564,7 +2564,7 @@
         "GLP-73 B-01/F-01/T-01 source-only regressions"
       ],
       "kind": "test",
-      "sha256": "70282ff276c4fb40aa204fe0082e36229ba75f01effe5c947ec10301705cbc63"
+      "sha256": "578b3659c7d2025a288d9e0c81e322ccfce10d871487a1255786528e02544a53"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
