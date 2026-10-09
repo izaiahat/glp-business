@@ -53,10 +53,18 @@ def put(path, document):
 
 
 def test_native_hold_manifest_generator_detaches_only_candidate_hardlink(tmp_path):
-    import importlib.util
-    spec = importlib.util.spec_from_file_location('cow_generated_contract', BUILDER)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Compile only inert overlay declarations and the actual detacher; never
+    # import the live carrier/analytics stack into the no-effect K3 fixture.
+    from scripts.site_tree_materializer import detach_for_write
+    names = {'HOME_IMAGE_BUILD_OUTPUTS', 'PRODUCT_RENDER_BUILD_OUTPUTS', 'CSS_BUILD_OUTPUTS',
+             'IN_PLACE_BUILD_OUTPUTS', 'ARTICLE_OVERLAYS', 'GENERATED_LINEAGE_OVERLAYS',
+             'ROUTE_MASTER_STATE_RELATIVE', 'OPTIONAL_ARTICLE_OVERLAYS'}
+    nodes = [n for n in ast.parse(BUILDER.read_text()).body
+             if (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in names for t in n.targets))
+             or (isinstance(n, ast.FunctionDef) and n.name == 'detach_explicit_overlays')]
+    namespace = dict(Path=Path, Any=Any, os=os, detach_for_write=detach_for_write)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(BUILDER), 'exec'), namespace)
+    module = types.SimpleNamespace(**namespace)
     base, candidate = tmp_path/'base', tmp_path/'candidate'
     expected = Path('src/cost-affiliate-email-manifest.generated.mjs')
     paths = {*module.ARTICLE_OVERLAYS, expected, Path('src/unrelated.mjs')}
