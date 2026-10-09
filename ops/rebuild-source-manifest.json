@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 905,
+  "tracked_count": 906,
   "files": {
     "scripts/article_health_acceptance.py": {
       "kind": "script",
@@ -16,7 +16,14 @@
         "scripts/linear_close.py",
         "scripts/linear_orchestrator.py"
       ],
-      "sha256": "f718a0d58435f10037148e6bd3d56cbfc44912ff97138a8742acfa1ba34f52cd"
+      "sha256": "dba796ae4737d4fbc9a2b57996755c069021f1fc3bada6de6025bd85cd47ad72"
+    },
+    "tests/test_article_reviewer_custody.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "eded526dd097afd8c65e72cbcda36015f3d1c59d7ad8577c92838e42a4db4462"
     },
     "tests/test_article_health_acceptance.py": {
       "kind": "test",
@@ -602,7 +609,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "71d8fa9c5c1dea5d90230f733e8430dc4705657f498f83b40110879a09420f9c"
+      "sha256": "f6117449450a2070442771625baf14a07d9fed26ef2b470011587f1bbda6e352"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -5168,7 +5175,7 @@
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
-      "sha256": "2eacda6f0d49f5a72f67b7bda358a43a0f8ed2442a2439cd16a8fa0ec6a0fe00"
+      "sha256": "23a86e9a0edb1204a825dfefe5e6a942d25387289554864ad4ca1ffda6b33eeb"
     },
     "systems/seo-blog-machine/scripts/repair_opus_packet.py": {
       "kind": "packet_repair_worker",

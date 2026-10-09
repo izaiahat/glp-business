@@ -183,8 +183,15 @@ def acceptance(carrier_path, *, natural=False, root=None, session_db=None):
                     if row['path'] in ab.REQUIRED_SUBJECTS - {'06-article.json', '07-qa-receipt.json'}]
     for path in author_paths:
         require(path.is_file() and sha(path) == hashes[path.name], 'original author packet drifted')
+    import hermes_sol_article_review as reviewer_transport
+    custody = reviewer_transport.validate_result_custody(
+        raw, manifest=manifest, packet=packet, session_db=session_db or SESSION_DB)
+    require(timestamp(manifest['sealed_at_utc']) <= custody['started_at']
+            and custody['ended_at'] <= timestamp(receipt['reviewed_at_utc']),
+            'reviewer execution outside sealed review interval')
     runtime = raw['hermes_runtime']
-    reviewer = {'model': runtime['model'], 'provider': runtime['provider'], 'session_id': runtime['session_id']}
+    reviewer = {'model': runtime['model'], 'provider': runtime['provider'], 'session_id': runtime['session_id'],
+                'result_custody': custody}
     authors = packet_authors(session_db or SESSION_DB, author_paths,
                              {'model': reviewer['model'], 'runtime': {'native_session_id': reviewer['session_id']}},
                              timestamp(manifest['sealed_at_utc']))
