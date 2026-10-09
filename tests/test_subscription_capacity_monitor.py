@@ -339,7 +339,8 @@ def test_reset_rollout_keeps_reports_separate_from_live_capacity(tmp_path, monke
     assert report['banked_resets_operator']['count'] == 1
     assert {r['label'] for r in report['operator_only']} == set(accounts)
     assert report['records'] == sample(91)['records']
-    assert '3 pending rollout' in monitor.render_report(report, NOW, pacing={})
+    text = monitor.render_report(report, NOW, pacing={})
+    assert 'Measured Codex banked resets:' in text and '3 pending rollout' not in text
 
 
 def test_session_depletion_blocks_weekly_capacity_recommendation():
@@ -351,6 +352,9 @@ def test_session_depletion_blocks_weekly_capacity_recommendation():
 
 def test_missing_pro_ledger_and_operator_counts_are_unknown():
     report = sample()
+    for record in report['records']:
+        if record.get('provider') == 'openai-codex':
+            record['operator_only']['banked_reset_count'] = None
     report['pro_chat_ledger'] = [{'label': 'Pro relay', 'submitted_7d': None}]
     report['banked_resets_operator'] = {'count': None, 'reported_on': None}
     text = monitor.render_report(report, NOW)
@@ -365,7 +369,7 @@ def test_glp308_digest_separates_local_guards():
     text = monitor.render_report(report, NOW)
     assert len(report['pro_chat_ledger']) == 3
     assert sorted(r['local_weekly_guard'] for r in report['pro_chat_ledger']) == [50, 200, 200]
-    assert 'Banked resets: 0' in text and 'Fable-only' not in text
+    assert 'Measured Codex banked resets:' in text and 'Fable-only' not in text
     assert 'not provider quota' in text and 'useful work' in text
     assert len(text) <= 2000
     assert monitor.discord_fmt.lint(text, 'report')['status'] == 'pass'

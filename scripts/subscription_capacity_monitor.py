@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Read-only subscription telemetry, local history, verified Discord alerts.
+"""Subscription telemetry, approved included resets and verified Discord alerts.
 
-No LLM calls, account selection, OAuth refresh, reset redemption, or business work.
-The default run notifies only on meaningful changes or the daily Pacific digest.
+No LLM calls, OAuth refresh, paid-credit fallback or business work. Automatic
+banked redemption is scoped to the operator's Oct 9 account-2-at-zero decision.
+The default run notifies on meaningful changes or the daily Pacific digest.
 """
 # Direct Discord poster: discord.com/api/v10/channels (channel is verified before POST).
 # CRON_DISCORD_HOUSE_STYLE_V1
@@ -134,6 +135,11 @@ def alert_state(report, now):
     result.append({'label': 'collection', 'scope': 'health',
                    'errors': sorted(report.get('collection_errors') or []),
                    'account_count_ok': report.get('account_count_ok')})
+    if 'auto_reset' in report:
+        result.append({'label': 's7-policy', 'scope': 'reset_api_meter',
+                       'reset_status': report['auto_reset']['status'],
+                       'api_allowed': report['claude_api'].get('dispatch_allowed'),
+                       'meter_status': report['n8n_meter']['status']})
     return sorted(result, key=lambda x: (str(x.get('label')), x['scope']))
 
 
@@ -444,8 +450,66 @@ def pro_ledger(now):
                  'provider_verified': False, 'freshness': 'unavailable'}]
 
 
+def s7_reset_tick(*args, **kwargs):
+    from capacity_reset_policy import reset_tick
+    return reset_tick(*args, **kwargs)
+
+
+def s7_credit_snapshot():
+    from agent.anthropic_credit_guard import credit_snapshot
+    return credit_snapshot()
+
+
+def s7_meter_read(**kwargs):
+    from ops.n8n_execution_budget import health_check
+    return health_check(**kwargs)
+
+
+def s7_extensions(directory, now, *, dry_run_reset=False):
+    reset = s7_reset_tick(directory, now=now, dry_run=dry_run_reset)
+    credit = s7_credit_snapshot()
+    due = datetime(2026, 10, 10, tzinfo=timezone.utc)
+    meter = {'status': 'WAITING_OCT10', 'not_before_utc': stamp(due), 'billing_headroom': None}
+    if now >= due:
+        try:
+            snapshot = s7_meter_read(state_path=directory / 'n8n-demand.json', now=now)['snapshot']
+            meter.update(snapshot, billing_headroom=None)
+        except Exception as exc:
+            meter.update(status='UNKNOWN', error_class=type(exc).__name__)
+    return {'auto_reset': reset, 'claude_api': credit, 'n8n_meter': meter,
+            'n8n_executions_month': meter.get('month_execution_high_water'),
+            'n8n_projected_month_end': meter.get('projected_month_end')}
+
+
+def render_s7_report(report, now):
+    accounts = report['auto_reset'].get('accounts', [])
+    pieces = []
+    for row in accounts:
+        pct = row.get('remaining_pct')
+        pieces.append(f"{row['label']} {pct if pct is not None else 'UNKNOWN'}% included left"
+                      f" reset {row.get('reset_at_utc') or 'UNKNOWN'} banked {row.get('banked_resets', 'UNKNOWN')}")
+    credit = report['claude_api']
+    usd = credit.get('remaining_usd')
+    balance = 'UNKNOWN' if usd is None else f'${usd:.2f}'
+    line = ' · '.join(pieces) + f" · Claude API {balance} estimated grant left reset {credit.get('expires') or 'UNKNOWN'} floor $5"
+    meter = report['n8n_meter']
+    if meter['status'] == 'WAITING_OCT10':
+        demand = 'GLP-338 readback held until Oct 10 00:00Z'
+    else:
+        demand = (f"GLP-338 n8n_executions_month={report.get('n8n_executions_month')}"
+                  f" forecast={report.get('n8n_projected_month_end')} cap=10000 status={meter['status']}"
+                  f" sampled={meter.get('generated_at_utc', 'UNKNOWN')}; retained demand, billing headroom UNKNOWN")
+    return discord_fmt.render(discord_fmt.title('report', 'Subscription capacity', 'Included allowance'),
+        line, f"Automatic reset {report['auto_reset']['status']} (account-2 at 0% only, never oauth-4)", demand,
+        discord_fmt.subtext(f"sample {stamp(now)} | ops/subscription-capacity/latest.json"), output_class='report')
+
+
 def render_report(report, now, pacing=None, alerts=()):
+    if 'auto_reset' in report:
+        return render_s7_report(report, now)
     body = list(alerts)
+    if report.get('account_count_ok') is False:
+        body.append('⚠️ Account coverage needs reconciliation: ' + ', '.join(report.get('collection_errors', [])))
     for record in openai_accounts(report['records']):
         value = record.get('weekly_remaining_pct')
         left = 'unknown' if value is None else f'{value:g}% left'
@@ -474,7 +538,12 @@ def render_report(report, now, pacing=None, alerts=()):
     count = banked.get('count')
     pending = banked.get('pending_rollout_count')
     rollout = f" + {pending} pending rollout per dated operator report (live Codex API counts above; not additive)" if pending else ''
-    body.append(f"Banked resets: {count if count is not None else 'unknown'}{rollout} (operator {banked.get('reported_on') or 'unknown'}). Pro ledger is not provider quota; Codex mapping unknown; aliases counted once.")
+    observed = openai_accounts(report['records'])
+    live_banked = [(r.get('operator_only') or {}).get('banked_reset_count') for r in observed]
+    if observed and all(r.get('freshness') == 'live' and not r.get('error_class') for r in observed) and all(v is not None for v in live_banked):
+        body.append(f"Measured Codex banked resets: {sum(live_banked)} across {len(observed)} observed accounts (not additional usage). Pro ledger is not provider quota; Pro/Codex mapping unknown; aliases counted once.")
+    else:
+        body.append(f"Banked resets: {count if count is not None else 'unknown'}{rollout} (operator {banked.get('reported_on') or 'unknown'}). Pro ledger is not provider quota; Codex mapping unknown; aliases counted once.")
     usable = [r for r in openai_accounts(report['records']) if r.get('freshness') == 'live'
               and r.get('capacity_status') in ('available', 'limited')
               and not r.get('error_class') and (r.get('weekly_remaining_pct') or 0) > RESERVE_TARGET_PCT]
@@ -557,12 +626,14 @@ EXPECTED_OPENAI_ACCOUNTS = (
     if os.environ.get('HERMES_EXPECTED_OPENAI_ACCOUNTS', '').isdigit() else None)
 
 
-def tick(directory=STATE_DIR, *, notify=True, force=False, collector=collect_monitored_capacity, sender=verified_send, now=None):
+def tick(directory=STATE_DIR, *, notify=True, force=False, collector=collect_monitored_capacity, sender=verified_send, now=None, extension_reader=None):
     now = now or now_utc()
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / '.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         report = collector(now=now).to_dict(include_operator_only=True)
+        if extension_reader is not None:
+            report.update(extension_reader(directory, now))
         report['pro_chat_ledger'] = pro_ledger(now)
         readings = load_json(STATE_DIR / 'OPERATOR-READINGS.json', {})
         banked = readings.get('banked_resets', {})
@@ -654,9 +725,11 @@ def main():
     parser.add_argument('--no-notify', action='store_true')
     parser.add_argument('--force-report', action='store_true')
     parser.add_argument('--json', action='store_true')
+    parser.add_argument('--dry-run-reset', action='store_true', help='GET-only reset decision; never consume a reset')
     args = parser.parse_args()
     try:
-        report = tick(notify=not args.no_notify, force=args.force_report)
+        report = tick(notify=not args.no_notify, force=args.force_report,
+            extension_reader=lambda directory, now: s7_extensions(directory, now, dry_run_reset=args.dry_run_reset))
         if args.json:
             print(json.dumps(report, indent=2))
         return 0
