@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 896,
+  "tracked_count": 898,
   "files": {
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "kind": "script",
@@ -572,7 +572,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "df4658e82746bb974e84aaea46ece95dd2b1c7fda9447e97a0baea8326e90bc7"
+      "sha256": "3941c89a6c9fd3dfed2912f621982996ba472d687be8673e39d8d119207e6731"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -6050,6 +6050,21 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "3d42fee8b0a449c85767fd8dd4b439eced44a9ce2748dc6b50c6afa7f38e8ec2"
+    },
+    "scripts/glp_seo_buffer_dispatch.py": {
+      "kind": "registered_entry_adapter",
+      "callers": [
+        "d70cda5f4416",
+        "W11 authorized registered refill dispatch"
+      ],
+      "sha256": "41389db7921428ba477d263e7a7264a217ef5ed8711b010d0efd626b71748087"
+    },
+    "tests/test_w11_uncertain_refill_owner.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d406cba2a314f586de11b61d3fe48f2ff1387fd37dacb41893a516f3907ae39d"
     }
   }
 }
