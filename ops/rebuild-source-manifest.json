@@ -6061,7 +6061,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "ff101ef9ec914bca5bfdef892486dfc89feb84408088e1e72bdfa40df7a8d1a5"
+      "sha256": "2b5129aef7a8e3e7c18135e155864b68ebef83f68e57c9d0e574788be76a2a00"
     },
     "scripts/maxbounty_publisher_api.py": {
       "kind": "script",

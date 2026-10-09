@@ -188,10 +188,13 @@ def test_affiliate_sync_consumes_exact_main_pre_effect_reconciliation(tmp_path, 
     runs = tmp_path / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
     prior = runs / 'main-20261009T063150Z'
     prior.mkdir(parents=True)
-    prepared = prior / 'PREPARED.json'
-    prepared.write_text(json.dumps({'site_head': 'H'}))
-    (prior / 'publish-intent.json').write_text(json.dumps({'prepared': {'path': str(prepared)}}))
-    (prior / 'FAILURE.json').write_text(json.dumps({'scope': rm.SCOPE,
+    (prior / 'release').mkdir()
+    prepared = prior / 'prepared/PREPARED.json'
+    prepared.parent.mkdir()
+    prepared.write_text(json.dumps({'site_head': 'H', 'release_root': str(prior / 'release')}))
+    (prior / 'publish-intent.json').write_text(json.dumps({'prepared': {
+        'path': str(prepared), 'sha256': job.sha(prepared)}}))
+    (prior / 'FAILURE.json').write_text(json.dumps({'status':'FAIL', 'scope': rm.SCOPE,
         'error': 'current_release_consumed_or_binding_changed'}))
     native = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-release-H/CURRENT-RECEIPT.json'
     native.parent.mkdir(parents=True)
@@ -203,7 +206,8 @@ def test_affiliate_sync_consumes_exact_main_pre_effect_reconciliation(tmp_path, 
         return {'status':'PASS_ALREADY_CURRENT'}
     monkeypatch.setattr(job, 'execute', execute)
     for status, accepted in [('ACTIVE',False),('PASS_PRODUCTION_TERMINAL',True)]:
-        native.write_text(json.dumps({'status':status}))
+        native.write_text(json.dumps({'status':status, 'binding': {
+            'prepared_manifest_sha256': 'different-consumed-prepared-binding'}}))
         output = tmp_path / ('manual-' + status)
         monkeypatch.setattr(sys, 'argv', ['glp_affiliate_sync_job.py', '--config', str(config), '--output', str(output)])
         if not accepted:
