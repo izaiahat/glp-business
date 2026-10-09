@@ -189,6 +189,7 @@ def firecrawl_post(url, *, caller, **kwargs):
     outcome = "http_error" if response.status_code >= 400 else "provider_error" if payload.get("success") is False else "success" if payload else "invalid_json"
     record_operation(caller, endpoint, body, payload=payload, outcome=outcome,
                      http_status=response.status_code, operation_id=op)
+    response.firecrawl_operation_id = op
     return response
 
 

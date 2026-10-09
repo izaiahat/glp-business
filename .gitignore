@@ -567,3 +567,5 @@
 !/ops/glp335-current-consumer.md
 !/scripts/linear_close.py
 !/tests/test_linear_close.py
+!/scripts/glp_digital_pr_weekly.py
+!/tests/test_glp_digital_pr_weekly.py
