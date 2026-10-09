@@ -63,6 +63,18 @@ def test_sdk_snake_case_credit_and_scrape_id():
     assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sha256:' + fc._hash('sdk-id'),1)
 
 
+def test_covered_cron_declarations_and_request_cap():
+    import subprocess
+    for name in ('glp_reddit_daily_scout_wrapper.sh', 'affiliate_site_evidence_daily.sh'):
+        path = ROOT / 'ops/hermes-cron-scripts' / name
+        subprocess.run(['bash', '-n', str(path)], check=True)
+        source = path.read_text()
+        assert 'CRON_DISCORD_HOUSE_STYLE_V1' in source and 'CRON_DISCORD_OUTPUT_DECLARATION_V1=' in source
+    affiliate = (ROOT / 'ops/hermes-cron-scripts/affiliate_site_evidence_daily.sh').read_text()
+    assert '--max-requests 40' in affiliate
+    assert 'affiliate_site_evidence_card.py' in affiliate
+
+
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
     from types import SimpleNamespace
     monkeypatch.setattr(fc,'LEDGER',tmp_path/'sdk.jsonl')

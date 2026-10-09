@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 849,
+  "tracked_count": 850,
   "files": {
+    "ops/hermes-cron-scripts/affiliate_site_evidence_daily.sh": {
+      "kind": "script",
+      "callers": [
+        "Hermes d4047c17de28 site evidence daily entry"
+      ],
+      "sha256": "55826202e87764b7d6bdfaf3b2b574bb21638b4e05f0135125c2919f9a2eb67e"
+    },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
       "callers": [
@@ -5542,14 +5549,14 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "d4b62d7c9d15fd0009dd7ed36b89ec9d6a8a40fa70c94a2ef5d67acea8c4459f"
+      "sha256": "48779b0d2595a8975c7fd6b839e2e5eeda2461a2a94426614f98c55571fad54a"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
       "callers": [
         "cron:8ecc8499748f"
       ],
-      "sha256": "6663a2162c181a90fb060d3711da5a9ef2c766998657b5af902a057e3158d513"
+      "sha256": "5d2a968d39ca9e56891aa615b2df6294dc1f2a66dae17dd3f5efda7ecadda9b0"
     },
     "ops/firecrawl/README.md": {
       "kind": "documentation",
