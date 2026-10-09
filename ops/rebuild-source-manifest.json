@@ -5542,7 +5542,7 @@
       "callers": [
         "topic supply refresh"
       ],
-      "sha256": "ccb14e66c66c30b378388d863a90e7d822cf8f82fe0e9df566b6743376edeef0"
+      "sha256": "4fecf29ec9bda8e6422aa32255ade3823029f36707330e9e04582514a2da42c3"
     },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
@@ -5598,7 +5598,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "002792f1ab74362dceec68893a1e51b012b1bc2fba560d9756d280ce6038d1ec"
+      "sha256": "e47a052f63195403ab64ac78104579f23743ce2c34a738c2c79fc5e08fef12d0"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
@@ -5795,7 +5795,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "17a280cdc8d3e643df366e9f02663b017cc06424bc01270f05cd251d689072f4"
+      "sha256": "f6aab319d6cfb28c68371cae90c2ffba37a96f0763cdbe2335ffc050bac97af3"
     },
     "tests/test_glp80_reattest.py": {
       "kind": "test",
@@ -5830,7 +5830,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+      "sha256": "bf7a05e76f1dce08ce16763abe7b0b7f9773a4aed3f4cddaf10073be016bba68"
     },
     "tests/test_firecrawl_glp350_gov.py": {
       "kind": "test",

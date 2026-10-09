@@ -169,6 +169,7 @@ def main() -> int:
     parser.add_argument("--feed", type=Path, default=DEFAULT_FEED)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--page-two-report", type=Path, default=PAGE_TWO_REPORT)
+    parser.add_argument("--force", action="store_true", help="Refresh the existing target set now, ignoring the weekly cache")
     args = parser.parse_args()
 
     feed = read_json(args.feed)
@@ -177,7 +178,7 @@ def main() -> int:
     if not targets:
         print(json.dumps({"status": "PASS_NO_TARGETS", "provider_calls": 0, "targets": 0}))
         return 0
-    if prior_is_fresh(prior, targets):
+    if not args.force and prior_is_fresh(prior, targets):
         print(json.dumps({
             "status": "PASS_FRESH_REUSE",
             "provider_calls": 0,
