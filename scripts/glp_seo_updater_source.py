@@ -62,6 +62,11 @@ def plan():
     result['plan_path'] = str(target)
     return result
 
+def review_target(operation):
+    # Dormant legacy target required by materializer, never executed in this lane.
+    return ROOT / 'site-system/flagship-v2/releases' / ('source-review-' + operation)
+
+
 def stage(packet, route):
     with carrier_lock():
         governed = plan()
@@ -72,7 +77,9 @@ def stage(packet, route):
         if assert_noop:
             raise RuntimeError('current_week_strategy_unavailable')
         strategy_sha = governed['strategy']['updates']['sha256']
-        operation = hashlib.sha256((strategy_sha + route + legacy.sha(packet / '07-qa-receipt.json')).encode()).hexdigest()[:24]
+        revision = hashlib.sha256(b''.join((packet/name).read_bytes() for name in
+            ('00-authority.json','01-evidence-ledger.json','02-serp-brief.json','03-editorial-brief.md','04-draft.md','05-claim-source-map.json'))).hexdigest()
+        operation = hashlib.sha256((strategy_sha + route + revision).encode()).hexdigest()[:24]
         work = OUT / operation
         terminal = work / 'stage.json'
         if terminal.exists():
@@ -106,7 +113,7 @@ def stage(packet, route):
         _, materialized, _ = legacy.run_child('materialize-source-update',
             [str(legacy.PYTHON), str(legacy.MATERIALIZER), '--packet', str(target),
              '--topic-id', minted['topic_id'], '--route', route, '--run-id', run_id,
-             '--release-root', str(work / 'unpublished-build-target'),
+             '--release-root', str(review_target(operation)),
              '--publication-date', today().isoformat(), '--selection-receipt', str(selpath),
              '--r2-authority', str(authpath), '--operation', 'r2_refresh',
              '--materialization-reason', 'r2_refresh', '--review-transport', legacy.REVIEW_TRANSPORT,
@@ -205,6 +212,9 @@ def main():
     if args.mode == 'stage' and (not args.packet or not args.route):
         parser.error('stage requires --packet and --route')
     result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route)
+    if args.mode == 'plan':
+        result = {key:value for key,value in result.items() if key != 'selection'}
+        result['strategy'] = {key:value for key,value in result['strategy'].items() if key != 'source_observations'}
     print(json.dumps(result, sort_keys=True))
 
 if __name__ == '__main__':

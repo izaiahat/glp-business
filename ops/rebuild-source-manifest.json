@@ -6105,7 +6105,7 @@
       "callers": [
         "L6 weekly-governed SEO machine"
       ],
-      "sha256": "2cd7e3f9d262fc071f2bb4ba13b301b235378d76cb33e010d14a9fac5b6852b1"
+      "sha256": "2f089835d91a892849c8073710f32ce5b5851cdeb0b8cf5ffaab5de07b92d8b1"
     },
     "systems/seo-blog-machine/scripts/seo_weekly_governance.py": {
       "kind": "registered_producer",
@@ -6126,7 +6126,7 @@
       "callers": [
         "L6 weekly-governed SEO machine"
       ],
-      "sha256": "e49ed48af89875731cdcdceac602901ed1c0f9fecc23d3f5884c43011d86dfad"
+      "sha256": "067862d4acf14001d09df3645930052bfc3e34630f739daff4a54000d1b0324e"
     },
     "ops/hermes-cron-scripts/glp_seo_refill_weekly_gate.py": {
       "kind": "registered_producer",

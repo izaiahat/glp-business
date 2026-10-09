@@ -63,3 +63,14 @@ def test_noop_receipt_is_not_an_article_selection():
     assert s.validate_selection_payload(doc) == doc
     with pytest.raises((RuntimeError, IndexError)):
         s.selection_binding(doc)
+
+
+def test_dormant_review_target_has_admitted_parent():
+    import ast
+    path = Path(__file__).resolve().parents[1] / 'scripts/glp_seo_updater_source.py'
+    tree = ast.parse(path.read_text())
+    function = next((node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'review_target'), None)
+    assert function is not None
+    scope = {'ROOT':Path('/home/ubuntu/business')}
+    exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),scope)
+    assert scope['review_target']('x').parent == Path('/home/ubuntu/business/site-system/flagship-v2/releases')
