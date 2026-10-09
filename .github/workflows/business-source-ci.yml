@@ -234,6 +234,8 @@ jobs:
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_opus_repair_rollback.py
       - name: GLP-73 builder, taxonomy fixture and review transport boundaries (synthetic only)
         run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_builder_fixture_transport_fix.py
+      - name: W6 builder accepts merged site-main successor anchors (synthetic only)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_w6_site_successor_builder_anchors.py
       - name: GLP-73 native-only article image boundary (offline fixtures)
         run: .venv/bin/python -m pytest -q tests/test_glp73_image_native_only.py
       - name: GLP-73 retention prepared authority consumer (effect-denied fixtures)

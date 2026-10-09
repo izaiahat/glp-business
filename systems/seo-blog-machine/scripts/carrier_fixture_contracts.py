@@ -213,7 +213,18 @@ def patch_lastmod_material_fixture(source, base):
     return source
 
 
+PRESERVED_EXPORT_STAGE_SUCCESSOR = (
+    '  assert.deepEqual(candidateExportShellFindings(html, {stage: expectedStage}), []);',
+    'candidateExportShellFindings(wrongAnalyticsStage, {stage: expectedStage}).includes("analytics_wrong_stage")',
+    'assert.equal(report.release_stage, expectedStage,',
+)
+
+
 def patch_preserved_export_fixture(source):
+    # The site successor already binds this test to the declared, build-report
+    # authenticated release stage. Accept that stronger form unchanged.
+    if all(source.count(marker) == 1 for marker in PRESERVED_EXPORT_STAGE_SUCCESSOR):
+        return source
     old='  assert.deepEqual(candidateExportShellFindings(html), []);'
     new='''  // Test the accepted predecessor stage on this byte-preserved review.
   const acceptedReview = await readFile(path.join(CUMULATIVE, "reviews/trt-nation/index.html"), "utf8");
