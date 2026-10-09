@@ -119,9 +119,16 @@ def reset_tick(directory, *, now=None, dry_run=True, reader=read_live, consumer=
             return dict(result, status='changed_before_redemption')
         label = result['selected_account']
         episode = label + ':' + result['reset_at_utc']
-        if previous.get('episode') == episode:
+        # Trigger account owns the exhaustion episode, not the selected account.
+        # Otherwise restoring account-3 leaves account-2 at zero and the next
+        # tick immediately spends a second banked reset on account-2.
+        trigger = next(r for r in rows if r['label'] == ALLOWED[0])
+        trigger_episode = ALLOWED[0] + ':' + str(trigger.get('reset_at_utc'))
+        if (previous.get('episode') == episode or
+                previous.get('trigger_episode') == trigger_episode):
             return dict(result, status='episode_already_attempted')
-        intent = {'status': 'intent', 'episode': episode, 'selected_account': label,
+        intent = {'status': 'intent', 'episode': episode, 'trigger_episode': trigger_episode,
+                  'selected_account': label,
                   'request_id': str(uuid.uuid4()), 'before': rows, 'created_at': now.isoformat()}
         _save(path, intent)
         try:

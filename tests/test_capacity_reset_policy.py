@@ -91,6 +91,29 @@ def test_reset_verified_clears_only_selected_account(tmp_path):
     assert len(posts) == 1
 
 
+def test_account3_redemption_does_not_spend_again_for_same_trigger(tmp_path):
+    import copy
+    import capacity_reset_policy as m
+    now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
+    rows = [dict(label=label, remaining_pct=0, reset_at_utc=reset, banked_resets=2,
+                 identity_safe=True) for label, reset in [
+        ('codex-account-2', '2026-10-15T00:00:00Z'),
+        ('codex-account-3', '2026-10-16T00:00:00Z')]]
+    posts = []
+    def read():
+        return copy.deepcopy(rows), {r['label']: {'label': r['label'], 'access_token': 'fixture'} for r in rows}
+    def post(handle, request):
+        posts.append(handle['label'])
+        selected = next(r for r in rows if r['label'] == handle['label'])
+        selected.update(remaining_pct=100, banked_resets=1)
+        return {'code': 'reset'}
+    assert m.reset_tick(tmp_path, now=now, dry_run=False, reader=read,
+                        consumer=post, clear=lambda _: None)['status'] == 'redeemed_verified'
+    assert m.reset_tick(tmp_path, now=now, dry_run=False, reader=read,
+                        consumer=post, clear=lambda _: None)['status'] == 'episode_already_attempted'
+    assert posts == ['codex-account-3']
+
+
 def test_duplicate_identity_and_stale_reset_fail_closed():
     import capacity_reset_policy as m
     now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
@@ -99,6 +122,66 @@ def test_duplicate_identity_and_stale_reset_fail_closed():
     assert m.plan_reset([row], now)['status'] == 'unsafe_identity'
     row.update(identity_safe=True, reset_at_utc='2026-10-09T00:00:00Z')
     assert m.plan_reset([row], now)['status'] == 'no_eligible_reset'
+
+
+def test_s7_render_preserves_live_coverage_and_banked_facts():
+    import subscription_capacity_monitor as m
+    now = datetime(2026, 10, 9, 22, tzinfo=timezone.utc)
+    report = {'auto_reset': {'status': 'not_exhausted', 'accounts': [
+        dict(label=l, remaining_pct=p, reset_at_utc='2026-10-15T00:00:00Z',
+             banked_resets=b, identity_safe=True)
+        for l,p,b in [('codex-account-2',50,2),('codex-account-3',0,2),('openai-codex-oauth-4',0,1)]]},
+        'account_count_ok': False, 'collection_errors': ['openai_account_set_changed'],
+        'claude_api': {'remaining_usd': 8.74, 'expires': '2026-10-11T00:00:00Z'},
+        'n8n_meter': {'status': 'WAITING_OCT10'}}
+    text = m.render_report(report, now)
+    assert 'openai_account_set_changed' in text
+    assert '5 across 3 observed accounts' in text
+    assert m.discord_fmt.lint(text, 'report')['status'] == 'pass'
+    assert len(text) <= 2000
+
+
+def test_scoped_reconciliation_retains_edits_and_refuses_drift(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    import subprocess
+    spec = importlib.util.spec_from_file_location('r5_sync', Path(__file__).resolve().parents[1] / 'scripts/sync_from_repo.py')
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert hasattr(m, 'CAPACITY_RECONCILIATION'), 'fixed live-edit reconciliation missing'
+    repo, live = tmp_path / 'repo', tmp_path / 'live'
+    repo.mkdir(); live.mkdir(); (live / 'ops').mkdir(); (repo / 'ops').mkdir()
+    paths = ('scripts/subscription_capacity_monitor.py', 'tests/test_subscription_capacity_monitor.py')
+    digest = lambda b: hashlib.sha256(b).hexdigest()
+    pins, files, baselines = {}, {}, {'unselected': 'leave-alone'}
+    for rel in paths:
+        old, before, after = b'old\n', b'preserved live edit\n', b'preserved live edit\nnew feature\n'
+        (repo / rel).parent.mkdir(exist_ok=True); (live / rel).parent.mkdir(exist_ok=True)
+        (repo / rel).write_bytes(after); (live / rel).write_bytes(before)
+        pins[rel] = (digest(old), digest(before), digest(after))
+        files[rel] = {'sha256': digest(after)}; baselines[rel] = digest(old)
+    (repo / m.MANIFEST).write_text(json.dumps({'schema': 'GLP_BUSINESS_SOURCE_V1', 'files': files, 'tracked_count': 3}))
+    (live / m.STATE).write_text(json.dumps({'hashes': baselines}))
+    subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+    subprocess.run(['git', '-C', str(repo), 'add', '.'], check=True)
+    monkeypatch.setattr(m, 'CAPACITY_RECONCILIATION', pins)
+    assert m.sync(live, repo, False, only=paths) == 2
+    state = (live / m.STATE).read_bytes()
+    assert m.sync(live, repo, False, only=paths, capacity_reconciliation=True) == 0
+    assert (live / m.STATE).read_bytes() == state
+    (live / paths[0]).write_bytes(b'unreviewed new edits')
+    assert m.sync(live, repo, True, only=paths, capacity_reconciliation=True) == 2
+    assert (live / m.STATE).read_bytes() == state
+    (live / paths[0]).write_bytes(b'preserved live edit\n')
+    missing_baseline = dict(baselines)
+    del missing_baseline[paths[0]]
+    (live / m.STATE).write_text(json.dumps({'hashes': missing_baseline}))
+    assert m.sync(live, repo, True, only=paths, capacity_reconciliation=True) == 2
+    (live / m.STATE).write_bytes(state)
+    assert m.sync(live, repo, True, only=paths, capacity_reconciliation=True) == 0
+    assert all((live / rel).read_bytes() == (repo / rel).read_bytes() for rel in paths)
+    assert json.loads((live / m.STATE).read_text())['hashes']['unselected'] == 'leave-alone'
+    assert m.sync(live, repo, False, only=paths) == 0
 
 
 def test_s7_render_includes_three_accounts_and_balance():

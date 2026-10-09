@@ -482,25 +482,32 @@ def s7_extensions(directory, now, *, dry_run_reset=False):
 
 
 def render_s7_report(report, now):
+    def shown_time(value):
+        return parse_time(value).strftime('%b %d %H:%M UTC') if value else 'UNKNOWN'
     accounts = report['auto_reset'].get('accounts', [])
     pieces = []
     for row in accounts:
         pct = row.get('remaining_pct')
         pieces.append(f"{row['label']} {pct if pct is not None else 'UNKNOWN'}% included left"
-                      f" reset {row.get('reset_at_utc') or 'UNKNOWN'} banked {row.get('banked_resets', 'UNKNOWN')}")
+                      f" reset {shown_time(row.get('reset_at_utc'))} banked {row.get('banked_resets', 'UNKNOWN')}")
     credit = report['claude_api']
     usd = credit.get('remaining_usd')
     balance = 'UNKNOWN' if usd is None else f'${usd:.2f}'
-    line = ' · '.join(pieces) + f" · Claude API {balance} estimated grant left reset {credit.get('expires') or 'UNKNOWN'} floor $5"
+    line = ' · '.join(pieces) + f" · Claude API {balance} estimated grant left reset {shown_time(credit.get('expires'))} floor $5"
     meter = report['n8n_meter']
     if meter['status'] == 'WAITING_OCT10':
         demand = 'GLP-338 readback held until Oct 10 00:00Z'
     else:
         demand = (f"GLP-338 n8n_executions_month={report.get('n8n_executions_month')}"
                   f" forecast={report.get('n8n_projected_month_end')} cap=10000 status={meter['status']}"
-                  f" sampled={meter.get('generated_at_utc', 'UNKNOWN')}; retained demand, billing headroom UNKNOWN")
+                  f" sampled={shown_time(meter.get('generated_at_utc'))}; retained demand, billing headroom UNKNOWN")
+    facts = []
+    if report.get('account_count_ok') is False:
+        facts.append('Account coverage needs reconciliation: ' + ', '.join(report.get('collection_errors', [])))
+    if accounts and all(r.get('identity_safe') and type(r.get('banked_resets')) is int for r in accounts):
+        facts.append(f"Measured Codex banked resets: {sum(r['banked_resets'] for r in accounts)} across {len(accounts)} observed accounts (not additional usage).")
     return discord_fmt.render(discord_fmt.title('report', 'Subscription capacity', 'Included allowance'),
-        line, f"Automatic reset {report['auto_reset']['status']} (account-2 at 0% only, never oauth-4)", demand,
+        line, *facts, f"Automatic reset {report['auto_reset']['status']} (account-2 at 0% only, never oauth-4)", demand,
         discord_fmt.subtext(f"sample {stamp(now)} | ops/subscription-capacity/latest.json"), output_class='report')
 
 

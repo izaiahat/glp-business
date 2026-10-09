@@ -570,6 +570,8 @@ def collect_capacity(
     reset redeemer, scheduler, Discord, or config writer.
     """
 
+    from agent.account_usage import _codex_headers
+
     collected_at = _utc_now_iso(now)
     reader = pool_reader or _read_pool_rows
     getter = usage_getter or _default_usage_getter
@@ -607,11 +609,7 @@ def collect_capacity(
         try:
             payload = getter(
                 _codex_usage_url(base_url if isinstance(base_url, str) else None),
-                {
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
-                    "User-Agent": "codex-cli",
-                },
+                _codex_headers(token, row.get("account_id")),
             )
             records.append(
                 _record_from_payload(
