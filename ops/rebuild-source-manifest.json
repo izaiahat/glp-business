@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 929,
+  "tracked_count": 931,
   "files": {
     "scripts/glp_affiliate_daily_decisions_report.py": {
       "kind": "registered_producer",
@@ -2407,7 +2407,7 @@
         "scripts/glp_analytics_brain_cadence.py"
       ],
       "kind": "script",
-      "sha256": "d5753161764d917760b7806a01afa796b2b579d28b511c386608eeb82b52f681"
+      "sha256": "83d8e90fda41c08e1a6892c6534e0aae8d0768ac0703d24ac041591c69279ee2"
     },
     "systems/analytics-brain/tests/test_expectations.py": {
       "callers": [
@@ -4072,7 +4072,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "9569ba50f9c078606af25c87b14dbe8f95ee4ef33ef43bb21dfccb10271c3dfc"
+      "sha256": "b6e370098d3e411abaa694931c3f9c51c50310ceaad3aaafe54b290cd5c0e0e2"
     },
     "scripts/affiliate_reporting_admitad.py": {
       "kind": "script",
@@ -4891,7 +4891,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "5c8a62d12d2ac657facddd53325cfcc632276113b7d7a99bc478a74472a5eebe"
+      "sha256": "80fad74ce8ebaf910f8d979beaa2be69cac990e95595ca532aaa7e05ebd4511b"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -6075,7 +6075,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "dbe35305a2e42792d8e8244cd2c49e9bbd145e8202ffc9bd01858cb50e84013c"
+      "sha256": "2b5129aef7a8e3e7c18135e155864b68ebef83f68e57c9d0e574788be76a2a00"
     },
     "scripts/maxbounty_publisher_api.py": {
       "kind": "script",
@@ -6280,6 +6280,21 @@
         "L6 updater runtime integration"
       ],
       "sha256": "635298a2c0d75629e01feeb20717bbe3505b05be9c055a9946c17b15cf2e9b98"
+    },
+    "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
+      "kind": "script",
+      "callers": [
+        "hermes:f0c6a95a371c"
+      ],
+      "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
+      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
+    },
+    "tests/test_reconciliation_b2_worker_pin.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
     }
   }
 }
