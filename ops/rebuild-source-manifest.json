@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 850,
+  "tracked_count": 852,
   "files": {
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -608,7 +608,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a56393b57423796c632da1e86fd5fa742fb673a310611d61e47e25ed1e5b6c9d"
+      "sha256": "6c52c105181884e70d8a08347dc770a027aded1cda81514b1e518c251d3ac4e5"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -618,7 +618,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d22e85ef71127281e7382a4990031b1f81dc53ad1f5ed292a5a22917143d0daf"
+      "sha256": "578086dfcfb02feb58fd5953ad00e0ba8ad5705d4c18d331ebfc0f213ae47554"
     },
     ".hermes.md": {
       "callers": [],
@@ -5742,6 +5742,18 @@
       "callers": [],
       "kind": "test",
       "sha256": "e2aa1686bbf085ad5e9c1834dd402b88b3445976e478336f1dbde16335ba2b4f"
+    },
+    "scripts/glp_digital_pr_weekly.py": {
+      "callers": [
+        "hermes:de3fec71cd2e"
+      ],
+      "kind": "script",
+      "sha256": "da203d2ee4989d8f770c2dab4123c216cbf880fdc9676372d6123f9a2bace781"
+    },
+    "tests/test_glp_digital_pr_weekly.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
     }
   }
 }
