@@ -164,7 +164,8 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
                         or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
                         or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
                     raise TimeoutError('bounded ledger snapshot refused: '+rel)
-            src.backup(dst, pages=256, progress=progress, sleep=0.1)
+            # 13G state.db: 256-page steps would sleep past the 30-min deadline.
+            src.backup(dst, pages=8192 if is_state else 256, progress=progress, sleep=0.1)
             # Release the private source read generation before validation and
             # compression, minimizing checkpoint delay without signalling holders.
             src.close()
