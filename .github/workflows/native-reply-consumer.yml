@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - scripts/native_reply_consumer.py
+      - scripts/dot_dispatch.py
+      - tests/test_dot_dispatch.py
       - scripts/receive_one_discord_message.py
       - scripts/rook_mcp_events.py
       - tests/test_native_reply_consumer.py
@@ -28,3 +30,4 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
           .venv/bin/python -B -m unittest discover -s tests -p test_native_reply_consumer.py -v
+          .venv/bin/python -B -m unittest discover -s tests -p test_dot_dispatch.py -v
