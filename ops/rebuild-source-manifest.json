@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 890,
+  "tracked_count": 891,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a101c5931a09c5a4484a277c39f3a0103d6741636e2685dce69bd8368af0d6a7"
+      "sha256": "3965548a9a7e5a552017db26ecdf3da712f86df64b1fc47940df867f8be495ad"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -972,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "5f056f0066e0214378faac32218d0869a9852e27bafebcbde6c991a3d233d780"
+      "sha256": "6150d572a5fa89518e0c93e15ddfc2c5699a1ee29a5d2e7e385211e84db6d50a"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2392,14 +2392,14 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "1ea03231fc29425190e18331b2c124bcff4f67aa8801333d9bad550a1b0666d4"
+      "sha256": "302c06d2dfa0129ab15f9cf6e626110d3a02ddc552ad1cbb1883612be3d0b90e"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "39ea089df2711b96a9da90be5e66e0a546511d26ede287db27322afbabd4eada"
+      "sha256": "dba873fdbf5c1620d3d3852f650f61f3f48848bfd6dfd72323c2810d76877658"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -3867,6 +3867,13 @@
       "kind": "test",
       "sha256": "618501442825dcb3831da65e9f68b3f0e11a7933575656ddc168eb7de3e5f9bb"
     },
+    "systems/seo-blog-machine/tests/test_w6_site_successor_builder_anchors.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "ee2e9c587d83ca0f7e05e4c3500dd79ff34d0481e465664f32d4c158c48d5668"
+    },
     "systems/seo-blog-machine/tests/test_workweek_boundary.py": {
       "callers": [
         "scripts/run_tests.sh"
@@ -3935,7 +3942,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "aadcb78a7d4977a6d7a12d30d061c7aa54cf8ed1aefa49249156ae645c9e3324"
+      "sha256": "0e292927612f64fa78d0eb7318783959a2dd4fb930e0f0777fd7d33d9440063c"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [

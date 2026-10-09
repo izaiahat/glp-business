@@ -965,7 +965,12 @@ def patch_lastmod_fixture_modes(source: str) -> str:
   const writable = spawnSync("chmod", ["-R", "u+w", path.join(root, "public")], { encoding: "utf8" });
   assert.equal(writable.status, 0, writable.stderr);
   return root;'''
-    source = apply_once_or_already(source, old, new, "lastmod_fixture_writable")
+    # The accepted site successor already makes the copied public tree
+    # writable after its carrier-closure copies; accept that exact behavior
+    # instead of requiring the historical placement directly after ``cp``.
+    writable_successor = 'spawnSync("chmod", ["-R", "u+w", path.join(root, "public")]'
+    if source.count(writable_successor) != 1:
+        source = apply_once_or_already(source, old, new, "lastmod_fixture_writable")
     # The stage now reads page-seo-copy and both real article catalogs. Carry
     # the same input data tree as the tested source instead of an obsolete
     # two-file subset. No assertion or runtime gate changes.
@@ -1009,8 +1014,19 @@ const carrierInsightArticles = carrierArticles.filter((article) =>
   !CARRIER_INSIGHTS_EXCLUSIONS.has(article.canonical_path) &&
   (String(article.vertical || article.focused_vertical || "GLP-1").toUpperCase().includes("GLP") || String(article.canonical_path || "").startsWith("/guides/")));
 '''
-    source = apply_once_or_already(source, anchor, anchor + addition, "phase3_fixture_actual_catalogs")
-    source = apply_once_or_already(source, 'articles: ownedArticles(37),', 'articles: carrierArticles,', "phase3_fixture_actual_articles")
+    # Site successors carry their own actual-catalog binding (with evolved
+    # comments/imports). Re-inserting the predecessor block would redeclare
+    # ``carrierArticles`` and break the test module, so accept it semantically.
+    catalogs_bound = (
+        source.count("const carrierCatalogs = ") == 1
+        and source.count("const carrierArticles = ") == 1
+    )
+    if not catalogs_bound:
+        source = apply_once_or_already(source, anchor, anchor + addition, "phase3_fixture_actual_catalogs")
+    if catalogs_bound and "ownedArticles(37)" not in source and "articles: carrierArticles" in source:
+        pass  # Every whole-graph fixture already consumes the real catalogs.
+    else:
+        source = apply_once_or_already(source, 'articles: ownedArticles(37),', 'articles: carrierArticles,', "phase3_fixture_actual_articles")
     old = 'assert.equal(built.report.insight_pages, 4);'
     new = 'assert.equal(built.report.insight_pages, Math.max(1, Math.ceil(carrierInsightArticles.length / 12)));'
     if old in source or new in source:
@@ -1269,12 +1285,16 @@ def patch_staging_route_contract(source: str) -> str:
     if (article.comparison_required && !comparison) throw new Error(`blog_article_comparison_missing:${article.article_id}`);''',
         "staging_article_gate_diagnostic",
     )
-    source = apply_once_or_already(
-        source,
-        '  if (!/^\\/guides\\/[a-z0-9-]+\\/$/.test(article.canonical_path || "")) throw new Error(`guide_canonical_path_invalid:${article.article_id}`);',
-        '  if (!/^\\/(?:guides|best)\\/[a-z0-9-]+\\/$/.test(article.canonical_path || "")) throw new Error(`article_canonical_path_invalid:${article.article_id}`);',
-        "staging_article_route_guard",
-    )
+    # GLP73 site successor widened the same fail-closed guard to /reviews/.
+    # Accept exactly that successor; any other guard still fails loud.
+    reviews_guard = '  if (!/^\\/(?:guides|best|reviews)\\/[a-z0-9-]+\\/$/.test(article.canonical_path || "")) throw new Error(`article_canonical_path_invalid:${article.article_id}`);'
+    if source.count(reviews_guard) != 1 or "guide_canonical_path_invalid" in source:
+        source = apply_once_or_already(
+            source,
+            '  if (!/^\\/guides\\/[a-z0-9-]+\\/$/.test(article.canonical_path || "")) throw new Error(`guide_canonical_path_invalid:${article.article_id}`);',
+            '  if (!/^\\/(?:guides|best)\\/[a-z0-9-]+\\/$/.test(article.canonical_path || "")) throw new Error(`article_canonical_path_invalid:${article.article_id}`);',
+            "staging_article_route_guard",
+        )
     source = apply_once_or_already(
         source,
         '  const allOwnership = [...keywordMap.entries, ...nationalArticles.map((article) => ({ owner: article.owner_key, primary_keyword: article.primary_keyword, risk_tier: article.risk_tier, status: article.status, url: article.canonical_path }))];',
