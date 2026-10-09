@@ -10,6 +10,13 @@
   "schema": "GLP_BUSINESS_SOURCE_V1",
   "tracked_count": 854,
   "files": {
+    "tests/test_firecrawl_glp350_serp.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "17a280cdc8d3e643df366e9f02663b017cc06424bc01270f05cd251d689072f4"
+    },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
       "callers": [
@@ -5167,7 +5174,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "208a46012868b88b46cc4afcc80b01da3f530ad0c375363d3daf30d0f157ada1"
+      "sha256": "51eb6c80d7b534bd0e922c079a1a7b13198ec6c4de72925877f081974e0f6cf0"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5487,7 +5494,7 @@
         "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
         "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
       ],
-      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+      "sha256": "aec30e8025a0693c26c19818e13beb16a75dda1bbfb7d7cafea189bc78517edb"
     },
     "tests/test_glp73_autonomous_articles.py": {
       "kind": "test",
@@ -5501,7 +5508,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+      "sha256": "7ad3c00c0dbc8346f914e6fc74580104a1fd2353319516d012f034fa905119d6"
     },
     "tests/test_bounded_pruner_discovery_resume.py": {
       "kind": "test",
@@ -5587,21 +5594,21 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "1b63a2d7be1fd7242351afe33efa7f5f134986bc89a4250d8ba8412c4bb913fa"
+      "sha256": "a3b8df3dd8436aebbf71829be9daf078a3c135462d0bdac68e2c613bc50b4552"
     },
     "systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py": {
       "kind": "script",
       "callers": [
         "topic supply refresh"
       ],
-      "sha256": "0f7480308b124e7d06a957fee4efdf0c01f5d503b5abefc677bcd460ccdec85d"
+      "sha256": "ccb14e66c66c30b378388d863a90e7d822cf8f82fe0e9df566b6743376edeef0"
     },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "a046bd2601b3375fbd408f791b7d35470889b0b677d29f0c838d5e6d3fc2ba23"
+      "sha256": "90921088132c554f38278cc46a6a9dfc0320c79bd5bf9c66c9cda2e15965e3a8"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
