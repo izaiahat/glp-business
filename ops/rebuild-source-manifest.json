@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 908,
+  "tracked_count": 909,
   "files": {
     "scripts/fleet_ingest.py": {
       "kind": "registered_producer",
@@ -1315,7 +1315,7 @@
     "ops/linear/WORKER-STANDARD.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "9d267d63fea6f9f0f3a9e3dbfa6a6bd12f6afa86341775fdad381a32c22ad9b3"
+      "sha256": "9b093f460726db35b048a2c43ed91a6642300d109abe6733443d15a0c898d928"
     },
     "ops/maxbounty-fresh-probe.md": {
       "callers": [
@@ -6134,6 +6134,11 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "d406cba2a314f586de11b61d3fe48f2ff1387fd37dacb41893a516f3907ae39d"
+    },
+    "ops/linear/AUTO-COORDINATOR.md": {
+      "kind": "instruction_or_policy",
+      "callers": [],
+      "sha256": "48753554609c5197d1c101a19ee9ec4505d6c39f0f1a8be30334a46dff8646ea"
     }
   }
 }
