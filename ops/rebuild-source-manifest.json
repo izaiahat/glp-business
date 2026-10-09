@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 852,
+  "tracked_count": 851,
   "files": {
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -608,7 +608,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6c52c105181884e70d8a08347dc770a027aded1cda81514b1e518c251d3ac4e5"
+      "sha256": "98f40c8e8bb6a183dbe0277e9cd6f20210e6b551b3a1d7f12656c3e9c25945e8"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -618,7 +618,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "578086dfcfb02feb58fd5953ad00e0ba8ad5705d4c18d331ebfc0f213ae47554"
+      "sha256": "05f68ce3dfdb238a8788ce819fcd81c9814d6a265acbb44120c739f95d48b8dd"
     },
     ".hermes.md": {
       "callers": [],
@@ -3547,12 +3547,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ca29fe02abdd74db6293078cbcf432e9e09647d8f350a4a522db5cafc6c08c79"
-    },
-    "tests/test_sync_reviewed_preimage.py": {
-      "callers": [],
-      "kind": "repository_control",
-      "sha256": "2a1ff77c8cc19302a41d5fe0db61e182b6bf9d04e1e89c5ec8f36aa3c79a4ea3"
+      "sha256": "2efc25f6539b3c908aac0be8d306db3735d38970162ca00de6cf05537bf94655"
     },
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],

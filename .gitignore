@@ -319,7 +319,6 @@
 !/tests/test_site_tree_generator_cow_gates.py
 !/tests/test_subscription_capacity_monitor.py
 !/tests/test_sync_from_repo.py
-!/tests/test_sync_reviewed_preimage.py
 
 !/ops/awin-fresh-preflight.candidate.json
 !/ops/awin-fresh-preflight.md

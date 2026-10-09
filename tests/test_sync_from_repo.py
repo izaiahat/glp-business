@@ -313,3 +313,34 @@ def test_real_committed_source_manifest_passes_sync_preflight(tmp_path, capsys):
     assert mismatches == {}, f"committed source-manifest hash mismatches: {mismatches}"
     assert sync(tmp_path, repo, False) == 0
     assert "conflicts=0" in capsys.readouterr().out
+
+
+def test_reviewed_preimage_enrollment(tmp_path):
+    """Reviewed live bytes are explicit custody, not invented Git history."""
+    repo, root = checkout(tmp_path)
+    rel = 'scripts/sample.py'
+    target = (repo / rel).read_bytes()
+    live = b'reviewed legacy transport\n'
+    (root / 'scripts').mkdir()
+    (root / rel).write_bytes(live)
+    reviewed = [rel + '=' + digest(live)]
+    assert sync(root, repo, False, only=[rel]) == 2
+    assert sync(root, repo, False, only=[rel], reviewed_preimage=reviewed) == 0
+    assert not (root / sync_from_repo.STATE).exists()
+    (root / rel).write_bytes(b'intervening logic\n')
+    assert sync(root, repo, True, only=[rel], reviewed_preimage=reviewed) == 2
+    assert (root / rel).read_bytes() == b'intervening logic\n'
+    assert not (root / sync_from_repo.STATE).exists()
+    (root / rel).write_bytes(live)
+    for invalid in ([reviewed[0], reviewed[0]], [rel + '=bad'],
+                    ['scripts/unselected.py=' + '0' * 64]):
+        with pytest.raises(ValueError, match='reviewed preimage'):
+            sync(root, repo, False, only=[rel], reviewed_preimage=invalid)
+    with pytest.raises(ValueError, match='reviewed preimage'):
+        sync(root, repo, False, reviewed_preimage=reviewed)
+    assert sync(root, repo, True, only=[rel], reviewed_preimage=reviewed) == 0
+    assert (root / rel).read_bytes() == target
+    assert json.loads((root / sync_from_repo.STATE).read_text())['hashes'][rel] == digest(target)
+    with pytest.raises(ValueError, match='reviewed preimage'):
+        sync(root, repo, False, only=[rel], reviewed_preimage=reviewed)
+    assert sync(root, repo, False, only=[rel]) == 0
