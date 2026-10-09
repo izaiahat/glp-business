@@ -546,11 +546,18 @@ def sync_blockers(snapshot: dict[str, Any], store: dict[str, Any] | None = None,
         network = _slug(str(task.get("network") or "network"))
         blocker_id = f"BLK-{network}-portal-access"
         non_operator_status = _NON_OPERATOR_MINT_NETWORK_STATES.get(network)
+        if task.get("portal_supported") is False:
+            # An unsupported mint adapter is machine work, not a failed login.
+            # Keep the task/program pending; this is not an authentication grant.
+            non_operator_status = "machine_owned"
         if network == "direct" and _slug(str(task.get("program_id") or "")) == "plexusdx":
             non_operator_status = "superseded_operator_declined"
         seen_derived.add(blocker_id)
         previous = entries.get(blocker_id) or {}
-        if non_operator_status == "machine_owned":
+        if non_operator_status == "machine_owned" and task.get("portal_supported") is False:
+            cause = f"the {network} API mint task has no supported portal adapter"
+            steps = ["machine reconciles account-scoped API capability for the exact queued program; no operator sign-in requested"]
+        elif non_operator_status == "machine_owned":
             cause = f"the {network} persistent machine session or provider access path needs machine repair"
             steps = ["machine repairs or refreshes the persistent provider session and resumes the exact queued program"]
         elif non_operator_status == "awaiting_external":
