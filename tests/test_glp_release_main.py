@@ -179,6 +179,48 @@ def test_explicit_main_source_never_shortcuts_on_unchanged_affiliate_surfaces(tm
             job.execute({},tmp_path / 'explicit',source_ref=ref,source_pr=pr,publish=True)
 
 
+def test_affiliate_sync_consumes_exact_main_pre_effect_reconciliation(tmp_path, monkeypatch):
+    """The hourly sync must share the maintained main-release no-effect refusal."""
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    monkeypatch.setattr(rm, 'ROOT', tmp_path)
+    config = tmp_path / 'config.json'
+    config.write_text('{}')
+    runs = tmp_path / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    prior = runs / 'main-20261009T063150Z'
+    prior.mkdir(parents=True)
+    (prior / 'release').mkdir()
+    prepared = prior / 'prepared/PREPARED.json'
+    prepared.parent.mkdir()
+    prepared.write_text(json.dumps({'site_head': 'H', 'release_root': str(prior / 'release')}))
+    (prior / 'publish-intent.json').write_text(json.dumps({'prepared': {
+        'path': str(prepared), 'sha256': job.sha(prepared)}}))
+    (prior / 'FAILURE.json').write_text(json.dumps({'status':'FAIL', 'scope': rm.SCOPE,
+        'error': 'current_release_consumed_or_binding_changed'}))
+    native = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-release-H/CURRENT-RECEIPT.json'
+    native.parent.mkdir(parents=True)
+    monkeypatch.setattr(job, 'equivalent_main_rebuild_inputs', lambda p: {'one':{},'two':{}})
+    monkeypatch.setattr(job, 'retire_disposable_clones', lambda *a, **k: [])
+    calls = []
+    def execute(*args, **kwargs):
+        calls.append(kwargs)
+        return {'status':'PASS_ALREADY_CURRENT'}
+    monkeypatch.setattr(job, 'execute', execute)
+    for status, accepted in [('ACTIVE',False),('PASS_PRODUCTION_TERMINAL',True)]:
+        native.write_text(json.dumps({'status':status, 'binding': {
+            'prepared_manifest_sha256': 'different-consumed-prepared-binding'}}))
+        output = tmp_path / ('manual-' + status)
+        monkeypatch.setattr(sys, 'argv', ['glp_affiliate_sync_job.py', '--config', str(config), '--output', str(output)])
+        if not accepted:
+            with pytest.raises(RuntimeError, match='prior_publication_uncertain'):
+                job.main()
+            assert calls == []
+            assert not output.exists()
+        else:
+            assert job.main() == 0
+            assert len(calls) == 1
+    assert not (prior / 'PUBLISH.json').exists()  # never invent a publication receipt
+
+
 def test_sync_job_skips_pending_heads_already_in_production(tmp_path, monkeypatch):
     pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
     pointer.parent.mkdir(parents=True)
