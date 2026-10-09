@@ -21,6 +21,6 @@ def test_existing_price_job_and_twenty_launcher_copins_remain_exact():
     launchers=[s for job in doc['jobs'] for s in job.get('sources',[]) if s.get('source')=='scripts/cron_bridge_action.py']
     assert len(launchers)==20
     assert all(s['reviewed_sha256']==pin for s in launchers)
-    price=[j for j in doc['jobs'] if j['id']=='crontab:c375f52003048c64']
+    price=[j for j in doc['jobs'] if j['id']=='crontab:d58cea74745f59c1']
     assert len(price)==1
     assert price[0]['sources'][1]=={'path':'/home/ubuntu/business/scripts/glp_price_freshness.py','source':'scripts/glp_price_freshness.py','reviewed_sha256':hashlib.sha256((ROOT/'scripts/glp_price_freshness.py').read_bytes()).hexdigest()}

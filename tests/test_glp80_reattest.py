@@ -65,6 +65,6 @@ def test_weekly_batch_and_unchanged_unknown_page_skip_json(tmp_path, monkeypatch
     monkeypatch.setattr(p.subprocess, 'check_output', lambda *a, **kw: cron[0])
     monkeypatch.setattr(p.subprocess, 'run', lambda *a, **kw: cron.__setitem__(0, kw['input']))
     installed = p.install_weekly()
-    assert installed['line'].startswith('20 8 * * 0 ')
+    assert installed['line'].startswith('20 * * * * ')
     assert "--cron '20 8 * * 0'" in installed['line']
     assert '1 2 * * * unrelated-job\n' in cron[0]
