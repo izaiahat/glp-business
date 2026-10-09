@@ -149,10 +149,20 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "followUpConsent": False,
         "storedPageIdentifier": False,
     }
+    legacy_capture = {"action": "/api/content-upgrade", "consentVersion": "glp-content-upgrade-v2-20260801",
+                      "sourcePage": route_key, "leadMagnetKey": f"{route_key}-terms-checklist",
+                      "emailField": "email", "healthDataFields": []}
     if not meta["slug"].startswith("/guides/"):
-        expected_capture = {"action": "/api/content-upgrade", "consentVersion": "glp-content-upgrade-v2-20260801",
-                            "sourcePage": route_key, "leadMagnetKey": f"{route_key}-terms-checklist",
-                            "emailField": "email", "healthDataFields": []}
+        expected_capture = legacy_capture
+    elif capture == legacy_capture:
+        # Exact retired packet metadata can compile only into the CURRENT
+        # resource-delivery surface. Never render legacy marketing eligibility
+        # or rewrite sealed source/evidence. Mixed or arbitrary contracts fail.
+        capture = expected_capture.copy()
+        # Pre-exactServices packets already declare the service subjects. Carry
+        # that native metadata forward, never infer a provider from prose.
+        if "exactServices" not in meta and "providersDiscussed" in meta:
+            meta = dict(meta, exactServices=meta["providersDiscussed"])
     if any(capture.get(key) != value for key, value in expected_capture.items()):
         raise RuntimeError("capture_contract_invalid")
     ledger = json.loads((packet / "01-evidence-ledger.json").read_text())

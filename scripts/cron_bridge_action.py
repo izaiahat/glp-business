@@ -838,6 +838,58 @@ def liveness_repair_slot(prior, due_slot, payload_sha256):
     return due_slot + "|postrepair"
 
 
+def article_materialization_failed_no_effect(receipt, child):
+    """A failed remint with no plan/candidate cannot have called publication."""
+    argv = child.get("argv") or []
+    try:
+        flags = dict(zip(argv[2::2], argv[3::2]))
+        if (len(argv) != 22 or Path(argv[1]).name != "materialize_opus_run.py"
+                or set(flags) != {"--packet", "--topic-id", "--route", "--run-id", "--release-root",
+                                  "--publication-date", "--selection-receipt", "--topic-authority-snapshot",
+                                  "--materialization-reason", "--pt-date"}
+                or flags["--materialization-reason"] != "remint"):
+            return False
+        workspace = ROOT / "reports/glp-clinic-scout/seo-machine/article-buffer-work" / hashlib.sha256(receipt["operation_id"].encode()).hexdigest()
+        if Path(flags["--packet"]) != workspace / "packet":
+            return False
+        prior_path = Path(receipt["accepted_failures"]["materialization"])
+        prior = json.loads(prior_path.read_text())
+        unsigned = dict(prior)
+        sealed = unsigned.pop("materialization_sha256")
+        canonical = (json.dumps(unsigned, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
+        run_id = f"buffer-{workspace.name[:16]}-r{prior['generation'] + 1}"
+        candidate = ROOT / "site-system/flagship-v2/releases" / f"glp-buffer-{flags['--pt-date']}-{workspace.name[:16]}-r{prior['generation'] + 1}"
+        if (prior_path.parent != workspace or hashlib.sha256(canonical).hexdigest() != sealed
+                or prior.get("operation_id") != receipt["operation_id"]
+                or flags["--run-id"] != run_id or Path(flags["--release-root"]) != candidate
+                or any(p.exists() or p.is_symlink() for p in (
+                    candidate, workspace / f"apply-template-{run_id}.json",
+                    workspace / f"publication-{run_id}", workspace / f"materialization-r{prior['generation'] + 1}.json"))):
+            return False
+        base = prior["current_base_state"]
+        base_path = ROOT / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
+        if base["path"] != str(base_path) or hashlib.sha256(base_path.read_bytes()).hexdigest() != base["sha256"]:
+            return False
+        # The superseded build is also demonstrably pre-publication; no older
+        # possibly effectful attempt can be hidden by this failed remint.
+        template_path = Path(prior["materialized"]["apply_template"]["path"])
+        template_bytes = template_path.read_bytes()
+        if hashlib.sha256(template_bytes).hexdigest() != prior["materialized"]["apply_template"]["sha256"]:
+            return False
+        report = Path(json.loads(template_bytes)["report_dir"])
+        if {p.name for p in report.iterdir()} != {"release-job.json"}:
+            return False
+        current = article_current_base()
+        heads = receipt["head_reconciliation"]
+        deployment = current["deployment_id"]
+        return (current["pointer_sha256"] == base["sha256"] and heads.get("aligned") is True
+                and heads["pointer_head"]["deployment_id"] == deployment
+                and heads["live_head"]["deployment_id"] == deployment
+                and article_production_head_id() == deployment and article_current_base() == current)
+    except (OSError, ValueError, KeyError, TypeError, IndexError):
+        return False
+
+
 def article_failed_before_publish(receipt):
     """Prove a failed pre-report build never reached the publisher.
 
@@ -857,8 +909,11 @@ def article_failed_before_publish(receipt):
                 or failure.get("operation_id") != receipt["operation_id"]
                 or payload.get("operation_id") != receipt["operation_id"]
                 or payload.get("status") != "BLOCKED_CONSUME_FAILED"
-                or type(child.get("exit_code")) is not int or child["exit_code"] == 0
-                or len(argv) != 4 or Path(argv[1]).name != "apply_opus_article_release.py"
+                or type(child.get("exit_code")) is not int or child["exit_code"] == 0):
+            return False
+        if len(argv) > 1 and Path(argv[1]).name == "materialize_opus_run.py":
+            return article_materialization_failed_no_effect(receipt, child)
+        if (len(argv) != 4 or Path(argv[1]).name != "apply_opus_article_release.py"
                 or argv[2] != "--template"):
             return False
         template = json.loads(Path(argv[3]).read_text())
