@@ -1,0 +1,449 @@
+#!/usr/bin/env python3
+"""Deterministic fleet completion inbox. Never dispatches, sends, or writes Linear.
+
+Coordinator-owned PLAN.json proof commands are evaluated without a shell. Prose,
+missing commands and unsafe effect-capable proofs fail closed to REDISPATCH.
+Only the coordinator closes a READY_TO_CLOSE row through linear_close.py --apply.
+"""
+from __future__ import annotations
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+from datetime import datetime, timezone
+
+ISSUE = re.compile(r'GLP-[1-9][0-9]*\Z')
+LANE = re.compile(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,100}\Z')
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def read(path):
+    try:
+        data = json.loads(Path(path).read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def atomic(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix='.ingest-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=2, sort_keys=True)
+            f.write('\n')
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(name, path)
+        directory = os.open(path.parent, os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def event(source, issue, lane, identity, files, worker_result=None, failure=''):
+    if not ISSUE.fullmatch(issue) or not LANE.fullmatch(lane):
+        raise ValueError('invalid issue/lane identity')
+    evidence = {str(p): digest(p) for p in files}
+    return {'source': source, 'issue': issue, 'lane': lane,
+            'identity': str(identity), 'evidence': evidence,
+            'worker_result': str(worker_result) if worker_result else None,
+            'source_failure': failure}
+
+
+def run(argv, cwd, timeout, output_limit=4000):
+    env = dict(os.environ, LINEAR_ROLE='fleet-ingest')
+    try:
+        cp = subprocess.run(argv, cwd=cwd, env=env, capture_output=True,
+                            text=True, timeout=timeout)
+        return {'rc': cp.returncode, 'stdout': cp.stdout[-output_limit:], 'stderr': cp.stderr[-4000:],
+                'output_truncated': len(cp.stdout) > output_limit}
+    except subprocess.TimeoutExpired:
+        return {'rc': 124, 'stdout': '', 'stderr': 'proof timed out; no automatic replay of effects'}
+    except OSError as exc:
+        return {'rc': 127, 'stdout': '', 'stderr': str(exc)}
+
+
+def proof_argv(value):
+    if isinstance(value, str):
+        if any(x in value for x in (';', '|', '&', '`', '$', '\n', '>', '<')):
+            raise ValueError('proof_cmd requires a read-only argv, not shell/prose')
+        value = shlex.split(value)
+    if not isinstance(value, list) or not value or not all(isinstance(x, str) for x in value):
+        raise ValueError('missing executable proof_cmd')
+    # These commands cannot mutate business/Linear or send/deploy. Other commands
+    # need an explicit coordinator-owned read-only contract, not a worker claim.
+    base = Path(value[0]).name
+    safe = base in {'stat', 'test', 'sha256sum'}
+    safe |= base == 'gh' and len(value) > 2 and (value[1:3] in [['pr', 'view'], ['pr', 'checks'], ['issue', 'view']])
+    if base == 'curl':
+        options = {'--fail', '--silent', '--show-error', '--head', '-I', '-f', '-s', '-S'}
+        urls = [x for x in value[1:] if x.startswith('https://')]
+        safe = (len(urls) == 1 and re.fullmatch(r'https://glpclinicscout\.com/(?:guides/[^?#]*|sitemap\.xml|robots\.txt)', urls[0]) is not None
+                and all(x in options or x in urls for x in value[1:]))
+    safe |= base in {'python3', 'python'} and len(value) > 2 and value[1:3] == ['-m', 'unittest']
+    if not safe:
+        raise ValueError('proof_cmd not in read-only allowlist; coordinator must supply a safe proof')
+    return value
+
+
+def alive(pid):
+    try:
+        pid = int(pid)
+        if pid <= 0:
+            return True
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except (ValueError, TypeError, PermissionError):
+        return True
+
+
+def walk(root, names):
+    # Never recurse into copies, checkouts, artifacts, or generated inbox state.
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(x for x in dirs if x not in {
+            '.git', 'checkout', 'source', 'repo', 'node_modules', '.venv',
+            '.worktrees', 'fleet-inbox', 'artifacts', 'history', 'cache',
+            'site-system', 'prepared', 'release', 'evidence'})
+        for name in sorted(set(files) & set(names)):
+            path = Path(directory) / name
+            if not path.is_symlink():
+                yield path
+
+
+def binding(data, path):
+    value = data.get('issue') or data.get('linear_issue') or data.get('issue_id')
+    if isinstance(value, str) and ISSUE.fullmatch(value):
+        return value
+    # Legacy Codex lanes do not store issue: accept only a named glpNN lane dir,
+    # never a mention in arbitrary reply text or paths under another issue.
+    matches = set(re.findall(r'(?i)(?:^|[/_-])glp-?([1-9][0-9]*)(?=[/_-]|$)', str(path)))
+    return 'GLP-' + next(iter(matches)) if len(matches) == 1 else None
+
+
+def lane_name(data, source, identity):
+    lane = data.get('lane') or data.get('executor') or data.get('model') or source
+    lane = re.sub(r'[^a-zA-Z0-9_.-]', '-', str(lane))[:60]
+    return lane + '-' + hashlib.sha256(str(identity).encode()).hexdigest()[:12]
+
+
+def result_pointer(root, data, fallback=None):
+    raw = data.get('worker_result') or data.get('result_path')
+    p = Path(raw) if isinstance(raw, str) else fallback
+    if p is None:
+        return None
+    if not p.is_absolute():
+        p = root / p
+    p = p.resolve()
+    return p if root.resolve() in p.parents and p.is_file() else None
+
+
+def verified_outbox(root, job):
+    if not LANE.fullmatch(job):
+        raise ValueError('OUTBOX_INVALID_JOB')
+    parent = root / 'reports/ops/gpt6pro-relay/jobs' / job
+    st = read(parent / 'JOB.json')
+    receipt = st.get('fetch_verification', {})
+    dest = parent / 'outbox'
+    manifest = dest / 'OUTPUT-MANIFEST.json'
+    files = read(manifest).get('files')
+    if (receipt.get('state') != 'VERIFIED' or not isinstance(files, dict)
+            or not manifest.is_file() or digest(manifest) != receipt.get('manifest_sha256')
+            or not (parent / 'RESPONSE.md').is_file()
+            or digest(parent / 'RESPONSE.md') != st.get('source_reply_sha256')):
+        raise ValueError('OUTBOX_NOT_VERIFIED_OR_CHANGED')
+    if set(p.name for p in dest.iterdir()) != set(files) | {'OUTPUT-MANIFEST.json'}:
+        raise ValueError('OUTBOX_FILE_SET_CHANGED')
+    paths = [manifest, parent / 'JOB.json', parent / 'RESPONSE.md']
+    for name, sha in files.items():
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', name):
+            raise ValueError('OUTBOX_INVALID_FILE')
+        p = dest / name
+        if p.is_symlink() or digest(p) != sha:
+            raise ValueError('OUTBOX_BYTES_CHANGED')
+        paths.append(p)
+    return paths
+
+
+def discover(root, live, config, prs):
+    events, errors, completed = [], [], {}
+    # A terminal native manifest is the runtime-owned equivalent of dead PID.
+    # Explicit PID, if present, must still be dead; partial live RESULT is ignored.
+    for manifest in live.glob('*/manifest.json'):
+        data = read(manifest)
+        if data.get('pid') and alive(data['pid']):
+            continue
+        for task in data.get('tasks', []):
+            if task.get('status') != 'completed':
+                continue
+            for raw in re.findall(r'/home/ubuntu/business/[^\s{},]*RESULT\.json', task.get('goal', '')):
+                completed[str(Path(raw).resolve())] = (manifest, task)
+    for path in walk(root / 'reports/ops', {'RESULT.json', 'RUN.json'}):
+        data = read(path)
+        try:
+            if path.name == 'RUN.json':
+                if not data.get('finished_at') or 'exit_code' not in data:
+                    continue
+                issue = binding(data, path)
+                if not issue:
+                    continue
+                response = path.parent / 'RESPONSE.md'
+                evidence = [path] + ([response] if response.is_file() else [])
+                failure = '' if data['exit_code'] == 0 and response.is_file() else 'Codex executor failed or RESPONSE.md absent'
+                events.append(event('codex', issue, lane_name(data, 'codex', path), path, evidence,
+                    result_pointer(root, data, path.parent / 'RESULT.json'), failure))
+                continue
+            completion = completed.get(str(path.resolve()))
+            if data.get('pid'):
+                if alive(data['pid']):
+                    continue
+            elif not completion:
+                continue
+            if not data:
+                continue
+            failure = '' if str(data.get('status', '')).upper() in {'DONE', 'DONE_READY_TO_CLOSE', 'PASS', 'COMPLETED', 'COMPLETE', 'CLOSED'} else 'native executor stopped without a complete worker RESULT'
+            issue = binding(data, path)
+            if not issue and completion:
+                ids = set(re.findall(r'GLP-[1-9][0-9]*', completion[1].get('goal', '')))
+                issue = next(iter(ids)) if len(ids) == 1 else None
+            if issue:
+                evidence = [path] + ([completion[0]] if completion else [])
+                events.append(event('native', issue, lane_name(data, 'sol', path), path, evidence, path, failure))
+        except (OSError, ValueError) as exc:
+            errors.append({'path': str(path), 'error': str(exc)})
+    for path in sorted((root / 'ops/gpt6pro-relay/route/queue').glob('*.json')):
+        data = read(path)
+        if data.get('state') != 'complete' or not binding(data, path):
+            continue
+        try:
+            files = verified_outbox(root, data['job'])
+            events.append(event('pro', binding(data, path), lane_name(data, 'pro', path),
+                path, [path] + files, result_pointer(root, data)))
+        except (KeyError, OSError, ValueError) as exc:
+            errors.append({'path': str(path), 'error': str(exc)})
+    for path in sorted((root / 'reports/ops/dot-tickets').glob('*/REPLY.md')):
+        data = read(path.parent / 'CONFIG.json')
+        issue = data.get('issue') or data.get('issue_id')
+        if not isinstance(issue, str) or not ISSUE.fullmatch(issue) or not path.read_text().strip():
+            continue
+        events.append(event('dot', issue, lane_name({'lane': data.get('dot', data.get('lane', 'dot'))}, 'dot', path),
+            path, [path, path.parent / 'CONFIG.json'], result_pointer(root, data, path.parent / 'RESULT.json')))
+    for pr in prs:
+        ids = {label['name'].split(':', 1)[1] for label in pr.get('labels', [])
+               if re.fullmatch(r'fleet-ticket:GLP-[1-9][0-9]*', label.get('name', ''))}
+        if len(ids) != 1 or pr.get('state') not in {'MERGED', 'CLOSED'}:
+            continue
+        issue = next(iter(ids))
+        identity = pr['url']
+        # Snapshot only read-only GitHub data. Never claim PR alone is installed.
+        snapshot = root / 'reports/ops/fleet-inbox/.github' / (hashlib.sha256(identity.encode()).hexdigest() + '.json')
+        if read(snapshot) != pr:
+            atomic(snapshot, pr)
+        bad = pr.get('state') != 'MERGED' or not pr.get('statusCheckRollup') or any(
+            c.get('conclusion', c.get('state')) not in {'SUCCESS', 'SKIPPED', 'NEUTRAL'} for c in pr.get('statusCheckRollup', []))
+        events.append(event('github', issue, lane_name({'lane': 'pr'}, 'github', identity),
+            identity, [snapshot], None, 'PR not merged on passing exact-head CI' if bad else ''))
+    # Only coordinator-bound registered machine identities, never infer ownership
+    # from arbitrary receipt text or issue mentions in an unrelated artifact.
+    latest = {}
+    for base in ('reports/ops/n8n-to-cron-20260924/runs', 'reports/ops/job-receipts'):
+        for path in walk(root / base, {p.name for p in (root / base).glob('*.json')}):
+            data = read(path)
+            bridge = data.get('bridge', {})
+            if not isinstance(bridge, dict):
+                continue
+            jid = bridge.get('job_id') or data.get('job_id') or data.get('action')
+            policy = config.get('cron_bindings', {}).get(jid)
+            if not policy or not ISSUE.fullmatch(str(policy.get('issue', ''))):
+                continue
+            terminal = bridge.get('status') or data.get('status')
+            if terminal not in {'done', 'complete', 'completed', 'PASS', 'SUCCESS', 'failed', 'FAIL', 'error'}:
+                continue
+            key = str(jid)
+            if key not in latest or path.stat().st_mtime_ns > latest[key][0].stat().st_mtime_ns:
+                latest[key] = (path, data, policy)
+    for jid, (path, data, policy) in sorted(latest.items()):
+        bridge = data.get('bridge', {})
+        failure = '' if (bridge.get('rc', data.get('rc', 0)) == 0 and (bridge.get('status') or data.get('status')) not in {'failed', 'FAIL', 'error'}) else 'registered cron receipt failed'
+        # Stable machine lane; source revision hashes still retain every receipt.
+        events.append(event('cron', policy['issue'], lane_name({'lane': policy.get('lane', 'cron')}, 'cron', jid),
+            'cron:' + jid, [path], result_pointer(root, policy), failure))
+    return events, errors
+
+
+def ingest(root, item, policy, runner=run, timeout=30, retry=False):
+    inbox = root / 'reports/ops/fleet-inbox'
+    target = inbox / item['issue'] / item['lane'] / 'INGEST.json'
+    closer = root / 'scripts/linear_close.py'
+    item = dict(item, evidence=dict(item['evidence']))
+    result = result_pointer(root, policy) if policy.get('worker_result') else result_pointer(root, item)
+    if result:
+        item['worker_result'] = str(result)
+        item['evidence'][str(result)] = digest(result)
+        bound_issue = read(result).get('issue')
+        if bound_issue and bound_issue != item['issue']:
+            item['source_failure'] = 'worker RESULT issue mismatch'
+    # Completion identity + trusted command + closer bytes are the replay key.
+    fingerprint = hashlib.sha256(json.dumps({'event': item, 'policy': policy,
+        'closer': digest(closer) if closer.is_file() else None}, sort_keys=True).encode()).hexdigest()
+    prior = read(target)
+    if prior.get('fingerprint') == fingerprint and not retry:
+        return prior
+    if prior.get('identity') not in (None, item['identity']):
+        raise ValueError('lane collision: source identities must have separate lanes')
+    checks = {}
+    failures = [item['source_failure']] if item['source_failure'] else []
+    try:
+        argv = proof_argv(policy.get('proof_cmd'))
+        proof = runner(argv, root, timeout)
+        minimums = policy.get('proof_stdout_minimums')
+        if proof['rc'] == 0 and minimums is not None:
+            try:
+                observed = [int(s) for s in proof.get('stdout', '').splitlines()]
+                valid = isinstance(minimums, list) and len(observed) == len(minimums) and all(v >= int(m) for v, m in zip(observed, minimums))
+            except (ValueError, TypeError):
+                valid = False
+            if not valid:
+                proof = dict(proof, rc=3, stderr='proof stdout minimum thresholds not met')
+        checks['proof'] = {'argv': argv, **proof}
+    except ValueError as exc:
+        checks['proof'] = {'rc': 2, 'stderr': str(exc), 'stdout': ''}
+    if checks['proof']['rc']:
+        failures.append('proof: ' + (checks['proof'].get('stderr') or checks['proof'].get('stdout') or 'nonzero exit'))
+    if item['worker_result']:
+        argv = [sys.executable, str(closer), item['issue'], item['worker_result'], '--check-only']
+        checks['linear_close'] = {'argv': argv, **runner(argv, root, timeout)}
+    else:
+        checks['linear_close'] = {'rc': 2, 'stderr': 'completion has no genuine worker RESULT.json for closure', 'stdout': ''}
+    if checks['linear_close']['rc']:
+        failures.append('linear_close: ' + (checks['linear_close'].get('stderr') or checks['linear_close'].get('stdout') or 'nonzero exit'))
+    row = {'schema': 'fleet-ingest-v1', **item, 'fingerprint': fingerprint,
+           'ingested_at_utc': now(), 'status': 'REDISPATCH' if failures else 'READY_TO_CLOSE',
+           'checks': checks, 'failure_text': '\n'.join(failures),
+           'closure_authority': 'coordinator-only', 'linear_mutations': 0}
+    # Write immutable revision first, then the coordinator's discoverable pointer.
+    atomic(target.parent / 'history' / (fingerprint + '.json'), row)
+    atomic(target, row)
+    return row
+
+
+def revoke_stale(root, current_items):
+    current = {item['identity'] for item in current_items}
+    revoked = 0
+    for path in (root / 'reports/ops/fleet-inbox').glob('GLP-*/*/INGEST.json'):
+        row = read(path)
+        if row.get('status') != 'READY_TO_CLOSE' or row.get('identity') in current:
+            continue
+        try:
+            valid = all(Path(p).is_file() and not Path(p).is_symlink() and digest(Path(p)) == sha
+                        for p, sha in row.get('evidence', {}).items())
+        except OSError:
+            valid = False
+        if valid:
+            continue
+        row = dict(row, status='REDISPATCH', failure_text='source evidence changed or disappeared; terminal completion must be reconciled', revoked_at_utc=now())
+        key = hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest()
+        row['fingerprint'] = key
+        atomic(path.parent / 'history' / (key + '.json'), row)
+        atomic(path, row)
+        revoked += 1
+    return revoked
+
+
+def poll(root, live, plan_path, config_path, timeout=30, retry=False):
+    inbox = root / 'reports/ops/fleet-inbox'
+    inbox.mkdir(parents=True, exist_ok=True)
+    with (inbox / '.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {'status': 'BUSY', 'changed': 0}
+        plan_data, config = read(plan_path), read(config_path)
+        policies = {p['issue']: p for p in plan_data.get('issues', []) if isinstance(p, dict) and ISSUE.fullmatch(str(p.get('issue', '')))}
+        for issue, override in config.get('issues', {}).items():
+            if ISSUE.fullmatch(issue):
+                policies[issue] = {**policies.get(issue, {}), **override}
+        prs, errors = [], []
+        for repo in ('izaiahat/glp-business', 'izaiahat/glp-site-candidate'):
+            cp = run(['gh', 'api', '--paginate', 'repos/' + repo + '/labels', '--jq',
+                      '[.[] | select(.name | test("^fleet-ticket:GLP-[1-9][0-9]*$")) | .name]'], root, timeout, 128000)
+            if cp['rc'] or cp.get('output_truncated'):
+                errors.append({'repo': repo, 'error': cp['stderr'] or 'label discovery failed'})
+                continue
+            try:
+                # --paginate outputs a JSON array per page, often adjacent.
+                labels = []
+                decoder, text = json.JSONDecoder(), cp['stdout'].strip()
+                while text:
+                    page, end = decoder.raw_decode(text)
+                    labels.extend(page)
+                    text = text[end:].lstrip()
+                for label in sorted(set(labels)):
+                    cp = run(['gh', 'pr', 'list', '--repo', repo, '--state', 'all', '--limit', '1000',
+                        '--label', label, '--json', 'number,url,state,headRefOid,labels,statusCheckRollup'], root, timeout, 1000000)
+                    if cp['rc'] or cp.get('output_truncated'):
+                        raise ValueError('GitHub PR listing failed: ' + cp['stderr'])
+                    prs.extend(json.loads(cp['stdout']))
+            except ValueError as exc:
+                errors.append({'repo': repo, 'error': str(exc)})
+        items, discovery_errors = discover(root, live, config, prs)
+        errors.extend(discovery_errors)
+        revoked = revoke_stale(root, items)
+        counts, statuses, rows, changed = {}, {}, [], 0
+        for item in sorted(items, key=lambda e: (e['issue'], e['lane'])):
+            path = inbox / item['issue'] / item['lane'] / 'INGEST.json'
+            before = read(path)
+            row = ingest(root, item, policies.get(item['issue'], {}), timeout=timeout, retry=retry)
+            changed += before != row
+            counts[item['source']] = counts.get(item['source'], 0) + 1
+            statuses[row['status']] = statuses.get(row['status'], 0) + 1
+            rows.append(str(path))
+        summary = {'schema': 'fleet-ingest-run-v1', 'status': 'COMPLETE', 'finished_at_utc': now(),
+                   'sources': counts, 'statuses': statuses, 'row_count': len(rows), 'changed': changed,
+                   'rows': rows, 'errors': errors, 'linear_mutations': 0, 'revoked': revoked}
+        atomic(inbox / 'LAST-RUN.json', summary)
+        return summary
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--root', type=Path, default=Path('/home/ubuntu/business'))
+    parser.add_argument('--live', type=Path, default=Path('/home/ubuntu/.hermes/cache/delegation/live'))
+    parser.add_argument('--plan', type=Path)
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--timeout', type=int, default=30)
+    parser.add_argument('--retry', action='store_true', help='explicit read-only proof re-evaluation')
+    parser.add_argument('--json', action='store_true', help='local diagnostic, never a channel card')
+    args = parser.parse_args()
+    summary = poll(args.root, args.live,
+        args.plan or args.root / 'reports/ops/fable-plan-2-20261009/PLAN.json',
+        args.config or args.root / 'reports/ops/fleet-inbox/CONFIG.json', args.timeout, args.retry)
+    if args.json:
+        print(json.dumps(summary, sort_keys=True))
+    # Scheduled success is silent. Durable rows are coordinator input, not alerts.
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
