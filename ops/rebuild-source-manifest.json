@@ -2069,7 +2069,7 @@
         "crontab:20"
       ],
       "kind": "script",
-      "sha256": "19f4a3b9dde97aca1a4cd452a99878cf0b3c478368dcb92892480b660ad3b7ec"
+      "sha256": "1f15d0ce2a20e1c383da1cfbd224e29198d205b9436d400edb0b63a483a20857"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
