@@ -173,7 +173,14 @@ ROUTE_MASTER_STATE_SOURCE = (
 ROUTE_MASTER_STATE_RELATIVE = Path(
     "artifacts/ultracode/article-route-master-state.json"
 )
-OPTIONAL_ARTICLE_OVERLAYS = (ROUTE_MASTER_STATE_RELATIVE,)
+# Generated lineage manifests are rewritten in place by the build's own
+# generate:home-imagery / generate:phase3-product-renders steps; a release
+# packaged from a fresh main build may not carry them (glp_release_main).
+GENERATED_LINEAGE_OVERLAYS = (
+    Path("artifacts/ultracode/phase2-home/generated-image-lineage.json"),
+    Path("artifacts/ultracode/phase3-product-renders/generated-image-lineage.json"),
+)
+OPTIONAL_ARTICLE_OVERLAYS = (ROUTE_MASTER_STATE_RELATIVE, *GENERATED_LINEAGE_OVERLAYS)
 
 # ---------------------------------------------------------------------------
 # tests/playbook.test.mjs — historical-cohort batch-gate assertion states.
