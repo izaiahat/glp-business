@@ -101,11 +101,11 @@ declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/affiliate_sheet_batch_writer.py']='aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_daily.py']='948a6c1bb6fb41fc8ad11ba4b9d236d5ea50823a1cff423fc3887012fe3c8b21'
   ['/home/ubuntu/business/scripts/glp_affiliate_wire_backlog_worker.py']='16cac080089a5b75da8ab3fba6d875bdd30a46bee545e0dd751dc97ed30e1108'
-  ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='85837d85f38275366058f4ab2be2e85dac2481770edb9687297393deb5be80f3'
+  ['/home/ubuntu/business/scripts/glp_provider_cardinality_test_refresh.py']='83cb9e73eeeeb184043ff9bf53f68265c22c51e104bb7aeb76eb9cae1e98d6aa'
   ['/home/ubuntu/business/scripts/glp_price_index_source_rebind.mjs']='5342eabc650b351b5d3c7a2dd1329cf013a7445dbc30260f5240f6606cae021c'
   ['/home/ubuntu/business/scripts/glp_provider_dynamic_profile_activation.mjs']='598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0'
-  ['/home/ubuntu/business/scripts/glp_go_runtime_manifest_refresh.mjs']='e7588766ac147bccb507da889c818d97b35f25a8e1664253ce653de3ed0dde5c'
-  ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='1b2f3196d318c3712796a8d2afca5cee16b78831038faa529f83a71df06f5cbb'
+  ['/home/ubuntu/business/scripts/glp_go_runtime_manifest_refresh.mjs']='a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'
+  ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432'
 )
 for b2_path in "${!b2_pins[@]}"; do
   actual_b2_sha256="$(sha256sum "$b2_path" | cut -d' ' -f1)"

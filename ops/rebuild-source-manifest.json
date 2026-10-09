@@ -16,14 +16,14 @@
         "hermes:f0c6a95a371c"
       ],
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "cbc82eb6b6b018186ebf913ee06bb265d05f29262f031d922ea3c128da00c433"
+      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
     },
     "tests/test_reconciliation_b2_worker_pin.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "3e7377b6026c7bac7e850991d72e188bc43d3aa18891eef9f8fcc44d6c3e11ef"
+      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
     },
     "scripts/glp_affiliate_daily_decisions_report.py": {
       "kind": "registered_producer",
