@@ -95,6 +95,16 @@ class DispatchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             d.publish_reply(ticket, state, {'results': [dict(value, text='altered')]})
 
+    def test_live_consumer_source_pins_do_not_follow_candidate_adapter(self):
+        live = Path(self.tmp.name) / 'live'
+        (live / 'scripts').mkdir(parents=True)
+        for name in ('native_reply_consumer.py', 'receive_one_discord_message.py', 'rook_mcp_events.py'):
+            (live / 'scripts' / name).write_text('frozen installed bytes')
+        with patch.object(d, 'ROOT', live):
+            self.assertEqual(d.consumer_dir(), live / 'scripts')
+            self.assertEqual(d.source_pins()['rook_mcp_events.py'], hashlib.sha256(
+                b'frozen installed bytes').hexdigest())
+
     def test_non_result_and_foreign_correlation_never_publish(self):
         ticket = self.root / 'test'; ticket.mkdir(parents=True)
         state = {'ticket': 'test', 'correlation': 'discord-100', 'dot': 'finch'}

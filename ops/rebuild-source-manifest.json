@@ -6105,14 +6105,14 @@
       "callers": [
         "manual:authorized-dot-ticket"
       ],
-      "sha256": "fa907e76629ac127a4b9dd54425243d4923bea5e29f103b4a3751adf969454e0"
+      "sha256": "db2f0955be1b0d5d96317d4419ce9088eee12cb4e9c0d7e3ff681fd2da3dacb7"
     },
     "tests/test_dot_dispatch.py": {
       "kind": "test",
       "callers": [
         "CI:native-reply-consumer"
       ],
-      "sha256": "408af939cd9387e8cf0dae4aa293396b4862ef994102aa881ba98ff1864881c7"
+      "sha256": "c44f2ac0e82a9cb34c4ed530ce984391f04e82c97455a7e08aa0bb8286546bed"
     }
   }
 }

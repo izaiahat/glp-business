@@ -127,7 +127,7 @@ def subscription_ready(dot):
     if any(row.get('state') in {'sending', 'uncertain'} and row.get('policy') == expected for row in pending):
         raise ValueError('native_uncertainty_requires_reconciliation')
     matches = [row for row in subscriptions if row.get('policy') == expected
-        and row.get('subject') == SUBJECT and row.get('expires', 0) > time.time() + 600
+        and row.get('subject') == SUBJECT and row.get('expires', 0) > time.time() + 60
         and (dot['user'] != DOTS['finch']['user'] or
              row.get('channel_id') == dot['channel'] and row.get('guild_id') == GUILD)]
     if len(matches) != 1:
@@ -135,10 +135,18 @@ def subscription_ready(dot):
     return {key: matches[0][key] for key in ('id', 'expires', 'policy')}
 
 
+def consumer_dir():
+    # Live source is not a checkout; freeze the installed consumer, not a newer
+    # candidate adapter copy. CI has no live workspace and uses its checkout.
+    live = ROOT / 'scripts'
+    return live if (live / 'native_reply_consumer.py').exists() else Path(__file__).parent
+
+
 def source_pins():
-    return {name: hashlib.sha256((Path(__file__).parent / name).read_bytes()).hexdigest()
-            for name in ('dot_dispatch.py', 'native_reply_consumer.py',
-                         'receive_one_discord_message.py', 'rook_mcp_events.py')}
+    pins = {'dot_dispatch.py': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+    pins.update({name: hashlib.sha256((consumer_dir() / name).read_bytes()).hexdigest()
+                 for name in ('native_reply_consumer.py', 'receive_one_discord_message.py', 'rook_mcp_events.py')})
+    return pins
 
 
 def check_readback(state, message):
@@ -288,7 +296,7 @@ def consume(root=TICKETS, max_wait_seconds=1):
                 continue
             dot = DOTS[state['dot']]
             argv = ['timeout', '--foreground', '--signal=KILL', '600', dot['python'],
-                str(Path(__file__).with_name('native_reply_consumer.py')), '--config', str(config),
+                str(consumer_dir() / 'native_reply_consumer.py'), '--config', str(config),
                 '--max-wait-seconds', str(max_wait_seconds), '--replay']
             # GNU timeout owns the hard deadline. subprocess.run waits/reaps it;
             # its actual completion stdout is the sole publication input.
