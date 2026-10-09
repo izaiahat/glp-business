@@ -87,3 +87,27 @@ def test_worker_result_closes_check_only(tmp_path, monkeypatch):
     assert 'Installed: scripts/glp_affiliati_postback_ship.py ' + shipper_sha in posted['body'].splitlines()
     output = [line for line in posted['body'].splitlines() if line.startswith('Output: ')]
     assert len(output) == 1 and 'sha256' not in output[0].split(', ') and '8bb93c91' in output[0]
+
+
+def test_letter_leading_hex_identifier_is_output():
+    # Regression: a merge sha starting with a-f matched the field-name branch and was called bare.
+    assert not lo.is_bare_output('da8bbf7322f1bc20b059e0f8a33ec7d1037c42a1')
+    assert not lo.is_bare_output('2f816b36')
+    assert lo.is_bare_output('rows_reverified') and lo.is_bare_output('PASS') and lo.is_bare_output('sha256')
+
+
+def test_evidence_business_counts_are_observed(tmp_path, monkeypatch):
+    # Regression: evidence whose only worker-cited token was a sha refused as "no business output".
+    reports = tmp_path / 'reports'
+    receipt = reports / 'ops/w3/main-taxonomy-check.json'
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text(json.dumps({'status': 'PASS', 'main_sha': 'da8bbf73', 'provider_rows': 58,
+                                   'stale_20260908_rows': 0}, indent=2))
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    worker = {'status': 'DONE_READY_TO_CLOSE', 'live_run': 'taxonomy PASS on main da8bbf73',
+              'receipt': 'reports/ops/w3/main-taxonomy-check.json'}
+    evidence = lc.collect_evidence(worker, str(reports / 'ops/w3/RESULT.json'))
+    observed = evidence[0]['observed']
+    assert '"provider_rows": 58' in observed and not any('stale_20260908_rows' in v for v in observed)
+    assert lc.first_output({'evidence': evidence})

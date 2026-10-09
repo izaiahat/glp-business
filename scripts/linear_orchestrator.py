@@ -432,6 +432,10 @@ def protected_effect(text):
 
 def is_bare_output(value):
     import re
+    # Hex identifiers (deployment ids, commit shas) are output even when they start with a-f,
+    # which the field-name branch of BARE_OUTPUT would otherwise swallow.
+    if re.fullmatch(r'[0-9a-f]{7,64}', value or '') and re.search(r'\d', value):
+        return False
     return bool(re.fullmatch(BARE_OUTPUT, value or ''))
 
 
