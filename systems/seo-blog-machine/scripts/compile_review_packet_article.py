@@ -116,6 +116,18 @@ def r2_publication_date(authority: dict[str, Any]) -> str | None:
     return value
 
 
+def commercial_link_metadata(meta: dict[str, Any]) -> dict[str, Any]:
+    classification = meta.get('commercialLinkTaxonomy', 'medical_claims')
+    if classification not in {'medical_claims','commercial_intent','editorial_noncommercial'}:
+        raise RuntimeError('commercial_link_taxonomy_invalid')
+    services = meta.get('exactServices', [])
+    if not isinstance(services, list) or any(not isinstance(x, str) or not x.strip() for x in services):
+        raise RuntimeError('exact_services_invalid')
+    if classification == 'commercial_intent' and not services:
+        raise RuntimeError('commercial_intent_services_missing')
+    return {'commercial_link_taxonomy':classification, 'exact_services':services}
+
+
 def compile_packet(packet: Path) -> dict[str, Any]:
     draft_path = packet / "04-draft.md"
     raw = draft_path.read_text()
@@ -214,7 +226,10 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "conclusion": f"Use the dated source checks and decision framework above when evaluating {meta['primaryKeyword']}; verify current individual details with the relevant clinician, plan, pharmacy, or manufacturer.",
         "word_count": words(body), "batch_gate_passed": True, "operator_release_receipt": None,
         "has_affiliate_cta": False, "inline_ftc_disclosure": False,
+        # Renderer medical/commercial taxonomy is not the rubric's three-way
+        # commercial-link classification. Preserve the stricter medical guard.
         "surface_taxonomy": "medical", "suppress_cta": True,
+        **commercial_link_metadata(meta),
         "capture_surface": {"status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": capture["action"],
                             "source_page": capture["sourcePage"], "lead_magnet_key": capture["leadMagnetKey"],
                             "consent_version": capture["consentVersion"], "email_field": capture["emailField"],

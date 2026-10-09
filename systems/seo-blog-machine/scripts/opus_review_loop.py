@@ -399,6 +399,16 @@ receipt verification, claim substantiation, privacy, medical safety, any gate A-
 Do not require switching models solely to satisfy a superseded transport instruction. Block any real
 mismatch between the supplied packet's declared runtime and the actual invocation identity above.
 
+## Commercial-link classification schema
+
+For Gate C, the canonical three-way declaration is `commercial_link_taxonomy` in 06-article.json,
+derived from 04-draft.md front matter `commercialLinkTaxonomy`; `exactServices` becomes `exact_services`.
+Require these values to agree with the authoritative editorial brief and providers actually discussed.
+The renderer's separate `surface_taxonomy` accepts only medical/commercial, not the three rubric values.
+Its medical value and suppress_cta=true retain the stricter health/affiliate rendering guard; they do not
+reclassify a commercial-intent article as editorial or waive any tracked-link authority or disclosure check.
+An absent, incorrect or inconsistent canonical commercial-link declaration remains blocking.
+
 ## Governing rubric
 
 {rubric}
