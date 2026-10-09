@@ -15,6 +15,12 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit
 
+from weekly_strategy_consumer import (
+    DEFAULT_PATH as WEEKLY_STRATEGY_PATH,
+    load_strategy as load_weekly_strategy,
+    preference as weekly_preference,
+)
+
 sys.path.insert(0, "/home/ubuntu/business/systems/analytics-brain")
 from decision_policy import (  # noqa: E402
     consumer_policy, require_allowed, write_consumer_decision,
@@ -416,8 +422,17 @@ def select_refresh_cadence_reserve(
     return reserve
 
 
-def weekly_plan(candidates: Iterable[dict[str, Any]]) -> dict[str, Any]:
-    rows = list(candidates)
+def weekly_plan(
+    candidates: Iterable[dict[str, Any]], *, cogny_strategy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    # Advice can order already-admitted rows, never add routes or change tiers.
+    rows = [dict(row) for row in candidates]
+    if cogny_strategy is not None:
+        for row in rows:
+            queries = [q.get("query", "") for q in row.get("gsc_queries", [])] or [""]
+            matches = [weekly_preference(cogny_strategy, q, row.get("route"), "r2_refresh") for q in queries]
+            matches = [value for value in matches if value is not None]
+            row["cogny_strategy_preference"] = max(matches, key=lambda value: value["score"]) if matches else None
     selected: list[dict[str, Any]] = []
     capacities: dict[str, dict[str, int]] = {}
     for tier in ("P1", "P2", "P3", "P4"):
@@ -442,6 +457,14 @@ def weekly_plan(candidates: Iterable[dict[str, Any]]) -> dict[str, Any]:
             eligible.sort(key=lambda row: (float(row.get("ctr") or 0), -int(row.get("impressions") or 0), str(row.get("route") or "")))
         else:
             eligible.sort(key=lambda row: (-float(row.get("click_decay_fraction") or 0), str(row.get("route") or "")))
+        if cogny_strategy is not None:
+            # Stable soft ordering retains the previous metric order on ties.
+            # Measured class-A admission remains ahead of unmeasured P1 rows.
+            eligible.sort(key=lambda row: (
+                0 if tier == "P1" and row.get("opportunity_class") == "A" else 1,
+                0 if tier == "P1" and row.get("opportunity_class") == "A" and row.get("dataforseo_measured_query_count") else 1,
+                -float((row.get("cogny_strategy_preference") or {}).get("score", 0)),
+            ))
         cap = WEEKLY_TIER_UNITS[tier]
         chosen = eligible[:cap]
         selected.extend(chosen)
@@ -1111,6 +1134,7 @@ def build_selection_receipt(
     release_root: Path,
     as_of: dt.date | None = None,
     keyword_gap_opportunities: Path = KEYWORD_GAP_OPPORTUNITIES,
+    weekly_strategy_path: Path = WEEKLY_STRATEGY_PATH,
 ) -> dict[str, Any]:
     policy = consumer_policy("existing_article_updates", decision_class="search")
     require_allowed(policy)
@@ -1125,7 +1149,9 @@ def build_selection_receipt(
         current_routes=article_routes,
     )
     candidates = select_update_candidates(articles, metrics, as_of=end)
-    week = weekly_plan(candidates["r2_candidates"])
+    # Strategy freshness is wall-clock based, not the lagged GSC window end.
+    strategy, strategy_meta = load_weekly_strategy(weekly_strategy_path, as_of=as_of)
+    week = weekly_plan(candidates["r2_candidates"], cogny_strategy=strategy)
     strict_selected = list(week["selected"])
     reserve = select_refresh_cadence_reserve(
         articles,
@@ -1176,6 +1202,13 @@ def build_selection_receipt(
         "analytics_decisions": analytics_decisions,
         "observability": evidence,
         "keyword_gap_class_a": class_a_evidence,
+        "cogny_weekly_strategy": {
+            **strategy_meta,
+            "consumer": "existing_article_updates.weekly_plan",
+            "selected_preference_count": sum(bool(row.get("cogny_strategy_preference")) for row in week["selected"]),
+            "selected_routes": [row["route"] for row in week["selected"]],
+            "advice_only": True,
+        },
         "current_release": {"path": str(release_root.resolve()), "articles": len(articles)},
         "weekly_plan": week,
         "p5_net_new_spokes": [
