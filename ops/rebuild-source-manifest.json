@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 904,
+  "tracked_count": 905,
   "files": {
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
