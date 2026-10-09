@@ -477,7 +477,8 @@ def current_source(source: Path, head: str, tree: str, gate: dict[str, Any]) -> 
         fail("current_functions_inventory_drift")
     for row in gate.get("authority_files", []):
         if row.get("file") not in ("data/go-runtime-selection.json", "data/go-runtime-promotion-authority.json",
-                                    "data/tracking-allowed-hosts.json", "artifacts/ops/build-report.json"):
+                                    "data/tracking-allowed-hosts.json", "artifacts/ops/build-report.json",
+                                    "artifacts/ops/price-index-manifest.json", "artifacts/ops/wave4-deal-ingestion-manifest.json"):
             fail("current_gate_authority_path_invalid")
         require_regular(package_plain_path(source / row["file"]))
         if sha_file(source / row["file"]) != row["sha256"]:
