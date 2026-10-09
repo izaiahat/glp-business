@@ -52,6 +52,22 @@ def put(path, document):
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def test_material_fixture_custody_uses_canonical_source_not_sealed_copy(tmp_path):
+    tree = ast.parse(BUILDER.read_text())
+    function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_build_candidate_materialized')
+    call = next(n for n in ast.walk(function) if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute) and n.func.attr == 'patch_lastmod_material_fixture')
+    canonical = tmp_path / 'prepared/release'
+    alias = tmp_path / 'accepted-prepared-fixture'
+    job = {'base_release_root': str(canonical)}
+    seen = []
+    contract = types.SimpleNamespace(patch_lastmod_material_fixture=lambda source, root: seen.append(root))
+    scope = {'Path': Path, 'job': job, 'base': alias, 'carrier_fixture_contracts': contract,
+             'lastmod_test': types.SimpleNamespace(read_text=lambda: 'fixture source')}
+    eval(compile(ast.Expression(body=call), str(BUILDER), 'eval'), scope)
+    assert seen == [canonical.resolve()]
+
+
 @pytest.fixture
 def base(tmp_path):
     scope = builder_scope()

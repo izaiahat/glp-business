@@ -3451,7 +3451,11 @@ def _build_candidate_materialized(
     wave2.write_text(wave2_source)
     lastmod_test = temp / "tests/lastmod-declared-routes.test.mjs"
     lastmod_test.write_text(patch_lastmod_fixture_modes(lastmod_test.read_text()))
-    lastmod_test.write_text(carrier_fixture_contracts.patch_lastmod_material_fixture(lastmod_test.read_text(), base))
+    # require_current_base may return an immutable materialized copy. Material
+    # custody is bound to the authenticated canonical source, not that alias;
+    # current_render_custody still rechecks the moving pointer and source hashes.
+    lastmod_test.write_text(carrier_fixture_contracts.patch_lastmod_material_fixture(
+        lastmod_test.read_text(), Path(job["base_release_root"]).resolve()))
     product_test.write_text(carrier_fixture_contracts.patch_preserved_export_fixture(product_test.read_text()))
     for relative, adapt in [
         ("tests/affiliati-attribution-local-d1.test.mjs", rebind_affiliati_local_d1_fixture),
