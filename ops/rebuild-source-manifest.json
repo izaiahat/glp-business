@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 918,
+  "tracked_count": 921,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -5224,7 +5224,7 @@
       "callers": [
         "github:pull_request"
       ],
-      "sha256": "6271137a8977d3bbe84e2f2fa319008e0fda0f7bf4cc98395a7e98d0a1c1bbc9"
+      "sha256": "c4fa94b77df41f67788a209b0680d1f06f78ba1c10b2ba2ee66919fa2bde5685"
     },
     "ops/rook-mcp/DELEGATION_WORKFLOW.md": {
       "kind": "source_control",
@@ -6202,6 +6202,27 @@
       ],
       "kind": "test",
       "sha256": "329a457ff4b90bfae6ce873ef57a7d8ce2ce6df8c8f3c61c58f88ee989eb86f6"
+    },
+    "scripts/dot_dispatch.py": {
+      "kind": "script",
+      "callers": [
+        "manual:authorized-dot-ticket"
+      ],
+      "sha256": "a8dd99625cf8e42477d70e1233b98b976e0205d3f63ae5eb4f8627c4f9d1c717"
+    },
+    "tests/test_dot_dispatch.py": {
+      "kind": "test",
+      "callers": [
+        "CI:native-reply-consumer"
+      ],
+      "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
+    },
+    "ops/cron.d/glp-dot-consumer": {
+      "kind": "cron",
+      "callers": [
+        "host cron:deterministic native reply consumer"
+      ],
+      "sha256": "fa48734e59483b289ebbb90818c9c3c6b0450279dfea609b2dfdd9904ed9f607"
     }
   }
 }
