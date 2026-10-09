@@ -250,6 +250,29 @@ def new_article_insights_public_delta(
         payload = json.loads(path.read_text(encoding="utf-8"))
         catalogs.append([row["canonical_path"] for row in payload["articles"]])
     all_routes = catalogs[0] + catalogs[1]
+    # Native main-source guides are appended AFTER the frozen catalogs. They
+    # remain separate source with exact byte pins; don't rewrite either catalog
+    # or treat their legitimate Insights cards as unexplained output drift.
+    accepted_manifest = base / "data/blog/accepted-guides/manifest.json"
+    if accepted_manifest.exists():
+        if accepted_manifest.is_symlink():
+            raise RuntimeError("insights_accepted_source_invalid")
+        accepted = json.loads(accepted_manifest.read_text())
+        if accepted.get("schema") != "glp-accepted-guides-source-v1":
+            raise RuntimeError("insights_accepted_source_invalid")
+        for row in accepted["entries"]:
+            spec = row["article"]
+            relative = str(spec["path"])
+            if not re.fullmatch(r"data/blog/accepted-guides/[a-z0-9-]+/[a-z0-9_.-]+\.json", relative):
+                raise RuntimeError("insights_accepted_source_path_invalid")
+            source = base / relative
+            if (source.is_symlink() or source.resolve() != source or not source.is_file()
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != spec["sha256"]):
+                raise RuntimeError("insights_accepted_source_pin_invalid")
+            article = json.loads(source.read_text())
+            if article["canonical_path"] != row["route"]:
+                raise RuntimeError("insights_accepted_source_identity_invalid")
+            all_routes.append(row["route"])
     if (len(set(all_routes)) != len(all_routes) or
             len(set(card_routes)) != len(card_routes) or
             target_route in all_routes):

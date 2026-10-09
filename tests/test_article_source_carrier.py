@@ -64,6 +64,37 @@ class SourceCarrierTests(unittest.TestCase):
         self.assertEqual(result['source_lane']['status'],'PASS_SOURCE_MAIN_COMPATIBILITY')
         preflight.assert_called_once()
 
+    def test_materializer_accounts_for_accepted_source_insights_cards(self):
+        import ast
+        import hashlib
+        import html
+        import re
+        path = ROOT / 'systems/seo-blog-machine/scripts/materialize_opus_run.py'
+        node = next(n for n in ast.parse(path.read_text()).body
+                    if isinstance(n, ast.FunctionDef) and n.name == 'new_article_insights_public_delta')
+        namespace = {'Path': Path, 're': re, 'json': json, 'html': html, 'hashlib': hashlib}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), 'exec'), namespace)
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'src').mkdir()
+            (base / 'src/phase3-page-graph.mjs').write_text('renderPhase3InsightsPage(articles, pageNumber = 1, pageSize = 3)')
+            blog = base / 'data/blog'; blog.mkdir(parents=True)
+            (blog / 'content-batch.json').write_text(json.dumps({'articles':[{'canonical_path':'/guides/a/'}]}))
+            (blog / 'content-national-wow-additions.json').write_text(json.dumps({'articles':[{'canonical_path':'/guides/b/'}]}))
+            accepted = blog / 'accepted-guides/c'; accepted.mkdir(parents=True)
+            article = accepted / 'article.json'; article.write_text('{"canonical_path":"/guides/c/"}')
+            manifest = blog / 'accepted-guides/manifest.json'
+            manifest.write_text(json.dumps({'schema':'glp-accepted-guides-source-v1','entries':[{
+                'route':'/guides/c/','article':{'path':'data/blog/accepted-guides/c/article.json',
+                'sha256':hashlib.sha256(article.read_bytes()).hexdigest()}}]}))
+            insights = base / 'public/insights'; insights.mkdir(parents=True)
+            (insights / 'index.html').write_text(''.join(f'<a class="p3-story" href="/guides/{slug}/">' for slug in ['a','b','c']))
+            result = namespace['new_article_insights_public_delta'](base, '/guides/new/')
+            self.assertEqual(result['added'], ['insights/page/2/index.html'])
+            article.write_text('{"canonical_path":"/guides/unreviewed/"}')
+            with self.assertRaisesRegex(RuntimeError, 'source'):
+                namespace['new_article_insights_public_delta'](base, '/guides/new/')
+
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
         import inspect
