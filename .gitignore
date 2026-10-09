@@ -601,3 +601,7 @@
 # GLP268 live callers: MaxBounty official API transport (source only)
 !/scripts/maxbounty_publisher_api.py
 !/tests/test_glp268_live_callers.py
+# W10 route-bound title-CTR proposal producer (source only)
+!/systems/seo-blog-machine/scripts/improvement_loops.py
+!/systems/seo-blog-machine/scripts/ctr_snapshot.py
+!/tests/test_w10_ctr_snapshot_handoff.py
