@@ -741,6 +741,9 @@ def make_call(action, actions):
 
 
 def notify_failure(action, receipt, state, state_path):
+    if (os.environ.get("CRON_BRIDGE_MANUAL_REGISTERED") == "1"
+            and os.environ.get("CRON_BRIDGE_NO_SEND") == "1"):
+        return {"status": "SUPPRESSED_NO_SEND", "reason": "operator_no_send_registered_acceptance"}
     from scripts.post_discord_message import send, readback
     content = f"Cron action failed: {action}\nReceipt: {receipt}\nInspect the receipt before replaying any effect."
     candidates = [*state.get("unverified_alerts", []), state.get("alert", {})]
