@@ -157,6 +157,33 @@ def check_readback(state, message):
         raise ValueError('exact_structured_mention_readback_failed')
 
 
+def fleet_config(ticket, state):
+    return dict(schema='DOT_FLEET_TICKET_V1', ticket=state['ticket'], issue=state['issue'],
+                dot=state['dot'], request_id=state['request_id'], correlation=state['correlation'],
+                native_config=str(ticket / 'NATIVE-CONFIG.json'), operator_approval=False)
+
+
+def migrate_contract(ticket, state):
+    """Preserve original native registration while repairing the fleet envelope."""
+    native = ticket / 'NATIVE-CONFIG.json'
+    old = ticket / 'CONFIG.json'
+    if not old.exists():
+        return
+    value = json.loads(old.read_text())
+    if value == fleet_config(ticket, state):
+        return
+    rows = value.get('registrations', [])
+    if set(value) != {'parent', 'receipt_state_dir', 'registrations'} or len(rows) != 1:
+        raise ValueError('native_config_migration_refused')
+    if rows[0].get('correlation') != state.get('correlation') or rows[0].get('result_key') != state['ticket']:
+        raise ValueError('native_config_migration_binding_refused')
+    if native.exists() and json.loads(native.read_text()) != value:
+        raise ValueError('native_config_migration_conflict')
+    if not native.exists():
+        atomic_json(native, value)
+    atomic_json(old, fleet_config(ticket, state))
+
+
 def register(ticket, state, message):
     check_readback(state, message)
     dot = DOTS[state['dot']]
@@ -168,7 +195,9 @@ def register(ticket, state, message):
             'subject': SUBJECT, 'task_owner': state['task_owner'],
             'action': 'Consume ' + state['issue'] + ' terminal evidence only; no acceptance or approval',
             'result_key': state['ticket']}]}
-    atomic_json(ticket / 'CONFIG.json', config)
+    atomic_json(ticket / 'NATIVE-CONFIG.json', config)
+    state['correlation'] = correlation
+    atomic_json(ticket / 'CONFIG.json', fleet_config(ticket, state))
     atomic_json(ticket / 'SEND-READBACK.json', {key: message.get(key) for key in
         ('id', 'channel_id', 'content', 'mentions', 'timestamp')})
     state.update(state='sent', correlation=correlation, exact_readback=True,
@@ -198,11 +227,12 @@ def dispatch(dot_name, issue, brief, *, root=TICKETS, api=discord_api,
         ticket = root / ticket_id
         if (ticket / 'TICKET.json').exists():
             state = json.loads((ticket / 'TICKET.json').read_text())
+            migrate_contract(ticket, state)
             if not state.get('request_id'):
                 raise ValueError('uncertain_send_reconcile_first_no_resend')
             fetched = api('GET', f"/channels/{dot['channel']}/messages/{state['request_id']}")
             check_readback(state, fetched)
-            if not (ticket / 'CONFIG.json').exists() or state['state'] in {'posting', 'uncertain'}:
+            if not (ticket / 'NATIVE-CONFIG.json').exists() or state['state'] in {'posting', 'uncertain'}:
                 register(ticket, state, fetched)
             return {'ticket': ticket_id, 'ticket_dir': str(ticket), 'request_id': state['request_id'], 'repeat': True}
         for existing in root.glob('*/TICKET.json'):
@@ -286,7 +316,9 @@ def consume(root=TICKETS, max_wait_seconds=1):
         for config in sorted(Path(root).glob('*/CONFIG.json')):
             ticket = config.parent
             state = json.loads((ticket / 'TICKET.json').read_text())
+            migrate_contract(ticket, state)
             if state['state'] in {'complete', 'blocked'}:
+                output.append({'ticket': state['ticket'], 'status': 'already_' + state['state']})
                 continue
             if state['state'] != 'sent':
                 output.append({'ticket': state['ticket'], 'status': 'reconciliation_required'})
@@ -296,7 +328,7 @@ def consume(root=TICKETS, max_wait_seconds=1):
                 continue
             dot = DOTS[state['dot']]
             argv = ['timeout', '--foreground', '--signal=KILL', '600', dot['python'],
-                str(consumer_dir() / 'native_reply_consumer.py'), '--config', str(config),
+                str(consumer_dir() / 'native_reply_consumer.py'), '--config', str(ticket / 'NATIVE-CONFIG.json'),
                 '--max-wait-seconds', str(max_wait_seconds), '--replay']
             # GNU timeout owns the hard deadline. subprocess.run waits/reaps it;
             # its actual completion stdout is the sole publication input.

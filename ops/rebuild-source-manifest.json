@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 906,
+  "tracked_count": 907,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -6105,19 +6105,26 @@
       "callers": [
         "manual:authorized-dot-ticket"
       ],
-      "sha256": "db2f0955be1b0d5d96317d4419ce9088eee12cb4e9c0d7e3ff681fd2da3dacb7"
+      "sha256": "a8dd99625cf8e42477d70e1233b98b976e0205d3f63ae5eb4f8627c4f9d1c717"
     },
     "tests/test_dot_dispatch.py": {
       "kind": "test",
       "callers": [
         "CI:native-reply-consumer"
       ],
-      "sha256": "c44f2ac0e82a9cb34c4ed530ce984391f04e82c97455a7e08aa0bb8286546bed"
+      "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
     },
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
       "callers": [],
       "sha256": "48753554609c5197d1c101a19ee9ec4505d6c39f0f1a8be30334a46dff8646ea"
+    },
+    "ops/cron.d/glp-dot-consumer": {
+      "kind": "cron",
+      "callers": [
+        "host cron:deterministic native reply consumer"
+      ],
+      "sha256": "fa48734e59483b289ebbb90818c9c3c6b0450279dfea609b2dfdd9904ed9f607"
     }
   }
 }

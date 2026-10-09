@@ -36,9 +36,12 @@ class DispatchTests(unittest.TestCase):
             return dict(self.message)
         result = self.dispatch(api)
         ticket = Path(result['ticket_dir'])
-        config = json.loads((ticket / 'CONFIG.json').read_text())
-        self.assertEqual(config['registrations'][0]['correlation'], 'discord-' + self.message['id'])
-        self.assertEqual(config['registrations'][0]['result_key'], result['ticket'])
+        native = json.loads((ticket / 'NATIVE-CONFIG.json').read_text())
+        cfg = json.loads((ticket / 'CONFIG.json').read_text())
+        self.assertEqual(cfg['issue'], 'GLP-348')
+        self.assertEqual(cfg['dot'], 'rook')
+        self.assertEqual(native['registrations'][0]['correlation'], 'discord-' + self.message['id'])
+        self.assertEqual(native['registrations'][0]['result_key'], result['ticket'])
         self.assertEqual((ticket / 'CONFIG.json').stat().st_mode & 0o777, 0o600)
         self.assertEqual(ticket.stat().st_mode & 0o777, 0o700)
         self.dispatch(api)
@@ -104,6 +107,19 @@ class DispatchTests(unittest.TestCase):
             self.assertEqual(d.consumer_dir(), live / 'scripts')
             self.assertEqual(d.source_pins()['rook_mcp_events.py'], hashlib.sha256(
                 b'frozen installed bytes').hexdigest())
+
+    def test_fleet_envelope_migration_preserves_native_registration(self):
+        ticket = self.root / 'test'
+        ticket.mkdir(parents=True)
+        state = dict(ticket='test', issue='GLP-348', dot='rook', request_id='100', correlation='discord-100')
+        native = dict(parent='parent', receipt_state_dir=str(ticket / 'receipts'), registrations=[
+            dict(correlation='discord-100', result_key='test')])
+        d.atomic_json(ticket / 'CONFIG.json', native)
+        d.migrate_contract(ticket, state)
+        self.assertEqual(json.loads((ticket / 'NATIVE-CONFIG.json').read_text()), native)
+        self.assertEqual(json.loads((ticket / 'CONFIG.json').read_text()), d.fleet_config(ticket, state))
+        d.migrate_contract(ticket, state)
+        self.assertEqual(json.loads((ticket / 'NATIVE-CONFIG.json').read_text()), native)
 
     def test_non_result_and_foreign_correlation_never_publish(self):
         ticket = self.root / 'test'; ticket.mkdir(parents=True)
