@@ -8,14 +8,28 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 857,
+  "tracked_count": 860,
   "files": {
-    "tests/test_firecrawl_glp350_affiliate.py": {
+    "tests/test_firecrawl_glp350_monitor.py": {
       "kind": "test",
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+      "sha256": "435e1368c6f0084bfb04d26e57e0db15d292eae7bb4399d76969973dff51dd9b"
+    },
+    "scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "daily provider monitor intake; manual: python3 scripts/glp_firecrawl_monitors.py --create --run-now"
+      ],
+      "sha256": "becad51036a28dd29a50803e42a3f81d163ec910ab986c98a25119f856192717"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes daily monitor intake"
+      ],
+      "sha256": "ff9884d26641f2f7cdcaad73702dd6376b8a358e471501ac92462c45faa807df"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -5782,6 +5796,13 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+    },
+    "tests/test_firecrawl_glp350_affiliate.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
     },
     "tests/test_firecrawl_glp350_gov.py": {
       "kind": "test",
