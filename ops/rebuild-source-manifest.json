@@ -15,7 +15,7 @@
       "callers": [
         "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
       ],
-      "sha256": "82ee9a2aea6356f37564eb80ed1268d2beb71761cde1bb0401c329d1e930ac45"
+      "sha256": "0d3edf3657ac1062dd9fd68f17b1bb104e04bd8456a29095e099b09cc02b31f0"
     },
     "scripts/fleet_ingest.md": {
       "kind": "documentation",
@@ -29,7 +29,7 @@
       "callers": [
         ".github/workflows/fleet-ingest.yml"
       ],
-      "sha256": "71fd25200084aa3b367889a3fef25b107162c5699991203701644a5004b61bf5"
+      "sha256": "5f6807e971ec042416205c2328c753647bb0374b227f5e99d4a691bacdbcbb36"
     },
     "ops/hermes-cron-scripts/fleet_ingest_cron.sh": {
       "kind": "script",

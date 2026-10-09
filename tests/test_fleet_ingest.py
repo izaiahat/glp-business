@@ -134,6 +134,12 @@ class FleetTest(unittest.TestCase):
             row = m.ingest(root, item, policy, runner)
             self.assertEqual(row['status'], 'REDISPATCH')
             self.assertIn('issue mismatch', row['failure_text'])
+            policy['worker_result'] = '/outside/RESULT.json'
+            row = m.ingest(root, item, policy, runner)
+            self.assertEqual(row['status'], 'REDISPATCH')
+            self.assertIsNone(row['worker_result'])
+            self.assertNotIn('argv', row['checks']['linear_close'])
+            self.assertEqual(m.binding({'issues': ['GLP-355']}, root), 'GLP-355')
     def test_changed_evidence_revokes_previous_ready_row(self):
         m = self.load()
         with tempfile.TemporaryDirectory() as d:

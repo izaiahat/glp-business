@@ -117,7 +117,7 @@ def alive(pid):
         return True
     except ProcessLookupError:
         return False
-    except (ValueError, TypeError, PermissionError):
+    except (ValueError, TypeError, PermissionError, OverflowError):
         return True
 
 
@@ -138,6 +138,9 @@ def binding(data, path):
     value = data.get('issue') or data.get('linear_issue') or data.get('issue_id')
     if isinstance(value, str) and ISSUE.fullmatch(value):
         return value
+    issues = data.get('issues')
+    if isinstance(issues, list) and len(issues) == 1 and isinstance(issues[0], str) and ISSUE.fullmatch(issues[0]):
+        return issues[0]
     # Legacy Codex lanes do not store issue: accept only a named glpNN lane dir,
     # never a mention in arbitrary reply text or paths under another issue.
     matches = set(re.findall(r'(?i)(?:^|[/_-])glp-?([1-9][0-9]*)(?=[/_-]|$)', str(path)))
@@ -299,7 +302,11 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
     target = inbox / item['issue'] / item['lane'] / 'INGEST.json'
     closer = root / 'scripts/linear_close.py'
     item = dict(item, evidence=dict(item['evidence']))
-    result = result_pointer(root, policy) if policy.get('worker_result') else result_pointer(root, item)
+    supplied_result = policy.get('worker_result') or item.get('worker_result')
+    result = result_pointer(root, {'worker_result': supplied_result})
+    item['worker_result'] = str(result) if result else None
+    if supplied_result and not result:
+        item['source_failure'] = 'worker RESULT absent or outside workspace'
     if result:
         item['worker_result'] = str(result)
         item['evidence'][str(result)] = digest(result)
