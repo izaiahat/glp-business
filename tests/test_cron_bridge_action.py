@@ -39,6 +39,86 @@ class CronBridgeTests(unittest.TestCase):
     def run_action(self, name="fixture", **kwargs):
         return cron.run_action(name, {}, state_dir=self.root, call=self.call, actions=self.actions, notify=lambda *a: {"id": "test", "exact_readback": True}, **kwargs)
 
+    def test_article_failed_prebuild_clears_pending_only_with_zero_effect_proof(self):
+        action = "article_carrier_consume"
+        args = {"mode": "consume"}
+        slot = "2026-10-08T09:45:America/Los_Angeles"
+        pointer = self.root / "pointer.json"
+        pointer.write_text(json.dumps({"deployment_id": "unchanged"}))
+        report = self.root / "publication-fixture"
+        report.mkdir()
+        template = self.root / "template.json"
+        template.write_text(json.dumps({"schema": "glp-opus-article-apply-template-v1",
+            "manifest_id": "fixture", "report_dir": str(report),
+            "base_state_path": str(pointer),
+            "base_state_sha256": hashlib.sha256(pointer.read_bytes()).hexdigest()}))
+        (report / "release-job.json").write_text(template.read_text())
+        diagnostic = self.root / "child-failures/fixture-build.json"
+        diagnostic.parent.mkdir()
+        build_failure = {"schema": "glp-opus-release-child-failure-v1",
+            "status": "BLOCKED_CHILD_FAILED", "child": "build_opus_article_release.py", "exit_code": 1}
+        diagnostic.write_text(json.dumps(build_failure))
+        failure = self.root / "failure.json"
+        failure.write_text(json.dumps({"schema": "glp.article_carrier.failure.v2",
+            "operation_id": "op", "cli_payload": {"status": "BLOCKED_CONSUME_FAILED",
+            "operation_id": "op", "child": {"argv": ["python3",
+            "apply_opus_article_release.py", "--template", str(template)], "exit_code": 1,
+            "stderr": f"child_failed:build_opus_article_release.py:diagnostic={diagnostic}:"}}}))
+        machine = {"schema": "n8n.article_carrier.v1", "status": "BLOCKED_CONSUME_FAILED",
+            "published": False, "operation_id": "op", "receipt_path": str(failure),
+            "head_reconciliation": {"aligned": True, "live_head": {"deployment_id": "unchanged"},
+                                    "pointer_head": {"deployment_id": "unchanged"}}}
+        job = {"job_id": "failed", "status": "done", "rc": 0,
+               "stdout_tail": json.dumps(machine), "receipt_path": str(failure)}
+        # A failed build is before the publisher call. Missing evidence, publisher
+        # artifacts, or changed live/pointer bytes must keep the uncertain job held.
+        with patch.object(cron, "article_production_head_id", return_value="unchanged") as head:
+            for variant in ("published", "missing_failure", "changed_head", "changed_pointer", "publisher_artifact"):
+                with self.subTest(variant=variant):
+                    modified = dict(machine)
+                    if variant == "published":
+                        modified["published"] = True
+                    elif variant == "missing_failure":
+                        modified["receipt_path"] = str(self.root / "missing.json")
+                    elif variant == "changed_head":
+                        head.return_value = "different"
+                    elif variant == "changed_pointer":
+                        pointer.write_text(json.dumps({"deployment_id": "different"}))
+                    else:
+                        (report / "10-final-publication-receipt.json").write_text("{}")
+                    with self.assertRaises(RuntimeError) as raised:
+                        cron.finish_action(action, args, dict(job, stdout_tail=json.dumps(modified)), {}, self.root / "state")
+                    self.assertNotIsInstance(raised.exception, cron.TerminalRefusal)
+                    head.return_value = "unchanged"
+                    pointer.write_text(json.dumps({"deployment_id": "unchanged"}))
+                    (report / "10-final-publication-receipt.json").unlink(missing_ok=True)
+            digest = hashlib.sha256(json.dumps({"action": "script", "name": action, "args": args},
+                                               sort_keys=True).encode()).hexdigest()
+            state_path = self.root / f"{action}-{digest}.state.json"
+            state_path.write_text(json.dumps({"pending": {"job_id": "failed", "due_slot": slot,
+                "payload_sha256": digest, "receipt_path": str(self.root / "prior.json")}}))
+            dispatches = []
+            def call(path, payload=None):
+                if path == "/run":
+                    dispatches.append(payload)
+                    return 200, dict(job, job_id="fresh", stdout_tail=json.dumps({
+                        "schema": "n8n.article_carrier.v1", "status": "PASS_DRYRUN"}))
+                return 200, job
+            options = dict(state_dir=self.root, actions={action: {}}, call=call,
+                notify=lambda *a: {}, due_slot=slot, invocation="manual_registered")
+            with patch.object(cron, "article_release_live", return_value=True), \
+                 patch.object(cron, "heartbeat", return_value={}), \
+                 patch.object(cron, "post_once", return_value={}):
+                cleared = cron.run_action(action, args, **options)
+                self.assertEqual(cleared["status"], "FAIL", cleared)
+                self.assertEqual(cleared["error_type"], "TerminalRefusal")
+                self.assertEqual(cleared["reason"], "article_carrier_failed_before_publish_no_effect")
+                self.assertNotIn("pending", json.loads(state_path.read_text()))
+                self.assertEqual(dispatches, [])
+                fresh = cron.run_action(action, args, **options)
+                self.assertEqual(fresh["status"], "PASS")
+                self.assertEqual(len(dispatches), 1)
+
     def test_allowlisted_action_runs_with_bridge_validation_timeout_and_receipt(self):
         result = self.run_action()
         self.assertEqual(result["rc"], 0)

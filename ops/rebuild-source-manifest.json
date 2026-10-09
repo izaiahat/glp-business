@@ -1654,7 +1654,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+      "sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -2777,7 +2777,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "513b298d42c05214ca0fb00f9cfa7e62d7465b2c3581fc0c20f418de7f13d349"
+      "sha256": "e0baf367be28178fc9ac42f52e03812aaf90bd8f563b09740a0508f1f939e7a2"
     },
     "tests/test_decisions_router_card.py": {
       "callers": [
