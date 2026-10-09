@@ -195,6 +195,28 @@ def patch_material_date_resolver(source, binding=None):
 
 def patch_lastmod_material_fixture(source, base):
     binding=material_binding(base)
+    native_markers = (
+        'const releaseDate = clean.prepared.env.GLP_RELEASE_DATE;',
+        'const input = await openComparisonInput(root, prepared.input);',
+        'assert.equal(undeclared.status, 1, "an undeclared content change was allowed through");',
+        'assert.deepEqual(receipt.declared_routes_refreshed, [PROBE_ROUTE]);',
+        'assert.equal(receipt.provenance_refresh, false);',
+        'assert.deepEqual(after[UNTOUCHED_ROUTE], baseline[UNTOUCHED_ROUTE]);',
+        'assert.equal((await stat(provenance)).nlink, 1, "provenance was written through the shared inode");',
+        'assert.match(both.stderr, /lastmod_declared_routes_with_blanket_refresh/);',
+    )
+    if all(source.count(marker) == 1 for marker in native_markers):
+        # The accepted successor already uses the real preparer's UTC clock,
+        # manifest-bound predecessor and stronger hostile-case assertions.
+        # Keep its exact authenticated bytes, never invent another baseline.
+        inventory = current_render_custody(Path(base), {})
+        relative = 'tests/lastmod-declared-routes.test.mjs'
+        fixture = Path(base) / relative
+        if (fixture.is_symlink() or not fixture.is_file() or inventory is None
+                or hashlib.sha256(fixture.read_bytes()).hexdigest() != inventory.get(relative)
+                or fixture.read_text() != source):
+            raise RuntimeError('native_fixture_custody_drift')
+        return source
     baseline=binding['fixture_baseline']
     release=(dt.date.fromisoformat(baseline)+dt.timedelta(days=1)).isoformat()
     block=f'// K6c fixture clocks from actual catalog and accepted declarations.\nconst CARRIER_FIXTURE_BASELINE = "{baseline}";\nconst RELEASE = "{release}";'
