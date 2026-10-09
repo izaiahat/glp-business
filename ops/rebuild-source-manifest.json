@@ -8,8 +8,31 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 891,
+  "tracked_count": 894,
   "files": {
+    "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
+      "kind": "script",
+      "callers": [
+        "systems/seo-blog-machine/scripts/improvement_loops.py"
+      ],
+      "sha256": "4098d7cb05383180de35e2da1cdd18644c7c7abaa8dcf74e50126b569882bfb5"
+    },
+    "tests/test_w10_ctr_snapshot_handoff.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "f57f6e511162465d2a85bf78ce7d8541f8a8d45528cdf6aa25050472af726df0"
+    },
+    "systems/seo-blog-machine/scripts/improvement_loops.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "systems/seo-blog-machine/README.md:run-db",
+        "article Gate E title-CTR handoff"
+      ],
+      "scope": "Proposal-only analytics reader; existing phase23/analytics_feedback host dependencies remain unchanged and uncurated.",
+      "sha256": "ba5797292c3feed29099cb95a97cd4045f676399d0387e6f0c7ead849db97270"
+    },
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
       "callers": [
@@ -549,7 +572,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3965548a9a7e5a552017db26ecdf3da712f86df64b1fc47940df867f8be495ad"
+      "sha256": "64d3a3205db700875ea49264143f9c041010d4c822d9ad7d2ad16632ac9d5c83"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],

@@ -91,6 +91,7 @@ def build_loop_b_snapshot(
     route_aliases: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Read monthly page clicks from the observability mirror without writes."""
+    from ctr_snapshot import measured_ctr_tests
     path = Path(database)
     if not path.is_file():
         raise ValueError("loop_b_database_missing")
@@ -190,6 +191,10 @@ def build_loop_b_snapshot(
             "gsc_weekly": query_signal.get(route) or {},
             "related_pages": related[:10],
         })
+    ctr_tests = measured_ctr_tests(rows, as_of, lambda route: canonical_feedback_route(route, aliases))
+    for page in page_rows:
+        if page['path'] in ctr_tests:
+            page['ctr_test'] = ctr_tests[page['path']]
     first_date = min((dt.date.fromisoformat(str(row["metric_date"])) for row in rows), default=as_of)
     site_age_months = max(0, months_between(first_date, as_of))
     return {
@@ -201,6 +206,9 @@ def build_loop_b_snapshot(
         "source_coverage": {
             "page_rows": len(rows), "query_rows": len(query_rows),
             "weekly_query_routes": len(query_signal),
+            "ctr_test_routes": len(ctr_tests),
+            "ctr_registration": "all mirrored published routes; new routes enter automatically after observed GSC data",
+            "ctr_missing_data_policy": "UNKNOWN: no actual/expected CTR until fresh measured route and same-position peer data exist",
             "related_link_routes": sum(len(row["related_pages"]) >= 5 for row in page_rows),
         },
     }
