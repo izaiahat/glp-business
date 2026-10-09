@@ -8,6 +8,27 @@ WINDOW_DAYS = 28
 MIN_IMPRESSIONS = 50
 POSITION_TOLERANCE = 1.0
 
+def route_handoff(snapshot, route, topic_id, consumer):
+    if not route.startswith('/guides/') or not route.endswith('/') or not topic_id:
+        raise ValueError('ctr_handoff_identity_invalid')
+    page = next((p for p in snapshot['pages'] if p['path'] == route), {'path': route})
+    ctr = page.get('ctr_test')
+    proposals = consumer(page, dt.date.fromisoformat(snapshot['as_of']))
+    return {
+        'schema': 'glp-loop-c-native-route-handoff-v1',
+        'topic_id': topic_id, 'route': route, 'as_of': snapshot['as_of'],
+        'source_coverage': snapshot.get('source_coverage', {}),
+        'observability_source_digest': snapshot.get('source_digest'),
+        'status': 'MEASURED_CTR_CONSUMED' if ctr else 'AWAITING_PUBLICATION_AND_QUALIFIED_GSC_DATA',
+        'ctr_test': ctr, 'proposals': proposals,
+        'snapshot_sha256': hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest(),
+        'producer': 'improvement_loops.build_loop_b_snapshot', 'consumer': 'improvement_loops.loop_c',
+        'registration': 'NO_SEPARATE_REGISTRY; run-db automatically discovers every observed GSC route',
+        'activation': 'Published route; measured GSC rows; >=50 impressions; fresh date; position-matched observed peer; run-db policy/feedback gates satisfied',
+        'effects': {'title_changes': 0, 'publishes': 0, 'sends': 0},
+    }
+
+
 def measured_ctr_tests(rows, as_of, canonicalize):
     daily = {}
     for row in rows:

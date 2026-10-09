@@ -15,14 +15,14 @@
       "callers": [
         "systems/seo-blog-machine/scripts/improvement_loops.py"
       ],
-      "sha256": "4098d7cb05383180de35e2da1cdd18644c7c7abaa8dcf74e50126b569882bfb5"
+      "sha256": "267c2ee7212c9d342f89bb0bae492383a48e24826cec2c5bd8db490268947d8e"
     },
     "tests/test_w10_ctr_snapshot_handoff.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "f57f6e511162465d2a85bf78ce7d8541f8a8d45528cdf6aa25050472af726df0"
+      "sha256": "96b4f43c5d282b8f9697384b1dc6c75d48ed248780c6ba5ea2e66731a071a353"
     },
     "systems/seo-blog-machine/scripts/improvement_loops.py": {
       "kind": "registered_producer",
@@ -31,7 +31,7 @@
         "article Gate E title-CTR handoff"
       ],
       "scope": "Proposal-only analytics reader; existing phase23/analytics_feedback host dependencies remain unchanged and uncurated.",
-      "sha256": "ba5797292c3feed29099cb95a97cd4045f676399d0387e6f0c7ead849db97270"
+      "sha256": "a6ca1645c76a94484a8493d08ce390c558690383575e64c0325d9b9c971cfbb0"
     },
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -5152,7 +5152,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "bd2bac3b04d1f460d4309c020f2a3a0d20d5f1bc786ac0805753bb05deb24f06"
+      "sha256": "f20dd191875ebae81cfb424ae1281246757c02dea7c7141ea3a74affe31537ed"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
