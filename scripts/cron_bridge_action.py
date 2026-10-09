@@ -910,6 +910,37 @@ def article_failed_before_publish(receipt):
     try:
         failure = json.loads(Path(receipt["receipt_path"]).read_text())
         payload = failure["cli_payload"]
+        if payload.get('error_class') == 'ModuleNotFoundError':
+            op = receipt.get('operation_id')
+            trace = failure.get('stderr', '')
+            cli = ROOT / 'systems/seo-blog-machine/scripts/article_buffer_cli.py'
+            suffix = "    import article_source_carrier\nModuleNotFoundError: No module named 'article_source_carrier'\n"
+            if (not op or failure.get('schema') != 'glp.article_carrier.failure.v2'
+                    or type(failure.get('exit_code')) is not int or failure['exit_code'] != 1
+                    or failure.get('operation_id') != op or payload.get('operation_id') != op
+                    or payload.get('status') != 'BLOCKED_CONSUME_FAILED' or payload.get('command') != 'consume'
+                    or payload.get('reason') != "No module named 'article_source_carrier'"
+                    or failure.get('argv', [])[1:] != [str(cli), 'consume', '--operation-id', op]
+                    or hashlib.sha256(trace.encode()).hexdigest() != failure.get('stderr_sha256')
+                    or not trace.endswith(suffix)
+                    or re.findall(r'  File "([^"]+)", line \d+, in ([^\n]+)\n', trace)
+                        != [(str(cli), 'main'), (str(cli), 'consume_cli')]
+                    or payload.get('exception') != {'class':'ModuleNotFoundError',
+                        'message':"No module named 'article_source_carrier'", 'traceback':trace}):
+                return False
+            # This exact leaf import preceded any claim/carrier call. Preserve
+            # all other missing-module/partial-effect failures as unknown.
+            buffer_root = ROOT / 'reports/glp-clinic-scout/seo-machine/article-buffer'
+            name = hashlib.sha256(op.encode()).hexdigest() + '.json'
+            if any(os.path.lexists(buffer_root / kind / name) for kind in ('claims', 'consumed')):
+                return False
+            current = article_current_base()
+            heads = receipt['head_reconciliation']
+            deployment = current['deployment_id']
+            return (heads.get('aligned') is True
+                    and heads['pointer_head']['deployment_id'] == deployment
+                    and heads['live_head']['deployment_id'] == deployment
+                    and article_production_head_id() == deployment and article_current_base() == current)
         child = payload["child"]
         argv = child["argv"]
         if (failure.get("schema") != "glp.article_carrier.failure.v2"

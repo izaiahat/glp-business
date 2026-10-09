@@ -355,7 +355,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
             seen.append(row['id'])
     assert sorted(seen) == sorted(allowed)
     launcher = 'scripts/cron_bridge_action.py'
-    launcher_pin = 'be38fb0c24376e6d737aac50e03e4fc2302f389000d46e48ef7650f17f18a29b'
+    launcher_pin = '6efce17bbb6cb7bd7b61f1aa272ea25544a288f71816126a756baa9d50917ce7'
     assert sha((ROOT/launcher).read_bytes()) == launcher_pin
     shared = 0
     for row in expected['jobs']:
