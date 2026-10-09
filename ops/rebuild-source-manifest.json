@@ -5872,7 +5872,7 @@
       "callers": [
         "scripts/host_disk_cleanup_large_unit.py"
       ],
-      "sha256": "4cb5fc6e9ad3d1c0fc7ce159767edc9860f0e0ca7fddb0297fbbaa01e51f2b64"
+      "sha256": "998f9170115d0b04ac81c9d0cf426abace42ec09932e2a1614c097bbbf71f9fb"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "kind": "script",
@@ -5901,7 +5901,7 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "3b396268f57c0adbf82ef58b198a4b50a6d7fb46a2e8a113edd22f90551475cb"
+      "sha256": "2426bf4175abfaca995be769d111d24a40d93df9acb1554735ee23739eff65e8"
     },
     "ops/hermes-cron-scripts/host_disk_low_free_trigger.py": {
       "kind": "script",
