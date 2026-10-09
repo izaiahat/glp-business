@@ -93,6 +93,8 @@ def proof_argv(value):
     # These commands cannot mutate business/Linear or send/deploy. Other commands
     # need an explicit coordinator-owned read-only contract, not a worker claim.
     base = Path(value[0]).name
+    if value[0] != base and value[0] not in {'/usr/bin/' + base, '/bin/' + base, sys.executable}:
+        raise ValueError('proof executable path not trusted')
     safe = base in {'stat', 'test', 'sha256sum'}
     safe |= base == 'gh' and len(value) > 2 and (value[1:3] in [['pr', 'view'], ['pr', 'checks'], ['issue', 'view']])
     if base == 'curl':

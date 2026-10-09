@@ -85,7 +85,7 @@ class FleetTest(unittest.TestCase):
             items, errors = m.discover(root, root / 'missing', config, prs)
             self.assertEqual({e['source'] for e in items}, {'dot', 'github', 'cron'})
             self.assertEqual(m.discover(root, root / 'missing', {}, [])[0][0]['source'], 'dot')
-            for command in ['python3 scripts/send.py --apply', 'curl -X POST https://example.com', 'stat x; rm x', 'check receipts >= 3']:
+            for command in ['/home/ubuntu/untrusted/stat x', 'python3 scripts/send.py --apply', 'curl -X POST https://example.com', 'stat x; rm x', 'check receipts >= 3']:
                 with self.assertRaises(ValueError):
                     m.proof_argv(command)
             cfg.write_text('{')
