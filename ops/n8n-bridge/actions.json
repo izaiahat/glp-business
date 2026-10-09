@@ -586,7 +586,7 @@
     "allowed_args": ["release", "output", "state", "concurrency", "manual-registered"],
     "argv": ["python3", "scripts/glp_price_freshness.py"],
     "cwd": "/home/ubuntu/business",
-    "description": "Monthly first-party price source monitoring through the paired GLP80 producer. Emits separate source-monitor and unique typed-row validation coverage, retaining unknowns and held providers. Confirmed proposals use F04; staging, review and F06 publication remain separate effects. Fetch success never proves unchanged or fresh prices.",
+    "description": "Weekly first-party price monitoring via Firecrawl batch markdown scrape. Unchanged hashes skip JSON extraction, including unqualified pages. Exact existing typed witnesses may be re-attested; unknown components and provider holds remain. F04 staging and F06 publication stay separate.",
     "timeout_s": 2400,
     "value_flags": {"manual-registered": {"1": ["--manual-registered"]}}
   },
