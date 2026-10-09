@@ -1,5 +1,4 @@
-"""The maintained accepted-source carrier, with effects isolated in fixtures."""
-import importlib.util
+"""Accepted-source carrier regressions with isolated external effects."""
 import json
 from pathlib import Path
 import sys
@@ -22,7 +21,8 @@ class SourceCarrierTests(unittest.TestCase):
             (base / 'manifest.json').write_text(json.dumps({'schema':'glp-accepted-guides-source-v1','entries':[]}))
             (packet / '06-article.json').write_text('{"title":"Reviewed title"}')
             (packet / '07-qa-receipt.json').write_text('{}')
-            review = root / 'review.json'; review.write_text('{}')
+            review = root / 'review.json'
+            review.write_text('{}')
             entry = {'entry_id':'a'*24,'target_route':'/guides/new-guide/','pass_receipt':{'path':str(review)}}
             self.assertTrue(carrier.land_packet(source, packet, entry))
             original = (base / 'manifest.json').read_bytes()
@@ -47,8 +47,12 @@ class SourceCarrierTests(unittest.TestCase):
             root = Path(tmp)
             entry = {'entry_id':'b'*24,'topic_id':'topic','target_route':'/guides/already/'}
             manifest = root / 'entries' / entry['entry_id'] / 'entry.json'
-            manifest.parent.mkdir(parents=True); manifest.write_text('{}')
-            with patch.object(carrier, 'source_rows', return_value=[{'entry_id':entry['entry_id']}]), patch.object(carrier,'accepted_entry',return_value=(manifest,entry,{'title':'Already live'})), patch.object(carrier,'live_readback',return_value={'http':200,'title':'Already live'}), patch.object(carrier,'record_consumption') as record:
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('{}')
+            pointer = root / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+            pointer.parent.mkdir(parents=True)
+            pointer.write_text(json.dumps({'deployment_id':'fixture-deploy','site_head':'fixture-main'}))
+            with patch.object(carrier,'ROOT',root), patch.object(carrier,'source_rows',return_value=[{'entry_id':entry['entry_id']}]), patch.object(carrier,'accepted_entry',return_value=(manifest,entry,{'title':'Already live'})), patch.object(carrier,'live_readback',return_value={'http':200,'title':'Already live'}), patch.object(carrier,'record_consumption') as record:
                 self.assertEqual(carrier.reconcile_published(root,root)['status'],'PASS_SOURCE_RECONCILED')
                 self.assertEqual(record.call_count,1)
 

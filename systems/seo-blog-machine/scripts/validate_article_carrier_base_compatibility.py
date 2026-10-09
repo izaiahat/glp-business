@@ -19,8 +19,6 @@ for path in (str(SCRIPTS), str(Path(__file__).resolve().parents[3] / "scripts"))
         sys.path.insert(0, path)
 
 import article_buffer_cli as buffer_cli  # noqa: E402
-import build_opus_article_release as builder  # noqa: E402
-import existing_article_updates as existing  # noqa: E402
 
 BASE_POINTER = (
     BUSINESS
@@ -59,6 +57,8 @@ def current_articles(release: Path) -> list[dict[str, Any]]:
 
 
 def validate_base_interfaces(release: Path) -> dict[str, Any]:
+    import build_opus_article_release as builder
+    import existing_article_updates as existing
     national = json_file(release / "data/blog/content-national-wow-additions.json")
     ownership = json_file(release / "data/blog/keyword-ownership-map.json")
     articles = national.get("articles")
