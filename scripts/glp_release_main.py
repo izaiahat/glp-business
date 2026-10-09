@@ -189,6 +189,11 @@ def main(argv=None):
             original_gate(source, rep, config, head)
             log({'secrets_scan': secrets_scan(Path(source) / 'public')})
         job.build_gate = gated
+        import glp_affiliate_release as release
+        # Workflow v3: fresh build from main; the stale PREPARED-chain re-authentication is skipped,
+        # terminal-pointer identity + live-head check + rollback + pointer CAS remain.
+        release.authenticated_current_base = release.main_release_base
+        carrier.MAIN_RELEASE_FRESH = True
         install_cache_convergence(carrier, make_purger(carrier.read_token, log), log)
         try:
             result = job.execute(job.read(job.CONFIG), report, source_ref=pr['headRefOid'], source_pr=pr['url'],

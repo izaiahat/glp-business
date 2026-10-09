@@ -99,6 +99,26 @@ def authenticated_current_base(carrier):
     return pointer
 
 
+def main_release_base(carrier):
+    """operator-approved-main-release (workflow v3): build fresh from merged main.
+
+    Do not re-authenticate the predecessor's PREPARED/renewal chain (its frozen
+    toolchain/rollback identity predates the current carrier). Keep the
+    terminal-pointer identity: the pointer must be a PASS production terminal
+    for the exact deployment it names; the carrier then re-checks that this id is
+    the live canonical production head before any effect (package_rollback) and
+    keeps rollback-to-it and the pointer CAS.
+    """
+    pointer=read(carrier.POINTER)
+    final=bound(pointer['final_receipt'])
+    if (pointer.get('status')!='PASS' or not pointer.get('deployment_id') or not pointer.get('site_head')
+            or final.get('status')!='PASS_PRODUCTION_TERMINAL'
+            or final.get('deployment',{}).get('deployment_id')!=pointer.get('deployment_id')
+            or final.get('site_head')!=pointer.get('site_head')):
+        raise ValueError('main_release_base_not_terminal')
+    return pointer
+
+
 def package_and_publish(source, report, build_seat, *, publish=False):
     import glp_deploy_glp34_authority_v1 as carrier
     report=Path(report).resolve();source=Path(source).resolve()

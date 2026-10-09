@@ -972,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "0b490f57adb1217e665419c466fe4f5b8ea5c5c84c48e59c6fcffbc537e57683"
+      "sha256": "92aae2b27c02233ee11c8adf1ba120756c2c4e8232e8e4b781159d83fb2c6911"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1734,7 +1734,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "09a090eb684b19e86902f1f610c2b0f817a11b01efef5d2e4c247ec889101228"
+      "sha256": "bd571b56c15a1e04a05b4096732a2a537a6825c83daa5ba6dd6b660b34036da7"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1872,7 +1872,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "8f3ca7b3f2b7eec8bcc6abc205ad6d1bc29edb06399bb6bb0e5086275cb5b1ad"
+      "sha256": "82183bc106c2043764cfdddc444183d80ede395327360c66f29677d4d5b4fba7"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -3942,7 +3942,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0c88ab33314a98b63ad450b93c458818d8cd1f7d5764b969da3b7085b941b5e0"
+      "sha256": "af591d385b420698e00bd5741e4f99777c4bcbd157d7e2e13c6c510b420cb5d9"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4813,7 +4813,7 @@
         "scripts/glp_affiliate_sync_job.py",
         "scripts/glp_deploy_glp34_authority_v1.py"
       ],
-      "sha256": "3625911cbfbf89d158a096f258693034d97a7f1a7bfa0c1613b3d8d4f6b7db94"
+      "sha256": "dae83fbe19de08fcf694ddce8fc908f0fdf1a990d6a4c12c373df7f7891d571e"
     },
     "scripts/glp_affiliate_sync_job.py": {
       "kind": "script",
@@ -5983,7 +5983,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
-      "sha256": "1983a8cd7cc6d9f684ee43888e751b743b12cbce57e5b65cd625c419dbad3380"
+      "sha256": "beac17dee0de762b9364415243216b816af2b42e42da642bb5c0f8a2d441ef27"
     },
     "ops/hermes-cron-scripts/glp_release_main_cron.sh": {
       "kind": "script",
@@ -5997,7 +5997,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "5dac5b53416f66c371a812c47c5d8c1377f5a58276250037b9b6b69aa9754403"
+      "sha256": "8c0a3f0d14d04c35944a2c39c585b571b7d4bbbdff4ba500dbfbec41ed136b70"
     }
   }
 }
