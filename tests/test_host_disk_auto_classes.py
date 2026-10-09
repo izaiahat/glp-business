@@ -203,3 +203,12 @@ def test_bare_registry_root_reference_does_not_pin_every_run(tmp_path, monkeypat
     pins = set(sweep.references(report))
     assert bus / runs not in pins and bus / 'reports/glp-clinic-scout/affiliate-machine' not in pins
     assert bus / runs / '20261003T030854Z/prepared/release' in pins
+
+
+def test_release_toolchains_are_protected_roots():
+    import host_disk_cold_classes as cold
+    root = Path('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13')
+    assert cold.protected(root / 'node_modules')
+    assert cold.protected(root / 'node_modules/wrangler/bin/wrangler.js')
+    assert cold.protected(Path('/home/ubuntu/business/site-system/toolchains'))
+    assert not cold.protected(Path('/home/ubuntu/business/site-system/flagship-v2/candidates/x/node_modules'))
