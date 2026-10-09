@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 900,
+  "tracked_count": 901,
   "files": {
     "scripts/article_source_carrier.py": {
       "kind": "registered_producer",
@@ -587,7 +587,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "83496f9ece7e11f17555cb847e75ea6b9760661fe09dc46d77d2154312e12375"
+      "sha256": "d97c6883325e4d488fc0dc6f2430d928d020ede0b73f21cdd21ff58987ddf8b3"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2472,7 +2472,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "14c1384dbf6e536dbf0b25fc2b08b867034ca18d64dd3f7121944aa5b6988144"
+      "sha256": "1503d070304a5f97f82efbe555d9fff2d7266595a6a8fb4fb6e7ecdc5a796c8b"
     },
     "systems/seo-blog-machine/scripts/machine_config.py": {
       "callers": [
@@ -5364,6 +5364,11 @@
       ],
       "kind": "script",
       "sha256": "59d20dea64c4bf2578d695755c7becabfc23f0794e4e04fc9063a7070d3b5dbe"
+    },
+    "tests/test_weekly_strategy_updater_adoption.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "d47c57d59e9b3dea0574e5895a4aab51c530f47d770f7fa6449b9a435c312026"
     },
     "tests/test_glp44_strategy_sync.py": {
       "callers": [
