@@ -63,6 +63,12 @@ def test_sdk_snake_case_credit_and_scrape_id():
     assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sha256:' + fc._hash('sdk-id'),1)
 
 
+def test_onboarding_json_schema_is_source_only():
+    source = (ROOT / 'scripts/g6_r1a_stage5_research_fetch.py').read_text()
+    assert '"required": ["price", "eligibility", "states"]' in source
+    assert '"ledger_operation_id": getattr(response, "firecrawl_operation_id", None)' in source
+    assert 'EXTRACTED_REQUIRES_SOURCE_REVIEW_NOT_REGISTRY_WRITE' in source
+
 
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
     from types import SimpleNamespace
