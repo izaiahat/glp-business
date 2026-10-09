@@ -1048,7 +1048,19 @@ def stage_candidate(run_dir, candidate):
     ledger['entries'].extend(witnesses)
     put(ledger_path, ledger)
     put(matrix_path, combined)
-    checked = subprocess.run(['node', str(candidate / 'scripts/validate-provider-pricing-matrix.mjs')],
+    # Data-only native acceptance. The full site validator also reads built
+    # calculator HTML for historical provider holds; the build lane owns it.
+    native_check = """
+import {readFileSync} from 'node:fs';
+import {validateAttestedRetention} from './src/price-state.mjs';
+import {resolveDeployedPricingBaseline} from './src/pricing-coverage-floor.mjs';
+const read=p=>JSON.parse(readFileSync(p));
+const root=process.cwd(), matrix=read('data/provider-pricing-matrix.json');
+const baseline=resolveDeployedPricingBaseline(read('data/pricing-coverage-baseline.json'));
+validateAttestedRetention(root,matrix,baseline);
+console.log(JSON.stringify({status:'PASS',native_attested_retention:true,build_run:false}));
+"""
+    checked = subprocess.run(['node', '--input-type=module', '-e', native_check],
                              cwd=candidate, text=True, capture_output=True, timeout=90)
     proof = {'status': 'STAGED_VALIDATED' if checked.returncode == 0 else 'STAGED_VALIDATION_FAILED',
              'rows': len(witnesses), 'program_ids': sorted({w['program_id'] for w in witnesses}),
