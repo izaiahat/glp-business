@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 858,
+  "tracked_count": 860,
   "files": {
     "tests/test_firecrawl_glp350_monitor.py": {
       "kind": "test",
@@ -796,7 +796,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8"
+      "sha256": "8f4eccb6e34daede6d0950617460a853e6b61edbaff7a648a4f7c8482258c01f"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -1530,7 +1530,7 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf"
+      "sha256": "88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
@@ -2650,7 +2650,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "209ed443acfdf30899dd2c8744d2d99e0fd9fe0e91756b3dfbc39d1f43b1677e"
+      "sha256": "ccdf0e30f52dc6d4e4740bd67d192446021da6ddf0f77854f0af0a35a75c23e6"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
@@ -3627,7 +3627,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "bd336a57a4b45843feff3bd1385ced43d2ce6906f3f95ffaaf00691deffe7e11"
+      "sha256": "470054a50375362341e4388446dbe17225304025241170a0cfdf97c320205b39"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -5528,7 +5528,7 @@
       "callers": [
         "registered stage5 research fetch"
       ],
-      "sha256": "71bf3f42106fcf8ecfe188494bc61c9a24da2ad3c6523305edde7dd7cb72c12e"
+      "sha256": "2ee9fa180d4651e86c922e2815ee953391b3e8f5f2d66bf44789d27c1172e3a3"
     },
     "scripts/glp_price_verification.py": {
       "kind": "script",
@@ -5584,7 +5584,7 @@
       "callers": [
         "manual:bounded FDA warning search"
       ],
-      "sha256": "1273c2d8813fe02b15928826fe37be37cbed18b7a493f84cdec22ca89e8ef43f"
+      "sha256": "a6e5a61c720a9da63d3fdd8fd708defdc35eead27faf288f5c34525e1e8e0c3f"
     },
     "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py": {
       "kind": "script",
@@ -5605,7 +5605,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "e3013fcf9fd86417ff465310aa10c2f0fdb689af4b585bd48fec763790aced85"
+      "sha256": "94ca1f3a3767eececadff2b1ccfc1b337ea55587c70f4b6b642097480c4edf1c"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
@@ -5796,6 +5796,20 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+    },
+    "tests/test_firecrawl_glp350_affiliate.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+    },
+    "tests/test_firecrawl_glp350_gov.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
     }
   }
 }

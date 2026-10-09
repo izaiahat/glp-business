@@ -55,6 +55,7 @@ import hashlib
 import json
 import os
 import sys
+import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -259,6 +260,8 @@ def main() -> int:
     spec = json.loads(Path(ns.spec).read_text())
     out = Path(ns.out)
     out.mkdir(parents=True, exist_ok=True)
+    subprocess.run([sys.executable, str(BUSINESS / 'scripts/research_glp_batch2_fda_warning_provenance.py'),
+                    '--spec', ns.spec, '--output', str(out / 'government-index')], check=True)
 
     cycle_id = (ns.cycle_id
                 or os.environ.get("GLP_AUTHORING_CYCLE_ID", "")
