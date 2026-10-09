@@ -43,6 +43,7 @@ def build_candidate(
     inbound_source: str | None = None,
     risk_tier: str = "MEDIUM",
     include_provenance: bool = True,
+    capture_surface: dict | None = None,
 ) -> tuple[Path, Path, Path]:
     packet = tmp_path / name / "packet"
     packet.mkdir(parents=True)
@@ -157,6 +158,7 @@ def build_candidate(
         "05-claim-source-map.json": {"claims": [{"source": "FDA"}]},
         "06-article.json": {
             "article_id": f"article-{topic_id}",
+            **({"capture_surface": capture_surface} if capture_surface is not None else {}),
             "canonical_path": route,
             "title": name,
             "risk_tier": risk_tier,
@@ -511,6 +513,42 @@ def test_admission_rejects_duplicate_and_live_route(tmp_path):
             mutable_article_routes=set(),
             admitted_at_utc="2026-08-14T03:00:00Z",
         )
+
+
+@pytest.mark.parametrize('reason,risk,on_page,allowed', [
+    ('inbound_link_source_missing:/guides/retired/', 'MEDIUM', True, True),
+    ('clinical_claim_invalid', 'MEDIUM', True, False),
+    ('inbound_link_source_missing:/guides/retired/', 'HIGH', True, False),
+    ('inbound_link_source_missing:/guides/retired/', 'MEDIUM', False, False),
+])
+def test_on_page_link_source_successor_is_narrow_and_keeps_history(tmp_path, reason, risk, on_page, allowed):
+    root = tmp_path / 'pool'
+    route, topic = '/guides/source-repaired/', 'topic-source-repaired'
+    legacy = {'status': 'WORKING_BASE_TEMPLATE_CONTRACT', 'action': '/api/content-upgrade', 'email_field': 'email'}
+    old_packet, old_receipt, control = build_candidate(tmp_path, 'legacy', route, topic,
+                                                      risk_tier=risk, capture_surface=legacy)
+    old_manifest = admit_candidate(root, old_packet, old_receipt, control, '2026-08-14T01:00:00Z')
+    old = buffer._read_sealed(old_manifest, buffer.ENTRY_SCHEMA, 'entry_sha256')
+    qpath = root / 'quarantined' / f"{old['entry_id']}.json"
+    buffer._write_once(qpath, {'schema': buffer.QUARANTINE_SCHEMA, 'reason': reason,
+        'entry_id': old['entry_id'], 'topic_id': topic, 'article_id': old['article_id'],
+        'target_route': route, 'publication_effects': 0}, 'quarantine_sha256')
+    old_hashes = (sha(old_manifest), sha(qpath))
+    capture = {'status': 'ON_PAGE_ONLY', 'email_field': None, 'health_data_fields': [],
+               'follow_up_consent': False} if on_page else legacy
+    packet, receipt, _ = build_candidate(tmp_path, 'fresh', route, topic,
+                                        risk_tier='MEDIUM', capture_surface=capture)
+    if allowed:
+        successor = admit_candidate(root, packet, receipt, control, '2026-08-14T02:00:00Z')
+        entry = buffer._read_sealed(successor, buffer.ENTRY_SCHEMA, 'entry_sha256')
+        assert entry['on_page_source_repair_of']['entry_manifest']['path'] == str(old_manifest)
+        assert buffer.pool_status(root, current_routes=set(), current_topic_ids=set())['ready'] == 1
+        with pytest.raises(buffer.BufferAdmissionError, match='buffer_candidate_duplicate'):
+            admit_candidate(root, packet, receipt, control, '2026-08-14T03:00:00Z')
+    else:
+        with pytest.raises(buffer.BufferAdmissionError, match='buffer_candidate_duplicate'):
+            admit_candidate(root, packet, receipt, control, '2026-08-14T02:00:00Z')
+    assert old_hashes == (sha(old_manifest), sha(qpath))
 
 
 def test_admission_accepts_only_fresh_reviewed_successor_to_exact_medical_quarantine(tmp_path):

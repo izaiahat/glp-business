@@ -1071,6 +1071,41 @@ def _quarantine_summary(path: Path, receipt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _on_page_source_repair_predecessor(*, root, packet, evidence, duplicate_manifests, successor_closure):
+    """Only a fresh reviewed on-page successor to an unpublished link-source quarantine."""
+    if len(duplicate_manifests) != 1:
+        raise BufferAdmissionError("buffer_candidate_duplicate")
+    manifest_path, old = duplicate_manifests[0]
+    if any(old.get(k) != evidence[k] for k in ('topic_id', 'target_route', 'article_id')):
+        raise BufferAdmissionError("buffer_candidate_duplicate")
+    entry_id = old['entry_id']
+    quarantine_path = _quarantine_path(root, entry_id)
+    if not quarantine_path.is_file():
+        raise BufferAdmissionError("buffer_candidate_duplicate")
+    q = _read_sealed(quarantine_path, QUARANTINE_SCHEMA, 'quarantine_sha256')
+    if (not str(q.get('reason', '')).startswith('inbound_link_source_missing:/guides/')
+            or any(q.get(k) != old.get(k) for k in ('entry_id', 'topic_id', 'target_route', 'article_id'))
+            or q.get('publication_effects') != 0 or old.get('publication_effects') != 0
+            or entry_id in _claimed_entry_ids(root) or entry_id in _held_entry_ids(root)
+            or (root / 'consumed' / f'{entry_id}.json').exists()):
+        raise BufferAdmissionError("buffer_candidate_duplicate")
+    before = json.loads((manifest_path.parent / 'packet/06-article.json').read_text())
+    after = json.loads((packet / '06-article.json').read_text())
+    old_capture = before.get('capture_surface', {})
+    levels = {'LOW': 1, 'MEDIUM': 2}
+    if (old_capture.get('status') != 'WORKING_BASE_TEMPLATE_CONTRACT'
+            or old_capture.get('action') != '/api/content-upgrade' or old_capture.get('email_field') != 'email'
+            or after.get('capture_surface') != {'status': 'ON_PAGE_ONLY', 'email_field': None,
+                                               'health_data_fields': [], 'follow_up_consent': False}
+            or not evidence['target_route'].startswith('/guides/')
+            or before.get('risk_tier') not in levels or after.get('risk_tier') not in levels
+            or levels[after['risk_tier']] > levels[before['risk_tier']]
+            or old.get('packet_closure_sha256') == successor_closure):
+        raise BufferAdmissionError("buffer_candidate_duplicate")
+    return {'entry_manifest': _spec(manifest_path), 'quarantine': _spec(quarantine_path),
+            'reason': q['reason'], 'successor_gate': 'fresh_deterministic_qa_and_independent_five_gate_review'}
+
+
 def _medical_reframe_predecessor(
     *,
     root: Path,
@@ -1446,19 +1481,26 @@ def admit(
             if entry["target_route"] == evidence["target_route"] or entry["topic_id"] == evidence["topic_id"]:
                 duplicates.append((path, entry))
         reframed_from = None
+        on_page_successor_of = None
         predecessor = None
         if predecessor_entry_id is not None:
             predecessor = _held_successor_predecessor(
                 root, predecessor_entry_id, duplicates, evidence, closure)
             _successor_publication_date(today_pt or pt_date_now(), control_files)
         elif duplicates:
-            reframed_from = _medical_reframe_predecessor(
-                root=root,
-                packet=packet,
-                evidence=evidence,
-                duplicate_manifests=duplicates,
-                successor_closure=closure,
-            )
+            predecessor_quarantine = _quarantine_path(root, str(duplicates[0][1].get('entry_id', '')))
+            reason = (_read_sealed(predecessor_quarantine, QUARANTINE_SCHEMA, 'quarantine_sha256').get('reason', '')
+                      if predecessor_quarantine.is_file() else '')
+            if str(reason).startswith('inbound_link_source_missing:/guides/'):
+                on_page_successor_of = _on_page_source_repair_predecessor(
+                    root=root, packet=packet, evidence=evidence,
+                    duplicate_manifests=duplicates, successor_closure=closure,
+                )
+            else:
+                reframed_from = _medical_reframe_predecessor(
+                    root=root, packet=packet, evidence=evidence,
+                    duplicate_manifests=duplicates, successor_closure=closure,
+                )
         entry_id = hashlib.sha256(
             f"{evidence['topic_id']}\0{evidence['target_route']}\0{closure}".encode()
         ).hexdigest()[:24]
@@ -1535,6 +1577,8 @@ def admit(
             "control_files": evidence["control_files"],
             "publication_effects": 0,
         }
+        if on_page_successor_of is not None:
+            entry["on_page_source_repair_of"] = on_page_successor_of
         if reframed_from is not None:
             entry["reframed_from"] = reframed_from
         if predecessor is not None:
