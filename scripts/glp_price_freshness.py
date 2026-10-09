@@ -678,6 +678,12 @@ def price_coverage(active, results):
             'meaning': 'All known typed facts supported; declared UNKNOWN components retained. Not a complete selected-plan cost or publication.'}
 
 
+def monitor_changed(cache, text):
+    if cache.get('monitor_sha256'):
+        return cache['monitor_sha256'] != digest(text)
+    return changed(cache.get('markdown'), text)
+
+
 def batch_monitor(client, urls, out, concurrency):
     """Poll one forced-fresh markdown batch by exact ID, never repost it."""
     if not hasattr(client, 'request'):
@@ -790,7 +796,8 @@ def run(args, client=None):
                     page['monitor_transport_recovery'] = response['transport_recovery']
                 data = response_data(response, url)
                 text = data['markdown']
-                is_changed = changed(cache.get('markdown'), text, data.get('changeTracking'))
+                is_changed = monitor_changed(cache, text)
+                cache['monitor_sha256'] = digest(text)
                 fresh_captures[url] = {'source_url': url, 'markdown': text,
                     'content_sha256': digest(text), 'captured_at_utc': utc()}
                 (folder / (key + '.md')).write_text(text)
@@ -1086,7 +1093,9 @@ def install_weekly():
     lines[i], count = re.subn(r"--cron '[^']+'", "--cron '20 8 * * 0'", lines[i])
     if count != 1:
         raise ValueError('pricing_cron_guard_missing')
-    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 8 * * 0 ', lines[i], count=1)
+    # The host cron is UTC. Keep its existing hourly dispatcher so the
+    # Pacific weekly guard is reached in both standard and daylight time.
+    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 * * * * ', lines[i], count=1)
     updated = '\n'.join(lines) + '\n'
     if updated != old:
         if subprocess.check_output(['crontab', '-l'], text=True) != old:

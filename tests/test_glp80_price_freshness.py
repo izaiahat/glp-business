@@ -528,3 +528,26 @@ def test_bridge_reports_monitoring_not_publication(monkeypatch, tmp_path):
     assert 'notification' not in effects
     assert 'publication is a separate F06 effect' in calls[0][3]
 
+
+def test_hash_skip_uses_batch_bytes_not_second_json_scrape_bytes():
+    raw = 'Compounded semaglutide injection $99/mo.'
+    cache = {'markdown': 'Different JSON response formatting', 'monitor_sha256': p.digest(raw)}
+    assert not p.monitor_changed(cache, raw)
+    assert p.monitor_changed(cache, raw.replace('$99', '$109'))
+    assert not p.monitor_changed({'markdown': raw}, raw)
+
+
+def test_weekly_pacific_guard_is_reached_on_utc_cron_host(monkeypatch):
+    from croniter import croniter
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    cron = ["20 8 * * 0 python cron_bridge_action.py pricing_refresh --scheduled --cron '20 8 * * 0'\n"]
+    monkeypatch.setattr(p.subprocess, 'check_output', lambda *a, **kw: cron[0])
+    monkeypatch.setattr(p.subprocess, 'run', lambda *a, **kw: cron.__setitem__(0, kw['input']))
+    installed = p.install_weekly()
+    outer = ' '.join(installed['line'].split()[:5])
+    for month in (10, 11):
+        start = datetime(2026, month, 8, tzinfo=ZoneInfo('America/Los_Angeles'))
+        slot = croniter('20 8 * * 0', start).get_next(datetime).astimezone(timezone.utc)
+        assert croniter.match(outer, slot)
+
