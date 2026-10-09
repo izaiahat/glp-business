@@ -107,33 +107,6 @@ class SourceCarrierTests(unittest.TestCase):
             result = namespace['post_once']('No delivery',{}, {}, None)
         self.assertEqual(result['status'],'SUPPRESSED_NO_SEND')
 
-    def test_registered_carrier_operation_is_bound_to_due_slot(self):
-        from scripts import cron_bridge_action as cron
-        with tempfile.TemporaryDirectory() as tmp:
-            calls = []
-            def call(path, payload=None):
-                calls.append(payload)
-                return 200, {'job_id':'fixture-job','status':'done','rc':0}
-            options = dict(state_dir=Path(tmp), actions={'article_carrier_consume':{}},
-                           call=call, finish=lambda *a: {}, notify=lambda *a: {})
-            slot = '2026-10-09T09:45:America/Los_Angeles'
-            with patch.object(cron, 'article_release_live', return_value=True):
-                result = cron.run_action('article_carrier_consume', {'mode':'consume'},
-                    invocation='manual_registered', due_slot=slot, **options)
-                self.assertEqual(result['status'], 'PASS')
-                first = calls[-1]['args']['operation-id']
-                self.assertNotEqual(first, 'n8n-article-carrier-2026-10-09')
-                again = cron.run_action('article_carrier_consume', {'mode':'consume'},
-                    invocation='manual_registered', due_slot=slot, **options)
-                self.assertEqual(again['status'], 'SKIPPED_OBSERVED_SLOT')
-                self.assertEqual(len(calls), 1)
-                cron.run_action('article_carrier_consume', {'mode':'consume'},
-                    invocation='scheduled', due_slot='2026-10-10T11:00:America/Los_Angeles', **options)
-                self.assertNotEqual(calls[-1]['args']['operation-id'], first)
-                cron.run_action('article_carrier_consume', {'mode':'consume','operation-id':'retained-explicit'},
-                    invocation='manual_registered', due_slot=slot, **options)
-                self.assertEqual(calls[-1]['args']['operation-id'], 'retained-explicit')
-
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
         import inspect

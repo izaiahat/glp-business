@@ -39,6 +39,31 @@ class CronBridgeTests(unittest.TestCase):
     def run_action(self, name="fixture", **kwargs):
         return cron.run_action(name, {}, state_dir=self.root, call=self.call, actions=self.actions, notify=lambda *a: {"id": "test", "exact_readback": True}, **kwargs)
 
+    def test_registered_carrier_operation_is_bound_to_due_slot(self):
+        calls = []
+        def call(path, payload=None):
+            calls.append(payload)
+            return 200, {'job_id':'fixture-job','status':'done','rc':0}
+        options = dict(state_dir=self.root, actions={'article_carrier_consume':{}},
+                       call=call, finish=lambda *a: {}, notify=lambda *a: {})
+        slot = '2026-10-09T09:45:America/Los_Angeles'
+        with patch.object(cron, 'article_release_live', return_value=True):
+            result = cron.run_action('article_carrier_consume', {'mode':'consume'},
+                invocation='manual_registered', due_slot=slot, **options)
+            self.assertEqual(result['status'], 'PASS')
+            first = calls[-1]['args']['operation-id']
+            self.assertNotEqual(first, 'n8n-article-carrier-2026-10-09')
+            again = cron.run_action('article_carrier_consume', {'mode':'consume'},
+                invocation='manual_registered', due_slot=slot, **options)
+            self.assertEqual(again['status'], 'SKIPPED_OBSERVED_SLOT')
+            self.assertEqual(len(calls), 1)
+            cron.run_action('article_carrier_consume', {'mode':'consume'},
+                invocation='scheduled', due_slot='2026-10-10T11:00:America/Los_Angeles', **options)
+            self.assertNotEqual(calls[-1]['args']['operation-id'], first)
+            cron.run_action('article_carrier_consume', {'mode':'consume','operation-id':'retained-explicit'},
+                invocation='manual_registered', due_slot=slot, **options)
+            self.assertEqual(calls[-1]['args']['operation-id'], 'retained-explicit')
+
     def test_article_failed_prebuild_clears_pending_only_with_zero_effect_proof(self):
         action = "article_carrier_consume"
         args = {"mode": "consume"}
