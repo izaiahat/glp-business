@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Bounded automatic large-class sweep under the existing cleanup singleton."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+BUS=Path('/home/ubuntu/business')
+sys.path.insert(0,str(BUS/'scripts'))
+import host_disk_cold_classes as m
+import host_disk_pruner as api
+
+
+def references(report):
+    root=BUS/'reports/ops/glp347-pallas-20261007'
+    stack=[root];refs=set();source_hashes={};source_identities={}
+    while stack:
+        p=stack.pop();identity=m.signature(p);source_identities[str(p)]=identity
+        if p.is_symlink():refs.add(p.resolve());continue
+        if p.is_dir():
+            if p.name in {'.git','node_modules','assets','public','dist','browser-profiles'}:continue
+            with os.scandir(p) as es:stack.extend(Path(e.path) for e in es)
+            if m.signature(p)!=identity:raise ValueError('reference directory changed during scan')
+            continue
+        if p.suffix not in {'.json','.md','.py','.log','.jsonl','.mjs','.sh','.txt','.yaml','.yml','.toml','.csv'}:continue
+        source_hashes[str(p)]=m.sha(p)
+        pattern=r'(?:/home/ubuntu/(?:business/|\.hermes/cache/scratch/)|/tmp/glp-ultracode-browser-nowrite-|(?:reports|site-system|\.worktrees)/)[^\s\"<>\x60,;\)\]\}]+'
+        for s in re.findall(pattern,p.read_text(errors='replace')):
+            s=s.rstrip("'/:.");q=Path(s) if s.startswith('/') else BUS/s
+            refs.add(q)
+            if q.is_symlink():refs.add(q.resolve(strict=False))
+        if m.signature(p)!=identity:raise ValueError('reference file changed during scan')
+    layout={BUS,BUS/'reports',BUS/'reports/ops',BUS/'reports/glp-clinic-scout',
+            BUS/'site-system',BUS/'site-system/flagship-v2',BUS/'.worktrees'}
+    pins=refs-layout
+    policy_path=BUS/'ops/disk-retention-policy.json'
+    source_identities[str(policy_path)]=m.signature(policy_path)
+    policy=json.loads(policy_path.read_text())
+    pins.update(Path(p) for p in policy['protected_roots'])
+    pins.update([root,BUS/'site-system/flagship-v2/releases',BUS/'reports/disk-reclaim-20261008-r2',report])
+    pins.update(m.live_symlink_targets())
+    m.write_json(report/'references.json',{'pins':sorted(map(str,pins)),
+        'reference_source_sha256':source_hashes,'reference_source_identity':source_identities,
+        'generic_layout_roots_retained_not_retired':sorted(map(str,layout))})
+    return tuple(sorted(pins))
+
+
+def discover(root,pins,deadline,names=None):
+    stack=[root];out=[]
+    while stack:
+        if time.monotonic()>deadline:raise TimeoutError('discovery')
+        p=stack.pop()
+        if p.is_symlink() or m.protected(p,pins):continue
+        if names and p.name in names:out.append(p);continue
+        with os.scandir(p) as es:
+            stack.extend(Path(e.path) for e in es if e.is_dir(follow_symlinks=False) and e.name!='.git')
+    return out
+
+
+def partial_archive_effect(dest):
+    ledger=dest.with_suffix(dest.suffix+'.retirement.jsonl')
+    verified=dest.with_suffix(dest.suffix+'.verified.json')
+    if not ledger.exists() or not verified.exists():return 0,0
+    gross=sum(json.loads(line).get('freed_bytes',0) for line in ledger.read_text().splitlines())
+    paths=[dest,ledger,verified,dest.with_suffix(dest.suffix+'.manifest.json'),
+           dest.with_suffix(dest.suffix+'.listing.txt')]
+    overhead=sum(p.stat().st_blocks*512 for p in paths if p.exists())
+    return gross-overhead,gross
+
+
+def run(report,*,dry_run=False,budget=1800):
+    report=Path(report);report.mkdir(parents=True,exist_ok=True)
+    deadline=time.monotonic()+budget
+    d=os.statvfs('/');before=d.f_bavail*d.f_frsize
+    pressure=before/(d.f_blocks*d.f_frsize)<0.15
+    rows=[];pins=references(report)
+    from host_disk_reference_guard import ReferenceGuardAPI
+    reference_data=json.loads((report/'references.json').read_text())
+    guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
+    def save(stage):
+        d=os.statvfs('/')
+        m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,
+            'threshold_free_fraction':0.15,'before_free_bytes':before,
+            'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
+            'rows':rows,'reference_veto_source':guarded.last_reference_veto,
+            'attributable_bytes_freed':sum(r.get('bytes_freed',0) for r in rows)})
+    save('discover_nodes');nodes=[]
+    for root in [BUS/'reports',BUS/'site-system/flagship-v2/candidates',
+                 BUS/'site-system/flagship-v2/work',BUS/'.worktrees']:
+        nodes.extend(discover(root,pins,deadline,names={'node_modules'}))
+    rows.extend(m.node_modules(guarded,nodes,pins=pins,dry_run=dry_run,deadline=deadline))
+    save('idle_scratch')
+    scratch=Path('/home/ubuntu/.hermes/cache/scratch')
+    targets=list(scratch.iterdir())+list(Path('/tmp').glob('glp-ultracode-browser-nowrite-*'))
+    rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
+    save('cold_evidence')
+    roots=[p for p in (BUS/'reports/ops').iterdir() if p.is_dir() and not m.protected(p,pins)
+           and re.search(r'20\d{6}',p.name)]
+    estimates=[]
+    for root in roots:
+        if time.monotonic()>deadline:break
+        try:
+            r=subprocess.run(['du','-x','-B1','-s',str(root)],capture_output=True,text=True,timeout=5)
+            if r.returncode==0:estimates.append((int(r.stdout.split()[0]),root))
+        except (ValueError,subprocess.TimeoutExpired):continue
+    for amount,p in sorted(estimates,reverse=True):
+        if amount<250_000_000 or time.monotonic()+60>deadline:continue
+        dest=report/'archives'/(p.name+'.tar.zst')
+        try:
+            rows.append(m.cold_archive(guarded,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
+                min_bytes=128*1024**2,reserve_bytes=1024**3))
+        except Exception as e:
+            effect,gross=partial_archive_effect(dest)
+            rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
+                'status':'ERROR_PRESERVED_OR_PARTIAL','reason':str(e),'bytes_freed':effect,
+                'gross_bytes_freed':gross,'ok':False})
+        save('cold_evidence')
+    duplicate_targets=[]
+    for _,root in sorted(estimates,reverse=True)[:10]:
+        if time.monotonic()>deadline:break
+        try:
+            members,_=m.inventory(root,pins,time.time()-7*86400,deadline,hashes=False)
+            duplicate_targets.extend(root/r['name'] for r in members if not r['signature'][2]&0o222)
+        except (OSError,ValueError,TimeoutError):continue
+    if time.monotonic()<deadline:
+        rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
+            pins=pins,dry_run=dry_run,deadline=deadline))
+    save('complete');return rows
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--report',required=True)
+    parser.add_argument('--dry-run',action='store_true')
+    parser.add_argument('--budget',type=int,default=1800)
+    args=parser.parse_args()
+    result=run(args.report,dry_run=args.dry_run,budget=args.budget)
+    raise SystemExit(1 if any(not r.get('ok',True) for r in result) else 0)

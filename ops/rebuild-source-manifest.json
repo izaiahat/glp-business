@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 864,
+  "tracked_count": 871,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -559,7 +559,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "559a3200302a29e8fd796455e3504291f4ab8e50029d74459072b6dc25f024fb"
+      "sha256": "73fd135051cce16f49153c29f5780b33aaa55f89a948e2552f22b781570d37d3"
     },
     ".hermes.md": {
       "callers": [],
@@ -5838,6 +5838,55 @@
         "Firecrawl exact-head CI"
       ],
       "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+    },
+    "scripts/host_disk_cold_classes.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "92463ad1b238d5f848c1950486f329252c3815e694021a6d6a24978662aab762"
+    },
+    "scripts/host_disk_large_classes.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "432b324a2769ebfeed4b187565ecfc5f3248cb8a4653bcaa80a27d6ac6966adc"
+    },
+    "scripts/host_disk_payload_guard.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "20c7192cbebe8a3bbe4d4854e07cd2bdb9e5dbb61b1fe2b0958d3dab9edc4b9d"
+    },
+    "scripts/host_disk_reference_guard.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "ec0651bfae596a158051cc17b5b2b72b117cfcdd261f8e207215d32445584dbe"
+    },
+    "scripts/host_disk_large_sweep.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_cleanup_large_unit.py"
+      ],
+      "sha256": "f1aba3cf585106fabf48015f188857bc9044ea603788a0797badade009eed83c"
+    },
+    "scripts/host_disk_cleanup_large_unit.py": {
+      "kind": "script",
+      "callers": [
+        "systemd:host-disk-cleanup.service.d/large-classes.conf"
+      ],
+      "sha256": "d43aa5da2d890aaed380d60c6ac13a76592cef64a8d378ab350b34d3643b4c4c"
+    },
+    "tests/test_host_disk_large_guards.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/host_disk_large_sweep.py"
+      ],
+      "sha256": "663d1af82df959058c3fc76e2a7fc28bde3891cf779bc5b15e40967e0eaff1c8"
     }
   }
 }
