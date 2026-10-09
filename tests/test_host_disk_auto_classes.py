@@ -197,7 +197,7 @@ def test_bare_registry_root_reference_does_not_pin_every_run(tmp_path, monkeypat
     bus = tmp_path / 'business'; root = bus / 'reports/ops/glp347-pallas-20261007'; root.mkdir(parents=True)
     (bus / 'ops').mkdir(); (bus / 'ops/disk-retention-policy.json').write_text('{"protected_roots":[]}')
     runs = 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
-    (root / 'NOTE.md').write_text(f"see /home/ubuntu/business/{runs} and {runs}/20261003T030854Z/prepared/release\n")
+    (root / 'NOTE.md').write_text(f"see {runs} and {runs}/20261003T030854Z/prepared/release\n")
     monkeypatch.setattr(sweep, 'BUS', bus)
     report = tmp_path / 'report'; report.mkdir()
     pins = set(sweep.references(report))
