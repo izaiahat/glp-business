@@ -23,7 +23,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "c47314ecb3dade80353895baf637fa6e64f1a956e4946123fa93bb13f51a6dcb"
+      "sha256": "17419e5601d7aa77c39472a533de457514634637781ff9cc7291e5833e83e286"
     },
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "kind": "script",

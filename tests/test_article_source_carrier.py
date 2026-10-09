@@ -58,7 +58,8 @@ class SourceCarrierTests(unittest.TestCase):
 
     def test_published_operation_get_only_recovery_requires_current_bound_source(self):
         import article_buffer_cli as cli
-        import scripts.cron_bridge_action as cron
+        from types import SimpleNamespace
+        cron = SimpleNamespace(article_current_base=lambda: None, article_production_head_id=lambda: None)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             pointer = root / 'pointer.json'; pointer.write_text('{}')
@@ -77,6 +78,7 @@ class SourceCarrierTests(unittest.TestCase):
                  patch.object(carrier,'live_readback',return_value={'http':200,'title':'Reviewed title','url':'https://glpclinicscout.com/guides/new/'}) as live, \
                  patch.object(cron,'article_current_base',return_value={'deployment_id':'dep'}), \
                  patch.object(cron,'article_production_head_id',return_value='dep') as head, \
+                 patch.dict(sys.modules,{'scripts.cron_bridge_action':cron}), \
                  patch.object(carrier,'run',side_effect=AssertionError('writer must not run')):
                 self.assertEqual(carrier.published_operation_readback(op)['entry_id'],entry['entry_id'])
                 self.assertIsNone(carrier.published_operation_readback('wrong-operation'))
