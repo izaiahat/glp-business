@@ -84,12 +84,9 @@ def installed_files(worker, pr_files):
 
 
 def first_output(data):
-    """First observed runtime value that is business output, not an exit/HTTP/ok token."""
-    for entry in data['evidence']:
-        for value in entry['observed']:
-            if not lo.is_bare_output(value):
-                return value
-    return None
+    """Observed runtime values that are business output, not exit/HTTP/ok tokens or field names."""
+    values = [value for entry in data['evidence'] for value in entry['observed'] if not lo.is_bare_output(value)]
+    return ', '.join(dict.fromkeys(values)) or None
 
 
 def collect_evidence(worker, worker_path):
