@@ -1061,11 +1061,14 @@ def rebind_pagination_capture_fixture(source: str, job: dict[str, Any]) -> str:
     # adds the fifth Insights page." to /insights/page/5/). An anchor that only
     # accepted a bare entry matched zero times and aborted the whole publication
     # with capture_fixture_routes_anchor_invalid, so the tail of each entry line
-    # is absorbed rather than required to be empty.
+    # is absorbed rather than required to be empty. Native successors removed
+    # matches from this staged list and prove its source-invalid/send hold in a
+    # separate fixture; accept their graph anchor without reintroducing matches.
     pattern = re.compile(
         r'(  const routes = \[\n)'
         r'((?:[ \t]*"/insights/page/[1-9][0-9]*/",[^\n]*\n)*)'
-        r'([ \t]*"/matches/customized/",)')
+        r'([ \t]*"/matches/customized/",|'
+        r'[ \t]*\.\.\.\(graph\.comparison_pages \|\| \[\]\)\.map\(\(entry\) => entry\.route\),)')
     matches = list(pattern.finditer(source))
     if len(matches) != 1:
         raise RuntimeError("capture_fixture_routes_anchor_invalid")

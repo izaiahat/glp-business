@@ -995,7 +995,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "31da68b93b4533fe320f81be48e7a91d340e0c4ebb08b71759b2fc2bab38f350"
+      "sha256": "956e1a9df9bf9c0b0b0510d4ab9ee20711f6df7fcae8a26d8cd09d7cdc3e3114"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2415,7 +2415,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "8b06a86f32e395299e121a0570b846e86d2b4ea2cc7cb8972fea0e8f7290020f"
+      "sha256": "de13ab5eea117225ce2a091a005ac3d21dc0c1e2b40dc29455c7374de59271e0"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -3972,7 +3972,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "5b49c443a65b984cb7f2e5fdf1922d2dc040ccc4cc6540a7f1f8c42ec57d2cef"
+      "sha256": "341865c3ed9a2063f1c8a80711059ab7acae2e50ad12e03a26c98896eb8f3a05"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -5089,7 +5089,7 @@
         ".github/workflows/glp80-k3-source.yml"
       ],
       "kind": "test",
-      "sha256": "ea048c5c25519618be683ed7eb015b0319162d51bed100f5ea1593af7453ff98"
+      "sha256": "2ee97d46be0b05c2b4bbf1314fe464b48d3950c619f7b477c536c898b790d491"
     },
     "ops/glp/seo_nonarticle_stage.py": {
       "kind": "source_control",
