@@ -37,6 +37,9 @@ For a preexisting curated file absent from sync state, explicitly pass
 --adopt-reviewed-baseline PATH on BOTH commands. Its live bytes must match an
 older committed revision of that path in the reviewed checkout; arbitrary
 local edits and files with an existing baseline still refuse.
+When an operator authorizes a reviewed live predecessor that is not in Git,
+use --adopt-reviewed-preimage PATH=SHA256 with explicit --only selection on
+both commands. Record the review separately; this does not fabricate history.
 """
 
 
@@ -132,9 +135,11 @@ def source_session(root, owner=None):
 
 def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
          discovery_review=None, discovery_authority=None, ship_generation=None,
-         _ship_publish=None, _source_owner=None):
+         _ship_publish=None, _source_owner=None, reviewed_preimage=()):
     with source_session(root, _source_owner):
         if discovery_review is not None or discovery_authority is not None or ship_generation is not None:
+            if reviewed_preimage:
+                raise ValueError('reviewed preimage cannot combine migration mechanisms')
             try:
                 from .discovery_predecessor_migration import migrate
             except ImportError:  # direct CLI
@@ -142,12 +147,17 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
             return migrate(_sync_locked, root, checkout, apply, adopt_reviewed_baseline, only,
                            discovery_review, discovery_authority, generation=ship_generation,
                            _ship_publish=_ship_publish)
-        return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only)
+        return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only,
+                            reviewed_preimage=reviewed_preimage)
 
 
 def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
-                 _discovery_preimage=None, _shared_bridge_preimage=None, _pallas_migration=None):
+                 _discovery_preimage=None, _shared_bridge_preimage=None, _pallas_migration=None,
+                 reviewed_preimage=()):
     root = root.resolve(strict=True)
+    if reviewed_preimage and any(value is not None for value in
+            (_discovery_preimage, _shared_bridge_preimage, _pallas_migration)):
+        raise ValueError('reviewed preimage cannot combine migration mechanisms')
     pallas_fixed = {}
     if _pallas_migration is not None:
         if _discovery_preimage is not None or _shared_bridge_preimage is not None or adopt_reviewed_baseline:
@@ -194,6 +204,20 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
     ):
         raise ValueError("adoption requires a unique curated path selected and absent from sync state")
     prior_hashes = {p: reviewed_prior_hashes(checkout, p) for p in adopted}
+    reviewed = {}
+    for entry in reviewed_preimage:
+        rel, separator, digest = entry.partition('=')
+        if (not separator or len(digest) != 64
+                or any(c not in '0123456789abcdef' for c in digest)
+                or not selected or rel not in selected or rel in previous
+                or rel in adopted or rel in reviewed or rel == MANIFEST):
+            raise ValueError('reviewed preimage requires a unique selected unrecorded path and SHA256')
+        if sha(safe(root, rel)) != digest:
+            print('REFUSED reviewed preimage changed: ' + rel, file=sys.stderr)
+            return 2
+        reviewed[rel] = digest
+    adopted.update(reviewed)
+    prior_hashes.update({rel: {digest} for rel, digest in reviewed.items()})
     if _discovery_preimage is not None:
         # Private handoff only from the exact reviewed migration above; this is
         # not a user-supplied baseline/hash/force option.
@@ -329,6 +353,8 @@ def main():
     parser.add_argument("--checkout", type=Path, help="local reviewed Git checkout for offline verification")
     parser.add_argument("--adopt-reviewed-baseline", action="append", default=[], metavar="PATH",
                         help="adopt a preexisting file only if bytes match a prior committed revision")
+    parser.add_argument("--adopt-reviewed-preimage", action="append", default=[], metavar="PATH=SHA256",
+                        help="operator-authorized reviewed live bytes absent from Git and sync state; requires --only")
     parser.add_argument("--only", action="append", default=[], metavar="PATH",
                         help="import only named curated paths; retain other baselines and installed global manifest")
     parser.add_argument("--discovery-predecessor-review", type=Path,
@@ -343,12 +369,14 @@ def main():
     if args.checkout:
         return sync(args.root, args.checkout.resolve(strict=True), args.apply, args.adopt_reviewed_baseline, args.only,
                     discovery_review=args.discovery_predecessor_review,
-                    discovery_authority=args.discovery_adoption_authority)
+                    discovery_authority=args.discovery_adoption_authority,
+                    reviewed_preimage=args.adopt_reviewed_preimage)
     if args.discovery_predecessor_review or args.discovery_adoption_authority:
         parser.error("discovery migration requires an exact local --checkout")
     with tempfile.TemporaryDirectory(prefix="glp-business-sync-") as temp:
         subprocess.run(["git", "clone", "--quiet", "--branch", "main", REMOTE, temp + "/repo"], check=True)
-        return sync(args.root, Path(temp) / "repo", args.apply, args.adopt_reviewed_baseline, args.only)
+        return sync(args.root, Path(temp) / "repo", args.apply, args.adopt_reviewed_baseline, args.only,
+                    reviewed_preimage=args.adopt_reviewed_preimage)
 
 
 if __name__ == "__main__":

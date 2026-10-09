@@ -16,9 +16,13 @@ from pathlib import Path
 import re
 import urllib.request
 import urllib.error
+import sys
+from urllib.parse import urlencode
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
 
 ENDPOINT = 'https://api.firecrawl.dev/v2/scrape'
-SCHEMA = 'glp-article-alexandria-research-v1'
+SCHEMA = 'glp-article-alexandria-research-v2'
+LEGACY_SCHEMA = 'glp-article-alexandria-research-v1'
 READS = {
     'pmid': ('pubmed-ncbi-nlm-nih-gov', 'publications/article', 'pmid', r'[0-9]{1,9}'),
     'pmc': ('pubmed-ncbi-nlm-nih-gov', 'publications/full_text', 'pmcid', r'PMC[0-9]{1,9}'),
@@ -50,10 +54,20 @@ def key():
     return value
 
 def request_live(body):
+    from firecrawl_client import FirecrawlClient, firecrawl_urlopen
+    execution = body['alexandria'][0]
+    if execution['provider'] in ('firecrawl-research-index', 'firecrawl-gov-index'):
+        client = FirecrawlClient('seo.article_research')
+        options = execution['options']
+        if execution['provider'] == 'firecrawl-research-index':
+            payload = client.request('search/research/papers?' + urlencode({'query': options['query'], 'k': 5}), method='GET')
+        else:
+            payload = client.request('search/gov', {'query': options['query'], 'k': 5})
+        return {'success': payload.get('success'), 'data': {'alexandria': [{**execution, 'data': payload}]}}
     request = urllib.request.Request(ENDPOINT, data=json.dumps(body).encode(),
         headers={'Authorization': 'Bearer ' + key(), 'Content-Type': 'application/json'}, method='POST')
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with firecrawl_urlopen(request, caller='seo.article_research', timeout=120) as response:
             return json.load(response)
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f'firecrawl_http_{exc.code}') from None
@@ -73,8 +87,10 @@ def read_request(row):
 def validate_manifest(path, target_query):
     path = Path(path)
     data = json.loads(path.read_text())
-    if data.get('schema') != SCHEMA or data.get('target_query') != target_query:
+    if data.get('schema') not in (SCHEMA, LEGACY_SCHEMA) or data.get('target_query') != target_query:
         raise ValueError('research_manifest_binding_invalid')
+    if data['schema'] == SCHEMA and len(data.get('citations', [])) < 3:
+        raise ValueError('research_three_doi_pmid_citations_required')
     captures = data.get('captures') or []
     if len(captures) < 2 or len(captures) > 6: raise ValueError('research_capture_count_invalid')
     required = [('firecrawl-research-index', 'search'), ('firecrawl-gov-index', 'search')]
@@ -102,6 +118,21 @@ def check_response(response, execution):
         raise ValueError('research_provider_failed')
     return rows[0].get('creditsCost')
 
+
+def citations(response):
+    rows = response['data']['alexandria'][0]['data'].get('results', [])
+    result = []
+    for paper in rows:
+        ids = paper.get('ids', {})
+        pmid = next(iter(ids.get('pmid', [])), None)
+        doi = next(iter(ids.get('doi', [])), None)
+        if not pmid and not doi:
+            continue
+        result.append({'title': paper['title'], 'pmid': pmid, 'doi': doi,
+            'source_url': 'https://pubmed.ncbi.nlm.nih.gov/' + pmid + '/' if pmid else 'https://doi.org/' + doi,
+            'abstract': paper.get('abstract'), 'status': 'SOURCE_INSPECTION_REQUIRED_NOT_CLINICAL_APPROVAL'})
+    return list({row['pmid'] or row['doi']: row for row in result}.values())
+
 def collect(root, *, target_query, clinical_query, regulatory_query, reads=(), request=request_live):
     root = Path(root).resolve()
     if not all(isinstance(x, str) and x.strip() for x in [target_query, clinical_query, regulatory_query]):
@@ -119,6 +150,7 @@ def collect(root, *, target_query, clinical_query, regulatory_query, reads=(), r
         if any(result.get(k) != v for k, v in bindings.items()): raise ValueError('research_resume_request_drift')
         return result
     captures = []
+    references = []
     for index, execution in enumerate(calls):
         body = {'alexandria': [execution]}
         identity = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:16]
@@ -133,11 +165,15 @@ def collect(root, *, target_query, clinical_query, regulatory_query, reads=(), r
             if json.loads(req.read_text()) != body: raise ValueError('research_request_drift')
             response = json.loads(out.read_text())
         credits = check_response(response, execution)
+        if execution['provider'] == 'firecrawl-research-index':
+            references = citations(response)
+            if len(references) < 3:
+                raise ValueError('research_three_doi_pmid_citations_required')
         captures.append({'provider': execution['provider'], 'capability': execution['capability'],
             'request': spec(req), 'response': spec(out), 'credits_reported': credits})
     charges = [x['credits_reported'] for x in captures]
     result = {'schema': SCHEMA, **bindings, 'captured_at_utc': datetime.now(timezone.utc).isoformat(),
-        'captures': captures, 'credits_ceiling': 20,
+        'captures': captures, 'citations': references, 'credits_ceiling': 20,
         'credits_reported': sum(charges) if all(type(x) in (int, float) for x in charges) else None,
         'status': 'DISCOVERY_CAPTURED_NOT_CLINICAL_APPROVAL',
         'claim_policy': 'Original source, product, population, duration, endpoint, study design, limitations and exact quote required; preprints labeled; no extrapolation to compounded products or provider outcomes.'}
@@ -159,7 +195,8 @@ def packet_research_valid(packet, target_query):
         binding = ledger['alexandria_research']
         p = Path(binding['path'])
         if p.is_symlink() or digest(p) != binding['sha256']: return False
-        validate_manifest(p, target_query)
+        research = validate_manifest(p, target_query)
+        if research['schema'] == SCHEMA and ledger.get('research_citations') != research['citations']: return False
         rows = ledger['research_claim_ledger']
         ids = [row['claim_id'] for row in rows]
         expected = [row['claim_id'] for row in mapping['claims']]

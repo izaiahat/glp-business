@@ -325,8 +325,8 @@ def test_f09_reviewed_active_native_inventory_matches_exact_source(job_id, filen
     if filename == 'affiliate_supply_discovery_daily.sh':
         # Candidate v2 producer pin is not a live adoption. Preserve the exact
         # reviewed inventory/predecessor oracle, allowing only this pin edit.
-        assert sha(source) == '4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8'
-        successor = b'b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf'
+        assert sha(source) == '8f4eccb6e34daede6d0950617460a853e6b61edbaff7a648a4f7c8482258c01f'
+        successor = b'88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e'
         assert source.count(successor) == 1
         assert sha((ROOT/'scripts/affiliate_supply_discovery.py').read_bytes()).encode() == successor
         source = source.replace(successor, b'8f882b3fc6ae1d6fc81590c94c84b1e28c1f094e273b7b0643c013366682ca7f')
@@ -404,7 +404,8 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert len(pricing_rows) == 1
     assert pricing_rows[0]['sources'][1] == {'path': '/home/ubuntu/business/scripts/glp_pricing_refresh.py'}
     pricing_source = 'scripts/glp_price_freshness.py'
-    pricing_pin = 'c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd'
+    pricing_rows[0]['id'] = 'crontab:c375f52003048c64'
+    pricing_pin = '3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a'
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}

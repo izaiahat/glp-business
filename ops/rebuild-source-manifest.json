@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 855,
+  "tracked_count": 864,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "3124a88eb4575b19a8d187f5f08073577a0c64e161440e2b19a1daf0ea2a3ac1"
+      "sha256": "645015b2be28cdd21fd8386a9899aac527adf72e66f9fc22573f7d2568c80af3"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -789,7 +789,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8"
+      "sha256": "8f4eccb6e34daede6d0950617460a853e6b61edbaff7a648a4f7c8482258c01f"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -1523,7 +1523,7 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf"
+      "sha256": "88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
@@ -1741,7 +1741,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "c49d9d1fca9bcd86a67685b569796bfd370ef3b719c45fba550d80bcf0f254ef"
+      "sha256": "b819a66c1faa3e37753985c23cdabb72a3209a9bd40e35097c95fcecbb398f97"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2293,7 +2293,7 @@
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "29464d1a9d60d944e6aa13c32805372eed813bb4850c11c50807d2ba926d0dd1"
+      "sha256": "2be2410cc93a3d4ddd691ce9ede53bdede9e66f537d7b1942d7a89daa0c87ca7"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -2643,7 +2643,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "209ed443acfdf30899dd2c8744d2d99e0fd9fe0e91756b3dfbc39d1f43b1677e"
+      "sha256": "ccdf0e30f52dc6d4e4740bd67d192446021da6ddf0f77854f0af0a35a75c23e6"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
@@ -3495,7 +3495,7 @@
     "tests/test_sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ca29fe02abdd74db6293078cbcf432e9e09647d8f350a4a522db5cafc6c08c79"
+      "sha256": "2efc25f6539b3c908aac0be8d306db3735d38970162ca00de6cf05537bf94655"
     },
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
@@ -3599,7 +3599,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "855fa1f97b1c975f2ba49c322d4ae45ce3229627acf8cd234ff3696d257599c7"
+      "sha256": "de667cb4259ff4bea883f1fae267e86355199095f4084b03e76e2aaadec24f83"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3620,7 +3620,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "348fd4467e13ce1f7145fa41ad50bff3a367d13b52581d615c651217b2cd2f2f"
+      "sha256": "470054a50375362341e4388446dbe17225304025241170a0cfdf97c320205b39"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -4974,7 +4974,7 @@
         "scripts/cron_bridge_action.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0593f4c6c25c3be7726e8c3b5c5cd77c14c3857b09c25ab66e999dc18da67fb1"
+      "sha256": "c528919fd2993235b29ce5fb6c8c5988e54cb1eabf6d529854337d917e81eceb"
     },
     "tests/test_glp320_host_failure_sensor.py": {
       "sha256": "20949a9880d3c86679b7aa898e0d8122465dc2a28b8609456e53ddcb156f2c72"
@@ -5115,7 +5115,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "208a46012868b88b46cc4afcc80b01da3f530ad0c375363d3daf30d0f157ada1"
+      "sha256": "c9aa171f5389a51af4808426e839a69a1784bb1cce1df7fed9ba51dc470108d6"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5435,7 +5435,7 @@
         "ops/hermes-cron-prompts/glp-seo-buffer-refill.md",
         "systems/seo-blog-machine/scripts/validate_opus_article_packet.py"
       ],
-      "sha256": "9e40bdf692b7383a0780db366d48ac42bdbe8807e7602a1e67699f156f5d9b38"
+      "sha256": "aec30e8025a0693c26c19818e13beb16a75dda1bbfb7d7cafea189bc78517edb"
     },
     "tests/test_glp73_autonomous_articles.py": {
       "kind": "test",
@@ -5449,7 +5449,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "e62d3c3454990d637084eacdf58951f61b0cccc0f29fc07cccde4e741d6576fb"
+      "sha256": "7ad3c00c0dbc8346f914e6fc74580104a1fd2353319516d012f034fa905119d6"
     },
     "tests/test_bounded_pruner_discovery_resume.py": {
       "kind": "test",
@@ -5521,7 +5521,7 @@
       "callers": [
         "registered stage5 research fetch"
       ],
-      "sha256": "71bf3f42106fcf8ecfe188494bc61c9a24da2ad3c6523305edde7dd7cb72c12e"
+      "sha256": "2ee9fa180d4651e86c922e2815ee953391b3e8f5f2d66bf44789d27c1172e3a3"
     },
     "scripts/glp_price_verification.py": {
       "kind": "script",
@@ -5535,21 +5535,21 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "1b63a2d7be1fd7242351afe33efa7f5f134986bc89a4250d8ba8412c4bb913fa"
+      "sha256": "a3b8df3dd8436aebbf71829be9daf078a3c135462d0bdac68e2c613bc50b4552"
     },
     "systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py": {
       "kind": "script",
       "callers": [
         "topic supply refresh"
       ],
-      "sha256": "0f7480308b124e7d06a957fee4efdf0c01f5d503b5abefc677bcd460ccdec85d"
+      "sha256": "ccb14e66c66c30b378388d863a90e7d822cf8f82fe0e9df566b6743376edeef0"
     },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "90921088132c554f38278cc46a6a9dfc0320c79bd5bf9c66c9cda2e15965e3a8"
+      "sha256": "7be4b40801ea684d1217165e72da5f91a93a03d93f08700be2b2e6cb76c57ff6"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
@@ -5577,7 +5577,7 @@
       "callers": [
         "manual:bounded FDA warning search"
       ],
-      "sha256": "1273c2d8813fe02b15928826fe37be37cbed18b7a493f84cdec22ca89e8ef43f"
+      "sha256": "a6e5a61c720a9da63d3fdd8fd708defdc35eead27faf288f5c34525e1e8e0c3f"
     },
     "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py": {
       "kind": "script",
@@ -5598,14 +5598,14 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "e3013fcf9fd86417ff465310aa10c2f0fdb689af4b585bd48fec763790aced85"
+      "sha256": "94ca1f3a3767eececadff2b1ccfc1b337ea55587c70f4b6b642097480c4edf1c"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "552adb1010c484ffb1f8816f28261639bd8b56f74d48353e05374e837b52d184"
+      "sha256": "c6608d541a99c37051b37eaf2127ed25c8169bd902c0e9547be3256019f73172"
     },
     "scripts/glp_price_freshness.py": {
       "kind": "script",
@@ -5613,7 +5613,7 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
+      "sha256": "3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
@@ -5641,7 +5641,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "b73de05700c07fd6f80bda3665fbd6ac003bd68b1b99681082a1d50c55c89ebc"
+      "sha256": "ea98c7c556929e97c4741986464408cec5cc94e77b6c6c8b848f3d98f9cb451f"
     },
     "tests/test_glp_sponsor_public_custody.py": {
       "kind": "test",
@@ -5775,6 +5775,69 @@
       "callers": [],
       "kind": "test",
       "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
+    },
+    "tests/test_firecrawl_glp350_pdf.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
+    },
+    "systems/seo-blog-machine/scripts/article_pdf.py": {
+      "kind": "script",
+      "callers": [
+        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
+      ],
+      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
+    },
+    "tests/test_firecrawl_glp350_serp.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "17a280cdc8d3e643df366e9f02663b017cc06424bc01270f05cd251d689072f4"
+    },
+    "tests/test_glp80_reattest.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+    },
+    "tests/test_firecrawl_glp350_monitor.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "435e1368c6f0084bfb04d26e57e0db15d292eae7bb4399d76969973dff51dd9b"
+    },
+    "scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "daily provider monitor intake; manual: python3 scripts/glp_firecrawl_monitors.py --create --run-now"
+      ],
+      "sha256": "becad51036a28dd29a50803e42a3f81d163ec910ab986c98a25119f856192717"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes daily monitor intake"
+      ],
+      "sha256": "ff9884d26641f2f7cdcaad73702dd6376b8a358e471501ac92462c45faa807df"
+    },
+    "tests/test_firecrawl_glp350_affiliate.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+    },
+    "tests/test_firecrawl_glp350_gov.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
     }
   }
 }

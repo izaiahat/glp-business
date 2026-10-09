@@ -5,6 +5,7 @@ import unittest
 import json
 
 MODULE = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts/article_research.py'
+PAPERS = [{'title': 'Synthetic citation fixture', 'ids': {'pmid': [str(n)]}} for n in (1, 2, 3)]
 
 class Research(unittest.TestCase):
     def load(self):
@@ -17,7 +18,7 @@ class Research(unittest.TestCase):
             calls.append(body)
             a = body['alexandria'][0]
             return {'success': True, 'data': {'alexandria': [{**a, 'creditsCost': 0 if 'index' in a['provider'] else 5,
-                'data': {'text': 'Synthetic test evidence only', 'id': 'fixture'}}]}}
+                'data': {'text': 'Synthetic test evidence only', 'id': 'fixture', 'results': PAPERS}}]}}
         with tempfile.TemporaryDirectory() as work:
             result = m.collect(Path(work), target_query='fixture provider', clinical_query='fixture GLP1 evidence',
                 regulatory_query='fixture FDA rules', reads=[{'kind':'pmc','id':'PMC123'}], request=transport)
@@ -38,12 +39,13 @@ class Research(unittest.TestCase):
             root = Path(work)
             def transport(body):
                 a = body['alexandria'][0]
-                return {'success': True, 'data': {'alexandria': [{**a, 'creditsCost': 0, 'data': {'text': 'Synthetic quoted passage'}}]}}
+                return {'success': True, 'data': {'alexandria': [{**a, 'creditsCost': 0, 'data': {'text': 'Synthetic quoted passage', 'results': PAPERS}}]}}
             m.collect(root / 'research', target_query='fixture', clinical_query='fixture', regulatory_query='fixture', request=transport)
             capture = root / 'source.json'; capture.write_text(json.dumps({'text': 'Synthetic quoted passage'}))
             row = {'claim_id':'C1', 'kind':'clinical', 'quote':'Synthetic quoted passage', 'capture':m.spec(capture),
                    **{k:'fixture only' for k in ['product','population','duration','endpoint','study_design','limitations','source_url']}}
             ledger = {'alexandria_research': m.spec(root / 'research/research-manifest.json'), 'research_claim_ledger':[row]}
+            ledger['research_citations'] = m.citations(transport({'alexandria': [{'provider': 'firecrawl-research-index'}]}))
             (root / '01-evidence-ledger.json').write_text(json.dumps(ledger))
             (root / '05-claim-source-map.json').write_text(json.dumps({'claims':[{'claim_id':'C1'}]}))
             self.assertTrue(m.packet_research_valid(root, 'fixture'))
@@ -58,5 +60,11 @@ class Research(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     m.collect(Path(work), target_query='a', clinical_query='b', regulatory_query='c', reads=reads,
                               request=lambda _: self.fail('network must not run'))
+
+    def test_three_distinct_doi_pmid_citations(self):
+        m = self.load()
+        response = {'data': {'alexandria': [{'data': {'results': PAPERS + [PAPERS[0]]}}]}}
+        self.assertEqual(len(m.citations(response)), 3)
+        self.assertTrue(all(row['source_url'].startswith('https://pubmed.ncbi.nlm.nih.gov/') for row in m.citations(response)))
 
 if __name__ == '__main__': unittest.main()
