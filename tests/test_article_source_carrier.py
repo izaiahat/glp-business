@@ -142,6 +142,46 @@ assert ns['consume_cli']('isolated-child')=='isolated-child'
                                     capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
 
+    def test_source_pr_waits_for_checks_to_register_before_watch(self):
+        head = 'a' * 40
+        pr = {'url': 'https://github.com/izaiahat/glp-site-candidate/pull/50',
+              'headRefOid': head}
+        registered = {'seen': False, 'queries': 0}
+        def github(*argv):
+            if argv[1] == 'list':
+                return [{**pr, 'state': 'OPEN'}]
+            if argv[-1] == 'url,headRefOid':
+                return pr
+            if argv[-1] == 'headRefOid,statusCheckRollup':
+                registered['queries'] += 1
+                checks = [] if registered['queries'] == 1 else [{'conclusion': 'SUCCESS'}]
+                registered['seen'] = bool(checks)
+                return {**pr, 'statusCheckRollup': checks}
+            return {**pr, 'state': 'MERGED', 'mergeCommit': {'oid': 'b' * 40}}
+        def command(argv, **kwargs):
+            if argv[:3] == ['gh', 'pr', 'checks'] and not registered['seen']:
+                raise RuntimeError('no checks reported on newly created branch')
+            return ''
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(carrier, 'gh', side_effect=github), \
+                 patch.object(carrier, 'run', side_effect=command), \
+                 patch.object(carrier, 'land_packet', return_value=False), \
+                 patch.object(carrier.time, 'sleep'):
+                result = carrier.ensure_source_main(Path(tmp), Path(tmp), {'entry_id': 'c'*24})
+        self.assertEqual(result['state'], 'MERGED')
+        self.assertGreaterEqual(registered['queries'], 3)
+        for observation, reason in [
+                ({**pr, 'statusCheckRollup': []}, 'source_ci_registration_timeout'),
+                ({'headRefOid': 'd'*40, 'statusCheckRollup': []}, 'source_exact_head_ci_not_green')]:
+            with self.subTest(reason=reason), tempfile.TemporaryDirectory() as tmp:
+                with patch.object(carrier, 'gh', side_effect=[[{**pr, 'state':'OPEN'}], pr, observation]), \
+                     patch.object(carrier, 'run') as command, \
+                     patch.object(carrier, 'land_packet', return_value=False), \
+                     patch.object(carrier.time, 'monotonic', side_effect=[0, 121]):
+                    with self.assertRaisesRegex(RuntimeError, reason):
+                        carrier.ensure_source_main(Path(tmp), Path(tmp), {'entry_id':'c'*24})
+                self.assertFalse(any(c.args[0][:3] == ['gh','pr','merge'] for c in command.call_args_list))
+
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
         import inspect

@@ -90,6 +90,61 @@ class CronBridgeTests(unittest.TestCase):
             failure.write_text(json.dumps(bad))
             self.assertFalse(cron.article_failed_before_publish(receipt))
 
+    def test_article_source_ci_registration_failure_is_prepublication_only(self):
+        op = 'host-article-carrier-fixture'
+        entry_id = 'a'*24
+        key = hashlib.sha256(op.encode()).hexdigest()
+        cli = self.root/'systems/seo-blog-machine/scripts/article_buffer_cli.py'
+        source = self.root/'scripts/article_source_carrier.py'
+        msg = ("source_child_failed:['gh', 'pr', 'checks', "
+               "'https://github.com/izaiahat/glp-site-candidate/pull/50', '--watch', '--interval', '10']:rc=1\n\n"
+               f"no checks reported on the 'carrier/accepted-{entry_id}' branch\n")
+        frames = [(cli,'main'),(cli,'consume_cli'),(source,'consume'),(source,'ensure_source_main'),(source,'run')]
+        trace = 'Traceback (most recent call last):\n' + ''.join(
+            f'  File "{path}", line 1, in {name}\n    source_call()\n' for path,name in frames) + 'RuntimeError: ' + msg + '\n'
+        failure = self.root/'failure.json'
+        payload = {'status':'BLOCKED_CONSUME_FAILED','command':'consume','operation_id':op,
+                   'error_class':'RuntimeError','reason':msg,
+                   'exception':{'class':'RuntimeError','message':msg,'traceback':trace}}
+        raw = {'schema':'glp.article_carrier.failure.v2','operation_id':op,'exit_code':1,
+               'cli_payload':payload,'stderr':trace,'stderr_sha256':hashlib.sha256(trace.encode()).hexdigest(),
+               'argv':['/usr/bin/python3',str(cli),'consume','--operation-id',op]}
+        failure.write_text(json.dumps(raw))
+        base = self.root/'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+        base.parent.mkdir(parents=True); base.write_text('{}')
+        base_sha = hashlib.sha256(base.read_bytes()).hexdigest()
+        root = base.parent/'article-buffer'
+        manifest = root/'entries'/entry_id/'entry.json'
+        manifest.parent.mkdir(parents=True); manifest.write_text('{}')
+        claim = {'schema':'glp-seo-article-buffer-claim-v1','status':'CLAIMED_OLDEST_VALID_READY_ENTRY',
+                 'operation_id':op,'entry_id':entry_id,
+                 'entry_manifest':{'path':str(manifest),'sha256':hashlib.sha256(manifest.read_bytes()).hexdigest()},
+                 'current_base_state':{'path':str(base),'sha256':base_sha}}
+        claim['claim_sha256'] = hashlib.sha256((json.dumps(claim,sort_keys=True,separators=(',',':'),ensure_ascii=False)+'\n').encode()).hexdigest()
+        claim_path = root/'claims'/(key+'.json')
+        claim_path.parent.mkdir(); claim_path.write_text(json.dumps(claim))
+        receipt = {'status':'BLOCKED_CONSUME_FAILED','published':False,'receipt_path':str(failure),
+                   'operation_id':op,'head_reconciliation':{'aligned':True,
+                    'pointer_head':{'deployment_id':'base'},'live_head':{'deployment_id':'base'}}}
+        remote = {'state':'OPEN','headRefName':'carrier/accepted-'+entry_id}
+        with patch.object(cron,'ROOT',self.root), \
+             patch.object(cron,'article_current_base',return_value={'deployment_id':'base','pointer_sha256':base_sha}), \
+             patch.object(cron,'article_production_head_id',return_value='base') as head, \
+             patch('subprocess.check_output',return_value=json.dumps(remote)):
+            self.assertTrue(cron.article_failed_before_publish(receipt))
+            consumed = root/'consumed'/(key+'.json')
+            consumed.parent.mkdir(); consumed.write_text('{}')
+            self.assertFalse(cron.article_failed_before_publish(receipt)); consumed.unlink()
+            head.return_value = 'changed'
+            self.assertFalse(cron.article_failed_before_publish(receipt)); head.return_value = 'base'
+            remote['state']='MERGED'
+            with patch('subprocess.check_output',return_value=json.dumps(remote)):
+                self.assertFalse(cron.article_failed_before_publish(receipt))
+            base.write_text('{"changed":true}')
+            self.assertFalse(cron.article_failed_before_publish(receipt)); base.write_text('{}')
+            claim['entry_id']='b'*24; claim_path.write_text(json.dumps(claim))
+            self.assertFalse(cron.article_failed_before_publish(receipt))
+
     def test_article_failed_prebuild_clears_pending_only_with_zero_effect_proof(self):
         action = "article_carrier_consume"
         args = {"mode": "consume"}

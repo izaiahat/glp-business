@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 ROOT = Path('/home/ubuntu/business')
 SCRIPTS = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts'
@@ -213,7 +214,21 @@ def ensure_source_main(workspace, packet, entry):
              '--title',f'Carrier: accepted guide {entry["target_route"]}',
              '--body',f'Registered host carrier. Exact independently accepted packet {entry["entry_id"]}; prose/QA/five-gate bytes unchanged. Native main release preserves secrets, Fella/provider holds, claim freshness, idempotency and rollback. No sends or n8n activation.'],timeout=90)
     pr = gh('pr','view',branch,'--repo',REPO,'--json','url,headRefOid')
-    # Required existing site CI includes native build and accepted source tests.
+    # GitHub may not have registered any checks when a new PR is returned.
+    # Empty is UNKNOWN, not failure or green; wait boundedly on the exact head
+    # before asking --watch (which exits immediately on an empty check set).
+    deadline = time.monotonic() + 120
+    while True:
+        registered = gh('pr','view',pr['url'],'--json','headRefOid,statusCheckRollup')
+        if registered.get('headRefOid') != pr['headRefOid']:
+            raise RuntimeError('source_exact_head_ci_not_green')
+        if registered.get('statusCheckRollup'):
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError('source_ci_registration_timeout')
+        time.sleep(5)
+    # Required existing site CI includes accepted-source contracts. The native
+    # build and release safety gates run separately in glp_release_main.py.
     run(['gh','pr','checks',pr['url'],'--watch','--interval','10'],timeout=1800)
     readback = gh('pr','view',pr['url'],'--json','headRefOid,statusCheckRollup')
     checks = readback.get('statusCheckRollup') or []
