@@ -52,13 +52,13 @@ def execution_is_live(
             ).fetchone()
     except (OSError, sqlite3.Error):
         return True
-    if not row or row[0] != REFILL_JOB_ID or row[1] != "running":
+    if not row or row[0] != REFILL_JOB_ID or row[1] not in {"running", "unknown"}:
         return True
     try:
         pid = int(row[2])
         expected_starttime = int(row[3])
     except (TypeError, ValueError):
-        return False
+        return row[1] == "unknown"
     observed_starttime = starttime_reader(pid)
     return observed_starttime is not None and observed_starttime == expected_starttime
 
@@ -77,10 +77,22 @@ def cron_runs() -> tuple[list[str], list[str], str]:
         for line in result.stdout.splitlines()
         if " running " in f" {line} " and f"job={REFILL_JOB_ID}" in line
     ]
+    # A stale-bound unknown claim is not evidence that its owner exited.
+    # Preserve PID/starttime ownership even when the CLI no longer says running.
+    try:
+        with sqlite3.connect(f"file:{EXECUTIONS_DB}?mode=ro", uri=True) as connection:
+            uncertain = [row[0] for row in connection.execute(
+                "SELECT id FROM executions WHERE job_id = ? AND status = 'unknown'",
+                (REFILL_JOB_ID,),
+            )]
+    except (OSError, sqlite3.Error) as exc:
+        raise RuntimeError("uncertain_owner_census_unavailable") from exc
+    candidates = list(dict.fromkeys(candidates + uncertain))
     running = []
     stale = []
     for execution_id in candidates:
-        (running if execution_is_live(execution_id) else stale).append(execution_id)
+        live = execution_is_live(execution_id, db_path=EXECUTIONS_DB, starttime_reader=_pid_starttime)
+        (running if live else stale).append(execution_id)
     return running, stale, result.stdout
 
 
