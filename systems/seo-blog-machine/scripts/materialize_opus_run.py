@@ -741,7 +741,7 @@ def main() -> None:
                           "03-editorial-brief.md", "04-draft.md", "05-claim-source-map.json",
                           "06-article.json", "07-qa-receipt.json"],
         "review_wrapper_sha256": sha(wrapper), "rubric_sha256": sha(rubric), "review_schema_sha256": sha(schema),
-        "prompt_intro": f"Review the exact {selected['target_query']} U.S. YMYL packet against the five-gate rubric. Require source binding, medical safety, SERP parity, verified-organization E-E-A-T, cluster links, mobile tables, Article+FAQ schema inputs, and the existing consented capture contract.",
+        "prompt_intro": f"Review the exact {selected['target_query']} U.S. YMYL packet against the five-gate rubric. Require source binding, medical safety, SERP parity, verified-organization E-E-A-T, cluster links, mobile tables, Article+FAQ schema inputs, and the declared delivery contract (explicit ON_PAGE_ONLY guides require useful on-page content and zero email promise/forms/fields; email-delivery variants retain the consented capture and owner-record privacy contract).",
         "validator": executable(
             validator_argv,
             [validator, compiler, SYSTEM / "scripts/selection_receipt.py",

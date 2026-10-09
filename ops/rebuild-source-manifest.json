@@ -2471,7 +2471,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "627d8cfcee34f65fba76d749e3261bc4a407691371e950810cb212e29b56ca32"
+      "sha256": "be41023a27d64310bc9562f7612b69685605e0a0a112711ca996df95a195c092"
     },
     "systems/seo-blog-machine/scripts/publish_opus_article_release.py": {
       "callers": [
@@ -4125,7 +4125,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "ca3b63ffd24fc418e67ece1a765fd055fe3d5a9c7790b0e97e167544438c2a13"
+      "sha256": "562c6cbd5241c870afe1ef7fe3579a8a1ddc7f17da8e648ed060db3c1be64026"
     },
     "systems/seo-blog-machine/tests/test_article_successor.py": {
       "callers": [
@@ -6049,7 +6049,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "cd0b64bcc1dbd1f7d9353732d03c8f9f3973e39c54b40d43ddacf20883d1c141"
+      "sha256": "454d997428435ce1e82250caf247633fd85d0fc2ba27f1becad4ae1b49d16c03"
     }
   }
 }
