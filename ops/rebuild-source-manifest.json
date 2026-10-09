@@ -2436,7 +2436,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "71c94f7f504465560680cd42c14a547becc06de027564fcb5a50bf1cdeffeb90"
+      "sha256": "605da6449451575aaf0bba513cbbd834957242b733793ae0d4c231244e040c4b"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -2534,7 +2534,7 @@
         "GLP-7 publication-date binding regression"
       ],
       "kind": "test",
-      "sha256": "6d4e8e9e81aa96efa746b8b8bad63099b5934adbe7a9ba867ec0b43132c58ded"
+      "sha256": "6899d088c3da2bca21a36b6d7d72b9d98eb742b8a975e89ef472cd027409b544"
     },
     "systems/seo-blog-machine/tests/test_text_only_image_fallback.py": {
       "callers": [

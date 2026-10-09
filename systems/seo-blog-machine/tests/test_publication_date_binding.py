@@ -139,6 +139,8 @@ def test_exact_retired_guide_contract_migrates_to_resource_delivery(tmp_path):
     draft = packet(tmp_path) / "04-draft.md"
     _, front, body = draft.read_text().split("---", 2)
     meta = yaml.safe_load(front)
+    meta["commercialLinkTaxonomy"] = "commercial_intent"
+    meta["providersDiscussed"] = ["Fixture service"]
     meta["captureContract"] = {
         "action": "/api/content-upgrade", "consentVersion": "glp-content-upgrade-v2-20260801",
         "sourcePage": "guides-date-binding-fixture",
@@ -149,6 +151,8 @@ def test_exact_retired_guide_contract_migrates_to_resource_delivery(tmp_path):
     before = draft.read_bytes()
     article = compiler.compile_packet(tmp_path)
     assert draft.read_bytes() == before
+    assert article["exact_services"] == ["Fixture service"]
+    assert article["commercial_link_taxonomy"] == "commercial_intent"
     assert article["capture_surface"] == {
         "status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": "/api/content-upgrade",
         "source_page": "guide-link", "lead_magnet_key": "guide-link-resource",
