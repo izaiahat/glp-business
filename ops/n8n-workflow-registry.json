@@ -1,0 +1,1736 @@
+{
+  "schema": "n8n-workflow-registry-v1",
+  "captured_at_utc": "2026-09-09T22:41:35.619486+00:00",
+  "count": 29,
+  "workflows": [
+    {
+      "id": "wngEgIAWL3b9FEUo",
+      "name": "glp/ads-weekly-review",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published schedule disabled; registered-run webhook retained",
+      "cron_lines": ["0 15 * * 1 cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py glp_ads_weekly_review --scheduled --cron '0 15 * * 1' --timezone UTC >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": ["reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/runner.py"],
+        "bridge_actions": ["glp_ads_weekly_review"],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "UTC",
+        "triggers": [
+          {"name": "Monday 15:00 UTC", "type": "n8n-nodes-base.scheduleTrigger", "disabled": true, "interval": {"interval": [{"field": "cronExpression", "expression": "0 15 * * 1"}]}},
+          {"name": "Authenticated Registered Run", "type": "n8n-nodes-base.webhook", "disabled": false, "interval": null}
+        ]
+      },
+      "expected_effect": "Consumer Meta/Microsoft recommendation-only weekly review annex plus exactly-read-back ops-alerts card; source UNKNOWN never converted to zero; no campaign mutations.",
+      "sync_script": "reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/register.py",
+      "sync_scope": "A19-only inactive idempotent registration; explicit activation and readback required. No other workflow is edited.",
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {"active_version_id": "687c8644-a8e5-4d23-8d60-f09cba2f115e", "evidence_kind": "published graph readback; manual/natural effects tracked separately"},
+      "receipt_slots": {
+        "fixture": "reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/TEST-FINAL-PACK-POINTER.log",
+        "manual": "n8n registered webhook execution 8336; reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/invocation-8336.json",
+        "natural": "UNKNOWN",
+        "live_effect": "https://discord.com/channels/1486887661099815126/1487300132054765629/1547491057414053918"
+      }
+    },
+    {
+      "id": "0DSxWcLncXqF3ehw",
+      "name": "glp/topic-supply",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py topic_supply_mint --scheduled --cron '0 1 * * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_natural_run_pending_webhook_retained",
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/phase-ab-readback/0DSxWcLncXqF3ehw.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_topic_data_score.py",
+          "scripts/glp_topic_supply_bridge.py"
+        ],
+        "bridge_actions": [
+          "topic_data_score",
+          "topic_supply_mint"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule TopicSupply",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 1 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "topic source + existing queue natural key + operation receipt/heartbeat.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "877397a5d712195c711a5bd59e9d06d04e89412b1ac4ee7591f354b84be2d585",
+        "active_version_id": "9b4897f3-ca21-4e73-94c5-0db9a0605373",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "12hvLihaGB6KsslV",
+      "name": "glp/reddit-scanner",
+      "active": true,
+      "disposition": "Daily n8n clock retired 2026-09-25: no downstream output reader evidenced in scripts/, cron, or recent reports. Manual authenticated webhook retained; published Schedule Reddit disabled. Output: reports/glp-clinic-scout/growth/reddit-scanner/scan-*.json, reddit_suggested Data Table VgYinuqV8Edhn7DS, Discord decisions cards.",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_reddit_comment_scout.py"
+        ],
+        "bridge_actions": [
+          "reddit_scan"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Reddit",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 9 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "mutually exclusive prompt arguments + source thread IDs + one surfaced-item receipt.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "97b21021aa9c52ebe0192309414da4ad242bb0c0a6ab16dd3725ecd2dbfbee5e",
+        "active_version_id": "2c6a33fb-f342-4d05-84d6-7d18492549ce",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "3x1JYTskM5cq15aI",
+      "name": "ops/decisions-ack",
+      "active": true,
+      "scheduler": "n8n-webhook",
+      "migration_status": "not yet ported; schedule held by GLP-313 ruling B3",
+      "cron_lines": [],
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/ruling-readback/3x1JYTskM5cq15aI.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "ops/decisions_router.py"
+        ],
+        "bridge_actions": [
+          "decisions_router"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Router",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "*/15 7-22 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "authenticated reply source + stable action-item key + exact resolution readback.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "cf384f3dce227db5368c75ee02182554fffa6e6379f04a1d9693af8c575af13e",
+        "active_version_id": "940ab48a-62b1-418b-bc0b-78f79de4775f",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "5AtUGpTrrDZ2dNl5",
+      "name": "glp/seo-buffer-refill",
+      "active": true,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_seo_buffer_dispatch.py"
+        ],
+        "bridge_actions": [
+          "article_buffer_refill_dispatch"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Refill",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "35 1 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "refill owner/consumer relationship + buffer natural keys + actual ready-item change.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "e6346aee7ef45b093308ae67c9f9b8e5b369458a992ee9cf87f0cedb3dcf819e",
+        "active_version_id": "59f5aa95-b56c-423e-82b8-54a4b9ab3198",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "5GAXmg5MLRIRYulZ",
+      "name": "glp/research-autowire",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published five-minute schedule disabled; hourly host tick; webhook retained",
+      "cron_lines": ["0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py research_autowire --scheduled --cron '0 * * * *' --timezone America/Los_Angeles --arg mode=tick >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_research_autowire.py"
+        ],
+        "bridge_actions": [
+          "research_autowire"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Every 5m",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "*/5 * * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Autowire Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "existing hold + execution 6266 cause + research artifact/cursor idempotency.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "b775e5a9a4c6543942d756db33dc8f44083b3e3c91dba6d20ba4d36e4db8f30f",
+        "active_version_id": "b3c04d66-c9a9-47c3-b6fd-2715e1d56ba5",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "60UxCWM2hopEl4yz",
+      "name": "ops/error-fixer",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["23 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py error_fixer_daily_review --scheduled --cron '23 9 * * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_natural_run_pending_webhook_retained",
+      "migration_readback": "reports/ops/n8n-to-cron-20260924/phase-e-readback/60UxCWM2hopEl4yz-installed.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "ops/error-fixer/daily_ops_review.py",
+          "ops/error-fixer/fixer_runtime.py"
+        ],
+        "bridge_actions": [
+          "error_fixer",
+          "error_fixer_daily_review"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Fixer",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "*/15 * * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Fixer Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Schedule Daily Ops Review",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "23 9 * * *"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected_effect": "complete terminal receipt, original repair effects, stable case/action-item keys.",
+      "sync_script": "ops/error-fixer/install_daily_review_workflow.py",
+      "sync_script_candidates": [
+        "ops/error-fixer/install_daily_review_workflow.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "ae6abb6a42c2a0ac7e7f6b59a658029c59111225066868ab1644ca27e904bbb0",
+        "active_version_id": "15ab5016-1def-49f6-8c31-cb1c179080d9",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "8lnjTRUBrG7zCgPn",
+      "name": "glp/onboarding-manifest",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "Scheduled scan installed; manual producer PASS, wrapper blocked by scoped job GET HTTP403. Pending job retained without replay; Fable request 5adf007a-c78d-47af-8ddc-be91ce2ff522. Full webhook authoring retained on n8n. Natural run pending 2026-09-24T17:10:00Z.",
+      "cron_lines": ["10 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py onboarding_manifest_run --scheduled --cron '10 10 * * *' --timezone America/Los_Angeles --arg mode=scan >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/onboarding-schedule-readback.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_onboarding_manifest.py"
+        ],
+        "bridge_actions": [
+          "onboarding_manifest_run"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule 1010 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "10 10 * * *",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "run_id/provider/step keys + saved/active executable parity + source/target effects.",
+      "sync_script": "scripts/glp_onboarding_n8n_entry_authority_sync.py",
+      "sync_script_candidates": [
+        "scripts/glp_onboarding_n8n_entry_authority_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "2c7e91602f9b124f0e753d80ba292d86d214c6591cece95528474143bf44d7b8",
+        "active_version_id": "bd58da57-7db4-40cc-86ad-93bed2bca949",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "BViwBYueM0kLpfJW",
+      "name": "glp/program-liveness",
+      "active": true,
+      "scheduler": "host-cron",
+      "migration_status": "tracking-link probes removed; post-repair scheduled effect awaits next due slot; first manual receipt remains incident evidence",
+      "cron_lines": [
+        "0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_ports_sheet/program_liveness.py --scheduled --cron '0 7 * * 1' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
+      ],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_program_liveness_check.py"
+        ],
+        "bridge_actions": [
+          "program_liveness_check"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Mon 0700 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 7 * * 1"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "current program keys + source observation + unchanged holds + heartbeat.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "45e1f35d7e132c475f7584573c9e141b15f69bd59a2d1840afd2853ce4b96b52",
+        "active_version_id": "78f904a4-4a77-41d6-9ae0-a54500141a7a",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "IGfs6F3ZeT1YLOWy",
+      "name": "boring/finder-daily",
+      "active": false,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/boring_finder_n8n_run.py"
+        ],
+        "bridge_actions": [
+          "boring_finder_run"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Finder",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": false,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 10 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "retain inactive; Kael-owned mission disposition and natural-worker completion evidence.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "82077264cdb9bd40923495ac675772d302f3e162a51a25283e1f2d4a85ec3796",
+        "active_version_id": null,
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "JY7iv9pljAu1R3TI",
+      "name": "glp/analytics-brain",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": [
+        "17 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '17 9 * * *' --timezone America/Los_Angeles --arg phase=daily >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "7 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '7 * * * *' --timezone America/Los_Angeles --arg phase=hourly >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "37 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '37 9 * * *' --timezone America/Los_Angeles --arg phase=route-census >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "47 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '47 10 * * 1' --timezone America/Los_Angeles --arg phase=weekly >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "57 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '57 10 1 * *' --timezone America/Los_Angeles --arg phase=monthly >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "27 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py analytics_brain --scheduled --cron '27 * * * *' --timezone America/Los_Angeles --arg phase=ads >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
+      ],
+      "migration_status": "installed_natural_runs_pending_deploy_webhook_retained",
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/phase-ab-readback/JY7iv9pljAu1R3TI.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_analytics_brain_cadence.py"
+        ],
+        "bridge_actions": [
+          "analytics_brain"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Collector",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "17 9 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Hourly Health",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "7 * * * *",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Daily Route Census",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "37 9 * * *",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Weekly Decisions",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "47 10 * * 1",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Monthly Revenue",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "57 10 1 * *",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Ads Monitor",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "27 * * * *",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected_effect": "correct account/property/host scope + per-trigger branch receipts; semantic host refusal.",
+      "sync_script": "ops/glp/analytics_brain_n8n_sync.py",
+      "sync_script_candidates": [
+        "ops/glp/analytics_brain_n8n_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "9c2f967744b5daacb4f32e68d1dda0ff33230a681af766574c11bb25daeb0546",
+        "active_version_id": "fc7ebefc-a410-4a8b-8ebc-b4357823ab47",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "O9sNArjGHGL8BSyi",
+      "name": "glp/sheet-reconciler",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["30 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py sheet_vs_site_reconcile --scheduled --cron '30 6 * * 1' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_natural_run_pending_webhook_retained",
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/phase-c-readback/O9sNArjGHGL8BSyi.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_sheet_vs_site_reconciler.py"
+        ],
+        "bridge_actions": [
+          "sheet_vs_site_reconcile"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Mon 0930 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "30 6 * * 1"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "source vs Sheet row identities + protected queue/Sheet owner + no duplicate repair rows.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "ac261bd77abec474c6fe18b5f7955010c1f5bd5a23915c071bd98136e6f56310",
+        "active_version_id": "ddbf32b3-2dd7-4fcf-b3d7-3308c0c52172",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "RhuYe1i0GM9p6BLM",
+      "name": "glp/three-engine-telemetry",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published schedule disabled; manual webhook retained",
+      "cron_lines": ["0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py three_engine_telemetry --scheduled --cron '0 6 * * 1' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_cogny_queue_drain.py",
+          "scripts/glp_three_engine_telemetry.py"
+        ],
+        "bridge_actions": [
+          "cogny_queue_drain",
+          "three_engine_telemetry"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Telemetry",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 6 * * 1"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "three source account windows/coverage + output artifact + correlated heartbeat.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "5ddc6ea9c2b6fe51cbe8ee0147b8923eacfd6d5f9855d7dcbb34fcfa7aeb8dfb",
+        "active_version_id": "25824949-9875-4fc4-9546-bb4b18373400",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "YCtTOWrvywQFgcq0",
+      "name": "ops/google-credit-reminder",
+      "active": false,
+      "disposition": "Retired 2026-09-25 by operator decision; n8n workflow deactivated (not deleted), published monthly schedule and manual webhook no longer execute. No host cron equivalent found.",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [],
+        "bridge_actions": [],
+        "fallback": "n8n graph-native nodes"
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Credit",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": false,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 9 17 * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Credit Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "monthly applicability + verified reminder acknowledgement; no credit redemption.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "74ef9585f3520160b11e5acab0304c2a5400e9bef7c04ccecdb3a1f6a151ae5b",
+        "active_version_id": "373a1e4f-b96f-4436-8321-cf5a35193dbd",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "aIth7wbz2LCLLu40",
+      "name": "ops/fleet-sentinel",
+      "active": true,
+      "scheduler": "host-cron",
+      "migration_status": "published Schedule disabled; authenticated public /health and three-lane manual_registered_repair PASS; earlier disputed bridge-down case and correction retained",
+      "cron_lines": ["10 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python3 /home/ubuntu/business/scripts/cron_ports/fleet_sentinel.py --scheduled >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "systems/seo-blog-machine/scripts/article_buffer_cli.py"
+        ],
+        "bridge_actions": [
+          "buffer_status"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "10 8,18 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "unique machine registry + heartbeat coverage/cadence + actual alert acknowledgement.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "9725088201d93fe389c42fa09df50bd08820e733e8d3c96c342560e2384fab46",
+        "active_version_id": "97810cd7-53c7-4ab5-b0ab-60d8f535261b",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "bQWtmjut2vnR6MQN",
+      "name": "glp/inbox-mirror",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published schedule disabled; manual webhook retained",
+      "cron_lines": ["20 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_ports_sheet/inbox_mirror.py --scheduled --cron '20 7 * * *' >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_affiliate_inbox_mirror.py",
+          "scripts/glp_commission_terms_selfserve.py"
+        ],
+        "bridge_actions": [
+          "commission_terms_selfserve",
+          "inbox_mirror"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Inbox Mirror",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "20 7 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "mailbox/cursor ownership + source message IDs + stable action-item dedupe.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "9c809d48e9981343859cf8c918a00568215b330cb652a127a7e22dc4f985f688",
+        "active_version_id": "03e19600-8881-4ccd-9dc0-199ff760000e",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "dG2y4DqpoHEMCLfD",
+      "name": "glp/affiliate-postback-receiver",
+      "active": true,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_affiliate_postback_receiver.py"
+        ],
+        "bridge_actions": [
+          "affiliate_postback_receive"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Authenticated Postback",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Query-Authenticated Postback POST",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Query-Authenticated Postback GET",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "Verify Query Secret and Strip + secret-free execution retention + exact durable ledger identity.",
+      "sync_script": "scripts/glp_affiliate_postback_n8n_sync.py",
+      "sync_script_candidates": [
+        "scripts/glp_affiliate_postback_n8n_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "364476805de30feaea84094a47dd31363b52e9175351beb034b4086ae82af175",
+        "active_version_id": "c0142bc8-6a52-435c-a965-b6df56b4bb4e",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "eqTjIVg9gTjpBLgD",
+      "name": "glp/sheet-sync",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["*/10 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py sheet_sync_drain --scheduled --cron '*/10 * * * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_natural_run_pending_webhook_retained",
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/phase-c-readback/eqTjIVg9gTjpBLgD.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_sheet_sync_drain.py"
+        ],
+        "bridge_actions": [
+          "sheet_sync_drain"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Sheet Sync",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "*/10 * * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "update_id queue identity + Sheet row/effect readback before marking drained.",
+      "sync_script": "scripts/repair_glp_sheet_sync_expected_targets.py",
+      "sync_script_candidates": [
+        "scripts/repair_glp_sheet_sync_expected_targets.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "150ea56feafa24fe8e515d0bce1455e1b8c2be64740134e096d5f803a7617cf4",
+        "active_version_id": "c178fc42-e9c8-4596-992a-3670fe80baa6",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "iOJhvTtehlHGLUSs",
+      "name": "glp/marketplace-enumeration",
+      "active": true,
+      "scheduler": "n8n-webhook",
+      "migration_status": "not yet ported; both schedules held by GLP-313 ruling B3",
+      "cron_lines": [],
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/ruling-readback/iOJhvTtehlHGLUSs.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_enumeration_materializer.py",
+          "scripts/glp_maxbounty_lane.py",
+          "scripts/glp_xentraffic_enumerate.py"
+        ],
+        "bridge_actions": [
+          "enumeration_materialize",
+          "maxbounty_lane",
+          "xentraffic_enumerate"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule 0800 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 8 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Weekly Application Sweep",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "expression": "15 8 * * 1",
+                  "field": "cronExpression"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected_effect": "55-node saved graph fallback + activeVersion + per-network denominators and writer overlap.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "0ce3067714fcb023f25abac3fbbf43723999d9142dde3cbd3a84c09fb62e2165",
+        "active_version_id": "486e908b-9cd2-4329-82e7-3087595bec53",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "kICSkCg3XZlFLX7C",
+      "name": "glp/weekly-seo-control",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["35 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py glp_weekly_seo_control --scheduled --cron '35 18 * * 0' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_manual_and_natural_run_pending_webhook_retained",
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/phase-ab-readback/kICSkCg3XZlFLX7C.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_weekly_seo_control.py"
+        ],
+        "bridge_actions": [
+          "glp_weekly_seo_control"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Weekly SEO Control",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "35 18 * * 0"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run Weekly SEO Control",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "actual child dispatch/terminal effect proof; saved trigger is not child success.",
+      "effect_sensors": {
+        "names": ["seo_weekly_refresh_yield", "seo_r2_authority_fresh"],
+        "runtime": "scripts/business_output_health_sensor.py",
+        "registered_schedule_job_id": "eb6a4b2a47a3",
+        "evidence": "reports/ops/orchestration-restore-20260907/PLAN/K6b/CADENCE.json"
+      },
+      "sync_script": "ops/glp/install_weekly_seo_control_workflow.py",
+      "sync_script_candidates": [
+        "ops/glp/install_weekly_seo_control_workflow.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "6f464fa3391ba738c817dd110074b252753abda364eaa90d6992eb7f2a9be8a5",
+        "active_version_id": "b45c19a0-dfde-42be-8c11-533587a013d1",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "oPs9YQlYrP17qogT",
+      "name": "glp/ads-zero-spend-monitor",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "both published schedules disabled; authenticated webhook retained",
+      "cron_lines": [
+        "0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py glp_ads_monitor --scheduled --cron '0 */2 * * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1",
+        "10 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py glp_ads_monitor_daily_digest --scheduled --cron '10 9 * * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
+      ],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_ads_three_platform_monitor.py"
+        ],
+        "bridge_actions": [
+          "glp_ads_monitor",
+          "glp_ads_monitor_daily_digest"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Every 2 Hours",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 */2 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run Read-Only Alert Monitor",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          },
+          {
+            "name": "Daily 09:10 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "10 9 * * *"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expected_effect": "bound read-only account reporting + unknown coverage separation + alert receipt.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "618a52b1b52b4abc24dff711997617b34b16623ddd3552ee753f220c2efa3f44",
+        "active_version_id": "0545d33e-3cb6-406a-b296-e743097b1db5",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "qlugNldijmBDs3Em",
+      "name": "glp/seo-updater",
+      "active": true,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_seo_updater_run.py",
+          "systems/seo-blog-machine/scripts/article_buffer_cli.py"
+        ],
+        "bridge_actions": [
+          "buffer_status",
+          "glp_seo_updater"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "underlying child/operation receipt + real validation cause + existing invoker ownership.",
+      "external_cadence": {
+        "owner": "Hermes registered R2 refresh carrier",
+        "job_id": "a0e87c0a4569",
+        "cron": "15 13,18,23 * * 1-6",
+        "timezone": "America/Los_Angeles",
+        "entry_workflow_id": "qlugNldijmBDs3Em",
+        "evidence": "reports/ops/orchestration-restore-20260907/PLAN/K6b/CADENCE.json",
+        "new_schedule_created": false
+      },
+      "effect_sensors": {
+        "names": ["seo_weekly_refresh_yield", "seo_r2_authority_fresh"],
+        "runtime": "scripts/business_output_health_sensor.py",
+        "registered_schedule_job_id": "eb6a4b2a47a3"
+      },
+      "sync_script": "scripts/glp_seo_updater_n8n_sync.py",
+      "sync_script_candidates": [
+        "scripts/glp_seo_updater_n8n_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "35ef2977b6c933757ea08bcc2a3596138ac0f8043322b9e22b2cf8e523176161",
+        "active_version_id": "6b23fa55-a68c-4cfa-a7d1-cb6597508311",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "rqPqSZVxLxWnkXKb",
+      "name": "glp/pricing-refresh",
+      "active": true,
+      "scheduler": "cron",
+      "cron_lines": ["20 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py pricing_refresh --scheduled --cron '20 15 3 * *' --timezone America/Los_Angeles >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "migration_status": "installed_natural_run_pending_webhook_retained",
+      "migration_readback": "reports/ops/n8n-to-cron-20260924/phase-e-readback/rqPqSZVxLxWnkXKb-installed.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_pricing_refresh.py"
+        ],
+        "bridge_actions": [
+          "pricing_refresh"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Monthly 0735 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "20 15 3 * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "source-dated capture + existing observation-writer ownership + no synthetic refresh.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "cf987c94808cdb3102c64121ee85beb94251159091711c2293c80a117d00fedd",
+        "active_version_id": "938cb0d0-34ad-4322-9789-cc76a26ba82e",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "tIcpuDF4jsEbGCP4",
+      "name": "ops/error-handler",
+      "active": true,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "ops/error-fixer/fixer_runtime.py"
+        ],
+        "bridge_actions": [
+          "error_fixer"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Error Trigger",
+            "type": "n8n-nodes-base.errorTrigger",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "original execution correlation + saved error-case or acknowledged alert, not only green handler.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "7268b70ad7586de447a7eea432371a2af89a629eec27322afd73f1b18ede9b42",
+        "active_version_id": "604e0f8d-6f15-48ea-b956-9783e76733e0",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "tToLBS845swwpXe4",
+      "name": "glp/applications",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published schedule disabled; manual webhook retained",
+      "cron_lines": ["40 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_ports_sheet/applications.py --scheduled >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_application_machine.py"
+        ],
+        "bridge_actions": [
+          "application_machine"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule 0940 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "40 9 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "network/program application natural key + existing queue + current permission + acknowledgement.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "adec54dc678eed75771a02283fe2b36775e9ce86626c8aad7650bebc533b45c2",
+        "active_version_id": "b82f9a7c-88c7-4b6f-aa08-e8c2eec08ca1",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "tUmu2erYiia40mrU",
+      "name": "glp/approval-watch",
+      "active": true,
+      "scheduler": "cron",
+      "migration_status": "published schedule disabled; manual webhook retained",
+      "cron_lines": ["15 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_ports_sheet/approval_watch.py --scheduled --cron '15 8,13,18 * * *' >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"],
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_approval_watch.py"
+        ],
+        "bridge_actions": [
+          "approval_watch"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule 0815 1315 1815 PT",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "15 8,13,18 * * *"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "network/program relationship status + inclusive denominator + original notification receipt.",
+      "sync_script": "UNKNOWN",
+      "sync_script_candidates": [],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "4db2bf2c24059234aa451724ef54a2a4084874285173564cc22e1d66948c511b",
+        "active_version_id": "f78b0349-62b3-4520-9abd-b48530cecf68",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "uabEqV8bzEYanLVJ",
+      "name": "glp/article-carrier",
+      "active": false,
+      "scheduler": "cron",
+      "migration_status": "host cron installed but GLP-40 live-release declined before bridge dispatch; n8n workflow inactive as of 2026-09-25T21:11:17.900Z; no live publish inferred",
+      "cron_lines": [
+        "0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py article_carrier_consume --scheduled --cron '0 11 * * 1,3,5' --timezone America/Los_Angeles --arg mode=consume >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
+      ],
+      "schedule_readback": "reports/ops/n8n-to-cron-20260924/ruling-readback/uabEqV8bzEYanLVJ.json",
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/article_carrier_run.py",
+          "systems/seo-blog-machine/scripts/article_buffer_cli.py"
+        ],
+        "bridge_actions": [
+          "article_carrier_consume",
+          "buffer_status"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Schedule Carrier",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "disabled": true,
+            "interval": {
+              "interval": [
+                {
+                  "field": "cronExpression",
+                  "expression": "0 11 * * 1,3,5"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Manual Run",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "exact depleted dependency + article operation/date + current source/gate/publish receipt.",
+      "sync_script": "ops/glp/article_carrier_quarantine_reframe_sync.py",
+      "sync_script_candidates": [
+        "ops/glp/article_carrier_quarantine_reframe_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "a988134500923bd000f8b54179822917465016b1c286af4b1dcf55e072364fa8",
+        "active_version_id": "436f12e5-7cc0-40fa-bd48-19e07a37a545",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "ubpIUcu56h97S1Sf",
+      "name": "glp/affiliati-postback-ship",
+      "active": false,
+      "owner": {
+        "accountable": "kael-sol",
+        "runtime_owner_scripts": [
+          "scripts/glp_affiliati_postback_ship.py"
+        ],
+        "bridge_actions": [
+          "affiliati_postback_ship"
+        ],
+        "fallback": null
+      },
+      "cadence": {
+        "timezone": "America/Los_Angeles",
+        "triggers": [
+          {
+            "name": "Authenticated Ship Trigger",
+            "type": "n8n-nodes-base.webhook",
+            "disabled": false,
+            "interval": null
+          }
+        ]
+      },
+      "expected_effect": "failed release job/receipt and live head before replay + registered offer/receiver contract.",
+      "sync_script": "scripts/glp_affiliati_postback_n8n_sync.py",
+      "sync_script_candidates": [
+        "scripts/glp_affiliati_postback_n8n_sync.py"
+      ],
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "baseline": {
+        "graph_sha256": "0babafd5f2c9e481213e77ebb30d530a0ae3927e0e5656b9ad08e49b4de3ae1e",
+        "active_version_id": "7e4c99d3-90d4-4dc7-9399-bb95af7fad94",
+        "evidence_kind": "saved definition; published effect not inferred"
+      },
+      "receipt_slots": {
+        "fixture": "UNKNOWN",
+        "manual": "UNKNOWN",
+        "natural": "UNKNOWN",
+        "live_effect": "UNKNOWN"
+      },
+      "sync_scope": "Existing target-bound synchronizer; may be scoped repair rather than complete graph builder. Never run from registry without review."
+    },
+    {
+      "id": "39b3gnAsuXXaaPwU",
+      "name": "ops/linear-issue-comment-receiver — DISABLED RESERVATION L1",
+      "active": false,
+      "owner": {"accountable": "Linear webhook receiver owner; see ops/linear/WEBHOOK-RECEIVER.md"},
+      "cadence": {"timezone": "UTC", "triggers": []},
+      "expected_effect": "None: inactive single-node disabled reservation; no delivery, registration test, or activation claimed.",
+      "sync_script": "UNKNOWN — reservation only; no autonomous activation",
+      "sensor": "scripts/n8n_workflow_registry_sensor.py",
+      "source_readback": "reports/ops/orchestration-restore-20260907/PLAN/L1/ITEM8-PARENT-WEBHOOK-READBACK.json"
+    }
+  ],
+  "source": "K4/WORKFLOW-LIST.json + WORKFLOWS.json; saved graph action clues; local sync-ID references; recipes expected-effect contract only",
+  "effect_claim": "No success or published graph parity inferred from inventory; existing inactive rows remain inactive."
+}
