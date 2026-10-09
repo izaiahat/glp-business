@@ -696,7 +696,7 @@ def select_strategy_safe(
                 "keyword": row["target_query"],
                 "selection_reason": str(directive.get("rationale") or ""),
                 "gap_source": {
-                    "type": "keyword_gap",
+                    "type": ("strategy_competitor_gap" if directive.get("opportunity_type") == "competitor_gap_new_topic" else "keyword_gap"),
                     "opportunity_type": directive.get("opportunity_type"),
                     "opportunity_class": directive.get("opportunity_class"),
                     "source_opportunity_id": directive.get("source_opportunity_id"),
@@ -898,10 +898,16 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
             continue
         provenance["selection_mode"] = selected["selection_mode"]
         provenance["analytics"]["gsc_window"] = gsc_window
-        provenance["source_artifacts"] = {
-            "keyword_gap_strategy_overlay": overlay_spec,
-            "keyword_gap_opportunity_artifact": overlay_source_spec,
-        }
+        if provenance["gap_source"]["type"] == "strategy_competitor_gap":
+            provenance["source_artifacts"] = {
+                "strategy_map": {"path": str(map_path), "sha256": sha256_file(map_path)},
+                "strategy_queue": {"path": str(strategy_path), "sha256": sha256_file(strategy_path)},
+            }
+        else:
+            provenance["source_artifacts"] = {
+                "keyword_gap_strategy_overlay": overlay_spec,
+                "keyword_gap_opportunity_artifact": overlay_source_spec,
+            }
     for row in selected["eligible"]:
         content_class_name = str(row.get("content_class") or "")
         row["weekly_targeting_policy"] = {
