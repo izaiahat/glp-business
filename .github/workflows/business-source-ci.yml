@@ -52,6 +52,8 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -B -m unittest discover -s tests -p test_hermes_active_work_gate.py -v
+      - name: K4 n8n registry reconcile (offline, exact head)
+        run: python3 -B -m unittest tests.test_n8n_workflow_registry_reconcile -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
