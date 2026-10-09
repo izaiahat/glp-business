@@ -8,15 +8,25 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 900,
+  "tracked_count": 902,
   "files": {
+    "scripts/article_health_acceptance.py": {
+      "kind": "script",
+      "callers": ["scripts/linear_close.py", "scripts/linear_orchestrator.py"],
+      "sha256": "f718a0d58435f10037148e6bd3d56cbfc44912ff97138a8742acfa1ba34f52cd"
+    },
+    "tests/test_article_health_acceptance.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "859c52409a671307692e8a1ca245ef75383faf378da46621cb2320dba7747d83"
+    },
     "scripts/article_source_carrier.py": {
       "kind": "registered_producer",
       "callers": [
         "systems/seo-blog-machine/scripts/article_buffer_cli.py",
         "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py"
       ],
-      "sha256": "8f963638c5e446d0d9d3eac8e9ce766e911bc15848b111395471cd7ff1fb7a9f"
+      "sha256": "db816eff661c021a9cf62681630d83b7ac187b84cb9914ba1a0c292f25deda3c"
     },
     "tests/test_article_source_carrier.py": {
       "kind": "test",
@@ -587,7 +597,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "83496f9ece7e11f17555cb847e75ea6b9760661fe09dc46d77d2154312e12375"
+      "sha256": "9ff58c10445f8189ee2b3ecff1f47473645ce1db79d1d9e4cc4087d7dbb9042c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2175,7 +2185,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "09916cb072cb9c42cb5c6a1df7bfa8d0b2af55b0d1a70bfd37282e722a649e33"
+      "sha256": "56a44896364b718791ad9056f11428f8eb2122c9cc09eb1d39307afe4b8e37bd"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -5797,7 +5807,7 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "d6963d14af8e8efa50e0fd01dd860e45eafdb8cd691dfebe8af78dca99158207"
+      "sha256": "d9d5776c79790f370cddd80d495ac2015f55a1cdfce79a2386bf0809e2fe3d8a"
     },
     "tests/test_linear_close.py": {
       "callers": [],
