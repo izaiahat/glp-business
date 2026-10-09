@@ -1,0 +1,452 @@
+{
+  "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+  "as_of": "2026-09-03",
+  "constraints": {
+    "deploy_lock": "/home/ubuntu/.hermes/state/glp-seo-carrier.lock",
+    "inbound_link_minimum": 1,
+    "minimum_substantive_delta": 0.3,
+    "new_gsc_answering_section": 1,
+    "new_outbound_internal_link": 1,
+    "new_primary_source": 1,
+    "same_article_id": true,
+    "same_route": true
+  },
+  "current_release": {
+    "deployment_id": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+    "final_receipt": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-release-2359d8db82563032030d55dc35e2937ab4883357/10-final-publication-receipt.json",
+      "sha256": "c87e5d927645d3d23a3fdc1cfc86e3297750d5864530b8bd82c409dd29dbe7b9"
+    },
+    "manifest": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-release-2359d8db82563032030d55dc35e2937ab4883357/01-deployment-manifest.json",
+      "sha256": "573c79ae530f39b7908fc7647666c27a07cba7a5d8cff5c836a55aad8b66cad6"
+    },
+    "public_tree_sha256": "bec240f24b14b4a543c9891cd9cff2fc275132a718c04490b3a0a601fb226b6f",
+    "release_root": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release",
+    "release_tree_sha256": "02eeed71c6684d76732709f36e7512bc812b1d01648cf76f7a1ad2c7e422b2b7"
+  },
+  "daily_slot": 1,
+  "effects": {
+    "deployments": 0,
+    "page_mutations": 0,
+    "redirects": 0
+  },
+  "existing_article": {
+    "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+    "article_index": 7,
+    "article_sha256": "db0caf00397652c21bce0bae076978ae3ef1336d954d1d14da3d03091cc95ada",
+    "canonical_path": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "catalog_id": "article_national_wow",
+    "catalog_kind": "article",
+    "public_page": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/public/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/index.html",
+      "release_relative_path": "public/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/index.html",
+      "sha256": "98e6e8baef30cd0dcb738a33222d75bfeb8158fc55ea8b527c792a110cdd657e"
+    },
+    "records_key": "articles",
+    "release_relative_path": "data/blog/content-national-wow-additions.json"
+  },
+  "existing_article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+  "inputs": {
+    "catalogs": [
+      {
+        "catalog_id": "article_batch",
+        "kind": "article",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/blog/content-batch.json",
+        "release_relative_path": "data/blog/content-batch.json",
+        "sha256": "477d46570c8d27d236813bd0a404d19e21863dbe8d28082b0070c0de0f5a4018"
+      },
+      {
+        "catalog_id": "article_national_wow",
+        "kind": "article",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/blog/content-national-wow-additions.json",
+        "release_relative_path": "data/blog/content-national-wow-additions.json",
+        "sha256": "a94d52663b17c9f69b2e059b82602cabc6812dd666abcffff670274c0e29622a"
+      },
+      {
+        "catalog_id": "money_pages",
+        "kind": "money_page",
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/money-page-specs.json",
+        "release_relative_path": "data/money-page-specs.json",
+        "sha256": "0b67ae04770fa7d8c96164383877881a88334a59b1a98b6c166991acd9c37638"
+      }
+    ],
+    "config": {
+      "path": "/home/ubuntu/business/systems/seo-blog-machine/config/verticals/glp-clinic-scout.json",
+      "sha256": "acc62ddf6f0a1c2bfdcc3ede8d9ee70706fdde9cd6924f966d5f67040a2a8366"
+    },
+    "current_content_base_resolution": {
+      "catalogs": [
+        {
+          "catalog_id": "article_batch",
+          "kind": "article",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/blog/content-batch.json",
+          "release_relative_path": "data/blog/content-batch.json",
+          "sha256": "477d46570c8d27d236813bd0a404d19e21863dbe8d28082b0070c0de0f5a4018"
+        },
+        {
+          "catalog_id": "article_national_wow",
+          "kind": "article",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/blog/content-national-wow-additions.json",
+          "release_relative_path": "data/blog/content-national-wow-additions.json",
+          "sha256": "a94d52663b17c9f69b2e059b82602cabc6812dd666abcffff670274c0e29622a"
+        },
+        {
+          "catalog_id": "money_pages",
+          "kind": "money_page",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/money-page-specs.json",
+          "release_relative_path": "data/money-page-specs.json",
+          "sha256": "0b67ae04770fa7d8c96164383877881a88334a59b1a98b6c166991acd9c37638"
+        }
+      ],
+      "flagship_root": "/home/ubuntu/business/site-system/flagship-v2",
+      "pointer": {
+        "deployment_id": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+        "final_receipt": {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-release-2359d8db82563032030d55dc35e2937ab4883357/10-final-publication-receipt.json",
+          "sha256": "c87e5d927645d3d23a3fdc1cfc86e3297750d5864530b8bd82c409dd29dbe7b9"
+        },
+        "manifest": {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-release-2359d8db82563032030d55dc35e2937ab4883357/01-deployment-manifest.json",
+          "sha256": "573c79ae530f39b7908fc7647666c27a07cba7a5d8cff5c836a55aad8b66cad6"
+        },
+        "public_tree_sha256": "bec240f24b14b4a543c9891cd9cff2fc275132a718c04490b3a0a601fb226b6f",
+        "release_root": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release",
+        "release_tree_sha256": "02eeed71c6684d76732709f36e7512bc812b1d01648cf76f7a1ad2c7e422b2b7",
+        "schema": "glp-opus-current-content-base-v1",
+        "status": "PASS",
+        "supersedes": {
+          "deployment_id": "b6963d7e-f0a7-4ad4-a60c-a3d2052f1da2",
+          "release_root": "/home/ubuntu/business/reports/ops/glp98-ship-20261002/prepared/release"
+        }
+      },
+      "prepared_binding": {
+        "compiled_sha256": "afc9b77ef68c4ab5a34116e28c0de1bdd202a27ecd284f3963a90676e8edf445",
+        "deploy": {
+          "file_count": 2350,
+          "total_bytes": 153574265,
+          "tree_sha256": "5b95d704127144532877482a71c10fea677a53f0072c4df449531cbd0f64cd29"
+        },
+        "files": {
+          "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/GATE.json": [
+            "d7379f4fe12247a554c576cd4fba1f08d3625688a8f88ff28ddc9450eaaf399d",
+            [
+              66305,
+              9192960,
+              33152,
+              1,
+              1000,
+              1000,
+              849822,
+              1790997033407281463,
+              1790997033414399524
+            ]
+          ],
+          "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/OPERATOR-RELEASE.json": [
+            "952fe9b89470b820309200a555e424d79a63cbb4bc288919a5d2f1ee725a7a15",
+            [
+              66305,
+              9192978,
+              33152,
+              1,
+              1000,
+              1000,
+              1363,
+              1790997084715321552,
+              1790997084718419222
+            ]
+          ],
+          "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/PACKAGE-MANIFEST.json": [
+            "68a49fb0b1765bffb85b4be80fa8f699c78a993b95bcf2f238f08464c2b03fdb",
+            [
+              66305,
+              9463999,
+              33060,
+              1,
+              1000,
+              1000,
+              402875,
+              1790997062285411437,
+              1790997062291411439
+            ]
+          ],
+          "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/PREPARED.json": [
+            "1d7faf179c1d780355e88c5b042ba5619523c50c279f0e60cc4a33aa48d20837",
+            [
+              66305,
+              9464000,
+              33060,
+              1,
+              1000,
+              1000,
+              662842,
+              1790997075578416052,
+              1790997075586416055
+            ]
+          ],
+          "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/gate.json": [
+            "d7379f4fe12247a554c576cd4fba1f08d3625688a8f88ff28ddc9450eaaf399d",
+            [
+              66305,
+              9463998,
+              33060,
+              1,
+              1000,
+              1000,
+              849822,
+              1790997062270276643,
+              1790997062279411435
+            ]
+          ],
+          "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-release-2359d8db82563032030d55dc35e2937ab4883357/CURRENT-RECEIPT.json": [
+            "a75908842f3a2dd9cc2f0685f20311e4ab849cbbfe25ffd0f52897827b3e5d41",
+            [
+              66305,
+              4782282,
+              33152,
+              1,
+              1000,
+              1000,
+              1910199,
+              1790997151829441632,
+              1790997151838441634
+            ]
+          ]
+        },
+        "release": {
+          "file_count": 6270,
+          "total_bytes": 466370527,
+          "tree_sha256": "02eeed71c6684d76732709f36e7512bc812b1d01648cf76f7a1ad2c7e422b2b7"
+        },
+        "source_sha256": "bb2aa14f4c6be2ee46d9bacd6e23c212af68e119013fe1aead3df03b4a3ae9fe"
+      },
+      "program_registry": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/program-content-ledger.json",
+        "release_relative_path": "data/program-content-ledger.json",
+        "sha256": "e298a9d9a81313d8b05536c903776dbca24511463f80b265d486b5a14c80fd72"
+      },
+      "schema": "glp-current-content-base-resolution-v1",
+      "state": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-content-base.json",
+        "sha256": "e090daac70dae7ca9ad5c765baf500afc1ec264c1312ec4d1c357606775bc68d"
+      },
+      "status": "PASS_CURRENT_CONTENT_BASE_RESOLVED"
+    },
+    "current_content_base_resolution_sha256": "0613fa9febab4d9b1fbb4e632d9080ef9a78364d5d15630f3922a084a00375c6",
+    "current_content_base_state": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/current-content-base.json",
+      "sha256": "e090daac70dae7ca9ad5c765baf500afc1ec264c1312ec4d1c357606775bc68d"
+    },
+    "observability_database": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/operator-national-wow-20260723/data/glp-observability.sqlite",
+      "sha256": "1d6321cf8c535c1a8b85f0dae5d265a596a76db95a55db0792dba8c8ffa557f9"
+    },
+    "program_registry": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/registry-site-sync/20261003T030854Z/prepared/release/data/program-content-ledger.json",
+      "release_relative_path": "data/program-content-ledger.json",
+      "sha256": "e298a9d9a81313d8b05536c903776dbca24511463f80b265d486b5a14c80fd72"
+    },
+    "weekly_gsc_selection": {
+      "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/authority/weekly-gsc-selection-02eeed71c6684d76.json",
+      "receipt_sha256": "b24010c7171639299563b0edf8bb992af12eb59aadb3ea14d07f339d29cdaa6e",
+      "sha256": "802377a46ebd35c3e3a34c64f818fa35058483f611e54e6323517bce31ace56d"
+    }
+  },
+  "observed_queue_topic_id": "r2-54abb90fc94b77a50f58",
+  "operation": "r2_refresh",
+  "priority": "P4",
+  "queue_authority": {
+    "evidence_state": "READY_FOR_RESEARCH",
+    "operator_directive_id": "glp-content-mix-v1:54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0",
+    "operator_ready_for_research": true,
+    "target_query": "compounded tirzepatide vs zepbound",
+    "target_route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "topic_id": "r2-54abb90fc94b77a50f58"
+  },
+  "r2_contract": {
+    "action": "substantive_freshness_refresh",
+    "affiliate_clicks_28d": 0,
+    "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+    "click_decay_fraction": 0.0,
+    "ctr": 0.0,
+    "current_clicks": 0,
+    "current_routes": [
+      "/best/ozempic-alternatives/",
+      "/guides/best-company-to-get-glp-1/",
+      "/guides/best-glp-1-online-providers/",
+      "/guides/bpc-157-fda-status-and-evidence/",
+      "/guides/brand-vs-compounded-glp-1-cost/",
+      "/guides/california-glp-1-access/",
+      "/guides/cheapest-glp1/",
+      "/guides/cjc-1295-ipamorelin-regulatory-status/",
+      "/guides/compare-online-glp-1-provider-fees/",
+      "/guides/compounded-semaglutide-vs-ozempic-regulatory-status/",
+      "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+      "/guides/continuous-glucose-monitor-consumer-guide/",
+      "/guides/counterfeit-ozempic-verification-reporting/",
+      "/guides/erectile-dysfunction-evidence-overview/",
+      "/guides/ezra-glp-1-reviews/",
+      "/guides/finasteride-evidence-and-options/",
+      "/guides/finasteride-vs-minoxidil/",
+      "/guides/found-vs-trimi-insurance-self-pay/",
+      "/guides/gala-vs-shed/",
+      "/guides/glp-1-cost-sensitivity/",
+      "/guides/glp-1-hsa-fsa-reimbursement-evidence/",
+      "/guides/glp-1-insurance-support-vs-coverage/",
+      "/guides/glp-1-prior-authorization-appeals/",
+      "/guides/glp-1-program-total-cost-comparison/",
+      "/guides/glp-1-shortage-availability-check/",
+      "/guides/glp-1-subscription-cancellation-terms/",
+      "/guides/healthrx-vs-agelessrx/",
+      "/guides/how-to-get-glp-1-prescription-online/",
+      "/guides/how-to-get-ozempic-online/",
+      "/guides/how-to-get-zepbound-online/",
+      "/guides/insulin-resistance-evidence-overview/",
+      "/guides/lilly-patient-assistance-vs-savings/",
+      "/guides/medicare-glp-1-bridge-eligibility/",
+      "/guides/metabolic-health-evidence-overview/",
+      "/guides/metabolic-syndrome-evidence-guide/",
+      "/guides/minoxidil-evidence-and-options/",
+      "/guides/mounjaro-cost-without-insurance/",
+      "/guides/mounjaro-coupon/",
+      "/guides/mounjaro-side-effects-evidence-guide/",
+      "/guides/mounjaro-vs-ozempic-label-and-cost/",
+      "/guides/mounjaro-vs-zepbound-label-and-cost/",
+      "/guides/novo-nordisk-patient-assistance-vs-savings/",
+      "/guides/online-ed-treatment-verification-checklist/",
+      "/guides/online-glp-1-intake-to-pharmacy-fulfillment/",
+      "/guides/online-hair-loss-treatment-verification/",
+      "/guides/online-trt-clinic-verification/",
+      "/guides/oral-glp-1-availability/",
+      "/guides/oral-glp-1-insurance-coverage/",
+      "/guides/ozempic-cost-without-insurance/",
+      "/guides/ozempic-side-effects-evidence-guide/",
+      "/guides/ozempic-vs-wegovy-label-and-cost/",
+      "/guides/ozempic-vs-zepbound/",
+      "/guides/peptide-clinic-verification-checklist/",
+      "/guides/peptide-therapy-regulatory-status/",
+      "/guides/rekulo-glp-1-reviews/",
+      "/guides/semaglutide-online-safety-verification/",
+      "/guides/semaglutide-vs-tirzepatide-label-evidence/",
+      "/guides/sildenafil-vs-tadalafil-label-comparison/",
+      "/guides/testosterone-gel-vs-injections-label-differences/",
+      "/guides/tirzepatide-cost/",
+      "/guides/tirzepatide-online-verification-checklist/",
+      "/guides/top-rated-glp-1-providers/",
+      "/guides/trimi-vs-yourera/",
+      "/guides/trt-cost-and-insurance-questions/",
+      "/guides/trt-evidence-overview/",
+      "/guides/verify-online-glp-1-pharmacy/",
+      "/guides/verify-online-glp-1-program-product-status/",
+      "/guides/viagra-vs-cialis-label-and-cost/",
+      "/guides/wegovy-pills-oral-semaglutide-cost/",
+      "/guides/wegovy-side-effects-evidence-guide/",
+      "/guides/wellorithm-vs-enhance-md/",
+      "/guides/what-is-glp-1/",
+      "/guides/zepbound-coupon/",
+      "/guides/zepbound-insurance-coverage/",
+      "/guides/zepbound-side-effects-evidence-guide/",
+      "/guides/zepbound-wegovy-cost-without-insurance/",
+      "/guides/zepbound-wegovy-savings-card-terms/"
+    ],
+    "gsc_queries": [
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 4,
+        "position": 68.25,
+        "query": "compounded tirzepatide vs zepbound"
+      },
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 1,
+        "position": 76.0,
+        "query": "is zepbound tirzepatide"
+      }
+    ],
+    "impressions": 8,
+    "operator_freshness_cadence_authority": true,
+    "page_age_days": 2,
+    "position": 53.0,
+    "previous_clicks": 0,
+    "priority": "P4",
+    "r2_edit_forbidden": false,
+    "refresh_tier": "R2",
+    "required_inbound_links": 1,
+    "route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "selection_basis": "observed_existing_article_underperformance",
+    "striking_distance_routes": [
+      "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/"
+    ],
+    "target_query": "compounded tirzepatide vs zepbound"
+  },
+  "refresh_tier": "R2",
+  "requested_queue_item_id": "r2-54abb90fc94b77a50f58",
+  "route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+  "schema": "glp-seo-r2-update-authority-v1",
+  "selected_r2": {
+    "action": "substantive_freshness_refresh",
+    "affiliate_clicks_28d": 0,
+    "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+    "click_decay_fraction": 0.0,
+    "ctr": 0.0,
+    "current_clicks": 0,
+    "gsc_queries": [
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 4,
+        "position": 68.25,
+        "query": "compounded tirzepatide vs zepbound"
+      },
+      {
+        "clicks": 0,
+        "ctr": 0.0,
+        "impressions": 1,
+        "position": 76.0,
+        "query": "is zepbound tirzepatide"
+      }
+    ],
+    "impressions": 8,
+    "operator_freshness_cadence_authority": true,
+    "page_age_days": 2,
+    "position": 53.0,
+    "previous_clicks": 0,
+    "priority": "P4",
+    "r2_edit_forbidden": false,
+    "refresh_tier": "R2",
+    "required_inbound_links": 1,
+    "route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "selection_basis": "observed_existing_article_underperformance",
+    "target_query": "compounded tirzepatide vs zepbound"
+  },
+  "selected_r2_sha256": "e26892734414941536cc61e4b2cfc5e1c1640daa3019f4f2bb4c25bf45a56587",
+  "selection_binding": {
+    "operator_directive_id": "glp-content-mix-v1:54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0",
+    "queue_position": 1,
+    "queue_sha256": "54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0",
+    "selection_receipt_sha256": "5c1ee18bd1b2da13c8d50a5ab9e51970508f79902b6708fe218491ef3cce3d30",
+    "strategy_map_sha256": "05d215c1bd3a8656f4bc5f5534a1ad5e13934b94a649492743fd975533f2818b",
+    "strategy_queue_sha256": "5763fcc1e92fb3cfe5b4175f7c1e2db38044274d3f8c4167333296d88d259ec9",
+    "target_query": "compounded tirzepatide vs zepbound",
+    "target_route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+    "topic_id": "r2-54abb90fc94b77a50f58"
+  },
+  "selection_file_sha256": "ebf83c6336980b4b0f8eca552eaf6af2e7c26937262c90eb55ef469ee34ad36e",
+  "selection_receipt": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/authority/01-r2-54abb90fc94b77a50f58-selection.json",
+    "receipt_sha256": "5c1ee18bd1b2da13c8d50a5ab9e51970508f79902b6708fe218491ef3cce3d30",
+    "sha256": "e4aea9c157aef3d1f2828ed5c96b16671aef1b4eecb366ee5901feebf95ce692"
+  },
+  "status": "AUTHORIZED_R2_REFRESH",
+  "strategy_version": "glp-content-mix-v1",
+  "target": {
+    "query": "compounded tirzepatide vs zepbound",
+    "route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/"
+  },
+  "target_query": "compounded tirzepatide vs zepbound",
+  "target_route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+  "topic": "compounded tirzepatide vs zepbound",
+  "topic_id": "r2-54abb90fc94b77a50f58"
+}
