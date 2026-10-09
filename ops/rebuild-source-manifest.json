@@ -2402,7 +2402,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "bbe084a359543812b471ae4ad3543f94d4bb286878de3d5f87ee96d5ba6bc2e3"
+      "sha256": "0527a658c6a5ece3758bd2979210f4b34a7d5048eec60b4760ee14f203343eba"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -2521,7 +2521,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "test",
-      "sha256": "abe92f23173f1c117dff3b8967bc1ad2dc967a1a22722e248689b08207067b33"
+      "sha256": "ea1617647976657f9ca05a97769c962439e6c4d70bcb2578dac0f6fcc28b0c11"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
@@ -4478,7 +4478,7 @@
       "callers": [
         "registered topic_supply_mint producer"
       ],
-      "sha256": "0ad7ebe29e0cdf9de773a7d1c6f0b8f6dbc0e88cbb35155249916335f20eeb86"
+      "sha256": "026798f1fd5af76bf339e93e0a3524b734e2b41ce4b00994b46bc7fe07609227"
     },
     "tests/test_glp75_topic_supply_inputs.py": {
       "kind": "test",
