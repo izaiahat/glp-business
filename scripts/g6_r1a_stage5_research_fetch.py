@@ -76,6 +76,13 @@ FORBIDDEN_URL_MARKERS = ("awin1.com", "awclick", "cread.php", "anrdoezrs",
 NOT_FOUND_MARKERS = ("this page could not be found", "just not this way",
                      "404 not found", "page not found")
 MIN_CHARS = 200
+ONBOARDING_FIELDS = {
+    "type": "object", "properties": {
+        "price": {"type": ["string", "null"], "description": "Exact advertised price including recurring fees and conditions; null if absent"},
+        "eligibility": {"type": ["string", "null"], "description": "Exact eligibility requirements; null if absent"},
+        "states": {"type": ["string", "null"], "description": "Exact US states served or restrictions; null if absent"},
+    }, "required": ["price", "eligibility", "states"],
+}
 
 
 def now() -> str:
@@ -95,7 +102,9 @@ def scrape(url: str, key: str, attempts: int = 3, cycle_id: str = "") -> dict[st
     # single blip aborts the whole run and loses every capture already fetched.
     response = None
     last_error = None
-    body = {"url": url, "formats": ["markdown"], "onlyMainContent": True}
+    body = {"url": url, "formats": ["markdown", {"type": "json", "schema": ONBOARDING_FIELDS,
+            "prompt": "Extract only explicitly visible provider terms. Preserve qualifiers, never infer price, eligibility or US availability."}],
+            "onlyMainContent": True, "proxy": "basic"}
     # Minted BEFORE the request: a receipt that can be rebuilt afterwards from
     # the URL alone proves nothing.
     nonce = fetch_receipts.new_nonce()
@@ -151,7 +160,11 @@ def scrape(url: str, key: str, attempts: int = 3, cycle_id: str = "") -> dict[st
         })
     return {"url": url, "status": "ok", "fetched_at_utc": fetched_at, "chars": len(markdown),
             "sha256": sha, "markdown": markdown,
-            "capture_route": "firecrawl", "fetch_receipt": receipt}
+            "capture_route": "firecrawl", "fetch_receipt": receipt,
+            "onboarding_fields": {"source_url": url, "fetched_at_utc": fetched_at,
+                "fields": (response.json().get("data") or {}).get("json"),
+                "ledger_operation_id": getattr(response, "firecrawl_operation_id", None),
+                "status": "EXTRACTED_REQUIRES_SOURCE_REVIEW_NOT_REGISTRY_WRITE"}}
 
 
 #: A Firecrawl outcome that the browser route may legitimately be able to beat.
