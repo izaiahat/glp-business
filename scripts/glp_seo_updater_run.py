@@ -2348,7 +2348,7 @@ def main() -> int:
                 raise RuntimeError("review_only_args_invalid")
             receipt = execute_review_only(args.review_request, args.review_request_sha256)
         else:
-            receipt = execute(args.pt_date)
+            raise RuntimeError("legacy_direct_publication_retired_use_glp_seo_updater_source")
     except Exception as error:  # outer boundary must still emit one parseable receipt
         receipt = base_receipt()
         receipt.update({

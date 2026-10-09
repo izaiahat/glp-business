@@ -12,6 +12,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import subprocess
 import sys
 
@@ -22,7 +23,10 @@ PRODUCER=B/'scripts/glp_weekly_strategy_report.py'
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path)
     args=parser.parse_args()
-    now=dt.datetime.now(dt.timezone.utc); week=(now-dt.timedelta(days=now.weekday())).date().isoformat()
+    now=dt.datetime.now(dt.timezone.utc)
+    sys.path.insert(0,str(B/'systems/seo-blog-machine/scripts'))
+    from weekly_strategy_consumer import review_week_start
+    week=review_week_start(now.astimezone(ZoneInfo('America/Los_Angeles')).date()).isoformat()
     (B/'ops/glp').mkdir(parents=True,exist_ok=True)
     MARKER.parent.mkdir(parents=True,exist_ok=True)
     with (B/'ops/glp/.weekly-strategy-gate.lock').open('a') as stream:
@@ -62,7 +66,7 @@ def main():
                 'seo_refill_recommendations':result['topic_recommendations'],
                 'report_summary':result['summary'],
                 'strategy_update':result.get('strategy_update'),
-                'instruction':'Use the produced live report and exact-readback Cogny strategy input. GLP-73 owns governed topic/refill adoption; require its receipt, not a report-only claim. Unknown is not zero. No publication or new paid collection; scheduler alone delivers the final summary.'}},ensure_ascii=False))
+                'instruction':'Use the produced live report and exact-readback Cogny strategy input. Nightly refill and existing-route updater must bind this strategy SHA; a report alone is not adoption or publication. Unknown is not zero. No publication or new paid collection; scheduler alone delivers the final summary.'}},ensure_ascii=False))
     return 0
 
 if __name__=='__main__': sys.exit(main())
