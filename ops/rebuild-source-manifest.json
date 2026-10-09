@@ -2380,7 +2380,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "4e8c94a6f74294d744bce59c301ea4b166193c0d51b6bbbbcc0fb32cc4b2d0ee"
+      "sha256": "00e9392fe05d3c8f8eebc2dbd787c66804c915f3739e085b5fea4c6284f033a2"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
       "callers": [
@@ -2800,7 +2800,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "203f29c03fb52a1bf450e08bf20fb84f48ebcb01014868fe3ce3e830902a6574"
+      "sha256": "5002702257672cbebcd58436b7fa3c304a5845f1dc7697478a5c4cba3cdc8ff9"
     },
     "tests/test_cron_bridge_action.py": {
       "callers": [

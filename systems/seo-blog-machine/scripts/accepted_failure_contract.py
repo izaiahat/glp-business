@@ -77,6 +77,8 @@ def validate_binding(binding, pointer, *, planned_manifest=None):
         for key in ('release_root', 'release_tree_sha256'):
             if binding[key] != pointer[key]:
                 raise RuntimeError('accepted_failures_base_drift:' + key)
+        if 'main_parent_binding' in binding:
+            return validate_main_binding(binding, pointer)
         if 'price_index_parent_binding' in binding:
             return validate_price_index_binding(binding, pointer, planned_manifest=planned_manifest)
         if 'parent_binding' in binding:
@@ -519,8 +521,113 @@ def runtime_binding_path(pointer):
     return RUNTIME_ROOT / tree / 'accepted-failures.json'
 
 
+def validate_main_pointer_snapshot(spec):
+    from scripts import glp_price_index_weekly as native
+    pointer = read_bound(spec)
+    root = Path(pointer['release_root'])
+    prepared = json.loads((root.parent / 'PREPARED.json').read_text())
+    if (prepared.get('schema') != 'glp43-current-prepared-v1'
+            or not root.parents[1].name.startswith('main-')):
+        raise RuntimeError('accepted_failures_not_native_main')
+    # Verify the immutable native terminal's exact successor bytes even after
+    # a later article changes the moving pointer. No receipt is reminted here.
+    previous = native.CURRENT_BASE
+    try:
+        native.CURRENT_BASE = Path(spec['path'])
+        native._validate_base_evidence(pointer, root)
+    finally:
+        native.CURRENT_BASE = previous
+    return pointer
+
+
+def original_allowance(spec):
+    """Authenticate the original review, not stale descendant build bytes.
+
+    A newly operator-approved main has its own complete native terminal proof;
+    it does not borrow a historical price build's execution/byte acceptance.
+    Only the immutable original SAME named allowance crosses this boundary.
+    """
+    expected = None
+    seen = set()
+    for _ in range(32):
+        if spec['path'] in seen:
+            raise RuntimeError('accepted_failures_origin_cycle')
+        seen.add(spec['path'])
+        value = read_bound(spec)
+        terms = {key: value[key] for key in PRICE_INDEX_INHERITED_KEYS}
+        if expected is not None and terms != expected:
+            raise RuntimeError('accepted_failures_origin_allowance_drift')
+        expected = terms
+        parents = [value[key] for key in ('parent_binding', 'price_index_parent_binding') if key in value]
+        if not parents:
+            validate_binding(value, value)
+            if spec != descriptor(runtime_binding_path(value)):
+                raise RuntimeError('accepted_failures_origin_runtime_drift')
+            return value, spec
+        if len(parents) != 1:
+            raise RuntimeError('accepted_failures_origin_mixed_lineage')
+        spec = parents[0]
+    raise RuntimeError('accepted_failures_origin_depth')
+
+
+def validate_main_binding(binding, pointer):
+    main = validate_main_pointer_snapshot(binding['main_pointer_snapshot'])
+    if any(main[k] != pointer[k] for k in ('release_root', 'release_tree_sha256')):
+        raise RuntimeError('accepted_failures_main_identity_drift')
+    if any(k in binding for k in ('parent_binding', 'price_index_parent_binding')):
+        raise RuntimeError('accepted_failures_mixed_main_lineage')
+    retained = json.loads((Path(main['release_root']) / ROOT_BINDING_NAME).read_text())
+    retained_parent = read_bound(binding['main_retained_binding'])
+    if (retained.get('schema') != 'glp-accepted-failures-root-v1'
+            or retained.get('publication_allowance_only') is not True
+            or retained.get('binding') != binding['main_retained_binding']
+            or any(retained[k] != retained_parent[k] for k in ('release_root', 'release_tree_sha256'))):
+        raise RuntimeError('accepted_failures_main_retained_parent_drift')
+    parent, spec = original_allowance(binding['main_retained_binding'])
+    if spec != binding['main_parent_binding']:
+        raise RuntimeError('accepted_failures_main_origin_drift')
+    if binding['release_manifest'] != main['manifest']:
+        raise RuntimeError('accepted_failures_main_manifest_drift')
+    for key in PRICE_INDEX_INHERITED_KEYS:
+        if binding[key] != parent[key]:
+            raise RuntimeError('accepted_failures_main_allowance_drift')
+    return binding
+
+
+def adopt_native_main_binding(pointer):
+    from scripts import glp_price_index_weekly as native
+    raw = native.CURRENT_BASE.read_bytes()
+    current = json.loads(raw)
+    if any(current[k] != pointer[k] for k in ('release_root', 'release_tree_sha256')):
+        raise RuntimeError('accepted_failures_main_not_current')
+    native._validate_base_evidence(current, Path(current['release_root']))
+    directory = runtime_binding_path(pointer).parent
+    directory.mkdir(parents=True, exist_ok=True)
+    snapshot = directory / 'native-main-pointer.json'
+    if snapshot.exists():
+        if snapshot.read_bytes() != raw:
+            raise RuntimeError('accepted_failures_main_snapshot_collision')
+    else:
+        with snapshot.open('xb') as handle:
+            handle.write(raw)
+    main = validate_main_pointer_snapshot(descriptor(snapshot))
+    retained = json.loads((Path(main['release_root']) / ROOT_BINDING_NAME).read_text())
+    parent, parent_spec = original_allowance(retained['binding'])
+    binding = {key: parent[key] for key in PRICE_INDEX_INHERITED_KEYS}
+    binding.update(schema='glp-accepted-failures-binding-v1', publication_allowance_only=True,
+                   release_root=pointer['release_root'], release_tree_sha256=pointer['release_tree_sha256'],
+                   release_manifest=main['manifest'], main_parent_binding=parent_spec,
+                   main_retained_binding=retained['binding'], main_pointer_snapshot=descriptor(snapshot))
+    if native.CURRENT_BASE.read_bytes() != raw:
+        raise RuntimeError('accepted_failures_main_pointer_changed')
+    return install_binding(binding, pointer)
+
+
 def load_binding(pointer):
-    spec = descriptor(runtime_binding_path(pointer))
+    path = runtime_binding_path(pointer)
+    if not path.exists():
+        adopt_native_main_binding(pointer)
+    spec = descriptor(path)
     return validate_binding(read_bound(spec), pointer), spec
 
 
@@ -565,7 +672,8 @@ def inherit_runtime_binding(job, report, manifest, final):
     parent = read_bound(classification['binding'])
     binding = {key: value for key, value in parent.items()
                if key not in ('parent_binding', 'descendant_manifest', 'descendant_final',
-                              'price_index_parent_binding', 'price_index_classification', 'price_index_suite_witness')}
+                              'price_index_parent_binding', 'price_index_classification', 'price_index_suite_witness',
+                              'main_parent_binding', 'main_pointer_snapshot', 'main_retained_binding')}
     binding.update(release_root=manifest['release_root'], release_tree_sha256=manifest['release_tree_sha256'],
                    release_manifest=descriptor(report / '01-deployment-manifest.json'),
                    parent_binding=classification['binding'],
