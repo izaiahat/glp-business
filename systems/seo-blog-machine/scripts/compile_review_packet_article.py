@@ -163,7 +163,15 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         # that native metadata forward, never infer a provider from prose.
         if "exactServices" not in meta and "providersDiscussed" in meta:
             meta = dict(meta, exactServices=meta["providersDiscussed"])
-    if any(capture.get(key) != value for key, value in expected_capture.items()):
+    on_page_only = meta["slug"].startswith("/guides/") and capture.get("mode") == "on-page-only"
+    if on_page_only:
+        expected_capture = {"mode": "on-page-only", "emailField": None,
+                            "healthDataFields": [], "followUpConsent": False}
+        if capture != expected_capture:
+            raise RuntimeError("capture_contract_invalid")
+        if re.search(r"email\s+(?:me|this|the|a|your)|(?:inbox|subscribe|subscription)", body, re.I):
+            raise RuntimeError("on_page_capture_promise_forbidden")
+    elif any(capture.get(key) != value for key, value in expected_capture.items()):
         raise RuntimeError("capture_contract_invalid")
     ledger = json.loads((packet / "01-evidence-ledger.json").read_text())
     authority = json.loads((packet / "00-authority.json").read_text())
@@ -240,14 +248,16 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         # commercial-link classification. Preserve the stricter medical guard.
         "surface_taxonomy": "medical", "suppress_cta": True,
         **commercial_link_metadata(meta),
-        "capture_surface": {"status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": capture["action"],
+        "capture_surface": ({"status": "ON_PAGE_ONLY", "email_field": None,
+                             "health_data_fields": [], "follow_up_consent": False} if on_page_only else
+                            {"status": "WORKING_BASE_TEMPLATE_CONTRACT", "action": capture["action"],
                             "source_page": capture["sourcePage"], "lead_magnet_key": capture["leadMagnetKey"],
                             "consent_version": capture["consentVersion"], "email_field": capture["emailField"],
                             "health_data_fields": capture["healthDataFields"],
                             **({"guide_path": capture["guidePath"], "purpose": capture["purpose"],
                                 "follow_up_consent": capture["followUpConsent"],
                                 "stored_page_identifier": capture["storedPageIdentifier"]}
-                               if meta["slug"].startswith("/guides/") else {})},
+                               if meta["slug"].startswith("/guides/") else {})}),
         "inbound_link_plan": serp.get("inbound_link_plan") or [],
         "serp_contract": {"path": str(packet / "02-serp-brief.json"),
                           "status": serp.get("status") or serp.get("schema_version") or "PASS",

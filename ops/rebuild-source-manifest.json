@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 895,
+  "tracked_count": 896,
   "files": {
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "kind": "script",
@@ -91,7 +91,7 @@
         "systems/seo-blog-machine/scripts/materialize_opus_run.py"
       ],
       "kind": "script",
-      "sha256": "51add5e7e7b861322c2bf9982b6107fb72364c684a03dc787d3aa058c973ddb5"
+      "sha256": "69b579de21c009803d92c7aaa3ccaacd2ae942c94c9c08d9b5c229496d02bf41"
     },
     "scripts/native_reply_consumer.py": {
       "kind": "script",
@@ -572,7 +572,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b2896fcca11c855c64d0cf292cb7c0a2f382f83562fcfd657fbdf41cc2a83cb5"
+      "sha256": "df4658e82746bb974e84aaea46ece95dd2b1c7fda9447e97a0baea8326e90bc7"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -995,7 +995,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "a0c2bf7fc28fef0ba34ff8c86014eae1dfbe1686eb8d8dfb7ecdff7d8ace90a5"
+      "sha256": "4d57b3ecaaafe04ee7e96fb12c350dd70a895e20a17109c659bad7a1168101dd"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2415,7 +2415,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "96a390d3120ffb3a257d5dddbe181e714d064ad506c2aef539e8bb49166e0d3f"
+      "sha256": "35a3d0f75d60d8c9aecfc2b9e14a26c2e64a9908f1941dbeb306d1e0e65bb7a0"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -2436,7 +2436,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "605da6449451575aaf0bba513cbbd834957242b733793ae0d4c231244e040c4b"
+      "sha256": "a9d3d648adfab079e1b164d857484a7331538953dbaae84888bf47dc6da5d089"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -3972,7 +3972,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "98701e7b78ab4b1f135b2075ba1d78ca65174de408646f371bf0328258899534"
+      "sha256": "03b84fb7a0f4e03432a72e85e9063608e5370a64171c002fb449a150c743c00c"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -5152,7 +5152,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "c9aa171f5389a51af4808426e839a69a1784bb1cce1df7fed9ba51dc470108d6"
+      "sha256": "a38ab233c9e69a0bf404359792131bae84ca2589702802e92c0b7c2cc43f851d"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -6043,6 +6043,13 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "81da2585e71a1372a808a958ec667796a7fa0ab930479c5586f018a8593fd8a8"
+    },
+    "systems/seo-blog-machine/tests/test_on_page_guide_capture.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "cd0b64bcc1dbd1f7d9353732d03c8f9f3973e39c54b40d43ddacf20883d1c141"
     }
   }
 }
