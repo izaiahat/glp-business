@@ -109,6 +109,15 @@ class SourceCarrierTests(unittest.TestCase):
                 result = namespace[function](*args)
             self.assertEqual(result['status'],'SUPPRESSED_NO_SEND')
 
+    def test_new_guide_refill_uses_native_source_contract(self):
+        prompt = (ROOT / 'ops/hermes-cron-prompts/glp-seo-buffer-refill.md').read_text()
+        self.assertIn('Native guide carrier contract (workflow-v3)', prompt)
+        self.assertIn('scripts/article_source_carrier.py', prompt)
+        self.assertIn('scripts/glp_release_main.py', prompt)
+        self.assertIn('not new-guide admission gates', prompt)
+        self.assertIn('Do not admit HIGH', prompt)
+        self.assertIn('exact PASS_OPUS_SEO_DRAFT', prompt)
+
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
         import inspect
