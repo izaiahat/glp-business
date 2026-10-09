@@ -1161,7 +1161,16 @@ def run_action(action, args, *, state_dir=STATE_DIR, actions=None, call=None,
                     code, job = 200, local
                 else:
                     call = make_call(action, actions) if call is None else call
-                    code, job = call("/run", payload)
+                    dispatch_payload = payload
+                    if (action == "article_carrier_consume" and due_slot
+                            and invocation in ("scheduled", "manual_registered")
+                            and args == {"mode": "consume"}):
+                        # The exact registered due occurrence owns this publish,
+                        # not a same-day historical/manual claim reconciled later.
+                        # Keep payload digest/state keys and pending GET unchanged.
+                        operation = "host-article-carrier-" + hashlib.sha256(due_slot.encode()).hexdigest()[:24]
+                        dispatch_payload = {**payload, "args": {**args, "operation-id": operation}}
+                    code, job = call("/run", dispatch_payload)
                 # These HTTP rejections are before bridge execution/admission.
                 if code in (400, 401, 403, 404, 413, 429):
                     state.pop("pending", None)
