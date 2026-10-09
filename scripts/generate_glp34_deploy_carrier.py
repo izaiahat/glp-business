@@ -172,6 +172,12 @@ def main():
   source=source.replace(old,new,1)
  if 'scripts/glp_deploy_build6_authority_v1.py' not in test: raise SystemExit('missing_test_carrier_binding')
  for old,new in repl.items(): test=test.replace(old,new)
+ # 2026-10-09: the sealed toolchain was rebuilt from its unchanged lockfile; the
+ # historical test's exact closure follows the maintained CURRENT_TOOLCHAIN pin.
+ _tc_old='"closure_sha256": "1af0afc423948202725ae9299b4803c46b68cbb053358943a17123c6dfbc4ad7",\n            "file_count": 1662, "directory_count": 258, "total_bytes": 621665046,'
+ _tc_new='"closure_sha256": "6542fa639a408d4bbf71e085c0b3f2b7db6d2e6cd3f3b1b4852a7beede853b5b",\n            "file_count": 1667, "directory_count": 263, "total_bytes": 362635774,'
+ if test.count(_tc_old)!=1: raise SystemExit('toolchain_test_context_drift')
+ test=test.replace(_tc_old,_tc_new)
  # The sealed historical tests assumed reusable sensor files and urllib.
  # P39 requires fresh attempts; the current sensor uses requests. Keep test
  # effects inside intercepted subprocesses and fixture directories.

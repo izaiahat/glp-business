@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 887,
+  "tracked_count": 890,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a01f00b779e644ab4330dbdfe950795e6afb05be24f14de793c61c99a9bf97ac"
+      "sha256": "a101c5931a09c5a4484a277c39f3a0103d6741636e2685dce69bd8368af0d6a7"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -972,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "99b0cbe5165d9fa0a16649d804e11a841f5ab1165a492701df8b4135b27d441b"
+      "sha256": "6e79a38e16c76c21f79e9744303fc695467cc29fa34b6bd8e03c0ad851a841e6"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1717,7 +1717,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "23fc1a4d2e790aacc336834d430a9c3e239d613c0d803f7269f362dec539b1dd"
+      "sha256": "ffb9b3ff687ae887e645862a0d2771e407371624f72d4c25a48d74bff7a2cf33"
     },
     "scripts/glp328_outreach_policy.py": {
       "callers": [],
@@ -1734,7 +1734,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "ba74365f408f60b28fcb22c12ac74ad833ffaacd894f2c0d8f113fcd3e4e8cef"
+      "sha256": "bd571b56c15a1e04a05b4096732a2a537a6825c83daa5ba6dd6b660b34036da7"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1872,7 +1872,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "496e99ee5bde31996db601c045a20c87944951f9f4ab7747c476f0ff9f8e5d15"
+      "sha256": "82183bc106c2043764cfdddc444183d80ede395327360c66f29677d4d5b4fba7"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -2137,7 +2137,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "07d729257819ddffbfdc33d104dd2cd5ec9ff49c3aa3d1ce1b50382533c9ea97"
+      "sha256": "09916cb072cb9c42cb5c6a1df7bfa8d0b2af55b0d1a70bfd37282e722a649e33"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -3200,7 +3200,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "test",
-      "sha256": "95300e56a4431384ba5dd2a36e694bd1bb7548c889de66c79b518ba2aac95a23"
+      "sha256": "1cd3a529aef0e492f1f48f6e4340a89d4222400c7e2bf9fa8417a3bcba324b69"
     },
     "tests/test_glp_earnings_notice.py": {
       "callers": [],
@@ -3381,7 +3381,7 @@
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "b46aac4765287c24ae095c9cab5f8c36c098d26187279d488c39bb2897897343"
+      "sha256": "5c1241eae7f93c576946b66fd3c2d54a85f5ab1a5ec26da3363291e7f4f5ee58"
     },
     "tests/test_lint_restored_invariants_20260916.py": {
       "callers": [
@@ -3935,7 +3935,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "5efd51cfded540ca1c9cecb10ac246f60c6f2af7f57208ae0b5899b0f4f3024a"
+      "sha256": "8dffd1b405c83198cb88103657c6700581190c43ae79a251cbc487a50e14aa63"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4806,14 +4806,14 @@
         "scripts/glp_affiliate_sync_job.py",
         "scripts/glp_deploy_glp34_authority_v1.py"
       ],
-      "sha256": "3625911cbfbf89d158a096f258693034d97a7f1a7bfa0c1613b3d8d4f6b7db94"
+      "sha256": "dae83fbe19de08fcf694ddce8fc908f0fdf1a990d6a4c12c373df7f7891d571e"
     },
     "scripts/glp_affiliate_sync_job.py": {
       "kind": "script",
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "b88f8f11a6e7093ae2fa34835280a64016bb49e5e090e761e5c35e6a3556a147"
+      "sha256": "f01db8436450da343ffeb151c773e5165a285ffe8686767ac635e4b94e9ce260"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -5745,12 +5745,12 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "35a4b4fa7dd805005b34f38ef9f5c4dd9554ae61788ed09eb97eece9e0ce3c4d"
+      "sha256": "d6963d14af8e8efa50e0fd01dd860e45eafdb8cd691dfebe8af78dca99158207"
     },
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "e2aa1686bbf085ad5e9c1834dd402b88b3445976e478336f1dbde16335ba2b4f"
+      "sha256": "6e925a87c3bd2d4a2456ae2a27179edebeab4c7f27df10f215bcd5bb6c38f2fd"
     },
     "ops/n8n-workflow-registry.json": {
       "callers": [
@@ -5844,7 +5844,7 @@
       "callers": [
         "scripts/host_disk_large_sweep.py"
       ],
-      "sha256": "58721522cac07771a7943465919d9481527f6749015fbdc7eb73887d3c722e51"
+      "sha256": "033b118c5281ed0ebf53febfac822cee08ccdfcaa136d6358656ac1c83df021b"
     },
     "scripts/host_disk_large_classes.py": {
       "kind": "script",
@@ -5872,7 +5872,7 @@
       "callers": [
         "scripts/host_disk_cleanup_large_unit.py"
       ],
-      "sha256": "4cb5fc6e9ad3d1c0fc7ce159767edc9860f0e0ca7fddb0297fbbaa01e51f2b64"
+      "sha256": "998f9170115d0b04ac81c9d0cf426abace42ec09932e2a1614c097bbbf71f9fb"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "kind": "script",
@@ -5901,14 +5901,14 @@
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "3b396268f57c0adbf82ef58b198a4b50a6d7fb46a2e8a113edd22f90551475cb"
+      "sha256": "cde9672ddc5bb3f2f9b26ba7f3fe1345837b9dbccabc79ab0db1e59f76b49822"
     },
     "ops/hermes-cron-scripts/host_disk_low_free_trigger.py": {
       "kind": "script",
       "callers": [
-        "hermes:low-disk-trigger"
+        "hermes:47a453ceded2"
       ],
-      "sha256": "e77161db4f176ecd8a235d5bfd4f3577ffcc634adf1623bb0143b0e3945924a3"
+      "sha256": "0fd59dad6dcf953f836e85a904a0406ef9216fb1749b4a40decd79dc2add2b8b"
     },
     "ops/cron.d/glp-paused-program-monitor": {
       "kind": "cron",
@@ -5970,6 +5970,27 @@
       "kind": "article_source_custody",
       "callers": [],
       "sha256": "d2ac5a4e98dbd5d64f1ffbf6b41abe13118142b31b6806954817868e460f6005"
+    },
+    "scripts/glp_release_main.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_release_main_cron.sh"
+      ],
+      "sha256": "beac17dee0de762b9364415243216b816af2b42e42da642bb5c0f8a2d441ef27"
+    },
+    "ops/hermes-cron-scripts/glp_release_main_cron.sh": {
+      "kind": "script",
+      "callers": [
+        "hermes:glp-release-main-hourly"
+      ],
+      "sha256": "ade3ee9950be2ac7cb184e39dd27b21314e9f593570b6c59a7c3f72837f39b07"
+    },
+    "tests/test_glp_release_main.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "8c0a3f0d14d04c35944a2c39c585b571b7d4bbbdff4ba500dbfbec41ed136b70"
     },
     "scripts/maxbounty_publisher_api.py": {
       "kind": "script",

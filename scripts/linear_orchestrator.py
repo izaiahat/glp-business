@@ -375,6 +375,89 @@ def sha(p):
 def fenced(marker, obj): return marker + '\n```json\n' + json.dumps(obj, indent=1) + '\n```'
 
 
+# Workflow v3 Done gate (ops/linear/approvals/OPERATOR-DECISION-20261009-workflow-v3.md).
+# Independent acceptance applies only to these three effects, classified over the
+# issue title plus its Acceptance section(s); footers, labels and tool-wiring
+# sections never trigger it. Release/deploy/design gates stay pre-merge PR gates.
+PROTECTED_EFFECTS = {
+    'financial-write': (
+        r'\b(?:make|makes|made|issu\w*|process\w*|record\w*|book\w*|initiat\w*|execut\w*|trigger\w*|'
+        r'disburs\w*|transfer\w*|collect\w*|pay|pays|paid|send\w*)\b[^\n.]{0,40}'
+        r'(?<!#)\b(?:payments?|payouts?|refunds?|invoices?|funds?|money)\b|'
+        r'\b(?:refund\w*|charg(?:e|es|ed|ing)|invoic(?:e|es|ed|ing)|purchas\w*|ad[- ]?spend|spend\w*|'
+        r'budget\w*)\b|(?-i:\bREAL\b)|'
+        r'\b(?:record|mark|claim|book|reconcile|verify|confirm|establish)\w*[^\n.]{0,40}'
+        r'\b(?:earning\w*|commission\w*|settlement\w*|cash|payout\w*)\b'),
+    'third-party-send': (
+        r'\b(?:send\w*|sent|e-?mail\w*|messag\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying|ication\w*))\b'
+        r'[^\n.]{0,60}\b(?:partners?|providers?|customers?|sponsors?|users?|subscribers?|clinics?|'
+        r'networks?|advertisers?|recipients?)\b|\boutreach\b|'
+        r'(?<!no )(?<!never )(?<!zero )(?<!without )\b(?:a send|send occurs|replies|reply)\b'),
+    'health-claim-publish': (
+        r'\b(?:publish(?!ers?\b)\w*|publicat\w*)\b[^\n.]{0,60}\b(?:claims?|articles?|pages?|copy|content)\b|'
+        r'\b(?:articles?|claims?)\b[^\n.]{0,20}\bpublish(?:ing|es|ed)?\b|'
+        r'\b(?:new|health|medical|clinical)\s+claims?\b'),
+}
+# Exit/HTTP/status tokens alone are not business output (R3).
+BARE_OUTPUT = (r'(?i)\s*(?:(?:rc|exit(?:[ _]?code)?|returncode|status|http)\s*[=:]?\s*)?'
+               r'(?:0|ok|okay|success|succeeded|200|201|202|204|active|running|ready|true|'
+               r'pass|passed|done|complete|completed|healthy|green)\s*|'
+               # Field names, hash labels and bare timestamps name where output would be, not output.
+               r'\s*(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)*|sha(?:1|256|512)?|'
+               r'\d{4}-\d{2}-\d{2}(?:[T ][0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)?)\s*')
+
+
+def acceptance_section(description):
+    """Bodies of every Acceptance heading, each up to the next heading of the same or higher level."""
+    import re
+    description = description or ''
+    headings = list(re.finditer(r'^(#{1,6})[ \t]*([^\n]*)$', description, re.M))
+    parts = []
+    for index, heading in enumerate(headings):
+        if not re.match(r'Acceptance\b', heading[2].strip(), re.I):
+            continue
+        end = next((h.start() for h in headings[index + 1:] if len(h[1]) <= len(heading[1])), len(description))
+        parts.append(description[heading.end():end])
+    return '\n'.join(parts)
+
+
+def protected_effect(text):
+    """Return the first protected effect class named in text, else None."""
+    import re
+    for name, pattern in PROTECTED_EFFECTS.items():
+        if re.search(pattern, text or '', re.I):
+            return name
+    return None
+
+
+def is_bare_output(value):
+    import re
+    return bool(re.fullmatch(BARE_OUTPUT, value or ''))
+
+
+def _verify_installed(data, repo, require):
+    """R2: every installed file's bytes equal the authenticated merge-commit bytes."""
+    import base64
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    installed = data.get('installed_files')
+    require(isinstance(installed, list) and installed, 'current installed source evidence required')
+    for entry in installed:
+        source = Path(entry['path'])
+        require(source.is_absolute() and source.is_file() and not source.is_symlink() and
+                source.resolve().is_relative_to(root.resolve()) and
+                source.resolve().relative_to(root.resolve()).parts[0] in ('scripts', 'systems', 'ops'),
+                'installed maintained source path required')
+        rel = source.resolve().relative_to(root.resolve()).as_posix()
+        remote_file = json.loads(subprocess.check_output(
+            ['gh', 'api', f'repos/{repo}/contents/{rel}?ref={data["pr"]["merge_sha"]}'],
+            text=True, timeout=60))
+        require(remote_file.get('encoding') == 'base64' and
+                hashlib.sha256(base64.b64decode(remote_file['content'])).hexdigest() == entry['sha256'] and
+                sha(source) == entry['sha256'], 'installed bytes do not match authenticated merged source')
+    return installed
+
+
 def _lint_ordinary_result(path, iss):
     """Read-only ordinary outcome check, not authority for any protected effect.
 
@@ -414,24 +497,12 @@ def _lint_ordinary_result(path, iss):
         require(re.search(r'##\s*Acceptance\s*\n\s*\S', description, re.I), 'current acceptance missing')
         require(data.get('description_sha256') == hashlib.sha256(description.encode()).hexdigest(),
                 'current issue acceptance/scope changed')
-        # Conservative refusal only, never an approval classifier. The coordinator
-        # remains responsible for scope; this contract cannot approve these effects.
-        scope = '\n'.join([iss.get('title') or '', description, *label_names(iss)])
-        # Publisher identity is a read-only account fact, not a publication action.
-        protected = (r'\b(release|deploy\w*|publish(?!ers?\b)\w*|publicat\w*|production|design|Fable|'
-                     r'third.party|outreach|email|spend|budget|KYC|PHI|legal)\b|'
-                     r'\b(send|deliver)\w*\s+(?:to\s+)?(?:partners?|providers?|customers?)\b|'
-                     r'\b(?:verify|confirm|record|mark|claim|reconcile|establish)\w*[^\n.]{0,40}'
-                     r'\b(?:real earning\w*|commission|settlement|cash)\b')
-        require(not re.search(protected, scope, re.I) and not re.search(r'\bREAL\b', scope),
-                'protected release/design/financial REAL/send scope is not ordinary')
-        # Coordinator membership is not authenticated independent source review.
-        # This contract has no execution-author custody: route explicit independent
-        # acceptance to the existing --brief contract, never trust RESULT identities
-        # or shared GitHub account metadata as proof of separation.
-        require(not re.search(r'\bindependent\b[^\n.]*\b(source|review\w*|acceptance)\b|'
-                              r'\breviewer\b[^\n.]*\bother than the author\b', scope, re.I),
-                'independent source acceptance requires the existing --brief contract')
+        # Workflow v3 R4: only financial writes/charges, third-party sends and publishing
+        # new health claims need independent acceptance (the protected arms). The
+        # classifier reads the title and Acceptance section(s) only.
+        effect = protected_effect((iss.get('title') or '') + '\n' + acceptance_section(description))
+        require(effect is None, '%s requires --protected-runtime independent acceptance '
+                '(protected effect: %s)' % (effect, effect))
         if readonly:
             require('pr' not in data and data.get('changed_files', []) == [],
                     'read-only non-code work cannot claim a PR or source changes')
@@ -447,6 +518,10 @@ def _lint_ordinary_result(path, iss):
             require(not re.search(r'\b(send\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying))\b',
                                   (iss.get('title') or '') + '\n' + acceptance, re.I),
                     'protected send/application scope is not read-only')
+            require(not re.search(r'\b(release|deploy\w*|publish(?!ers?\b)\w*|publicat\w*|production|design|'
+                                  r'Fable|commission\w*|earning\w*|settlement|cash)\b',
+                                  (iss.get('title') or '') + '\n' + acceptance, re.I),
+                    'protected release/design/financial scope is not read-only')
         else:
             pr = data['pr']
             require(re.fullmatch(r'https://github\.com/izaiahat/glp-(?:business|site-candidate)/pull/[1-9]\d*',
@@ -464,8 +539,14 @@ def _lint_ordinary_result(path, iss):
             require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
                 any(c.get('name') == expected['name'] and c.get('detailsUrl') == expected['url'] for c in checks)
                 for expected in pr['checks']), 'exact CI receipts missing or changed')
+            # R2: installed bytes equal the merge for runtime outcomes.
+            # Site-candidate PRs are deployed by the release service; their live readback is
+            # the runtime evidence. Business-repo runtime work must prove installed bytes.
+            repo = re.fullmatch(r'https://github\.com/(izaiahat/glp-[a-z-]+)/pull/\d+', pr['url'])[1]
+            if (data['scope'] == 'ordinary-runtime' and repo == 'izaiahat/glp-business') or data.get('installed_files'):
+                _verify_installed(data, repo, require)
         review = data['review']
-        comment_row = gql('query($id:String!){comment(id:$id){id body archivedAt user{id} issue{id}}}',
+        comment_row = gql('query($id:String!){comment(id:$id){id body archivedAt createdAt user{id} issue{id}}}',
                           {'id': review['comment_id']})['comment']
         require(comment_row and comment_row['id'] == review['comment_id'] and
                 comment_row['issue']['id'] == iss['id'] and not comment_row.get('archivedAt') and
@@ -492,6 +573,15 @@ def _lint_ordinary_result(path, iss):
         else:
             require(body.startswith('Coordinator acceptance verified:') and data['pr']['merge_sha'] in body,
                     'coordinator acceptance body/merge binding missing or changed')
+            # R2 bound to the authenticated comment: one Installed line per file.
+            for entry in data.get('installed_files') or []:
+                require(re.search(r'^Installed: (?:\S+ )?' + re.escape(entry['sha256']) + r'$', body, re.M),
+                        'coordinator acceptance must bind Installed: <sha256> for each installed file')
+        # Coordinator checked it and set Done the same hour.
+        from datetime import datetime, timezone
+        created = datetime.fromisoformat(comment_row['createdAt'].replace('Z', '+00:00'))
+        require(abs((datetime.now(timezone.utc) - created).total_seconds()) <= 3600,
+                'coordinator acceptance must be from the same hour as Done')
         evidence = data.get('evidence')
         require(isinstance(evidence, list) and evidence, 'acceptance evidence missing')
         runtime = readonly or data['scope'] == 'ordinary-runtime' or re.search(
@@ -517,6 +607,14 @@ def _lint_ordinary_result(path, iss):
                 'observed acceptance identifiers/output missing from evidence')
             if entry['kind'] == 'runtime':
                 require(any(value in body for value in observed), 'runtime evidence absent from coordinator acceptance')
+        # R3: one real run/readback carries business output, not only exit/HTTP/ok tokens,
+        # and the coordinator comment names it on an Output: line.
+        outputs = re.findall(r'^Output: (.+)$', body, re.M)
+        require(any(not is_bare_output(value) and any(value in line for line in outputs)
+                    for entry in evidence if entry.get('kind') == 'runtime' or not runtime
+                    for value in entry['observed']),
+                'business output required: rc=0/ok/200/active-only evidence is not output; '
+                'coordinator acceptance needs Output: <observed business value>')
     except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as exc:
         raise SystemExit('ordinary completion evidence unavailable/invalid: ' + str(exc)) from None
 
@@ -702,7 +800,7 @@ def _lint_protected_result(path, iss, *, runtime=False):
         for key, prefix in (('review', ('Coordinator acceptance verified:', 'Acceptance verified by parent:')),
                             ('protected_review', ('Independent protected acceptance verified:',))):
             binding = data[key]
-            row = gql('query($id:String!){comment(id:$id){id body archivedAt user{id} issue{id}}}',
+            row = gql('query($id:String!){comment(id:$id){id body archivedAt createdAt user{id} issue{id}}}',
                       {'id': binding['comment_id']})['comment']
             require(row and row['id'] == binding['comment_id'] and
                     row['issue']['id'] == iss['id'] and not row.get('archivedAt') and
@@ -719,6 +817,10 @@ def _lint_protected_result(path, iss, *, runtime=False):
         parent, independent = rows
         require(parent['user']['id'] in (OPERATOR_USER_ID, '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'),
                 'authenticated coordinator acceptance required')
+        from datetime import datetime, timezone
+        created = datetime.fromisoformat(parent['createdAt'].replace('Z', '+00:00'))
+        require(abs((datetime.now(timezone.utc) - created).total_seconds()) <= 3600,
+                'coordinator acceptance must be from the same hour as Done')
         protected_review = data['protected_review']
         require(independent['id'] != parent['id'], 'separate adoption and coordinator comments required')
         if 'native' in protected_review:
@@ -747,22 +849,7 @@ def _lint_protected_result(path, iss, *, runtime=False):
             require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
                 any(c.get('name') == e['name'] and c.get('detailsUrl') == e['url'] for c in checks)
                 for e in pr['checks']), 'exact CI receipts missing or changed')
-            root = Path(__file__).resolve().parents[1]
-            installed = data.get('installed_files')
-            require(isinstance(installed, list) and installed, 'current installed source evidence required')
-            for entry in installed:
-                source = Path(entry['path'])
-                require(source.is_absolute() and source.is_file() and not source.is_symlink() and
-                        source.resolve().is_relative_to(root.resolve()) and
-                        source.resolve().relative_to(root.resolve()).parts[0] in ('scripts', 'systems', 'ops'),
-                        'installed maintained source path required')
-                rel = source.resolve().relative_to(root.resolve()).as_posix()
-                remote_file = json.loads(subprocess.check_output(
-                    ['gh', 'api', f'repos/{match[1]}/contents/{rel}?ref={pr["merge_sha"]}'],
-                    text=True, timeout=60))
-                require(remote_file.get('encoding') == 'base64' and
-                        hashlib.sha256(base64.b64decode(remote_file['content'])).hexdigest() == entry['sha256'] and
-                        sha(source) == entry['sha256'], 'installed bytes do not match authenticated merged source')
+            _verify_installed(data, match[1], require)
         reports = Path(__file__).resolve().parents[1] / 'reports'
         evidence = data.get('evidence')
         require(isinstance(evidence, list) and evidence and any(e.get('kind') == 'runtime' for e in evidence),
@@ -779,6 +866,8 @@ def _lint_protected_result(path, iss, *, runtime=False):
             require(isinstance(observed, list) and observed and all(
                 isinstance(value, str) and value.strip() and value in raw.decode() for value in observed),
                 'observed identifiers/output missing from runtime evidence')
+        require(any(not is_bare_output(v) for e in evidence if e.get('kind') == 'runtime' for v in e['observed']),
+                'business output required: rc=0/ok/200/active-only evidence is not output')
         # Replaces only legacy FILES/Touch for this explicit non-code arm. Every
         # reported artifact is a reports-only file bound by both acceptances.
         for artifact in data.get('artifacts_created', []):

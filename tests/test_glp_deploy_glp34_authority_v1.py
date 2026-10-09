@@ -316,8 +316,8 @@ class CarrierV3Tests(unittest.TestCase):
 
     def test_exact_toolchain_has_no_symlink_special_or_writable_member(self):
         expected = {
-            "closure_sha256": "1af0afc423948202725ae9299b4803c46b68cbb053358943a17123c6dfbc4ad7",
-            "file_count": 1662, "directory_count": 258, "total_bytes": 621665046,
+            "closure_sha256": "6542fa639a408d4bbf71e085c0b3f2b7db6d2e6cd3f3b1b4852a7beede853b5b",
+            "file_count": 1667, "directory_count": 263, "total_bytes": 362635774,
         }
         self.assertEqual(carrier.toolchain_closure(carrier.TOOLCHAIN), expected)
         dirs, files = carrier._walk_plain(carrier.TOOLCHAIN)

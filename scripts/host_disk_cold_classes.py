@@ -21,6 +21,9 @@ PROTECTED = {'.git','secrets','credentials','browser-profiles','hermes-results',
 PROTECTED.update({'.enzyme','.ssh','.aws','.gnupg','.azure','.config','financial-records','finance',
                   'claude-1000','rook-live-cf2726c','rook-file-live-00d03f4'})
 
+# Sealed release toolchains (site-system/toolchains/**) are deploy custody, never cache.
+PROTECTED.add('toolchains')
+
 LIVE_HOME=Path('/home/ubuntu/.hermes')
 
 def live_symlink_targets(home=None,max_depth=3):
