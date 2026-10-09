@@ -70,6 +70,11 @@ def heartbeat(machine, count, receipt, note, job):
 
 
 def post_once(content, job, state, state_path, *, channel=CHANNEL):
+    # Explicit no-send registered acceptance keeps the real publication/receiving
+    # path, but never reaches a messaging transport. Natural slots are unchanged.
+    if (os.environ.get("CRON_BRIDGE_MANUAL_REGISTERED") == "1"
+            and os.environ.get("CRON_BRIDGE_NO_SEND") == "1"):
+        return {"status": "SUPPRESSED_NO_SEND", "reason": "operator_no_send_registered_acceptance", "channel": channel}
     from scripts.post_discord_message import send, readback
     if channel not in (CHANNEL, DECISIONS_CHANNEL):
         raise RuntimeError("notification_sink_invalid")

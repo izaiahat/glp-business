@@ -462,6 +462,13 @@ def admit_cli(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def consume_cli(args: argparse.Namespace) -> dict[str, Any]:
+    # Operator workflow v3: the frozen carrier remains historical recovery code,
+    # not the publisher for new accepted guides. Native main-release owns effects.
+    import article_source_carrier
+    return article_source_carrier.consume(args)
+
+
+def legacy_consume_cli(args: argparse.Namespace) -> dict[str, Any]:
     _resolution, release, routes, topics = current_context()
     pt_date = args.pt_date or dt.datetime.now(ZoneInfo("America/Los_Angeles")).date().isoformat()
     operation_digest = hashlib.sha256(args.operation_id.encode()).hexdigest()[:16]
