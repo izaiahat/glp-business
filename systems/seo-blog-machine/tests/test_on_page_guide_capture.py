@@ -3,6 +3,7 @@ import ast
 import copy
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 import yaml
@@ -20,6 +21,10 @@ def validator():
 def test_on_page_guide_compilation_validation_and_template_have_no_capture(tmp_path):
     compiler = module("compile_review_packet_article")
     builder = module("build_opus_article_release")
+    review_source = Path(compiler.__file__).with_name("opus_review_loop.py").read_text()
+    assert "For every actual email-capture variant, the consent and privacy owner-record requirements remain." in review_source
+    assert "Do not demand email capture for this variant." in review_source
+    assert "Gate B, clinical/claim checks, Fella/provider holds" in review_source
     draft = packet(tmp_path) / "04-draft.md"
     _, front, body = draft.read_text().split("---", 2)
     meta = yaml.safe_load(front)

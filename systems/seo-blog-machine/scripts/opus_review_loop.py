@@ -399,6 +399,17 @@ receipt verification, claim substantiation, privacy, medical safety, any gate A-
 Do not require switching models solely to satisfy a superseded transport instruction. Block any real
 mismatch between the supplied packet's declared runtime and the actual invocation identity above.
 
+## Guide delivery contract schema (operator-authorized W11 variant)
+
+For Gate C's capture-surface clause, an explicit on-page-only guide satisfies the delivery contract with
+useful checklist/reading content on the page. Require 04 captureContract mode=on-page-only,
+06 capture_surface status=ON_PAGE_ONLY, email_field=null, health_data_fields=[], follow_up_consent=false,
+and consistent compiler/QA/template bindings. Fail any email promise, form, email field or payload.
+Do not demand email capture for this variant. Without collection or email delivery, capture retention
+and Resend owner records are not applicable; do not invent retention/deletion facts.
+For every actual email-capture variant, the consent and privacy owner-record requirements remain.
+Gate B, clinical/claim checks, Fella/provider holds and all other A-E requirements remain unchanged.
+
 ## Commercial-link classification schema
 
 For Gate C, the canonical three-way declaration is `commercial_link_taxonomy` in 06-article.json,
