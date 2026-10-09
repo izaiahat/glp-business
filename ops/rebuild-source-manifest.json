@@ -5894,14 +5894,14 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/host_disk_cleanup_large_unit.py"
       ],
-      "sha256": "99750d8e68d425534f737f2e96d84adf0b98f26cd74fd5d9b6c9e93d82916dd6"
+      "sha256": "d745905ce91bf7d9193e8ac635a35dd5ec0f15db671a144a252ad93d574b26f6"
     },
     "tests/test_host_disk_auto_classes.py": {
       "kind": "test",
       "callers": [
         "business-source-ci"
       ],
-      "sha256": "2c99b572c489a8344936342156a65a4c0c8cca3bc1700cd1f0e3ab27b61f3d69"
+      "sha256": "7f3675a8ac4761b149e3b01d09e97e59ffcaef91ddef392f7b18dbc25da3866b"
     },
     "ops/hermes-cron-scripts/host_disk_low_free_trigger.py": {
       "kind": "script",

@@ -97,7 +97,7 @@ def test_stale_tmp_entries_older_than_24h_removed_young_and_pinned_kept(tmp_path
     os.listdir(root / 'old-build/sub')  # our own listing must not make it young
     monkeypatch.setattr(large, 'lsof_inactive', lambda p: True)
     rows = auto.stale_tmp(API(), m, pins=(root / 'pinned-build',), deadline=time.monotonic() + 60,
-                          dry_run=False, root=root)
+                          dry_run=False, root=root, min_bytes=0)
     status = {Path(r['path']).name: r['status'] for r in rows}
     assert status == {'old-build': 'REMOVED', 'pinned-build': 'REFUSED'}
     assert (root / 'young-build').exists() and (root / 'com.google.Chrome.abc').exists()

@@ -206,7 +206,7 @@ def rebuildable_node_modules(api, m, targets, *, pins, deadline, dry_run=True, r
                             rebuildable, cutoff) for t in targets if time.monotonic() < deadline]
 
 
-def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400):
+def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, min_bytes=8 * 1024 ** 2):
     """Top-level /tmp directories idle >24h (atime/mtime/ctime of every member), not held open."""
     cutoff = time.time() - min_age
     def scope(p):
@@ -215,7 +215,14 @@ def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400):
         if m.dirty_worktree(p):
             raise ValueError('dirty/active')
     rows = []
-    for p in sorted(root.iterdir()):
+    # Largest first; entries under the floor are not worth a /proc + lsof veto pass each.
+    du = subprocess.run(['du', '-x', '-B1', '-d', '1', str(root)], capture_output=True, text=True, timeout=600)
+    sizes = []
+    for line in du.stdout.splitlines():
+        amount, _, name = line.partition('\t')
+        if amount.isdigit() and Path(name).parent == root and int(amount) >= min_bytes:
+            sizes.append((int(amount), Path(name)))
+    for _, p in sorted(sizes, reverse=True):
         if time.monotonic() > deadline:
             break
         try:
