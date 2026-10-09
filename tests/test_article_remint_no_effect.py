@@ -62,6 +62,67 @@ class ArticleRemintNoEffectTests(unittest.TestCase):
                 prior.write_text(json.dumps(materialization))
                 self.assertFalse(cron.article_materialization_failed_no_effect(receipt, child))
 
+class MainAllowanceTests(unittest.TestCase):
+    def test_original_review_names_cannot_expand_on_main(self):
+        import importlib.util
+        source = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts/accepted_failure_contract.py'
+        spec = importlib.util.spec_from_file_location('main_allowance_test', source)
+        contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(contract)
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            origin = {key: {'evidence': key} for key in contract.PRICE_INDEX_INHERITED_KEYS}
+            origin.update(release_tree_sha256='a' * 64, release_root=str(root / 'origin'),
+                          accepted_names=['original-only'], minimum_tests=1693)
+            origin_path = root / ('a' * 64) / 'accepted-failures.json'
+            origin_path.parent.mkdir()
+            origin_path.write_text(json.dumps(origin))
+            origin_spec = contract.descriptor(origin_path)
+            descendant = dict(origin, price_index_parent_binding=origin_spec,
+                              release_tree_sha256='b' * 64)
+            path = root / 'retained.json'
+            path.write_text(json.dumps(descendant))
+            with patch.object(contract, 'RUNTIME_ROOT', root), patch.object(contract, 'validate_binding') as validate:
+                result, bound = contract.original_allowance(contract.descriptor(path))
+                self.assertEqual(result, origin)
+                self.assertEqual(bound, origin_spec)
+                validate.assert_called_once_with(origin, origin)
+                descendant['accepted_names'] = ['original-only', 'unapproved-new-failure']
+                path.write_text(json.dumps(descendant))
+                with self.assertRaisesRegex(RuntimeError, 'allowance_drift'):
+                    contract.original_allowance(contract.descriptor(path))
+                descendant['accepted_names'] = ['original-only']
+                descendant['minimum_tests'] = 1
+                path.write_text(json.dumps(descendant))
+                with self.assertRaisesRegex(RuntimeError, 'allowance_drift'):
+                    contract.original_allowance(contract.descriptor(path))
 
-if __name__ == '__main__':
-    unittest.main()
+    def test_main_snapshot_cannot_skip_native_proof(self):
+        import importlib.util
+        import scripts
+        from types import SimpleNamespace
+        native = SimpleNamespace(CURRENT_BASE=Path('/synthetic/current.json'),
+                                 _validate_base_evidence=lambda *_: None)
+        source = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts/accepted_failure_contract.py'
+        spec = importlib.util.spec_from_file_location('main_snapshot_test', source)
+        contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(contract)
+        with TemporaryDirectory() as temp:
+            directory = Path(temp) / 'main-native' / 'prepared'
+            release = directory / 'release'
+            release.mkdir(parents=True)
+            (directory / 'PREPARED.json').write_text(json.dumps({'schema': 'glp43-current-prepared-v1'}))
+            snapshot = Path(temp) / 'snapshot.json'
+            snapshot.write_text(json.dumps({'release_root': str(release)}))
+            before = native.CURRENT_BASE
+            with patch.object(scripts, 'glp_price_index_weekly', native, create=True), \
+                    patch.object(native, '_validate_base_evidence', side_effect=RuntimeError('terminal-invalid')) as verify:
+                with self.assertRaisesRegex(RuntimeError, 'terminal-invalid'):
+                    contract.validate_main_pointer_snapshot(contract.descriptor(snapshot))
+                verify.assert_called_once()
+            self.assertEqual(native.CURRENT_BASE, before)
+            spec = contract.descriptor(snapshot)
+            snapshot.write_text('{}')
+            with patch.object(scripts, 'glp_price_index_weekly', native, create=True):
+                with self.assertRaisesRegex(RuntimeError, 'hash_drift'):
+                    contract.validate_main_pointer_snapshot(spec)
