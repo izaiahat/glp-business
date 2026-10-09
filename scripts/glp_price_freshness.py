@@ -21,6 +21,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 from urllib.parse import urlsplit, parse_qsl
 
@@ -674,7 +675,71 @@ def price_coverage(active, results):
             'legacy_rows_skipped': legacy,
             'providers_without_price_rows': sum(not p['rows'] for p in active.values()),
             'unknown_row_ids': sorted(rid for _, rid in unknown),
-            'meaning': 'Full-field raw-source support only; not adoption, renewed fact dates or proof prices unchanged.'}
+            'meaning': 'All known typed facts supported; declared UNKNOWN components retained. Not a complete selected-plan cost or publication.'}
+
+
+def batch_monitor(client, urls, out, concurrency):
+    """Poll one forced-fresh markdown batch by exact ID, never repost it."""
+    if not hasattr(client, 'request'):
+        return None  # Existing offline scrape-client fixtures.
+    start = client.request('batch/scrape', {'urls': urls, 'formats': ['markdown'],
+        'onlyMainContent': False, 'maxAge': 0, 'timeout': 120000,
+        'maxConcurrency': concurrency}, timeout=150)
+    put(out / 'BATCH-START.json', start)
+    if start.get('success') is not True or not start.get('id'):
+        raise ValueError('batch_start_refused')
+    endpoint = 'batch/scrape/' + start['id']
+    deadline, documents = time.monotonic() + 1800, []
+    while True:
+        result = client.request(endpoint, method='GET', timeout=150)
+        put(out / 'BATCH-STATUS.json', result)
+        if result.get('status') in ('failed', 'cancelled'):
+            raise ValueError('batch_terminal_failure:' + result['status'])
+        if result.get('status') == 'completed':
+            documents.extend(result.get('data', []))
+            if result.get('next'):
+                endpoint = result['next']
+                continue
+            break
+        if time.monotonic() >= deadline:
+            raise TimeoutError('batch_status_deadline; reconcile retained ID')
+        time.sleep(3)
+    put(out / 'BATCH-DOCUMENTS.json', documents)
+    return {(data.get('metadata') or {}).get('sourceURL'): {'success': True, 'data': data}
+            for data in documents if (data.get('metadata') or {}).get('sourceURL') in urls}
+
+
+def reattest_row(row, captures):
+    """Renew literal existing witnesses, never fill or date unknown components.
+
+    The site receiver independently checks the exact before/after row, capture
+    bytes and values. This cannot change a price, identity, plan or qualifier.
+    """
+    if not row.get('price_kind') or not row.get('identity_evidence') or not row.get('evidence'):
+        return None
+    after = copy.deepcopy(row)
+    def renew(evidence):
+        if not evidence:
+            raise ValueError('missing_attestation')
+        renewed = []
+        for witness in evidence:
+            cap = captures.get(witness.get('source_url'))
+            quote = witness.get('quote')
+            if (not cap or not safe(witness['source_url']) or not quote
+                    or quote not in cap['markdown'] or digest(cap['markdown']) != cap['content_sha256']):
+                raise ValueError('old_quote_not_present')
+            renewed.append({**witness, 'capture_path': 'data/pricing-evidence/' + cap['content_sha256'] + '.md',
+                'capture_sha256': cap['content_sha256'], 'captured_at_utc': cap['captured_at_utc']})
+        return renewed
+    try:
+        for name in ('identity_evidence', 'evidence'):
+            after[name] = renew(row[name])
+        for name, fact in row.get('facts', {}).items():
+            if fact.get('value') not in (None, 'UNKNOWN'):
+                after['facts'][name]['evidence'] = renew(fact.get('evidence'))
+        return after
+    except ValueError:
+        return None
 
 
 def run(args, client=None):
@@ -690,14 +755,16 @@ def run(args, client=None):
     state_dir.mkdir(parents=True, exist_ok=True)
     client = client or client_for(out.name)
     report = {'schema': SCHEMA, 'run_type': 'manual_requested' if args.manual_registered else 'scheduled_requested',
-              'loaded_source_sha256': LOADED_SOURCE_SHA256, 'extractor_version': 3,
+              'loaded_source_sha256': LOADED_SOURCE_SHA256, 'extractor_version': 4, 'cadence': 'weekly',
               'started_at_utc': utc(), 'release_root': str(release),
               'registry_sha256': digest((release / 'data/program-registry.json').read_bytes()),
               'matrix_sha256': digest(matrix_path.read_bytes()), 'active_provider_count': len(active),
               'held_program_ids': held, 'providers': [], 'public_effects': 0}
     put(out / 'MONITOR-TARGETS.json', {'schema': SCHEMA, 'active': active, 'held': held,
-         'strategy': 'scheduled_firecrawl_v2_scrape_full_byte_diff', 'requested_schedule': 'daily 02:20 America/Los_Angeles',
+         'strategy': 'firecrawl_v2_batch_markdown_full_byte_diff', 'requested_schedule': 'weekly Sunday 08:20 America/Los_Angeles',
          'schedule_installation': 'NOT_ATTESTED_BY_NETWORK_RUN'})
+    urls = list(dict.fromkeys(url for provider in active.values() for url in provider['urls']))
+    monitored = batch_monitor(client, urls, out, getattr(args, 'concurrency', 3)) if urls else {}
     delta = load_delta()
     def process_provider(pair):
         pid, provider = pair
@@ -707,6 +774,7 @@ def run(args, client=None):
                 'pages': [], 'confirmed_changes': 0, 'review_required': 0}
         pending_rows, unknown_rows, unsupported_rows = set(), set(), set()
         validated_rows, cached_rows, observed_rows = set(), set(), set()
+        fresh_captures = {}
         claims = {'schema': delta.CLAIMS_SCHEMA, 'program_id': pid, 'claims': [], 'captures': {},
                   'first_party_hosts': sorted({urlsplit(u).hostname for u in provider['urls']})}
         for url in provider['urls']:
@@ -715,16 +783,20 @@ def run(args, client=None):
             cache = read(checkpoint) if checkpoint.exists() else {}
             page = {'source_url': url, 'status': 'ERROR'}
             try:
-                response = scrape(client, url, ['markdown', {'type': 'changeTracking', 'modes': ['git-diff']}])
+                response = (monitored.get(url, {'success': False}) if monitored is not None else
+                            scrape(client, url, ['markdown', {'type': 'changeTracking', 'modes': ['git-diff']}]))
                 put(folder / (key + '-monitor.json'), response)
                 if response.get('transport_recovery'):
                     page['monitor_transport_recovery'] = response['transport_recovery']
                 data = response_data(response, url)
                 text = data['markdown']
                 is_changed = changed(cache.get('markdown'), text, data.get('changeTracking'))
+                fresh_captures[url] = {'source_url': url, 'markdown': text,
+                    'content_sha256': digest(text), 'captured_at_utc': utc()}
+                (folder / (key + '.md')).write_text(text)
                 page.update(status='CHANGED' if is_changed else 'SAME', content_sha256=digest(text))
                 rows_sha256 = digest(json.dumps(provider['rows'], sort_keys=True))
-                if is_changed or cache.get('extractor_version') != 3 or cache.get('reviewed_hash') != digest(text) or cache.get('rows_sha256') != rows_sha256:
+                if is_changed:
                     typed = [r for r in provider['rows'] if r.get('price_kind') and r.get('row_id') and r.get('facts')]
                     response, data = extract(client, pid, provider['provider'], url, typed, folder / (key + '-extraction'))
                     page['extraction_attempts'] = data['extraction_attempts']
@@ -780,13 +852,25 @@ def run(args, client=None):
                     cache['reviewed_hash'] = digest(text) if not page['evidence_unknown_rows'] and not page.get('confirmed_delta_fields') else None
                     cache['fully_validated_row_ids'] = sorted(r['row_id'] for r in reviews if not r['validation_errors'])
                 else:
-                    cached_rows.update(cache.get('fully_validated_row_ids', []))
+                    if cache.get('rows_sha256') == rows_sha256 and cache.get('reviewed_hash') == digest(text):
+                        cached_rows.update(cache.get('fully_validated_row_ids', []))
                     page['price_validation'] = 'CACHE_MATCH_PRIOR_FULL_FIELD_VALIDATION'
-                cache.update(markdown=text, source_url=url, last_observed_at_utc=utc(), rows_sha256=rows_sha256, extractor_version=3)
+                page['json_extraction_skipped'] = not is_changed
+                cache.update(markdown=text, source_url=url, last_observed_at_utc=utc(), rows_sha256=rows_sha256, extractor_version=4)
                 put(checkpoint, cache)
             except Exception as exc:
                 page.update(status='ERROR', error=f'{type(exc).__name__}:{exc}')
             item['pages'].append(page)
+        renewed = []
+        for row in provider['rows']:
+            after = reattest_row(row, fresh_captures)
+            if after:
+                renewed.append({'row_id': row['row_id'], 'before': row, 'after': after})
+                validated_rows.add(row['row_id'])
+                observed_rows.add(row['row_id'])
+                unknown_rows.discard(row['row_id'])
+        put(folder / 'REATTESTED.json', {'rows': renewed, 'captures': fresh_captures})
+        item['reattested_row_ids'] = [r['row_id'] for r in renewed]
         unique, conflicting_rows = {}, set()
         for claim in claims['claims']:
             identity = (claim['row_id'], claim['field'])
@@ -842,6 +926,8 @@ def run(args, client=None):
                   evidence_unknown_rows=sum(len(p['evidence_unknown_row_ids']) for p in report['providers']),
                   unsupported_extraction_rows=sum(len(p['unsupported_extraction_row_ids']) for p in report['providers']),
                   review_required=sum(p['review_required'] for p in report['providers']))
+    report['json_extractions'] = sum(bool(page.get('extraction_attempts')) for page in pages)
+    report['reattested_rows'] = sum(len(p['reattested_row_ids']) for p in report['providers'])
     report['failed_primary_pages'] = len(report['providers']) - report['primary_pages_successful']
     report['status'] = ('SOURCE_MONITOR_COMPLETE' if not report['failed_pages'] else
                         'PARTIAL_PRIMARY_SOURCE_FAILURE' if report['failed_primary_pages'] else 'PARTIAL_AUXILIARY_SOURCE_FAILURE')
@@ -927,12 +1013,54 @@ def stage_candidate(run_dir, candidate):
                     'extraction': extracted[0], 'source_url': cap['source_url'],
                     'captured_at_utc': cap['captured_at_utc'], 'reviewed_at_utc': utc(),
                     'markdown_path': stored, 'markdown_sha256': cap['content_sha256']})
+    for provider in result['providers']:
+        pid = provider['program_id']
+        renewal_path = run_dir / pid / 'REATTESTED.json'
+        if not renewal_path.exists():
+            continue
+        renewal = read(renewal_path)
+        for entry in renewal['rows']:
+            if pid not in current or pid in held:
+                raise ValueError('provider_held_since_capture:' + pid)
+            rows = combined['providers'][pid]['medications']
+            index = next(i for i, row in enumerate(rows) if row.get('row_id') == entry['row_id'])
+            if rows[index] != entry['before']:
+                continue  # A separately proven price change wins over re-attestation.
+            after = reattest_row(rows[index], renewal['captures'])
+            if after != entry['after']:
+                raise ValueError('reattest_proposal_drift')
+            if after == rows[index]:
+                continue
+            for cap in renewal['captures'].values():
+                raw = cap['markdown'].encode()
+                if digest(raw) != cap['content_sha256']:
+                    raise ValueError('reattest_capture_drift')
+                dst = candidate / ('data/pricing-evidence/' + cap['content_sha256'] + '.md')
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                if dst.exists() and dst.read_bytes() != raw:
+                    raise ValueError('capture_collision')
+                dst.write_bytes(raw)
+            witnesses.append({'mode': 'reattest', 'program_id': pid, 'row_id': entry['row_id'],
+                'before': rows[index], 'after': after, 'reviewed_at_utc': utc()})
+            rows[index] = after
     if not witnesses:
         return {'status': 'NO_CONFIRMED_CHANGES', 'rows': 0}
     ledger['entries'].extend(witnesses)
     put(ledger_path, ledger)
     put(matrix_path, combined)
-    checked = subprocess.run(['node', str(candidate / 'scripts/validate-provider-pricing-matrix.mjs')],
+    # Data-only native acceptance. The full site validator also reads built
+    # calculator HTML for historical provider holds; the build lane owns it.
+    native_check = """
+import {readFileSync} from 'node:fs';
+import {validateAttestedRetention} from './src/price-state.mjs';
+import {resolveDeployedPricingBaseline} from './src/pricing-coverage-floor.mjs';
+const read=p=>JSON.parse(readFileSync(p));
+const root=process.cwd(), matrix=read('data/provider-pricing-matrix.json');
+const baseline=resolveDeployedPricingBaseline(read('data/pricing-coverage-baseline.json'));
+validateAttestedRetention(root,matrix,baseline);
+console.log(JSON.stringify({status:'PASS',native_attested_retention:true,build_run:false}));
+"""
+    checked = subprocess.run(['node', '--input-type=module', '-e', native_check],
                              cwd=candidate, text=True, capture_output=True, timeout=90)
     proof = {'status': 'STAGED_VALIDATED' if checked.returncode == 0 else 'STAGED_VALIDATION_FAILED',
              'rows': len(witnesses), 'program_ids': sorted({w['program_id'] for w in witnesses}),
@@ -946,6 +1074,30 @@ def stage_candidate(run_dir, candidate):
     return proof
 
 
+def install_weekly():
+    """Update only the existing pricing job's wall-clock guard; no job creation."""
+    old = subprocess.check_output(['crontab', '-l'], text=True)
+    lines = old.splitlines()
+    matches = [i for i, line in enumerate(lines) if not line.lstrip().startswith('#')
+               and 'cron_bridge_action.py pricing_refresh ' in line]
+    if len(matches) != 1:
+        raise ValueError('pricing_cron_identity_not_unique')
+    i = matches[0]
+    lines[i], count = re.subn(r"--cron '[^']+'", "--cron '20 8 * * 0'", lines[i])
+    if count != 1:
+        raise ValueError('pricing_cron_guard_missing')
+    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 8 * * 0 ', lines[i], count=1)
+    updated = '\n'.join(lines) + '\n'
+    if updated != old:
+        if subprocess.check_output(['crontab', '-l'], text=True) != old:
+            raise ValueError('concurrent_crontab_edit')
+        subprocess.run(['crontab', '-'], input=updated, text=True, check=True)
+    readback = subprocess.check_output(['crontab', '-l'], text=True)
+    if readback != updated:
+        raise ValueError('pricing_cron_readback_mismatch')
+    return {'status': 'INSTALLED', 'schedule': 'weekly Sunday 08:20 America/Los_Angeles', 'line': lines[i]}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--release')
@@ -954,9 +1106,13 @@ def main():
     p.add_argument('--diligence', action='store_true')
     p.add_argument('--concurrency', type=int, choices=(1, 2, 3), default=3)
     p.add_argument('--manual-registered', action='store_true')
+    p.add_argument('--install-weekly', action='store_true', help='update only the existing registered pricing cron guard')
     p.add_argument('--stage-from', type=Path, help='completed source refresh directory; no network')
     p.add_argument('--candidate', type=Path, help='isolated site source target, never live release')
     args = p.parse_args()
+    if args.install_weekly:
+        print(json.dumps(install_weekly()))
+        return 0
     if args.stage_from:
         if not args.candidate or 'reports/glp-clinic-scout' in str(args.candidate.resolve()):
             p.error('stage requires an isolated source candidate, not an immutable release')

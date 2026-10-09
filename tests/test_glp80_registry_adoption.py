@@ -109,6 +109,10 @@ def test_fixed_successor_selection_and_privilege_restore(activation, monkeypatch
 
 def test_successor_actual_importer_five_paths_preserves_unselected(activation, tmp_path, monkeypatch, capsys):
     import json
+    # This exercises the current importer checkout, not the historic activation
+    # SHA contract (which remains fixed and is tested independently above).
+    selected_current = {rel: hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
+                        for rel in activation.PRICING_AFTER}
     host = activation.PricingRegistryHost()
     host.syncer = host.importer()
     root = tmp_path / 'receiving'; root.mkdir()
@@ -134,10 +138,10 @@ def test_successor_actual_importer_five_paths_preserves_unselected(activation, t
         capsys.readouterr()
         assert host.scoped_sync(False, ()) == 0
         assert 'DRY_RUN diffs=0 conflicts=0' in capsys.readouterr().out
-    for rel, expected in activation.PRICING_AFTER.items():
+    for rel, expected in selected_current.items():
         assert hashlib.sha256((root / rel).read_bytes()).hexdigest() == expected
         if rel in previous: assert (root / rel).stat().st_mode & 0o777 == 0o640
     assert (root / 'unrelated').read_text() == 'live unrelated bytes'
     assert json.loads(state.read_text()) == {'schema': 1, 'hashes': {
-        **previous, **activation.PRICING_AFTER}}
+        **previous, **selected_current}}
     assert not (root / 'ops/rebuild-source-manifest.json').exists()
