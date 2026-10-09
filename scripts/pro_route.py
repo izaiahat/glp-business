@@ -40,10 +40,13 @@ def save(row):
     relay._atomic_json(directory() / 'queue' / (row['job'] + '.json'), row)
 
 
-def enqueue(issue, prompt_file, account='auto', session=None):
+def enqueue(issue, prompt_file, account='auto', session=None, *, expected_sha256=None):
     if not re.fullmatch(r'GLP-[1-9][0-9]*', issue):
         raise ValueError('Invalid Linear issue')
-    text = Path(prompt_file).read_text(encoding='utf-8')
+    raw = Path(prompt_file).read_bytes()
+    if expected_sha256 and hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise ValueError('BACKLOG_DRIFT ' + str(prompt_file))
+    text = raw.decode('utf-8')
     if not text.strip():
         raise ValueError('Empty prompt')
     digest = hashlib.sha256((issue + '\0' + text).encode()).hexdigest()
@@ -96,7 +99,7 @@ def choose_account(requested):
         if requested not in ('auto', alias) or alias in held:
             continue
         active = sum(r['account'] == acct['label'] for r in rows)
-        if active >= min(3, cfg['envelope']['max_concurrent_chats_per_account']):
+        if active >= min(2, cfg['envelope']['max_concurrent_chats_per_account']):
             continue
         siblings = relay.sibling_bindings(acct['label'], '')
         if any((s.get('status') in ('submitting', 'running') or s.get('retry_blocked'))
@@ -229,10 +232,60 @@ def requeue_unsent(job, authorize_preimage):
         save(row)
 
 
+def ingest_backlog():
+    """Pin explicit numbered prompts before packet production; never auto-mint work.
+
+    A crash after enqueue but before indexing is safe: enqueue is content-idempotent.
+    Replacing a pinned file is refused; a new reviewed question needs a new filename.
+    """
+    path = directory() / 'BACKLOG.json'
+    with singleton():
+        index = json.loads(path.read_text()) if path.exists() else {}
+        old = dict(index)
+        inputs = []
+        for prompt in sorted((directory() / 'backlog').glob('*.md')):
+            match = re.fullmatch(r'([0-9]+)-(GLP-[1-9][0-9]*)-(auto|acct[123])\.md', prompt.name)
+            if not match or prompt.is_symlink():
+                raise ValueError('INVALID_BACKLOG_PROMPT ' + prompt.name)
+            digest = hash_file(prompt)
+            pinned = index.get(prompt.name)
+            if pinned and pinned['sha256'] != digest:
+                raise ValueError('BACKLOG_DRIFT ' + prompt.name)
+            index.setdefault(prompt.name, {'sha256': digest})
+            inputs.append((prompt, match[2], match[3], digest))
+        if index != old:
+            relay._atomic_json(path, index)
+    added = []
+    for prompt, issue, account, digest in inputs:
+        if index[prompt.name].get('job'):
+            continue
+        row = enqueue(issue, prompt, account, 'pro-route-backlog', expected_sha256=digest)
+        with singleton():
+            current = json.loads(path.read_text())
+            if current[prompt.name]['sha256'] != digest:
+                raise ValueError('BACKLOG_DRIFT ' + prompt.name)
+            current[prompt.name]['job'] = row['job']
+            row.update(backlog_order=int(prompt.name.split('-', 1)[0]), backlog_file=prompt.name)
+            save(row)
+            relay._atomic_json(path, current)
+        added.append(row['job'])
+    return added
+
+
 def dispatch(only=None, max_actions=6):
     results = []
+    if not only:
+        ingest_backlog()
     with singleton():
-        for row in sorted(request_rows(), key=lambda r: (r.get('created_at', ''), r['job'])):
+        # Refill vacant account slots before maintenance polls; rotate maintenance
+        # by the durable last-attempt record so bounded/restarted ticks cannot starve.
+        def priority(row):
+            st = relay.job_state(row['job'])
+            band = 0 if row['state'] == 'queued' and not st else 1
+            attempts = row.get('attempts', [])
+            last = attempts[-1].get('at', '') if attempts else ''
+            return band, (row.get('backlog_order', 10**9), row.get('created_at', '')) if not band else (0, last), row['job']
+        for row in sorted(request_rows(), key=priority):
             if only and row['job'] != only:
                 continue
             if len(results) >= max_actions:
