@@ -26,6 +26,18 @@ REMOTE = "git@github.com:izaiahat/glp-business.git"
 DEFAULT_ROOT = Path("/home/ubuntu/business")
 STATE = "ops/.rebuild-sync-state.json"  # deliberately excluded from Git
 MANIFEST = "ops/rebuild-source-manifest.json"
+# R5 source-custodian reconciliation: exact old baseline, preserved live bytes,
+# and reviewed successor. No caller-supplied hashes or generic force/adoption.
+CAPACITY_RECONCILIATION = {
+    'scripts/subscription_capacity_monitor.py': (
+        '02fb6d6f2558bf1c662b137cddde30d75ca2402057f1903904836bd093b445b3',
+        '266186b3d5f7a34d71a5fbd36b9a967a8dfeb4687f75f8acaaab3923aae02f3f',
+        'eeb937cffbed25bc29724288463bdb04880457f805d2d59a421c87f95badc916'),
+    'tests/test_subscription_capacity_monitor.py': (
+        'e839c07dfd4e6aebed41d16db1f77e4f4f5e223ef738102722925a7b9317fa68',
+        '40b7712a194b464589a65de0c78bc38e213f56040d239159e8f5b292bdee4137',
+        'a6488f2e90ea49cbbc6a9cba5349111ac13921b80524266a5c0002f00fbdd815'),
+}
 EPILOG = """\
 workflow: always preview first, then apply.
   1. python3 scripts/sync_from_repo.py --dry-run
@@ -135,8 +147,10 @@ def source_session(root, owner=None):
 
 def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
          discovery_review=None, discovery_authority=None, ship_generation=None,
-         _ship_publish=None, _source_owner=None, reviewed_preimage=()):
+         _ship_publish=None, _source_owner=None, reviewed_preimage=(), capacity_reconciliation=False):
     with source_session(root, _source_owner):
+        if capacity_reconciliation and (discovery_review or discovery_authority or ship_generation or reviewed_preimage or adopt_reviewed_baseline):
+            raise ValueError('capacity reconciliation cannot combine admission mechanisms')
         if discovery_review is not None or discovery_authority is not None or ship_generation is not None:
             if reviewed_preimage:
                 raise ValueError('reviewed preimage cannot combine migration mechanisms')
@@ -148,13 +162,17 @@ def sync(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
                            discovery_review, discovery_authority, generation=ship_generation,
                            _ship_publish=_ship_publish)
         return _sync_locked(root, checkout, apply, adopt_reviewed_baseline, only,
-                            reviewed_preimage=reviewed_preimage)
+                            reviewed_preimage=reviewed_preimage, capacity_reconciliation=capacity_reconciliation)
 
 
 def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
                  _discovery_preimage=None, _shared_bridge_preimage=None, _pallas_migration=None,
-                 reviewed_preimage=()):
+                 reviewed_preimage=(), capacity_reconciliation=False):
     root = root.resolve(strict=True)
+    if capacity_reconciliation and (not set(CAPACITY_RECONCILIATION) <= set(only)
+            or reviewed_preimage or adopt_reviewed_baseline or any(value is not None for value in
+                (_discovery_preimage, _shared_bridge_preimage, _pallas_migration))):
+        raise ValueError('capacity reconciliation requires scoped paired files and no other adoption')
     if reviewed_preimage and any(value is not None for value in
             (_discovery_preimage, _shared_bridge_preimage, _pallas_migration)):
         raise ValueError('reviewed preimage cannot combine migration mechanisms')
@@ -169,7 +187,7 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
         if _shared_bridge_preimage != PREDECESSOR or set(only) != set(SELECTED) or len(only) != 2:
             raise ValueError('shared bridge migration requires the fixed paired selection')
     migration = (_discovery_preimage is not None or _shared_bridge_preimage is not None
-                 or _pallas_migration is not None)
+                 or _pallas_migration is not None or capacity_reconciliation)
     manifest = json.loads((checkout / MANIFEST).read_text())
     if manifest.get("schema") != "GLP_BUSINESS_SOURCE_V1":
         raise ValueError("unknown source manifest schema")
@@ -260,7 +278,12 @@ def _sync_locked(root, checkout, apply, adopt_reviewed_baseline=(), only=(), *,
             continue
         baseline = previous.get(p)
         if p in previous:
-            if p in pallas_fixed:
+            if capacity_reconciliation and p in CAPACITY_RECONCILIATION:
+                if (baseline, current, target) != CAPACITY_RECONCILIATION[p]:
+                    conflicts.append(p)
+                else:
+                    changed.append(p)
+            elif p in pallas_fixed:
                 fixed_baseline, fixed_predecessor, fixed_successor = pallas_fixed[p]
                 if (baseline, current, target) != (fixed_baseline, fixed_predecessor, fixed_successor):
                     conflicts.append(p)
@@ -361,6 +384,8 @@ def main():
                         help="independent exact-head review of retained discovery088e2557 migration")
     parser.add_argument("--discovery-adoption-authority", type=Path,
                         help="separate exact migration authority; consuming locks and owner exclusion required")
+    parser.add_argument('--capacity-monitor-reconciliation', action='store_true',
+                        help='R5 exact baseline/live/successor reconciliation; requires scoped monitor + tests')
     args = parser.parse_args()
     if args.wait is not None:
         os.environ["GLP_SOURCE_LOCK_WAIT_S"] = str(args.wait)
@@ -370,13 +395,15 @@ def main():
         return sync(args.root, args.checkout.resolve(strict=True), args.apply, args.adopt_reviewed_baseline, args.only,
                     discovery_review=args.discovery_predecessor_review,
                     discovery_authority=args.discovery_adoption_authority,
-                    reviewed_preimage=args.adopt_reviewed_preimage)
+                    reviewed_preimage=args.adopt_reviewed_preimage,
+                    capacity_reconciliation=args.capacity_monitor_reconciliation)
     if args.discovery_predecessor_review or args.discovery_adoption_authority:
         parser.error("discovery migration requires an exact local --checkout")
     with tempfile.TemporaryDirectory(prefix="glp-business-sync-") as temp:
         subprocess.run(["git", "clone", "--quiet", "--branch", "main", REMOTE, temp + "/repo"], check=True)
         return sync(args.root, Path(temp) / "repo", args.apply, args.adopt_reviewed_baseline, args.only,
-                    reviewed_preimage=args.adopt_reviewed_preimage)
+                    reviewed_preimage=args.adopt_reviewed_preimage,
+                    capacity_reconciliation=args.capacity_monitor_reconciliation)
 
 
 if __name__ == "__main__":

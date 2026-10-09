@@ -483,7 +483,8 @@ def mint_candidate(
         "constraints": {
             "same_route": True,
             "same_article_id": True,
-            "minimum_substantive_delta": 0.30,
+            "semantic_materiality": "evidence_backed_answer_change_independently_reviewed",
+            "no_op_allowed": True,
             "new_gsc_answering_section": 1,
             "new_primary_source": 1,
             "new_outbound_internal_link": 1,

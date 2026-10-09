@@ -54,6 +54,13 @@ def validate_file_spec(spec: Any, label: str, *, require_current_hash: bool = Tr
 
 def validate_selection_payload(payload: dict[str, Any]) -> dict[str, Any]:
     operation = payload.get("operation", "new_article")
+    if payload.get("status") == "PASS_EMPTY_STRATEGY_SAFE_SET":
+        if (operation != "new_article" or payload.get("schema") != SCHEMA
+                or payload.get("selected") != [] or payload.get("eligible") != []
+                or payload.get("receipt_sha256") != payload_hash(payload)
+                or (payload.get("weekly_governance") or {}).get("governing") is not True):
+            raise RuntimeError("selection_noop_contract_invalid")
+        return payload
     expected_contract = {
         "new_article": (SCHEMA, STATUS),
         "r2_refresh": (UPDATE_SCHEMA, UPDATE_STATUS),
@@ -129,6 +136,8 @@ def selection_spec(path: str | Path) -> dict[str, str]:
 
 
 def selection_binding(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get('status') == 'PASS_EMPTY_STRATEGY_SAFE_SET':
+        raise RuntimeError('selection_noop_has_no_article_authority')
     selection = validate_selection_payload(payload)
     return {
         "topic_id": selection["topic_id"],

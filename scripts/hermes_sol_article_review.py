@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import sys
 import time
 import uuid
@@ -255,6 +256,7 @@ def review_input(
         "tools_disabled": args.disable_tools,
         "tool_count": runtime.get("tool_count", 0),
         "fallback_provider_count": runtime.get("fallback_provider_count", 0),
+        "inline_prompt": args.prompt,
         "prompt_file": public_capture(captured.get("prompt_file")) if args.prompt_file else None,
         "context_files": [public_capture(row) for row in captured.get("context_files", [])],
         "json_schema_file": (
@@ -278,8 +280,95 @@ def validate_target_args(args: argparse.Namespace) -> None:
         raise ValueError("disable_tools_required")
 
 
+SESSION_DB = Path('/home/ubuntu/.hermes/state.db')
+
+
+def authenticate_result(session_id: str, payload: str, response: str, *,
+                        model: str, provider: str, effort: str, session_db=None) -> dict:
+    """Read native runtime custody; receipt hashes are bindings, never authority.
+
+    Only AIAgent writes the transcript/lifecycle/accounting. This producer must
+    not create sessions or append an alleged model decision on its behalf.
+    The DB is fixed by maintained code, never chosen by a raw review receipt.
+    """
+    try:
+        with sqlite3.connect(Path(session_db or SESSION_DB).resolve(strict=True).as_uri() + '?mode=ro',
+                             uri=True) as db:
+            db.row_factory = sqlite3.Row
+            session = db.execute('select * from sessions where id=?', (session_id,)).fetchone()
+            rows = db.execute('select id,role,content,tool_calls,timestamp from messages '
+                              'where session_id=? order by id', (session_id,)).fetchall()
+        if session is None:
+            raise ValueError('reviewer session absent')
+        config = json.loads(session['model_config'] or '{}')
+        if not (session['model'] == model == TARGET_MODEL
+                and session['billing_provider'] == provider == TARGET_PROVIDER
+                and config.get('reasoning_config', {}).get('effort') == effort == TARGET_EFFORT
+                and config.get('max_iterations') == 1
+                and session['api_call_count'] == 1 and session['tool_call_count'] == 0
+                and SYSTEM_BRIEF in (session['system_prompt'] or '')):
+            raise ValueError('runtime reviewer identity/configuration differs')
+        if [row['role'] for row in rows] != ['user', 'assistant'] or any(
+                json.loads(row['tool_calls'] or 'null') for row in rows):
+            raise ValueError('not an isolated single no-tools review')
+        if not (session['ended_at'] is not None
+                and session['started_at'] <= rows[0]['timestamp'] <= rows[1]['timestamp'] <= session['ended_at']):
+            raise ValueError('reviewer execution not durably completed')
+        if rows[0]['content'] != payload or advisory_output(rows[1]['content']) != advisory_output(response):
+            raise ValueError('runtime input/response differs')
+        return {'schema': 'glp-native-reviewer-result-custody-v1', 'session_id': session_id,
+                'model': model, 'provider': provider, 'effort': effort,
+                'started_at': session['started_at'], 'ended_at': session['ended_at'],
+                'input_message_id': rows[0]['id'], 'response_message_id': rows[1]['id'],
+                'system_prompt_sha256': sha_bytes(session['system_prompt'].encode()),
+                'payload_sha256': sha_bytes(payload.encode()),
+                'response_sha256': sha_bytes(advisory_output(response).encode())}
+    except (OSError, sqlite3.Error, KeyError, IndexError, TypeError, ValueError) as exc:
+        raise RuntimeError(f'reviewer_result_custody_refused:{exc}') from exc
+
+
+def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_db=None) -> dict:
+    """Authenticate the response and exact sealed packet the model actually saw."""
+    try:
+        inputs, runtime = raw['review_input'], raw['hermes_runtime']
+        claimed = runtime['result_custody']
+        if raw['session_id'] != runtime['session_id']:
+            raise ValueError('reviewer session mismatch')
+        args = argparse.Namespace(
+            prompt=inputs.get('inline_prompt'), prompt_file=(inputs.get('prompt_file') or {}).get('path'),
+            context_file=[row['path'] for row in inputs['context_files']],
+            json_schema_file=(inputs.get('json_schema_file') or {}).get('path'),
+            max_context_chars=inputs['max_context_chars'], max_total_chars=inputs['max_total_chars'],
+            model=runtime['model'], provider=runtime['provider'], effort=runtime['effort'], disable_tools=True)
+        captured = {}
+        schema = load_schema(args, captured)
+        payload = build_payload(args, captured, schema)
+        observed = review_input(args, payload, captured, runtime)
+        if observed != inputs:
+            raise ValueError('captured review input changed')
+        # Hashing an input is insufficient: bind the actual in-band subjects to
+        # the accepted manifest/packet, not a fixture-supplied input hash.
+        parts = ['SEALED ARTICLE SUBJECTS — READ ONLY',
+                 f"manifest_sha256={manifest['manifest_sha256']}", '']
+        for row in manifest['subject_files']:
+            parts.append(f"===== {row['path']} =====")
+            text = (packet / row['path']).read_text(encoding='utf-8')
+            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(text.splitlines(), 1))
+            parts.append('')
+        expected_context = '\n'.join(parts) + '\n'
+        if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
+            raise ValueError('runtime input is not this sealed packet')
+        custody = authenticate_result(runtime['session_id'], payload, raw['result'], model=runtime['model'],
+                                      provider=runtime['provider'], effort=runtime['effort'], session_db=session_db)
+        if custody != claimed:
+            raise ValueError('runtime custody binding differs')
+        return custody
+    except (OSError, KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f'reviewer_result_custody_refused:{exc}') from exc
+
+
 def hermes_agent_kwargs(
-    runtime: dict[str, Any], args: argparse.Namespace, session_id: str
+    runtime: dict[str, Any], args: argparse.Namespace, session_id: str, session_db
 ) -> dict[str, Any]:
     """Return the fail-closed Hermes agent configuration for one review."""
     return {
@@ -297,7 +386,7 @@ def hermes_agent_kwargs(
         "skip_memory": True,
         "load_soul_identity": False,
         "platform": "cli",
-        "session_db": None,
+        "session_db": session_db,
         "session_id": session_id,
         "max_iterations": 1,
         "reasoning_config": {"enabled": True, "effort": args.effort},
@@ -364,19 +453,23 @@ def run_hermes(
             f"{runtime.get('provider')}:{runtime.get('requested_provider')}:{runtime.get('api_mode')}"
         )
 
+    from hermes_state_registry import acquire, release_or_close
     session_id = f"glp_astra_review_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-    agent = AIAgent(**hermes_agent_kwargs(runtime, args, session_id))
+    session_db = acquire(SESSION_DB)
+    agent = None
     started = time.monotonic()
     result: dict[str, Any] = {}
     try:
+        agent = AIAgent(**hermes_agent_kwargs(runtime, args, session_id, session_db))
         if agent.tools or agent.valid_tool_names:
             raise RuntimeError("hermes_review_tool_surface_not_empty")
         result = agent.run_conversation(payload, system_message=SYSTEM_BRIEF)
     finally:
         try:
-            agent.close()
-        except Exception:
-            pass
+            if agent is not None:
+                agent.close()
+        finally:
+            release_or_close(session_db)
     elapsed_ms = int((time.monotonic() - started) * 1000)
 
     calls = tool_call_count(result.get("messages"))
@@ -417,6 +510,8 @@ def run_hermes(
         "duration_api_ms": elapsed_ms,
         "python_executable": str(Path(sys.executable).resolve()),
     }
+    execution['result_custody'] = authenticate_result(
+        str(execution['session_id']), payload, response, model=args.model, provider=args.provider, effort=args.effort)
     return response, result, execution
 
 
