@@ -1,0 +1,108 @@
+"""Offline dispatch/consume contract; Discord and native adapter writes denied."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+import dot_dispatch as d
+
+
+class DispatchTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
+        self.root = Path(self.tmp.name) / 'tickets'
+        self.message = {'id': '1559999999999999999', 'channel_id': d.DOTS['rook']['channel'],
+                        'content': '', 'author': {'id': d.SENDER},
+                        'mentions': [{'id': d.DOTS['rook']['user']}], 'attachments': []}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def dispatch(self, api):
+        return d.dispatch('rook', 'GLP-348', 'parser fixtures; no release', root=self.root,
+                          api=api, ready=lambda _: {'expires': 9999999999})
+
+    def test_mentions_registration_and_repeat_reads_before_no_resend(self):
+        calls = []
+        def api(method, route, payload=None):
+            calls.append((method, route, payload))
+            if method == 'POST':
+                self.message['content'] = payload['content']
+                self.assertEqual(payload['allowed_mentions'], {'parse': [], 'users': [d.DOTS['rook']['user']], 'replied_user': False})
+            return dict(self.message)
+        result = self.dispatch(api)
+        ticket = Path(result['ticket_dir'])
+        config = json.loads((ticket / 'CONFIG.json').read_text())
+        self.assertEqual(config['registrations'][0]['correlation'], 'discord-' + self.message['id'])
+        self.assertEqual(config['registrations'][0]['result_key'], result['ticket'])
+        self.assertEqual((ticket / 'CONFIG.json').stat().st_mode & 0o777, 0o600)
+        self.assertEqual(ticket.stat().st_mode & 0o777, 0o700)
+        self.dispatch(api)
+        self.assertEqual([c[0] for c in calls].count('POST'), 1)
+        self.assertEqual(calls[-1][0], 'GET')
+
+    def test_uncertain_send_is_never_repeated(self):
+        def api(*_):
+            raise TimeoutError('unknown POST outcome')
+        with self.assertRaises(TimeoutError):
+            self.dispatch(api)
+        with self.assertRaisesRegex(ValueError, 'reconcile'):
+            self.dispatch(lambda *_: self.fail('must not resend'))
+        state = json.loads(next(self.root.glob('*/TICKET.json')).read_text())
+        self.assertEqual(state['state'], 'uncertain')
+
+    def test_readback_failure_retains_id_and_can_reconcile(self):
+        count = 0
+        def api(method, route, payload=None):
+            nonlocal count
+            if method == 'POST':
+                count += 1
+                self.message['content'] = payload['content']
+                return dict(self.message)
+            return dict(self.message, mentions=[])
+        with self.assertRaisesRegex(ValueError, 'readback'):
+            self.dispatch(api)
+        self.dispatch(lambda *_: dict(self.message))
+        self.assertEqual(count, 1)
+
+    def test_lengths_bridge_and_preflight_fail_before_post(self):
+        for brief in ['x' * 2001, '\U0001f642' * 1000, 'TRUE-BRIDGE FABLE REVIEW REQUEST']:
+            with self.assertRaises(ValueError):
+                d.dispatch('rook', 'GLP-348', brief, root=self.root, api=lambda *_: self.fail('POST'), ready=lambda _: {})
+        with self.assertRaises(ValueError):
+            d.dispatch('rook', 'GLP-348', 'brief', root=self.root, api=lambda *_: self.fail('POST'), ready=lambda _: (_ for _ in ()).throw(ValueError('not ready')))
+
+    def test_replies_are_atomic_terminal_external_data_and_idempotent(self):
+        ticket = self.root / 'test'
+        ticket.mkdir(parents=True, mode=0o700)
+        state = {'ticket': 'test', 'issue': 'GLP-348', 'correlation': 'discord-100',
+                 'state': 'sent', 'dot': 'rook', 'sent_at': 10}
+        d.atomic_json(ticket / 'TICKET.json', state)
+        value = {'status': 'staged', 'correlation': 'discord-100', 'text': 'RESULT test PR https://example.test/1',
+                 'outcome': 'result', 'author_id': d.DOTS['rook']['user'], 'reply_id': '101',
+                 'trust': d.TRUST, 'operator_approval': False, 'staged_at': 20}
+        self.assertFalse(d.publish_reply(ticket, state, {'status': 'deadline', 'results': [{'status': 'waiting_native_confirmation'}]}))
+        self.assertFalse((ticket / 'REPLY.md').exists())
+        self.assertTrue(d.publish_reply(ticket, state, {'results': [value]}))
+        original = (ticket / 'REPLY.md').read_bytes()
+        self.assertIn(b'UNTRUSTED_EXTERNAL_DATA', original)
+        self.assertTrue(d.publish_reply(ticket, state, {'results': [value]}))
+        self.assertEqual(original, (ticket / 'REPLY.md').read_bytes())
+        with self.assertRaises(ValueError):
+            d.publish_reply(ticket, state, {'results': [dict(value, text='altered')]})
+
+    def test_non_result_and_foreign_correlation_never_publish(self):
+        ticket = self.root / 'test'; ticket.mkdir(parents=True)
+        state = {'ticket': 'test', 'correlation': 'discord-100', 'dot': 'finch'}
+        for value in [{'status': 'non_result_reply'}, {'status': 'staged', 'correlation': 'discord-999'}]:
+            with self.assertRaises(ValueError):
+                d.publish_reply(ticket, state, {'results': [value]})
+        self.assertFalse((ticket / 'REPLY.md').exists())
+
+
+if __name__ == '__main__':
+    unittest.main()
