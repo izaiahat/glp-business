@@ -995,7 +995,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "520797151afbe162b195eef932c08ecff053cf496cae241ec94a0f589c2d6ac3"
+      "sha256": "a0c2bf7fc28fef0ba34ff8c86014eae1dfbe1686eb8d8dfb7ecdff7d8ace90a5"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1980,7 +1980,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "71b8039ff8378cfeadbafa84f6a9496a7eb77862eb7acd451b5ccf5c666e831a"
+      "sha256": "82a71449df831e478e900f7c8460287f1fc4eba2b0f5871aa201bc2dc1af42ca"
     },
     "scripts/glp_price_index_weekly_successor.py": {
       "callers": [
@@ -3972,7 +3972,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "d4a28d1c45c046b385b161f0890c4a6e98216a9e716d10fcf5e9b7df2018cd7f"
+      "sha256": "98701e7b78ab4b1f135b2075ba1d78ca65174de408646f371bf0328258899534"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [

@@ -1068,7 +1068,9 @@ def _prepared_base_links(
             or manifest.get("deploy_directory") != deploy_closure
             or pointer["deploy_directory_sha256"] != deploy_closure["tree_sha256"]):
         raise RuntimeError("current_content_base_prepared_closure_mismatch")
-    binding = _registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path, pointer_bytes=pointer_bytes)
+    binding = (_registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path)
+               if pointer_bytes is None else
+               _registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path, pointer_bytes=pointer_bytes))
     _, final_bytes, final_identity = _read_bound_regular_file(str(prepared_path), "prepared")
     if final_identity != identity or final_bytes != raw:
         raise RuntimeError("current_content_base_prepared_identity_changed")
