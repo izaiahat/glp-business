@@ -1082,6 +1082,14 @@ def copytree_linked(
     if source == destination:
         raise ValueError("linked_source_destination_identical")
     _assert_materialization_scope(source, destination)
+    if destination.is_relative_to(_BUSINESS_ROOT / "reports"):
+        caller_ignore = ignore
+
+        def report_ignore(directory: str, names: list[str]) -> set[str]:
+            ignored = set(caller_ignore(directory, list(names))) if caller_ignore else set()
+            return ignored | {name for name in names if name == "node_modules"}
+
+        ignore = report_ignore
 
     source_fd = _open_tree_root(source)
     destination_parent_fd: int | None = None
@@ -1124,6 +1132,19 @@ def copytree_linked(
         destination_device = os.fstat(destination_parent_fd).st_dev
         if source_device != destination_device:
             raise OSError(f"linked_cross_device_forbidden:{source_device}:{destination_device}")
+
+        # Q9: observe the filesystem actually receiving this tree, never a path
+        # re-open or rounded percentage. Unknown geometry denies before mkdir.
+        try:
+            disk = os.fstatvfs(destination_parent_fd)
+            total, free, available = int(disk.f_blocks), int(disk.f_bfree), int(disk.f_bavail)
+            used = total - free
+            if not 0 <= available <= free <= total or int(disk.f_frsize) <= 0 or used + available <= 0:
+                raise ValueError("invalid_disk_geometry")
+        except (OSError, AttributeError, TypeError, ValueError, OverflowError):
+            raise RuntimeError("candidate_copy_disk_pressure:UNKNOWN") from None
+        if 100 * used >= 92 * (used + available):
+            raise RuntimeError("candidate_copy_disk_pressure:STOP")
 
         os.mkdir(destination.name, 0o700, dir_fd=destination_parent_fd)
         created = True
