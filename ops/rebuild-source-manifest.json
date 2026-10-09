@@ -4603,7 +4603,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "a36157c3678feedbd5d013dedbbb430dab08ab7ed7184d42734d4c95affaea48"
+      "sha256": "052afd33245dd8e29ac3fe736a165fd80566dff5f6e57d4e1c00d0b659a0d031"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -5094,7 +5094,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "809f034f5a35f3765345b5f5a8c02532aafe316b25a689f96e9d25012f1c0032"
+      "sha256": "fbe723e06f3d25117e8f6cd10d3016ebbf20ef65ab4e0343e74c8201022234ea"
     },
     "scripts/glp_sponsor_paypal.py": {
       "kind": "script",
