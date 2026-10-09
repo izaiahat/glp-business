@@ -8,28 +8,21 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 860,
+  "tracked_count": 862,
   "files": {
-    "tests/test_firecrawl_glp350_monitor.py": {
+    "tests/test_firecrawl_glp350_pdf.py": {
       "kind": "test",
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "435e1368c6f0084bfb04d26e57e0db15d292eae7bb4399d76969973dff51dd9b"
+      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
     },
-    "scripts/glp_firecrawl_monitors.py": {
+    "systems/seo-blog-machine/scripts/article_pdf.py": {
       "kind": "script",
       "callers": [
-        "daily provider monitor intake; manual: python3 scripts/glp_firecrawl_monitors.py --create --run-now"
+        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
       ],
-      "sha256": "becad51036a28dd29a50803e42a3f81d163ec910ab986c98a25119f856192717"
-    },
-    "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
-      "kind": "script",
-      "callers": [
-        "Hermes daily monitor intake"
-      ],
-      "sha256": "ff9884d26641f2f7cdcaad73702dd6376b8a358e471501ac92462c45faa807df"
+      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -5122,7 +5115,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "51eb6c80d7b534bd0e922c079a1a7b13198ec6c4de72925877f081974e0f6cf0"
+      "sha256": "c9aa171f5389a51af4808426e839a69a1784bb1cce1df7fed9ba51dc470108d6"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5556,7 +5549,7 @@
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "90921088132c554f38278cc46a6a9dfc0320c79bd5bf9c66c9cda2e15965e3a8"
+      "sha256": "7be4b40801ea684d1217165e72da5f91a93a03d93f08700be2b2e6cb76c57ff6"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
@@ -5759,18 +5752,6 @@
       "kind": "test",
       "sha256": "e2aa1686bbf085ad5e9c1834dd402b88b3445976e478336f1dbde16335ba2b4f"
     },
-    "scripts/glp_digital_pr_weekly.py": {
-      "callers": [
-        "hermes:de3fec71cd2e"
-      ],
-      "kind": "script",
-      "sha256": "da203d2ee4989d8f770c2dab4123c216cbf880fdc9676372d6123f9a2bace781"
-    },
-    "tests/test_glp_digital_pr_weekly.py": {
-      "callers": [],
-      "kind": "test",
-      "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
-    },
     "ops/n8n-workflow-registry.json": {
       "callers": [
         "hermes:db3fb99c1044"
@@ -5782,6 +5763,18 @@
       "callers": [],
       "kind": "test",
       "sha256": "95e62b9352f9020db0b9a22fb96f2ad7198dbdb6ea02a090f709151e4a5b7ed6"
+    },
+    "scripts/glp_digital_pr_weekly.py": {
+      "callers": [
+        "hermes:de3fec71cd2e"
+      ],
+      "kind": "script",
+      "sha256": "da203d2ee4989d8f770c2dab4123c216cbf880fdc9676372d6123f9a2bace781"
+    },
+    "tests/test_glp_digital_pr_weekly.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
     },
     "tests/test_firecrawl_glp350_serp.py": {
       "kind": "test",
@@ -5796,6 +5789,27 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+    },
+    "tests/test_firecrawl_glp350_monitor.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "435e1368c6f0084bfb04d26e57e0db15d292eae7bb4399d76969973dff51dd9b"
+    },
+    "scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "daily provider monitor intake; manual: python3 scripts/glp_firecrawl_monitors.py --create --run-now"
+      ],
+      "sha256": "becad51036a28dd29a50803e42a3f81d163ec910ab986c98a25119f856192717"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes daily monitor intake"
+      ],
+      "sha256": "ff9884d26641f2f7cdcaad73702dd6376b8a358e471501ac92462c45faa807df"
     },
     "tests/test_firecrawl_glp350_affiliate.py": {
       "kind": "test",
