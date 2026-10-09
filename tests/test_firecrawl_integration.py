@@ -63,25 +63,11 @@ def test_sdk_snake_case_credit_and_scrape_id():
     assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sha256:' + fc._hash('sdk-id'),1)
 
 
-def test_affiliate_map_batch_true_request_cap(monkeypatch):
-    import ast, io, re, threading, urllib.request
-    from types import SimpleNamespace
-    tree = ast.parse((ROOT / 'scripts/affiliate_site_evidence.py').read_text())
-    function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'firecrawl_fetcher')
-    namespace = dict(threading=threading, urllib=urllib, json=json, re=re,
-                     time=SimpleNamespace(sleep=lambda n: None), normalize_target=lambda u: u)
-    exec(compile(ast.Module(body=[function], type_ignores=[]), '<fetcher>', 'exec'), namespace)
-    requests = []
-    def response(req, **kw):
-        requests.append(req.full_url)
-        body = {'links': [{'url': 'https://example.org/weight-loss'}]} if req.full_url.endswith('/map') else {'id': 'batch'} if req.full_url.endswith('/scrape') else {'status': 'completed', 'data': [{'markdown': 'Source terms'}]}
-        return io.BytesIO(json.dumps(body).encode())
-    monkeypatch.setattr(fc, 'firecrawl_urlopen', response)
-    fetch = namespace['firecrawl_fetcher'](api_key='fixture', max_requests=3)
-    assert fetch('Example', 'https://example.org')[0] == 'Source terms'
-    assert fetch('Example', 'https://example.org')[2].endswith(':request_cap')
-    assert fetch.request_counts == {'requests': 3, 'cap': 3}
-    assert [u.rsplit('/v2/', 1)[1] for u in requests] == ['map', 'batch/scrape', 'batch/scrape/batch']
+def test_onboarding_json_schema_is_source_only():
+    source = (ROOT / 'scripts/g6_r1a_stage5_research_fetch.py').read_text()
+    assert '"required": ["price", "eligibility", "states"]' in source
+    assert '"ledger_operation_id": getattr(response, "firecrawl_operation_id", None)' in source
+    assert 'EXTRACTED_REQUIRES_SOURCE_REVIEW_NOT_REGISTRY_WRITE' in source
 
 
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):

@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 850,
+  "tracked_count": 852,
   "files": {
     "tests/test_firecrawl_glp350_affiliate.py": {
       "kind": "test",
@@ -542,7 +542,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ea90368d0c2835385dbe4494e55f2ce1b096c02ea8aac22d54c56cfb3208b88a"
+      "sha256": "98f40c8e8bb6a183dbe0277e9cd6f20210e6b551b3a1d7f12656c3e9c25945e8"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -552,7 +552,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d27da538ba776cdd3bf39559412d5078c4270e47552dd3511472694c3b7304f"
+      "sha256": "05f68ce3dfdb238a8788ce819fcd81c9814d6a265acbb44120c739f95d48b8dd"
     },
     ".hermes.md": {
       "callers": [],
@@ -5514,7 +5514,7 @@
       "callers": [
         "registered stage5 research fetch"
       ],
-      "sha256": "fc1e5692bd954ae17d4a17e31ffca0b2b7522c967c748559fdc973dd7993083a"
+      "sha256": "71bf3f42106fcf8ecfe188494bc61c9a24da2ad3c6523305edde7dd7cb72c12e"
     },
     "scripts/glp_price_verification.py": {
       "kind": "script",
@@ -5528,7 +5528,7 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "aae3a1609a432cb1cf14d116119ce30336b69f2839f371d65eeade92a0381cce"
+      "sha256": "1b63a2d7be1fd7242351afe33efa7f5f134986bc89a4250d8ba8412c4bb913fa"
     },
     "systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py": {
       "kind": "script",
@@ -5549,7 +5549,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "6aee87b12704500d90f70308f7a72b9fc4aecd4c6a3cd44a47f46dc953874cdb"
+      "sha256": "245c660807ede537c97694ccf814e6d0736e4b41881f1451acab594502a59032"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
@@ -5744,6 +5744,18 @@
       "callers": [],
       "kind": "test",
       "sha256": "e2aa1686bbf085ad5e9c1834dd402b88b3445976e478336f1dbde16335ba2b4f"
+    },
+    "scripts/glp_digital_pr_weekly.py": {
+      "callers": [
+        "hermes:de3fec71cd2e"
+      ],
+      "kind": "script",
+      "sha256": "da203d2ee4989d8f770c2dab4123c216cbf880fdc9676372d6123f9a2bace781"
+    },
+    "tests/test_glp_digital_pr_weekly.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
     }
   }
 }
