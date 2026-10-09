@@ -1758,7 +1758,7 @@ def build_research_only_queue_rows(prospects: list, *, capture_path: str) -> lis
 
 # ------------------------------------------------------------- live wiring
 
-def firecrawl_search():
+def firecrawl_search(reserve_request=None):
     """Live search callable. Built lazily so the module stays provider-free."""
     import urllib.request  # noqa: PLC0415
 
@@ -1768,6 +1768,8 @@ def firecrawl_search():
     key = env_value("FIRECRAWL_API_KEY")
 
     def search(query: str, limit: int = 10) -> list:
+        if reserve_request:
+            reserve_request()
         request = urllib.request.Request(
             "https://api.firecrawl.dev/v2/search",
             data=json.dumps({"query": query, "limit": int(limit)}).encode(),
@@ -1784,34 +1786,16 @@ def firecrawl_search():
     return search
 
 
-def firecrawl_scrape():
-    """Live scrape callable. Refuses tracking URLs before any request is made."""
-    import urllib.request  # noqa: PLC0415
-
-    sys.path.insert(0, str(BUSINESS / "scripts"))
-    from glp_price_verification import env_value  # noqa: PLC0415
-
-    key = env_value("FIRECRAWL_API_KEY")
-
+def firecrawl_scrape(fetcher=None):
+    """Map-first batch capture through the site-evidence request budget."""
+    from affiliate_site_evidence import firecrawl_fetcher
+    fetcher = fetcher or firecrawl_fetcher(timeout=60)
     def scrape(url: str) -> dict:
         if is_tracking_url(url):
             return {"status": "refused_tracking_url"}
-        request = urllib.request.Request(
-            "https://api.firecrawl.dev/v2/scrape",
-            data=json.dumps({"url": url, "formats": ["markdown"],
-                             "onlyMainContent": True, "timeout": 45000}).encode(),
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
-        try:
-            from firecrawl_client import firecrawl_urlopen
-            with firecrawl_urlopen(request, caller='affiliate_supply_discovery', timeout=120) as response:
-                payload = json.load(response)
-        except Exception as exc:  # noqa: BLE001
-            return {"status": f"error:{type(exc).__name__}"}
-        markdown = str(((payload.get("data") or {}).get("markdown")) or "")
-        if len(markdown) < 200:
-            return {"status": "too_thin", "markdown": markdown}
-        return {"status": "ok", "markdown": markdown}
-
+        markdown, source_url, error = fetcher('', url)
+        return {'status': 'ok' if len(markdown) >= 200 else 'error:' + (error or 'too_thin'),
+                'markdown': markdown, 'source_url': source_url}
     return scrape
 
 
@@ -2083,7 +2067,9 @@ def main(argv: list[str] | None = None) -> int:
 
     run_id = ns.run_id or dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_dir = Path(ns.output_dir) if ns.output_dir else SUPPLY_DIR / f"run-{run_id}"
-    summary = run(search=firecrawl_search(), scrape=firecrawl_scrape(), target=max(1, ns.target),
+    from affiliate_site_evidence import firecrawl_fetcher
+    fetcher = firecrawl_fetcher(timeout=int(ns.source_timeout_seconds), max_requests=ns.max_source_calls)
+    summary = run(search=firecrawl_search(fetcher.reserve_request), scrape=firecrawl_scrape(fetcher), target=max(1, ns.target),
                   run_id=run_id, out_dir=out_dir, limit=ns.limit,
                   time_budget_s=ns.time_budget_seconds or None,
                   checkpoint_path=Path(ns.checkpoint),
@@ -2092,6 +2078,8 @@ def main(argv: list[str] | None = None) -> int:
                   do_marketplaces=not ns.no_marketplaces, join_network=ns.join,
                   headless=not ns.headed,
                   platform_adapters=live_platform_discovery_adapters())
+    summary['firecrawl_request_budget'] = dict(fetcher.request_counts)
+    private_json(out_dir / 'summary.json', summary)
     if ns.admit_applications:
         # Imports and queue access happen only with explicit scheduled admission.
         sys.path.insert(0, str(BUSINESS / "scripts"))
