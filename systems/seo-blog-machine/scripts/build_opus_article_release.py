@@ -114,6 +114,7 @@ IN_PLACE_BUILD_OUTPUT_TREES = (Path("artifacts/build4-preservation"),)
 ARTICLE_OVERLAYS = (
     Path("src/price-state.mjs"),
     Path("src/blog-system.mjs"),
+    Path("src/wave2-p1-surfaces.mjs"),
     Path("src/site-capture-consent-sources.mjs"),
     Path("tests/editorial-monetization.test.mjs"),
     Path("tests/mounjaro-coupon-recovery.test.mjs"),
@@ -1203,6 +1204,22 @@ EDITORIAL_AFFILIATE_GATE_SUCCESSOR = (
 )
 
 
+def patch_on_page_capture_finalizer(source: str) -> str:
+    """Keep explicit article-only guides outside the optional email template.
+
+    This is a maintained template variant, not post-build output deletion. A
+    contradictory pre-existing email field/form fails closed. Legacy capture
+    routes retain their current consent/owner-record requirements unchanged.
+    """
+    anchor = 'export function addP1ContentUpgradeSurface(html, relative = "") {\n'
+    successor = anchor + '''  if (typeof html === "string" && /data-article-capture="none"/.test(html)) {
+    if (/<form\\b|<input\\b[^>]*(?:type="email"|name="email")|email\\s+(?:me|this|the|a|your)|inbox|subscribe/i.test(html)) throw new Error("on_page_capture_contract_conflict");
+    return html;
+  }
+'''
+    return apply_once_or_already(source, anchor, successor, "on_page_capture_finalizer")
+
+
 def patch_renderer_surface_contract(source: str) -> str:
     """Make the exact renderer honor capture, CTA, and machine-date contracts."""
     # ClinicalTrials.gov is the NIH/NLM-operated federal trial registry and is
@@ -1265,10 +1282,19 @@ def patch_renderer_surface_contract(source: str) -> str:
     )
     modern = ensure_renderer_contract(
         modern,
-        re.search(r"return[^\n]*addP1ContentUpgradeSurface\(rendered", modern) is not None,
+        re.search(r"return[^\n]*addP1ContentUpgradeSurface\((?:rendered|captureDocument)", modern) is not None,
         "</main></body></html>`;\n}\n\nexport const blogPolicy",
         "</main></body></html>`;\n  return addP1ContentUpgradeSurface(rendered, brief.canonical_path.replace(/^\\//, \"\"));\n}\n\nexport const blogPolicy",
         "renderer_capture_wrapper_close",
+    )
+    modern = apply_once_or_already(
+        modern,
+        '  return addP1ContentUpgradeSurface(rendered, brief.canonical_path.replace(/^\\//, ""));',
+        '''  const captureDocument = brief.capture_surface?.status === "ON_PAGE_ONLY"
+    ? rendered.replace('<html ', '<html data-article-capture="none" ')
+    : rendered;
+  return addP1ContentUpgradeSurface(captureDocument, brief.canonical_path.replace(/^\\//, ""));''',
+        "renderer_on_page_capture_variant",
     )
     return prefix + modern
 
@@ -1674,6 +1700,24 @@ def sanitize_r2_rendered_promotional_ctas(
 
 def validate_rendered_article_contract(html: str, job: dict[str, Any]) -> None:
     """Validate the concrete rendered medical-guide surface, not source strings."""
+    _article_path, article, checked_date = resolve_article_contract(job)
+    if article.get("capture_surface", {}).get("status") == "ON_PAGE_ONLY":
+        if (not job["target_route"].startswith("/guides/")
+                or 'data-article-capture="none"' not in html
+                or re.search(r'<form\b|<input\b[^>]*(?:type="email"|name="email")|email\s+(?:me|this|the|a|your)|inbox|subscribe', html, re.I)):
+            raise RuntimeError("rendered_on_page_capture_contract_invalid")
+    else:
+        validate_rendered_email_capture_contract(html, job)
+    if any(token in html for token in ("Estimate your cost", "Compare programs", "Find my match")):
+        raise RuntimeError("rendered_medical_promotional_cta_forbidden")
+    if re.search(r'href="/(?:tools/glp-1-cost-calculator|best/online-glp-1-providers|quiz/provider-fit)/\?source=guide-', html):
+        raise RuntimeError("rendered_medical_promotional_cta_forbidden")
+    machine_date = f'<time datetime="{checked_date}" data-prices-checked-date>{checked_date}</time>'
+    if html.count(machine_date) != 1:
+        raise RuntimeError("rendered_prices_checked_date_not_machine_readable")
+
+
+def validate_rendered_email_capture_contract(html: str, job: dict[str, Any]) -> None:
     capture = re.findall(r'<form\b[^>]*action="/api/content-upgrade"[\s\S]*?</form>', html)
     if len(capture) != 1:
         raise RuntimeError("rendered_capture_form_count_invalid")
@@ -3369,6 +3413,9 @@ def _build_candidate_materialized(
             source, old_section, new_section, "renderer_structured_section"
         )
     renderer.write_text(patch_renderer_surface_contract(source))
+    capture_finalizer = temp / "src/wave2-p1-surfaces.mjs"
+    detach_for_write(capture_finalizer)
+    capture_finalizer.write_text(patch_on_page_capture_finalizer(capture_finalizer.read_text()))
     playbook = temp / "tests/playbook.test.mjs"
     playbook_source = playbook.read_text()
     old_count = 'assert.equal(data.articles.length, 29); assert.equal(map.entries.length, 29);'
@@ -3621,17 +3668,16 @@ def _build_candidate_materialized(
     consent_source = consent_sources.read_text()
     provenance_anchor = '  "best-online-glp-1-providers:best-online-glp-1-providers-terms-checklist",\n'
     provenance_entry = f'  "{source_page}:{source_page}-terms-checklist",\n'
-    consent_sources.write_text(ensure_content_upgrade_provenance_entry(
-        consent_source,
-        provenance_anchor,
-        provenance_entry,
-    ))
+    if article.get("capture_surface", {}).get("status") != "ON_PAGE_ONLY":
+        consent_sources.write_text(ensure_content_upgrade_provenance_entry(
+            consent_source, provenance_anchor, provenance_entry,
+        ))
     if operation == "new_article":
         price_watch_test = temp / "tests/price-watch-email.test.mjs"
-        price_watch_test.write_text(rebind_pagination_capture_fixture(
-            increment_content_upgrade_count(consent_source, price_watch_test.read_text()),
-            job,
-        ))
+        capture_test = price_watch_test.read_text()
+        if article.get("capture_surface", {}).get("status") != "ON_PAGE_ONLY":
+            capture_test = increment_content_upgrade_count(consent_source, capture_test)
+        price_watch_test.write_text(rebind_pagination_capture_fixture(capture_test, job))
         share_test = temp / "tests/pass2-late-audit-static-output.test.mjs"
         share_test.write_text(increment_article_share_control_count(
             base,
