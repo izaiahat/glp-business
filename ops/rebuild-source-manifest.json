@@ -23,7 +23,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "4f028a79e1e0062821bf09103c7a522be29ee7d47ffb3c72b9ed998d23588711"
+      "sha256": "e35611e1d02ecdefcb2609ff4c9efd171317b3f8f5309340fb1a949bfea2712f"
     },
     "systems/seo-blog-machine/scripts/ctr_snapshot.py": {
       "kind": "script",
@@ -2409,7 +2409,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "4d2404c2be2e477a02456134035cebb60f8aae0ac079635539c81c05a703638d"
+      "sha256": "c193e3b169e4acf7b1a692609fb671b4a00414541b8789cb4ff19c1fd55981cb"
     },
     "systems/seo-blog-machine/scripts/article_image_release_contract.py": {
       "callers": [

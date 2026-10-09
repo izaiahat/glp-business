@@ -464,6 +464,7 @@ def admit_cli(args: argparse.Namespace) -> dict[str, Any]:
 def consume_cli(args: argparse.Namespace) -> dict[str, Any]:
     # Operator workflow v3: the frozen carrier remains historical recovery code,
     # not the publisher for new accepted guides. Native main-release owns effects.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'scripts'))
     import article_source_carrier
     return article_source_carrier.consume(args)
 

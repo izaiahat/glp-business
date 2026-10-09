@@ -118,6 +118,30 @@ class SourceCarrierTests(unittest.TestCase):
         self.assertIn('Do not admit HIGH', prompt)
         self.assertIn('exact PASS_OPUS_SEO_DRAFT', prompt)
 
+    def test_consume_child_import_resolves_from_cli_source_location(self):
+        import subprocess
+        source = ROOT / 'systems/seo-blog-machine/scripts/article_buffer_cli.py'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cli = root / 'systems/seo-blog-machine/scripts/article_buffer_cli.py'
+            cli.parent.mkdir(parents=True)
+            cli.write_text(source.read_text())
+            scripts = root / 'scripts'; scripts.mkdir()
+            (scripts / 'article_source_carrier.py').write_text('def consume(args): return args\n')
+            child = '''import ast,sys
+from pathlib import Path
+path=Path(sys.argv[1])
+node=next(n for n in ast.parse(path.read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='consume_cli')
+node.returns=None
+for arg in node.args.args: arg.annotation=None
+ns={'__file__':str(path),'Path':Path,'sys':sys}
+exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),ns)
+assert ns['consume_cli']('isolated-child')=='isolated-child'
+'''
+            result = subprocess.run([sys.executable,'-S','-c',child,str(cli)],cwd=tmp,
+                                    capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
         import inspect
