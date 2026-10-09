@@ -106,6 +106,29 @@ def awin_inventory(legacy, transport):
             'blockers': source.get('blockers') or []}
 
 
+def maxbounty_inventory(legacy, transport):
+    """Read current scoped captures without upgrading them to full catalogs."""
+    path, data, _ = legacy.maxbounty_denominator.freshest_capture()
+    if not data or (data.get('coverage') or {}).get('schema') != 'glp.maxbounty.account-catalog-coverage.v2':
+        return legacy.sweep_maxbounty(transport)
+    from scripts.marketplace_adapters import maxbounty_discovery
+    captured = dt.datetime.fromisoformat(data['captured_at_utc'].replace('Z', '+00:00'))
+    if captured.tzinfo is None:
+        raise ValueError('maxbounty_catalog_timestamp_timezone_missing')
+    age = (dt.datetime.now(dt.timezone.utc) - captured).total_seconds()
+    if age < 0 or age > legacy.maxbounty_denominator.MAX_CAPTURE_AGE_HOURS * 3600:
+        raise ValueError('maxbounty_catalog_capture_stale_or_future')
+    coverage = maxbounty_discovery.require_search_coverage(data)
+    return {'schema': legacy.SCHEMA, 'network': 'MaxBounty', 'auth_state': 'PASS',
+            'programs': list(data['programs']), 'enumerated': data['enumerated'],
+            'reported_total': None, 'global_complete': False,
+            'scope': coverage['scope'], 'capture_path': str(path),
+            'captured_at_utc': data['captured_at_utc'],
+            'blockers': [{'error_class': 'maxbounty_global_catalog_denominator_unproven',
+                          'detail': 'Authenticated declared search/category coverage is verified; '
+                                    'it is not a full marketplace denominator.'}]}
+
+
 def live_legacy():
     source = BUSINESS / 'scripts/marketplace_supply_sweep.py'
     if hashlib.sha256(source.read_bytes()).hexdigest() != LEGACY_SHA:
@@ -116,6 +139,7 @@ def live_legacy():
     spec.loader.exec_module(module)
     module._portal_catalog_sweep = portal_refusal
     module.SWEEPS['awin'] = lambda transport: awin_inventory(module, transport)
+    module.SWEEPS['maxbounty'] = lambda transport: maxbounty_inventory(module, transport)
     return module
 
 

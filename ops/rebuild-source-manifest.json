@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 928,
+  "tracked_count": 929,
   "files": {
+    "tests/test_j2_maxbounty_catalog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "c8a3165b17ee103d7b57c9984b09d924ff8d0417c5c7a6fa098a6272692befc3"
+    },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
       "kind": "script",
       "callers": [
@@ -875,7 +882,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "77f12f10a9a38a228c3e8033ca8b538be37a1c799aa2c9d6ceef7b8b792d7fbb"
+      "sha256": "33d5d18204a5d58c678b220b04e19fe5e27f4f70fe073900511a789594234a29"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -2318,7 +2325,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "eecb7287224fbe456adc3abd6ad970e1560fb22499479de27d36d94e1722b71a"
+      "sha256": "988ffa441b5e78359816237adf5fac183364387e400bf38577de53ef695d7526"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4590,7 +4597,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "872f9bc34af23fab89a47f594719e6054007265c92510fea8c8a20c57e7615f7"
+      "sha256": "210d6b249a60d4be961d78503bb93f2181653c14e116b98b46b8a2c75c405482"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
