@@ -178,3 +178,23 @@ def test_cross_day_registered_publisher_refuses_before_network_deploy(tmp_path, 
     publisher.run_deploy(job, tmp_path, {"release_root": str(tmp_path), "cloudflare": {"expected_predecessor": "fixture"},
                                          "release_tree_sha256": "fixture", "public_tree_sha256": "fixture"})
     assert calls == ["deploy", "network"]
+
+
+def test_fresh_main_base_without_generated_lineage_still_detaches(tmp_path):
+    # glp_release_main packages a fresh main build that may omit the in-place
+    # generated image lineage manifests; the overlay detach must not fail on them.
+    builder = module("build_opus_article_release")
+    for relative in builder.ARTICLE_OVERLAYS:
+        if relative in builder.OPTIONAL_ARTICLE_OVERLAYS:
+            continue
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x")
+    for relative in builder.GENERATED_LINEAGE_OVERLAYS:
+        assert relative in builder.ARTICLE_OVERLAYS and not (tmp_path / relative).exists()
+    detached = builder.detach_explicit_overlays(tmp_path)
+    assert len(detached) == len(builder.ARTICLE_OVERLAYS) - len(builder.OPTIONAL_ARTICLE_OVERLAYS)
+    # A required (non-optional) overlay still fails closed when absent.
+    (tmp_path / builder.ARTICLE_OVERLAYS[0]).unlink()
+    with pytest.raises(ValueError, match="detach_requires_regular_file"):
+        builder.detach_explicit_overlays(tmp_path)
