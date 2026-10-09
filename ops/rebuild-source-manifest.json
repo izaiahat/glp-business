@@ -15,7 +15,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "c8a3165b17ee103d7b57c9984b09d924ff8d0417c5c7a6fa098a6272692befc3"
+      "sha256": "848e4c7daf363d562064e0fa09c6c2d0a3ed82794c2840acbfc344d0d5503a06"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
       "kind": "script",
@@ -882,7 +882,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "33d5d18204a5d58c678b220b04e19fe5e27f4f70fe073900511a789594234a29"
+      "sha256": "a10488038cec16cc1e2e73a98eb896158c0948d231460b31e7b905c668871c0b"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -4597,7 +4597,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "210d6b249a60d4be961d78503bb93f2181653c14e116b98b46b8a2c75c405482"
+      "sha256": "641df9949c7eac5d440fdbf3a8b0d96dddcf22b07ffe07931df7316a35be5386"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",

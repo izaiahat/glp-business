@@ -149,6 +149,9 @@ def catalog_verdict(legacy, inventory):
     enumerated = inventory.get('enumerated', len(inventory.get('programs') or []))
     status, detail = legacy.verdict(enumerated, inventory.get('reported_total'),
                                     inventory.get('blockers') or [])
+    total = inventory.get('reported_total')
+    if status == 'COMPLETE' and total is not None and enumerated != total:
+        status, detail = 'INCOMPLETE', f'catalog_count_mismatch:{enumerated}/{total}'
     return {'complete': status == 'COMPLETE', 'completeness': status,
             'detail': detail, 'enumerated': enumerated,
             'reported_total': inventory.get('reported_total')}
@@ -180,7 +183,8 @@ def run(legacy, outdir, *, state=STATE, only=None, budget=420, source_timeout=75
                 continue
             prior = rows.get(name, {})
             if (os.environ.get('AFFILIATE_CATALOG_REFRESH') != '1'
-                    and prior.get('complete') and prior.get('evidence_revision') == EVIDENCE_REVISIONS.get(name)
+                    and prior.get('complete') and catalog_verdict(legacy, prior['inventory'])['complete']
+                    and prior.get('evidence_revision') == EVIDENCE_REVISIONS.get(name)
                     and (now - dt.datetime.fromisoformat(prior['attempted_at'])).total_seconds() < 86400):
                 continue
             remaining = deadline - time.monotonic()

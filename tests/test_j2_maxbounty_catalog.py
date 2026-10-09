@@ -33,3 +33,13 @@ def test_current_scoped_maxbounty_capture_reaches_supply_without_global_upgrade(
     monkeypatch.setattr(discovery, 'require_search_coverage', refuse)
     with pytest.raises(ValueError, match='proof_disagreement'):
         batch.maxbounty_inventory(legacy, None)
+
+
+def test_catalog_count_overflow_is_not_complete_even_if_legacy_uses_greater_equal():
+    legacy = SimpleNamespace(verdict=lambda count, total, blockers: ('COMPLETE', 'legacy >= comparison'))
+    actual = batch.catalog_verdict(legacy, {'enumerated': 419, 'reported_total': 418, 'blockers': []})
+    assert actual['complete'] is False
+    assert actual['completeness'] == 'INCOMPLETE'
+    assert actual['enumerated'] == 419
+    assert actual['reported_total'] == 418
+    assert 'count_mismatch' in actual['detail']
