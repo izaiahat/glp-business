@@ -1289,6 +1289,30 @@ def _approved_direct_target(runtime: dict[str, Any], promotion: dict[str, Any]) 
     return href
 
 
+def _relationship_denied(program: dict[str, Any]) -> bool:
+    """Consume denial-only lifecycle evidence from the already sealed registry.
+
+    Raw commercial state and the historical promotion map intentionally survive
+    an ended relationship; the publisher removes it from the effective runtime.
+    Absence alone is never a denial, nor can this branch grant a live link.
+    """
+    snapshot = program.get("affiliate_relationship_snapshot") or {}
+    if not isinstance(snapshot, dict):
+        raise RuntimeError(f"affiliate_relationship_denial_invalid:{program['program_id']}")
+    if snapshot.get("lifecycle") not in {"ended", "withdrawn"}:
+        return False
+    if (snapshot.get("promotion_denied") is not True
+            or snapshot.get("reported_information") is not True
+            or not snapshot.get("network") or not snapshot.get("network_program_id")
+            or not snapshot.get("relationship_status")):
+        raise RuntimeError(f"affiliate_relationship_denial_invalid:{program['program_id']}")
+    try:
+        _provider_time(snapshot["source_checked_at"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError(f"affiliate_relationship_denial_invalid:{program['program_id']}") from exc
+    return True
+
+
 def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
                                 programs: dict[str, Any], authority: dict[str, Any],
                                 runtime: dict[str, Any], current_holds: set[str]) -> dict[str, Any]:
@@ -1299,7 +1323,8 @@ def _bound_fastpath_permissions(release: Path, control: dict[str, Any],
     Read only sealed publication inputs; unknown/inactive terms stay link-dark.
     """
     candidates = {pid: program for pid, program in programs.items()
-                  if pid != 'fella-health' and pid not in runtime and program.get('commercial_state') == 'live'
+                  if pid != 'fella-health' and not _relationship_denied(program)
+                  and pid not in runtime and program.get('commercial_state') == 'live'
                   and (authority.get(pid) or {}).get('promotion_authorized') is True
                   and (authority.get(pid) or {}).get('status') == 'VERIFIED'
                   and (program.get('profiles', {}).get('glp-clinic-scout') or {}).get('wired') is True
@@ -1638,6 +1663,8 @@ def derive_affiliate_obligations(control: dict[str, Any],
                     covered.add(route)
             continue
         allowed = promotion.get("promotion_authorized")
+        if _relationship_denied(program):
+            allowed = False
         published_provider = program_id in public_ids or program_id in fastpath_permissions
         published_review = bool(review and review.strip("/").split("/")[-1] in public_ids)
         if allowed is False or (allowed is True and published_provider):
@@ -1710,6 +1737,8 @@ def derive_affiliate_obligations(control: dict[str, Any],
             raise RuntimeError(f"affiliate_program_authority_invalid:{program_id}")
         if type(allowed) is not bool:
             raise RuntimeError(f"affiliate_program_authority_unknown:{program_id}")
+        if _relationship_denied(program):
+            allowed = False
         # The sealed generated runtime incorporates selection/current holds after
         # the historical promotion map. Membership alone is NOT a live grant.
         runtime = runtime_programs.get(program_id)
