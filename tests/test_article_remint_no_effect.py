@@ -97,6 +97,37 @@ class MainAllowanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'allowance_drift'):
                     contract.original_allowance(contract.descriptor(path))
 
+    def test_main_snapshot_preserves_canonical_location_and_passes_bound_bytes(self):
+        import importlib.util
+        import scripts
+        from types import SimpleNamespace
+        source = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts/accepted_failure_contract.py'
+        spec = importlib.util.spec_from_file_location('main_snapshot_location_test', source)
+        contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(contract)
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            release = root / 'main-native/prepared/release'
+            release.mkdir(parents=True)
+            (release.parent / 'PREPARED.json').write_text(json.dumps({'schema': 'glp43-current-prepared-v1'}))
+            canonical = root / 'seo-machine/current-content-base.json'
+            canonical.parent.mkdir()
+            canonical.write_text('{"newer":true}')
+            snapshot = root / 'runtime/native-main-pointer.json'
+            snapshot.parent.mkdir()
+            raw = json.dumps({'release_root': str(release)}).encode()
+            snapshot.write_bytes(raw)
+            native = SimpleNamespace(CURRENT_BASE=canonical)
+            def verify(pointer, candidate, *, pointer_bytes=None):
+                self.assertEqual(native.CURRENT_BASE, canonical)
+                self.assertEqual(pointer_bytes, raw)
+                self.assertEqual(candidate, release)
+            native._validate_base_evidence = verify
+            with patch.object(scripts, 'glp_price_index_weekly', native, create=True):
+                self.assertEqual(contract.validate_main_pointer_snapshot(contract.descriptor(snapshot)), json.loads(raw))
+            self.assertEqual(canonical.read_bytes(), b'{"newer":true}')
+            self.assertEqual(snapshot.read_bytes(), raw)
+
     def test_main_snapshot_cannot_skip_native_proof(self):
         import importlib.util
         import scripts

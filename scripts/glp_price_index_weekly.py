@@ -997,7 +997,7 @@ def _load_base_document(data: bytes, label: str) -> dict[str, Any]:
 
 def _prepared_base_links(
     pointer: dict[str, Any], release: Path, manifest_path: Path, receipt_path: Path,
-    manifest: dict[str, Any], release_rows: list[dict[str, Any]],
+    manifest: dict[str, Any], release_rows: list[dict[str, Any]], *, pointer_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     """Bind the GLP-43 publisher's preparation to its public terminal evidence."""
     head = pointer["site_head"]
@@ -1068,7 +1068,9 @@ def _prepared_base_links(
             or manifest.get("deploy_directory") != deploy_closure
             or pointer["deploy_directory_sha256"] != deploy_closure["tree_sha256"]):
         raise RuntimeError("current_content_base_prepared_closure_mismatch")
-    binding = _registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path)
+    binding = (_registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path)
+               if pointer_bytes is None else
+               _registered_prepared_binding(pointer, prepared_dir, prepared, raw, manifest_path, pointer_bytes=pointer_bytes))
     _, final_bytes, final_identity = _read_bound_regular_file(str(prepared_path), "prepared")
     if final_identity != identity or final_bytes != raw:
         raise RuntimeError("current_content_base_prepared_identity_changed")
@@ -1076,7 +1078,7 @@ def _prepared_base_links(
     return binding
 
 
-def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer):
+def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer, *, pointer_bytes=None):
     """Accept the registered direct terminal path as well as historical promotions."""
     original_path = run_dir / "CURRENT-RECEIPT.json"
     _path, receipt_raw, receipt_identity = _read_bound_regular_file(str(original_path), "current_deploy")
@@ -1117,7 +1119,7 @@ def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, produc
             or stages.get("pointer_cas", {}).get("sha256") != sha_bytes(successor)
             or stages.get("canonical_pointer_readback") != {"deployment_id": deployment_id,
                  "site_head": pointer["site_head"], "pointer_sha256": sha_bytes(successor)}
-            or successor != CURRENT_BASE.read_bytes()):
+            or successor != (CURRENT_BASE.read_bytes() if pointer_bytes is None else pointer_bytes)):
         raise RuntimeError("current_content_base_native_terminal_binding_invalid")
     for path, expected_raw, expected_identity in ((original_path, receipt_raw, receipt_identity),
                                                 (approval_path, approval_raw, approval_identity)):
@@ -1128,7 +1130,7 @@ def _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, produc
             str(approval_path): (sha_bytes(approval_raw), approval_identity)}
 
 
-def _registered_prepared_binding(pointer, root, prepared, raw, manifest_path):
+def _registered_prepared_binding(pointer, root, prepared, raw, manifest_path, *, pointer_bytes=None):
     """Keep later authorized native affiliate releases consumable by F04/F06."""
     import glp_deploy_glp34_authority_v1 as producer
     gate_path = root / 'gate.json'
@@ -1137,14 +1139,15 @@ def _registered_prepared_binding(pointer, root, prepared, raw, manifest_path):
         previous = producer.CURRENT_ROLLBACK
         producer.CURRENT_ROLLBACK = prepared['rollback_deployment_id']
         try:
-            return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path)
+            return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path, pointer_bytes=pointer_bytes)
         finally:
             producer.CURRENT_ROLLBACK = previous
-    return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path)
+    return _registered_prepared_binding_impl(pointer, root, prepared, raw, manifest_path, pointer_bytes=pointer_bytes)
 
 
 def _registered_prepared_binding_impl(
     pointer: dict[str, Any], root: Path, prepared: dict[str, Any], raw: bytes, manifest_path: Path,
+    *, pointer_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     """Consume the registered producer's read-only preparation and publication validators."""
     # The carrier's guarded __main__ is not entered on import: no prepare,
@@ -1212,7 +1215,7 @@ def _registered_prepared_binding_impl(
         original = json.loads(_read_bound_regular_file(str(original_path), "current_deploy")[1])
         if (original.get("schema") == "glp43-current-deploy-receipt-v1"
                 and original.get("status") == "PASS_PRODUCTION_TERMINAL"):
-            bound = _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer)
+            bound = _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer, pointer_bytes=pointer_bytes)
             dependencies = (package_path, gate_path, Path(prepared["build_receipt"]["path"]))
             bound.update({str(path): (sha_bytes(data), identity)
                 for path in dependencies
@@ -1262,7 +1265,7 @@ def _registered_prepared_binding_impl(
                 or stages.get("canonical_pointer_readback") != {
                     "deployment_id": deployment_id, "site_head": pointer["site_head"],
                     "pointer_sha256": sha_bytes(successor)}
-                or successor != CURRENT_BASE.read_bytes()
+                or successor != (CURRENT_BASE.read_bytes() if pointer_bytes is None else pointer_bytes)
                 or terminal.get("effects", {}).get("pointer_atomic_cas") != 1):
             raise RuntimeError("current_content_base_promotion_binding_invalid")
         dependencies = (package_path, gate_path, Path(prepared["build_receipt"]["path"]),
@@ -1278,7 +1281,9 @@ def _registered_prepared_binding_impl(
             "release": prepared["release"], "deploy": prepared["deploy_directory"]}
 
 
-def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str, Any]:
+def _validate_base_evidence(pointer: dict[str, Any], release: Path, *, pointer_bytes: bytes | None = None) -> dict[str, Any]:
+    if pointer_bytes is not None and (not isinstance(pointer_bytes, bytes) or json.loads(pointer_bytes) != pointer):
+        raise RuntimeError("current_content_base_snapshot_pointer_mismatch")
     manifest_bound = _checked_base_evidence(
         pointer, "manifest", "01-deployment-manifest.json"
     )
@@ -1341,7 +1346,7 @@ def _validate_base_evidence(pointer: dict[str, Any], release: Path) -> dict[str,
     if prepared_format:
         if closure_schema != "legacy-path-size-sha256-v1":
             raise RuntimeError("prepared_manifest_row_schema_invalid")
-        prepared_binding = _prepared_base_links(pointer, release, manifest_path, receipt_path, manifest, actual_rows)
+        prepared_binding = _prepared_base_links(pointer, release, manifest_path, receipt_path, manifest, actual_rows, pointer_bytes=pointer_bytes)
 
     pointer_release_tree = pointer.get("release_tree_sha256")
     pointer_public_tree = pointer.get("public_tree_sha256")

@@ -531,12 +531,14 @@ def validate_main_pointer_snapshot(spec):
         raise RuntimeError('accepted_failures_not_native_main')
     # Verify the immutable native terminal's exact successor bytes even after
     # a later article changes the moving pointer. No receipt is reminted here.
-    previous = native.CURRENT_BASE
-    try:
-        native.CURRENT_BASE = Path(spec['path'])
-        native._validate_base_evidence(pointer, root)
-    finally:
-        native.CURRENT_BASE = previous
+    raw = Path(spec['path']).read_bytes()
+    if hashlib.sha256(raw).hexdigest() != spec['sha256'] or json.loads(raw) != pointer:
+        raise RuntimeError('accepted_failures_evidence_hash_drift')
+    # Canonical paths in PREPARED/terminal receipts remain canonical; only the
+    # successor-byte comparison reads the authenticated immutable snapshot.
+    native._validate_base_evidence(pointer, root, pointer_bytes=raw)
+    if descriptor(spec['path']) != spec:
+        raise RuntimeError('accepted_failures_evidence_hash_drift')
     return pointer
 
 
