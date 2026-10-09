@@ -5906,9 +5906,9 @@
     "ops/hermes-cron-scripts/host_disk_low_free_trigger.py": {
       "kind": "script",
       "callers": [
-        "hermes:low-disk-trigger"
+        "hermes:47a453ceded2"
       ],
-      "sha256": "e77161db4f176ecd8a235d5bfd4f3577ffcc634adf1623bb0143b0e3945924a3"
+      "sha256": "0fd59dad6dcf953f836e85a904a0406ef9216fb1749b4a40decd79dc2add2b8b"
     },
     "ops/cron.d/glp-paused-program-monitor": {
       "kind": "cron",
