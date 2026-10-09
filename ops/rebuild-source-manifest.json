@@ -5573,7 +5573,7 @@
       "callers": [
         "registered stage5 research fetch"
       ],
-      "sha256": "fc1e5692bd954ae17d4a17e31ffca0b2b7522c967c748559fdc973dd7993083a"
+      "sha256": "12eb7365e0045c35c3e8db4b5088912d8ac649d5f8ed851bd3c2621cb02c954d"
     },
     "scripts/glp_price_verification.py": {
       "kind": "script",
@@ -5608,7 +5608,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "ad76344e79acc1677f5e32e47972770665ab1c0a7e97e08ea3fddea7fbd9967b"
+      "sha256": "a517a9a04424c135fede1e6a561ac8fa68a23e8f3c9468201168e35bd901f55e"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
@@ -5629,7 +5629,7 @@
       "callers": [
         "manual:bounded FDA warning search"
       ],
-      "sha256": "1273c2d8813fe02b15928826fe37be37cbed18b7a493f84cdec22ca89e8ef43f"
+      "sha256": "a6e5a61c720a9da63d3fdd8fd708defdc35eead27faf288f5c34525e1e8e0c3f"
     },
     "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py": {
       "kind": "script",
