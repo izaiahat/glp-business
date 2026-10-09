@@ -3651,7 +3651,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "de667cb4259ff4bea883f1fae267e86355199095f4084b03e76e2aaadec24f83"
+      "sha256": "1212a6e46c1bab7e327ec06dcc726fb160db7a108ca1001c225b44da82fecb79"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3672,7 +3672,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "bd336a57a4b45843feff3bd1385ced43d2ce6906f3f95ffaaf00691deffe7e11"
+      "sha256": "9487f860adecac49eb012dc3aa1c18edb6fec9ba44e3eeda8560ab103daa1853"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -5672,14 +5672,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a"
+      "sha256": "27e9770a4a2ffe683d618bc7a9e7b46890e8977edb8d36a45706f81e53d3eaa8"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
+      "sha256": "d8049fbdc1ee1046f38c9d2aca0f3bfdfd821acc559d9c000d75c7a8f29b29e3"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",

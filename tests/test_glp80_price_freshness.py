@@ -528,3 +528,11 @@ def test_bridge_reports_monitoring_not_publication(monkeypatch, tmp_path):
     assert 'notification' not in effects
     assert 'publication is a separate F06 effect' in calls[0][3]
 
+
+def test_hash_skip_uses_batch_bytes_not_second_json_scrape_bytes():
+    raw = 'Compounded semaglutide injection $99/mo.'
+    cache = {'markdown': 'Different JSON response formatting', 'monitor_sha256': p.digest(raw)}
+    assert not p.monitor_changed(cache, raw)
+    assert p.monitor_changed(cache, raw.replace('$99', '$109'))
+    assert not p.monitor_changed({'markdown': raw}, raw)
+

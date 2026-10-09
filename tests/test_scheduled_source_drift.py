@@ -405,7 +405,7 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert pricing_rows[0]['sources'][1] == {'path': '/home/ubuntu/business/scripts/glp_pricing_refresh.py'}
     pricing_source = 'scripts/glp_price_freshness.py'
     pricing_rows[0]['id'] = 'crontab:c375f52003048c64'
-    pricing_pin = '3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a'
+    pricing_pin = '27e9770a4a2ffe683d618bc7a9e7b46890e8977edb8d36a45706f81e53d3eaa8'
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}
