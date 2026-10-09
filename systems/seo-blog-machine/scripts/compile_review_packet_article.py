@@ -116,6 +116,12 @@ def r2_publication_date(authority: dict[str, Any]) -> str | None:
     return value
 
 
+def article_source_dates(meta):
+    """A source check is not evidence that a price was checked."""
+    return {'source_checked_through':meta.get('sourceCheckedThrough') or meta.get('pricesCheckedDate'),
+            'prices_checked_date':meta.get('pricesCheckedDate')}
+
+
 def commercial_link_metadata(meta: dict[str, Any]) -> dict[str, Any]:
     classification = meta.get('commercialLinkTaxonomy', 'medical_claims')
     if classification not in {'medical_claims','commercial_intent','editorial_noncommercial'}:
@@ -223,11 +229,11 @@ def compile_packet(packet: Path) -> dict[str, Any]:
         "brief_id": f"seo-{topic_id}-{route_key}", "owner_key": route_key,
         "canonical_path": meta["slug"], "primary_keyword": meta["primaryKeyword"], "target_query": meta["primaryKeyword"],
         "title": meta["title"], "h1": meta["h1"], "meta_description": meta["metaDescription"],
-        "updated_at": meta["dateModified"], "source_checked_through": meta["pricesCheckedDate"],
+        "updated_at": meta["dateModified"], **article_source_dates(meta),
         # Draft/check history never proves first publication. R2 can expose the
         # sealed predecessor's truth to review; new drafts remain pending None.
         # The builder still rebinds dates against its current predecessor.
-        "prices_checked_date": meta["pricesCheckedDate"], "date_published": r2_publication_date(authority),
+        "date_published": r2_publication_date(authority),
         "status": "PASS_OPUS_PENDING", "risk_tier": str(meta.get("riskTier") or "MEDIUM").upper(), "search_intent": "transactional informational",
         "audience": f"U.S. readers researching {meta['primaryKeyword']} using current primary evidence",
         "intent": intent, "direct_answer": direct_answer,
