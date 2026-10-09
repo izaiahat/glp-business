@@ -3231,14 +3231,27 @@ def require_declared_image_additions_absent(
     return additions
 
 
-def materialize_candidate_base(base: Path, candidate: Path) -> dict[str, Any]:
+def materialize_candidate_base(base: Path, candidate: Path, *, job=None) -> dict[str, Any]:
     try:
         materialization = copytree_linked(base, candidate)
+        recovered = {}
+        if job is not None:
+            from glp_affiliate_sync_job import equivalent_main_rebuild_inputs
+            recovered = equivalent_main_rebuild_inputs(job["base_release_root"])
+            for relative, spec in recovered.items():
+                target = candidate / relative
+                if not os.path.lexists(target):
+                    raw = Path(spec["path"]).read_bytes()
+                    if hashlib.sha256(raw).hexdigest() != spec["sha256"]:
+                        raise RuntimeError("native_rebuild_input_drift")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(raw)
         detached_overlays = detach_explicit_overlays(candidate)
         detached_overlay_trees = detach_explicit_overlay_trees(candidate)
         clean_build = unlink_generated_trees_for_rebuild(candidate)
         return {
             "materialization": materialization,
+            "native_rebuild_inputs": recovered,
             "detached_overlays": detached_overlays,
             "detached_overlay_trees": detached_overlay_trees,
             **clean_build,
@@ -3927,7 +3940,7 @@ def build_candidate(job: dict[str, Any], base: Path, opus_sha: str) -> tuple[Pat
     if os.path.lexists(temp):
         raise RuntimeError(f"candidate_cow_temp_collision:{temp}")
     try:
-        cow = materialize_candidate_base(base, temp)
+        cow = materialize_candidate_base(base, temp, job=job)
         import accepted_failure_contract
         accepted_failure_contract.stage_root_binding(temp, accepted_failure_contract.job_pointer(job))
         if job.get("operation") == defect_remediation.OPERATION:
@@ -3980,7 +3993,18 @@ def retain_price_index_predecessor(job: dict[str, Any], base: Path, target: Path
     if (target / html_rel).read_bytes() != html:
         raise RuntimeError("price_index_retention_public_drift")
     selected = manifest_rel
-    data = authenticated(selected)
+    if selected in indexed:
+        data = authenticated(selected)
+    else:
+        from glp_affiliate_sync_job import equivalent_main_rebuild_inputs
+        recovered = equivalent_main_rebuild_inputs(job["base_release_root"])
+        spec = recovered.get(selected)
+        if not spec:
+            raise RuntimeError("price_index_retention_native_rebuild_missing")
+        data = Path(spec["path"]).read_bytes()
+        if hashlib.sha256(data).hexdigest() != spec["sha256"]:
+            raise RuntimeError("price_index_retention_native_rebuild_drift")
+        selected = "native-equivalent-main-rebuild"
     value = json.loads(data)
     if value.get("html_sha256") != hashlib.sha256(html).hexdigest():
         if authenticated(checkpoint_html) != html:
@@ -3998,8 +4022,9 @@ def retain_price_index_predecessor(job: dict[str, Any], base: Path, target: Path
         temporary = destination.with_name(".price-index-retained-" + str(os.getpid()))
         temporary.write_bytes(data)
         os.replace(temporary, destination)
-    return {"status": "PASS_EXACT_SEALED_PREDECESSOR_PAIR",
-            "origin": "sealed-primary-pair" if selected == manifest_rel else "sealed-checkpoint-same-public-html",
+    native = selected == "native-equivalent-main-rebuild"
+    return {"status": "PASS_EXACT_NATIVE_REBUILD_PREDECESSOR_PAIR" if native else "PASS_EXACT_SEALED_PREDECESSOR_PAIR",
+            "origin": selected if native else ("sealed-primary-pair" if selected == manifest_rel else "sealed-checkpoint-same-public-html"),
             "source_manifest": selected, "manifest_sha256": hashlib.sha256(data).hexdigest(),
             "public_html_sha256": hashlib.sha256(html).hexdigest(), "public_bytes_changed": False}
 

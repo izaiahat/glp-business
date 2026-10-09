@@ -29,6 +29,57 @@ def test_rebuild_manifests_are_retained_and_missing_inputs_refuse_skip(tmp_path)
     assert not job.rebuild_inputs_complete(tmp_path)
 
 
+def test_equivalent_rebuild_refuses_source_worker_public_or_pin_drift(tmp_path, monkeypatch):
+    import hashlib
+    import glp_affiliate_release as release
+    from glp_deploy_glp34_authority_v1 import file_closure
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    monkeypatch.setattr(release, 'validate_build_evidence', lambda *a: None)
+    runs = tmp_path / 'runs'
+    base = runs / 'main-old/prepared/release'
+    donor = runs / 'main-new/prepared/release'
+    base.mkdir(parents=True)
+    donor.mkdir(parents=True)
+    def put(path, data):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data))
+        return {'path': str(path), 'sha256': job.sha(path)}
+    rows = []
+    for name in job.BUILD_AUTHORITY_FILES[1:]:
+        put(donor / name, {'fixture': True})
+        rows.append({'file': name, 'sha256': job.sha(donor / name)})
+    old = {'schema': 'glp43-current-prepared-v1', 'site_head': 'head', 'public_tree_sha256': 'public',
+           'compiled': {'worker_sha256': 'worker'}, 'deploy_directory': {'tree_sha256': 'deployed'},
+           'source': {'tracked_files': [['a', 'hash']], 'authority_files': []}, 'release': file_closure(base)}
+    old_spec = put(base.parent / 'PREPARED.json', old)
+    terminal = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-release-head/CURRENT-RECEIPT.json'
+    put(terminal, {'status': 'PASS_PRODUCTION_TERMINAL', 'binding': {'prepared_manifest_sha256': old_spec['sha256']}})
+    gate = put(donor.parent / 'gate.json', {'fixture': True})
+    package = put(donor.parent / 'PACKAGE-MANIFEST.json', {'files': []})
+    new = dict(old, source={'tracked_files': old['source']['tracked_files'], 'authority_files': rows},
+               release=file_closure(donor), build_receipt=gate, package_manifest_sha256=package['sha256'])
+    def bind(data):
+        spec = put(donor.parent / 'PREPARED.json', data)
+        put(donor.parents[1] / 'publish-intent.json', {'base': {'release_root': str(base)}, 'prepared': spec})
+    bind(new)
+    assert len(job.equivalent_main_rebuild_inputs(base)) == 2
+    monkeypatch.setattr(rm, 'ROOT', tmp_path)
+    put(donor.parents[1] / 'FAILURE.json', {'status': 'FAIL', 'scope': rm.SCOPE,
+        'error': 'current_release_consumed_or_binding_changed'})
+    assert rm.main_pre_effect_refusal(donor.parents[1])
+    put(terminal, {'status': 'ACTIVE', 'binding': {'prepared_manifest_sha256': old_spec['sha256']}})
+    assert not rm.main_pre_effect_refusal(donor.parents[1])
+    assert job.equivalent_main_rebuild_inputs(base) == {}
+    put(terminal, {'status': 'PASS_PRODUCTION_TERMINAL', 'binding': {'prepared_manifest_sha256': old_spec['sha256']}})
+    for field, bad in (('public_tree_sha256', 'changed'), ('compiled', {'worker_sha256': 'different'}),
+                       ('source', {'tracked_files': [['a', 'changed']], 'authority_files': rows})):
+        bind(dict(new, **{field: bad}))
+        assert job.equivalent_main_rebuild_inputs(base) == {}
+    bind(new)
+    put(donor / rows[0]['file'], {'changed': True})
+    assert job.equivalent_main_rebuild_inputs(base) == {}
+
+
 def test_purge_urls_only_bare_routes_never_hashed_assets():
     specs = [{'url_path': p} for p in ('/', '/assets/site.css', '/assets/analytics.js',
                                        '/assets/analytics.0a0a7729cb628fc7.js', '/sitemap.xml', '/assets/site.css')]

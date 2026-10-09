@@ -84,6 +84,62 @@ def build_authority_files(source):
     return [{'file': name, 'sha256': sha(source / name)} for name in BUILD_AUTHORITY_FILES]
 
 
+def equivalent_main_rebuild_inputs(base):
+    """Reuse only native private receipts from an exact source/public/worker rebuild."""
+    from glp_deploy_glp34_authority_v1 import file_closure
+    from glp_affiliate_release import validate_build_evidence
+    base = Path(base)
+    try:
+        original = read(base.parent / 'PREPARED.json')
+    except (OSError, ValueError):
+        return {}
+    if original.get('schema') != 'glp43-current-prepared-v1':
+        return {}
+    terminal_path = ROOT / 'reports/glp-clinic-scout/seo-machine' / ('current-release-' + original['site_head']) / 'CURRENT-RECEIPT.json'
+    try:
+        terminal = read(terminal_path)
+        if (terminal.get('status') != 'PASS_PRODUCTION_TERMINAL'
+                or terminal['binding']['prepared_manifest_sha256'] != sha(base.parent / 'PREPARED.json')
+                or file_closure(base) != original['release']):
+            return {}
+    except (OSError, ValueError, KeyError):
+        return {}
+    for report in sorted(base.parents[2].glob('main-*'), reverse=True):
+        try:
+            intent = read(report / 'publish-intent.json')
+            prepared_path = report / 'prepared/PREPARED.json'
+            if intent['base']['release_root'] != str(base) or intent['prepared'] != {'path': str(prepared_path), 'sha256': sha(prepared_path)}:
+                continue
+            rebuilt = read(prepared_path)
+            root = prepared_path.parent / 'release'
+            if any(rebuilt[k] != original[k] for k in ('site_head', 'public_tree_sha256')):
+                continue
+            if rebuilt['compiled']['worker_sha256'] != original['compiled']['worker_sha256']:
+                continue
+            if rebuilt['deploy_directory']['tree_sha256'] != original['deploy_directory']['tree_sha256']:
+                continue
+            if rebuilt['source']['tracked_files'] != original['source']['tracked_files']:
+                continue
+            if file_closure(root) != rebuilt['release']:
+                continue
+            gate_path = prepared_path.parent / 'gate.json'
+            if sha(gate_path) != rebuilt['build_receipt']['sha256']:
+                continue
+            package = read(prepared_path.parent / 'PACKAGE-MANIFEST.json')
+            if sha(prepared_path.parent / 'PACKAGE-MANIFEST.json') != rebuilt['package_manifest_sha256']:
+                continue
+            validate_build_evidence(read(gate_path), package['files'])
+            rows = {r['file']: r['sha256'] for r in rebuilt['source']['authority_files']}
+            names = BUILD_AUTHORITY_FILES[1:]
+            if not all(rows.get(n) == sha(root / n) for n in names):
+                continue
+            return {n: {'path': str(root / n), 'sha256': rows[n], 'prepared': str(prepared_path),
+                        'prepared_sha256': sha(prepared_path)} for n in names}
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return {}
+
+
 def build_gate(source,report,config,head):
     from glp_affiliate_release import pin,SCHEMA
     from glp_deploy_glp34_authority_v1 import package_tree

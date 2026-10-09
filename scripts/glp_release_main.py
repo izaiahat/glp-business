@@ -152,6 +152,30 @@ def pointer_head():
     return pointer.get('site_head'), pointer.get('deployment_id')
 
 
+def main_pre_effect_refusal(report):
+    """Recognize only the native consumed-head refusal before client creation."""
+    try:
+        failure = json.loads((report / 'FAILURE.json').read_text())
+        intent = json.loads((report / 'publish-intent.json').read_text())
+        prepared_path = report / 'prepared/PREPARED.json'
+        if (failure.get('status') != 'FAIL' or failure.get('scope') != SCOPE
+                or failure.get('error') != 'current_release_consumed_or_binding_changed'
+                or intent['prepared']['path'] != str(prepared_path)):
+            return False
+        import hashlib
+        if hashlib.sha256(prepared_path.read_bytes()).hexdigest() != intent['prepared']['sha256']:
+            return False
+        prepared = json.loads(prepared_path.read_text())
+        receipt = json.loads((ROOT / 'reports/glp-clinic-scout/seo-machine' /
+                              ('current-release-' + prepared['site_head']) / 'CURRENT-RECEIPT.json').read_text())
+        # This branch is before Cloudflare client construction. A matching ACTIVE
+        # operation can have effects and is never a recovery grant.
+        return (receipt.get('status') == 'PASS_PRODUCTION_TERMINAL'
+                and receipt['binding']['prepared_manifest_sha256'] != intent['prepared']['sha256'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--sha', help='exact site main commit (default: current origin/main)')
@@ -167,13 +191,15 @@ def main(argv=None):
             print(json.dumps({'status': 'DEFERRED_BUSY', 'scope': SCOPE}))
             return 0
         for intent in RUNS.glob('*/publish-intent.json'):
-            if not (intent.parent / 'PUBLISH.json').exists():
+            if not (intent.parent / 'PUBLISH.json').exists() and not main_pre_effect_refusal(intent.parent):
                 raise RuntimeError('prior_publication_uncertain:' + str(intent))
         main_sha = a.sha or site_main_sha()
         pr = merged_pr_for(main_sha)
         current_head, current_deployment = pointer_head()
         pointer = json.loads((ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json').read_text())
-        if current_head in (main_sha, pr['headRefOid']) and job.rebuild_inputs_complete(Path(pointer['release_root'])):
+        base_root = Path(pointer['release_root'])
+        rebuildable = job.rebuild_inputs_complete(base_root) or bool(job.equivalent_main_rebuild_inputs(base_root))
+        if current_head in (main_sha, pr['headRefOid']) and rebuildable:
             print(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'scope': SCOPE, 'site_main': main_sha,
                               'deployment_id': current_deployment}))
             return 0
