@@ -275,6 +275,13 @@ CURRENT_REPOSITORY = "izaiahat/glp-site-candidate"
 # Workflow v3 operator-approved-main-release: a fresh build from merged main is not a
 # pinned D1 successor; skip only the frozen D1 route-shape/binding replay for it.
 MAIN_RELEASE_FRESH = False
+
+
+def main_release_fresh(prepared_dir: Path) -> bool:
+    """Fresh-main preparation is identified by its glp_release_main run path, not a caller flag."""
+    runs = BUSINESS / "reports/glp-clinic-scout/affiliate-machine/registry-site-sync"
+    return MAIN_RELEASE_FRESH or (prepared_dir.name == "prepared" and prepared_dir.parent.parent == runs
+                                  and re.fullmatch(r"main-20\d{6}T\d{6}Z", prepared_dir.parent.name) is not None)
 # Rebuilt 2026-10-09 from the unchanged package-lock.json (wrangler 4.114.0, npm ci
 # --ignore-scripts --no-bin-links) after a host pruner deleted node_modules.
 CURRENT_TOOLCHAIN = {"closure_sha256": "6542fa639a408d4bbf71e085c0b3f2b7db6d2e6cd3f3b1b4852a7beede853b5b",
@@ -671,7 +678,7 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     package = current_json(root / "PACKAGE-MANIFEST.json", value["package_manifest_sha256"])
     current_deploy_public(root / "deploy-public", package["files"], value["compiled"]["worker_sha256"])
     gate = current_json(root / "gate.json", value["build_receipt"]["sha256"])
-    if rollback == CURRENT_D1["rollback"] and not MAIN_RELEASE_FRESH:
+    if rollback == CURRENT_D1["rollback"] and not main_release_fresh(root):
         current_d1_predecessor(base64.b64decode(value["predecessor_pointer"]["bytes_base64"], validate=True))
         current_d1_routes(current_routes((root / "deploy-public/_worker.js").read_bytes()))
         binding = current_d1_binding(value["site_head"], value["build_receipt"]["sha256"], value["package_manifest_sha256"])

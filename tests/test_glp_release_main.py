@@ -117,3 +117,8 @@ def test_main_release_base_skips_stale_prepared_chain_but_requires_terminal_poin
     # The fresh-main flag defaults off so legacy affiliate-sync callers keep the D1 replay.
     import glp_deploy_glp34_authority_v1 as carrier_module
     assert carrier_module.MAIN_RELEASE_FRESH is False
+    runs = carrier_module.BUSINESS / 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    assert carrier_module.main_release_fresh(runs / 'main-20261009T045825Z/prepared') is True
+    assert carrier_module.main_release_fresh(runs / '20261003T030854Z/prepared') is False
+    assert carrier_module.main_release_fresh(runs / 'main-20261009T045825Z/other') is False
+    assert carrier_module.main_release_fresh(Path('/tmp/main-20261009T045825Z/prepared')) is False
