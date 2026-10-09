@@ -932,11 +932,18 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
         row["queue_sha256"] = queue_sha
     for row in selected["selected"]:
         row["queue_sha256"] = queue_sha
-    status = "PASS_STRATEGY_SAFE_SELECTION" if selected["selected"] else (
-        "AWAITING_OPERATOR_TOPIC_GO" if selected["awaiting_go"] else "PASS_EMPTY_STRATEGY_SAFE_SET"
-    )
-    if status != "PASS_STRATEGY_SAFE_SELECTION":
-        raise RuntimeError(f"selection_not_available:{status}")
+    # No current-week advice means no new dispatch, never fallback to old
+    # rotation. Keep prior admission/identity/provider guards as prerequisites.
+    from seo_weekly_governance import CADENCE, new_candidates
+    governed = new_candidates(selected["eligible"], cogny_strategy)
+    selected["eligible"] = governed
+    selected["selected"] = governed[:args.limit]
+    selected["weekly_governance"] = {"cadence": CADENCE, "strategy": cogny_meta,
+        "governing": True, "no_op_allowed": True,
+        "reason": None if governed else "current_week_has_no_admitted_new_topic"}
+    status = "PASS_STRATEGY_SAFE_SELECTION" if selected["selected"] else "PASS_EMPTY_STRATEGY_SAFE_SET"
+    # Empty supply is a valid immutable no-op receipt, not an exception that
+    # loses the strategy SHA. Consumers must not author from an empty selection.
     # GSC is a preference inside the strategy-safe set, not an eligibility
     # gate. A populated zero-weight signal truthfully means that none of the
     # safe candidates matched the exact-query or hub-gap relevance rules; in
@@ -993,6 +1000,7 @@ def build_selection_receipt(args: argparse.Namespace) -> dict[str, Any]:
         "analytics_decisions": analytics_decisions,
         "demand_signal": demand_meta,
         "cogny_weekly_strategy": cogny_meta,
+        "weekly_governance": selected["weekly_governance"],
         "targeting_policy": targeting_meta,
         "eligible_count": len(selected["eligible"]),
         "selected": selected["selected"],
