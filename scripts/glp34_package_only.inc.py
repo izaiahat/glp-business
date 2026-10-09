@@ -272,8 +272,10 @@ def main(argv: list[str] | None = None) -> int:
 # Current-head successor. Historical authority bodies above stay unchanged.
 CURRENT_ROLLBACK = "8291d24b-a1c6-4340-bd42-2efa9f2ba2b7"
 CURRENT_REPOSITORY = "izaiahat/glp-site-candidate"
-CURRENT_TOOLCHAIN = {"closure_sha256": "1af0afc423948202725ae9299b4803c46b68cbb053358943a17123c6dfbc4ad7",
-                     "file_count": 1662, "directory_count": 258, "total_bytes": 621665046}
+# Rebuilt 2026-10-09 from the unchanged package-lock.json (wrangler 4.114.0, npm ci
+# --ignore-scripts --no-bin-links) after a host pruner deleted node_modules.
+CURRENT_TOOLCHAIN = {"closure_sha256": "6542fa639a408d4bbf71e085c0b3f2b7db6d2e6cd3f3b1b4852a7beede853b5b",
+                     "file_count": 1667, "directory_count": 263, "total_bytes": 362635774}
 CURRENT_AUTHORITIES = {
     "ops/linear/approvals/OPERATOR-DECISION-20260926-release-target-root-195.md":
         "f9ff3e92029b5fd6a3582ca7e7dc64fad9e699adc2b28f0b842d62d17a7870ec",
