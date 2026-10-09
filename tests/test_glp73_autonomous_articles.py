@@ -39,11 +39,32 @@ class ReviewPromptAuthority(unittest.TestCase):
             self.assertIn('Historical transports are receipt-reading only', prompt)
             self.assertIn(rubric, prompt)
             self.assertIn('PASS requires all five PASS and zero findings', prompt)
+            self.assertIn('commercialLinkTaxonomy', prompt)
+            self.assertIn('An absent, incorrect or inconsistent canonical commercial-link declaration remains blocking', prompt)
             self.assertEqual(rubric_path.read_text(), rubric)
             with patch.object(opus_review_loop, 'RUBRIC', rubric_path):
                 with self.assertRaises(review_transports.TransportError):
                     opus_review_loop.build_prompt({'review_transport':'unapproved'}, {'manifest_sha256':'a'*64}, root/'manifest.json', 2, root)
 
+
+class CommercialLinkMetadata(unittest.TestCase):
+    def test_classification_survives_without_changing_renderer_medical_guard(self):
+        tree = ast.parse((SCRIPTS/'compile_review_packet_article.py').read_text())
+        nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name=='commercial_link_metadata']
+        self.assertEqual(len(nodes), 1)
+        ns = {'Any':object}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), '<metadata>', 'exec'), ns)
+        parse = ns['commercial_link_metadata']
+        output = parse({'commercialLinkTaxonomy':'commercial_intent','exactServices':['Directory A']})
+        self.assertEqual(output['commercial_link_taxonomy'], 'commercial_intent')
+        self.assertEqual(output['exact_services'], ['Directory A'])
+        self.assertNotIn('surface_taxonomy', output)
+        compiler = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name=='compile_packet')
+        self.assertIn('commercial_link_metadata(meta)', ast.unparse(compiler))
+        self.assertIn("'surface_taxonomy': 'medical'", ast.unparse(compiler))
+        self.assertIn("'suppress_cta': True", ast.unparse(compiler))
+        for bad in ({'commercialLinkTaxonomy':'commercial_intent'}, {'commercialLinkTaxonomy':'unknown'}):
+            with self.assertRaises(RuntimeError): parse(bad)
 
 class ArticleRoutes(unittest.TestCase):
     def test_reviews_are_articles_and_unsafe_routes_stay_rejected(self):
