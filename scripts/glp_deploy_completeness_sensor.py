@@ -3240,22 +3240,31 @@ def check_base_chain(offline: bool) -> dict[str, Any]:
     session = requests.Session()
     session.headers.update({"Authorization": "Bearer " + token,
                             "User-Agent": "glp-deploy-completeness-sensor/1.0"})
-    live_deployment = None
+    # GLP-73 R1: the project's `canonical_deployment` is the ONLY witness of what
+    # production serves. When it is absent the live identity is UNKNOWN and the
+    # check reports exactly that (null id, chain_state "unestablished"); it is
+    # never substituted with the newest successful deployment, which is a
+    # creation-order guess and not a statement about what is serving.
+    live_deployment: str | None = None
     try:
         body = session.get(api, timeout=60).json()
         if body.get("success") and isinstance(body.get("result"), dict):
             canonical = body["result"].get("canonical_deployment")
-            if isinstance(canonical, dict):
-                live_deployment = canonical.get("id")
+            if isinstance(canonical, dict) and isinstance(canonical.get("id"), str):
+                live_deployment = canonical["id"] or None
     except Exception as exc:  # network/API shape — report, never crash the deploy
         return check("base_chain", False, base_deployment_id=base_deployment,
+                     live_canonical_deployment_id=None, chain_state="unestablished",
                      failures=[f"cloudflare_query_failed: {type(exc).__name__}"])
     if not live_deployment:
         return check("base_chain", False, base_deployment_id=base_deployment,
-                     failures=["cloudflare returned no canonical production deployment"])
+                     live_canonical_deployment_id=None, chain_state="unestablished",
+                     failures=["cloudflare returned no canonical production deployment; "
+                               "live identity unknown (not inferred from deployment creation order)"])
     ok = live_deployment == base_deployment
     return check("base_chain", ok, base_deployment_id=base_deployment,
                  live_canonical_deployment_id=live_deployment,
+                 chain_state="matched" if ok else "mismatched",
                  failures=[] if ok else [
                      f"current-content-base.json deployment_id {base_deployment} != live "
                      f"canonical deployment {live_deployment}; the SEO content base was not "

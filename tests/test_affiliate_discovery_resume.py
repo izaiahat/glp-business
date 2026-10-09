@@ -312,8 +312,8 @@ def test_incomplete_admission_propagates_to_cli_and_saved_summary(discovery, mon
     import types
     summary = {'status': 'DISCOVERED', 'apply_inventory': str(tmp_path / 'direct-supply.json')}
     monkeypatch.setattr(discovery, 'run', lambda **kwargs: summary)
-    monkeypatch.setattr(discovery, 'firecrawl_search', lambda: None)
-    monkeypatch.setattr(discovery, 'firecrawl_scrape', lambda: None)
+    monkeypatch.setattr(discovery, 'firecrawl_search', lambda reserve: None)
+    monkeypatch.setattr(discovery, 'firecrawl_scrape', lambda fetcher: None)
     monkeypatch.setattr(discovery, 'live_platform_discovery_adapters', lambda: {})
     feeder = types.SimpleNamespace(
         freshest_inventories=lambda **kwargs: [],
@@ -332,8 +332,8 @@ def test_cli_passes_direct_and_fresh_marketplace_inventories_to_admission(discov
     direct = tmp_path / 'direct-supply.json'
     market = tmp_path / 'awin.json'
     monkeypatch.setattr(discovery, 'run', lambda **kwargs: {'status': 'DISCOVERED', 'apply_inventory': str(direct)})
-    monkeypatch.setattr(discovery, 'firecrawl_search', lambda: None)
-    monkeypatch.setattr(discovery, 'firecrawl_scrape', lambda: None)
+    monkeypatch.setattr(discovery, 'firecrawl_search', lambda reserve: None)
+    monkeypatch.setattr(discovery, 'firecrawl_scrape', lambda fetcher: None)
     monkeypatch.setattr(discovery, 'live_platform_discovery_adapters', lambda: {})
     captured = []
     def freshest(**kwargs):

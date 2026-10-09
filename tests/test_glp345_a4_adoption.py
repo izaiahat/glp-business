@@ -111,7 +111,8 @@ def fixture_review(proposal):
 
 @pytest.mark.parametrize('outcome', ['ok', 'lost_ack', 'bad_readback'])
 def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch, outcome,
-                                                *, continuous=False, inspect_phase=lambda _: None):
+                                                *, continuous=False, inspect_phase=lambda _: None,
+                                                generation=None):
     import os
     import glp345_a4_adoption as a4
     import maintenance_inventory as inv
@@ -176,7 +177,8 @@ def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch
     save = scheduler._save_jobs_unlocked
     try:
         with mw.require_active_window(journal, root, home) as active:
-            proposal, before, stage = a4.plan(ROOT, root, home, 'fixture author', window=active)
+            proposal, before, stage = a4.plan(ROOT, root, home, 'fixture author', window=active,
+                **({'generation': generation} if generation is not None else {}))
         inspect_phase('proposal_review')
         review = fixture_review(proposal)
         assert callable(getattr(a4, 'adopt', None)), 'missing reviewed paired A4 adoption'
@@ -233,6 +235,7 @@ def test_guarded_switch_native_pin_and_no_replay(isolated, tmp_path, monkeypatch
         assert len(calls) == 1
     finally:
         try:
+            monkeypatch.setattr(scheduler, '_save_jobs_unlocked', save)
             session.close()
         finally:
             window.release_locks()
@@ -314,8 +317,310 @@ def test_new_window_invalidates_old_review(isolated):
     with pytest.raises(RuntimeError): a4.validate_review(review, fresh)
 
 
+def test_stream_successor_preserves_historical_outputs_and_exact_edges():
+    import glp345_a4_adoption as a4
+    old = a4.stage_weekly_pins(*a4.stage_pins(
+        (ROOT / a4.MAP_SNAPSHOT).read_bytes(),
+        (ROOT / a4.WRAPPER_SNAPSHOT).read_bytes()),
+        generation=a4.MANUAL_WEEKLY_GENERATION)
+    assert tuple(map(a4.sha, old)) == (
+        '5d83a280be12cdbf1f7449ac9a7c83d07e66027ad3c8be6eb4b57eaaeb61190a',
+        '43532ad8c94c1dde3eac99abe42eb499fe831d1bc1328aa661b9184ea147206d')
+    assert callable(getattr(a4, 'stage_stream_pins', None)), 'missing named coherent successor'
+    emitted, carrier = a4.stage_stream_pins(*old)
+    assert tuple(map(a4.sha, (emitted, carrier))) == (
+        '0306e497a344075bcbf9606b09cfca158e263548095823feae13b1497d24cf40',
+        '2e49f094fa1801f231e82897178c0f9be7d59e910eaefa5a48c2fe4839a55c4d')
+    before, after = map(json.loads, (old[0], emitted))
+    # This is the frozen PR239 projection, not an alias for later source.
+    assert after['posthog']['sha256'] == a4.sha(subprocess.check_output(
+        ['git', '-C', str(ROOT), 'show', a4.STREAM_SOURCE + ':' + a4.RAILS]))
+    assert {k for k in before if before[k] != after[k]} == {'posthog'}
+    bp, ap = map(a4.wrapper_pins, (old[1], carrier))
+    assert {k for k in bp if bp[k] != ap[k]} == {str(a4.BUSINESS / a4.MAP)}
+    for changed in ((old[0] + b' ', old[1]), (old[0], old[1] + b' ')):
+        with pytest.raises(RuntimeError, match='unknown_stream_artifact_preimage'):
+            a4.stage_stream_pins(*changed)
+
+
+def test_stream_successor_declares_full_receiving_scope(isolated):
+    import glp345_a4_adoption as a4
+    import maintenance_inventory as inv
+    root, home, _, _ = isolated
+    required = {root / p for p in (a4.COLLECTOR, a4.RAILS, a4.WEEKLY_PINS,
+                                  a4.WEEKLY_ANALYSIS, a4.MAP)}
+    assert required <= inv.affected_paths(root, home)
+    assert callable(getattr(a4, 'stream_sources', None)), 'missing coherent source proof'
+
+
+@pytest.fixture
+def stream_isolated(isolated, monkeypatch):
+    """Host-only fixture bytes prove guards, never installed host identities."""
+    import glp345_a4_adoption as a4
+    root, home, window, target = isolated
+    manual = a4.stage_weekly_pins(*a4.stage_pins(
+        (ROOT / a4.MAP_SNAPSHOT).read_bytes(), (ROOT / a4.WRAPPER_SNAPSHOT).read_bytes()),
+        generation=a4.MANUAL_WEEKLY_GENERATION)
+    emitted, carrier = a4.stage_stream_pins(*manual)
+    old, new = {}, {}
+    for rel in (a4.COLLECTOR, a4.RAILS, a4.WEEKLY_PINS, a4.WEEKLY_ANALYSIS):
+        old[rel] = subprocess.check_output(['git', '-C', str(ROOT), 'show', a4.STREAM_PREDECESSOR + ':' + rel])
+        new[rel] = (ROOT / rel).read_bytes()
+    pins = json.loads(new[a4.WEEKLY_PINS])
+    for absolute in pins['paths']:
+        rel = str(Path(absolute).relative_to(a4.BUSINESS))
+        # Real curated bytes are retained; noncurated prerequisites are explicit
+        # stand-ins. The unmodified runtime loops still cover every identity.
+        body = new.get(rel, (ROOT / rel).read_bytes() if (ROOT / rel).is_file() else b'# host-only fixture\n')
+        put(root / rel, old.get(rel, body))
+        pins['paths'][absolute] = a4.sha(body)
+    new[a4.WEEKLY_PINS] = json.dumps(pins).encode()
+    deps = a4.wrapper_pins(carrier)
+    m = json.loads(emitted)
+    for row in m.values():
+        deps[row['path']] = row['sha256']
+    for absolute in deps:
+        rel = str(Path(absolute).relative_to(a4.BUSINESS))
+        if rel == a4.MAP:
+            continue
+        if rel == a4.RAILS:
+            body = new[rel]
+        else:
+            body = (ROOT / rel).read_bytes() if (ROOT / rel).is_file() else b'# A4 host-only fixture\n'
+            put(root / rel, body)
+        deps[absolute] = a4.sha(body)
+    for row in m.values():
+        row['sha256'] = deps[row['path']]
+    emitted = json.dumps(m).encode()
+    deps[str(a4.BUSINESS / a4.MAP)] = a4.sha(emitted)
+    # Pure exact projection is covered above. Relocate only fixture dependency
+    # identities here so native/DAC guards can execute without host ingestion.
+    carrier = ('PINS = ' + repr(deps) + '\n').encode()
+    monkeypatch.setattr(a4, 'stage_stream_pins', lambda *_: (emitted, carrier))
+    monkeypatch.setattr(a4, 'stream_sources', lambda _: (old, new))
+    monkeypatch.setattr(a4, 'authenticate', lambda checkout, generation=None: ('f' * 40, new[a4.COLLECTOR]))
+    for rel, body in old.items():
+        put(root / rel, body)
+    put(root / a4.MAP, manual[0])
+    put(home / 'scripts' / a4.WRAPPER, manual[1])
+    state = {'schema': 1, 'hashes': {rel: a4.sha(body) for rel, body in old.items()}}
+    state['hashes'].update({a4.MAP: a4.STREAM_MAP_BEFORE, 'untouched': 'a' * 64})
+    put(root / 'ops/.rebuild-sync-state.json', json.dumps(state).encode())
+    doc = json.loads((home / 'cron/jobs.json').read_bytes())
+    doc['jobs'][0]['script_sha256'] = a4.STREAM_WRAPPER_BEFORE
+    put(home / 'cron/jobs.json', json.dumps(doc).encode())
+    target['script_sha256'] = a4.STREAM_WRAPPER_BEFORE
+    original = copy.deepcopy(target)
+    original.update(enabled=True, state='scheduled', paused_reason=None)
+    window.original_job = lambda jid: copy.deepcopy(original)
+    return isolated
+
+
+def test_stream_plan_seven_members_all_twenty_and_scoped_baselines(stream_isolated):
+    import glp345_a4_adoption as a4
+    root, home, window, target = stream_isolated
+    proposal, observed, stage = a4.plan(ROOT, root, home, 'fixture author', window=window,
+                                       generation=a4.STREAM_GENERATION)
+    assert set(stage) == {root / p for p in a4.STREAM_PATHS} | {
+        root / 'ops/.rebuild-sync-state.json', home / 'scripts' / a4.WRAPPER}
+    assert proposal['weekly_residual_drift'] == []
+    assert proposal['source_head'] == a4.STREAM_SOURCE
+    assert proposal['job_before'] == target
+    pins = json.loads(stage[root / a4.WEEKLY_PINS])['paths']
+    assert len(pins) == 20
+    assert all(root / Path(p).relative_to(a4.BUSINESS) in observed for p in pins)
+    state = json.loads(stage[root / 'ops/.rebuild-sync-state.json'])
+    assert state['hashes'] == {**{rel: a4.sha(stage[root / rel]) for rel in a4.STREAM_PATHS},
+                               'untouched': 'a' * 64}
+    assert all(p.read_bytes() == b[0] for p, b in observed.items())
+
+
+@pytest.mark.parametrize('outcome', ['ok', 'lost_ack', 'bad_readback'])
+def test_stream_sealed_switch_native_full_cas_restore_no_replay(
+        stream_isolated, tmp_path, monkeypatch, outcome):
+    import glp345_a4_adoption as a4
+    test_guarded_switch_native_pin_and_no_replay(stream_isolated, tmp_path, monkeypatch,
+        outcome, continuous=(outcome == 'ok'), generation=a4.STREAM_GENERATION)
+
+
+@pytest.mark.parametrize('index', range(20))
+def test_stream_plan_rejects_each_of_twenty_changed_prerequisites(stream_isolated, index):
+    import glp345_a4_adoption as a4
+    root, home, window, _ = stream_isolated
+    _, new = a4.stream_sources(ROOT)
+    absolute = sorted(json.loads(new[a4.WEEKLY_PINS])['paths'])[index]
+    selected = root / Path(absolute).relative_to(a4.BUSINESS)
+    selected.write_bytes(selected.read_bytes() + b'\n# drift\n')
+    before = {p: p.read_bytes() for r in (root, home) for p in r.rglob('*') if p.is_file()}
+    with pytest.raises(RuntimeError, match='weekly_dependency_drift|stream_source_preimage'):
+        a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.STREAM_GENERATION)
+    assert all(p.read_bytes() == b for p, b in before.items())
+
+
+@pytest.mark.parametrize('rel', ('systems/analytics-brain/collector.py', 'ops/glp/seo_data_rails.py',
+                                'ops/glp/seo-weekly-installed-pins.json', 'scripts/glp_weekly_seo_analysis.py',
+                                'reports/ops/orchestration-restore-20260907/PLAN/A4/SOURCE-PINS.json'))
+def test_stream_plan_does_not_adopt_absent_baseline(stream_isolated, rel):
+    import glp345_a4_adoption as a4
+    root, home, window, _ = stream_isolated
+    path = root / 'ops/.rebuild-sync-state.json'
+    doc = json.loads(path.read_bytes()); del doc['hashes'][rel]
+    path.write_text(json.dumps(doc))
+    with pytest.raises(RuntimeError, match='baseline_moved'):
+        a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.STREAM_GENERATION)
+
+
+def test_stream_committed_source_and_historical_generation_binding(tmp_path):
+    import glp345_a4_adoption as a4
+    # This accepted main commit is the exact pre-GLP75 source cohort. Later
+    # weekly repairs legitimately move its pins but cannot reuse its frozen
+    # generation. Exercise real Git-bound producers in isolated local clones;
+    # do not monkeypatch authentication or repin old generation constants.
+    accepted = '79dc5959049bad8b84a7c8249e15ca46a8d891ec'
+    current = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip()
+    probe = """
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / 'scripts'))
+import glp345_a4_adoption as a4
+root = Path.cwd()
+result = {}
+try:
+    head, body = a4.authenticate(root, generation=a4.STREAM_GENERATION)
+    old, new = a4.stream_sources(root)
+    before, after = map(json.loads, (old[a4.WEEKLY_PINS], new[a4.WEEKLY_PINS]))
+    result.update(head=head, collector_sha=a4.sha(body), path_count=len(after['paths']),
+                  changed_paths=sorted(p for p in before['paths'] if before['paths'][p] != after['paths'][p]))
+except RuntimeError as exc:
+    result['stream_refusal'] = str(exc)
+try:
+    a4.authenticate(root, generation=a4.MANUAL_WEEKLY_GENERATION)
+except RuntimeError as exc:
+    result['manual_refusal'] = str(exc)
+print(json.dumps(result))
+"""
+    results = {}
+    for name, revision in (('accepted', accepted),
+                           ('weekly', '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab'),
+                           ('current', current)):
+        checkout = tmp_path / name
+        subprocess.run(['git', 'clone', '--quiet', '--shared', '--no-checkout', str(ROOT), str(checkout)], check=True)
+        subprocess.run(['git', '-C', str(checkout), 'checkout', '--quiet', '--detach', revision], check=True)
+        results[name] = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=checkout))
+    historical = results['accepted']
+    assert historical['head'] == accepted
+    assert historical['collector_sha'] == a4.STREAM_COLLECTOR_AFTER
+    assert historical['path_count'] == 20
+    assert historical['changed_paths'] == [str(a4.BUSINESS / a4.RAILS)]
+    assert results['weekly']['stream_refusal'] == 'stream_source_binding_moved:' + a4.WEEKLY_PINS
+    assert results['current']['stream_refusal'] == 'approved_monitor_source_moved'
+    assert results['current']['manual_refusal'] == 'approved_monitor_source_moved'
+    # Neither historical nor latest head aliases the moved raw rail back into
+    # the older manual generation; all original refusal semantics survive.
+    for result in (results['accepted'], results['weekly']):
+        assert result['manual_refusal'] == 'approved_weekly_input_moved:ops/glp/seo_data_rails.py'
+
+
 def test_no_window_cannot_apply(isolated):
     import glp345_a4_adoption as a4
     root, home, _, _ = isolated
     with pytest.raises(RuntimeError, match='active_maintenance_window_required'):
         a4.adopt(ROOT, root, home, {}, scheduler=None)
+
+
+def test_neutral_successor_committed_custody_and_complete_plan(stream_isolated, monkeypatch, tmp_path):
+    """Real committed custody + disposable receiving fixture, never host admission."""
+    import glp345_a4_adoption as a4
+    import maintenance_inventory as inv
+    # The fixture patches authentication for native/DAC tests. Exercise the real
+    # committed binding in a clean interpreter first, with no installed imports.
+    probe = """
+import sys, json
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / 'scripts'))
+import glp345_a4_adoption as a4
+head, body = a4.authenticate(Path.cwd(), generation=a4.NEUTRAL_GENERATION)
+print(json.dumps({'head': head, 'collector': a4.sha(body)}))
+"""
+    # Neutral admission is an immutable historical generation, not the newer
+    # GLP-44 collector. Exercise its exact accepted checkout rather than changing
+    # Historical custody is verified in its accepted checkout.
+    custody = tmp_path / 'neutral-custody'
+    accepted = '23e1ab197c4fabc50cc8aab46347945d47502018'
+    subprocess.check_call(['git', '-C', str(ROOT), 'worktree', 'add', '--detach', str(custody), accepted])
+    try:
+        proof = json.loads(subprocess.check_output([sys.executable, '-B', '-c', probe], cwd=custody))
+        assert proof['head'] == accepted
+        assert proof['collector'] == a4.NEUTRAL_AFTER[a4.COLLECTOR]
+        old, new = a4.neutral_sources(custody)
+    finally:
+        subprocess.check_call(['git', '-C', str(ROOT), 'worktree', 'remove', str(custody)])
+    assert {rel: a4.sha(body) for rel, body in new.items()} == a4.NEUTRAL_AFTER
+    assert {rel: a4.sha(body) for rel, body in old.items()} == a4.NEUTRAL_BEFORE
+    # Use historical stream projection from the committed source, since the
+    # outer fixture replaces the function only for disposable dependencies.
+    frozen = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                                      '6bf44d2754a8740f7f2e3cdc3b58560cba7cdcab:scripts/glp345_a4_adoption.py'])
+    ns = {'__name__': 'frozen_projection'}
+    exec(compile(frozen, '<frozen A4 projection>', 'exec'), ns)
+    prior = ns['stage_stream_pins'](*a4.stage_weekly_pins(*a4.stage_pins(
+        (ROOT / a4.MAP_SNAPSHOT).read_bytes(), (ROOT / a4.WRAPPER_SNAPSHOT).read_bytes()),
+        generation=a4.MANUAL_WEEKLY_GENERATION))
+    emitted, carrier = a4.stage_neutral_pins(*prior)
+    bp, ap = map(json.loads, (prior[0], emitted))
+    assert {key for key in bp if bp[key] != ap[key]} == {'posthog', 'monitor'}
+    assert ap['posthog']['sha256'] == a4.NEUTRAL_AFTER[a4.RAILS]
+    assert ap['monitor']['sha256'] == a4.NEUTRAL_AFTER[a4.MONITOR]
+    bw, aw = map(a4.wrapper_pins, (prior[1], carrier))
+    assert {key for key in bw if bw[key] != aw[key]} == {str(a4.BUSINESS / a4.MAP)}
+    for bad in ((prior[0] + b' ', prior[1]), (prior[0], prior[1] + b' ')):
+        with pytest.raises(RuntimeError, match='unknown_neutral_artifact_preimage'):
+            a4.stage_neutral_pins(*bad)
+    # Keep the existing fixture's explicit host-only stand-ins and twenty-pin
+    # verifier; extend only selected members. Real source hashes are proven above.
+    root, home, window, target = stream_isolated
+    _, fixture_new = a4.stream_sources(ROOT)
+    fixture_pins = json.loads(fixture_new[a4.WEEKLY_PINS])
+    weekly_collector = 'scripts/glp_weekly_seo_collect.py'
+    fixture_pins['paths'][str(a4.BUSINESS / weekly_collector)] = a4.sha(new[weekly_collector])
+    new[a4.WEEKLY_PINS] = json.dumps(fixture_pins).encode()
+    monkeypatch.setattr(a4, 'neutral_sources', lambda _: (old, new))
+    monkeypatch.setattr(a4, 'stage_neutral_pins', a4.stage_stream_pins)
+    for rel, body in old.items():
+        put(root / rel, body)
+    put(root / a4.MAP, prior[0])
+    put(home / 'scripts' / a4.WRAPPER, prior[1])
+    state = {'schema': 1, 'hashes': {rel: a4.sha(body) for rel, body in old.items()}}
+    state['hashes'].update({a4.MAP: a4.NEUTRAL_MAP_BEFORE, 'untouched': 'a' * 64})
+    for rel in a4.NEUTRAL_FIRST_CURATION:
+        del state['hashes'][rel]
+    put(root / 'ops/.rebuild-sync-state.json', json.dumps(state).encode())
+    doc = json.loads((home / 'cron/jobs.json').read_bytes())
+    doc['jobs'][0]['script_sha256'] = a4.NEUTRAL_WRAPPER_BEFORE
+    put(home / 'cron/jobs.json', json.dumps(doc).encode())
+    target['script_sha256'] = a4.NEUTRAL_WRAPPER_BEFORE
+    original = copy.deepcopy(target)
+    original.update(enabled=True, state='scheduled', paused_reason=None)
+    window.original_job = lambda jid: copy.deepcopy(original)
+    proposal, observed, staged = a4.plan(ROOT, root, home, 'fixture author', window=window,
+                                         generation=a4.NEUTRAL_GENERATION)
+    assert set(staged) == {root / p for p in a4.NEUTRAL_PATHS} | {
+        home / 'scripts' / a4.WRAPPER, root / 'ops/.rebuild-sync-state.json'}
+    assert {root / p for p in a4.NEUTRAL_PATHS} <= inv.affected_paths(root, home)
+    assert proposal['source_head'] == a4.NEUTRAL_SOURCE
+    assert proposal['weekly_residual_drift'] == []
+    assert len(json.loads(staged[root / a4.WEEKLY_PINS])['paths']) == 20
+    assert all(p.read_bytes() == value[0] for p, value in observed.items())
+    staged_state = json.loads(staged[root / 'ops/.rebuild-sync-state.json'])
+    for rel in a4.NEUTRAL_FIRST_CURATION:
+        assert staged_state['hashes'][rel] == a4.NEUTRAL_AFTER[rel]
+        conflict = copy.deepcopy(state)
+        conflict['hashes'][rel] = '0' * 64
+        put(root / 'ops/.rebuild-sync-state.json', json.dumps(conflict).encode())
+        with pytest.raises(RuntimeError, match='stream_source_preimage_or_baseline_moved'):
+            a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.NEUTRAL_GENERATION)
+    put(root / 'ops/.rebuild-sync-state.json', json.dumps(state).encode())
+    changed = root / 'scripts/glp_weekly_seo_collect.py'
+    changed.write_bytes(changed.read_bytes() + b'\n')
+    with pytest.raises(RuntimeError, match='stream_source_preimage_or_baseline_moved'):
+        a4.plan(ROOT, root, home, 'fixture author', window=window, generation=a4.NEUTRAL_GENERATION)

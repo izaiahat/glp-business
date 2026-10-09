@@ -583,24 +583,12 @@
     "timeout_s": 300
   },
   "pricing_refresh": {
-    "allowed_args": [
-      "release",
-      "output",
-      "queue",
-      "captures",
-      "only",
-      "concurrency",
-      "stale-after-days",
-      "apply-to",
-      "fixture"
-    ],
-    "argv": [
-      "python3",
-      "scripts/glp_pricing_refresh.py"
-    ],
+    "allowed_args": ["release", "output", "state", "concurrency", "manual-registered"],
+    "argv": ["python3", "scripts/glp_price_freshness.py"],
     "cwd": "/home/ubuntu/business",
-    "description": "Monthly re-capture and re-verification of every live provider's published GLP-1 pricing for glpclinicscout.com. Direct headless Chrome (curl fallback), no scraping service. Re-checks each shipped quote against a fresh capture of its own source URL, diffs against data/provider-pricing-matrix.json, and QUEUES the resulting edits; it never writes a price. Prints a compact JSON receipt on the last stdout line.",
-    "timeout_s": 2400
+    "description": "Weekly first-party price monitoring via Firecrawl batch markdown scrape. Unchanged hashes skip JSON extraction, including unqualified pages. Exact existing typed witnesses may be re-attested; unknown components and provider holds remain. F04 staging and F06 publication stay separate.",
+    "timeout_s": 2400,
+    "value_flags": {"manual-registered": {"1": ["--manual-registered"]}}
   },
   "program_liveness_check": {
     "allowed_args": [

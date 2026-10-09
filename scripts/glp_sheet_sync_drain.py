@@ -1604,6 +1604,15 @@ def build_entry(
             "23": _note(queue_row, head), "24": checked,
         }}
 
+    if kind == "operator_relationship_ended":
+        import pallas_relationship_ending as ending
+        entry = {"row": row_num, "program": program,
+                 "network": queue_row.get("network"), "provider_program_id": queue_row.get("program_id"),
+                 "queue_update_id": queue_row.get("update_id"), "evidence": evidence,
+                 "cells": ending.cells(evidence["source_row"], evidence["checked_at_utc"])}
+        ending.validate(entry)
+        return entry
+
     if kind == "network_cancelled":
         import affiliate_program_withdrawal as withdrawal
         capture = withdrawal.verify(queue_row, root=BUSINESS)

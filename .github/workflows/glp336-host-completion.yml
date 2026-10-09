@@ -1,0 +1,23 @@
+name: glp336-host-completion
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  authenticated-terminal-convergence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Offline transport and custody regressions on exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3'
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp336_host_completion.py tests/test_host_custody.py

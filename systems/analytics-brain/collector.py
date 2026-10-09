@@ -50,6 +50,11 @@ MIGRATION = HERE / "migrations/001_analytics_brain_additive.sql"
 SITEMAP_URL = f"https://{PRODUCTION_HOST}/sitemap.xml"
 USER_AGENT = "glp-analytics-brain/1.0 (+https://glpclinicscout.com)"
 GA4_MEASUREMENT_ID = "G-2WQ42JY0WK"
+# Authenticated Analytics Admin dataStreams readback (GLP44, 2026-10-06):
+# this property also carries Partners stream 15224515823. Neither its traffic
+# nor its hosts establish consumer facts or consumer-stream host pollution.
+GA4_PROPERTY_ID = "541440529"
+GA4_CONSUMER_STREAM_ID = "15060837778"
 GTM_CONTAINER_ID = "GTM-PWR49VVK"
 SOURCE_DATA_KEYS = {
     "gsc": ("gsc_rows",),
@@ -429,48 +434,85 @@ def _collect_gsc(data: dict[str, Any], sources: dict[str, Any], google: Any) -> 
     sources["gsc"].update(last_attempt_at=attempted_at, prior_last_successful_readback=prior_success)
 
 
+def _ga4_report_rows(doc: dict[str, Any], dimensions: list[str],
+                     metrics: list[str]) -> list[dict[str, Any]]:
+    """Missing stream/schema/count evidence is an error, including empty reports."""
+    if (doc.get("dimension_names") != dimensions or doc.get("metric_names") != metrics
+            or not isinstance(doc.get("rows"), list)):
+        raise RuntimeError("ga4_report_shape_invalid")
+    for row in doc["rows"]:
+        if (not isinstance(row, dict) or not isinstance(row.get("dimensions"), list)
+                or len(row["dimensions"]) != len(dimensions)
+                or any(not isinstance(value, str) or not value for value in row["dimensions"])
+                or not isinstance(row.get("metrics"), list)
+                or len(row["metrics"]) != len(metrics)
+                or any(not isinstance(value, str) or not re.fullmatch(r"[0-9]+", value)
+                       for value in row["metrics"])):
+            raise RuntimeError("ga4_report_row_invalid")
+        if not re.fullmatch(r"[0-9]+", row["dimensions"][dimensions.index("streamId")]):
+            raise RuntimeError("ga4_stream_id_invalid")
+    return doc["rows"]
+
+
 def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> None:
     data["ga4_rows"], data["ga4_events"] = [], []
     try:
+        fact_dimensions = ["dateHourMinute", "streamId", "hostName", "pagePath", "eventName"]
+        fact_metrics = ["eventCount", "sessions", "engagedSessions"]
         ga4_doc = google.ga4_run_report(
+            property_id=GA4_PROPERTY_ID,
             start_date=_utc_days_ago(2),
             end_date="today",
             # Five separately approved ordinary routes; no click identity or
             # health-path enumeration is needed for this aggregate collector.
-            dimensions=["dateHourMinute", "hostName", "pagePath", "eventName"],
-            dimension_filter={"filter": {"fieldName": "pagePath", "inListFilter": {
-                "values": sorted(GA4_APPROVED_NEUTRAL_PATHS), "caseSensitive": True}}},
-            metrics=["eventCount", "sessions", "engagedSessions"],
+            # The rail ANDs its unchanged exact production-host filter with this.
+            dimensions=fact_dimensions,
+            dimension_filter={"andGroup": {"expressions": [
+                {"filter": {"fieldName": "streamId", "stringFilter": {
+                    "matchType": "EXACT", "value": GA4_CONSUMER_STREAM_ID, "caseSensitive": True}}},
+                {"filter": {"fieldName": "pagePath", "inListFilter": {
+                    "values": sorted(GA4_APPROVED_NEUTRAL_PATHS), "caseSensitive": True}}}]}},
+            metrics=fact_metrics,
             limit=250000,
             fetch_all=True,
         )
         if (not ga4_doc.get("ok") or ga4_doc.get("complete") is not True
                 or ga4_doc.get("host_filtered") is not True):
             raise RuntimeError(str(ga4_doc.get("error") or "ga4_read_failed"))
+        fact_rows = _ga4_report_rows(ga4_doc, fact_dimensions, fact_metrics)
         host_doc = google.ga4_run_report(
-            start_date=_utc_days_ago(2), end_date="today", dimensions=["hostName"],
+            property_id=GA4_PROPERTY_ID,
+            start_date=_utc_days_ago(2), end_date="today", dimensions=["streamId", "hostName"],
             metrics=["eventCount"], limit=250000, host_filter=None, fetch_all=True,
         )
         if not host_doc.get("ok") or host_doc.get("complete") is not True:
             raise RuntimeError(str(host_doc.get("error") or "ga4_host_distribution_read_failed"))
-        host_distribution = {
-            str(row.get("dimensions", [""])[0]): int(float((row.get("metrics") or [0])[0]))
-            for row in host_doc.get("rows") or [] if row.get("dimensions")
-        }
+        # Keep every property/other-stream hostname diagnostic without treating
+        # another stream as consumer pollution or adding hosts to the allowlist.
+        property_hosts: dict[str, int] = {}
+        stream_hosts: dict[str, dict[str, int]] = {}
+        for row in _ga4_report_rows(host_doc, ["streamId", "hostName"], ["eventCount"]):
+            stream, host = row["dimensions"]
+            count = int(row["metrics"][0])
+            property_hosts[host] = property_hosts.get(host, 0) + count
+            hosts = stream_hosts.setdefault(stream, {})
+            hosts[host] = hosts.get(host, 0) + count
+        host_distribution = stream_hosts.get(GA4_CONSUMER_STREAM_ID, {})
+        other_stream_hosts = {stream: hosts for stream, hosts in stream_hosts.items()
+                              if stream != GA4_CONSUMER_STREAM_ID}
         non_allowlisted = _non_allowlisted(host_distribution)
         ga4_rows = []
-        for row in ga4_doc.get("rows") or []:
-            dimensions = row.get("dimensions") or []
-            metrics = row.get("metrics") or []
-            if (len(dimensions) != 4 or dimensions[1] != PRODUCTION_HOST
-                    or dimensions[2] not in GA4_APPROVED_NEUTRAL_PATHS):
+        for row in fact_rows:
+            observed_at, stream, host, page, event_name = row["dimensions"]
+            metrics = row["metrics"]
+            if (stream != GA4_CONSUMER_STREAM_ID or host != PRODUCTION_HOST
+                    or page not in GA4_APPROVED_NEUTRAL_PATHS):
                 raise RuntimeError("ga4_neutral_route_shape_invalid")
-            observed_at, host, page, event_name = dimensions
             record = {"host": host, "path": page, "event_name": event_name,
                       "provider_time": observed_at,
-                      "event_count": int(float(metrics[0])) if metrics else 0,
-                      "sessions": int(float(metrics[1])) if len(metrics) > 1 else 0,
-                      "engaged_sessions": int(float(metrics[2])) if len(metrics) > 2 else 0}
+                      "event_count": int(metrics[0]),
+                      "sessions": int(metrics[1]),
+                      "engaged_sessions": int(metrics[2])}
             ga4_rows.append(record)
         data["ga4_rows"] = ga4_rows
         ga4_state = "healthy" if ga4_rows else "measured_zero"
@@ -484,7 +526,18 @@ def _collect_ga4(data: dict[str, Any], sources: dict[str, Any], google: Any) -> 
             "provider_host_filter": ga4_doc.get("host_filter"),
             "host_distribution": host_distribution,
             "non_allowlisted_event_count": non_allowlisted,
-            "collection_window": {"scope": "exact_host_and_approved_neutral_routes",
+            "collection_window": {"scope": "exact_consumer_stream_host_and_approved_neutral_routes",
+                                  "consumer_stream_id": GA4_CONSUMER_STREAM_ID,
+                                  "property": GA4_PROPERTY_ID,
+                                  "host_audit": {
+                                      "scope": "whole_property_partitioned_by_stream",
+                                      "property_host_distribution": property_hosts,
+                                      "stream_host_distribution": stream_hosts,
+                                      "other_stream_host_distribution": other_stream_hosts,
+                                      "property_event_count": sum(property_hosts.values()),
+                                      "consumer_stream_event_count": sum(host_distribution.values()),
+                                      "other_stream_event_count": sum(
+                                          sum(hosts.values()) for hosts in other_stream_hosts.values())},
                                   "neutral_route_paths": sorted(GA4_APPROVED_NEUTRAL_PATHS),
                                   "click_identity": "not_collected_by_aggregate_contract"},
         }
@@ -565,6 +618,7 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
             "SELECT properties.$pathname, countIf(event = '$pageview'), "
             "countIf(event = 'affiliate_click') FROM events "
             "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1') "
             "AND properties.$host = 'glpclinicscout.com' "
             f"AND properties.$pathname IN ({paths}) "
             "GROUP BY properties.$pathname ORDER BY properties.$pathname LIMIT 7"
@@ -592,6 +646,7 @@ def _collect_posthog(data: dict[str, Any], sources: dict[str, Any], rails: Any) 
             "empty(ifNull(properties.$pathname, '')), 'route_unknown', 'other_route') AS route_bucket, "
             "count(), max(timestamp) FROM events "
             "WHERE timestamp > now() - INTERVAL 3 DAY "
+            "AND ifNull(toString(properties.is_test), '') NOT IN ('true', '1') "
             "GROUP BY host_bucket, route_bucket ORDER BY host_bucket, route_bucket LIMIT 6"
         )
         if not buckets.get("ok"):

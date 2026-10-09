@@ -101,6 +101,20 @@ class Scope:
 
 
 def verified_reply_binding(data, scope, reply_author):
+    """Fresh gateway event: preserve the original bounded freshness guard."""
+    return _verified_reply_binding(data, scope, reply_author, fresh=True)
+
+
+def verified_registered_reply_binding(data, scope, reply_author):
+    """Exact registered-message API readback, including durable recovered replies.
+
+    Only the native-custody consumer uses this; no gateway replay authorization.
+    Full policy, author, channel, reply ID and wire-content SHA remain mandatory.
+    """
+    return _verified_reply_binding(data, scope, reply_author, fresh=False)
+
+
+def _verified_reply_binding(data, scope, reply_author, *, fresh):
     """Read-only adapter-owned custody, never trust a JSON marker or ID alone.
 
     Same Unix owner is the trust boundary: arbitrary writers with that account
@@ -152,7 +166,8 @@ def verified_reply_binding(data, scope, reply_author):
                 and binding.get('reply_kind') == scope.reply_kind and binding.get('id') == scope.correlation
                 and binding.get('auth_expires', 0) > binding.get('confirmed_at', float('inf'))
                 and binding.get('confirmed_at', 0) > 0
-                and 0 <= time.time() - binding['confirmed_at'] < scope.max_wait_seconds + 5
+                and 0 <= time.time() - binding['confirmed_at']
+                and (not fresh or time.time() - binding['confirmed_at'] < scope.max_wait_seconds + 5)
                 and binding.get('reply_sha256') == hashlib.sha256(data['content'].encode()).hexdigest())
         return binding if valid and scope.finch else valid
     except Exception:

@@ -89,6 +89,35 @@ assumption. Do not delete the journal/table merely to clear a retry.
 Production paths/port/service/approved hash are deliberately not CLI overrides.
 The `--apply` flag is intent, not an approval token or grant of operator authority.
 
+## GLP80 fixed pricing-registry successor
+
+The original GLP338 `335c4f0c -> 32d9d635` edge remains unchanged. The separately
+reviewed `PricingRegistryHost` receives only the five exact PR267 payloads from
+merge `1dcafc20a9b5722bb2249a1b8911d66e0e49ea40`: registry, scheduled drift
+manifest, cron action runner, pricing monitor and price-evidence writer. It pins
+all live preimages and candidate postimages, including the initially absent
+monitor, and retains the maintained importer generation `29464d1a`.
+
+`pricing-registry-plan` is inert. Separately authorized invocation is
+`activate-pricing-registry --apply --pid <actual-PID> --start-ticks <actual-ticks>
+--wait 900`. It preserves the existing ingress/drain/proc-census gates, both
+source locks, terminal receipt readback and unchanged bridge bytes. Under those
+locks it performs supported five-path preview/apply/zero-diff before the single
+existing-unit restart, then binds the startup registry and cached builder. No
+baseline override, raw restart, scheduler change or direct Sheet write exists.
+The independent one-attempt journal is `/run/glp80-price-registry-activation/`
+`activation.jsonl`; the old journal is not reset, deleted or reused. The same
+fixed nft table refuses any still-owned previous gate. Actual receiving-owner
+exclusion of old importers and nonparticipating/pre-lock readers is mandatory;
+this source does not turn an idle snapshot into continuous exclusion.
+
+A successful adoption is not a pricing run. Execute and inspect the existing
+registered `pricing_refresh` job separately; source-fetch success and validated
+price coverage are separate outcomes, and no-confirmed-change staging must not
+renew prices or verification clocks. Only the canonical approved publisher may
+project an eligible candidate. Offline successor checks live in
+`tests/test_glp80_registry_adoption.py` alongside the original activation group.
+
 ## Offline acceptance and remaining operator-only condition
 
 Run only:

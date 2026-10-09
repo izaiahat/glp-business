@@ -2,12 +2,45 @@
   "campaign": "sponsor-20261003-v1",
   "send_enabled": false,
   "packet_sha256": null,
-  "batch_cap": 25,
   "sender": "partners@glpclinicscout.com",
   "schedule": "0 9 * * 1-5",
   "timezone": "America/Los_Angeles",
-  "follow_up_days": [4, 10],
+  "follow_up_days": [
+    4,
+    10
+  ],
   "postal_address": "1021 E Lincolnway, STE #266, Cheyenne, WY 82001",
   "postal_address_source": "glp-clinic-partner-outreach-machine/outreach_config.json; operator supplied 2026-06-19",
-  "activation": "Exact operator approval of packet SHA plus locally retained approval receipt and send_enabled=true; never auto-enable from an email reply."
+  "activation": "Exact operator approval of packet SHA plus locally retained approval receipt and send_enabled=true; never auto-enable from an email reply.",
+  "new_provider_daily_cap": 25,
+  "follow_up_daily_cap": 50,
+  "require_full_source_binding": true,
+
+  "require_bouncer": true,
+  "require_canonical_reply_coverage": true,
+  "pricing": {
+    "currency": "USD",
+    "initial_total": 500,
+    "setup": 250,
+    "initial_placement": 250,
+    "term_hours": 720,
+    "optional_same_scope_renewal": 250,
+    "auto_charge": false
+  },
+  "legal_operator": "Tilton Group LLC",
+  "send_days": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "schedule_status": "PROPOSAL_ONLY_EXISTING_JOB3940adcf89f6_PAUSED_UNCHANGED",
+  "approval_status": "EXACT_FINAL_COPY_RATES_ASSETS_PENDING",
+  "professional_contact_source": "alexandria_apollo",
+  "professional_enrichment_enabled": true,
+  "bouncer_debits_enabled": true,
+  "paypal_read_only_polling": true,
+  "paypal_invoice_drafts_enabled": false,
+  "paypal_invoice_requests_enabled": false
 }

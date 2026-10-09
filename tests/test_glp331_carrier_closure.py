@@ -31,9 +31,32 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
         'ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh',
     }
     assert release.GLP331_SOURCES == expected
+    # GLP268 changes the current maintained reader, not the historical seven-
+    # source adoption contract. Keep its original blob and exact candidate
+    # successor bound separately; the producer must still stage the original.
+    successor = {'scripts/affiliate_approval_auto_reconciler.py': (
+        '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
+        '9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3'),
+        # GLP347 preserves the historical adoption producer and binds the current denial-only successors.
+        'scripts/affiliate_sheet_batch_writer.py': (
+            '0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66',
+            'aef4747d1e9ca683df5bf0edc31c4be12d6769f28a9fe438f439f09e83bfefe3'),
+        'scripts/glp_sheet_sync_drain.py': (
+            'aa12fc53f878bb8c0505fca4681cd116eae1a81bacf99969b1b8ffab48a76abd',
+            '10bcc641001f360d9d51046ed84e63bd9e451ad2c800e7e5d010b9e15840628e'),
+        'ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh': (
+            '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9',
+            '99bcc4cca7c63f41e3546bb0e470976907027557bf1e7b89d1a0dbb8aaebcfb4')}
     for name in expected:
-        assert (ROOT/name).read_bytes() == p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
-    assert p.sha_bytes((ROOT/release.GLP331_SNAPSHOT).read_bytes()) == (
+        original = p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+name)
+        if name in successor:
+            old, candidate = successor[name]
+            assert p.sha_bytes(original) == old
+            assert p.sha_bytes((ROOT/name).read_bytes()) == candidate
+        else:
+            assert (ROOT/name).read_bytes() == original
+    assert "p.git(repo, 'show', source_head+':'+name)" in (ROOT/'scripts/fleet_pin_release.py').read_text()
+    assert p.sha_bytes(p.git(ROOT, 'show', release.GLP331_SOURCE_HEAD+':'+release.GLP331_SNAPSHOT)) == (
         '45ad2a9b2c435dc96725456721f688c37cdd73d8f58e57351960c242c4d6e4a9')
 
 

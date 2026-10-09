@@ -2,6 +2,32 @@
 """Orchestrator-only Linear transitions with native history (operator key). Usage:
   linear_orchestrator.py transition <GLP-n> <StateName> <abs RESULT.json path>
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --brief <scope brief>  # legacy/protected contract
+  linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --protected-noncode [--check-only]
+        Existing typed RESULT, scope protected-noncode, changed_files/protected_effects [], no pr/brief.
+        Retained runtime evidence uses {kind,path,sha256,observed}; artifacts_created must be
+        RESULT or that evidence. review/protected_review bind authenticated comments on exact issue.
+        Both bodies bind Accepted description SHA256, Accepted protected evidence SHA256
+        (canonical JSON sort_keys=True,separators=(',',':'), excluding review/protected_review),
+        and Execution author Linear ID. Parent additionally binds Independent protected acceptance:
+        <comment_id> <body_sha256>. Independent user differs from parent and attested author.
+        Prefixes: Acceptance verified by parent: (or Coordinator acceptance verified:) and
+        Independent protected acceptance verified:. No new effects or weakened REAL/send gates.
+        Quote complete nested Acceptance/Relevant tool wiring requirements in acceptance_clauses
+        or retained_acceptance_clauses, each PASS with evidence; typed first-section lint remains.
+        PR placeholders and Authority/Plan path metadata are not acceptance clauses.
+        Installed-source/deployment acceptance requires --protected-runtime provenance.
+  linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --protected-runtime [--check-only]
+        Same authenticated/full-scope bindings, plus ordinary PR/CI format and
+        installed_files [{path,sha256}] matching current live bytes AND authenticated merged
+        glp-business source. Evidence may be check/runtime, with at least one runtime receipt.
+        No source authoring, reinstallation, job/send execution or effect approval occurs here.
+        Approved GLP109 two-account exception: protected_review.native binds coordinator_session_id
+        and author/reviewer {session_id,path,sha256,write_message_id,tool_result_message_id}.
+        Runtime SessionDB parent/_delegate_from and successful exact write_file bytes authenticate
+        distinct completed author/reviewer/coordinator sessions and designated Astra acceptance.
+        The non-author operator adopts that review in one comment and accepts in a different comment;
+        both bind Native independent review SHA256: <canonical native object SHA256>. No agent
+        impersonation, third account, file-only identity or native fallback on missing rows.
   linear_orchestrator.py pass <GLP-n> <abs RESULT.json path> --ordinary [--check-only]
         Ordinary completion: linear-ordinary-completion-v1, COMPLETE, exact issue,
         scope ordinary-code|ordinary-runtime|ordinary-readonly-runtime, protected_effects [],
@@ -495,7 +521,281 @@ def _lint_ordinary_result(path, iss):
         raise SystemExit('ordinary completion evidence unavailable/invalid: ' + str(exc)) from None
 
 
-def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, check_only=False):
+NATIVE_REVIEW_DB = Path.home() / '.hermes' / 'state.db'
+
+
+def _lint_glp109_native_review(custody, data, iss, result_path, parent, independent, payload):
+    """Verify the retained GLP109 Astra review, not a third Linear identity.
+
+    SessionDB sessions/messages are runtime-owned provenance at the existing local
+    runtime/coordinator trust boundary, not an OS-isolated signature. Read only the
+    named native rows. The shorter-lived async ledger is not the custody source;
+    retained session parent/_delegate_from and successful write_file records are.
+    Missing/pruned custody refuses; a filesystem report never substitutes for it.
+    """
+    import re
+    import sqlite3
+
+    def require(condition, message):
+        if not condition:
+            raise SystemExit('protected native review refused: ' + message)
+
+    require(iss['identifier'] == 'GLP-109' and data['scope'] == 'protected-runtime',
+            'native exception is only the approved GLP109 retained runtime')
+    require(parent['user']['id'] == OPERATOR_USER_ID and
+            independent['user']['id'] == OPERATOR_USER_ID and
+            data['author_id'] != OPERATOR_USER_ID,
+            'non-author operator must authenticate adoption and coordinator acceptance')
+    require(set(custody) == {'coordinator_session_id', 'author', 'reviewer'}, 'exact native custody required')
+    coordinator = custody['coordinator_session_id']
+    author = custody['author']['session_id']
+    reviewer = custody['reviewer']['session_id']
+    require(all(isinstance(v, str) and v for v in (coordinator, author, reviewer)) and
+            len({coordinator, author, reviewer}) == 3, 'distinct author, reviewer and coordinator sessions required')
+    native_digest = hashlib.sha256(json.dumps(custody, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    for row in (parent, independent):
+        require(re.findall(r'^Native independent review SHA256: (.+)$', row['body'], re.M) == [native_digest],
+                'authenticated native custody binding missing, ambiguous or stale')
+    reports = Path(__file__).resolve().parents[1] / 'reports'
+    try:
+        # mode=ro never creates a DB, changes schemas or uses native helpers which
+        # open write transactions. Hold one read snapshot across all custody rows.
+        with sqlite3.connect(NATIVE_REVIEW_DB.resolve().as_uri() + '?mode=ro', uri=True, timeout=5) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            require(conn.execute('SELECT id FROM sessions WHERE id=?', (coordinator,)).fetchone(),
+                    'native coordinator session missing')
+            artifacts = {}
+            for role in ('author', 'reviewer'):
+                binding = custody[role]
+                require(set(binding) == {'session_id', 'path', 'sha256', 'write_message_id', 'tool_result_message_id'},
+                        'exact native artifact binding required')
+                session = conn.execute('SELECT parent_session_id,model,model_config,ended_at,end_reason '
+                                       'FROM sessions WHERE id=?', (binding['session_id'],)).fetchone()
+                require(session and session['parent_session_id'] == coordinator and
+                        json.loads(session['model_config'])['_delegate_from'] == coordinator and
+                        session['ended_at'] is not None and session['end_reason'] == 'agent_close',
+                        'completed native child linkage missing')
+                if role == 'reviewer':
+                    require(session['model'] == 'gpt-6-astra-900k', 'designated Astra review required')
+                source = Path(binding['path'])
+                require(source.is_absolute() and source.is_file() and not source.is_symlink() and
+                        source.resolve().is_relative_to(reports.resolve()) and
+                        re.fullmatch(r'[a-f0-9]{64}', binding['sha256']), 'reports-only native artifact required')
+                content = source.read_bytes()
+                require(hashlib.sha256(content).hexdigest() == binding['sha256'], 'native report bytes changed')
+                require(type(binding['write_message_id']) is int and type(binding['tool_result_message_id']) is int,
+                        'native message IDs required')
+                write = conn.execute('SELECT * FROM messages WHERE id=?', (binding['write_message_id'],)).fetchone()
+                result = conn.execute('SELECT * FROM messages WHERE id=?', (binding['tool_result_message_id'],)).fetchone()
+                require(write and result and write['role'] == 'assistant' and result['role'] == 'tool' and
+                        write['session_id'] == result['session_id'] == binding['session_id'] and
+                        result['tool_name'] == 'write_file' and
+                        write['timestamp'] <= result['timestamp'] <= session['ended_at'],
+                        'native report write/result custody missing')
+                calls = [call for call in json.loads(write['tool_calls'])
+                         if call.get('id') == result['tool_call_id'] and
+                         call.get('function', {}).get('name') == 'write_file']
+                require(len(calls) == 1, 'unique native write_file call required')
+                args = json.loads(calls[0]['function']['arguments'])
+                receipt = json.loads(result['content'])
+                require(args['path'] == str(source) and args['content'].encode() == content and
+                        receipt.get('verified') is True and receipt.get('resolved_path') == str(source.resolve()) and
+                        receipt.get('bytes_written') == len(content), 'native write bytes or successful receipt mismatch')
+                require(source.read_bytes() == content, 'native artifact changed during validation')
+                artifacts[role] = json.loads(content)
+    except (sqlite3.Error, KeyError, TypeError, ValueError, OSError) as exc:
+        raise SystemExit('protected native review custody unavailable/invalid: ' + str(exc)) from None
+    authored = artifacts['author']
+    source = authored['source']
+    require(authored['issue'] == iss['identifier'] and source['pr'] == data['pr']['url'] and
+            source['head'] == data['pr']['head_sha'] and source['merge'] == data['pr']['merge_sha'] and
+            source['installed_sha256'] in [f['sha256'] for f in data['installed_files']],
+            'native execution author source binding changed')
+    accepted = artifacts['reviewer']
+    require(accepted['verdict'] == 'ACCEPT_FULL_RETAINED_SCHEDULER_RUNTIME_EVIDENCE' and
+            accepted['issue'] == iss['identifier'] and accepted['issue_id'] == iss['id'] and
+            accepted['candidate'] == str(Path(result_path).resolve()) and
+            accepted['description_sha256'] == data['description_sha256'] and
+            accepted['protected_evidence_sha256'] == payload and
+            accepted['author_id'] == data['author_id'] and accepted['parent_viewer_id'] == parent['user']['id'],
+            'native independent acceptance is missing or stale for exact scope/evidence/author')
+
+
+def _lint_protected_result(path, iss, *, runtime=False):
+    """Verify retained protected receipts, never authorize a new effect.
+
+    Uses the existing typed RESULT and runtime evidence formats. Both authenticated
+    acceptances bind the exact description and complete evidence payload (canonical
+    JSON, excluding only review/protected_review). Parent separately binds the exact
+    independent comment/body. Execution identity is parent-attested, not inferred
+    from shared GitHub accounts; the authenticated independent user must differ
+    from both the attested author and parent. GLP109's explicitly approved native
+    exception instead verifies distinct completed native child sessions and exact
+    artifact-write custody; the non-author operator authenticates adoption and
+    coordinator acceptance in separate bound comments. It never infers identity
+    from an editable report label or missing runtime history.
+    """
+    import base64
+    import re
+    import subprocess
+
+    def require(condition, message):
+        if not condition:
+            raise SystemExit('protected completion refused: ' + message)
+
+    try:
+        data = json.loads(Path(path).read_text())
+        require(isinstance(data, dict), 'result must be an object')
+        require(data.get('issue') == iss['identifier'] and data.get('status') == 'COMPLETE' and
+                iss.get('team') == {'id': TEAM, 'key': 'GLP'}, 'exact GLP issue and COMPLETE required')
+        require(data.get('scope') == ('protected-runtime' if runtime else 'protected-noncode') and
+                data.get('protected_effects') == [] and data.get('changed_files') == [] and 'brief' not in data,
+                'distinct retained non-code/runtime scope required; no brief, source edits or new effects')
+        if not runtime:
+            require('pr' not in data and 'installed_files' not in data,
+                    'non-code arm cannot accept installed-code provenance')
+        description = iss.get('description') or ''
+        require(re.search(r'##\s*Acceptance\s*\n\s*\S', description, re.I) and
+                data.get('description_sha256') == hashlib.sha256(description.encode()).hexdigest(),
+                'current issue acceptance/scope changed')
+        # Legacy lint reads only the first Acceptance. This arm additionally
+        # requires complete bodies of ALL acceptance/tool-wiring sections,
+        # including nested subheadings; it never reduces the description.
+        clauses = data.get('acceptance_clauses', []) + data.get('retained_acceptance_clauses', [])
+        require(clauses and all(c.get('verdict') == 'PASS' and c.get('evidence') for c in clauses),
+                'all original/nested acceptance clauses need PASS with evidence')
+        normalise = lambda text: re.sub(r'\s+', ' ', text).strip()
+        answered = normalise('\n'.join(c['clause'] for c in clauses))
+        # Ignore only known metadata forms, never stop at a metadata-looking line:
+        # subsequent requirements and nested headings still belong to this section.
+        metadata = (r'PR: pending or retain linked existing PR; no source reauthoring solely for consolidation\.|'
+                    r'Authority: `ops/linear/approvals/[^`\n]+\.md`\.'
+                    r'(?:[ \t]+Plan: `reports/[^`\n]+\.md`\.)?|Plan: `reports/[^`\n]+\.md`\.')
+        scope = [iss.get('title') or '']
+        headings = list(re.finditer(r'^(#{2,6})[ \t]+([^\n]+)\n', description, re.M))
+        for index, heading in enumerate(headings):
+            if not re.match(r'Acceptance\b|Relevant tool wiring\b', heading[2], re.I):
+                continue
+            end = next((h.start() for h in headings[index + 1:] if len(h[1]) <= len(heading[1])),
+                       len(description))
+            body = description[heading.end():end]
+            scope.append(body)
+            requirements = '\n'.join(line for line in body.splitlines()
+                                     if not re.fullmatch(metadata, line.strip()))
+            require(normalise(requirements) in answered,
+                    'full original/nested acceptance or tool-wiring coverage missing')
+        if not runtime:
+            # The authenticated issue's contract, not a caller's scope label or
+            # omission of pr/installed_files, determines whether provenance is needed.
+            require(not re.search(r'\b(?:install\w*|deploy\w*|source[- ](?:code|bytes))\b',
+                                  '\n'.join(scope), re.I),
+                    'installed-source/deployment acceptance requires runtime provenance, not non-code')
+        author = data.get('author_id')
+        require(isinstance(author, str) and re.fullmatch(r'[a-f0-9-]{36}', author),
+                'parent-attested execution author Linear ID required')
+        payload = hashlib.sha256(json.dumps(
+            {k: v for k, v in data.items() if k not in ('review', 'protected_review')},
+            sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        rows = []
+        for key, prefix in (('review', ('Coordinator acceptance verified:', 'Acceptance verified by parent:')),
+                            ('protected_review', ('Independent protected acceptance verified:',))):
+            binding = data[key]
+            row = gql('query($id:String!){comment(id:$id){id body archivedAt user{id} issue{id}}}',
+                      {'id': binding['comment_id']})['comment']
+            require(row and row['id'] == binding['comment_id'] and
+                    row['issue']['id'] == iss['id'] and not row.get('archivedAt') and
+                    (row.get('user') or {}).get('id'), 'authenticated ' + key + ' required on exact issue')
+            body = row['body']
+            require(hashlib.sha256(body.encode()).hexdigest() == binding['body_sha256'] and
+                    body.startswith(prefix), key + ' acceptance missing or body changed')
+            for label, value in (('Accepted description SHA256', data['description_sha256']),
+                                 ('Accepted protected evidence SHA256', payload),
+                                 ('Execution author Linear ID', author)):
+                require(re.findall(r'^' + re.escape(label) + r': (.+)$', body, re.M) == [value],
+                        key + ' ' + label + ' binding missing, ambiguous or stale')
+            rows.append(row)
+        parent, independent = rows
+        require(parent['user']['id'] in (OPERATOR_USER_ID, '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'),
+                'authenticated coordinator acceptance required')
+        protected_review = data['protected_review']
+        require(independent['id'] != parent['id'], 'separate adoption and coordinator comments required')
+        if 'native' in protected_review:
+            require(runtime, 'native review cannot bypass non-code independent acceptance')
+            _lint_glp109_native_review(protected_review['native'], data, iss, path, parent, independent, payload)
+        else:
+            require(independent['user']['id'] not in (author, parent['user']['id']),
+                    'separate non-author independent protected acceptance required')
+        require(re.findall(r'^Independent protected acceptance: (.+)$', parent['body'], re.M) ==
+                [protected_review['comment_id'] + ' ' + protected_review['body_sha256']],
+                'parent must bind designated independent protected acceptance')
+        if runtime:
+            pr = data['pr']
+            match = re.fullmatch(r'https://github\.com/(izaiahat/glp-business)/pull/[1-9]\d*', pr['url'])
+            require(match and all(re.fullmatch(r'[a-f0-9]{40}', pr[key]) for key in ('head_sha', 'merge_sha')),
+                    'exact maintained PR/full head and merge required')
+            assert match is not None  # require above fails closed; narrows the authenticated repo match.
+            remote = json.loads(subprocess.check_output(
+                ['gh', 'pr', 'view', pr['url'], '--json', 'state,headRefOid,mergeCommit,statusCheckRollup'],
+                text=True, timeout=60))
+            checks = remote.get('statusCheckRollup') or []
+            require(remote['state'] == 'MERGED' and remote['headRefOid'] == pr['head_sha'] and
+                    (remote.get('mergeCommit') or {}).get('oid') == pr['merge_sha'], 'PR identity/merge mismatch')
+            require(checks and all(c.get('status') == 'COMPLETED' and c.get('conclusion') == 'SUCCESS'
+                                      for c in checks), 'exact-head CI is not all successful')
+            require(isinstance(pr.get('checks'), list) and pr['checks'] and all(
+                any(c.get('name') == e['name'] and c.get('detailsUrl') == e['url'] for c in checks)
+                for e in pr['checks']), 'exact CI receipts missing or changed')
+            root = Path(__file__).resolve().parents[1]
+            installed = data.get('installed_files')
+            require(isinstance(installed, list) and installed, 'current installed source evidence required')
+            for entry in installed:
+                source = Path(entry['path'])
+                require(source.is_absolute() and source.is_file() and not source.is_symlink() and
+                        source.resolve().is_relative_to(root.resolve()) and
+                        source.resolve().relative_to(root.resolve()).parts[0] in ('scripts', 'systems', 'ops'),
+                        'installed maintained source path required')
+                rel = source.resolve().relative_to(root.resolve()).as_posix()
+                remote_file = json.loads(subprocess.check_output(
+                    ['gh', 'api', f'repos/{match[1]}/contents/{rel}?ref={pr["merge_sha"]}'],
+                    text=True, timeout=60))
+                require(remote_file.get('encoding') == 'base64' and
+                        hashlib.sha256(base64.b64decode(remote_file['content'])).hexdigest() == entry['sha256'] and
+                        sha(source) == entry['sha256'], 'installed bytes do not match authenticated merged source')
+        reports = Path(__file__).resolve().parents[1] / 'reports'
+        evidence = data.get('evidence')
+        require(isinstance(evidence, list) and evidence and any(e.get('kind') == 'runtime' for e in evidence),
+                'runtime acceptance evidence missing')
+        for entry in evidence:
+            source = Path(entry['path'])
+            require(entry.get('kind') in (('check', 'runtime') if runtime else ('runtime',)) and
+                    source.is_absolute() and source.is_file() and
+                    source.resolve().is_relative_to(reports.resolve()) and
+                    source.resolve() != Path(path).resolve(), 'existing reports runtime evidence required')
+            raw = source.read_bytes()
+            require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'runtime evidence bytes changed')
+            observed = entry.get('observed')
+            require(isinstance(observed, list) and observed and all(
+                isinstance(value, str) and value.strip() and value in raw.decode() for value in observed),
+                'observed identifiers/output missing from runtime evidence')
+        # Replaces only legacy FILES/Touch for this explicit non-code arm. Every
+        # reported artifact is a reports-only file bound by both acceptances.
+        for artifact in data.get('artifacts_created', []):
+            source = Path(artifact)
+            if not source.is_absolute():
+                source = reports.parent / source
+            require(source.is_file() and source.resolve().is_relative_to(reports.resolve()) and
+                    (source.resolve() == Path(path).resolve() or any(
+                        source.resolve() == Path(e['path']).resolve() for e in evidence)),
+                    'reported artifact must be RESULT or hash-bound runtime evidence')
+        _lint_result(path, expected_issue=iss['identifier'])
+    except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError) as exc:
+        raise SystemExit('protected completion evidence unavailable/invalid: ' + str(exc)) from None
+
+
+def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, protected_noncode=False,
+               protected_runtime=False, check_only=False):
     """The single Done writer. A failed readback requires inspection, not replay."""
     path = Path(result_path)
     reports = Path(__file__).resolve().parents[1] / 'reports'
@@ -509,7 +809,11 @@ def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, check_only=F
         print(json.dumps({'identifier': iss['identifier'], 'state': 'Done', 'already_verified': True}))
         return
     digest = sha(path)
-    if ordinary:
+    if protected_noncode or protected_runtime:
+        if ordinary or brief is not None or (protected_noncode and protected_runtime):
+            raise SystemExit('--protected-noncode, --protected-runtime, --ordinary and --brief are distinct contracts')
+        _lint_protected_result(path, iss, runtime=protected_runtime)
+    elif ordinary:
         if brief is not None:
             raise SystemExit('--ordinary and --brief are distinct contracts')
         _lint_ordinary_result(path, iss)
@@ -538,7 +842,7 @@ def pass_issue(iss, result_path, st, brief=None, *, ordinary=False, check_only=F
     if sha(path) != digest or not receipt_validates(iss['id'], path):
         raise SystemExit('closure readback unverified; inspect actual state/receipt before any action')
     print(json.dumps(result))
-    if not ordinary:
+    if not ordinary and not (protected_noncode or protected_runtime):
         sync_wrapper_pins(path)
 
 
@@ -548,14 +852,16 @@ def main():
     cmd = a[0]
     if cmd not in ('transition', 'pass', 'rework', 'triage', 'assign', 'promote', 'resolve-request', 'relabel', 'rule', 'reorder'): print(__doc__); return 2
     if len(a) < 2: raise SystemExit(cmd + ' needs an issue identifier, e.g. GLP-163')
-    if any(flag in a for flag in ('--ordinary', '--check-only')) and not (
+    if any(flag in a for flag in ('--ordinary', '--protected-noncode', '--protected-runtime', '--check-only')) and not (
             cmd == 'pass' or (cmd == 'transition' and len(a) > 2 and a[2] == 'Done')):
-        raise SystemExit('--ordinary/--check-only are for completion only')
+        raise SystemExit('--ordinary/--protected-noncode/--protected-runtime/--check-only are for completion only')
     st = states(); i = issue(a[1])
     if cmd == 'transition':
         if a[2] == 'Done':
             brief = a[a.index('--brief') + 1] if '--brief' in a else None
-            return pass_issue(i, a[3], st, brief, ordinary='--ordinary' in a, check_only='--check-only' in a)
+            return pass_issue(i, a[3], st, brief, ordinary='--ordinary' in a,
+                              protected_noncode='--protected-noncode' in a,
+                              protected_runtime='--protected-runtime' in a, check_only='--check-only' in a)
         to = st[a[2]]; path = os.path.abspath(a[3]); assert path.endswith('RESULT.json') and os.path.exists(path), 'need an existing absolute RESULT.json path'
 
         print(json.dumps(set_state(i['id'], to)))
@@ -563,7 +869,9 @@ def main():
             inflation_warning(i['id'])
     elif cmd == 'pass':
         brief = a[a.index('--brief') + 1] if '--brief' in a else None
-        return pass_issue(i, a[2], st, brief, ordinary='--ordinary' in a, check_only='--check-only' in a)
+        return pass_issue(i, a[2], st, brief, ordinary='--ordinary' in a,
+                          protected_noncode='--protected-noncode' in a,
+                          protected_runtime='--protected-runtime' in a, check_only='--check-only' in a)
     elif cmd == 'assign':
         # The scoped client refuses metadata writes on children, so nothing sanctioned could change an
         # assignee; an issue parked on the operator by mistake stayed in his "Needs you" view forever.

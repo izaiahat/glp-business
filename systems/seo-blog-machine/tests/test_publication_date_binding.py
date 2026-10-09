@@ -64,9 +64,11 @@ def packet(tmp_path):
         "title": "Fixture guide", "h1": "Fixture guide", "metaDescription": "Fixture description",
         "datePublished": "2026-09-05", "dateModified": "2026-09-05",
         "pricesCheckedDate": "2026-09-05", "captureContract": {
-            "action": "/api/content-upgrade", "consentVersion": "glp-content-upgrade-v2-20260801",
-            "sourcePage": "guides-date-binding-fixture", "leadMagnetKey": "guides-date-binding-fixture-terms-checklist",
-            "emailField": "email", "healthDataFields": [],
+            "action": "/api/content-upgrade", "consentVersion": "glp-guide-resource-v1-20261007",
+            "sourcePage": "guide-link", "leadMagnetKey": "guide-link-resource",
+            "emailField": "email", "healthDataFields": ["guide_path"],
+            "guidePath": "/guides/date-binding-fixture/", "purpose": "resource-delivery",
+            "followUpConsent": False, "storedPageIdentifier": False,
         },
     }
     import yaml
@@ -99,6 +101,36 @@ def test_delayed_draft_binds_catalog_and_jsonld_without_rewriting_evidence(tmp_p
     assert (article["prices_checked_date"], article["source_checked_through"],
             article["evidence_review"]["reviewed_at"]) == original
     assert json.dumps(other, sort_keys=True) == before
+
+
+def test_guide_capture_compiler_and_validator_require_resource_only_contract(tmp_path):
+    import ast
+    import copy
+    import yaml
+    compiler = module("compile_review_packet_article")
+    source = ast.parse((SCRIPTS / "validate_opus_article_packet.py").read_text())
+    function = next(node for node in source.body if isinstance(node, ast.FunctionDef) and node.name == "valid_capture_contract")
+    scope = {}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "validator", "exec"), scope)
+    check = scope["valid_capture_contract"]
+    packet_dir = packet(tmp_path)
+    article = compiler.compile_packet(packet_dir)
+    assert check(article)
+    wrong = copy.deepcopy(article)
+    wrong["capture_surface"]["follow_up_consent"] = True
+    assert not check(wrong)
+    wrong = copy.deepcopy(article)
+    wrong["capture_surface"]["health_data_fields"] = []
+    assert not check(wrong)
+    draft = packet_dir / "04-draft.md"
+    _, front, body = draft.read_text().split("---", 2)
+    meta = yaml.safe_load(front)
+    meta["captureContract"].update(consentVersion="glp-content-upgrade-v2-20260801",
+                                  sourcePage="guides-date-binding-fixture",
+                                  leadMagnetKey="guides-date-binding-fixture-terms-checklist", healthDataFields=[])
+    draft.write_text("---\n" + yaml.safe_dump(meta) + "---" + body)
+    with pytest.raises(RuntimeError, match="capture_contract_invalid"):
+        compiler.compile_packet(packet_dir)
 
 
 def test_existing_publication_keeps_first_day_on_refresh():

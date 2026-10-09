@@ -657,7 +657,7 @@ def require_binding(st: dict, result: dict | None = None) -> None:
     for sibling in sibling_bindings(st["account"], st["job"]):
         if binding_url(sibling) == want:
             raise SystemExit(f"CONVERSATION_COLLISION job={st['job']} sibling={sibling.get('job')}")
-        if result is not None and result.get("tab") and result["tab"] == sibling.get("tab"):
+        if result is not None and result.get("tab") and result["tab"] in custody_tabs(sibling):
             raise SystemExit(f"TAB_COLLISION job={st['job']} sibling={sibling.get('job')}")
     if result is not None:
         state = result.get("state") or {}
@@ -667,8 +667,26 @@ def require_binding(st: dict, result: dict | None = None) -> None:
             raise SystemExit(f"CONVERSATION_MISMATCH job={st['job']}")
 
 
+def custody_tabs(st: dict) -> list[str]:
+    """Conserve every attributed target, independently of admission-proof validity."""
+    tabs = [st.get('tab')]
+    for key, field in (('error', 'tab'), ('resume_error', 'tab'),
+                       ('terminal_unsent', 'retained_tab'), ('resume_attempt', 'retained_tab')):
+        row = st.get(key)
+        if isinstance(row, dict):
+            tabs.append(row.get(field))
+    history = st.get('resume_history')
+    if isinstance(history, list):
+        tabs.extend(row.get('retained_tab') for row in history if isinstance(row, dict))
+    # Conflicting attribution protects the union; it never selects a winner or
+    # proves a reservation terminal. Malformed target values fail closed.
+    if any(tab is not None and (not isinstance(tab, str) or not tab) for tab in tabs):
+        raise SystemExit('BINDING_REGISTRY_INVALID_TARGET ' + str(st.get('job')))
+    return sorted({tab for tab in tabs if tab is not None})
+
+
 def protected_tabs(st: dict) -> list[str]:
-    return [s["tab"] for s in sibling_bindings(st["account"], st["job"]) if s.get("tab")]
+    return sorted({tab for s in sibling_bindings(st['account'], st['job']) for tab in custody_tabs(s)})
 
 
 # ---------------------------------------------------------------- browser
@@ -718,8 +736,19 @@ def _paced_send(callback):
 
 
 def bu_json(script: str, timeout: int = 300) -> dict:
-    envelope = load_config().get('envelope', {})
+    cfg = load_config()
+    envelope = cfg.get('envelope', {})
     cap = min(3, envelope.get('max_concurrent_chats_per_account', 3)) + 2
+    # Terminal dispositions release active capacity but must retain their exact
+    # evidence tabs. Account for only byte/journal-verified terminal custody;
+    # ordinary uncertain targets get NO extra allowance. Active admission stays
+    # three/account and six/IP under the existing global reservation lock.
+    accounts = [a for a in cfg.get('accounts', [])
+                if f"http://127.0.0.1:{a.get('cdp_port', 9340)}" == BU_ENV['BU_CDP_URL']]
+    if len(accounts) == 1:
+        retained = {t for s in sibling_bindings(accounts[0]['label'], '')
+                    if _verified_terminal_unsent(s) for t in custody_tabs(s)}
+        cap += len(retained)
     preamble = ('import time\n_pace_path=' + repr(str(BUSINESS / 'ops/gpt6pro-relay/locks/page-load-ip.clock')) +
                 '\n_page_gap=' + repr(max(60, 60 / max(0.01, envelope.get('max_page_loads_per_min_per_ip', 1)))) + '\n')
     preamble = ('\n_tab_cap=' + repr(cap) + '\n_submit_gap=' +
@@ -912,16 +941,165 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 }'''
 
 
+# Current picker visibility belongs to its active view ancestor, not the row.
+# Keep the complete label, maximum badge, exact scale and actionable menu proof.
+MODEL_PICKER_JS = r'''function pickerActionable(e,visualThumb=false){
+        if(!e||!e.getClientRects().length)return false;
+        for(let p=e;p;p=p.parentElement){
+            const s=getComputedStyle(p);
+            const hidden=p.getAttribute('aria-hidden')==='true'&&!(visualThumb&&p===e&&p.getAttribute('role')==='slider');
+            if(p.hidden||p.inert||hidden||
+               p.getAttribute('aria-disabled')==='true'||p.disabled===true||
+               p.getAttribute('data-active')==='false'||
+               s.display==='none'||s.visibility==='hidden')return false;
+        }return true;
+}
+function pickerTrigger(){
+    const triggers=[...document.querySelectorAll('button[aria-label="Select ChatGPT model"]')].filter(e=>pickerActionable(e));
+    return triggers.length===1?triggers[0]:null;
+}
+function pickerMenu(){
+    const trigger=pickerTrigger();
+    if(!trigger||trigger.getAttribute('aria-expanded')!=='true')return null;
+    const menus=[...document.querySelectorAll('[id]')].filter(e=>e.id===trigger.getAttribute('aria-controls'));
+    return menus.length===1&&pickerActionable(menus[0])&&menus[0].getAttribute('role')==='menu'?menus[0]:null;
+}
+function committed6ProMaximum(){
+    const trigger=pickerTrigger();
+    // The trigger's candidate effort also labels staged state. Only the closed
+    // selection owner's incoming selectedModel is a parent-acceptance witness.
+    // This follows the supported maximum action + full 6 Pro/maximum/4-of-4
+    // proof below; null is the observed Pro model effort, NOT medium => maximum.
+    if(!trigger||trigger.getAttribute('aria-expanded')!=='false'||
+       trigger.getAttribute('data-codex-intelligence-trigger')!=='true'||
+       trigger.getAttribute('data-composer-navigation-target')!=='reasoning'||
+       !['Pro','Thinking effort','6 Pro'].includes(trigger.innerText.trim()))return false;
+    const own=(o,k)=>{
+        if(!o||(typeof o!=='object'&&typeof o!=='function'))return undefined;
+        const d=Object.getOwnPropertyDescriptor(o,k);
+        if(d&&!('value'in d))throw new Error('accessor');
+        return d?.value;
+    };
+    const contract=['selectedModel','onModelChange','models','modelLimits',
+        'isLoading','isError','disabled','xHighExperimentResetContextKey'];
+    const sourceContract=['selectedModel:','onModelChange:','onThinkingEffortChange:',
+        'onCommitPower:','onOpenChange:','CHATGPT_MODEL_PICKER_SURFACE_COMPOSER'];
+    function selected(p){
+        if(!p||!contract.every(k=>{
+            const d=Object.getOwnPropertyDescriptor(p,k);return d&&'value'in d;
+        }))return false;
+        const model=own(p,'selectedModel');
+        return own(p,'disabled')===false&&own(p,'isLoading')===false&&own(p,'isError')===false&&
+            typeof own(p,'onModelChange')==='function'&&
+            own(model,'slug')==='gpt-6-pro'&&own(model,'thinkingEffort')===null;
+    }
+    try{
+        const keys=Object.getOwnPropertyNames(trigger).filter(k=>k.startsWith('__reactFiber$'));
+        if(keys.length!==1)return false;
+        let f=own(trigger,keys[0]),owners=0,accepted=false;
+        const seen=new Set();
+        for(let depth=0;f&&depth<80;depth++,f=own(f,'return')){
+            if(seen.has(f))return false;seen.add(f);
+            const type=own(f,'type');
+            if(typeof type!=='function')continue;
+            const source=Function.prototype.toString.call(type);
+            if(!sourceContract.every(s=>source.includes(s)))continue;
+            // Recognize before schema validation: malformed owners must not
+            // disappear from uniqueness, even when their getters are unread.
+            if(++owners!==1)return false;
+            const p=own(f,'memoizedProps');
+            // A DOM fiber can reference either React buffer. Never guess that
+            // stale Pro props are current: both buffers must agree if present.
+            const alternate=own(f,'alternate');
+            accepted=selected(p)&&(alternate==null||(own(alternate,'type')===type&&
+                selected(own(alternate,'memoizedProps'))));
+        }
+        return owners===1&&accepted;
+    }catch(_){return false;}
+}
+function picker6ProLabel(row,view){
+    const label=row.innerText.trim().replace(/\s+/g,' ');
+    if(label==='6 Pro')return true;
+    // Observed default-family UI abbreviates 6 Pro as Pro. Never trust
+    // Pro alone: require the same picker to name exactly one selected GPT-6
+    // family, the explicit default-family/effort-only schema, and the existing
+    // maximum/4-of-4 gate below. The CLOSED incoming-parent gpt-6-pro/null
+    // witness remains mandatory before typing and again at Send.
+    if(label!=='Pro')return false;
+    const owner=row.closest('[data-explicit-model]');
+    const badge=row.querySelector('[data-maximum=true][data-effort-only=true]');
+    if(!owner||owner.getAttribute('data-explicit-model')!=='false'||
+       !badge||badge.getAttribute('data-effort-only')!=='true')return false;
+    const selected=[...view.querySelectorAll('[role=menuitemradio][aria-checked=true]')];
+    return selected.length===1&&selected[0].innerText.trim()==='GPT-6'&&
+        selected[0].getAttribute('aria-checked')==='true'&&
+        selected[0].getAttribute('data-model-selected')==='true';
+}
+function full6ProMaximum(){
+    const actionable=pickerActionable,menu=pickerMenu();
+    if(!menu)return false;
+    const views=[...menu.querySelectorAll('[data-model-picker-view=simple]')].filter(e=>actionable(e));
+    if(views.length!==1)return false;
+    const view=views[0];
+    const rows=[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')].filter(e=>actionable(e));
+    if(rows.length!==1)return false;
+    const row=rows[0],owner=row.closest('[aria-hidden]');
+    if(!owner||owner.getAttribute('aria-hidden')!=='false'||
+       !picker6ProLabel(row,view))return false;
+    const badge=row.querySelector('[data-maximum=true]');
+    // The observed thumb is aria-hidden=true; its active Power menuitem is
+    // the accessible control. Never ignore hidden/inert ancestry or disablement.
+    const powers=[...view.querySelectorAll('[data-reasoning-slider][role=menuitem][aria-label=Power]')].filter(e=>actionable(e));
+    if(powers.length!==1)return false;
+    const sliders=[...powers[0].querySelectorAll('[role=slider]')].filter(e=>actionable(e,true));
+    if(!actionable(badge)||sliders.length!==1)return false;
+    const slider=sliders[0];
+    return slider.getAttribute('aria-valuemin')==='0'&&
+           slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
+}'''
+
+
 def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str, ...] = (),
                  retained_tab: str | None = None, time_origin: float | None = None) -> dict:
     """Verify full 6 Pro/maximum gate and send; only explicit resume uses an existing target."""
     if retained_tab and (dry or type(time_origin) not in (int, float) or time_origin <= 0):
         raise ValueError('retained submission requires a bound document and effectful authority')
     payload = json.dumps(text)
+    full_picker_probe = '(()=>{' + MODEL_PICKER_JS + 'return full6ProMaximum();})()'
+    committed_probe = '(()=>{' + MODEL_PICKER_JS + 'return committed6ProMaximum();})()'
+    open_picker = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')!=='true')b.click();return true;})()"
+    maximum_geometry = '(()=>{' + MODEL_PICKER_JS + r'''const menu=pickerMenu();if(!menu)return null;
+        const views=[...menu.querySelectorAll('[data-model-picker-view=simple]')].filter(pickerActionable);
+        if(views.length!==1)return null;
+        const powers=[...views[0].querySelectorAll('[data-reasoning-slider][role=menuitem][aria-label=Power]')].filter(pickerActionable);
+        if(powers.length!==1)return null;
+        const sliders=[...powers[0].querySelectorAll('[role=slider]')].filter(e=>pickerActionable(e,true));
+        const rails=[...views[0].querySelectorAll('[data-model-picker-power-slider]')].filter(pickerActionable);
+        if(sliders.length!==1||rails.length!==1||sliders[0].getAttribute('aria-valuemin')!=='0'||
+           sliders[0].getAttribute('aria-valuemax')!=='4')return null;
+        const r=rails[0].getBoundingClientRect();return r.width>100&&r.height>10?{x:r.right-13,y:r.top+r.height/2}:null;})()'''
+    # The captured trigger toggles on pointerdown, not HTMLElement.click().
+    # Geometry is only an input target; unchanged closed/parent readback below
+    # still proves acceptance after the supported CDP press/release pair.
+    close_picker = '(()=>{' + COMPOSER_TEXT_JS + MODEL_PICKER_JS + r'''
+        if(composerText(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))!==''||
+           document.querySelectorAll('[data-message-author-role]').length)return null;
+        const b=pickerTrigger();if(!b||!pickerMenu()||!full6ProMaximum())return null;
+        const r=b.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+        return r.width>0&&r.height>0&&Number.isFinite(x)&&Number.isFinite(y)?{x,y}:null;})()'''
+    closed_probe = '(()=>{' + MODEL_PICKER_JS + "const b=pickerTrigger();return !!b&&b.getAttribute('aria-expanded')==='false'&&committed6ProMaximum();})()"
+    fresh_click = '(()=>{' + MODEL_PICKER_JS + '''if(!committed6ProMaximum())return false;
+        const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
+        if(!b||b.disabled)return false;b.click();return true;})()'''
+    if retained_tab:
+        guard = (COMPOSER_TEXT_JS + 'if(performance.timeOrigin!==' + json.dumps(time_origin) +
+            "||composerText(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))!=='')return false;")
+        open_picker = open_picker.replace('(()=>{', '(()=>{' + guard, 1)
+        close_picker = close_picker.replace('(()=>{', '(()=>{' + guard, 1)
     # Retained sends must re-prove document, exact original draft and full
     # model/readiness in the synchronous evaluation that clicks Send.
     retained_click = ("(()=>{const retainedOrigin=" + json.dumps(time_origin) +
-        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + r'''
+        ";const intended=" + payload + ";" + COMPOSER_TEXT_JS + MODEL_PICKER_JS + r'''
         if(performance.timeOrigin!==retainedOrigin)return {clicked:false,reason:'document'};
         const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
         if(composerText(e)!==intended)return {clicked:false,reason:'composer'};
@@ -937,15 +1115,7 @@ def send_message(text: str, dry: bool = False, forbidden: list[str] | tuple[str,
            document.querySelector('button[data-testid="stop-button"]')||
            /Reconnect Google Drive/.test(body)||
            (()=>{const main=document.querySelector('main');return !!main&&[...main.querySelectorAll('div[class*="group/activity-header"] span, button')].some(x=>x.textContent.trim()==='Thinking failed'&&(x.matches('button')||x.children.length===0));})())return {clicked:false,reason:'readiness'};
-        const model=[...document.querySelectorAll('button')].map(b=>b.innerText.trim()).find(t=>/^\s*\d+\s*Pro\s*$/.test(t)||/^\s*\d+(\.\d+)?\s*(Sol)?\s*$/.test(t));
-        const view=document.querySelector('[data-model-picker-view=simple]');
-        const rows=view?[...view.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];
-        const slider=view&&view.querySelector('[data-reasoning-slider] [role=slider]');
-        const fullPicker=rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&
-          rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&
-          !!rows[0].querySelector('[data-maximum=true]')&&!!slider&&
-          slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';
-        if((model && !/^\s*6\s*Pro\s*$/.test(model))||(!model&&!fullPicker))return {clicked:false,reason:'model'};
+        if(!committed6ProMaximum())return {clicked:false,reason:'model'};
         const b=document.querySelector('button[data-testid="send-button"]')||document.querySelector('button[type="submit"][aria-label="Send"]');
         if(!b||b.disabled)return {clicked:false,reason:'send_disabled'};
         b.click();return {clicked:true};})()''')
@@ -1041,39 +1211,45 @@ for readiness_observations in range(1, 47):
     time.sleep(min(2, remaining))
 # Do not touch a model picker on a replacement document after the readiness wait.
 if RETAINED: _fresh()
-# On a fresh chat the trigger may display the selected effort (e.g. Medium),
-# not the model. Select maximum power only on the observed five-step picker;
-# never infer GPT-6 from a bare Pro trigger or from a slider click alone.
-if not st["model"]:
-    trigger="button[aria-label='Select ChatGPT model']"
-    label=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");return b?b.innerText.trim():null;}})()")
-    if label in ('Medium', 'Pro'):
-        if RETAINED: _fresh()
-        picker_guard=("performance.timeOrigin==="+json.dumps(ORIGIN)+"&&!!(document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]'))&&!((document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]')).innerText.trim())") if RETAINED else "true"
-        opened=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(!("+picker_guard+")||!b||b.innerText.trim()!=="+json.dumps(label)+")return false;b.click();return true;}})()")
-        if opened and label == 'Medium':
-            # The slider is visible only in the simple view. Its fifth tick was
-            # observed to show the full '6 Pro' model/effort row on acct2.
-            for _ in range(10):
-                geometry=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const s=v&&v.querySelector('[data-reasoning-slider] [role=slider]');const rail=v&&v.querySelector('[data-model-picker-power-slider]');if(!b||b.getAttribute('aria-expanded')!=='true'||!v||!s||!rail||s.getAttribute('aria-valuemin')!=='0'||s.getAttribute('aria-valuemax')!=='4'||s.getAttribute('aria-valuenow')!=='1')return null;const r=rail.getBoundingClientRect();return r.width>100&&r.height>10?{{x:r.right-13,y:r.top+r.height/2}}:null;}})()")
-                if geometry: break
-                time.sleep(0.3)
-            if geometry:
-                _fresh()
-                for typ in ('mousePressed','mouseReleased'):
-                    cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
-                        x=geometry['x'], y=geometry['y'], button='left', clickCount=1)
-        selected=False
-        if opened:
-            for _ in range(10):
-                time.sleep(0.3)
-                selected=_bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");const v=document.querySelector('[data-model-picker-view=simple]');const rows=v?[...v.querySelectorAll('[role=menuitem][data-model-picker-view-toggle=true]')]:[];const slider=v&&v.querySelector('[data-reasoning-slider] [role=slider]');return !!b&&b.getAttribute('aria-expanded')==='true'&&rows.length===1&&rows[0].getAttribute('aria-hidden')==='false'&&rows[0].innerText.trim().replaceAll(String.fromCharCode(10),' ')==='6 Pro'&&!!rows[0].querySelector('[data-maximum=true]')&&!!slider&&slider.getAttribute('aria-valuenow')==='4'&&slider.getAttribute('aria-valuemax')==='4';}})()")
-                if selected: break
-            if RETAINED: _fresh()
-            _bound_js(tab['targetId'], fresh, "(()=>{{const b=document.querySelector("+json.dumps(trigger)+");if(("+picker_guard+")&&b&&b.getAttribute('aria-expanded')==='true')b.click();return true;}})()")
-            if selected: st['model']='6 Pro'
-if not st["model"] or not __import__("re").match(r"^\\s*6\\s*Pro\\s*$", st["model"]):
-    _binding_error("WRONG_MODEL", state=st)
+# All paths must commit through the supported maximum control, even when
+# button text or an open preview already says 6 Pro/maximum. Those are not
+# authoritative selected effort and must never skip this same gate.
+if RETAINED: _fresh()
+opened=_bound_js(tab['targetId'], fresh, {open_picker!r})
+geometry=None
+if opened:
+    for _ in range(10):
+        geometry=_bound_js(tab['targetId'], fresh, {maximum_geometry!r})
+        if geometry: break
+        time.sleep(0.3)
+if not geometry:
+    _binding_error('WRONG_MODEL', state=st, tab=tab['targetId'])
+_fresh()
+for typ in ('mousePressed','mouseReleased'):
+    cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
+        x=geometry['x'], y=geometry['y'], button='left', clickCount=1)
+selected=False
+for _ in range(10):
+    time.sleep(0.3)
+    # Some supported controls close on selection. Reopen only for the full
+    # 6 Pro/maximum/4-of-4 proof; staged selection is not parent acceptance.
+    if not _bound_js(tab['targetId'], fresh, {open_picker!r}): break
+    selected=_bound_js(tab['targetId'], fresh, {full_picker_probe!r})
+    if selected: break
+closed=False
+_fresh()
+close_geometry=_bound_js(tab['targetId'], fresh, {close_picker!r}) if selected else None
+if close_geometry:
+    for typ in ('mousePressed','mouseReleased'):
+        cdp('Input.dispatchMouseEvent', session_id=_sessions[tab['targetId']], type=typ,
+            x=close_geometry['x'], y=close_geometry['y'], button='left', clickCount=1)
+    for _ in range(10):
+        closed=_bound_js(tab['targetId'], fresh, {closed_probe!r})
+        if closed: break
+        time.sleep(0.3)
+if not selected or not closed or not _bound_js(tab['targetId'], fresh, {committed_probe!r}):
+    _binding_error('WRONG_MODEL', state=st, tab=tab['targetId'])
+st['model']='6 Pro'
 # Settle: ChatGPT re-mounts the composer a few seconds after load (measured 2026-09-16), which drops focus and
 # loses inserted text. Wait until the composer node identity has been stable for 8s before typing.
 def _cid():
@@ -1100,6 +1276,8 @@ def _exact(expected):
     return _bound_js(tab['targetId'], fresh, expression)
 def _prepare(prefix):
     _fresh()
+    if not _bound_js(tab['targetId'], fresh, {committed_probe!r}):
+        _binding_error('WRONG_MODEL', tab=tab['targetId'])
     # Focus alone does not prove a caret position. Restore and verify the exact
     # logical end before EVERY chunk, while refusing any changed prefix.
     expression="(()=>{{const prefix="+json.dumps(prefix)+";"+{prepare_js!r}+"}})()"
@@ -1137,7 +1315,7 @@ if RETAINED:
     if not ok['clicked']:
         _binding_error('retained_send_guard_failed', guard=ok['reason'], tab=tab['targetId'])
 else:
-    ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, "(()=>{{const b=document.querySelector('button[data-testid=\\"send-button\\"]')||document.querySelector('button[type=\\"submit\\"][aria-label=\\"Send\\"]');if(!b||b.disabled)return false;b.click();return true;}})()"))
+    ok=_paced_send(lambda: _bound_js(tab["targetId"], fresh, {fresh_click!r}))
 if not ok:
     print("RELAY_JSON:"+json.dumps({{"error":"SEND_DISABLED"}})); raise SystemExit(0)
 _sent=True
@@ -1187,6 +1365,10 @@ if EXISTING_ONLY:
     if _conversation(_here(tab))!=want: _binding_error('legacy_tab_mismatch', expected=want, tab=tab)
 else:
     tab=_bound_tab(want, {tab!r}, {list(protected)!r})
+# Chrome virtualizes background transcripts. Activate only the already proved
+# exact target; never navigate or reload a nonterminal chat to obtain text.
+activate_tab(tab)
+time.sleep(1)
 probe=lambda expression: _bound_js(tab, want, expression)
 st=_state(probe)
 if RELOAD and not st["stop"] and not st["thinking_failed"]:
@@ -1234,7 +1416,9 @@ def cleanup_tabs() -> int:
                  (r.get('retry_blocked') and not (r.get('status') == 'failed' and r.get('reason') == 'THINKING_FAILED')))]
         if any(r.get('status') == 'running' and not r.get('tab') for r in live):
             raise SystemExit('CLEANUP_REFUSED unbound generating job')
-        protected = [tab for r in live for tab in (r.get('tab'), (r.get('error') or {}).get('tab')) if tab]
+        # A proof-attributed target may be absent from the original error. Protect
+        # it conservatively even if later evidence drift invalidates admission.
+        protected = sorted({tab for row in live for tab in custody_tabs(row)})
         out = bu_json(BU_PRELUDE + f'''
 protected=set({protected!r})
 tabs=list_tabs()
@@ -2363,8 +2547,339 @@ TERMINAL_UNSENT_PR52 = {
 }
 
 
+# Current source-proven pre-insert refusals only. No retained send was attempted.
+# Acct2's consumed UNKNOWN job is deliberately absent; stale error flags cannot
+# establish unsent custody. These pins do not broaden PR52/canary exceptions.
+TERMINAL_UNSENT_CURRENT = {
+    # Exact first-attempt refusal at _new_tab, before creation/typing; no retry.
+    'route-glp-80-0165c8c734145a8044438815': {
+        'job': 'route-glp-80-0165c8c734145a8044438815',
+        'held': 'ca026a94c263e6f45054353f8a1e8b6e35e5e23598d6c841ae58cb1cd508af8f',
+        'status': 'failed', 'reason': 'TAB_CAP', 'backup': None,
+        'message': '7589e8921ddfaddcafeb70455662cdb81127ffeccfc9219ec348e85dbe6a7a5e',
+        'manifest': '2c21a666b44ef1f713e068d16032024bb23984588104bf212bdf8ee38a7b21d3',
+        'drive_prompt': '2abe3e55eb9ff67175ad183df94b25641eafbce260dad3bc3fca81419fc97838',
+        'ledger_lines': ('06b6e63b2ecebb6a370dff8af6d227378a04564807d9927ccb33d38df80596c6',),
+        'tab': None, 'time_origin': None, 'pretarget': True,
+        'attempt_log': 'ops/gpt6pro-relay/route/logs/route-glp-80-0165c8c734145a8044438815-submit-1791412306196753224.log',
+        'attempt_log_sha256': 'b03698bdca2fcf66eed6a716acf7dcfb3faf99b0aac9363d70fec1334164c0e9',
+    },
+    'glp44-canonical-sensor-partition-20261006': {
+        'job': 'glp44-canonical-sensor-partition-20261006',
+        'held': 'a9217c279914d3a72be56525e3b01215fc9424a5ebcf9dd7a190f247bf436575',
+        'status': 'failed', 'reason': 'WRONG_MODEL', 'backup': None,
+        'message': 'dd16dabaee15ffb8a58fce3edd81444fa133dac49bf6982ee39e2a6713655505',
+        'manifest': 'cd6bb067f72fd10c839e9c24c812712e2d7b3d40fbbc0ecb284a5bdc6a877981',
+        'drive_prompt': 'dfe4a416c40c891b4dcaba3d0da2d1d3106fce655271a929acd71a547c5e1ceb',
+        'ledger_lines': ('b0625dd0a4ed821b0491f7163b666ff330c0263c6137ab41de9759a033701870',),
+        'tab': None, 'time_origin': None,
+    },
+    'pro-glp96-intake-design-closer-20261003': {
+        'job': 'pro-glp96-intake-design-closer-20261003',
+        'held': '9a49105d13b15892836e64c42ade9c4376fc411dabac11813ad182c5913cbb8d',
+        'status': 'unsent_reconciled', 'reason': 'SECURITY_INTERSTITIAL',
+        'backup': '5b34fffc0ba2573074f8e45092e43e4af8b3ceef7b7d6b8c8c801c649da82b0e',
+        'message': '24d8e13f21295e9cdbbd71e10bebd5c422b9965512f240714e36dd5b0f65a8a9',
+        'manifest': 'c9d04fbf6bf1542bf3b02ba8925f054e90156b9fdd12674fea261a3d34a8b527',
+        'drive_prompt': '39a2fe3edac5fd160ea93401abee616023e9d048fabba56351f3206a940a5589',
+        'ledger_lines': ('606843ce0562eb04cd73c57ecfa70edab13759c98a57eb08bc6b4ea27a27cebf',
+                         '93890a3862731339fb2bb3079f1c5720c7eee6fd1e5d39ad3c93683d8cdf95bc',
+                         '55e34b66977981a3d2036e1a15002627f82c9438c2eb1fe8bc6df6147053f7da'),
+        'tab': 'AE132746A45F57BA0367D39D3B0320EF', 'time_origin': 1790988433154.6,
+    },
+}
+
+
+# One historical atomic composer refusal AFTER insertion but BEFORE its click.
+# Original true/UNKNOWN flags and the nonmatching draft are never rewritten.
+# These reviewed-source/custody pins do not cover generic errors or timeouts.
+TERMINAL_GUARD_REFUSED = {
+    **CONSUMED_CANARY,
+    'held': '9063d40a522736092508f974e1d6f477cccdc5c708d4cb2ade73b9fc71da9c0e',
+    'postinsert_guard': True,
+    'draft_sha256': '40c661b5b3d7b6005f75974e9ada44ba6829679b354ccd0bf0ebbb58f9bbdc9a',
+    'ledger_lines': (*CONSUMED_CANARY['ledger_lines'],
+        '63a54f9bc6f132b314a153677e5065bc92efa67b24e5e4602a3792982a1e3b29'),
+    'backups': {
+        'JOB.pre-retained-resume-ef0ddbcb8e8921544cae919ff6ddbe74d33a151ec92adf570eab0a694a69d7e4.json':
+            'ef0ddbcb8e8921544cae919ff6ddbe74d33a151ec92adf570eab0a694a69d7e4',
+        'JOB.pre-canary-recovery-88041b25bf3cd6f2388c1b84aaa3f4f23ea659a9237ca3e58bed7d4878fc15c6.json':
+            '88041b25bf3cd6f2388c1b84aaa3f4f23ea659a9237ca3e58bed7d4878fc15c6'},
+    'proof_files': {
+        'reports/ops/pro-retained-generated-js-review-20260927/INDEPENDENT-REVIEW.json':
+            '438b50df6352d6cce90dd4aba70cf1881cd6bc563bc20c1adf244e99f5c343c3',
+        'reports/ops/pro-consumed-canary-source-recovery-review-20260927/INDEPENDENT-REVIEW.json':
+            '69eddab33757986db27362a5277b8701f7388e4dafd80a3c4db138666dab3af3',
+        'reports/ops/pro-six-forward-recovery-execution-20260927/INDEPENDENT-REVIEW.json':
+            'a602400cb61d11b82369e1d1bfce8be69546344aeae9dbbb25fca5757b5e483e',
+        'reports/ops/pro-consumed-canary-existing-target-witness-20260927/RESULT.json':
+            '36033bb2572dfddd7c8f5358f89c6ca581ce16cd5e01755de1000e29d7ad02d0',
+        'pro-consumed-canary-source-recovery-review-worktree/scripts/gpt6pro_relay.py':
+            'baf90d2d37a6b69cec56c5f6fc1c0c3b31ce6cf40eca42d9e59a0c089ff23569',
+        'reports/ops/system-resume-20261006/persistent-three-pro-20261007/ACCT2-RAW-DRAFT.json':
+            '9a4149f6291ce87c08bcaf1a4948a212143b1a0515ecea8b4449c0c037a441cd'},
+}
+
+
+def _guard_refusal_custody(cfg, st, preimage, report):
+    """Exact historical source barriers + unchanged raw custody; never flag-only."""
+    c = TERMINAL_GUARD_REFUSED
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    if (st.get('job') != c['job'] or sha(preimage) != c['held'] or json.loads(preimage) != st or
+            st.get('status') != 'failed' or st.get('reason') != 'RETAINED_RESUME_UNCERTAIN' or
+            st.get('typed') is not True or st.get('sent') != 'UNKNOWN' or st.get('retry_blocked') is not True or
+            st.get('resume_error') != {'error': 'retained_send_guard_failed', 'guard': 'composer',
+                'typed': True, 'sent': 'UNKNOWN', 'tab': c['tab']} or
+            any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
+        raise ValueError('STATE')
+    d = JOBS / c['job']
+    if any((d / name).exists() for name in ('RESPONSE.md', 'outbox')):
+        raise ValueError('OUTPUT')
+    pins = {'MESSAGE.md': c['message'], 'MANIFEST.json': c['manifest'],
+            'drive-input/PROMPT.md': c['drive_prompt'], **c['backups']}
+    custody = {}
+    for root, items in ((d, pins), (BUSINESS, c['proof_files'])):
+        for rel, digest in items.items():
+            p = (root / rel).resolve()
+            if Path(rel).is_absolute() or not p.is_relative_to(root.resolve()):
+                raise ValueError('CUSTODY_PATH')
+            custody[p] = p.read_bytes()
+            if sha(custody[p]) != digest:
+                raise ValueError('CUSTODY')
+    manifest = json.loads(custody[(d / 'MANIFEST.json').resolve()])
+    if (any(not st.get(k) or manifest.get(k) != st[k] for k in (*PROVENANCE_FIELDS, 'job', 'job_class')) or
+            _failed_generation_identity(st).encode() not in custody[(d / 'MESSAGE.md').resolve()]):
+        raise ValueError('IDENTITY')
+    paths = [d / 'PROMPT.md', *map(Path, manifest['attach']), *map(Path, manifest['drive_attach'])]
+    if any(not p.resolve().is_relative_to(d.resolve()) for p in paths):
+        raise ValueError('PACKET_PATH')
+    custody.update({p: p.read_bytes() for p in paths})
+    ordered = [(p.name, sha(custody[p])) for p in paths]
+    if sha(json.dumps(ordered, separators=(',', ':')).encode()) != st['input_sha256']:
+        raise ValueError('PACKET')
+    lp = ledger_path(cfg); custody[lp] = lp.read_bytes()
+    all_rows = [(line, json.loads(line)) for line in custody[lp].splitlines() if line.strip()]
+    lines = [line for line, row in all_rows if row.get('job') == c['job']]
+    if tuple(map(sha, lines[:3])) != c['ledger_lines']:
+        raise ValueError('LEDGER')
+    rows = list(map(json.loads, lines))
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    custody[rp] = rp.read_bytes()
+    matches = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
+    if len(matches) != 1:
+        raise ValueError('REPORT')
+    row = matches[0]
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_postinsert_guard',
+        'job_sha256': c['held'], 'typed': True, 'sent': 'UNKNOWN', 'submission_bound': False,
+        'draft_sha256': c['draft_sha256']}
+    if any(row.get(k) != v or type(row.get(k)) is not type(v) for k, v in expected.items()):
+        raise ValueError('REPORT')
+    n = row.get('ledger_preimage_bytes')
+    if type(n) is not int or n <= 0 or sha(custody[lp][:n]) != row.get('ledger_preimage_sha256'):
+        raise ValueError('LEDGER_PREIMAGE')
+    if len(rows) == 3 and len(custody[lp]) != n:
+        raise ValueError('LEDGER_PREIMAGE')
+    return custody, rows
+
+
+def _retained_draft_witness(tab, time_origin, digest):
+    """Passive stable exact populated draft; never treat UNKNOWN as empty/ready."""
+    expression = '(()=>{' + COMPOSER_TEXT_JS + r'''const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');return {url:location.href,origin:performance.timeOrigin,logical:composerText(e),html:e?.outerHTML,innerText:e?.innerText,users:document.querySelectorAll('[data-message-author-role=user]').length,assistants:document.querySelectorAll('[data-message-author-role=assistant]').length};})()'''
+    result = bu_json(BU_PRELUDE + f'''
+tab={tab!r}
+before=sorted(t['targetId'] for t in list_tabs())
+if tab not in before: _binding_error('retained_target_missing')
+_select(tab)
+probe=lambda e:_bound_js(tab,'https://chatgpt.com/',e)
+a=probe({expression!r}); state=_state(probe); b=probe({expression!r})
+valid=(a==b and before==sorted(t['targetId'] for t in list_tabs()) and
+ a['url']=='https://chatgpt.com/' and a['origin']=={time_origin!r} and
+ isinstance(a['logical'],str) and len(a['logical'])==13323 and a['users']==a['assistants']==0 and
+ __import__('hashlib').sha256(a['logical'].encode()).hexdigest()=={digest!r} and
+ state['ready_state']=='complete' and state['composer_present'] is True and
+ all(state[k] is False for k in ('logged_out','stop','drive_reconnect','rate_limited','security_interstitial','human_challenge','thinking_failed')))
+print('RELAY_JSON:'+json.dumps({{'valid':valid}}))
+''')
+    return result == {'valid': True}
+
+
+def _terminal_unsent_pin(job, report=None):
+    if job == TERMINAL_GUARD_REFUSED['job']:
+        return TERMINAL_GUARD_REFUSED
+    if job == TERMINAL_UNSENT_PR52['job']:
+        return TERMINAL_UNSENT_PR52
+    if job in TERMINAL_UNSENT_CURRENT:
+        return TERMINAL_UNSENT_CURRENT[job]
+    if not isinstance(report, str):
+        raise ValueError('REPORT_PATH')
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    matching = [r for r in json.loads(rp.read_bytes())['jobs'] if r.get('job') == job]
+    if len(matching) != 1:
+        raise ValueError('REPORT')
+    row = matching[0]
+    if row.get('disposition') != 'terminal_unsent_preinsert' or row.get('reason') not in ('WRONG_MODEL', 'SECURITY_INTERSTITIAL'):
+        raise ValueError('DISPOSITION')
+    c = {'job': job, 'held': row['job_sha256'], 'message': row['message_sha256'],
+         'manifest': row['manifest_sha256'], 'drive_prompt': row['drive_prompt_sha256'],
+         'ledger_lines': tuple(row['ledger_line_sha256']), 'tab': row['error_tab'],
+         'time_origin': row['time_origin'], 'status': 'failed', 'reason': row['reason'],
+         'backup': None, 'generic': True, 'target_evidence': row['target_evidence'],
+         'ledger_preimage_sha256': row['ledger_preimage_sha256'], 'ledger_preimage_bytes': row['ledger_preimage_bytes']}
+    if (any(not re.fullmatch(r'[0-9a-f]{64}', v) for v in
+            (c['held'], c['message'], c['manifest'], c['drive_prompt'], c['ledger_preimage_sha256'], *c['ledger_lines'])) or
+            type(c['ledger_preimage_bytes']) is not int or c['ledger_preimage_bytes'] <= 0 or
+            len(c['ledger_lines']) != 1 or not isinstance(c['tab'], str) or not c['tab'] or
+            type(c['time_origin']) not in (int, float) or c['time_origin'] <= 0):
+        raise ValueError('PINS')
+    return c
+
+
+def _current_terminal_unsent_custody(cfg, st, preimage, report, c=None):
+    """Exact no-resume incidents; no inference from an error's stale sent flag."""
+    c = c or TERMINAL_UNSENT_CURRENT[st['job']]
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    error = st.get('error') or {}
+    observed = error.get('state') or {}
+    attempt_custody = {}
+    if c.get('pretarget'):
+        # Closed pinned incident schema, no target or stale readiness inference.
+        if (c['job'] != 'route-glp-80-0165c8c734145a8044438815' or c.get('generic') or
+                c['tab'] is not None or c['time_origin'] is not None or
+                error != {'error': 'TAB_CAP', 'typed': False, 'sent': False, 'count': 5, 'cap': 5}):
+            raise ValueError('PRETARGET')
+        lp = (BUSINESS / c['attempt_log']).resolve()
+        if Path(c['attempt_log']).is_absolute() or not lp.is_relative_to(BUSINESS.resolve()):
+            raise ValueError('LOG_PATH')
+        log_bytes = lp.read_bytes()
+        if (sha(log_bytes) != c['attempt_log_sha256'] or
+                log_bytes != ('SEND_FAILED TAB_CAP ' + json.dumps(error) + '\n').encode()):
+            raise ValueError('ATTEMPT_LOG')
+        attempt_custody[lp] = log_bytes
+    readiness_invalid = (not c.get('pretarget') and
+        (observed.get('url') != 'https://chatgpt.com/' or observed.get('stop') is not False or
+         observed.get('assistant_count') != 0 or observed.get('last_len') != 0))
+    if (sha(preimage) != c['held'] or json.loads(preimage) != st or
+            st.get('status') != c['status'] or st.get('reason') != c['reason'] or
+            st.get('retry_blocked') is not True or st.get('typed') is not False or st.get('sent') is not False or
+            error.get('error') != c['reason'] or error.get('typed') is not False or error.get('sent') is not False or
+            (error.get('tab') != c['tab'] and not (c.get('generic') and error.get('tab') is None)) or readiness_invalid or
+            any(k in st for k in ('resume_attempt', 'resume_history', 'resume_error', 'terminal_unsent')) or
+            any(st.get(k) for k in ('tab', 'conversation_id', 'conversation_url', 'pending_conversation_url', 'binding_version'))):
+        raise ValueError('STATE')
+    d = JOBS / c['job']
+    if any((d / name).exists() for name in ('RESPONSE.md', 'outbox')):
+        raise ValueError('OUTPUT')
+    pins = {'MESSAGE.md': c['message'], 'MANIFEST.json': c['manifest'], 'drive-input/PROMPT.md': c['drive_prompt']}
+    if c['backup']:
+        pins['JOB.pre-readiness-reconcile-' + c['backup'] + '.json'] = c['backup']
+    custody = {d / name: (d / name).read_bytes() for name in pins}
+    custody.update(attempt_custody)
+    if any(sha(custody[d / name]) != digest for name, digest in pins.items()):
+        raise ValueError('CUSTODY')
+    if c['backup']:
+        original = json.loads(custody[d / ('JOB.pre-readiness-reconcile-' + c['backup'] + '.json')])
+        if (st.get('preimage_sha256') != c['backup'] or original.get('status') != 'failed' or
+                original.get('typed') is not False or original.get('sent') is not False or
+                st != {**original, 'status': c['status'], 'preimage_sha256': c['backup'],
+                       'reconciled_at': st.get('reconciled_at')}):
+            raise ValueError('PREIMAGE')
+    manifest = json.loads(custody[d / 'MANIFEST.json'])
+    if (any(manifest.get(k) != st.get(k) or not st.get(k) for k in (*PROVENANCE_FIELDS, 'job', 'job_class')) or
+            not isinstance(manifest.get('attach'), list) or not isinstance(manifest.get('drive_attach'), list) or
+            _failed_generation_identity(st).encode() not in custody[d / 'MESSAGE.md']):
+        raise ValueError('IDENTITY')
+    paths = [d / 'PROMPT.md', *manifest['attach'], *manifest['drive_attach']]
+    if any(not Path(p).resolve().is_relative_to(d.resolve()) for p in paths):
+        raise ValueError('PACKET_PATH')
+    custody.update({Path(p): Path(p).read_bytes() for p in paths})
+    packet = [(Path(p).name, sha(custody[Path(p)])) for p in paths]
+    if sha(json.dumps(packet, separators=(',', ':')).encode()) != st['input_sha256']:
+        raise ValueError('PACKET')
+    ledger = ledger_path(cfg)
+    custody[ledger] = ledger.read_bytes()
+    if c.get('generic') and sha(custody[ledger][:c['ledger_preimage_bytes']]) != c['ledger_preimage_sha256']:
+        raise ValueError('LEDGER_PREIMAGE')
+    all_rows = [(line, json.loads(line)) for line in custody[ledger].splitlines() if line.strip()]
+    lines = [line for line, row in all_rows if row.get('job') == c['job']]
+    n = len(c['ledger_lines'])
+    if tuple(map(sha, lines[:n])) != c['ledger_lines']:
+        raise ValueError('LEDGER')
+    rows = [json.loads(line) for line in lines]
+    if c.get('pretarget') and (len(c['ledger_lines']) != 1 or
+            rows[0].get('event') != 'submitted' or rows[0].get('kind') != 'initial' or
+            rows[0].get('certainty') != 'reserved_may_send' or rows[0].get('phase') is not None or
+            rows[0].get('account') != st['account'] or
+            any(rows[0].get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('RESERVATION')
+    rp = (BUSINESS / report).resolve()
+    if Path(report).is_absolute() or not rp.is_relative_to(BUSINESS.resolve()):
+        raise ValueError('REPORT_PATH')
+    custody[rp] = rp.read_bytes()
+    matching = [r for r in json.loads(custody[rp]).get('jobs', []) if r.get('job') == c['job']]
+    expected = {'job': c['job'], 'disposition': 'terminal_unsent_preinsert' if c.get('generic') else 'terminal_unsent_obsolete', 'reason': c['reason'],
+                'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': c['held'],
+                'message_sha256': c['message'], 'error_tab': c['tab'], 'time_origin': c['time_origin'],
+                'ledger_rows_sha256': sha(json.dumps(rows[:n], sort_keys=True, separators=(',', ':')).encode())}
+    if (len(matching) != 1 or any(matching[0].get(k) != v for k, v in expected.items()) or
+            any(matching[0].get(k) is not False for k in ('typed', 'sent', 'submission_bound'))):
+        raise ValueError('REPORT')
+    return custody, rows
+
+
+def _generic_terminal_unsent_evidence(st, c, rows, custody):
+    """Prove one initial preinsert refusal, including a missing error.tab's attribution.
+
+    Historical evidence identifies the original document; it never substitutes for
+    the fresh locked strict-empty witness required by the registered apply path.
+    """
+    sha = lambda b: hashlib.sha256(b).hexdigest()
+    initial = rows[0]
+    if (initial.get('event') != 'submitted' or initial.get('phase') is not None or
+            initial.get('account') != st['account'] or initial.get('kind') != 'initial' or
+            initial.get('certainty') != 'reserved_may_send' or
+            any(initial.get(k) != st[k] for k in PROVENANCE_FIELDS)):
+        raise ValueError('LEDGER')
+    start = datetime.fromisoformat(initial['ts'])
+    end = datetime.fromisoformat(st['ts'])
+    if (start.tzinfo is None or end.tzinfo is None or
+            not start.timestamp()*1000 <= c['time_origin'] <= end.timestamp()*1000):
+        raise ValueError('DOCUMENT_INTERVAL')
+    records = {}
+    for key in ('preflight', 'observation'):
+        pin = c['target_evidence'][key]
+        ep = (BUSINESS / pin['path']).resolve()
+        if Path(pin['path']).is_absolute() or not ep.is_relative_to(BUSINESS.resolve()):
+            raise ValueError('EVIDENCE_PATH')
+        custody[ep] = ep.read_bytes()
+        if sha(custody[ep]) != pin['sha256']:
+            raise ValueError('EVIDENCE')
+        records[key] = json.loads(custody[ep])
+    before = {t['target_id'] for t in records['preflight']['targets']}
+    observed = records['observation']['browser']
+    candidates = [t for t in observed['metadata'] if t['target_id'] not in before and
+        t['url'] == 'https://chatgpt.com/' and start.timestamp()*1000 <= t['time_origin'] <= end.timestamp()*1000]
+    if (len(candidates) != 1 or candidates[0]['target_id'] != c['tab'] or
+            candidates[0]['time_origin'] != c['time_origin'] or
+            sum(t['target_id'] == c['tab'] and t['url'] == 'https://chatgpt.com/'
+                for t in observed['targets_before']) != 1):
+        raise ValueError('TARGET_ATTRIBUTION')
+
+
 def _terminal_unsent_custody(cfg, st, preimage, report):
     """Offline exact-byte proof shared by disposition and admission readback."""
+    if st.get('job') == TERMINAL_GUARD_REFUSED['job']:
+        return _guard_refusal_custody(cfg, st, preimage, report)
+    if st.get('job') not in (TERMINAL_UNSENT_PR52['job'], *TERMINAL_UNSENT_CURRENT):
+        c = _terminal_unsent_pin(st['job'], report)
+        custody, rows = _current_terminal_unsent_custody(cfg, st, preimage, report, c)
+        _generic_terminal_unsent_evidence(st, c, rows, custody)
+        return custody, rows
+    if st.get('job') in TERMINAL_UNSENT_CURRENT:
+        return _current_terminal_unsent_custody(cfg, st, preimage, report)
     c = TERMINAL_UNSENT_PR52
     sha = lambda b: hashlib.sha256(b).hexdigest()
     def refuse(reason):
@@ -2416,7 +2931,7 @@ def _terminal_unsent_custody(cfg, st, preimage, report):
 
 
 def _terminal_unsent_event(st, report, report_bytes, observed_at):
-    c = TERMINAL_UNSENT_PR52
+    c = _terminal_unsent_pin(st['job'], report)
     return {'event': 'terminal_unsent', 'job': c['job'], 'account': st['account'],
             'preimage_sha256': c['held'], 'message_sha256': c['message'],
             'retained_tab': c['tab'], 'time_origin': c['time_origin'],
@@ -2430,7 +2945,7 @@ def _verified_terminal_unsent(st):
     Fail closed after any interrupted apply or changed evidence. Cleanup deliberately
     does NOT use this admission exception: retry_blocked still protects error.tab.
     """
-    if st.get('job') != TERMINAL_UNSENT_PR52['job'] or not isinstance(st.get('terminal_unsent'), dict):
+    if not isinstance(st.get('terminal_unsent'), dict):
         return False
     try:
         # Sibling records project the directory name over job; that projection is
@@ -2438,26 +2953,32 @@ def _verified_terminal_unsent(st):
         if json.loads((JOBS / st['job'] / 'JOB.json').read_bytes()) != st:
             return False
         proof = st['terminal_unsent']
-        backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + TERMINAL_UNSENT_PR52['held'] + '.json')
+        c = _terminal_unsent_pin(st['job'], proof['report'])
+        n = len(c['ledger_lines'])
+        backup = JOBS / st['job'] / ('JOB.pre-terminal-unsent-' + c['held'] + '.json')
         preimage = backup.read_bytes()
         original = json.loads(preimage)
         custody, rows = _terminal_unsent_custody(load_config(), original, preimage, proof['report'])
         expected = _terminal_unsent_event(original, proof['report'],
             custody[(BUSINESS / proof['report']).resolve()], proof['observed_at'])
         return (datetime.fromisoformat(proof['observed_at']).tzinfo is not None and
-                proof == expected and st == {**original, 'terminal_unsent': proof} and len(rows) == 4 and
+                proof == expected and st == {**original, 'terminal_unsent': proof} and len(rows) == n + 2 and
                 all(row == {'ts': row.get('ts'), **proof, 'phase': phase}
-                    for row, phase in zip(rows[2:], ('STARTED', 'APPLIED'))))
+                    for row, phase in zip(rows[n:], ('STARTED', 'APPLIED'))))
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return False
 
 
 def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize_preimage, account):
     """Registered, forward-only disposition; NEVER restores, clears or resends."""
-    c = TERMINAL_UNSENT_PR52
-    def refuse(reason):
+    try:
+        c = _terminal_unsent_pin(path.parent.name, report)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise SystemExit('TERMINAL_UNSENT_REFUSED_REPORT ' + path.parent.name)
+    def refuse(reason) -> NoReturn:
         raise SystemExit('TERMINAL_UNSENT_REFUSED_' + reason + ' ' + c['job'])
-    if (st.get('account') != account or (apply and authorize_preimage != c['held']) or
+    if (st.get('job') != c['job'] or hashlib.sha256(preimage).hexdigest() != c['held'] or
+            st.get('account') != account or (apply and authorize_preimage != c['held']) or
             (not apply and authorize_preimage is not None)):
         refuse('AUTHORITY')
     try:
@@ -2465,15 +2986,22 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         refuse('CUSTODY')
     backup = path.with_name('JOB.pre-terminal-unsent-' + c['held'] + '.json')
-    if len(rows) != 2 or backup.exists():
+    if len(rows) != len(c['ledger_lines']) or backup.exists():
         refuse('HISTORY')
+    if c.get('generic') and len(custody[ledger_path(cfg)]) != c['ledger_preimage_bytes']:
+        refuse('LEDGER_PREIMAGE')
     if _legacy_live_jobs():
         refuse('LIVE_RUNNER')
     admission = subprocess.run([sys.executable, str(BUSINESS / 'scripts/candidate_build_lock.py'),
                                 'require-held'], capture_output=True, text=True)
     if admission.returncode:
         refuse('ADMISSION')
-    if not _retained_empty_witness(c['tab'], c['time_origin']):
+    # Pre-insert incidents retain strict-empty proof. The one post-insertion
+    # guard refusal instead preserves the exact populated draft, never clears it.
+    if c.get('postinsert_guard'):
+        if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+            refuse('TAB_EVIDENCE')
+    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
         refuse('TAB_EVIDENCE')
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
@@ -2483,7 +3011,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     if not apply:
         print('WOULD_TERMINALIZE_UNSENT job=' + c['job'] + ' preimage_sha256=' + c['held'])
         return 0
-    # Both consumed attempts/failures survive in the unchanged preimage and old rows.
+    # Every original attempt/failure survives in the unchanged preimage and old rows.
     with backup.open('xb') as fh:
         fh.write(preimage); fh.flush(); os.fsync(fh.fileno())
     fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
@@ -2514,10 +3042,18 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
     of the exact job rows serialized with sorted keys and compact separators),
     and time_origin from an admitted read of the retained challenge-free tab.
     It preserves retry_blocked and the retained tab; it is not a resume API.
-    The exact pinned obsolete PR52 job instead appends terminal_unsent proof.
-    Its explicit report row must say disposition=terminal_unsent_obsolete;
-    --apply also requires --authorize-preimage for the current consumed JOB.
+    Exact pinned obsolete PR52/current pre-insert jobs append terminal_unsent proof.
+    The explicit report row must say disposition=terminal_unsent_obsolete;
+    --apply also requires --authorize-preimage for the exact current JOB.
+    Reusable disposition=terminal_unsent_preinsert binds complete current JOB,
+    packet/message, whole-ledger preimage plus exact job row, frozen target
+    attribution and fresh same-document strict-empty proof. It appends only
+    STARTED/APPLIED and a terminal proof, never clears retry_blocked or cleans up.
     Only a DIFFERENT job can benefit from its verified terminal admission case.
+    The separately pinned post-insertion composer-refusal incident additionally
+    binds historical source/attempt evidence and exact populated-draft custody.
+    Its original typed=true/sent=UNKNOWN/retry_blocked fields are preserved;
+    generic possibly-sent jobs, retries and draft edits remain forbidden.
     """
     incidents = {
         'glp270-20260924d-taxonomy-all-expiring-rows':
@@ -2548,7 +3084,10 @@ def reconcile_unsent_model(job: str, apply: bool = False, report: str | None = N
         path = JOBS / job / 'JOB.json'
         preimage = path.read_bytes()
         st = json.loads(preimage)
-        if job == TERMINAL_UNSENT_PR52['job']:
+        facts = json.loads((BUSINESS / report_path).read_bytes()) if report is not None else {}
+        terminal_requested = any(r.get('job') == job and r.get('disposition') == 'terminal_unsent_preinsert'
+                                 for r in facts.get('jobs', []))
+        if job in (TERMINAL_UNSENT_PR52['job'], TERMINAL_GUARD_REFUSED['job']) or job in TERMINAL_UNSENT_CURRENT or terminal_requested:
             return _reconcile_terminal_unsent(cfg, st, path, preimage, report_path,
                                               apply, authorize_preimage, selected_account)
         if authorize_preimage is not None:
@@ -3150,7 +3689,7 @@ def main() -> int:
     m.add_argument("--job", required=True)
     m.add_argument("--report", help="unlisted job: report JSON (relative to business root) whose row proves it unsent")
     m.add_argument("--apply", action="store_true")
-    m.add_argument('--authorize-preimage', help='exact current JOB SHA256; required with --apply only for obsolete PR52 terminal-unsent disposition')
+    m.add_argument('--authorize-preimage', help='exact current JOB SHA256; required with --apply only for pinned obsolete terminal-unsent disposition')
     sd = sub.add_parser("reconcile-unsent-send-disabled", help="dry-run first; exact intact unsent SEND_DISABLED draft")
     sd.add_argument("--job", required=True)
     sd.add_argument("--apply", action="store_true")

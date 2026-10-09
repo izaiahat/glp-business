@@ -15,12 +15,26 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: GLP73 autonomous article and Alexandria contracts (offline, exact head)
+        run: |
+          python3 -m unittest discover -s tests -p test_glp73_autonomous_articles.py -v
+          python3 -m unittest discover -s tests -p test_glp73_article_research.py -v
+          python3 -m unittest discover -s tests -p test_glp73_cogny_consumption.py -v
+      - name: Q9 copy admission and report exclusions (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          printf 'Q9_EXACT_HEAD=%s\n' "$(git rev-parse HEAD)"
+          python3 -B -m unittest discover -s tests -p test_site_tree_materializer_q9.py -v
       - name: Verify exact head and package-only regressions (stdlib, no credentials)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -m unittest discover -s tests -p test_glp42_package_only.py -v
+          python3 -m unittest tests.test_glp43_current_release.CurrentReleaseTests.test_existing_promotion_uses_exact_cohort_predecessor_without_global_adoption tests.test_glp43_current_release.CurrentReleaseTests.test_r8_existing_promotion_native_selection_rollback_and_no_replay -v
   python-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -32,11 +46,44 @@ jobs:
           # Retained pre-admission importer counterexample is read by exact SHA.
           fetch-depth: 0
           persist-credentials: false
+      - name: Hermes active-work gate (offline proc/tmux fixtures, exact head; no activation)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_hermes_active_work_gate.py -v
+      - name: K4 n8n registry reconcile (offline, exact head)
+        run: python3 -B -m unittest tests.test_n8n_workflow_registry_reconcile -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: GLP335 registered current-contract reconciliation (offline, exact head)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp335_registered_current_contract.py tests/test_host_custody.py
+      - name: Digital PR weekly gate prepared content base (offline, exact head; no sends)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_digital_pr_weekly.py -k 'not cron_wrapper and not canonical_packet'  # those two read live host files
+      - name: GLP109 protected two-account native custody (offline, exact head; no live writes)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_linear_ordinary_completion.py tests/test_linear_close.py
+      - name: Sponsor persistent continuation (offline fixtures, exact head; no activation)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_boundary_repairs.py
       - name: GLP337 fixed shared-bridge custody (offline, exact head; no adoption)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -57,7 +104,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_discovery_predecessor_migration.py tests/test_sync_from_repo.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_discovery_predecessor_migration.py tests/test_sync_from_repo.py tests/test_pallas_predecessor_migration.py
       - name: F07 ship provenance verifier (offline fixtures, read-only; no install)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -70,6 +117,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_cleanup_affiliate_copins.py
+      - name: GLP347 exact relationship ending and editorial retention (offline)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_pallas_relationship_ending.py tests/test_glp_affiliate_registry_sync.py
       - name: MaxBounty live artifact exact-head capture regressions (offline)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -94,6 +147,15 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -m pytest -q tests/test_glp73_sensor_hook_source.py
+      - name: GLP-73 guide capture compiler contract (offline, no refill)
+        run: .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_publication_date_binding.py
+      - name: GLP-73 exact-head image fallback (offline synthetic pixels, no generation or publication)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pip install 'Pillow==11.3.0'
+          .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_image_lineage_fallback.py systems/seo-blog-machine/tests/test_text_only_image_fallback.py
       - name: GLP-76 host transport acceptance (no network or updater execution)
         run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py
       - name: GLP-85 CJ parent existing-account evidence mapping (offline, no financial event)
@@ -110,8 +172,10 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py tests/test_glp76_review_publication_date.py
+      - name: GLP80 weekly batch and exact typed re-attestation (offline, exact head)
+        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp80_reattest.py tests/test_glp80_price_freshness.py tests/test_glp80_registered_price_refresh.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
-        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py
+        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py tests/test_glp80_registry_adoption.py
       - name: Rook communication exact-head acceptance (offline, no credentials)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -145,6 +209,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           .venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_glp44_collector_release.py tests/test_glp44_fastpath_direct.py
+      - name: GLP44 monthly profitability mapping (offline, exact head; no registered run)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_glp_analytics_brain_monthly_profitability.py -v
       - name: Analytics-brain neutral measurement contract (synthetic; no provider calls)
         run: .venv/bin/python -m pytest -q systems/analytics-brain/tests/test_expectations.py
       - name: Publication-date binding regression (no deployment)
@@ -170,4 +240,4 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp268_fresh_browser_callers.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp268_fresh_browser_callers.py tests/test_glp268_reconciler_access.py tests/test_glp268_remaining_callers.py tests/test_glp268_visible_catalogs.py

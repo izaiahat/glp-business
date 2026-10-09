@@ -26,7 +26,9 @@ INTENT_SCHEMA = 'glp-f06-publication-intent-v1'
 PATCH_SCHEMA = 'ws-r-json-patch-v1'
 # Mirrors the typed pricing witness bar (validate-provider-pricing-matrix.mjs).
 MAX_EVIDENCE_AGE_DAYS = 92
-PRICE_FIELDS = frozenset({'amount_usd', 'period', 'billing_basis', 'price_phase', 'price_kind',
+PRICE_FIELDS = frozenset({'amount_usd', 'intro_usd', 'ongoing_usd', 'equivalent_usd',
+                          'membership_usd', 'medication_usd', 'advertised_floor_usd',
+                          'ongoing_equivalent_usd', 'period', 'billing_basis', 'price_phase', 'price_kind',
                           'medication', 'formulation'})
 CANCELLATION_FIELDS = frozenset({'cancellation_policy', 'notice_days', 'refund_policy',
                                  'minimum_commitment_months', 'cancellation_fee_usd'})
@@ -222,11 +224,22 @@ def monthly_branch(pid, month, as_of, claims_doc, matrix_path, capture_root,
             node = next_matrix
             for key in keys[:-1]:
                 node = node[key] if isinstance(node, list) else node.setdefault(key, {})
+            # Price components use the native typed fact contract. The capture
+            # hash has already been authenticated against saved bytes above;
+            # stage_candidate copies those same bytes to this addressed path.
+            # Cancellation facts retain their distinct historical contract.
+            price = items[0][1]['kind'] == 'price_component'
             node[keys[-1]] = {
                 'value': copy.deepcopy(items[0][1]['value']),
-                'evidence': [{'source_url': c['source_url'], 'content_sha256': c['content_sha256'],
+                'evidence': [({'source_url': c['source_url'],
+                              'capture_sha256': c['content_sha256'],
+                              'capture_path': 'data/pricing-evidence/' + c['content_sha256'] + '.md',
+                              'captured_at_utc': c['captured_at_utc'], 'quote': c['quote']}
+                             if price else
+                             {'source_url': c['source_url'], 'content_sha256': c['content_sha256'],
                               'captured_at_utc': c['captured_at_utc'], 'capture_key': c['capture_key'],
-                              'quote': c['quote']} for _, c in sorted(items, key=lambda x: x[0])],
+                              'quote': c['quote']}) for _, c in sorted(items, key=lambda x: x[0])],
+                **({'artifact_needed': None} if price else {}),
             }
     operations = diff(matrix, next_matrix) if not branch_errors and not refusals else []
     if branch_errors or refusals:

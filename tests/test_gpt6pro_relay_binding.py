@@ -19,6 +19,7 @@ spec = importlib.util.spec_from_file_location("relay_binding_test_subject", RELA
 relay = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(relay)
 REAL_BU = relay.bu
+REAL_CLEANUP_TABS = relay.cleanup_tabs
 REAL_DRIVE_SUBFOLDER = relay.drive_subfolder
 REAL_SUBPROCESS_RUN = subprocess.run
 HOME = "https://chatgpt.com/"
@@ -50,6 +51,7 @@ class FakeCDP:
         self.omit_undefined_value = False
         self.pro_only_trigger = False
         self.medium_trigger = False
+        self.trigger_label: str | None = None
         self.slider_works = True
         self.selected_model = '6 Pro'
         self.markdown_composer_only = False
@@ -63,6 +65,7 @@ class FakeCDP:
         self.app_samples = []
         self.app_overrides = {}
         self.on_run = lambda: None
+        self.on_activate = lambda tid: None
 
     def list_tabs(self):
         return [{"targetId": tid, "url": p["url"]} for tid, p in self.pages.items()]
@@ -131,8 +134,11 @@ class FakeCDP:
             page["composer"] += params["text"]
             return {}
         if method == 'Input.dispatchMouseEvent':
-            if self.medium_trigger and self.slider_works and params['type'] == 'mouseReleased':
+            if params['x'] == 50 and params['type'] == 'mousePressed':
+                page['picker_open'] = False
+            elif params['x'] == 1100 and self.slider_works and params['type'] == 'mouseReleased':
                 page['picker_power'] = 4
+                page['selected_effort'] = 'maximum'
             return {}
         if method == "Input.dispatchKeyEvent":
             if params["key"] == "Backspace" and params["type"] == "keyDown":
@@ -150,13 +156,19 @@ class FakeCDP:
                 childNodes:t?[{nodeType:3,data:t}]:[{nodeType:1,tagName:'BR',className:'ProseMirror-trailingBreak',attributes:['class']}]}))};
             const button={disabled:false,click:()=>clicks++};
             const model={innerText:p.model||'6 Pro'};
+            const trigger={innerText:p.model||'6 Pro',getClientRects:()=>[1],parentElement:null,
+              getAttribute:k=>({'data-selected-reasoning-effort':p.selected_effort||'medium',
+                'aria-expanded':'false','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'}[k]||null)};
             const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
               body:{innerText:p.challenge?'Checking your browser':'ChatGPT'},
               querySelector:s=>s.includes('prompt-textarea')?editor:
                 s.includes('send-button')?button:null,
-              querySelectorAll:s=>s==='button'?[model]:[],};
+              querySelectorAll:s=>s==='button'?[model]:s==='button[aria-label="Select ChatGPT model"]'?[trigger]:[],};
             const performance={timeOrigin:p.origin||12345.5};
             const getComputedStyle=()=>({display:'block',visibility:'visible'});
+            ''' + MODEL_OWNER_FIXTURE + '''
+            attachModelOwner(trigger,{slug:p.model&&p.model!=='6 Pro'?'other':'gpt-6-pro',
+                thinkingEffort:p.selected_effort==='maximum'?null:'standard'});
             const result=''' + expression + ''';
             console.log(JSON.stringify({result,clicks}));'''
         run = REAL_SUBPROCESS_RUN(['node', '-e', source, json.dumps(page)],
@@ -224,15 +236,34 @@ class FakeCDP:
             identity_selector = ('[data-message-author-role=user]' in expression if page.get('identity_location') == 'user-role-only'
                                  else 'div.text-size-chat.whitespace-pre-wrap' in expression or '[data-message-author-role=user]' in expression)
             return bool(identity_selector and page.get("identity_matched", False))
+        if 'function pickerActionable' in expression:
+            # Transport state only; NativeComposerTests runs the actual DOM gates.
+            committed_model = self.app_overrides.get('model', self.selected_model)
+            committed = page.get('selected_effort') == 'maximum' and committed_model == '6 Pro'
+            if 'r.right-13' in expression:
+                return {'x': 1100, 'y': 470}
+            if expression.endswith('return full6ProMaximum();})()'):
+                return committed_model == '6 Pro' and page.get('picker_power') == 4
+            if "const b=pickerTrigger();if(!b)return false;if(b.getAttribute('aria-expanded')!=='true')b.click();return true;" in expression:
+                page['picker_open'] = True
+                return True
+            if 'const r=b.getBoundingClientRect(),x=' in expression:
+                return {'x': 50, 'y': 15} if page.get('picker_open') and (not page['composer'] or page.get('placeholder')) and not page['messages'] else None
+            if "return !!b&&b.getAttribute('aria-expanded')==='false'" in expression:
+                return not page.get('picker_open', True) and committed
+            if expression.endswith('return committed6ProMaximum();})()'):
+                return committed
+            if not committed:
+                return False
         if 'return b?b.innerText.trim():null' in expression:
             if self.clock < self.app_ready_at:
                 return None
-            return 'Medium' if self.medium_trigger else ('Pro' if self.pro_only_trigger else None)
+            return self.trigger_label or ('Medium' if self.medium_trigger else ('Pro' if self.pro_only_trigger else None))
         if 'r.right-13' in expression:
             return {'x': 1100, 'y': 470} if self.medium_trigger else None
-        if 'data-model-picker-view-toggle' in expression and (self.pro_only_trigger or self.medium_trigger):
+        if 'function pickerActionable' not in expression and 'data-model-picker-view-toggle' in expression and (self.pro_only_trigger or self.medium_trigger):
             return self.selected_model == '6 Pro' and (not self.medium_trigger or page.get('picker_power') == 4)
-        if 'Select ChatGPT model' in expression and (self.pro_only_trigger or self.medium_trigger):
+        if 'function pickerActionable' not in expression and 'Select ChatGPT model' in expression and (self.pro_only_trigger or self.medium_trigger):
             # React commits aria-expanded after the click, not synchronously.
             return "b.click();return true;" in expression
         if expression == "!!document.querySelector('[data-message-author-role]')":
@@ -297,7 +328,7 @@ class FakeCDP:
         clock.monotonic = lambda: self.clock
         env = {"cdp": self.cdp, "js": self.js, "list_tabs": self.list_tabs, "switch_tab": self.switch_tab,
                "current_tab": self.current_tab, "goto_url": self.goto_url, "wait_for_load": lambda: None,
-               "activate_tab": lambda tid: None, "close_tab": lambda tid: self.pages.pop(tid)}
+               "activate_tab": self.on_activate, "close_tab": lambda tid: self.pages.pop(tid)}
         out = io.StringIO()
         with mock.patch.dict(sys.modules, {"time": clock}), redirect_stdout(out):
             try:
@@ -353,6 +384,157 @@ class BindingTests(unittest.TestCase):
               "submitted": relay.now_iso(), **extra}
         relay.job_write(name, st)
         return st
+
+    def test_bound_poll_activates_virtualized_target_without_reload_or_completion(self):
+        self.browser.pages['wanted'] = {'url': WANT, 'text': '', 'composer': '', 'messages': True, 'stop': True}
+        activated = []
+        def render(tid):
+            activated.append(tid)
+            self.browser.pages[tid]['text'] = 'visible streaming answer'
+        self.browser.on_activate = render
+        result = relay.read_reply(WANT, 'wanted', existing_only=True)
+        self.assertEqual(result['text'], 'visible streaming answer')
+        self.assertTrue(result['state']['stop'])
+        self.assertEqual(activated, ['wanted'])
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_postinsert_guard_terminal_preserves_unknown_and_draft(self):
+        """Exact custody branch, never an error-string or empty-page waiver."""
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        job = relay.CONSUMED_CANARY['job']; tab = 'held-draft'; origin = 12345.0
+        d = relay.job_dir(job); (d / 'drive-input').mkdir()
+        (d / 'PROMPT.md').write_bytes(b'fixture'); (d / 'drive-input/PROMPT.md').write_bytes(b'folded')
+        (d / 'old-first.json').write_bytes(b'first-backup'); (d / 'old-second.json').write_bytes(b'second-backup')
+        held = {'job':job, 'account':'account-a', 'job_class':'review', 'status':'failed',
+            'reason':'RETAINED_RESUME_UNCERTAIN', 'typed':True, 'sent':'UNKNOWN', 'retry_blocked':True,
+            'error':{'tab':tab}, 'resume_error':{'error':'retained_send_guard_failed', 'guard':'composer',
+                'typed':True, 'sent':'UNKNOWN', 'tab':tab},
+            **{k:'fixture-'+k for k in relay.PROVENANCE_FIELDS}}
+        held['input_sha256'] = sha(json.dumps([('PROMPT.md',sha(b'fixture'))],separators=(',',':')).encode())
+        message = relay._failed_generation_identity(held).encode(); (d/'MESSAGE.md').write_bytes(message)
+        manifest = {k:held[k] for k in (*relay.PROVENANCE_FIELDS,'job','job_class')}
+        manifest.update(attach=[],drive_attach=[]); (d/'MANIFEST.json').write_text(json.dumps(manifest))
+        relay.job_write(job,held); original=(d/'JOB.json').read_bytes()
+        for event in ('submitted','retained_resume','canary_forward_recovery'):
+            relay.ledger_append(self.cfg,{'job':job,'account':'account-a','event':event})
+        ledger=relay.ledger_path(self.cfg); lb=ledger.read_bytes()
+        proof=self.root/'proof.txt'; proof.write_bytes(b'historical reviewed source and execution fixture')
+        c={'job':job,'held':sha(original),'message':sha(message),
+            'manifest':sha((d/'MANIFEST.json').read_bytes()),'drive_prompt':sha(b'folded'),
+            'ledger_lines':tuple(map(sha,lb.splitlines())), 'tab':tab,'time_origin':origin,
+            'postinsert_guard':True,'draft_sha256':sha(b'unchanged nonmatching draft'),
+            'backups':{'old-first.json':sha(b'first-backup'),'old-second.json':sha(b'second-backup')},
+            'proof_files':{'proof.txt':sha(proof.read_bytes())}}
+        report='facts.json'; rp=self.root/report
+        facts={'job':job,'disposition':'terminal_unsent_postinsert_guard','job_sha256':c['held'],
+            'typed':True,'sent':'UNKNOWN','submission_bound':False,'draft_sha256':c['draft_sha256'],
+            'ledger_preimage_sha256':sha(lb),'ledger_preimage_bytes':len(lb)}
+        rp.write_text(json.dumps({'jobs':[facts]}))
+        def call(*args):
+            with mock.patch.object(sys,'argv',['relay','reconcile-unsent-model','--job',job,'--report',report,*args]), redirect_stdout(io.StringIO()):
+                return relay.main()
+        with mock.patch.object(relay,'TERMINAL_GUARD_REFUSED',c,create=True), \
+             mock.patch.object(relay,'_retained_draft_witness',return_value=True,create=True) as witness, \
+             mock.patch.object(relay,'_legacy_live_jobs',return_value=set()), \
+             mock.patch.object(relay.subprocess,'run',return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay,'bu',side_effect=AssertionError('NO OTHER BROWSER')), \
+             mock.patch.object(relay,'cleanup_tabs',side_effect=AssertionError('NO CLEANUP')):
+            self.assertEqual(call(),0)
+            self.assertEqual((d/'JOB.json').read_bytes(),original); self.assertEqual(ledger.read_bytes(),lb)
+            witness.return_value=False
+            with self.assertRaises(SystemExit):call()
+            witness.return_value=True
+            proof.write_bytes(b'drift')
+            with self.assertRaises(SystemExit):call()
+            proof.write_bytes(b'historical reviewed source and execution fixture')
+            # Refuse every independent custody mutation before any terminal write.
+            changes = [(d/'PROMPT.md',b'packet drift'),(d/'old-first.json',b'backup drift'),
+                       (rp,b'{"jobs":[]}'),(ledger,lb+b'not-json\n'),
+                       (ledger,lb+json.dumps({'job':job,'event':'submission_bound'}).encode()+b'\n'),
+                       (d/'JOB.json',json.dumps({**held,'resume_error':{'error':'timeout'}}).encode()),
+                       (d/'JOB.json',json.dumps({**held,'sent':True}).encode())]
+            for path, changed in changes:
+                with self.subTest(custody=path.name):
+                    old=path.read_bytes();path.write_bytes(changed)
+                    with self.assertRaises(SystemExit):call()
+                    self.assertFalse((d/('JOB.pre-terminal-unsent-'+c['held']+'.json')).exists())
+                    path.write_bytes(old)
+            with self.assertRaises(SystemExit):call('--apply','--authorize-preimage','0'*64)
+            self.assertEqual(call('--apply','--authorize-preimage',c['held']),0)
+            terminal=relay.job_state(job)
+            self.assertEqual({k:v for k,v in terminal.items() if k!='terminal_unsent'},held)
+            self.assertTrue(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(relay.active_registry(),[])
+            self.assertIn(tab,relay.protected_tabs({'job':'different','account':'account-a'}))
+            with self.assertRaisesRegex(SystemExit,'REFUSED_DUPLICATE'):relay.cmd_submit(self.args(job))
+            with self.assertRaises(SystemExit):call('--apply','--authorize-preimage',c['held'])
+            applied=ledger.read_bytes();ledger.write_bytes(b'\n'.join(applied.splitlines()[:-1])+b'\n')
+            self.assertFalse(relay._verified_terminal_unsent(terminal))
+            self.assertEqual(len(relay.active_registry()),1)
+            ledger.write_bytes(applied);relay.job_write(job,{**terminal,'sent':False})
+            self.assertFalse(relay._verified_terminal_unsent({**terminal,'sent':False}))
+
+    def test_populated_witness_actual_emitted_fail_closed(self):
+        """Execute emitted witness Python; browser payloads are inert boundary fixtures."""
+        import copy
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        logical = 'x' * 13323; digest = sha(logical.encode()); scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s: scripts.append(s) or {}):
+            self.assertFalse(relay._retained_draft_witness('held',12345.0,digest))
+        generated=scripts[0][len(relay.BU_PRELUDE):]
+        compile(generated,'<actual-passive-witness>','exec')
+        base={'url':HOME,'origin':12345.0,'logical':logical,'html':'unchanged','innerText':logical,
+              'users':0,'assistants':0}
+        state={'ready_state':'complete','composer_present':True,**{k:False for k in
+               ('logged_out','stop','drive_reconnect','rate_limited','security_interstitial','human_challenge','thinking_failed')}}
+        cases={'positive':None,'origin':('origin',0),'url':('url',WANT),'rich':('logical',None),
+               'same_length_change':('logical','y'*13323),'users':('users',1),'assistants':('assistants',1)}
+        cases.update({key:(key,True) for key in state if key not in ('ready_state','composer_present')})
+        cases.update({'not_ready':('ready_state','loading'),'no_composer':('composer_present',False),
+                      'torn':None,'inventory_drift':None,'missing_target':None})
+        for name,change in cases.items():
+            with self.subTest(case=name):
+                a=copy.deepcopy(base);s=copy.deepcopy(state);calls=[]
+                if change:
+                    target=s if change[0] in s else a;target[change[0]]=change[1]
+                def tabs():
+                    calls.append('tabs')
+                    return [{'targetId':'other' if name=='missing_target' else 'held'}]+(
+                        [{'targetId':'new'}] if name=='inventory_drift' and calls.count('tabs')>1 else [])
+                observations=iter([a,{**a,'html':'changed'} if name=='torn' else copy.deepcopy(a)])
+                def bound(tab,url,expr):
+                    self.assertEqual((tab,url),('held',HOME))
+                    self.assertIn(relay.COMPOSER_TEXT_JS,expr)
+                    return next(observations)
+                env={'json':json,'list_tabs':tabs,'_select':lambda t:calls.append('select'),
+                     '_bound_js':bound,'_state':lambda probe:s,
+                     '_binding_error':lambda reason:(_ for _ in ()).throw(RuntimeError(reason))}
+                if name=='missing_target':
+                    with self.assertRaisesRegex(RuntimeError,'retained_target_missing'):exec(generated,env)
+                else:
+                    with redirect_stdout(io.StringIO()) as output:exec(generated,env)
+                    self.assertEqual(json.loads(output.getvalue().split('RELAY_JSON:')[1]),{'valid':name=='positive'})
+                self.assertTrue(all(x in ('tabs','select') for x in calls))
+
+    def test_nested_custody_targets_protected_without_admission_waiver(self):
+        """A failed proof may not make any custody-attributed draft selectable."""
+        held = self.job('held', url=None, tab=None, status='failed',
+            typed=True, sent='UNKNOWN', retry_blocked=True,
+            error={'tab': 'initial-held'}, resume_error={'tab': 'resume-held'},
+            terminal_unsent={'retained_tab': 'unverified-proof-held'})
+        current = self.job('current', url=WANT, tab='current-tab')
+        self.assertEqual(set(relay.protected_tabs(current)),
+            {'initial-held', 'resume-held', 'unverified-proof-held'})
+        self.assertIn('held', [r['job'] for r in relay.active_registry()])
+        for tab in relay.protected_tabs(current):
+            with self.subTest(tab=tab), self.assertRaisesRegex(SystemExit, 'TAB_COLLISION'):
+                relay.require_binding(current, {'tab': tab, 'state': {'conversation_url_now': WANT}})
+        self.assertEqual(relay.job_state('held'), held)
+        with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'):
+            relay.cmd_submit(self.args('fresh'))
 
     def test_drive_folder_timeout_registered_cli_one_shot(self):
         """Actual submit CLI timeout-after-create, then same-reservation recovery CLI."""
@@ -498,6 +680,21 @@ class BindingTests(unittest.TestCase):
                 call('--authorize-preimage', sha(held))
             self.assertEqual(len(self.browser.sent), 1)
 
+    def test_cleanup_retains_nested_attempt_and_history_targets(self):
+        targets = {'resume-only', 'attempt-only', 'history-only'}
+        for tab in targets:
+            self.browser.pages[tab] = {'url': HOME, 'composer': 'retained draft', 'text': '',
+                                       'messages': False, 'stop': False}
+        self.job('held', url=None, tab=None, status='failed', typed=True,
+            sent='UNKNOWN', retry_blocked=True, resume_error={'tab': 'resume-only'},
+            resume_attempt={'retained_tab': 'attempt-only'},
+            resume_history=[{'retained_tab': 'history-only'}])
+        self.assertEqual(relay.cleanup_tabs(), 1)  # unrelated fixture sibling only
+        self.assertEqual(set(self.browser.pages), targets)
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
+
     def test_cleanup_reclaims_terminal_chat_tabs_but_preserves_generating_binding(self):
         self.browser.pages['active'] = {"url": WANT, "text": "", "composer": "", "messages": True, "stop": True}
         self.browser.pages['done'] = {"url": SIBLING, "text": "reply", "composer": "", "messages": True, "stop": False}
@@ -510,6 +707,65 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(relay.cleanup_tabs(), 1)
         self.assertEqual(len(self.browser.pages), 1)
         self.assertEqual(next(iter(self.browser.pages.values()))['url'], 'about:blank')
+
+    def test_single_managed_wave_qualifies_three_generating_chats(self):
+        """Actual wave + submit/poll code; fourth refuses before a browser send."""
+        wave_spec = importlib.util.spec_from_file_location('qualified_wave', RELAY_PATH.with_name('gpt6pro_wave.py'))
+        assert wave_spec is not None and wave_spec.loader is not None
+        wave = importlib.util.module_from_spec(wave_spec)
+        with mock.patch.dict(sys.modules, {'gpt6pro_relay': relay}):
+            wave_spec.loader.exec_module(wave)
+        jobs = ['qualified-one', 'qualified-two', 'qualified-three']
+        for job in [*jobs, 'qualified-four']:
+            d = relay.job_dir(job)
+            (d / 'PROMPT.md').write_text('Distinct useful review fixture: ' + job)
+            (d / 'MANIFEST.json').write_text(json.dumps({'job': job, 'job_class': 'review', 'attach': [],
+                **{k: job + '-' + k for k in relay.PROVENANCE_FIELDS}}))
+        wave_file = self.root / 'wave.json'
+        wave_file.write_text(json.dumps({'jobs': [{'job': j} for j in jobs]}))
+        peak = []
+        self.browser.defer_text = True
+        def cli(args):
+            with mock.patch.object(sys, 'argv', ['gpt6pro_relay.py', *args]), redirect_stdout(io.StringIO()) as out:
+                code = relay.main()
+                return code, out.getvalue().strip().splitlines()[-1]
+        def managed_run(args, timeout=900):
+            if args[0] == 'submit':
+                result = cli(args)
+                peak.append(len(relay.active_registry()))
+                if len(peak) == 3:
+                    self.assertEqual(peak, [1, 2, 3])
+                    rows = [relay.job_state(j) for j in jobs]
+                    self.assertTrue(all(r['status'] == 'running' for r in rows))
+                    self.assertEqual(len({r['conversation_id'] for r in rows}), 3)
+                    self.assertEqual(len({r['tab'] for r in rows}), 3)
+                    self.assertTrue(all(self.browser.pages[r['tab']]['stop'] for r in rows))
+                    before = (len(self.browser.sent), len(self.browser.created))
+                    fourth = [a.replace('qualified-three', 'qualified-four') for a in args]
+                    with self.assertRaisesRegex(SystemExit, 'CAPACITY_ACCOUNT'):
+                        cli(fourth)
+                    self.assertEqual((len(self.browser.sent), len(self.browser.created)), before)
+                    for r in rows:
+                        page = self.browser.pages[r['tab']]
+                        page.update(stop=False, text='Bound useful result for ' + r['job'])
+                return result
+            return cli(args)
+        def sleep(seconds):
+            self.clock += seconds
+            self.browser.clock += seconds
+        fake_clock = types.SimpleNamespace(monotonic=lambda: self.clock, sleep=sleep)
+        with mock.patch.object(wave, 'JOBS', relay.JOBS), \
+             mock.patch.object(wave, 'time', fake_clock), \
+             mock.patch.object(wave, 'run', side_effect=managed_run), \
+             mock.patch.object(wave.importlib, 'reload', side_effect=lambda module: module), \
+             mock.patch.object(sys, 'argv', ['gpt6pro_wave.py', '--wave', str(wave_file), '--account', 'account-a']), \
+             redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(wave.main(), 0)
+        self.assertEqual(peak, [1, 2, 3])
+        self.assertEqual(len(self.browser.sent), 3)
+        self.assertTrue(all(relay.job_state(j)['status'] == 'done' for j in jobs))
+        self.assertEqual(relay.active_registry(), [])
+        self.assertIn('WAVE_DONE', out.getvalue())
 
     def test_account_tab_cap_refuses_before_creating_a_sixth_page(self):
         for i in range(4):
@@ -839,6 +1095,27 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(self.browser.inserts, [])
         self.assertEqual(self.browser.sent, [])
         self.assertEqual(self.browser.navigations, [])
+
+    def test_current_thinking_effort_trigger_uses_normal_sender(self):
+        self.browser.medium_trigger = True
+        self.browser.trigger_label = 'Thinking effort'
+        result = relay.send_message('packet')
+        self.assertNotIn('error', result)
+        self.assertTrue(result['typed'])
+        self.assertTrue(result['sent'])
+        self.assertEqual(len(self.browser.created), 1)
+        self.assertEqual(len(self.browser.sent), 1)
+
+    def test_current_thinking_effort_trigger_never_sends_lower_model(self):
+        self.browser.medium_trigger = True
+        self.browser.trigger_label = 'Thinking effort'
+        self.browser.selected_model = '5 Pro'
+        result = relay.send_message('packet')
+        self.assertEqual(result['error'], 'WRONG_MODEL')
+        self.assertFalse(result['typed'])
+        self.assertFalse(result['sent'])
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_late_app_readiness_still_requires_maximum_picker_gate(self):
         self.browser.app_ready_at = 100
@@ -1375,6 +1652,264 @@ console.log(JSON.stringify(fixtures.map(f => {
                                     capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
                              'composer_empty': empty, 'user_count': users})
+
+    def test_proof_bound_preinsert_terminal_actual_cli(self):
+        """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        job, tab, origin = 'unlisted-preinsert-job', 'attributed-target', 1791334401239.7
+        d = relay.job_dir(job)
+        prompt = b'preserved original packet'
+        (d / 'PROMPT.md').write_bytes(prompt)
+        (d / 'drive-input').mkdir()
+        (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+        held = {'job': job, 'account': 'account-a', 'job_class': 'review', 'status': 'failed',
+            'reason': 'WRONG_MODEL', 'retry_blocked': True, 'typed': False, 'sent': False,
+            'reply_token': 'b'*64, 'ts': '2026-10-07T00:53:31+00:00',
+            'input_sha256': sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode()),
+            **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS},
+            'error': {'error': 'WRONG_MODEL', 'typed': False, 'sent': False,
+                      'state': {'url': HOME, 'stop': False, 'assistant_count': 0, 'last_len': 0}}}
+        relay.job_write(job, held)
+        preimage = (d / 'JOB.json').read_bytes()
+        message = relay._failed_generation_identity(held).encode()
+        (d / 'MESSAGE.md').write_bytes(message)
+        manifest = {k: held[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+        manifest.update(attach=[], drive_attach=[])
+        (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+        ledger = relay.ledger_path(self.cfg)
+        ledger.parent.mkdir(parents=True, exist_ok=True)
+        row = {'ts': '2026-10-07T00:53:08+00:00', 'event': 'submitted', 'job': job,
+               'account': 'account-a', 'kind': 'initial', 'certainty': 'reserved_may_send',
+               **{k: held[k] for k in relay.PROVENANCE_FIELDS}}
+        ledger.write_text(json.dumps(row)+'\n')
+        before_ledger = ledger.read_bytes()
+        report = 'reports/proof-bound-facts.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        evidence = {}
+        for key, data in [('preflight', {'targets': [{'target_id': 'old-target'}]}),
+                          ('observation', {'browser': {'targets_before': [{'target_id': tab, 'url': HOME}],
+                              'metadata': [{'target_id': tab, 'url': HOME, 'time_origin': origin}]}})]:
+            p = rp.with_name(key+'.json')
+            p.write_text(json.dumps(data))
+            evidence[key] = {'path': str(p.relative_to(self.root)), 'sha256': sha(p.read_bytes())}
+        facts = {'job': job, 'disposition': 'terminal_unsent_preinsert', 'reason': 'WRONG_MODEL',
+            'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': sha(preimage),
+            'message_sha256': sha(message), 'manifest_sha256': sha((d/'MANIFEST.json').read_bytes()),
+            'drive_prompt_sha256': sha(prompt), 'error_tab': tab, 'time_origin': origin,
+            'ledger_preimage_sha256': sha(before_ledger), 'ledger_preimage_bytes': len(before_ledger),
+            'ledger_line_sha256': [sha(before_ledger.rstrip(b'\n'))],
+            'ledger_rows_sha256': sha(json.dumps([row], sort_keys=True, separators=(',', ':')).encode()),
+            'target_evidence': evidence}
+        rp.write_text(json.dumps({'jobs': [facts]}))
+        def call(*args):
+            with mock.patch.object(sys, 'argv', ['relay', 'reconcile-unsent-model', '--job', job,
+                                                 '--report', report, *args]), redirect_stdout(io.StringIO()) as out:
+                code = relay.main()
+                return code, out.getvalue()
+        with mock.patch.object(relay, '_legacy_live_jobs', return_value=set()), \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, '_retained_empty_witness', return_value=True) as witness, \
+             mock.patch.object(relay, '_legacy_tabs', return_value=[{'type': 'page', 'url': HOME}]), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')), \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')):
+            code, text = call()
+            self.assertEqual(code, 0)
+            self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
+            self.assertEqual((d/'JOB.json').read_bytes(), preimage)
+            self.assertEqual(ledger.read_bytes(), before_ledger)
+            witness.assert_called_with(tab, origin)
+            for key, value in [('typed', True), ('sent', 'UNKNOWN')]:
+                relay.job_write(job, {**held, key: value})
+                changed = sha((d/'JOB.json').read_bytes())
+                rp.write_text(json.dumps({'jobs': [{**facts, 'job_sha256': changed}]}))
+                with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'):
+                    call('--apply', '--authorize-preimage', changed)
+                (d/'JOB.json').write_bytes(preimage)
+                rp.write_text(json.dumps({'jobs': [facts]}))
+            witness.return_value = False
+            with self.assertRaisesRegex(SystemExit, 'TAB_EVIDENCE'): call()
+            witness.return_value = True
+            with self.assertRaises(SystemExit): call('--apply')
+            self.assertEqual(call('--apply', '--authorize-preimage', sha(preimage))[0], 0)
+            terminal = relay.job_state(job)
+            self.assertEqual({k:v for k,v in terminal.items() if k != 'terminal_unsent'}, held)
+            self.assertEqual((d/('JOB.pre-terminal-unsent-'+sha(preimage)+'.json')).read_bytes(), preimage)
+            self.assertTrue(ledger.read_bytes().startswith(before_ledger))
+            self.assertTrue(relay._verified_terminal_unsent(terminal))
+            self.assertEqual([r['phase'] for r in relay.ledger_rows(self.cfg)[1:]], ['STARTED', 'APPLIED'])
+            with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'): relay.cmd_submit(self.args(job))
+            with self.assertRaises(SystemExit): call('--apply', '--authorize-preimage', sha(preimage))
+            saved = ledger.read_bytes()
+            ledger.write_bytes(b'\n'.join(saved.splitlines()[:-1])+b'\n')
+            self.assertFalse(relay._verified_terminal_unsent(terminal))
+            ledger.write_bytes(saved)
+            # Exercise the real cleanup caller, stopping before its browser code.
+            with mock.patch.object(relay, 'cleanup_tabs', REAL_CLEANUP_TABS):
+                with mock.patch.object(relay, 'bu_json', side_effect=AssertionError('STOP BEFORE BROWSER')) as browser:
+                    with self.assertRaisesRegex(AssertionError, 'STOP BEFORE BROWSER'): relay.cleanup_tabs()
+                    script = browser.call_args.args[0]
+                    assignment = next(n for n in ast.walk(ast.parse(script)) if isinstance(n, ast.Assign)
+                                      and any(isinstance(t, ast.Name) and t.id == 'protected' for t in n.targets))
+                    self.assertIn(tab, ast.literal_eval(assignment.value.args[0]))
+
+            # Different-ID admission is checked through the actual submit caller,
+            # then deliberately stopped before cleanup, upload or send.
+            with self.assertRaisesRegex(AssertionError, 'NO CLEANUP'): relay.cmd_submit(self.args('fresh-distinct'))
+            relay.job_write(job, {**terminal, 'job': 'drift'})
+            self.assertFalse(relay._verified_terminal_unsent(terminal))
+
+    def test_current_obsolete_unsent_disposition_actual_cli(self):
+        """No replay: exact WRONG_MODEL/readiness pins, UNKNOWN stays held."""
+        import copy
+        sha = lambda b: relay.hashlib.sha256(b).hexdigest()
+        jobs = [('route-glp-80-0165c8c734145a8044438815', 'failed', 'TAB_CAP'),
+                ('glp44-canonical-sensor-partition-20261006', 'failed', 'WRONG_MODEL'),
+                ('pro-glp96-intake-design-closer-20261003', 'unsent_reconciled', 'SECURITY_INTERSTITIAL')]
+        pins, originals = {}, {}
+        report = 'reports/current-terminal-facts.json'
+        rp = self.root / report
+        rp.parent.mkdir(parents=True)
+        facts = []
+        for job, status, reason in jobs:
+            d = relay.job_dir(job)
+            prompt = b'original obsolete packet'
+            (d / 'PROMPT.md').write_bytes(prompt)
+            (d / 'drive-input').mkdir()
+            (d / 'drive-input/PROMPT.md').write_bytes(prompt)
+            tab = 'retained-challenge' if reason == 'SECURITY_INTERSTITIAL' else None
+            origin = 12345.5 if tab else None
+            original = {'job': job, 'account': 'account-a', 'job_class': 'review',
+                'status': 'failed', 'reason': reason, 'retry_blocked': True,
+                'typed': False, 'sent': False, 'reply_token': 'b'*64,
+                'input_sha256': sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode()),
+                **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS},
+                'error': {'error': reason, 'typed': False, 'sent': False,
+                    'state': {'url': HOME, 'model': None, 'stop': False,
+                              'assistant_count': 0, 'last_len': 0}}}
+            if tab:
+                original['error']['tab'] = tab
+            if reason == 'TAB_CAP':
+                original['error'] = {'error': reason, 'typed': False, 'sent': False, 'count': 5, 'cap': 5}
+            old_bytes = json.dumps(original).encode()
+            backup = sha(old_bytes) if tab else None
+            held = dict(original)
+            if tab:
+                (d / ('JOB.pre-readiness-reconcile-'+backup+'.json')).write_bytes(old_bytes)
+                held.update(status=status, reconciled_at='2026-10-03T00:59:49+00:00', preimage_sha256=backup)
+            relay.job_write(job, held)
+            originals[job] = (d / 'JOB.json').read_bytes()
+            message = relay._failed_generation_identity(held).encode()
+            (d / 'MESSAGE.md').write_bytes(message)
+            manifest = {k: held[k] for k in (*relay.PROVENANCE_FIELDS, 'job', 'job_class')}
+            manifest.update(attach=[], drive_attach=[])
+            (d / 'MANIFEST.json').write_text(json.dumps(manifest))
+            relay.ledger_append(self.cfg, {'event': 'submitted', 'job': job, 'account': 'account-a',
+                'kind': 'initial', 'certainty': 'reserved_may_send',
+                **{k: held[k] for k in relay.PROVENANCE_FIELDS}})
+            if tab:
+                event = {'event': 'readiness_unsent_reconcile', 'job': job, 'account': 'account-a',
+                    'reason': reason, 'preimage_sha256': backup, 'message_sha256': sha(message),
+                    'retained_tab': tab, 'time_origin': origin}
+                for phase in ('STARTED', 'APPLIED'):
+                    relay.ledger_append(self.cfg, {**event, 'phase': phase})
+            lines = [line for line in relay.ledger_path(self.cfg).read_bytes().splitlines()
+                     if json.loads(line)['job'] == job]
+            c = {'job': job, 'held': sha(originals[job]), 'message': sha(message),
+                 'manifest': sha((d / 'MANIFEST.json').read_bytes()),
+                 'drive_prompt': sha(prompt), 'ledger_lines': tuple(map(sha, lines)),
+                 'backup': backup, 'tab': tab, 'time_origin': origin,
+                 'status': status, 'reason': reason}
+            pins[job] = c
+            if reason == 'TAB_CAP':
+                log = self.root / 'reports/tabcap-submit.log'
+                log.write_text('SEND_FAILED TAB_CAP ' + json.dumps(original['error']) + '\n')
+                c.update(pretarget=True, attempt_log=str(log.relative_to(self.root)), attempt_log_sha256=sha(log.read_bytes()))
+            facts.append({'job': job, 'disposition': 'terminal_unsent_obsolete', 'reason': reason,
+                'typed': False, 'sent': False, 'submission_bound': False,
+                'job_sha256': c['held'], 'message_sha256': c['message'], 'error_tab': tab,
+                'time_origin': origin, 'ledger_rows_sha256': sha(json.dumps(
+                    list(map(json.loads, lines)), sort_keys=True, separators=(',', ':')).encode())})
+        rp.write_text(json.dumps({'jobs': facts}))
+        unknown = self.job(relay.CONSUMED_CANARY['job'], url=None, tab=None, status='failed',
+            typed=True, sent='UNKNOWN', retry_blocked=True, reason='RETAINED_RESUME_UNCERTAIN',
+            error={'error': 'SECURITY_INTERSTITIAL', 'typed': False, 'sent': False})
+        def call(job, *extra):
+            with mock.patch.object(sys, 'argv', ['relay', 'reconcile-unsent-model', '--job', job,
+                                               '--report', report, *extra]), redirect_stdout(io.StringIO()) as out:
+                return relay.main(), out.getvalue()
+        def snapshot():
+            return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns)
+                    for p in self.root.rglob('*') if p.is_file()}
+        with relay.account_lock(), relay.global_lock():
+            pass
+        with mock.patch.object(relay, 'TERMINAL_UNSENT_CURRENT', pins, create=True), \
+             mock.patch.object(relay, '_legacy_live_jobs', return_value=set()) as live, \
+             mock.patch.object(relay.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0)), \
+             mock.patch.object(relay, '_retained_empty_witness', return_value=True) as witness, \
+             mock.patch.object(relay, '_legacy_tabs', return_value=[{'type': 'page', 'url': HOME}]), \
+             mock.patch.object(relay, 'bu', side_effect=AssertionError('NO OTHER BROWSER')), \
+             mock.patch.object(relay, 'drive', side_effect=AssertionError('NO DRIVE')), \
+             mock.patch.object(relay, 'send_message', side_effect=AssertionError('NO SEND')), \
+             mock.patch.object(relay, 'cleanup_tabs', side_effect=AssertionError('NO CLEANUP')):
+            for job, _, _ in jobs:
+                c = pins[job]
+                before = snapshot()
+                self.assertEqual(call(job)[0], 0)
+                self.assertEqual(snapshot(), before)
+                for label, mutate, restore in [
+                    ('authority', lambda: None, lambda: None),
+                    ('UNKNOWN overrides stale error', lambda: relay.job_write(job, {**json.loads(originals[job]), 'sent': 'UNKNOWN'}),
+                        lambda: (relay.JOBS / job / 'JOB.json').write_bytes(originals[job])),
+                    ('binding', lambda: relay.ledger_append(self.cfg, {'job': job, 'event': 'submission_bound'}),
+                        lambda: relay.ledger_path(self.cfg).write_bytes(saved_ledger)),
+                    ('live runner', lambda: setattr(live, 'return_value', {job}), lambda: setattr(live, 'return_value', set()))]:
+                    saved_ledger = relay.ledger_path(self.cfg).read_bytes()
+                    with self.subTest(job=job, guard=label):
+                        mutate()
+                        pre = snapshot()
+                        with self.assertRaises(SystemExit):
+                            call(job, '--apply', '--authorize-preimage', '0'*64 if label == 'authority' else c['held'])
+                        self.assertEqual(snapshot(), pre)
+                        restore()
+                if c['tab']:
+                    witness.return_value = False
+                    with self.assertRaises(SystemExit): call(job)
+                    witness.return_value = True
+                if c.get('pretarget'):
+                    log = self.root / c['attempt_log']
+                    saved = log.read_bytes()
+                    log.write_bytes(saved + b'drift')
+                    with self.assertRaisesRegex(SystemExit, 'REFUSED_CUSTODY'): call(job)
+                    log.write_bytes(saved)
+                pre_ledger = relay.ledger_path(self.cfg).read_bytes()
+                self.assertEqual(call(job, '--apply', '--authorize-preimage', c['held'])[0], 0)
+                terminal = relay.job_state(job)
+                self.assertEqual({k:v for k,v in terminal.items() if k != 'terminal_unsent'}, json.loads(originals[job]))
+                self.assertIs(terminal['retry_blocked'], True)
+                self.assertEqual((relay.JOBS / job / ('JOB.pre-terminal-unsent-'+c['held']+'.json')).read_bytes(), originals[job])
+                self.assertTrue(relay.ledger_path(self.cfg).read_bytes().startswith(pre_ledger))
+                self.assertTrue(relay._verified_terminal_unsent(terminal))
+                with self.assertRaisesRegex(SystemExit, 'REFUSED_DUPLICATE'): relay.cmd_submit(self.args(job))
+                with self.assertRaises(SystemExit): call(job, '--apply', '--authorize-preimage', c['held'])
+                # Both admission callers must reject projected/raw identity drift and interrupted apply.
+                relay.job_write(job, {**terminal, 'job': 'drift'})
+                self.assertFalse(relay._verified_terminal_unsent({**terminal, 'job': job}))
+                with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'): relay.cmd_submit(self.args('future'))
+                relay.job_write(job, terminal)
+                applied = relay.ledger_path(self.cfg).read_bytes()
+                relay.ledger_path(self.cfg).write_bytes(b'\n'.join(applied.splitlines()[:-1])+b'\n')
+                self.assertFalse(relay._verified_terminal_unsent(terminal))
+                relay.ledger_path(self.cfg).write_bytes(applied)
+            self.assertEqual([r['job'] for r in relay.active_registry()], [unknown['job']])
+            self.assertEqual(relay.job_state(unknown['job']), unknown)
+            with self.assertRaisesRegex(SystemExit, 'BINDING_UNVERIFIED'): relay.cmd_submit(self.args('future'))
+            # Different account can be admitted; old UNKNOWN cannot be retired by a forged receipt.
+            self.cfg['accounts'].append({'label': 'account-b', 'cdp_port': 9341, 'weekly_messages': 100})
+            relay.job_write(unknown['job'], {**unknown, 'account': 'account-b'})
+            with self.assertRaisesRegex(AssertionError, 'NO CLEANUP'): relay.cmd_submit(self.args('future'))
+            self.assertEqual(relay.job_state('future')['status'], 'submitting')
 
     def test_pr52_terminal_unsent_actual_cli(self):
         """Exact obsolete preinsert job: no replay; only different-ID admission."""
@@ -2029,7 +2564,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
             and n.func.id == '_bound_js' and len(n.args) > 2
             and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
-        self.assertEqual(len(expressions), 7)
+        self.assertEqual(len(expressions), 15)  # Parent readback follows close, never the open preview.
         evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
         node = r'''const expressions=JSON.parse(process.argv[1]);
             // Compile every actual generated constant after the nested Python parse.
@@ -2049,7 +2584,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         observed = json.loads(result.stdout)
-        self.assertEqual(observed['count'], 7)
+        self.assertEqual(observed['count'], 15)
         self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
             'assistants': 0, 'empty': True, 'challenge': False,
             'interstitial': False, 'login': False, 'rate': False,
@@ -2828,7 +3363,7 @@ except SystemExit as e: print(str(e),flush=True)
         self.browser.sent_times = []
         original = self.browser.js
         def timed(expression):
-            if expression.startswith('(()=>{const b=') and 'b.click();return true;' in expression:
+            if expression.startswith('(()=>{function pickerActionable') and 'const b=document.querySelector' in expression and 'b.click();return true;' in expression:
                 self.browser.sent_times.append(self.browser.clock)
             return original(expression)
         with mock.patch.object(self.browser, 'js', side_effect=timed):
@@ -3216,7 +3751,467 @@ with r.account_lock():
                 proc.communicate()
 
 
+# Fixture owner contract; never invoked as application code. The actual captured
+# callbacks are exercised below; the data/React tree and sinks remain synthetic.
+MODEL_OWNER_FIXTURE = r'''
+function attachModelOwner(trigger,selectedModel){
+    function ownerType(e){const {selectedModel:eq,onModelChange:eF,onThinkingEffortChange:eH}=e;
+        return {onCommitPower:null,onOpenChange:null,surface:'CHATGPT_MODEL_PICKER_SURFACE_COMPOSER'};}
+    const props={selectedModel,onModelChange:()=>{},models:{},modelLimits:{},
+        xHighExperimentResetContextKey:null,isLoading:false,isError:false,disabled:false};
+    trigger.__reactFiber$fixture={type:ownerType,memoizedProps:props,return:null};
+    return props;
+}
+'''
+
+
+# Byte-exact source59 and source68 callback slices from retained capture
+# 24cd58d14748ee1a62621b61841bba739a8e0260bb980368a8db46cf5fa96182.
+# React/import composition is a fixture; HTMLElement.click has detail=0 and
+# must NOT acquire an invented onclick toggle. Production never calls these.
+MODEL_TRIGGER_FIXTURE = r'''
+function installCloseTrigger(trigger,onOpenChange){
+ const eB=false,Z=false,e6=true,eY={current:false},eG={current:null},e8=()=>{},te=onOpenChange;
+ const pointer=e=>{!eB||e.defaultPrevented||0!==e.button||e.ctrlKey||(e8(),e.preventDefault())};
+ const click=e=>{if(eB&&!Z&&!e.defaultPrevented&&0===e.button&&!e.ctrlKey&&0!==e.detail){let e=!e6||eY.current;te(e),e&&eG.current?.focus({preventScroll:!0})}};
+ const state={triggerRef:null,triggerId:'trigger',contentId:'menu',get open(){return trigger.getAttribute('aria-expanded')==='true'},onOpenToggle:()=>onOpenChange(!state.open),onOpenChange};
+ const N=()=>state,u=()=>({}),o={b:()=>null},T={jsx:(type,props)=>({type,props})},s={a:'Anchor'},E={a:{button:'Button'}},i={a:(user,internal)=>e=>{user?.(e);if(!e.defaultPrevented)internal(e)}};
+ const render=function(e,t){let{__scopeDropdownMenu:n,disabled:r=!1,..._}=e,a=N("DropdownMenuTrigger",n),l=u(n),C=(0,o.b)(t,a.triggerRef);return(0,T.jsx)(s.a,{asChild:!0,...l,children:(0,T.jsx)(E.a.button,{type:"button",id:a.triggerId,"aria-haspopup":"menu","aria-expanded":a.open,"aria-controls":a.open?a.contentId:void 0,"data-state":a.open?"open":"closed","data-disabled":r?"":void 0,disabled:r,..._,ref:C,onPointerDown:(0,i.a)(e.onPointerDown,e=>{!r&&0===e.button&&!1===e.ctrlKey&&(a.onOpenToggle(),a.open||e.preventDefault())}),onKeyDown:(0,i.a)(e.onKeyDown,e=>{!r&&(["Enter"," "].includes(e.key)&&a.onOpenToggle(),"ArrowDown"===e.key&&a.onOpenChange(!0),["Enter"," ","ArrowDown"].includes(e.key)&&e.preventDefault())})})})};
+ const handlers=render({onClick:click,onPointerDown:pointer},null).props.children.props;
+ trigger.onclick=handlers.onClick;trigger.onpointerdown=handlers.onPointerDown;
+}
+function pointerClose(){document.querySelector('button').onpointerdown({button:0,ctrlKey:false,detail:1,defaultPrevented:false,preventDefault(){this.defaultPrevented=true}});}
+'''
+
+
 class NativeComposerTests(unittest.TestCase):
+    def test_close_pointer_event_actual_emitted_caller(self):
+        """Captured callbacks + real emitted selection caller, no browser/CDP.
+
+        Mutation occurs after maximum proof, isolating close refusal. Event
+        transport and DOM are fixtures, not evidence of live event delivery.
+        """
+        tree = ast.parse(Path(__file__).read_text())
+        def literal(method, variable):
+            fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == method)
+            return next(ast.literal_eval(n.value) for n in ast.walk(fn) if isinstance(n, ast.Assign)
+                        and any(isinstance(t, ast.Name) and t.id == variable for t in n.targets))
+        fixture = literal('test_malformed_owner_cannot_hide_from_any_emitted_consumer', 'fixture')
+        node = literal('test_malformed_owner_cannot_hide_from_any_emitted_consumer', 'node')
+        pipeline = literal('test_committed_maximum_selection_native', 'pipeline')
+        proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        try:
+            def call(expr='true', setup=None):
+                proc.stdin.write(json.dumps({'expr': expr, 'setup': setup})+'\n'); proc.stdin.flush()
+                result = json.loads(proc.stdout.readline())
+                self.assertNotIn('error', result)
+                return result.get('value')
+            cases = {
+                'accept': '', 'reject_parent': '',
+                'wrong_document': 'performance.timeOrigin=0',
+                'nonempty': "txt.data='private draft'",
+                'messages': "const query=document.querySelectorAll;document.querySelectorAll=s=>s==='[data-message-author-role]'?[{}]:query(s)",
+                'duplicate_trigger': "const query=document.querySelectorAll;document.querySelectorAll=s=>s==='button[aria-label=\"Select ChatGPT model\"]'?[trigger,trigger]:query(s)",
+                'unknown_expanded': "trigger.setAttribute('aria-expanded','unknown')",
+                'unanchored': "trigger.setAttribute('aria-controls','other')",
+                'zero_geometry': 'trigger.getBoundingClientRect=()=>({left:0,top:0,width:0,height:30})',
+                'nonfinite_geometry': 'trigger.getBoundingClientRect=()=>({left:NaN,top:0,width:100,height:30})',
+                'alternate_missing': 'delete owner.alternate.memoizedProps.models',
+                'alternate_disagrees': "owner.alternate.memoizedProps.selectedModel={slug:'gpt-6',thinkingEffort:'standard'}",
+                'malformed_owner': 'owner.return={type:owner.type,memoizedProps:{},return:null}',
+                'no_delivery': '',
+            }
+            for retained in (False, True):
+                scripts = []
+                with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+                    relay.send_message('fixture', **({'retained_tab': 'offline', 'time_origin': 12345.5} if retained else {}))
+                generated = scripts[0]
+                branch = compile(generated[generated.index('# All paths must commit'):generated.index('# Settle:')], '<actual-close-caller>', 'exec')
+                for case, mutation in cases.items():
+                    # Fresh _fresh is URL/message bound, not timeOrigin bound.
+                    # Do not invent a stronger fresh-document oracle in fixtures.
+                    if case == 'wrong_document' and not retained: continue
+                    with self.subTest(retained=retained, case=case):
+                        call(setup=fixture+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+
+                             '(()=>{const accepts='+json.dumps(case != 'reject_parent')+';'+pipeline+'})();'+
+                             "txt.data='';trigger.getBoundingClientRect=()=>({left:0,top:0,width:100,height:30});owner.alternate={type:owner.type,memoizedProps:{...props}};")
+                        mouse_events, insertions = [], []
+                        mutated = False
+                        def refuse(reason, **kw): raise RuntimeError(reason)
+                        def fresh():
+                            # Test the real retained geometry's synchronous
+                            # document guard, not a canned _fresh refusal.
+                            return HOME
+                        def bound(tid, url, expr):
+                            nonlocal mutated
+                            self.assertEqual((tid, url), ('offline', HOME))
+                            result = call(expr)
+                            if expr.endswith('return full6ProMaximum();})()') and not mutated:
+                                mutated = True
+                                if mutation: call(mutation+';true')
+                            return result
+                        def mouse(method, **kw):
+                            self.assertEqual(method, 'Input.dispatchMouseEvent')
+                            self.assertEqual((kw['session_id'], kw['button'], kw['clickCount']), ('offline', 'left', 1))
+                            mouse_events.append(kw)
+                            if kw['x'] == 187 and kw['type'] == 'mouseReleased':
+                                call('selectMaximum();owner.alternate.memoizedProps.selectedModel=props.selectedModel;true')
+                            elif kw['x'] == 50 and kw['type'] == 'mousePressed' and case != 'no_delivery':
+                                call('pointerClose();'+('' if case == 'alternate_disagrees' else 'owner.alternate.memoizedProps.selectedModel=props.selectedModel;')+'true')
+                        env = {'st': {'model': '6 Pro'}, 'RETAINED': retained, 'tab': {'targetId': 'offline'},
+                               'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda _: None),
+                               '_bound_js': bound, '_fresh': fresh, 'cdp': mouse,
+                               '_sessions': {'offline': 'offline'}, '_binding_error': refuse}
+                        if case == 'accept':
+                            exec(branch, env)
+                            insertions.append('admitted after real model branch')
+                            self.assertEqual(call('events'), ['selected', 'parent', 'closed'])
+                        else:
+                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL|document_changed'):
+                                exec(branch, env)
+                            self.assertEqual(insertions, [])
+                        close_events = [e for e in mouse_events if e['x'] == 50]
+                        expected_close = case in ('accept', 'reject_parent', 'alternate_missing', 'alternate_disagrees', 'malformed_owner', 'no_delivery')
+                        self.assertEqual([e['type'] for e in close_events], ['mousePressed', 'mouseReleased'] if expected_close else [])
+                        self.assertEqual(call('sends'), 0)
+                        self.assertEqual(call('getters'), 0)
+                        self.assertEqual(len(mouse_events), 4 if expected_close else 2)
+        finally:
+            proc.stdin.write('{"stop":true}\n'); proc.stdin.flush(); proc.stdin.close()
+            proc.wait(timeout=10)
+            self.assertEqual(proc.returncode, 0, proc.stderr.read())
+
+    def test_malformed_owner_cannot_hide_from_any_emitted_consumer(self):
+        """Reviewer's valid + malformed owner counterexample, pure Node VM.
+
+        Execute initial selection, chunk preparation and both actual Send guards;
+        only DOM/React and effect sinks are synthetic. No browser or live state.
+        """
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture')
+            relay.send_message('fixture', retained_tab='offline', time_origin=12345.5)
+        fresh, retained = scripts
+        tree = ast.parse(fresh)
+        probes = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                  and isinstance(n.value, str) and 'function committed6ProMaximum' in n.value]
+        fresh_click = next(x for x in probes if 'const b=document.querySelector' in x
+                           and 'b.click();return true;' in x)
+        atomic = next(n.value for n in ast.walk(ast.parse(retained)) if isinstance(n, ast.Constant)
+                      and isinstance(n.value, str) and n.value.startswith('(()=>{const retainedOrigin='))
+        branch = compile(fresh[fresh.index('# All paths must commit'):fresh.index('# Settle:')],
+                         '<actual-model-selection>', 'exec')
+        prepare = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_prepare')
+        # Reuse the existing byte-exact captured callback chain, not a new oracle.
+        method = next(n for n in ast.walk(ast.parse(Path(__file__).read_text()))
+                      if isinstance(n, ast.FunctionDef) and n.name == 'test_committed_maximum_selection_native')
+        pipeline = next(ast.literal_eval(n.value) for n in ast.walk(method) if isinstance(n, ast.Assign)
+                        and any(isinstance(t, ast.Name) and t.id == 'pipeline' for t in n.targets))
+        fixture = r'''
+window=globalThis;getComputedStyle=()=>({display:'block',visibility:'visible'});
+performance={timeOrigin:12345.5};
+function el(attrs={},text=''){return {attrs,innerText:text,parentElement:null,hidden:false,inert:false,disabled:false,getClientRects:()=>[1],getBoundingClientRect:()=>({left:0,top:0,width:100,height:30}),getAttribute(k){return this.attrs[k]??null},setAttribute(k,v){this.attrs[k]=v},hasAttribute(k){return k in this.attrs},click(){this.onclick?.({button:0,ctrlKey:false,detail:0,defaultPrevented:false})},closest(){return view}}}
+const trigger=el({'aria-label':'Select ChatGPT model','aria-expanded':'true','aria-controls':'menu','data-selected-reasoning-effort':'medium','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'},'Pro');
+const view=el({'aria-hidden':'false'}),menu=el({role:'menu'});menu.id='menu';
+const row=el({},'6 Pro'),badge=el(),power=el(),slider=el({'role':'slider','aria-valuemin':'0','aria-valuemax':'4','aria-valuenow':'4'}),rail=el();
+rail.getBoundingClientRect=()=>({width:200,height:30,right:200,top:0});
+row.querySelector=()=>badge;power.querySelectorAll=()=>[slider];
+view.querySelectorAll=s=>s.includes('view-toggle')?[row]:s.includes('power-slider')?[rail]:[power];menu.querySelectorAll=()=>[view];
+const txt={nodeType:3,data:'fixture'},p={nodeType:1,tagName:'P',attributes:[],childNodes:[txt],lastChild:txt};
+const composer=el({contenteditable:'true'});composer.tagName='DIV';composer.classList={contains:()=>true};composer.childNodes=[p];composer.lastChild=p;
+const send=el();send.onclick=()=>sends++;
+let selection={isCollapsed:true};composer.focus=()=>document.activeElement=composer;
+window.getSelection=()=>selection;selection.removeAllRanges=()=>{};selection.addRange=r=>{selection.anchorNode=r.node;selection.anchorOffset=r.offset};
+document={readyState:'complete',title:'ChatGPT',body:{innerText:''},
+ createRange:()=>({setStart(n,o){this.node=n;this.offset=o},collapse(){}}),
+ querySelector:s=>s.includes('prompt-textarea')?composer:s.includes('send-button')?send:s==='button'?trigger:null,
+ querySelectorAll:s=>s==='button[aria-label="Select ChatGPT model"]'?[trigger]:s==='[id]'?[menu]:s==='button'?[trigger,send]:[]};
+'''
+        node = r'''
+const vm=require('vm'),rl=require('readline').createInterface({input:process.stdin,crlfDelay:Infinity});
+let ctx;
+(async()=>{for await(const line of rl){const r=JSON.parse(line);if(r.stop)break;
+ try{if(r.setup){ctx=vm.createContext({setTimeout:()=>1,clearTimeout(){}});vm.runInContext(r.setup,ctx);}
+ process.stdout.write(JSON.stringify({value:vm.runInContext(r.expr||'true',ctx)})+'\n');}
+ catch(e){process.stdout.write(JSON.stringify({error:e.stack})+'\n');}
+}})();
+'''
+        proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
+        try:
+            def call(expr='true', setup=None):
+                proc.stdin.write(json.dumps({'expr': expr, 'setup': setup})+'\n'); proc.stdin.flush()
+                result = json.loads(proc.stdout.readline())
+                self.assertNotIn('error', result)
+                return result.get('value')
+            def refuse(reason, **kwargs): raise RuntimeError(reason)
+            def outcome(action):
+                try: action()
+                except RuntimeError as exc: return str(exc)
+                return None
+            cases = {
+                'positive': '',
+                'duplicate_accessor': 'const bad={...props};Object.defineProperty(bad,"selectedModel",{get(){getters++;return null}});owner.return={type:owner.type,memoizedProps:bad,return:null}',
+                'duplicate_missing': 'const bad={...props};delete bad.models;owner.return={type:owner.type,memoizedProps:bad,return:null}',
+                'duplicate_null_props': 'owner.return={type:owner.type,memoizedProps:null,return:null}',
+                'duplicate_primitive_props': 'owner.return={type:owner.type,memoizedProps:7,return:null}',
+                'alternate_missing': 'const bad={...props};delete bad.models;owner.alternate={type:owner.type,memoizedProps:bad}',
+                'alternate_accessor': 'const bad={...props};Object.defineProperty(bad,"models",{get(){getters++;return {}}});owner.alternate={type:owner.type,memoizedProps:bad}',
+            }
+            for case, mutation in cases.items():
+                with self.subTest(case=case):
+                    call(setup=fixture+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+'(()=>{const accepts=true;'+pipeline+'})();')
+                    call("txt.data='';true")
+                    env = {'st': {'model': '6 Pro'}, 'RETAINED': False, 'tab': {'targetId': 'offline'},
+                           'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda n: None),
+                           '_bound_js': lambda tid, url, expr: call(expr), '_fresh': lambda: None,
+                           'cdp': lambda method, **kw: call('selectMaximum();true' if kw['x']==187 and kw['type']=='mouseReleased' else 'pointerClose();true' if kw['x']==50 and kw['type']=='mousePressed' else 'true'),
+                           '_sessions': {'offline': 'offline'}, '_binding_error': refuse}
+                    # Establish a real accepted transition, then add the competing
+                    # owner before re-running initial admission and every consumer.
+                    exec(branch, env)
+                    self.assertEqual(call('events'), ['selected', 'parent', 'closed'])
+                    if mutation: call(mutation+';true')
+                    # Begin the second close-only scenario open; opening behavior
+                    # is separately scoped and is not invented by onclick here.
+                    call("trigger.setAttribute('aria-expanded','true');true")
+                    initial = outcome(lambda: exec(branch, env))
+                    call("txt.data='fixture';true")
+                    exec(compile(ast.Module(body=[prepare], type_ignores=[]), '<actual-prepare>', 'exec'), env)
+                    chunk = outcome(lambda: env['_prepare']('fixture'))
+                    actual = {'initial': initial, 'chunk': chunk, 'fresh': call(fresh_click),
+                              'retained': call(atomic), 'clicks': call('sends'), 'getters': call('getters')}
+                    expected = ({'initial': None, 'chunk': None, 'fresh': True,
+                                 'retained': {'clicked': True}, 'clicks': 2, 'getters': 0} if case == 'positive' else
+                                {'initial': 'WRONG_MODEL', 'chunk': 'WRONG_MODEL', 'fresh': False,
+                                 'retained': {'clicked': False, 'reason': 'model'}, 'clicks': 0, 'getters': 0})
+                    self.assertEqual(actual, expected)
+        finally:
+            proc.stdin.write('{"stop":true}\n'); proc.stdin.flush(); proc.stdin.close()
+            proc.wait(timeout=10)
+            self.assertEqual(proc.returncode, 0, proc.stderr.read())
+
+    def test_committed_maximum_selection_native(self):
+        """Run actual generated model branch/JS; preview and model-text cannot commit."""
+        import inspect
+        import os
+        import textwrap
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture')
+        generated = scripts[0]
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture', retained_tab='offline', time_origin=12345.5)
+        retained = next(n.value for n in ast.walk(ast.parse(scripts[1]))
+                        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                        and n.value.startswith('(()=>{const retainedOrigin='))
+        fresh_click = next(n.value for n in ast.walk(ast.parse(generated))
+                           if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                           and 'function committed6ProMaximum' in n.value
+                           and 'b.click();return true;' in n.value
+                           and 'const b=document.querySelector' in n.value)
+        marker = '# All paths must commit' if '# All paths must commit' in generated else '# On a fresh chat'
+        branch = compile(generated[generated.index(marker):generated.index('# Settle:')], '<actual-model-selection>', 'exec')
+        tree = ast.parse(generated)
+        prepare = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_prepare')
+        method = ast.parse(textwrap.dedent(inspect.getsource(self.test_current_picker_visibility_contract_in_native_dom))).body[0]
+        html = ast.literal_eval(next(n.value for n in method.body if isinstance(n, ast.Assign)
+                               and any(isinstance(t, ast.Name) and t.id == 'html' for t in n.targets)))
+        html = html.replace('aria-expanded="true"', 'aria-expanded="true" data-selected-reasoning-effort="medium" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning"')
+        html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
+        html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p><br class="ProseMirror-trailingBreak"></p></div>'
+        node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
+        left, right = node.index('const output={};'), node.index('}finally{await cleanup')
+        node = node[:left] + r'''
+const rl=require('readline').createInterface({input:process.stdin,crlfDelay:Infinity});
+process.stdout.write(JSON.stringify({ready:true})+'\n');
+for await(const line of rl){const r=JSON.parse(line);if(r.stop)break;
+try{process.stdout.write(JSON.stringify({value:await js(r.expression)})+'\n');}
+catch(e){process.stdout.write(JSON.stringify({error:e.message})+'\n');}}
+''' + node[right:]
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryFile(mode='w+') as diagnostics:
+            # Interactive CDP reads stdout incrementally; drain stage diagnostics
+            # to a file so an unread stderr pipe cannot stall the fixture.
+            proc = subprocess.Popen(['node', '-e', node], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                    stderr=diagnostics, text=True, env={**os.environ, 'TMPDIR': tmp})
+            try:
+                self.assertEqual(json.loads(proc.stdout.readline()), {'ready': True})
+                def native(expression):
+                    proc.stdin.write(json.dumps({'expression': expression})+'\n'); proc.stdin.flush()
+                    result = json.loads(proc.stdout.readline())
+                    self.assertNotIn('error', result)
+                    return result.get('value')
+                # Byte-exact callback slices from source70 in the bounded upstream
+                # capture 24cd58d14748ee1a62621b61841bba739a8e0260bb980368a8db46cf5fa96182.
+                # React/imported helpers, parent sinks and rerenders are fixtures.
+                # The later read-only schema capture observed own-data
+                # {slug:'gpt-6-pro', thinkingEffort:null}, not maximum/medium effort.
+                pipeline = r'''
+window.mouse=0;window.sends=0;window.getters=0;window.events=[];
+const trigger=document.querySelector('button');
+let eq={slug:'gpt-5-6-thinking',thinkingEffort:'standard'},ti=null,tl=eq;
+const props=attachModelOwner(trigger,eq), owner=trigger.__reactFiber$fixture;
+const eD={},eV=false,e4=undefined,eH=undefined,eX=true,tM=false,tQ=true,ta='simple';
+const q={i:()=>undefined},s=()=>((a,b)=>JSON.stringify(a)===JSON.stringify(b));
+const tH=[{modelSlug:'gpt-5-6-thinking',thinkingEffort:'standard'},{modelSlug:'gpt-6-pro',thinkingEffort:null}],tR=undefined;
+const to=f=>{ti=typeof f==='function'?f(ti):f;},e3=()=>{},e2=()=>events.push('telemetry');
+const eF=m=>{events.push('parent');if(accepts){eq=m;props.selectedModel=m;}};
+const ty={current:null},tr=()=>{},te=()=>{},_={a:{prefetch(){}}};
+const tI=v=>{trigger.setAttribute('aria-expanded',String(v));events.push(v?'open':'closed');};
+const tY=function(e,t){let n=void 0===t?"model":t;to(t=>({model:e,base:eq,intent:"thinking-effort"!==n||e.slug!==eq.slug||(e.versionId??(0,q.i)(eD,e.slug))!==(eq.versionId??(0,q.i)(eD,eq.slug))||null!=t&&s()(t.base,eq)&&"thinking-effort"!==t.intent?"model":"thinking-effort"}))};
+const tJ=function(e){let t=tH[e.powerSettingIndex];if(null!=t)return{slug:t.modelSlug,thinkingEffort:t.thinkingEffort,versionId:tR?.slugs.includes(t.modelSlug)?tR.id:(0,q.i)(eD,t.modelSlug)}};
+const select=e=>{let t=tH[e.powerSettingIndex];null!=t&&t.modelSlug!==tl.slug&&e3(t.modelSlug);let n=tJ(e);null!=n&&tY(n,"thinking-effort")};
+const commit=(e,t)=>{let n=tH[e.powerSettingIndex],a=tH[t.powerSettingIndex];n?.thinkingEffort!=null&&a?.thinkingEffort!=null&&n.thinkingEffort!==a.thinkingEffort&&e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_THINKING_EFFORT_SELECTED")};
+const close=function(e){null!=ty.current&&(window.clearTimeout(ty.current),ty.current=null),e?(to(null),eV&&null==e4&&(0,b.c)(eQ,tU),_.a.prefetch(),eX||tM||(e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_SURFACE_OPENED"),!eV&&tQ&&"simple"===ta&&e2("CHATGPT_MODEL_PICKER_UI_EVENT_TYPE_THINKING_EFFORT_DROPDOWN_CLICKED"))):(s()(tl,eq)||(ti?.intent==="thinking-effort"&&null!=eH?eH(tl.thinkingEffort):eF(tl)),to(null),ty.current=window.setTimeout(()=>{ty.current=null,tr("simple"),te("")},350)),tI(e)};
+function render(){tl=(null!=ti&&(s()(ti.base,eq)||eV&&s()((0,ei.b)(eD,ti.base,e4),eq))?ti.model:null)??eq;}
+window.selectMaximum=()=>{select({powerSettingIndex:1});render();commit({powerSettingIndex:1},{powerSettingIndex:0});render();events.push('selected');};
+installCloseTrigger(trigger,v=>{close(v);render();});
+window.props=props;window.owner=owner;
+'''
+                for case in ['accept', 'reject', 'duplicate_trigger', 'duplicate_owner', 'getter', 'document_drift']:
+                    with self.subTest(case=case):
+                        native('document.body.innerHTML='+json.dumps(html)+';'+MODEL_OWNER_FIXTURE+MODEL_TRIGGER_FIXTURE+
+                               '(()=>{const accepts='+json.dumps(case != 'reject')+';'+pipeline+'})();true')
+                        if case == 'duplicate_trigger':
+                            native('document.body.append(document.querySelector("button").cloneNode(true));true')
+                        if case == 'duplicate_owner':
+                            native('owner.return={type:owner.type,memoizedProps:props,return:null};true')
+                        if case == 'getter':
+                            native('Object.defineProperty(props,"selectedModel",{get(){getters++;return null;},set(){}});true')
+                        def mouse(method, **kwargs):
+                            self.assertEqual(method, 'Input.dispatchMouseEvent', 'no insertion in model admission')
+                            center = native('(()=>{const r=document.querySelector("button").getBoundingClientRect();return r.left+r.width/2})()')
+                            action = ('pointerClose();' if kwargs['x']==center and kwargs['type']=='mousePressed' else
+                                      'selectMaximum();' if kwargs['x']!=center and kwargs['type']=='mouseReleased' else '')
+                            native('window.mouse++;'+action+'true')
+                        def refuse(reason, **kwargs): raise RuntimeError(reason)
+                        def bound(tab, url, expr):
+                            if case == 'document_drift' and native('window.mouse'):
+                                raise RuntimeError('retained_document_changed')
+                            return native(expr)
+                        env = {'st': {'model': '6 Pro'}, 'RETAINED': False, 'tab': {'targetId':'offline'},
+                               'fresh': HOME, 'json': json, 'time': types.SimpleNamespace(sleep=lambda n: None),
+                               '_bound_js': bound, '_fresh': lambda: None,
+                               'cdp': mouse, '_sessions': {'offline':'offline'}, '_binding_error': refuse,
+                               '__import__': __import__}
+                        if case != 'accept':
+                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL|retained_document_changed'): exec(branch, env)
+                        else:
+                            exec(branch, env)
+                            self.assertEqual(env['st']['model'], '6 Pro')
+                            self.assertEqual(native('window.events'), ['selected', 'parent', 'closed'])
+                            self.assertEqual(native('window.mouse'), 4)
+                            self.assertEqual(native('document.querySelector("button").getAttribute("aria-expanded")'), 'false')
+                            # Every real emitted consumer sees the same authoritative gate.
+                            probes = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant)
+                                      and isinstance(n.value, str) and 'function committed6ProMaximum' in n.value]
+                            committed = next(x for x in probes if x.endswith('return committed6ProMaximum();})()'))
+                            self.assertTrue(native(committed))
+                            native('document.querySelector("#prompt-textarea").remove();true')
+                            native('document.body.insertAdjacentHTML("beforeend",\'<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p>fixture</p></div><button data-testid="send-button">Send</button>\');document.querySelector("[data-testid=send-button]").onclick=()=>sends++;true')
+                            atomic = retained.replace('const retainedOrigin=12345.5;',
+                                                      'const retainedOrigin='+str(native('performance.timeOrigin'))+';')
+                            self.assertTrue(native(fresh_click))
+                            self.assertEqual(native(atomic), {'clicked': True})
+                            self.assertEqual(native('window.sends'), 2)
+                            native('window.sends=0;true')
+                            # Negative Send cases use the actual emitted synchronous guards.
+                            for mutation, reason in [
+                                ('owner.return={type:owner.type,memoizedProps:props,return:null}', 'model'),
+                                ('props.isLoading=true', 'model'),
+                                ('props.selectedModel={slug:"gpt-5-6-thinking",thinkingEffort:"standard"}', 'model'),
+                                ('props.selectedModel={slug:"gpt-6-pro",thinkingEffort:"medium"}', 'model'),
+                                ('document.querySelector("#prompt-textarea p").textContent="changed"', 'composer'),
+                            ]:
+                                native(mutation+';true')
+                                self.assertEqual(native(atomic), {'clicked': False, 'reason': reason})
+                                if reason == 'model': self.assertFalse(native(fresh_click))
+                                native('owner.return=null;props.isLoading=false;props.selectedModel={slug:"gpt-6-pro",thinkingEffort:null};document.querySelector("#prompt-textarea p").textContent="fixture";true')
+                            self.assertEqual(native(retained), {'clicked': False, 'reason': 'document'})
+                            self.assertEqual(native('window.sends'), 0)
+                            # Both alternate directions refuse stale props rather than guessing current fiber.
+                            native('owner.alternate={type:owner.type,memoizedProps:{...props,selectedModel:{slug:"gpt-5-6-thinking",thinkingEffort:"standard"}}};true')
+                            self.assertFalse(native(committed))
+                            native('owner.alternate=null;props.selectedModel={slug:"gpt-6-pro",thinkingEffort:"medium"};true')
+                            self.assertFalse(native(committed), 'medium is not maximum')
+                            exec(compile(ast.Module(body=[prepare], type_ignores=[]), '<actual-prepare>', 'exec'), env)
+                            with self.assertRaisesRegex(RuntimeError, 'WRONG_MODEL'): env['_prepare']('')
+                        self.assertEqual(native('window.getters'), 0)
+                        self.assertEqual(native('window.sends'), 0)
+                        self.assertEqual(native('document.querySelector("button").getAttribute("data-selected-reasoning-effort")'), 'medium')
+                proc.stdin.write(json.dumps({'stop':True})+'\n'); proc.stdin.flush(); proc.stdin.close()
+                proc.wait(timeout=15)
+                diagnostics.seek(0)
+                self.assertEqual(proc.returncode, 0, diagnostics.read())
+            finally:
+                if proc.poll() is None: proc.kill(); proc.wait()
+
+    def test_current_picker_visibility_contract_in_native_dom(self):
+        """Actual emitted gate against captured inherited aria visibility.
+
+        Source: pro-model-diagnosis-20261007/PICKER-DOM.json. The inactive
+        inert list's unreferenced lock text is not the active Pro row's state.
+        This exercises public DOM semantics, not a mocked gate return.
+        """
+        import os
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('fixture')
+        tree = ast.parse(scripts[0])
+        gates = [n.args[2] for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+            and n.func.id == '_bound_js' and len(n.args) > 2
+            and 'return full6ProMaximum();})()' in (ast.get_source_segment(scripts[0], n.args[2]) or '')
+            and 'retainedOrigin' not in (ast.get_source_segment(scripts[0], n.args[2]) or '')]
+        gate = eval(compile(ast.Expression(gates[0]), '<actual-emitted-picker>', 'eval'),
+                    {'json': json, 'trigger': "button[aria-label='Select ChatGPT model']"})
+        html = ('<button aria-label="Select ChatGPT model" aria-expanded="true" aria-controls="picker">Thinking effort</button>'
+            '<div role="menu" id="picker" data-state="open">'
+            '<div data-active="true" aria-hidden="false">'
+            '<div data-model-picker-view="simple">'
+            '<div data-reasoning-slider="true" role="menuitem" aria-label="Power"><span role="slider" aria-hidden="true" tabindex="-1" aria-valuemin="0" aria-valuemax="4" aria-valuenow="4">power</span></div>'
+            '<div role="menuitem" data-model-picker-view-toggle="true"><span>6</span> <span>Pro</span>'
+            '<span data-maximum="true" style="display:inline-block;width:10px;height:10px"></span></div>'
+            '</div></div><div data-active="false" aria-hidden="true" inert>'
+            '<span id="unreferenced-lock">Locked, opens access options</span></div></div>')
+        cases = [
+            ('captured_active', '', True),
+            ('hidden_ancestor', 'parent.setAttribute("aria-hidden","true")', False),
+            ('inert_ancestor', 'parent.inert=true', False),
+            ('inactive_ancestor', 'parent.dataset.active="false"', False),
+            ('display_none', 'parent.style.display="none"', False),
+            ('visibility_hidden', 'parent.style.visibility="hidden"', False),
+            ('row_hidden', 'row.setAttribute("aria-hidden","true")', False),
+            ('row_disabled', 'row.setAttribute("aria-disabled","true")', False),
+            ('no_maximum', 'row.querySelector("[data-maximum]").remove()', False),
+            ('wrong_model', 'row.firstChild.textContent="5"', False),
+            ('lower_power', 'slider.setAttribute("aria-valuenow","3")', False),
+            ('wrong_scale', 'slider.setAttribute("aria-valuemax","5")', False),
+            ('slider_disabled', 'slider.setAttribute("aria-disabled","true")', False),
+            ('power_hidden', 'slider.parentElement.setAttribute("aria-hidden","true")', False),
+            ('power_inert', 'slider.parentElement.inert=true', False),
+            ('power_disabled', 'slider.parentElement.setAttribute("aria-disabled","true")', False),
+            ('maximum_hidden', 'row.querySelector("[data-maximum]").style.display="none"', False),
+            ('ambiguous_row', 'row.parentElement.append(row.cloneNode(true))', False),
+            ('closed_menu', 'document.querySelector("button").setAttribute("aria-expanded","false")', False),
+            ('unbound_menu', 'document.querySelector("button").setAttribute("aria-controls","other")', False),
+            ('duplicate_active_trigger', 'document.body.append(document.querySelector("button").cloneNode(true))', False),
+            ('conflicting_active_trigger', 'const b=document.querySelector("button").cloneNode(true);b.setAttribute("aria-controls","other");document.body.append(b)', False),
+            ('duplicate_bound_menu', 'document.body.append(document.querySelector("[role=menu]").cloneNode(true))', False),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            result = REAL_SUBPROCESS_RUN(['node', '-e', NATIVE_COMPOSER_FIXTURE], text=True,
+                input=json.dumps({'expressions': [gate], 'picker': {'html': html, 'gate': gate,
+                    'cases': [{'name': name, 'mutate': mutate} for name, mutate, _ in cases]}}),
+                capture_output=True, timeout=30, env={**os.environ, 'TMPDIR': tmp})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        actual = json.loads(result.stdout)['picker']
+        for row, (name, _, expected) in zip(actual, cases, strict=True):
+            with self.subTest(name=name):
+                self.assertIs(row['accepted'], expected)
+                self.assertTrue(row['unchanged'], 'model gate must be passive')
+
     def test_captured_initial_placeholder_uses_same_exact_preflight_reader(self):
         """PR52 passive empty capture: exact attribute presence and safe values.
 
@@ -3356,23 +4351,152 @@ class NativeComposerTests(unittest.TestCase):
             self.assertEqual(row['clicks'], int(row['name'] == 'correct'), row['name'])
 
 
+class OfflineComposerLifecycleTests(unittest.TestCase):
+    """Real fixture CDP/cleanup with synthetic child streams, never Chrome."""
+
+    HARNESS = r'''
+const {EventEmitter}=require('events'),{PassThrough}=require('stream');
+let killed=false;
+cp.spawn=()=>{
+  const child=new EventEmitter();child.exitCode=null;child.signalCode=null;
+  child.stdio=[null,null,new PassThrough(),new PassThrough(),new PassThrough()];
+  child.stderr=child.stdio[2];
+  child.kill=signal=>{killed=true;child.signalCode=signal;
+    setImmediate(()=>{child.emit('exit',null,signal);child.emit('close',null,signal);});return true;};
+  child.stdio[3].on('data',bytes=>{
+    const msg=JSON.parse(bytes.toString().replace(/\0$/,''));
+    if(f.mode==='hang-close' && msg.method==='Probe.work')
+      setImmediate(()=>child.stdio[4].write(JSON.stringify({id:msg.id,result:{}})+'\0'));
+  });
+  if(f.mode!=='hang-close')setImmediate(()=>{
+    if(f.mode==='exit'){child.exitCode=1;child.emit('exit',1,null);child.emit('close',1,null);}
+    else if(f.mode==='eof')child.stdio[4].end();
+    else if(f.mode==='read-error')child.stdio[4].emit('error',new Error('synthetic'));
+    else if(f.mode==='write-error')child.stdio[3].emit('error',new Error('synthetic'));
+    else if(f.mode==='spawn-error')child.emit('error',new Error('synthetic'));
+  });
+  return child;
+};
+'''
+
+    def test_child_termination_rejects_pending_and_future_cdp_requests(self):
+        source=NATIVE_COMPOSER_FIXTURE.split('(async()=>{try{',1)[0]
+        source=source.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));",
+                              "const f=JSON.parse(fs.readFileSync(0,'utf8'));"+self.HARNESS)
+        source+=r'''
+let settled=false,rejected=false;
+cdp('Target.createTarget',{url:'about:blank'}).then(()=>settled=true,()=>{settled=true;rejected=true;});
+setTimeout(async()=>{
+  let futureRejected=false;
+  const future=cdp('Runtime.evaluate').then(()=>{},()=>{futureRejected=true;});
+  await Promise.race([future,new Promise(resolve=>setTimeout(resolve,50))]);
+  console.log(JSON.stringify({settled,rejected,futureRejected,pending:pending.size}));
+  fs.rmSync(dir,{recursive:true,force:true});process.exit(0);
+},50);
+'''
+        for mode in ['exit','eof','read-error','write-error','spawn-error']:
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as tmp:
+                result=REAL_SUBPROCESS_RUN(['node','-e',source],text=True,input=json.dumps({'mode':mode}),
+                                          capture_output=True,timeout=3,env={**__import__('os').environ,'TMPDIR':tmp})
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(json.loads(result.stdout),
+                                 {'settled':True,'rejected':True,'futureRejected':True,'pending':0})
+
+    def test_hung_browser_close_arms_kill_and_removes_profile(self):
+        source=NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));",
+                    "const f=JSON.parse(fs.readFileSync(0,'utf8'));"+self.HARNESS)
+        start=source.index("const target=(await cdp('Target.createTarget'")
+        end=source.index('}finally',start)
+        source=source[:start]+"await cdp('Probe.work');\n"+source[end:]
+        source+="\nprocess.on('exit',()=>console.log(JSON.stringify({killed,profileExists:fs.existsSync(dir)})));"
+        with tempfile.TemporaryDirectory() as tmp:
+            result=REAL_SUBPROCESS_RUN(['node','-e',source],text=True,input=json.dumps({'mode':'hang-close'}),
+                                      capture_output=True,timeout=5,env={**__import__('os').environ,'TMPDIR':tmp})
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(json.loads(result.stdout),{'killed':True,'profileExists':False})
+            self.assertEqual(list(Path(tmp).iterdir()),[])
+
+
 NATIVE_COMPOSER_FIXTURE = r'''
 const fs=require('fs'),cp=require('child_process'),os=require('os'),path=require('path');
 const f=JSON.parse(fs.readFileSync(0,'utf8'));
 const dir=fs.mkdtempSync(path.join(process.env.TMPDIR,'pro-composer-native-'));
-const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{stdio:['ignore','ignore','ignore','pipe','pipe']});
-let next=0,buf='',pending=new Map();
-chrome.stdio[4].on('data',b=>{buf+=b;let pos;while((pos=buf.indexOf('\0'))>=0){const msg=JSON.parse(buf.slice(0,pos));buf=buf.slice(pos+1);if(msg.id&&pending.has(msg.id)){const [yes,no]=pending.get(msg.id);pending.delete(msg.id);msg.error?no(new Error(msg.error.message)):yes(msg.result);}}});
-function cdp(method,params={},sessionId){return new Promise((yes,no)=>{const id=++next;pending.set(id,[yes,no]);chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0');});}
+const chrome=cp.spawn('google-chrome',['--headless=new','--no-sandbox','--disable-gpu','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run','--no-default-browser-check','--disable-extensions','--host-resolver-rules=MAP * ~NOTFOUND','--remote-debugging-pipe','--user-data-dir='+dir,'about:blank'],{detached:process.platform!=='win32',stdio:['ignore','ignore','pipe','pipe','pipe']});
+let next=0,buf='',pending=new Map(),terminalError=null,childClosed=false,cleanupPromise;
+// Only method/stage/exit metadata is logged: never expressions or DOM contents.
+const trace=stage=>process.stderr.write('NATIVE_FIXTURE '+stage+'\n');
+function fail(reason){
+  if(terminalError)return;
+  terminalError=new Error(reason);trace(reason+' pending='+pending.size);
+  for(const [yes,no] of pending.values())no(terminalError);
+  pending.clear();
+}
+chrome.on('error',()=>fail('CHILD_ERROR'));
+chrome.on('exit',(code,signal)=>{trace('CHILD_EXIT code='+code+' signal='+signal);fail('CHILD_EXIT');});
+chrome.on('close',()=>{childClosed=true;fail('CHILD_CLOSE');});
+for(const [index,label] of [[3,'WRITE'],[4,'READ']]){
+  chrome.stdio[index].on('error',()=>fail('PIPE_'+label+'_ERROR'));
+  chrome.stdio[index].on('close',()=>fail('PIPE_'+label+'_CLOSE'));
+}
+chrome.stdio[4].on('end',()=>fail('PIPE_READ_EOF'));
+// Drain Chrome diagnostics without exposing raw profile paths or stderr text.
+let stderrBytes=0;
+chrome.stderr.on('data',b=>{stderrBytes+=b.length;});
+chrome.stderr.on('error',()=>fail('CHROME_STDERR_ERROR'));
+chrome.stdio[4].on('data',b=>{
+  buf+=b;let pos;
+  while((pos=buf.indexOf('\0'))>=0){
+    let msg;try{msg=JSON.parse(buf.slice(0,pos));}catch(e){fail('CDP_INVALID_JSON');return;}
+    buf=buf.slice(pos+1);
+    if(msg.id&&pending.has(msg.id)){
+      const [yes,no,method]=pending.get(msg.id);pending.delete(msg.id);trace('DONE '+msg.id+' '+method);
+      msg.error?no(new Error('CDP_ERROR '+method)):yes(msg.result);
+    }
+  }
+});
+function cdp(method,params={},sessionId){return new Promise((yes,no)=>{
+  if(terminalError){no(terminalError);return;}
+  const id=++next;pending.set(id,[yes,no,method]);trace('CALL '+id+' '+method);
+  try{chrome.stdio[3].write(JSON.stringify({id,method,params,sessionId})+'\0',e=>{if(e)fail('PIPE_WRITE_ERROR');});}
+  catch(e){fail('PIPE_WRITE_ERROR');}
+});}
+// Leave time for bounded cleanup before Python's unchanged 30s outer timeout.
+const deadline=setTimeout(()=>{process.exitCode=1;fail('FIXTURE_DEADLINE');cleanup().catch(()=>{});},25000);
+function cleanup(){
+  if(cleanupPromise)return cleanupPromise;
+  cleanupPromise=(async()=>{
+    clearTimeout(deadline);
+    const closed=new Promise(resolve=>childClosed?resolve():chrome.once('close',resolve));
+    const fallback=setTimeout(()=>{
+      trace('KILL_FALLBACK');
+      try{if(process.platform!=='win32'&&chrome.pid)process.kill(-chrome.pid,'SIGKILL');else chrome.kill('SIGKILL');}
+      catch(e){if(e.code!=='ESRCH')throw e;}
+    },2000);
+    try{
+      // Arm fallback BEFORE asking Chrome to close; never await its CDP reply.
+      if(!terminalError)cdp('Browser.close').catch(()=>{});
+      await closed;
+    }finally{
+      clearTimeout(fallback);fs.rmSync(dir,{recursive:true,force:true});
+      trace('CLEANUP profile_removed='+!fs.existsSync(dir)+' stderr_bytes='+stderrBytes);
+    }
+  })();return cleanupPromise;
+}
 let sid;
 async function js(expression){const r=await cdp('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true},sid);if(r.exceptionDetails)throw new Error('FIXTURE_JS_EXCEPTION');return r.result.value;}
 (async()=>{try{
 const target=(await cdp('Target.createTarget',{url:'about:blank'})).targetId;
 sid=(await cdp('Target.attachToTarget',{targetId:target,flatten:true})).sessionId;
 await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*']},sid);
-await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button>6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
+await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button aria-label="Select ChatGPT model" data-selected-reasoning-effort="maximum" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning">6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
 const output={};
+await js(__MODEL_OWNER_FIXTURE__);
 for(const expr of f.expressions)new Function('return ('+expr+')');
+if(f.picker){
+const i=f.picker;output.picker=[];
+for(const c of i.cases){await js('document.body.innerHTML='+JSON.stringify(i.html)+';(()=>{const row=document.querySelector("[data-model-picker-view-toggle]"),parent=document.querySelector("[data-active=true]"),slider=document.querySelector("[role=slider]");'+c.mutate+';})()');const before=await js('document.body.innerHTML');output.picker.push({name:c.name,accepted:await js(i.gate),unchanged:before===await js('document.body.innerHTML')});}
+process.stdout.write(JSON.stringify(output));return;
+}
 if(f.initial){
 const i=f.initial;
 await js('document.head.innerHTML="<style>[data-composer-markdown]{white-space:break-spaces}</style>";window.initial=()=>{document.body.innerHTML='+JSON.stringify(i.html)+';};window.initial();');
@@ -3384,8 +4508,12 @@ process.stdout.write(JSON.stringify(output));return;
 output.cases=[];for(const c of f.cases){await js('window.render('+JSON.stringify(c.text)+');window.clicks=0;');if(c.mutate)await js(c.mutate);const expr=c.expression.replace('const retainedOrigin=12345.5;', 'const retainedOrigin=performance.timeOrigin;');output.cases.push({name:c.name,result:await js(expr),clicks:await js('window.clicks')});}
 const c=f.caret;await js('window.render('+JSON.stringify(c.prefix)+');const e=document.querySelector("[contenteditable]");e.focus();const n=e.lastChild.firstChild;getSelection().collapse(n,n.length-'+c.displace+');');output.caret={prepared:await js(c.prepare)};await cdp('Input.insertText',{text:c.suffix},sid);output.caret.actual=await js('[...document.querySelector("[contenteditable]").children].map(p=>p.textContent).join("\\n")');output.caret.checked=await js(c.check);
 process.stdout.write(JSON.stringify(output));
-}finally{await cdp('Browser.close').catch(()=>{});}})().catch(e=>{process.stderr.write(e.message);process.exitCode=1;}).finally(()=>{chrome.on('exit',()=>fs.rmSync(dir,{recursive:true,force:true}));setTimeout(()=>{chrome.kill('SIGKILL');},2000).unref();});
-'''
+}finally{await cleanup();}})().catch(e=>{process.stderr.write(e.message+'\n');process.exitCode=1;});
+'''.replace('__MODEL_OWNER_FIXTURE__', json.dumps(MODEL_OWNER_FIXTURE + '''
+const trigger=document.querySelector('button[aria-label="Select ChatGPT model"]');
+trigger.setAttribute('aria-expanded','false');
+attachModelOwner(trigger,{slug:'gpt-6-pro',thinkingEffort:null});
+'''))
 
 
 if __name__ == "__main__":

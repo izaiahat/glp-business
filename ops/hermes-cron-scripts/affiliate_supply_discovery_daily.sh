@@ -9,7 +9,7 @@ cd /home/ubuntu/business
 exec 9>/home/ubuntu/.hermes/state/affiliate-supply-discovery.lock
 flock -n 9 || exit 0
 
-expected_discovery_sha256='8f882b3fc6ae1d6fc81590c94c84b1e28c1f094e273b7b0643c013366682ca7f'
+expected_discovery_sha256='88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e'
 expected_expansion_sha256='b84fd9b2dcd35fffd100229b26073fbac9a3a92eaac3cea244741e680046263c'
 expected_coverage_sha256='4045c1e53c470f7540405524941263b64c9fa59136af3b5d7702e46fb0d7e39b'
 expected_card_sha256='30d152f78c8729a67c148d2972ef1ba3ecebab732c01929c5313998708c394f8'

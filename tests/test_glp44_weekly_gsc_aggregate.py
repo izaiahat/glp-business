@@ -67,7 +67,11 @@ def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode, rai
     requests = []
     values = dict(clicks=2, impressions=20, ctr=.1, position=12)
 
+    rail_class = runpy.run_path(str(RAILS))['GoogleRail']
     class Google:
+        ga4_neutral_filter = rail_class.ga4_neutral_filter
+        GA4_CONSUMER_STREAM_ID = rail_class.GA4_CONSUMER_STREAM_ID
+        GA4_NEUTRAL_PATHS = rail_class.GA4_NEUTRAL_PATHS
         def _access_token(self):
             return None
 
@@ -75,7 +79,10 @@ def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode, rai
             return {'ok': True, 'url': url, 'verdict': 'PASS'}
 
         def ga4_run_report(self, **kw):
-            return {'ok': True, 'rows': []}
+            assert kw['dimensions'] == ['streamId', 'hostName', 'pagePath']
+            assert kw['dimension_filter'] == rail_class.ga4_neutral_filter()
+            return {'ok': True, 'complete': True, 'rows': [],
+                    'dimension_names': kw['dimensions'], 'metric_names': kw['metrics']}
 
         def gsc_search_analytics(self, **kw):
             requests.append(kw)
@@ -128,7 +135,7 @@ def test_registered_collector_to_report(tmp_path, monkeypatch, capsys, mode, rai
                 return rail.gsc_search_analytics(**kw)
             return {'ok': True, 'complete': True, 'rows': rows}
 
-    ns.update(GoogleRail=Google, PostHog=lambda: types.SimpleNamespace(page_conversion=lambda **kw: {'rows': []}),
+    ns.update(GoogleRail=Google, PostHog=lambda: types.SimpleNamespace(neutral_pageviews=lambda **kw: {'rows': []}),
               connect=lambda **kw: types.SimpleNamespace(call=lambda *a: []),
               TOOL={'bing_query_stats': 'query', 'bing_page_stats': 'page'})
     # Existing shared input path, actually hashed and consumed by the reporter.
