@@ -368,8 +368,12 @@ def main():
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:print(json.dumps({'status':'DEFERRED_BUSY'}));return 0
         # An uncertain prior publication blocks any later effect until exact native readback.
+        # Main-release refusals can leave a wrapper intent without any new effect.
+        # Reuse its exact terminal/prepared reconciliation; all unknowns still block.
+        from glp_release_main import main_pre_effect_refusal
         for intent in root.glob('*/publish-intent.json'):
-            if not (intent.parent/'PUBLISH.json').exists():raise RuntimeError('prior_publication_uncertain:'+str(intent))
+            if not (intent.parent/'PUBLISH.json').exists() and not main_pre_effect_refusal(intent.parent):
+                raise RuntimeError('prior_publication_uncertain:'+str(intent))
         if not a.source_ref and not a.source_pr and not a.resume_report:
             completed={read(p).get('site_head') for p in root.glob('*/PUBLISH.json')
                        if read(p).get('status')=='PASS_PRODUCTION_TERMINAL'}

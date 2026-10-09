@@ -4877,7 +4877,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "5c8a62d12d2ac657facddd53325cfcc632276113b7d7a99bc478a74472a5eebe"
+      "sha256": "80fad74ce8ebaf910f8d979beaa2be69cac990e95595ca532aaa7e05ebd4511b"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -6061,7 +6061,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "dbe35305a2e42792d8e8244cd2c49e9bbd145e8202ffc9bd01858cb50e84013c"
+      "sha256": "ff101ef9ec914bca5bfdef892486dfc89feb84408088e1e72bdfa40df7a8d1a5"
     },
     "scripts/maxbounty_publisher_api.py": {
       "kind": "script",
