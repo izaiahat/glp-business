@@ -13,10 +13,12 @@
 /reports/*
 !/scripts/
 /scripts/*
+!/scripts/article_source_carrier.py
 !/scripts/agent_exec.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/tests/
 /tests/*
+!/tests/test_article_source_carrier.py
 !/tests/test_glp320_host_failure_sensor.py
 !/tests/test_cgroup_headroom_guardian.py
 !/tests/test_agent_exec_routing.py

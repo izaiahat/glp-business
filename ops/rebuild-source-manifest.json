@@ -597,7 +597,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d4090731d58d7100352ff4045d73c857c0ec1ad4f86e29478fe8eb9d324b3bf8"
+      "sha256": "a1c33bf7d8823de98404a9c09450837febba5297646485517be9e02b20b5c853"
     },
     ".hermes.md": {
       "callers": [],
@@ -5449,7 +5449,7 @@
       "callers": [
         "scripts/article_carrier_run.py"
       ],
-      "sha256": "637de5be2ffece45fc4dfefbb63e23a91c9e4fe8d4290f321fe8732a8cec5403"
+      "sha256": "1c14249ffc9bc98479e2d11145eb545a77a1b9f679e10eaf02dac8dc70683c06"
     },
     "systems/seo-blog-machine/scripts/mint_competitor_gap_feed.py": {
       "kind": "script",

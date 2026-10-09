@@ -13,15 +13,14 @@ from typing import Any
 
 BUSINESS = Path("/home/ubuntu/business")
 MACHINE = BUSINESS / "systems/seo-blog-machine"
-SCRIPTS = MACHINE / "scripts"
-for path in (str(SCRIPTS), str(BUSINESS / "scripts")):
+SCRIPTS = Path(__file__).resolve().parent
+for path in (str(SCRIPTS), str(Path(__file__).resolve().parents[3] / "scripts")):
     if path not in sys.path:
         sys.path.insert(0, path)
 
 import article_buffer_cli as buffer_cli  # noqa: E402
 import build_opus_article_release as builder  # noqa: E402
 import existing_article_updates as existing  # noqa: E402
-import materialize_opus_run as materializer  # noqa: E402
 
 BASE_POINTER = (
     BUSINESS
@@ -125,6 +124,7 @@ def require_publishable_inventory(status):
 
 
 def validate_next_ready_entry(release: Path) -> dict[str, Any]:
+    import materialize_opus_run as materializer
     status = buffer_cli.status(buffer_cli.DEFAULT_ROOT)
     require_publishable_inventory(status)
     entries = status.get("entries")
