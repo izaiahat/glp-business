@@ -17,11 +17,15 @@ from pathlib import Path
 import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+# existing_article_updates.py hard-codes the host analytics-brain path; give a
+# clean CI checkout its own copy of the same module (test import path only).
+ANALYTICS = Path(__file__).resolve().parents[3] / "systems/analytics-brain"
 
 
 def load(name):
-    if str(SCRIPTS) not in sys.path:
-        sys.path.insert(0, str(SCRIPTS))
+    for extra in (ANALYTICS, SCRIPTS):
+        if str(extra) not in sys.path:
+            sys.path.insert(0, str(extra))
     spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
