@@ -19,7 +19,9 @@ def test_affiliate_run_root_is_narrow_and_still_requires_publication_proof(tmp_p
     namespace={'Path':Path,'Any':object,'re':re,'BUSINESS':business,'CURRENT_BASE':business/'pointer.json'}
     exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),namespace)
     fn=namespace['_prepared_base_links'];pointer={'site_head':'a'*40}
-    for stamp,reason in [('20261003T030854Z','publication_path_invalid'),('arbitrary','prepared_root_invalid')]:
+    # glp_release_main (operator-approved-main-release) runs are main-<stamp>; other prefixes stay refused.
+    for stamp,reason in [('20261003T030854Z','publication_path_invalid'),('main-20261009T045825Z','publication_path_invalid'),
+                         ('arbitrary','prepared_root_invalid'),('other-20261009T045825Z','prepared_root_invalid')]:
         release=business/'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'/stamp/'prepared/release'
         release.mkdir(parents=True)
         with pytest.raises(RuntimeError,match=reason):fn(pointer,release,tmp_path/'wrong-manifest',tmp_path/'wrong-receipt',{},[])
