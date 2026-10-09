@@ -100,12 +100,14 @@ class SourceCarrierTests(unittest.TestCase):
         import ast
         namespace = {'os':os,'CHANNEL':'existing-ops-alerts'}
         path = ROOT / 'scripts/cron_bridge_action.py'
-        node = next(n for n in ast.parse(path.read_text()).body
-                    if isinstance(n,ast.FunctionDef) and n.name == 'post_once')
-        exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),namespace)
-        with patch.dict(os.environ,{'CRON_BRIDGE_MANUAL_REGISTERED':'1','CRON_BRIDGE_NO_SEND':'1'}):
-            result = namespace['post_once']('No delivery',{}, {}, None)
-        self.assertEqual(result['status'],'SUPPRESSED_NO_SEND')
+        for function, args in [('post_once', ('No delivery', {}, {}, None)),
+                               ('notify_failure', ('article_carrier_consume', 'retained-receipt', {}, None))]:
+            node = next(n for n in ast.parse(path.read_text()).body
+                        if isinstance(n,ast.FunctionDef) and n.name == function)
+            exec(compile(ast.Module(body=[node],type_ignores=[]),str(path),'exec'),namespace)
+            with patch.dict(os.environ,{'CRON_BRIDGE_MANUAL_REGISTERED':'1','CRON_BRIDGE_NO_SEND':'1'}):
+                result = namespace[function](*args)
+            self.assertEqual(result['status'],'SUPPRESSED_NO_SEND')
 
     def test_registered_consume_routes_to_main_source_lane(self):
         import article_buffer_cli
