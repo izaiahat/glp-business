@@ -27,9 +27,10 @@ DEFAULT_OUTPUT = BUSINESS / (
 )
 SCHEMA = "glp-topic-supply-firecrawl-evidence-v1"
 SEARCH_ENDPOINT = "https://api.firecrawl.dev/v2/search"
-MAX_TARGETS = 12
+MAX_TARGETS = 40
 RESULT_LIMIT = 3
-REFRESH_AFTER_HOURS = 20
+REFRESH_AFTER_HOURS = 168
+PAGE_TWO_REPORT = BUSINESS / 'reports/glp-clinic-scout/seo-machine/page-two/firecrawl-serp-pack-current.json'
 
 
 def now_utc() -> dt.datetime:
@@ -91,12 +92,16 @@ def normalized_results(payload: dict[str, Any]) -> tuple[str | None, list[dict[s
             "host": urlsplit(url).hostname,
             "title": str(row.get("title") or "")[:500],
             "description": str(row.get("description") or "")[:1200],
+            "markdown": str(row.get("markdown") or ""),
+            "metadata": row.get("metadata"),
         })
     return str(search_id) if search_id else None, results
 
 
 def firecrawl_search(key: str, query: str) -> tuple[str | None, list[dict[str, Any]]]:
-    body = json.dumps({"query": query, "limit": RESULT_LIMIT, "sources": ["web"]}).encode()
+    body = json.dumps({"query": query, "limit": RESULT_LIMIT, "sources": ["web"],
+                       "location": "United States", "country": "US", "tbs": "qdr:w",
+                       "scrapeOptions": {"formats": ["markdown"], "onlyMainContent": True, "proxy": "basic"}}).encode()
     request = urllib.request.Request(
         SEARCH_ENDPOINT,
         data=body,
@@ -163,6 +168,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--feed", type=Path, default=DEFAULT_FEED)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--page-two-report", type=Path, default=PAGE_TWO_REPORT)
     args = parser.parse_args()
 
     feed = read_json(args.feed)
@@ -207,6 +213,9 @@ def main() -> int:
         "captured_at_utc": iso_utc(),
         "provider": "firecrawl-v2-search",
         "provider_calls": calls,
+        "weekly_query_cap": MAX_TARGETS,
+        "search_options": {"location": "United States", "country": "US", "tbs": "qdr:w", "scrape_top": RESULT_LIMIT},
+        "scope": "Exact-query SERP research, not a claim of GSC position or ranking improvement",
         "targets": rows,
         "failures": failures,
         "effects": {"site_writes": 0, "publishes": 0, "deployments": 0},
@@ -218,6 +227,7 @@ def main() -> int:
         }, sort_keys=True))
         return 1
     atomic_write(args.output, payload)
+    atomic_write(args.page_two_report, payload)
     print(json.dumps({
         "status": payload["status"],
         "provider_calls": calls,
