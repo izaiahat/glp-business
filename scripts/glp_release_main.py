@@ -172,7 +172,8 @@ def main(argv=None):
         main_sha = a.sha or site_main_sha()
         pr = merged_pr_for(main_sha)
         current_head, current_deployment = pointer_head()
-        if current_head in (main_sha, pr['headRefOid']):
+        pointer = json.loads((ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json').read_text())
+        if current_head in (main_sha, pr['headRefOid']) and job.rebuild_inputs_complete(Path(pointer['release_root'])):
             print(json.dumps({'status': 'PASS_ALREADY_CURRENT', 'scope': SCOPE, 'site_main': main_sha,
                               'deployment_id': current_deployment}))
             return 0

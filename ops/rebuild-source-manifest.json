@@ -972,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "6150d572a5fa89518e0c93e15ddfc2c5699a1ee29a5d2e7e385211e84db6d50a"
+      "sha256": "0bba37831d5184242534cb2c5730d4c1e5652ef14670bdd04cda79401d816bb0"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -1734,7 +1734,7 @@
         "scripts/generate_glp34_deploy_carrier.py"
       ],
       "kind": "script",
-      "sha256": "6aa06729cdd9ff4219916d9c9809082f34d8feb88f5828bf558e1e8dc226b103"
+      "sha256": "f7f8bd26efd5b3f5f989afea5c607ea724d5757289a34360d475cb16acba389b"
     },
     "scripts/glp44_safe_bridge_activation.py": {
       "callers": [
@@ -1872,7 +1872,7 @@
         "GLP-42 authenticated deploy-carrier lineage"
       ],
       "kind": "script",
-      "sha256": "e9a7d010ba8feaf9142dd874b42f2087b128e8cd46e0a7fb90f5e925149f7c34"
+      "sha256": "c47a853c451a2254c4224a0212561df9ce752d753146c00dbe6c2cd1457ea960"
     },
     "scripts/glp_deploy_provider_routes.mjs": {
       "callers": [
@@ -3942,7 +3942,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "0e292927612f64fa78d0eb7318783959a2dd4fb930e0f0777fd7d33d9440063c"
+      "sha256": "0d14e21ea5d7374e9c10d37362d2162fc9babddb703db59dc84d3290b60d4a88"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
@@ -4820,7 +4820,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "f01db8436450da343ffeb151c773e5165a285ffe8686767ac635e4b94e9ce260"
+      "sha256": "b669e12caa5955136c9ce1ea285ad21f0917ebfd426e06e7e7691f94238ca033"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -5983,7 +5983,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
-      "sha256": "beac17dee0de762b9364415243216b816af2b42e42da642bb5c0f8a2d441ef27"
+      "sha256": "08e89e50517e0001aaa700599bfd58cb3dc23fb00c27abb04baa37527797e507"
     },
     "ops/hermes-cron-scripts/glp_release_main_cron.sh": {
       "kind": "script",
@@ -5997,7 +5997,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "e8519f0eb8a4e028e83f862f1e80b8bd4e9107d2f9411e4f44d5b36a0a0c3839"
+      "sha256": "5fe7e23eac502869c1d5db0b73641e9adca76eec3b736e637e50ac5ff8990c9b"
     },
     "scripts/maxbounty_publisher_api.py": {
       "kind": "script",
