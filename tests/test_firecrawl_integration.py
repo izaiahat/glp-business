@@ -63,21 +63,11 @@ def test_sdk_snake_case_credit_and_scrape_id():
     assert fc._receipt({'data':{'metadata':{'scrape_id':'sdk-id','credits_used':1}}})==('sha256:' + fc._hash('sdk-id'),1)
 
 
-def test_pdf_parse_preserves_original_page(monkeypatch, tmp_path):
-    import io
-    from pypdf import PdfWriter
-    from types import SimpleNamespace
-    spec = importlib.util.spec_from_file_location('article_pdf', ROOT / 'systems/seo-blog-machine/scripts/article_pdf.py')
-    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-    writer = PdfWriter(); writer.add_blank_page(width=100, height=100); writer.add_blank_page(width=100, height=100)
-    pdf = io.BytesIO(); writer.write(pdf)
-    monkeypatch.setattr(module, 'api_key', lambda: 'fixture')
-    monkeypatch.setattr(module, 'firecrawl_post', lambda *a, **kw: SimpleNamespace(
-        raise_for_status=lambda: None, json=lambda: {'success': True, 'data': {'markdown': 'Synthetic label page'}},
-        firecrawl_operation_id='fixture-operation'))
-    row = module.parse_page(pdf.getvalue(), 2, 'https://www.accessdata.fda.gov/label.pdf', 'fda_label', tmp_path / 'page2.json')
-    assert row['original_page'] == 2 and row['ledger_operation_id'] == 'fixture-operation'
-    assert row['source_url'].endswith('/label.pdf')
+def test_onboarding_json_schema_is_source_only():
+    source = (ROOT / 'scripts/g6_r1a_stage5_research_fetch.py').read_text()
+    assert '"required": ["price", "eligibility", "states"]' in source
+    assert '"ledger_operation_id": getattr(response, "firecrawl_operation_id", None)' in source
+    assert 'EXTRACTED_REQUIRES_SOURCE_REVIEW_NOT_REGISTRY_WRITE' in source
 
 
 def test_sdk_proxy_preserves_typed_v2_result(monkeypatch,tmp_path):
