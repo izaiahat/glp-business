@@ -1093,7 +1093,9 @@ def install_weekly():
     lines[i], count = re.subn(r"--cron '[^']+'", "--cron '20 8 * * 0'", lines[i])
     if count != 1:
         raise ValueError('pricing_cron_guard_missing')
-    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 8 * * 0 ', lines[i], count=1)
+    # The host cron is UTC. Keep its existing hourly dispatcher so the
+    # Pacific weekly guard is reached in both standard and daylight time.
+    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 * * * * ', lines[i], count=1)
     updated = '\n'.join(lines) + '\n'
     if updated != old:
         if subprocess.check_output(['crontab', '-l'], text=True) != old:

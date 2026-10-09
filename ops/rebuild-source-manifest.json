@@ -3658,7 +3658,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "1212a6e46c1bab7e327ec06dcc726fb160db7a108ca1001c225b44da82fecb79"
+      "sha256": "1d9f34a2cb1e575dca6b5092b35748f747a8c87d1ecd3ecbc47c872730efc714"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3679,7 +3679,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "943f080e9fb935c89f5e098c2b6cd554506a6a688739c8e99d15dd24a68368aa"
+      "sha256": "b0a1486ffdbef088bc4550b8b48b3e017b2dc26a5dc4d10ef40378c8419449be"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -5664,14 +5664,14 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+      "sha256": "403ef74dc2ad56cacdb16ac309cf60f93eef32336f670ab596c3ff974ca2c6f8"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "c6608d541a99c37051b37eaf2127ed25c8169bd902c0e9547be3256019f73172"
+      "sha256": "480839a50e1612a10d0191f12134fb2aafed813c3220389adf5027cdbb27d951"
     },
     "scripts/glp_price_freshness.py": {
       "kind": "script",
@@ -5679,14 +5679,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "27e9770a4a2ffe683d618bc7a9e7b46890e8977edb8d36a45706f81e53d3eaa8"
+      "sha256": "886ab9c9e83b745307767c915dbb8685648604f7e850c5903f78d9977efefefb"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "d8049fbdc1ee1046f38c9d2aca0f3bfdfd821acc559d9c000d75c7a8f29b29e3"
+      "sha256": "5ca69a911b26e93bdb9114628283dd621789342542a0f1c1c6251d97e514c581"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
