@@ -33,8 +33,11 @@ def references(report):
             refs.add(q)
             if q.is_symlink():refs.add(q.resolve(strict=False))
         if m.signature(p)!=identity:raise ValueError('reference file changed during scan')
+    # Bare roots name no artifact. Scratch and /tmp roots previously pinned every
+    # child (300/300 idle entries refused); children stay pinned when named.
     layout={BUS,BUS/'reports',BUS/'reports/ops',BUS/'reports/glp-clinic-scout',
-            BUS/'site-system',BUS/'site-system/flagship-v2',BUS/'.worktrees'}
+            BUS/'site-system',BUS/'site-system/flagship-v2',BUS/'.worktrees',
+            Path('/home/ubuntu/.hermes/cache/scratch'),Path('/tmp')}
     pins=refs-layout
     policy_path=BUS/'ops/disk-retention-policy.json'
     source_identities[str(policy_path)]=m.signature(policy_path)
@@ -71,7 +74,26 @@ def partial_archive_effect(dest):
     return gross-overhead,gross
 
 
-def run(report,*,dry_run=False,budget=1800):
+def load_external_pins(path,max_age=3600):
+    """Open PR/Linear/live-release/R8/worktree/PREPARED pins collected by the
+    unprivileged controller. Missing, stale or invalid input disables new classes."""
+    data=json.loads(Path(path).read_text())
+    if data.get('schema')!='host-disk-external-pins-v1' or time.time()-data['collected_at']>max_age:
+        raise ValueError('stale external pin inventory')
+    return {Path(p) for p in data['pins']}
+
+
+def auto_classes(guarded,report,pins,external,*,dry_run,deadline):
+    import host_disk_auto_classes as auto
+    pins=tuple(sorted(set(pins)|set(external)))
+    rows=auto.registry_clones(guarded,m,pins=pins,dry_run=dry_run)
+    rows.extend(auto.stale_tmp(guarded,m,pins=pins,deadline=deadline,dry_run=dry_run))
+    nodes=discover(BUS/'reports',pins,deadline,names={'node_modules'})
+    rows.extend(auto.rebuildable_node_modules(guarded,m,nodes,pins=pins,deadline=deadline,dry_run=dry_run))
+    return pins,rows
+
+
+def run(report,*,dry_run=False,budget=1800,external_pins=None):
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+budget
     d=os.statvfs('/');before=d.f_bavail*d.f_frsize
@@ -87,6 +109,15 @@ def run(report,*,dry_run=False,budget=1800):
             'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
             'rows':rows,'reference_veto_source':guarded.last_reference_veto,
             'attributable_bytes_freed':sum(r.get('bytes_freed',0) for r in rows)})
+    external_ok=not external_pins
+    if external_pins:
+        save('auto_classes')
+        try:
+            external=load_external_pins(external_pins)
+            pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=deadline)
+            rows.extend(auto_rows);external_ok=True
+        except (OSError,ValueError,KeyError,RuntimeError,TimeoutError) as e:
+            rows.append({'rule':'auto_classes','status':'GATED_REFERENCE_INVENTORY','reason':str(e),'bytes_freed':0,'ok':False})
     save('discover_nodes');nodes=[]
     for root in [BUS/'reports',BUS/'site-system/flagship-v2/candidates',
                  BUS/'site-system/flagship-v2/work',BUS/'.worktrees']:
@@ -107,6 +138,7 @@ def run(report,*,dry_run=False,budget=1800):
             if r.returncode==0:estimates.append((int(r.stdout.split()[0]),root))
         except (ValueError,subprocess.TimeoutExpired):continue
     for amount,p in sorted(estimates,reverse=True):
+        if not external_ok:break  # PR/Linear/release references unknown: no new archives
         if amount<250_000_000 or time.monotonic()+60>deadline:continue
         dest=report/'archives'/(p.name+'.tar.zst')
         try:
@@ -128,6 +160,10 @@ def run(report,*,dry_run=False,budget=1800):
     if time.monotonic()<deadline:
         rows.extend(m.verified_duplicates(guarded,duplicate_targets,report/'duplicate-manifest.json',
             pins=pins,dry_run=dry_run,deadline=deadline))
+    if external_pins and external_ok and time.monotonic()<deadline:
+        import host_disk_auto_classes as auto
+        save('site_cold_archive')
+        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=deadline,dry_run=dry_run))
     save('complete');return rows
 
 if __name__=='__main__':
@@ -135,6 +171,7 @@ if __name__=='__main__':
     parser.add_argument('--report',required=True)
     parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--budget',type=int,default=1800)
+    parser.add_argument('--external-pins')
     args=parser.parse_args()
-    result=run(args.report,dry_run=args.dry_run,budget=args.budget)
+    result=run(args.report,dry_run=args.dry_run,budget=args.budget,external_pins=args.external_pins)
     raise SystemExit(1 if any(not r.get('ok',True) for r in result) else 0)

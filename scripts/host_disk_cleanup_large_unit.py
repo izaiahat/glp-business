@@ -37,6 +37,15 @@ def main():
     atomic_json(STATE,state)
     command=['sudo','-n','/usr/bin/python3','-I',str(BUS/'scripts/host_disk_large_sweep.py'),
              '--report',str(report/'large'),'--budget','2700' if pressure else '900']
+    # Open PR / Linear / live release / R8 / worktree / PREPARED references need
+    # the unprivileged gh/Linear identity; collected here, fail-closed in the sweep.
+    try:
+        import host_disk_auto_classes as auto
+        atomic_json(report/'external-pins.json',{'schema':'host-disk-external-pins-v1',
+            'collected_at':time.time(),'pins':sorted(map(str,auto.external_pins()))})
+        command+=['--external-pins',str(report/'external-pins.json')]
+    except Exception as e:
+        atomic_json(report/'external-pins-error.json',{'error':str(e)})
     large_result=subprocess.run(command)
     if (report/'large/large-classes.json').exists():
         rows.extend(json.loads((report/'large/large-classes.json').read_text())['rows'])

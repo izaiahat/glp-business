@@ -213,6 +213,55 @@ def resume_prepared(report, config, publish):
     finally:run(lock+['release','--seat',seat])
 
 
+# Run-dir markers that bind a clone to source/publication custody; never retired.
+CUSTODY_MARKERS=('source-intent.json','PR.json','GATE.json','publish-intent.json','PUBLISH.json',
+                 'MERGE.json','CI.json','prepared','PREPARED.json','manual-installed-readback','MANUAL-INSTALLED-RESULT.json')
+DISPOSABLE_KEEP=3
+
+
+def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
+    """Bound hourly regrowth: each run clones the ~0.5 GiB site repo into <run>/candidate.
+
+    No-change (PASS_ALREADY_CURRENT) and FAIL runs keep their small result/failure JSON
+    and logs; only the re-clonable candidate checkout is removed, and only when it is
+    clean, has no unpushed commits, carries no custody marker, is not pinned (e.g. the
+    current content base release_root) and is not among the newest `keep` runs.
+    """
+    root=Path(root);pins=tuple(Path(p) for p in pins);rows=[]
+    runs=sorted(p for p in root.iterdir() if p.is_dir() and not p.is_symlink() and len(p.name)==16 and p.name.endswith('Z'))
+    for run_dir in runs[:-keep] if keep else runs:
+        clone=run_dir/'candidate';row={'run':run_dir.name,'status':'KEPT'}
+        if not clone.is_dir() or clone.is_symlink():continue
+        try:
+            if any((run_dir/m).exists() for m in CUSTODY_MARKERS):row['reason']='custody_marker'
+            elif any(p==run_dir or run_dir in p.parents for p in pins):row['reason']='pinned'
+            elif active is not None and active(clone):row['reason']='active_reference'
+            elif not any((run_dir/f).is_file() for f in ('RESULT.json','FAILURE.json')):row['reason']='no_terminal_record'
+            elif (run_dir/'RESULT.json').is_file() and read(run_dir/'RESULT.json').get('status')!='PASS_ALREADY_CURRENT':row['reason']='non_noop_result'
+            else:
+                git=['git','-c','safe.directory='+str(clone),'-c','core.fsmonitor=false','-C',str(clone)]
+                status=subprocess.run(git+['status','--porcelain','--untracked-files=normal'],capture_output=True,text=True,timeout=60)
+                local=subprocess.run(git+['log','--branches','--not','--remotes','--format=%H'],capture_output=True,text=True,timeout=60)
+                broken=(clone/'.git/objects.ARCHIVED.json').is_file()  # objects already archived by a verified reclaim
+                if (status.returncode or status.stdout.strip() or local.returncode or local.stdout.strip()) and not broken:
+                    row['reason']='dirty_or_unpushed'
+                else:
+                    # Keep a locator: re-clone HEAD plus any verified-archive pointers.
+                    head=(clone/'.git/HEAD').read_text().strip() if (clone/'.git/HEAD').is_file() else None
+                    refs=(clone/'.git/packed-refs').read_text() if (clone/'.git/packed-refs').is_file() else None
+                    locators={str(q.relative_to(clone)):read(q) for q in clone.rglob('*.ARCHIVED.json') if q.is_file() and not q.is_symlink()}
+                    save(run_dir/'candidate.RETIRED.json',{'repository':REPO,'head_ref':head,
+                         'head':subprocess.run(git+['rev-parse','HEAD'],capture_output=True,text=True).stdout.strip() or None,
+                         'packed_refs':refs,'archived_locators':locators,'reason':'reclonable_noop_or_failed_clone'})
+                    du=subprocess.run(['du','-sxB1',str(clone)],capture_output=True,text=True,timeout=120)
+                    shutil.rmtree(clone)
+                    row.update(status='RETIRED',reason='reclonable_noop_or_failed_clone',
+                               bytes_freed=int(du.stdout.split()[0]) if du.returncode==0 else 0)
+        except (OSError,ValueError,subprocess.SubprocessError) as e:row.update(status='ERROR_KEPT',reason=str(e))
+        rows.append(row)
+    return rows
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--config',type=Path,default=CONFIG)
     p.add_argument('--resume-report',type=Path)
@@ -244,6 +293,11 @@ def main():
         try:result=execute(config,report,source_ref=a.source_ref,source_pr=a.source_pr,publish=a.publish)
         except Exception as e:
             save(report/'FAILURE.json',{'status':'FAIL','error':str(e),'run_type':os.environ.get('GLP_RUN_TYPE','manual')});raise
+        finally:
+            try:
+                base=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
+                retire_disposable_clones(root,pins=[Path(base['release_root'])])
+            except Exception as e:print(json.dumps({'clone_retention':'SKIPPED','reason':str(e)}),file=sys.stderr)
         print(json.dumps(result));return 0
 
 if __name__=='__main__':raise SystemExit(main())

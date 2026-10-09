@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 871,
+  "tracked_count": 874,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "645015b2be28cdd21fd8386a9899aac527adf72e66f9fc22573f7d2568c80af3"
+      "sha256": "d4bb4f87d452c78894d4ba69e47f3f76087738517d055e2d93f5ccce9571506c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -4813,7 +4813,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "33aca4545c1e62ddfb8e1ad003095064d1227fb70bd42cb3150af31b3ee49ece"
+      "sha256": "85829fb535f5a0871692050b2d842d31891e0614998b0d2ad01a8c4c2195749d"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -5844,7 +5844,7 @@
       "callers": [
         "scripts/host_disk_large_sweep.py"
       ],
-      "sha256": "92463ad1b238d5f848c1950486f329252c3815e694021a6d6a24978662aab762"
+      "sha256": "58721522cac07771a7943465919d9481527f6749015fbdc7eb73887d3c722e51"
     },
     "scripts/host_disk_large_classes.py": {
       "kind": "script",
@@ -5872,14 +5872,14 @@
       "callers": [
         "scripts/host_disk_cleanup_large_unit.py"
       ],
-      "sha256": "f1aba3cf585106fabf48015f188857bc9044ea603788a0797badade009eed83c"
+      "sha256": "4cb5fc6e9ad3d1c0fc7ce159767edc9860f0e0ca7fddb0297fbbaa01e51f2b64"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "kind": "script",
       "callers": [
         "systemd:host-disk-cleanup.service.d/large-classes.conf"
       ],
-      "sha256": "d43aa5da2d890aaed380d60c6ac13a76592cef64a8d378ab350b34d3643b4c4c"
+      "sha256": "64cbd9971d28ac08472501ed80762de4872a6045c86fe0bbb7a1bf350d9699e9"
     },
     "tests/test_host_disk_large_guards.py": {
       "kind": "test",
@@ -5887,6 +5887,28 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "sha256": "663d1af82df959058c3fc76e2a7fc28bde3891cf779bc5b15e40967e0eaff1c8"
+    },
+    "scripts/host_disk_auto_classes.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/host_disk_large_sweep.py",
+        "scripts/host_disk_cleanup_large_unit.py"
+      ],
+      "sha256": "99750d8e68d425534f737f2e96d84adf0b98f26cd74fd5d9b6c9e93d82916dd6"
+    },
+    "tests/test_host_disk_auto_classes.py": {
+      "kind": "test",
+      "callers": [
+        "business-source-ci"
+      ],
+      "sha256": "2c99b572c489a8344936342156a65a4c0c8cca3bc1700cd1f0e3ab27b61f3d69"
+    },
+    "ops/hermes-cron-scripts/host_disk_low_free_trigger.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:low-disk-trigger"
+      ],
+      "sha256": "e77161db4f176ecd8a235d5bfd4f3577ffcc634adf1623bb0143b0e3945924a3"
     }
   }
 }

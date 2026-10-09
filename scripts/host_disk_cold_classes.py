@@ -167,14 +167,17 @@ def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
             allowed=(p.parent==Path('/home/ubuntu/.hermes/cache/scratch') or
                      (p.parent==Path('/tmp') and p.name.startswith('glp-ultracode-browser-nowrite-')))
             if not allowed or protected(p,pins) or p.is_symlink() or p.resolve()!=p.absolute():raise ValueError('scope/protection')
-            if max(p.stat().st_atime,p.stat().st_mtime,p.stat().st_ctime)>cutoff:raise ValueError('young/used')
+            # Directory atime moves whenever any scanner (including this pruner)
+            # lists it; only regular-file atime is a use signal.
+            if max(p.lstat().st_mtime,p.lstat().st_ctime,p.lstat().st_atime if p.is_file() else 0)>cutoff:raise ValueError('young/used')
             if dirty_worktree(p) or not inactive(api,p):raise ValueError('dirty/active')
             before,amount=snapshot(p,deadline)
             from host_disk_payload_guard import reject_database_payloads
             reject_database_payloads(p,before)
             for r in before:
                 q=p/r[0];s=q.lstat()
-                if protected(q,pins) or max(s.st_atime,s.st_mtime,s.st_ctime)>cutoff:raise ValueError('protected/young descendant')
+                used=s.st_atime if stat.S_ISREG(s.st_mode) else 0
+                if protected(q,pins) or max(used,s.st_mtime,s.st_ctime)>cutoff:raise ValueError('protected/young descendant')
             fresh_pins=custody_pins(pins)
             if any(protected(p/r[0],fresh_pins) for r in before): raise ValueError('new live symlink custody')
             if not lsof_inactive(p) or not inactive(api,p) or snapshot(p,deadline)[0]!=before:raise ValueError('reference/identity')
