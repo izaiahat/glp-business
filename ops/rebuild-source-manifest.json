@@ -8,8 +8,18 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 901,
+  "tracked_count": 903,
   "files": {
+    "tests/test_seo_updater_child_diagnostic.py": {
+      "kind": "test",
+      "callers": [".github/workflows/seo-updater-diagnostics.yml"],
+      "sha256": "863b172a8f905e733a884eded0bcf880c1057600eadfeb04ea96fa374a7e543e"
+    },
+    ".github/workflows/seo-updater-diagnostics.yml": {
+      "kind": "ci",
+      "callers": [],
+      "sha256": "cbb8dbc3c6eebbe3ca7233b5517603829a7a0d750889e7dab54a26197ab4856b"
+    },
     "scripts/article_source_carrier.py": {
       "kind": "registered_producer",
       "callers": [
@@ -2036,7 +2046,7 @@
     "scripts/glp_seo_updater_run.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "53509bd13ee8c84258bd0ddb8680831640556b93aedd9316480feb8da53904a1"
+      "sha256": "6c107417d827a5c14b89b0766d87f9ddbd2a3c7b6efb088c5091128093c80f66"
     },
     "scripts/glp_served_test_contract.py": {
       "callers": [
