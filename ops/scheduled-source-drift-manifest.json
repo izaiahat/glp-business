@@ -118,7 +118,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_topic_supply_bridge.py"
@@ -133,7 +133,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -150,7 +150,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -167,7 +167,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -184,7 +184,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -201,7 +201,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -218,7 +218,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_analytics_brain_cadence.py",
@@ -235,7 +235,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_weekly_seo_control.py",
@@ -252,7 +252,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_sheet_sync_drain.py",
@@ -269,7 +269,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_sheet_vs_site_reconciler.py",
@@ -286,7 +286,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/ops/error-fixer/daily_ops_review.py"
@@ -301,7 +301,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_price_freshness.py",
@@ -318,7 +318,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_onboarding_manifest.py"
@@ -333,7 +333,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/article_carrier_run.py"
@@ -348,7 +348,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
@@ -365,7 +365,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_ads_three_platform_monitor.py",
@@ -382,7 +382,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/reports/ops/orchestration-restore-20260907/PLAN/A19/WEEKLY-MACHINE/runner.py"
@@ -397,7 +397,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_three_engine_telemetry.py"
@@ -448,7 +448,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/scripts/glp_research_autowire.py"
@@ -487,7 +487,7 @@
         {
           "path": "/home/ubuntu/business/scripts/cron_bridge_action.py",
           "source": "scripts/cron_bridge_action.py",
-          "reviewed_sha256": "0eca433891b84588407d4a64c467422f1b069604380493283aa3b828e13595c1"
+          "reviewed_sha256": "e0aba56fa1dc9c18358e67a5e8ccb81a666932ab73b28e16ef1c0903578a6987"
         },
         {
           "path": "/home/ubuntu/business/ops/decisions_router.py",
