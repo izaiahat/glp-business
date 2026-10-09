@@ -566,3 +566,5 @@
 !/scripts/glp_affiliati_postback_ship.py
 !/tests/test_glp335_registered_current_contract.py
 !/ops/glp335-current-consumer.md
+!/scripts/linear_close.py
+!/tests/test_linear_close.py
