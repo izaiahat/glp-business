@@ -31,6 +31,28 @@ def test_natural_due_slot_requires_same_local_day_and_scheduled():
             aha.validate_carrier({**run, **patch}, natural=True)
 
 
+def test_reconciliation_cannot_promote_manual_origin_to_natural(tmp_path):
+    # Producer pending GET readback preserves the *current* scheduled envelope
+    # even when the original same-slot dispatch was manual. No new publish ran.
+    original = {'action': 'article_carrier_consume', 'status': 'PASS', 'rc': 0,
+                'invocation': 'scheduled', 'due_slot': '2026-10-09T11:00:America/Los_Angeles',
+                'started_utc': '2026-10-09T18:00:02Z',
+                'effects': {'machine_status': 'PASS_PUBLISHED', 'output_count': 1, 'live_status': 200}}
+    aha.validate_carrier(original, natural=True)  # Genuine original scheduled control.
+    origin = tmp_path / 'pending-origin.json'
+    for invocation in ('manual_registered', 'scheduled'):
+        origin.write_text(json.dumps({**original, 'invocation': invocation}))
+        reconciled = {**original, 'reconciled_prior_receipt': str(origin),
+                      'requested_due_slot': original['due_slot']}
+        # Fail closed on *all* reconciled origins until authenticated original
+        # dispatch custody is implemented. Even scheduled origins are not assumed.
+        with pytest.raises(ValueError, match='reconcil'):
+            aha.validate_carrier(reconciled, natural=True)
+        aha.validate_carrier(reconciled, natural=False)  # Ordinary reconciliation remains usable.
+    with pytest.raises(ValueError, match='reconcil'):
+        aha.validate_carrier({**original, 'reconciled_prior_receipt': None}, natural=True)
+
+
 def test_author_must_have_authenticated_distinct_model_and_completed_before_review(tmp_path):
     import sqlite3
     db = tmp_path / 'state.db'

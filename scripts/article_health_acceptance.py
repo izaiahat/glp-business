@@ -48,6 +48,12 @@ def validate_carrier(run, *, natural):
             and effects.get('output_count') == 1 and effects.get('live_status') == 200,
             'carrier has no one-article live publication')
     if natural:
+        # A scheduled pending-job GET is not a new natural publication. Its
+        # envelope can retain scheduled invocation while recovering manual work.
+        # Until original dispatch custody is authenticated, never promote any
+        # reconciliation (even an alleged scheduled origin) to natural proof.
+        require('reconciled_prior_receipt' not in run,
+                'reconciled origin cannot prove a natural dispatch')
         require(run.get('invocation') == 'scheduled' and run.get('run_type', 'scheduled') == 'scheduled',
                 'natural due slot not proved (manual recovery is not natural)')
         match = re.fullmatch(r'(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}):America/Los_Angeles', str(run.get('due_slot')))

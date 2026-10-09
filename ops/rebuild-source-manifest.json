@@ -16,7 +16,7 @@
         "scripts/linear_close.py",
         "scripts/linear_orchestrator.py"
       ],
-      "sha256": "dba796ae4737d4fbc9a2b57996755c069021f1fc3bada6de6025bd85cd47ad72"
+      "sha256": "7e08b442ec19cab9d811e46379d40b0c60ba0a4b7a18b37526cda8c0e01bbc59"
     },
     "tests/test_article_reviewer_custody.py": {
       "kind": "test",
@@ -30,7 +30,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "859c52409a671307692e8a1ca245ef75383faf378da46621cb2320dba7747d83"
+      "sha256": "5a9c8ff49775645891b3c6ff9d82839b49fb96e7611ac312c2708f4eefcab224"
     },
     "scripts/article_source_carrier.py": {
       "kind": "registered_producer",
