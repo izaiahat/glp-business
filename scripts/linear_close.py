@@ -126,6 +126,9 @@ def acceptance_body(data):
     for entry in data.get('installed_files') or []:
         lines.append('Installed: %s %s' % (Path(entry['path']).relative_to(ROOT.resolve()).as_posix(),
                                            entry['sha256']))
+    if 'independent_health_review' in data:
+        lines.append('Independent article acceptance SHA256: ' + digest(json.dumps(
+            data['independent_health_review'], sort_keys=True, separators=(',', ':'))))
     for entry in data['evidence']:
         ref = 'reports/' + Path(entry['path']).relative_to(REPORTS.resolve()).as_posix()
         lines.append('Evidence: %s observed %s' % (ref, ', '.join(entry['observed'])))
@@ -147,7 +150,16 @@ def build(ident, worker_path, iss, gh=gh_pr):
         if re.search(r'\b' + re.escape(ident) + r'\b', json.dumps(worker.get(field, ''))):
             raise Refused('worker RESULT %s names %s as still open' % (field, ident))
     effect = lo.protected_effect((iss.get('title') or '') + '\n' + lo.acceptance_section(iss.get('description')))
-    if effect:
+    independent = None
+    if effect == 'health-claim-publish':
+        from article_health_acceptance import acceptance
+        try:
+            independent = acceptance(worker.get('receipt') or '',
+                natural=bool(re.search(r'\bnatural\b', (iss.get('title') or '') + '\n' +
+                    lo.acceptance_section(iss.get('description')), re.I)), root=ROOT)
+        except (ValueError, KeyError, OSError, RuntimeError) as exc:
+            raise Refused(str(exc)) from None
+    elif effect:
         raise Refused('protected effect %s: needs independent acceptance via '
                       'linear_orchestrator.py pass %s <RESULT> --protected-runtime' % (effect, ident))
     pr = resolve_pr(worker, gh)
@@ -157,13 +169,18 @@ def build(ident, worker_path, iss, gh=gh_pr):
             'protected_effects': [], 'description_sha256': digest(iss.get('description') or ''),
             'worker_result': {'path': str(Path(worker_path).resolve()), 'sha256': lo.sha(worker_path)},
             'evidence': collect_evidence(worker, worker_path)}
+    if independent is not None:
+        if not pr:
+            raise Refused('published health completion requires merged source provenance')
+        data.update(schema='linear-reviewed-health-completion-v1', scope='reviewed-health-runtime',
+                    protected_effects=['health-claim-publish'], independent_health_review=independent)
     if pr:
         files = pr.pop('files', [])
         data['pr'] = pr
         installed = installed_files(worker, files)
         if installed:
             data['installed_files'] = installed
-        elif data['scope'] == 'ordinary-runtime' and pr['url'].startswith('https://github.com/izaiahat/glp-business/'):
+        elif data['scope'] in ('ordinary-runtime', 'reviewed-health-runtime') and pr['url'].startswith('https://github.com/izaiahat/glp-business/'):
             raise Refused('runtime scope but no installed scripts/systems/ops path from the merged PR is named '
                           'in worker install/install_readback')
     else:
