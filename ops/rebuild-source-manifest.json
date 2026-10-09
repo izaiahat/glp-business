@@ -2387,7 +2387,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "9d6fe539566383356ed4baeb09809fdaf07b628c2deb2d0a8a31b24a6a2a9802"
+      "sha256": "bbe084a359543812b471ae4ad3543f94d4bb286878de3d5f87ee96d5ba6bc2e3"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -2506,7 +2506,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "test",
-      "sha256": "47a2e3ab5a454572b83ba683ef708bac458a4ca1158727cd5604595234111da5"
+      "sha256": "abe92f23173f1c117dff3b8967bc1ad2dc967a1a22722e248689b08207067b33"
     },
     "systems/seo-blog-machine/tests/test_article_image_contract_anchors.py": {
       "callers": [
@@ -5152,7 +5152,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "f20dd191875ebae81cfb424ae1281246757c02dea7c7141ea3a74affe31537ed"
+      "sha256": "13b3eb4de0bb0025e7bd8d0ed15abce512f8d2ac776cdc614e56491b4cf8deb4"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
