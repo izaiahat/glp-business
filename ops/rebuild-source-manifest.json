@@ -8,14 +8,14 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 862,
+  "tracked_count": 864,
   "files": {
     "tests/test_firecrawl_glp350_serp.py": {
       "kind": "test",
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "17a280cdc8d3e643df366e9f02663b017cc06424bc01270f05cd251d689072f4"
+      "sha256": "f6aab319d6cfb28c68371cae90c2ffba37a96f0763cdbe2335ffc050bac97af3"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -5601,7 +5601,7 @@
       "callers": [
         "topic supply refresh"
       ],
-      "sha256": "ccb14e66c66c30b378388d863a90e7d822cf8f82fe0e9df566b6743376edeef0"
+      "sha256": "4fecf29ec9bda8e6422aa32255ade3823029f36707330e9e04582514a2da42c3"
     },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
@@ -5622,7 +5622,7 @@
       "callers": [
         "cron:8ecc8499748f"
       ],
-      "sha256": "6663a2162c181a90fb060d3711da5a9ef2c766998657b5af902a057e3158d513"
+      "sha256": "6c67f75f4c7dd6a5a026dd076a8e22d65d07fe660fb269465dcbe93cc5877c8f"
     },
     "ops/firecrawl/README.md": {
       "kind": "documentation",
@@ -5657,7 +5657,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "002792f1ab74362dceec68893a1e51b012b1bc2fba560d9756d280ce6038d1ec"
+      "sha256": "e47a052f63195403ab64ac78104579f23743ce2c34a738c2c79fc5e08fef12d0"
     },
     "tests/test_glp80_reattest.py": {
       "kind": "test",
@@ -5823,7 +5823,21 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+      "sha256": "bf7a05e76f1dce08ce16763abe7b0b7f9773a4aed3f4cddaf10073be016bba68"
+    },
+    "tests/test_firecrawl_glp350_cron.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "bbb62f42a9392d66083e3f5a1bd2d5302bf3d3495dac8452d22bdfe5f9b21187"
+    },
+    "ops/hermes-cron-scripts/affiliate_site_evidence_daily.sh": {
+      "kind": "script",
+      "callers": [
+        "Hermes d4047c17de28 site evidence daily entry"
+      ],
+      "sha256": "e3c4833f1d44ff0dde44219cb9159bf2cb2c8aad2712eb930c798a0834fd5c70"
     }
   }
 }

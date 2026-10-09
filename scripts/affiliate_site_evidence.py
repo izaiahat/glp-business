@@ -453,6 +453,18 @@ def _firecrawl_key() -> str:
     raise RuntimeError("firecrawl_api_key_missing")
 
 
+def inventory_pool(reader) -> list[dict]:
+    pool = []
+    for path in reader.freshest_inventories():
+        rows, source = reader.read_inventory(path)
+        for row in rows:
+            row = dict(row)
+            row['url'] = row.get('official_url') or ''
+            row['_source_path'] = source['path']
+            pool.append(row)
+    return pool
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Harvest advertiser site evidence.")
     ap.add_argument("--pool", help="JSON file: list of candidate rows (default: live inventories)")
@@ -472,7 +484,7 @@ def main(argv=None) -> int:
         aa = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = aa
         spec.loader.exec_module(aa)
-        pool, _ = aa.discover({})
+        pool = inventory_pool(aa)
 
     cache = load_cache()
     cache_size_before = len(cache.get("advertisers") or {})
