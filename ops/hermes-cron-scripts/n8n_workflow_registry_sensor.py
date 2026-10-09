@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 ROOT=Path('/home/ubuntu/business')
-PINS={'scripts/n8n_workflow_registry_sensor.py':'68c93f2f18f515ee44b60b1bac560b786242217259537b0822b4985d49470578','ops/n8n-workflow-registry.json':'7ddba89d3cb01889c765a410334721ac67a083bce14c124d0211ce4662c93f70'}
+PINS={'scripts/n8n_workflow_registry_sensor.py':'68c93f2f18f515ee44b60b1bac560b786242217259537b0822b4985d49470578','ops/n8n-workflow-registry.json':'d9d7da5644a90d1e3d0197d4fa9464802a9cd69cc38d691e4fcae9b105bf9b3a'}
 for name,expected in PINS.items():
  if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=expected:
   print('BLOCKED_REGISTRY_SENSOR_PIN_MISMATCH');raise SystemExit(2)
