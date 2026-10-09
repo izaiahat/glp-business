@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 909,
+  "tracked_count": 910,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -2119,14 +2119,14 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "9e00c804e7586b79b2f2d9807a86bc91799b9d45cef1d3a66e1f19005eb8ac87"
+      "sha256": "ca8df1da7eb5105c48b61f12d58947e34df0ec829c29ad14c49f73fd7d5911fd"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
         "on-demand:orchestrator"
       ],
       "kind": "script",
-      "sha256": "8e113774bb839fb6c6f6fd9054cf648d628e240d9022217fd321799deb2974f7"
+      "sha256": "4de30e33ae95cd1e3e70eec36a2b7292170d9a60348b86406dc216ff50fad0ca"
     },
     "scripts/hermes-state-backup.sh": {
       "callers": [
@@ -2289,7 +2289,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9e5f60e385772c429e3c9666524dcbe30ae04756755726242d7441e84ba79f4f"
+      "sha256": "1f53e9b211578acb036288f09dd772283d38987b940a9593e8334b75cc3bca54"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3407,7 +3407,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "d13a967873897473ed5edc57bf77f0429f0b9fda856f8a007491252800a2610a"
+      "sha256": "0d2f843a18c26ab08eacdfee3c34e79777951e7093dd3e7fdeaa61b4754e13e5"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -5353,7 +5353,7 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "350f0f5a64427c4e37defc856869b35938b1733d6bf44a6eb445639c4ef3c583"
+      "sha256": "3e4b3e51a1a61f20b5a67d8da55add9b5618c8c0fab0e8dd1497c9df7977dd6d"
     },
     "tests/test_pro_dispatch.py": {
       "callers": [],
@@ -6139,6 +6139,13 @@
       "kind": "instruction_or_policy",
       "callers": [],
       "sha256": "48753554609c5197d1c101a19ee9ec4505d6c39f0f1a8be30334a46dff8646ea"
+    },
+    "tests/test_pro_route_backlog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "acfec642b12edc141874fe84637ad1c86ae6f5f7435a01ba2649da34bfa8614b"
     }
   }
 }

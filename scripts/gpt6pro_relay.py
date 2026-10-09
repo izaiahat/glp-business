@@ -590,7 +590,7 @@ def admit(job, account, cfg, state, followup=False):
         rows = [r for r in active_registry() if not (followup and r['job'] == job)]
         if len(rows) >= min(6, envelope['max_concurrent_chats_per_ip']):
             raise SystemExit('CAPACITY_IP: active registry full')
-        if sum(r['account'] == account['label'] for r in rows) >= min(3, envelope['max_concurrent_chats_per_account']):
+        if sum(r['account'] == account['label'] for r in rows) >= min(2, envelope['max_concurrent_chats_per_account']):
             raise SystemExit('CAPACITY_ACCOUNT: active registry full')
         budget_check(cfg, account)
         path = BUSINESS / 'ops/gpt6pro-relay/admission.json'
@@ -2459,7 +2459,7 @@ def resume_unsent_readiness(job: str, report: str, authorize_preimage: str | Non
         envelope = cfg['envelope']
         if (len(active) > min(6, envelope['max_concurrent_chats_per_ip']) or
                 sum(r['account'] == acct['label'] for r in active) >
-                min(3, envelope['max_concurrent_chats_per_account'])):
+                min(2, envelope['max_concurrent_chats_per_account'])):
             raise SystemExit('RESUME_REFUSED_CAPACITY')
         used = messages_used_7d(cfg, acct['label'])
         limit = int(acct['weekly_messages'] * (1 - cfg.get('budget_reserve_pct', 10) / 100))
@@ -3283,7 +3283,7 @@ def resume_drive_timeout(job: str, authorize_preimage: str | None = None) -> int
         active = active_registry()
         if (len(active) > min(6, cfg['envelope']['max_concurrent_chats_per_ip']) or
                 sum(r['account'] == acct['label'] for r in active) >
-                min(3, cfg['envelope']['max_concurrent_chats_per_account'])):
+                min(2, cfg['envelope']['max_concurrent_chats_per_account'])):
             refuse('CAPACITY')
         svc = drive()
         folder_query = (f"'{cfg['drive']['inbox_id']}' in parents and name = '{job}' "
