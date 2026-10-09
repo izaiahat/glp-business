@@ -1791,7 +1791,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "b819a66c1faa3e37753985c23cdabb72a3209a9bd40e35097c95fcecbb398f97"
+      "sha256": "1f04f01cdde2d536451cd228e98b15f56163ca5797e73090278c5f5528edd402"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],

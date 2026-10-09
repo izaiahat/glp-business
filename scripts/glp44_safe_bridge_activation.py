@@ -352,7 +352,7 @@ class RegistryHost(LinuxHost):
         path = self.checkout / 'scripts/sync_from_repo.py'
         data = read_regular(path)
         require(hashlib.sha256(data).hexdigest() ==
-                '2be2410cc93a3d4ddd691ce9ede53bdede9e66f537d7b1942d7a89daa0c87ca7',
+                '519229856c835b9de9a477d670ee6de799ac14e9b63054626514e87ac2e3beaf',
                 'registry_importer_generation_mismatch')
         module = types.ModuleType('registry_scoped_importer')
         module.__file__ = str(path)
@@ -628,7 +628,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.mode == 'pricing-registry-plan':
         print(json.dumps({'status': 'SOURCE_ONLY_PLAN', 'before': PRICING_BEFORE,
-                          'after': PRICING_AFTER, 'importer_sha256': '2be2410cc93a3d4ddd691ce9ede53bdede9e66f537d7b1942d7a89daa0c87ca7',
+                          'after': PRICING_AFTER, 'importer_sha256': '519229856c835b9de9a477d670ee6de799ac14e9b63054626514e87ac2e3beaf',
                           'runtime_authorization': False}, sort_keys=True))
         return 0
     if args.mode == 'registry-plan':
