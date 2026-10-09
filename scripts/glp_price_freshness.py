@@ -711,8 +711,23 @@ def batch_monitor(client, urls, out, concurrency):
             raise TimeoutError('batch_status_deadline; reconcile retained ID')
         time.sleep(3)
     put(out / 'BATCH-DOCUMENTS.json', documents)
-    return {(data.get('metadata') or {}).get('sourceURL'): {'success': True, 'data': data}
-            for data in documents if (data.get('metadata') or {}).get('sourceURL') in urls}
+    monitored = {(data.get('metadata') or {}).get('sourceURL'): {'success': True, 'data': data}
+                 for data in documents if (data.get('metadata') or {}).get('sourceURL') in urls}
+    if set(urls) - monitored.keys():
+        errors = client.request('batch/scrape/' + start['id'] + '/errors', method='GET', timeout=150)
+        put(out / 'BATCH-ERRORS.json', errors)
+        for error in errors.get('errors', []):
+            url = error.get('url')
+            if (url not in urls or url in monitored or url in errors.get('robotsBlocked', [])
+                    or error.get('code') != 'SCRAPE_ALL_ENGINES_FAILED'):
+                continue
+            response = client.scrape({'url': url, 'formats': ['markdown'], 'onlyMainContent': False,
+                'maxAge': 0, 'timeout': 120000, 'proxy': 'enhanced', 'waitFor': 2000}, timeout=150)
+            response = copy.deepcopy(response)
+            response['transport_recovery'] = {'first_error_code': error['code'],
+                'batch_id': start['id'], 'attempts': 2, 'retry_options': {'proxy': 'enhanced', 'waitFor': 2000}}
+            monitored[url] = response
+    return monitored
 
 
 def reattest_row(row, captures):
