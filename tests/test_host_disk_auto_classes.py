@@ -12,6 +12,11 @@ import host_disk_auto_classes as auto
 import host_disk_cold_classes as m
 import host_disk_large_classes as large
 import glp_affiliate_sync_job as job
+try:
+    import host_disk_pruner  # noqa: F401  (live host has discord_fmt/disk_retention)
+except ModuleNotFoundError:  # CI checkout: only the sweep's reference scan is exercised
+    import types
+    sys.modules['host_disk_pruner'] = types.ModuleType('host_disk_pruner')
 
 
 class API:
