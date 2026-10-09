@@ -1980,7 +1980,7 @@
         "GLP-73 article current-base reader"
       ],
       "kind": "script",
-      "sha256": "080b83e6725264b6d847e02b9c86541994c881e4ccb90d1c86206642c1efa71b"
+      "sha256": "71b8039ff8378cfeadbafa84f6a9496a7eb77862eb7acd451b5ccf5c666e831a"
     },
     "scripts/glp_price_index_weekly_successor.py": {
       "callers": [
@@ -2380,7 +2380,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "00e9392fe05d3c8f8eebc2dbd787c66804c915f3739e085b5fea4c6284f033a2"
+      "sha256": "abf8c177c5dfa1925781d42b459e6671e307ebbd15edeeb0ab99398059c4038a"
     },
     "systems/seo-blog-machine/scripts/article_buffer.py": {
       "callers": [
@@ -2800,7 +2800,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "f9110e92101adde74aad1ac1e533a726e508f4db3d661cad295f71f4502e868b"
+      "sha256": "12d58c68899605d3a621a7348ff691c4763549fc9f0b44e1a42762f75f7b9440"
     },
     "tests/test_cron_bridge_action.py": {
       "callers": [
@@ -4686,7 +4686,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "6d09fa0252a2f40bc72f86c670e1cf70990d23144bfa9fa54b5e06fb29b2f13d"
+      "sha256": "49149eb0a99c6ca3f1c941d09ea56a4a5b613e1ff232a9eb6fbd4e4958c625f2"
     },
     "tests/test_glp341_native_registry_lock.py": {
       "callers": [

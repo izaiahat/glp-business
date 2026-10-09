@@ -83,7 +83,19 @@ def test_native_current_terminal_uses_real_bound_approval_and_preserves_predeces
     assert set(bound)=={str(path),str(approval)}
     assert before=={p:p.read_bytes() for p in before}
     source=(ROOT/'scripts/glp_price_index_weekly.py').read_text()
-    assert 'bound = _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer)' in source
+    assert 'bound = _native_current_deploy_binding(pointer, root, prepared, raw, run_dir, producer, pointer_bytes=pointer_bytes)' in source
+
+def test_native_terminal_snapshot_still_requires_exact_successor_bytes(tmp_path):
+    fn,args,path,receipt,approval,pointer = fixture(tmp_path)
+    raw = pointer.read_bytes()
+    pointer.write_bytes(b'newer canonical pointer')
+    with pytest.raises(RuntimeError):
+        fn(*args)
+    assert set(fn(*args, pointer_bytes=raw)) == {str(path), str(approval)}
+    with pytest.raises(RuntimeError):
+        fn(*args, pointer_bytes=b'foreign snapshot')
+    assert pointer.read_bytes() == b'newer canonical pointer'
+
 
 @pytest.mark.parametrize('change',['status','binding','head','deployment','rollback','cas','readback','intent','effects','route','foreign_pointer','approval'])
 def test_native_terminal_refuses_tampering_or_unapproved_bytes(tmp_path,change):
