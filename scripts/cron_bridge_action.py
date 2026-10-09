@@ -603,6 +603,8 @@ def finish_action(action, args, job, state, state_path, *, call=None):
             # statuses can follow a live effect and remain held for reconciliation.
             if status == "BLOCKED_BASE_COMPATIBILITY":
                 raise TerminalRefusal(status)
+            if article_failed_before_publish(r):
+                raise TerminalRefusal(status, "article_carrier_failed_before_publish_no_effect")
             raise RuntimeError("article_carrier_missed_day_or_refused_see_machine_receipt")
         effects = {"machine_status": status, "output_count": int(published)}
         if published:
@@ -834,6 +836,61 @@ def liveness_repair_slot(prior, due_slot, payload_sha256):
     if hashlib.sha256(source.read_bytes()).hexdigest() != LIVENESS_SAFE_SOURCE_SHA256:
         raise ValueError("liveness_repaired_source_not_pinned")
     return due_slot + "|postrepair"
+
+
+def article_failed_before_publish(receipt):
+    """Prove a failed pre-report build never reached the publisher.
+
+    published=false and the pre-consume head snapshot alone are insufficient.
+    Require the bound build-child failure, no publication artifacts, unchanged
+    pointer bytes, and a fresh production-head read. Missing evidence stays held.
+    """
+    if receipt.get("status") != "BLOCKED_CONSUME_FAILED" or receipt.get("published") is not False:
+        return False
+    try:
+        failure = json.loads(Path(receipt["receipt_path"]).read_text())
+        payload = failure["cli_payload"]
+        child = payload["child"]
+        argv = child["argv"]
+        if (failure.get("schema") != "glp.article_carrier.failure.v2"
+                or not receipt.get("operation_id")
+                or failure.get("operation_id") != receipt["operation_id"]
+                or payload.get("operation_id") != receipt["operation_id"]
+                or payload.get("status") != "BLOCKED_CONSUME_FAILED"
+                or type(child.get("exit_code")) is not int or child["exit_code"] == 0
+                or len(argv) != 4 or Path(argv[1]).name != "apply_opus_article_release.py"
+                or argv[2] != "--template"):
+            return False
+        template = json.loads(Path(argv[3]).read_text())
+        report = Path(template["report_dir"])
+        # This deliberately narrow proof covers failure before any build reports.
+        # Never discard a later/possibly effectful attempt based on absence of PASS.
+        if (template.get("schema") != "glp-opus-article-apply-template-v1"
+                or {p.name for p in report.iterdir()} != {"release-job.json"}):
+            return False
+        job = json.loads((report / "release-job.json").read_text())
+        for key in ("manifest_id", "base_state_path", "base_state_sha256"):
+            if job.get(key) != template[key]:
+                return False
+        diagnostic = report.parent / "child-failures" / f"{template['manifest_id']}-build.json"
+        build = json.loads(diagnostic.read_text())
+        if (build.get("schema") != "glp-opus-release-child-failure-v1"
+                or build.get("status") != "BLOCKED_CHILD_FAILED"
+                or build.get("child") != "build_opus_article_release.py"
+                or type(build.get("exit_code")) is not int or build["exit_code"] == 0
+                or f"child_failed:build_opus_article_release.py:diagnostic={diagnostic}:" not in child.get("stderr", "")):
+            return False
+        pointer_bytes = Path(template["base_state_path"]).read_bytes()
+        if hashlib.sha256(pointer_bytes).hexdigest() != template["base_state_sha256"]:
+            return False
+        deployment = json.loads(pointer_bytes)["deployment_id"]
+        heads = receipt["head_reconciliation"]
+        return (bool(deployment) and heads.get("aligned") is True
+                and heads["live_head"]["deployment_id"] == deployment
+                and heads["pointer_head"]["deployment_id"] == deployment
+                and article_production_head_id() == deployment)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def article_no_effect_hold(prior, observed, *, action, args, due_slot, digest, receipt_path):
