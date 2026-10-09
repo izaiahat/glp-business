@@ -881,14 +881,36 @@ def article_failed_before_publish(receipt):
                 or f"child_failed:build_opus_article_release.py:diagnostic={diagnostic}:" not in child.get("stderr", "")):
             return False
         pointer_bytes = Path(template["base_state_path"]).read_bytes()
-        if hashlib.sha256(pointer_bytes).hexdigest() != template["base_state_sha256"]:
-            return False
-        deployment = json.loads(pointer_bytes)["deployment_id"]
+        pointer = json.loads(pointer_bytes)
+        deployment = pointer["deployment_id"]
         heads = receipt["head_reconciliation"]
-        return (bool(deployment) and heads.get("aligned") is True
-                and heads["live_head"]["deployment_id"] == deployment
-                and heads["pointer_head"]["deployment_id"] == deployment
-                and article_production_head_id() == deployment)
+        original = heads["pointer_head"]["deployment_id"]
+        if not original or heads.get("aligned") is not True or heads["live_head"]["deployment_id"] != original:
+            return False
+        if hashlib.sha256(pointer_bytes).hexdigest() == template["base_state_sha256"]:
+            if original != deployment:
+                return False
+        else:
+            # An independently completed main release may supersede this base
+            # while a pending failure awaits reconciliation. Prove its exact
+            # lineage; never treat arbitrary pointer drift as a retry grant.
+            base = job["base_final_receipt"]
+            base_bytes = Path(base["path"]).read_bytes()
+            base_final = json.loads(base_bytes)
+            main_report = Path(pointer["release_root"]).parents[1]
+            main = json.loads((main_report / "MAIN-RELEASE-RESULT.json").read_text())
+            if (hashlib.sha256(base_bytes).hexdigest() != base["sha256"]
+                    or base_final.get("schema") != "glp-opus-production-terminal-receipt-v1"
+                    or base_final.get("status") != "PASS_PRODUCTION_TERMINAL"
+                    or base_final["deployment"]["deployment_id"] != original
+                    or pointer["supersedes"]["deployment_id"] != original
+                    or main.get("status") != "PASS_PRODUCTION_TERMINAL"
+                    or main.get("scope") != "operator-approved-main-release"
+                    or main.get("report") != str(main_report)
+                    or main.get("predecessor_deployment_id") != original
+                    or main.get("deployment_id") != deployment):
+                return False
+        return bool(deployment) and article_production_head_id() == deployment
     except (OSError, ValueError, KeyError, TypeError):
         return False
 
