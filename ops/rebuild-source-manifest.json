@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 885,
+  "tracked_count": 888,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e9c08e1da2a392fb3db3d23dec5dcbb696dc34e6acf253e426e8b29a77a7f626"
+      "sha256": "f065055031237e8c637d5c8fa878913d2e0b3494e1ae7169b9e93530b106ca5c"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -4813,7 +4813,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "b88f8f11a6e7093ae2fa34835280a64016bb49e5e090e761e5c35e6a3556a147"
+      "sha256": "f01db8436450da343ffeb151c773e5165a285ffe8686767ac635e4b94e9ce260"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -5970,6 +5970,27 @@
       "kind": "article_source_custody",
       "callers": [],
       "sha256": "d2ac5a4e98dbd5d64f1ffbf6b41abe13118142b31b6806954817868e460f6005"
+    },
+    "scripts/glp_release_main.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_release_main_cron.sh"
+      ],
+      "sha256": "1983a8cd7cc6d9f684ee43888e751b743b12cbce57e5b65cd625c419dbad3380"
+    },
+    "ops/hermes-cron-scripts/glp_release_main_cron.sh": {
+      "kind": "script",
+      "callers": [
+        "hermes:glp-release-main-hourly"
+      ],
+      "sha256": "ade3ee9950be2ac7cb184e39dd27b21314e9f593570b6c59a7c3f72837f39b07"
+    },
+    "tests/test_glp_release_main.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5dac5b53416f66c371a812c47c5d8c1377f5a58276250037b9b6b69aa9754403"
     }
   }
 }
