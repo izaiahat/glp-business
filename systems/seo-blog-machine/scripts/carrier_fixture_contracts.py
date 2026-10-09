@@ -557,6 +557,31 @@ def patch_price_tracker_freshness_clock(source):
     frozen checked_at alone. Identical shape to the taxonomy clock repair; the sealed
     quote, its sha256 and its displayed checked_at are untouched, so no published byte
     moves and MAX_AGE_MS is never widened."""
+    native_binding = '''  const trackerQualifications = new Map(
+    materialQualificationsFor(loadEvidenceInputs(fileURLToPath(new URL("../", import.meta.url))).ledger)
+      .filter((q) => q.material && q.material.capture_id && typeof q.fetched_at === "string")
+      .map((q) => [q.material.capture_id, q]));'''
+    native_clock = '''    const checkedMs = Date.parse(record.checked_at);
+    if (!Number.isFinite(checkedMs) || checkedMs > nowMs) throw new Error("tracker_timestamp_invalid");
+    const qualification = trackerQualifications.get(record.source_capture_id);
+    if (qualification) {
+      const qualifiedMs = Date.parse(qualification.fetched_at);
+      if (!Number.isFinite(qualifiedMs) || checkedMs > qualifiedMs) throw new Error("tracker_after_qualification_invalid");
+      if (qualifiedMs - checkedMs > MAX_AGE_MS) throw new Error("tracker_qualification_lineage_invalid");
+      if (nowMs - qualifiedMs > MAX_AGE_MS) throw new Error("tracker_freshness_invalid");
+    } else if (nowMs - checkedMs > MAX_AGE_MS) {
+      throw new Error("tracker_freshness_invalid");
+    }'''
+    native_markers = (native_binding, native_clock,
+        'import { loadEvidenceInputs, materialQualificationsFor } from "../scripts/glp_evidence_ledger.mjs";',
+        'const MAX_AGE_MS = 45 * 86_400_000;',
+        'if (sha256(record.quote) !== record.quote_sha256) throw new Error("tracker_quote_hash_invalid");',
+        'if (!accepted || canonical(record) !== canonical(accepted)) throw new Error("tracker_evidence_binding_invalid");')
+    if all(source.count(marker) == 1 for marker in native_markers):
+        # The accepted native successor already has capture-bound qualifications,
+        # future/lineage/45-day bounds and exact accepted-row/quote equality.
+        # Do not graft the weaker historical adapter into that validator.
+        return source
     source = once(source, TRACKER_IMPORT_ANCHOR,
                   TRACKER_IMPORT_ANCHOR + TRACKER_IMPORT_ADDITION, 'tracker_evidence_clock_import')
     source = once(source, TRACKER_CLOCKS_ANCHOR,

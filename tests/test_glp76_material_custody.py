@@ -16,6 +16,36 @@ def put(path, value):
     path.write_text(json.dumps(value))
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
+def test_native_tracker_qualification_clock_is_preserved_with_all_bounds():
+    m = load()
+    source = '''import { createHash } from "node:crypto";
+import { loadEvidenceInputs, materialQualificationsFor } from "../scripts/glp_evidence_ledger.mjs";
+const MAX_AGE_MS = 45 * 86_400_000;
+  const ids = new Set();
+  const scrapeIds = new Set();
+  const trackerQualifications = new Map(
+    materialQualificationsFor(loadEvidenceInputs(fileURLToPath(new URL("../", import.meta.url))).ledger)
+      .filter((q) => q.material && q.material.capture_id && typeof q.fetched_at === "string")
+      .map((q) => [q.material.capture_id, q]));
+    const checkedMs = Date.parse(record.checked_at);
+    if (!Number.isFinite(checkedMs) || checkedMs > nowMs) throw new Error("tracker_timestamp_invalid");
+    const qualification = trackerQualifications.get(record.source_capture_id);
+    if (qualification) {
+      const qualifiedMs = Date.parse(qualification.fetched_at);
+      if (!Number.isFinite(qualifiedMs) || checkedMs > qualifiedMs) throw new Error("tracker_after_qualification_invalid");
+      if (qualifiedMs - checkedMs > MAX_AGE_MS) throw new Error("tracker_qualification_lineage_invalid");
+      if (nowMs - qualifiedMs > MAX_AGE_MS) throw new Error("tracker_freshness_invalid");
+    } else if (nowMs - checkedMs > MAX_AGE_MS) {
+      throw new Error("tracker_freshness_invalid");
+    }
+    if (sha256(record.quote) !== record.quote_sha256) throw new Error("tracker_quote_hash_invalid");
+    if (!accepted || canonical(record) !== canonical(accepted)) throw new Error("tracker_evidence_binding_invalid");
+'''
+    assert m.patch_price_tracker_freshness_clock(source) == source
+    for guard in ['checkedMs > nowMs', 'checkedMs > qualifiedMs', 'qualifiedMs - checkedMs > MAX_AGE_MS', 'nowMs - qualifiedMs > MAX_AGE_MS', 'record.source_capture_id', 'canonical(record) !== canonical(accepted)']:
+        with pytest.raises(RuntimeError): m.patch_price_tracker_freshness_clock(source.replace(guard,'disabled',1))
+
+
 def test_native_preparer_clock_fixture_is_kept_exact_and_custody_bound(tmp_path, monkeypatch):
     m = load()
     base = tmp_path/'accepted'
