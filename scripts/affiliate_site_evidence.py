@@ -44,6 +44,8 @@ import json
 import os
 import re
 import sys
+import threading
+import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -54,7 +56,7 @@ CACHE_PATH = BUSINESS / "reports/glp-clinic-scout/affiliate-machine/site-evidenc
 CACHE_SCHEMA = "affiliate-site-evidence-cache-v1"
 
 _spec = importlib.util.spec_from_file_location(
-    "affiliate_niche_geo_filter", BUSINESS / "scripts/affiliate_niche_geo_filter.py")
+    "affiliate_niche_geo_filter", Path(__file__).resolve().with_name("affiliate_niche_geo_filter.py"))
 nfilter = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = nfilter
 _spec.loader.exec_module(nfilter)
@@ -367,14 +369,22 @@ def harvest(rows: list[dict], fetcher, cache: dict, max_workers: int = 6) -> dic
     return stats
 
 
-def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120):
-    """Production fetcher. Read-only scrapes of public marketing pages."""
-    key = api_key or _firecrawl_key()
+def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120, max_requests: int = 40):
+    """Map-first public evidence; all requests, including polls, share one cap."""
+    key = api_key
+    lock = threading.Lock()
+    counts = {"requests": 0, "cap": max_requests}
 
-    def call(path: str, payload: dict):
+    def reserve_request():
+        with lock:
+            if counts['requests'] >= max_requests:
+                raise RuntimeError('firecrawl_request_cap_reached')
+            counts['requests'] += 1
+    def call(path: str, payload: dict | None):
+        reserve_request()
         req = urllib.request.Request(
-            f"https://api.firecrawl.dev/v2/{path}", data=json.dumps(payload).encode(),
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+            f"https://api.firecrawl.dev/v2/{path}", data=json.dumps(payload).encode() if payload is not None else None,
+            headers={"Authorization": f"Bearer {key or _firecrawl_key()}", "Content-Type": "application/json"})
         from firecrawl_client import firecrawl_urlopen
         with firecrawl_urlopen(req, caller='affiliate_site_evidence', timeout=timeout) as resp:
             return json.load(resp)
@@ -391,25 +401,47 @@ def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120):
             url = normalize_target(str((hit or {}).get("url") or ""))
             if url:
                 return url
+        # Only unknown brands reach the bounded Agent. Its answer is a lead,
+        # not fit/approval evidence; map and source capture still follow.
+        agent = call('agent', {'prompt': f'Find only the official US website for {name}. No tracking links or contact actions.',
+                              'maxCredits': 10, 'schema': {'type': 'object', 'properties': {'website': {'type': 'string'}}}})
+        if agent.get('id'):
+            result = call('agent/' + agent['id'], None)
+            if result.get('status') == 'completed':
+                return normalize_target(str((result.get('data') or {}).get('website') or ''))
         return ""
 
     def fetch(name: str, url: str):
-        target = url or resolve(name)
-        if not target:
-            return "", "", "no_resolvable_url"
-        text, error = "", ""
-        for path in _PROBE_PATHS:
-            probe = target.rstrip("/") + path
-            try:
-                doc = call("scrape", {"url": probe, "formats": ["markdown"],
-                                      "onlyMainContent": True})
-                text += (doc.get("data") or {}).get("markdown") or ""
-            except Exception as exc:            # a 404 on /weight-loss is normal
-                error = error or f"{type(exc).__name__}"
-            if GLP1_RE.search(text):
-                break
-        return text, target, ("" if text else error or "empty_response")
+        target = normalize_target(url)
+        if 'fella' in (name + url).lower():
+            return '', '', 'excluded_provider'
+        try:
+            target = target or resolve(name)
+            if not target:
+                return '', '', 'no_resolvable_url'
+            mapped = call('map', {'url': target, 'limit': 20, 'includeSubdomains': False})
+            links = [normalize_target(str(x.get('url') if isinstance(x, dict) else x)) for x in mapped.get('links', [])]
+            host = urllib.parse.urlsplit(target).hostname
+            links = [u for u in links if u and urllib.parse.urlsplit(u).hostname == host and 'fella' not in u.lower()]
+            relevant = [u for u in links if re.search(r'weight|glp|semaglutide|tirzepatide|affiliate|partner', u, re.I)]
+            urls = list(dict.fromkeys([target, *relevant]))[:3]
+            batch = call('batch/scrape', {'urls': urls, 'formats': ['markdown'], 'onlyMainContent': True, 'proxy': 'basic'})
+            if not batch.get('id'):
+                return '', target, 'batch_not_started'
+            for _ in range(10):
+                time.sleep(2)
+                result = call('batch/scrape/' + batch['id'], None)
+                if result.get('status') == 'completed':
+                    text = '\n'.join(str(x.get('markdown') or '') for x in result.get('data', []))
+                    return text, target, '' if text else 'empty_response'
+                if result.get('status') in ('failed', 'cancelled'):
+                    return '', target, 'batch_failed'
+            return '', target, 'batch_pending_no_replay'
+        except Exception as exc:
+            return '', target, type(exc).__name__ + (':request_cap' if counts['requests'] >= max_requests else '')
 
+    fetch.request_counts = counts
+    fetch.reserve_request = reserve_request
     return fetch
 
 
@@ -429,6 +461,7 @@ def main(argv=None) -> int:
                     help="per-Firecrawl-request timeout in seconds")
     ap.add_argument("--workers", type=int, default=6, help="parallel public-site fetches")
     ap.add_argument("--receipt", help="write a harvest receipt here")
+    ap.add_argument("--max-requests", type=int, default=40, help="all Firecrawl requests, including map, batch and polls")
     args = ap.parse_args(argv)
 
     if args.pool:
@@ -446,7 +479,7 @@ def main(argv=None) -> int:
     parked = parked_not_fit_pool(pool, cache)
     available = prioritize_targets(harvest_targets(parked, cache, prefilter=True))
     targets = available[: max(0, args.limit)]
-    fetcher = firecrawl_fetcher(timeout=max(1, args.fetch_timeout)) if targets else None
+    fetcher = firecrawl_fetcher(timeout=max(1, args.fetch_timeout), max_requests=max(0, args.max_requests)) if targets else None
     stats = (harvest(targets, fetcher, cache, max_workers=max(1, args.workers))
              if targets else {"attempted": 0, "fetched": 0, "glp1_confirmed": 0,
                               "failed": 0, "by_class": {}})
@@ -479,6 +512,7 @@ def main(argv=None) -> int:
                "pool_size": len(pool), "parked_not_fit_pool_size": len(parked),
                "rescuable_uncached_before_cap": len(available),
                "daily_cap": max(0, args.limit), "targets_selected": len(targets),
+               "firecrawl_request_budget": getattr(fetcher, 'request_counts', {'requests': 0, 'cap': args.max_requests}),
                "cache_size_before": cache_size_before,
                "cache_size": len(cache.get("advertisers") or {}),
                "stats": stats, "filter_rescued_count": len(rescued),

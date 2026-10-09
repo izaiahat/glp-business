@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 856,
+  "tracked_count": 862,
   "files": {
     "tests/test_firecrawl_glp350_serp.py": {
       "kind": "test",
@@ -855,7 +855,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8"
+      "sha256": "8f4eccb6e34daede6d0950617460a853e6b61edbaff7a648a4f7c8482258c01f"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -1589,7 +1589,7 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf"
+      "sha256": "88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
@@ -2702,7 +2702,7 @@
         "GLP affiliate front-half repair"
       ],
       "kind": "test",
-      "sha256": "209ed443acfdf30899dd2c8744d2d99e0fd9fe0e91756b3dfbc39d1f43b1677e"
+      "sha256": "ccdf0e30f52dc6d4e4740bd67d192446021da6ddf0f77854f0af0a35a75c23e6"
     },
     "tests/test_affiliate_provider_metadata.py": {
       "callers": [
@@ -3679,7 +3679,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "9487f860adecac49eb012dc3aa1c18edb6fec9ba44e3eeda8560ab103daa1853"
+      "sha256": "943f080e9fb935c89f5e098c2b6cd554506a6a688739c8e99d15dd24a68368aa"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -5174,7 +5174,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "51eb6c80d7b534bd0e922c079a1a7b13198ec6c4de72925877f081974e0f6cf0"
+      "sha256": "c9aa171f5389a51af4808426e839a69a1784bb1cce1df7fed9ba51dc470108d6"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5608,7 +5608,7 @@
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "90921088132c554f38278cc46a6a9dfc0320c79bd5bf9c66c9cda2e15965e3a8"
+      "sha256": "7be4b40801ea684d1217165e72da5f91a93a03d93f08700be2b2e6cb76c57ff6"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
@@ -5657,7 +5657,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "e3013fcf9fd86417ff465310aa10c2f0fdb689af4b585bd48fec763790aced85"
+      "sha256": "002792f1ab74362dceec68893a1e51b012b1bc2fba560d9756d280ce6038d1ec"
     },
     "tests/test_glp80_reattest.py": {
       "kind": "test",
@@ -5782,6 +5782,48 @@
         "Firecrawl exact-head CI"
       ],
       "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+    },
+    "tests/test_firecrawl_glp350_pdf.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
+    },
+    "systems/seo-blog-machine/scripts/article_pdf.py": {
+      "kind": "script",
+      "callers": [
+        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
+      ],
+      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
+    },
+    "tests/test_firecrawl_glp350_monitor.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "435e1368c6f0084bfb04d26e57e0db15d292eae7bb4399d76969973dff51dd9b"
+    },
+    "scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "daily provider monitor intake; manual: python3 scripts/glp_firecrawl_monitors.py --create --run-now"
+      ],
+      "sha256": "becad51036a28dd29a50803e42a3f81d163ec910ab986c98a25119f856192717"
+    },
+    "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes daily monitor intake"
+      ],
+      "sha256": "ff9884d26641f2f7cdcaad73702dd6376b8a358e471501ac92462c45faa807df"
+    },
+    "tests/test_firecrawl_glp350_affiliate.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
     }
   }
 }
