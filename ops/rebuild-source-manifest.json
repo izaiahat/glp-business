@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 905,
+  "tracked_count": 906,
   "files": {
+    "tests/test_pro_route_consumer.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "ea086b898f355158c4e4812971b7841534f28037cee8f4c5e2215c2116a4917b"
+    },
     "tests/test_pro_route_backlog.py": {
       "kind": "test",
       "callers": [
@@ -2296,7 +2303,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1f53e9b211578acb036288f09dd772283d38987b940a9593e8334b75cc3bca54"
+      "sha256": "d013b2970569b8f3f4457a10666fbd9c8759f212ad7cc2c970a3b87efbef3c58"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -5360,7 +5367,7 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "3e4b3e51a1a61f20b5a67d8da55add9b5618c8c0fab0e8dd1497c9df7977dd6d"
+      "sha256": "7e31d8fbb139561b67e8b92cd9b362039c413515f1ae194f626d2b3612320425"
     },
     "tests/test_pro_dispatch.py": {
       "callers": [],

@@ -357,6 +357,119 @@ def summary(row):
     return result
 
 
+def consume_outboxes(client=None, writer=None):
+    """Deliver explicitly scoped native VERIFIED prep artifacts; comment-only.
+
+    The durable STARTED state is a no-replay barrier. A failed/uncertain write
+    is reconciled by paginating exact issue comments, never automatically resent.
+    L2 continues to discover original route/outbox custody; these copies are prep,
+    not a fabricated implementation RESULT or acceptance receipt.
+    """
+    control_path = directory() / 'CONSUMER.json'
+    if not control_path.exists():
+        return []
+    control = json.loads(control_path.read_text())
+    if control.get('schema') != 'pro-prep-consumer-v1' or control.get('enabled') is not True:
+        return []
+    jobs = control.get('jobs')
+    if not isinstance(jobs, list) or len(jobs) != len(set(jobs)) or any(
+            not isinstance(j, str) or not re.fullmatch(r'route-glp-[1-9][0-9]*-[A-Za-z0-9-]+', j) for j in jobs):
+        raise ValueError('INVALID_PREP_CONSUMER_SCOPE')
+    if client is None or writer is None:
+        # The maintained host client is an installed dependency in this curated
+        # checkout; its scope guards are not duplicated or bypassed here.
+        sys.path.append(str(ROOT / 'scripts'))
+        from linear_client import Client, write_entity
+        client = client or Client(role='fleet', max_retries=0)
+        writer = writer or write_entity
+    if getattr(client, 'role', None) != 'fleet':
+        raise ValueError('PREP_CONSUMER_FLEET_ONLY')
+    author = client.operation('identity', {})['viewer']['id']
+    comments_query = '''query($id:String!,$after:String){issue(id:$id){comments(first:50,after:$after){nodes{id body user{id} issue{id identifier}} pageInfo{hasNextPage endCursor}}}}'''
+    results = []
+    # Independent delivery lock, never a second account/wave/browser runner.
+    with (directory() / 'consumer.lock').open('a') as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        for row in request_rows():
+            job = row['job']
+            if job not in jobs or row['state'] != 'complete':
+                continue
+            path = directory() / 'deliveries' / (job + '.json')
+            receipt = json.loads(path.read_text()) if path.exists() else {}
+            if receipt.get('state') == 'delivered':
+                continue
+            started = receipt.get('state') in ('posting', 'uncertain')
+            try:
+                if not re.fullmatch(r'GLP-[1-9][0-9]*', row.get('issue', '')):
+                    raise ValueError('PREP_INVALID_ISSUE')
+                files = verified_files(job)
+                if 'ADVISORY.md' not in files:
+                    raise ValueError('PREP_ADVISORY_MISSING')
+                digest = files['ADVISORY.md']
+                marker = 'PRO_PREP ' + job + ' ' + digest
+                source = relay.JOBS / job / 'outbox'
+                dest = ROOT / 'reports/ops/fleet-inbox' / row['issue'] / 'pro' / job
+                if any(p.is_symlink() for p in (dest, *dest.parents) if p != ROOT.parent):
+                    raise ValueError('PREP_DESTINATION_SYMLINK')
+                dest.mkdir(parents=True, exist_ok=True)
+                for name, expected in files.items():
+                    src = source / name; target = dest / name
+                    if src.is_symlink() or target.is_symlink() or (target.exists() and hash_file(target) != expected):
+                        raise ValueError('PREP_COPY_DRIFT')
+                    if not target.exists():
+                        with target.open('xb') as out:
+                            out.write(src.read_bytes()); out.flush(); os.fsync(out.fileno())
+                    if hash_file(target) != expected:
+                        raise ValueError('PREP_COPY_DRIFT')
+                issue = client.operation('issue_get', {'id': row['issue']})['issue']
+                if issue.get('identifier') != row['issue'] or issue.get('team', {}).get('key') != 'GLP':
+                    raise ValueError('PREP_ISSUE_MISMATCH')
+                body = ('Pro implementation prep (advisory, not acceptance).\n\n' + marker +
+                        '\nAccount: ' + str(row.get('account', 'unknown')) +
+                        '\nArtifacts: ' + str(dest.relative_to(ROOT)) +
+                        '\nNative manifest SHA256: ' + files['OUTPUT-MANIFEST.json'] +
+                        '\n\n' + (source / 'ADVISORY.md').read_text())
+                body_sha = hashlib.sha256(body.encode()).hexdigest()
+                if started and receipt.get('body_sha256') != body_sha:
+                    raise ValueError('PREP_POST_CUSTODY_DRIFT')
+                comments = client.pages(comments_query, {'id': issue['id']}, ('issue', 'comments'))
+                existing = [c for c in comments if c.get('user', {}).get('id') == author and
+                            marker in c.get('body', '').splitlines() and
+                            hashlib.sha256(c['body'].encode()).hexdigest() == body_sha]
+                if len(existing) > 1:
+                    raise ValueError('PREP_DUPLICATE_COMMENT')
+                if existing:
+                    result = existing[0]
+                elif started:
+                    raise ValueError('PREP_POST_UNCERTAIN_NO_REPLAY')
+                else:
+                    # Fleet client remains authoritative for admitted-issue scope.
+                    # Backlog/closed refusals need the parent, never a role switch.
+                    if hasattr(client, '_scoped_target'):
+                        client._scoped_target(row['issue'])
+                    receipt = {'schema': 'pro-prep-delivery-v1', 'state': 'posting', 'job': job,
+                               'issue': row['issue'], 'artifact_sha256': digest,
+                               'body_sha256': hashlib.sha256(body.encode()).hexdigest(), 'files': files,
+                               'started_at': relay.now_iso()}
+                    relay._atomic_json(path, receipt)
+                    started = True
+                    result = writer(client, 'comment', {'issueId': row['issue'], 'body': body})
+                if (not result.get('id') or result.get('issue', {}).get('id') != issue['id'] or
+                        marker not in result.get('body', '')):
+                    raise ValueError('PREP_COMMENT_READBACK_MISMATCH')
+                receipt.update(state='delivered', comment_id=result['id'],
+                               comment_body_sha256=hashlib.sha256(result['body'].encode()).hexdigest(),
+                               issue=row['issue'], job=job, files=files, artifact_sha256=digest,
+                               delivered_at=relay.now_iso())
+            except Exception as exc:
+                receipt.update(state='uncertain' if started else 'blocked', job=job,
+                               issue=row['issue'], error=str(exc), checked_at=relay.now_iso())
+            relay._atomic_json(path, receipt)
+            results.append({'job': job, 'issue': row['issue'], 'state': receipt['state'],
+                            'comment_id': receipt.get('comment_id'), 'error': receipt.get('error')})
+    return results
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -370,6 +483,7 @@ def main(argv=None):
     status.add_argument('--job')
     tick = sub.add_parser('dispatch', help='single bounded queue pass; safe cron entry')
     tick.add_argument('--max-actions', type=int, default=6)
+    sub.add_parser('consume', help='deliver only explicitly scoped VERIFIED prep outboxes; comment-only')
     fetch = sub.add_parser('fetch', help='poll/fetch exact existing job; never submits')
     fetch.add_argument('--job', required=True)
     assign_parser = sub.add_parser('assign', help='change an unreserved queued request account')
@@ -392,8 +506,11 @@ def main(argv=None):
         if not 1 <= args.max_actions <= 6:
             parser.error('--max-actions must be 1..6')
         results = dispatch(max_actions=args.max_actions)
-        if results:
-            print(json.dumps(results), flush=True)
+        deliveries = consume_outboxes()
+        if results or deliveries:
+            print(json.dumps({'actions': results, 'prep_deliveries': deliveries}), flush=True)
+    elif args.command == 'consume':
+        print(json.dumps(consume_outboxes()), flush=True)
     elif args.command == 'status':
         print(json.dumps([summary(r) for r in request_rows() if not args.job or r['job'] == args.job], indent=2))
     else:
