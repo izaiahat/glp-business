@@ -169,7 +169,7 @@ def compile_packet(packet: Path) -> dict[str, Any]:
                             "healthDataFields": [], "followUpConsent": False}
         if capture != expected_capture:
             raise RuntimeError("capture_contract_invalid")
-        if re.search(r"email\s+(?:me|this|the|a|your)|(?:inbox|subscribe|subscription)", body, re.I):
+        if re.search(r"email\s+(?:me|this|the|a|your)|(?:inbox|subscribe)", body, re.I):
             raise RuntimeError("on_page_capture_promise_forbidden")
     elif any(capture.get(key) != value for key, value in expected_capture.items()):
         raise RuntimeError("capture_contract_invalid")

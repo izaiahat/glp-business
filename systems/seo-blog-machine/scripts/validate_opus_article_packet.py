@@ -47,7 +47,7 @@ def valid_capture_contract(article: dict) -> bool:
         return (str(article.get("canonical_path") or "").startswith("/guides/")
                 and capture == {"status": "ON_PAGE_ONLY", "email_field": None,
                                 "health_data_fields": [], "follow_up_consent": False}
-                and not re.search(r"email\s+(?:me|this|the|a|your)|(?:inbox|subscribe|subscription)", prose, re.I))
+                and not re.search(r"email\s+(?:me|this|the|a|your)|(?:inbox|subscribe)", prose, re.I))
     if not str(article.get("canonical_path") or "").startswith("/guides/"):
         return capture.get("status") == "WORKING_BASE_TEMPLATE_CONTRACT" and capture.get("health_data_fields") == []
     return capture == {

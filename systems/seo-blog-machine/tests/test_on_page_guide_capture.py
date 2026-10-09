@@ -30,6 +30,7 @@ def test_on_page_guide_compilation_validation_and_template_have_no_capture(tmp_p
     meta = yaml.safe_load(front)
     meta["captureContract"] = {"mode": "on-page-only", "emailField": None,
                                "healthDataFields": [], "followUpConsent": False}
+    body += "\nA provider match can become a treatment subscription; verify its payment terms.\n"
     draft.write_text("---\n" + yaml.safe_dump(meta) + "---" + body)
     article = compiler.compile_packet(tmp_path)
     assert article["capture_surface"] == {"status": "ON_PAGE_ONLY", "email_field": None,
