@@ -12,7 +12,9 @@
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
-      "callers": [".github/workflows/seo-updater-diagnostics.yml"],
+      "callers": [
+        ".github/workflows/seo-updater-diagnostics.yml"
+      ],
       "sha256": "863b172a8f905e733a884eded0bcf880c1057600eadfeb04ea96fa374a7e543e"
     },
     ".github/workflows/seo-updater-diagnostics.yml": {
@@ -4150,7 +4152,7 @@
     "systems/seo-blog-machine/scripts/opus_review_loop.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "562c6cbd5241c870afe1ef7fe3579a8a1ddc7f17da8e648ed060db3c1be64026"
+      "sha256": "602cead8781db2b2a459d8fad7258d6564e5a741d851664203a53e9f854b6092"
     },
     "systems/seo-blog-machine/tests/test_article_successor.py": {
       "callers": [
@@ -5377,7 +5379,9 @@
     },
     "tests/test_weekly_strategy_updater_adoption.py": {
       "kind": "test",
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "sha256": "d47c57d59e9b3dea0574e5895a4aab51c530f47d770f7fa6449b9a435c312026"
     },
     "tests/test_glp44_strategy_sync.py": {
