@@ -16,6 +16,31 @@ def put(path, value):
     path.write_text(json.dumps(value))
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
+def test_native_preparer_clock_fixture_is_kept_exact_and_custody_bound(tmp_path, monkeypatch):
+    m = load()
+    base = tmp_path/'accepted'
+    fixture = base/'tests/lastmod-declared-routes.test.mjs'
+    source = '\n'.join([
+        'const releaseDate = clean.prepared.env.GLP_RELEASE_DATE;',
+        'const input = await openComparisonInput(root, prepared.input);',
+        'assert.equal(undeclared.status, 1, "an undeclared content change was allowed through");',
+        'assert.deepEqual(receipt.declared_routes_refreshed, [PROBE_ROUTE]);',
+        'assert.equal(receipt.provenance_refresh, false);',
+        'assert.deepEqual(after[UNTOUCHED_ROUTE], baseline[UNTOUCHED_ROUTE]);',
+        'assert.equal((await stat(provenance)).nlink, 1, "provenance was written through the shared inode");',
+        'assert.match(both.stderr, /lastmod_declared_routes_with_blanket_refresh/);',
+    ])
+    fixture.parent.mkdir(parents=True)
+    fixture.write_text(source)
+    monkeypatch.setattr(m,'material_binding',lambda _: {'fixture_baseline':'2026-10-09'})
+    inventory = {'tests/lastmod-declared-routes.test.mjs':hashlib.sha256(source.encode()).hexdigest()}
+    monkeypatch.setattr(m,'current_render_custody',lambda base, inputs: inventory)
+    assert m.patch_lastmod_material_fixture(source,base) == source
+    with pytest.raises(RuntimeError): m.patch_lastmod_material_fixture(source+'\n// drift',base)
+    fixture.write_text(source+'\n// drift')
+    with pytest.raises(RuntimeError): m.patch_lastmod_material_fixture(fixture.read_text(),base)
+
+
 def test_current_registered_producer_dates_supersede_stale_fixture_only_under_accepted_custody(tmp_path, monkeypatch):
     m = load(); monkeypatch.setattr(m, 'BUSINESS', tmp_path)
     base = tmp_path/'accepted'; route = '/guides/retained/'
