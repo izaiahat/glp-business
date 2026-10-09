@@ -4813,7 +4813,7 @@
       "callers": [
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
-      "sha256": "85829fb535f5a0871692050b2d842d31891e0614998b0d2ad01a8c4c2195749d"
+      "sha256": "b88f8f11a6e7093ae2fa34835280a64016bb49e5e090e761e5c35e6a3556a147"
     },
     "ops/cron.d/glp-affiliate-terms-sync": {
       "kind": "cron",
@@ -5894,7 +5894,7 @@
         "scripts/host_disk_large_sweep.py",
         "scripts/host_disk_cleanup_large_unit.py"
       ],
-      "sha256": "d745905ce91bf7d9193e8ac635a35dd5ec0f15db671a144a252ad93d574b26f6"
+      "sha256": "f0110795bd15eab3ccdd09d1d569faec323835b2fc3f997272e06704f0002e3b"
     },
     "tests/test_host_disk_auto_classes.py": {
       "kind": "test",

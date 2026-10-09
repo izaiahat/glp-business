@@ -192,7 +192,7 @@ def rebuildable_node_modules(api, m, targets, *, pins, deadline, dry_run=True, r
             raise ValueError('scope/protection')
         if not any((p.parent / f).is_file() for f in ('package-lock.json', 'npm-shrinkwrap.json', 'pnpm-lock.yaml', 'yarn.lock')):
             raise ValueError('no lockfile')
-        g = ['git', '-c', 'safe.directory=*', '-c', 'core.fsmonitor=false', '-C', str(p.parent)]
+        g = ['git', '--no-optional-locks', '-c', 'safe.directory=*', '-c', 'core.fsmonitor=false', '-C', str(p.parent)]
         top = subprocess.run(g + ['rev-parse', '--show-toplevel'], capture_output=True, text=True, timeout=20)
         if top.returncode == 0:
             tracked = subprocess.run(g + ['ls-files', '--', 'node_modules'], capture_output=True, text=True, timeout=60)

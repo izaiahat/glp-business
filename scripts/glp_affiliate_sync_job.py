@@ -239,7 +239,7 @@ def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
             elif not any((run_dir/f).is_file() for f in ('RESULT.json','FAILURE.json')):row['reason']='no_terminal_record'
             elif (run_dir/'RESULT.json').is_file() and read(run_dir/'RESULT.json').get('status')!='PASS_ALREADY_CURRENT':row['reason']='non_noop_result'
             else:
-                git=['git','-c','safe.directory='+str(clone),'-c','core.fsmonitor=false','-C',str(clone)]
+                git=['git','--no-optional-locks','-c','safe.directory='+str(clone),'-c','core.fsmonitor=false','-C',str(clone)]
                 status=subprocess.run(git+['status','--porcelain','--untracked-files=normal'],capture_output=True,text=True,timeout=60)
                 local=subprocess.run(git+['log','--branches','--not','--remotes','--format=%H'],capture_output=True,text=True,timeout=60)
                 broken=(clone/'.git/objects.ARCHIVED.json').is_file()  # objects already archived by a verified reclaim
