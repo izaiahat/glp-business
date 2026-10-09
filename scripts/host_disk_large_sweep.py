@@ -37,7 +37,9 @@ def references(report):
     # child (300/300 idle entries refused); children stay pinned when named.
     layout={BUS,BUS/'reports',BUS/'reports/ops',BUS/'reports/glp-clinic-scout',
             BUS/'site-system',BUS/'site-system/flagship-v2',BUS/'.worktrees',
-            Path('/home/ubuntu/.hermes/cache/scratch'),Path('/tmp')}
+            Path('/home/ubuntu/.hermes/cache/scratch'),Path('/tmp'),
+            BUS/'reports/glp-clinic-scout/affiliate-machine',
+            BUS/'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'}
     pins=refs-layout
     policy_path=BUS/'ops/disk-retention-policy.json'
     source_identities[str(policy_path)]=m.signature(policy_path)

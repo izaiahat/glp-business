@@ -190,3 +190,16 @@ def test_bare_scratch_and_tmp_references_do_not_pin_every_child(tmp_path, monkey
     pins = set(sweep.references(report))
     assert Path('/home/ubuntu/.hermes/cache/scratch') not in pins and Path('/tmp') not in pins
     assert Path('/home/ubuntu/.hermes/cache/scratch/keep-me-x') in pins
+
+
+def test_bare_registry_root_reference_does_not_pin_every_run(tmp_path, monkeypatch):
+    import host_disk_large_sweep as sweep
+    bus = tmp_path / 'business'; root = bus / 'reports/ops/glp347-pallas-20261007'; root.mkdir(parents=True)
+    (bus / 'ops').mkdir(); (bus / 'ops/disk-retention-policy.json').write_text('{"protected_roots":[]}')
+    runs = 'reports/glp-clinic-scout/affiliate-machine/registry-site-sync'
+    (root / 'NOTE.md').write_text(f"see {runs} and {runs}/20261003T030854Z/prepared/release\n")
+    monkeypatch.setattr(sweep, 'BUS', bus)
+    report = tmp_path / 'report'; report.mkdir()
+    pins = set(sweep.references(report))
+    assert bus / runs not in pins and bus / 'reports/glp-clinic-scout/affiliate-machine' not in pins
+    assert bus / runs / '20261003T030854Z/prepared/release' in pins
