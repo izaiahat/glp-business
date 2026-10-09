@@ -52,6 +52,27 @@ def put(path, document):
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def test_pagination_capture_accepts_native_graph_without_reintroducing_matches(tmp_path):
+    node = next(n for n in ast.parse(BUILDER.read_text()).body
+                if isinstance(n, ast.FunctionDef) and n.name == 'rebind_pagination_capture_fixture')
+    namespace = {'Path':Path, 'Any':Any, 're':re, 'json':json}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(BUILDER), 'exec'), namespace)
+    fn = namespace['rebind_pagination_capture_fixture']
+    source = ('  const routes = [\n'
+              '    "/insights/page/5/", // native staged pagination\n'
+              '    ...(graph.comparison_pages || []).map((entry) => entry.route),\n'
+              '  ];\n'
+              'assert.equal(matchesResponse.status, 400);\n'
+              'assert.equal(transports, 0);\n')
+    job = {'base_release_root': None, 'allowed_public_added':['insights/page/6/index.html']}
+    rebound = fn(source,job)
+    assert '"/insights/page/5/",\n' in rebound
+    assert '"/insights/page/6/",\n' in rebound
+    assert '"/matches/customized/",' not in rebound
+    assert rebound.endswith('assert.equal(matchesResponse.status, 400);\nassert.equal(transports, 0);\n')
+    assert fn(rebound,job) == rebound
+
+
 def test_material_fixture_custody_uses_canonical_source_not_sealed_copy(tmp_path):
     tree = ast.parse(BUILDER.read_text())
     function = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == '_build_candidate_materialized')
