@@ -1,5 +1,6 @@
 """Synthetic fixtures; these tests are not live authentication proof."""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -132,7 +133,7 @@ console.log(JSON.stringify({fixture_only:true,operations:Object.keys(exprs).leng
 
 
 
-@pytest.mark.parametrize('hidden_kind', ['cell', 'descendant'])
+@pytest.mark.parametrize('hidden_kind', ['cell', 'descendant', 'spacer'])
 def test_hidden_dom_recording_vm_and_real_mb_main_persistence(monkeypatch, tmp_path, capsys, hidden_kind):
     # Same counterexample as the independent review, plus a nested hidden span.
     # The VM reports every hidden getter and rejects all credential/effect reads.
@@ -143,7 +144,9 @@ function run(secret,kind){
  let hiddenReads=0,sensitive=0,effects=0;
  function node(text,visible=true,extra={}){
   const n={getBoundingClientRect:()=>({width:visible?10:0,height:visible?10:0}),
-   _visible:visible,querySelectorAll:()=>[],getAttribute:()=>null,...extra};
+   _visible:visible,querySelectorAll:()=>[],getAttribute:()=>null,
+   // Structural only: a text-bearing node has a child; it never reveals the text.
+   hasChildNodes:()=>text!=='',...extra};
   Object.defineProperty(n,'innerText',{get(){if(!visible)hiddenReads++;return text;}});
   Object.defineProperty(n,'textContent',{get(){hiddenReads++;throw Error('textContent');}});
   Object.defineProperty(n,'value',{get(){sensitive++;throw Error('input value');}});
@@ -151,9 +154,12 @@ function run(secret,kind){
  }
  const a=node('Fixture wellness',true,{href:'https://affiliates.maxbounty.com/campaign/707'});
  const hidden=node(secret,false);
- const cell=node('Fixture wellness',true,{querySelectorAll:s=>s==='*'&&kind==='descendant'?[hidden]:[]});
+ // Live MaxBounty rows carry an empty hidden <div> spacer inside the name cell.
+ const spacer=node('',false);
+ const nested=kind==='descendant'?[hidden]:kind==='spacer'?[spacer]:[];
+ const cell=node('Fixture wellness',true,{querySelectorAll:s=>s==='*'?nested:[]});
  const cells=kind==='cell'?[cell,hidden]:[cell];
- const row=node('Fixture wellness',true,{querySelectorAll:s=>s==='td'?cells:s==='a[href]'?[a]:s==='*'?[...cells,a, ...(kind==='descendant'?[hidden]:[])]:[]});
+ const row=node('Fixture wellness',true,{querySelectorAll:s=>s==='td'?cells:s==='a[href]'?[a]:s==='*'?[...cells,a,...nested]:[]});
  const headers=kind==='cell'?[node('Name'),node('Notes',false)]:[node('Name')];
  const table=node('',true,{querySelectorAll:s=>s==='tbody tr'?[row]:s==='thead th'?headers:[]});
  const option=node('Health (1)');
@@ -180,6 +186,10 @@ console.log(JSON.stringify({a,b}));
     if hidden_kind == 'cell':
         assert projections['visible_tables']['projection']['tables'][0]['headers'] == ['Name', '']
         assert projections['visible_tables']['projection']['tables'][0]['rows'][0]['cells'] == ['Fixture wellness', '']
+    elif hidden_kind == 'spacer':
+        # A childless hidden spacer is accepted structurally without any hidden read.
+        assert projections['visible_tables']['projection']['tables'][0]['rows'][0]['cells'] == ['Fixture wellness']
+        assert projections['maxbounty_search']['projection']['rows'][0]['cells'] == ['Fixture wellness']
     else:
         assert all(value == {'refused': True} for value in projections.values())
 
@@ -230,7 +240,8 @@ console.log(JSON.stringify({a,b}));
 
 def test_isolated_cli_entries_are_blocked_before_authentication():
     for name in ('glp_xentraffic_enumerate.py','glp_maxbounty_lane.py'):
-        result = subprocess.run([sys.executable, str(ROOT/'scripts'/name), '--queue','off'], cwd=ROOT, capture_output=True, text=True)
+        env = {**os.environ, 'MAXBOUNTY_API_CREDENTIALS_FILE': ''}  # API path disabled
+        result = subprocess.run([sys.executable, str(ROOT/'scripts'/name), '--queue','off'], cwd=ROOT, capture_output=True, text=True, env=env)
         assert result.returncode == 2
         payload = json.loads(result.stdout)
         assert payload['status'] == 'BLOCKED'

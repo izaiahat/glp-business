@@ -109,6 +109,9 @@ def test_xt_actual_main_validates_complete_published_range(monkeypatch, tmp_path
         pytest.fail('unexpected browser operation')
     driver = FreshAIBrowserReadDriver(js=js, goto_url=lambda target: url.__setitem__(0, target),
         wait_for_load=lambda: None, allowed_hosts=[lane.xt.PORTAL_URL.split('/')[2]], owned_session='SYNTHETIC_ONLY')
+    # This fixture exercises the retained legacy range/pager projection; the
+    # live table layout has its own tests in test_glp268_live_callers.py.
+    driver.xentraffic_catalog_snapshot = None
     monkeypatch.setattr(lane, 'load_state', lambda: {'offers': []})
     monkeypatch.setattr(lane, 'RUN_ROOT', tmp_path)
     monkeypatch.setattr(lane, 'STATE_PATH', tmp_path / 'state.json')
@@ -175,6 +178,7 @@ def test_mb_normal_entry_refuses_before_sheet_or_output_io(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "ops.affiliate_apply_gate", gate)
     lane = load(monkeypatch, "mb_lane_candidate", "scripts/glp_maxbounty_lane.py")
     monkeypatch.setattr(lane, "read_sheet_snapshot", lambda: pytest.fail("Sheet read before fresh stage"))
+    monkeypatch.setenv("MAXBOUNTY_API_CREDENTIALS_FILE", "")  # no API configured
     assert lane.main(["--mode", "enumerate", "--queue", "off"]) == 2
     receipt = json.loads(capsys.readouterr().out)
     assert receipt["status"] == "BLOCKED"

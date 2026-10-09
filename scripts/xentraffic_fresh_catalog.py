@@ -81,9 +81,92 @@ def project_catalog(snapshot, *, expected_start=1):
     return {'offers': offers, 'paging': {'total_count': total}}, next(iter(next_links), None)
 
 
+_MONEY = re.compile(r'^\$([0-9][0-9,]*(?:\.[0-9]+)?)$')
+_PERCENT = re.compile(r'^([0-9]+(?:\.[0-9]+)?)%$')
+LIVE_PAGE_SIZE = 100
+
+
+def _live_payout(cell):
+    """'CPA\n$100.000' / 'CPS\n70.00%' / '-' in the BFF display grammar."""
+    lines = [line.strip() for line in str(cell).splitlines() if line.strip()]
+    if lines in ([], ['-']):
+        return {'payout_type': 'N/A', 'payout_amount': None, 'payout': 'N/A'}
+    if lines == ['View Payouts']:
+        # Multi-tier payout: the table links to the tiers instead of a value.
+        return {'payout_type': 'MULTIPLE', 'payout_amount': None, 'payout': ''}
+    if len(lines) != 2 or not re.fullmatch(r'[A-Z]{2,5}', lines[0]):
+        raise SessionError('xentraffic_visible_payout_unknown')
+    kind, value = lines
+    money, percent = _MONEY.fullmatch(value), _PERCENT.fullmatch(value)
+    if money:
+        return {'payout_type': kind, 'payout_amount': float(money.group(1).replace(',', '')),
+                'payout': f'{kind}: {value}'}
+    if percent:
+        return {'payout_type': kind, 'payout_amount': None, 'payout_percentage': float(percent.group(1)),
+                'payout': f'{kind} {value}'}
+    raise SessionError('xentraffic_visible_payout_unknown')
+
+
+def project_live_catalog(snapshot, *, expected_start, expected_total=None):
+    """Project the live Everflow /offers table and its single "N Total" label.
+
+    Columns observed 2026-10-09: ID, Thumbnail, Name, Visibility, Category,
+    Channels, Payout, Today's Revenue, Rules. The table exposes no offer status
+    column, so status stays unknown (''), never inferred.
+    """
+    tables = snapshot.get('tables') or []
+    candidates = []
+    for table in tables:
+        headers = [_column(h) for h in table.get('headers') or []]
+        named = [h for h in headers if h]
+        if len(named) != len(set(named)):
+            continue
+        if all(h in headers for h in ('id', 'name', 'visibility', 'category', 'payout')):
+            candidates.append((table, headers))
+    if len(candidates) != 1:
+        raise SessionError('xentraffic_visible_offer_table_unknown_or_ambiguous')
+    table, headers = candidates[0]
+    at = {key: headers.index(key) for key in ('id', 'name', 'visibility', 'category', 'payout')}
+    totals = set(snapshot.get('totals') or [])
+    if len(totals) != 1:
+        raise SessionError('xentraffic_visible_published_total_unknown')
+    match = re.fullmatch(r'([1-9][0-9]{0,2}(?:,[0-9]{3})+|0|[1-9][0-9]*)\s+Total', next(iter(totals)))
+    if not match:
+        raise SessionError('xentraffic_visible_published_total_unknown')
+    total = int(match.group(1).replace(',', ''))
+    if expected_total is not None and total != expected_total:
+        raise SessionError('xentraffic_catalog_total_changed_mid_read')
+    offers = []
+    for row in table.get('rows') or []:
+        cells = row.get('cells') or []
+        if len(cells) != len(headers):
+            raise SessionError('xentraffic_visible_offer_row_shape_unknown')
+        pid, name = str(cells[at['id']]).strip(), ' '.join(str(cells[at['name']]).split())
+        if not re.fullmatch(r'[1-9][0-9]*', pid) or not name:
+            raise SessionError('xentraffic_visible_offer_identity_unknown')
+        vis = [line.strip() for line in str(cells[at['visibility']]).splitlines() if line.strip()]
+        if not 1 <= len(vis) <= 2:
+            raise SessionError('xentraffic_visible_visibility_unknown')
+        offers.append({'network_offer_id': int(pid), 'name': name, 'offer_status': '',
+                       'visibility': re.sub(r'\s+', '_', vis[0].lower()),
+                       'category': str(cells[at['category']]).strip(),
+                       'relationship': {'offer_affiliate_status': vis[1].lower() if len(vis) == 2 else ''},
+                       **_live_payout(cells[at['payout']])})
+    remaining = total - (expected_start - 1)
+    if remaining < 0 or len(offers) != min(LIVE_PAGE_SIZE, remaining):
+        raise SessionError('xentraffic_visible_page_row_count_mismatch')
+    pages = snapshot.get('pages') or []
+    active = {p.get('number') for p in pages if p.get('active')}
+    expected_page = (expected_start - 1) // LIVE_PAGE_SIZE + 1
+    if total > LIVE_PAGE_SIZE and active != {str(expected_page)}:
+        raise SessionError('xentraffic_visible_pager_state_unknown')
+    return {'offers': offers, 'paging': {'total_count': total}}
+
+
 class FreshVisibleCatalogReader:
     fresh = True
     read_method = 'fresh_ai_browser_vault_visible_table'
+    live = False
 
     def __init__(self, driver):
         if (driver is None or getattr(driver, 'fresh', False) is not True
@@ -98,6 +181,8 @@ class FreshVisibleCatalogReader:
         self.started = False
 
     def start(self):
+        if callable(getattr(self.driver, 'xentraffic_catalog_snapshot', None)):
+            return self._start_live()
         # Do not navigate a guessed account-settings origin. Require the actual
         # protected page to supply principal and tenant before reading offers.
         url = urlsplit(self.driver.url)
@@ -114,6 +199,27 @@ class FreshVisibleCatalogReader:
         self.started = True
         return self
 
+    def _start_live(self):
+        """Exact tenant principal on the portal's own My Account page."""
+        self.driver.goto(PORTAL_URL + '/myaccount')
+        lines = [line.strip() for line in self.driver.body_text().splitlines() if line.strip()]
+        partner = [lines[i + 1] for i, line in enumerate(lines[:-1]) if line == 'Partner ID']
+        if partner != ['4384'] or 'My Account' not in lines:
+            raise SessionError('xentraffic_protected_principal_and_partner_unverified')
+        self.driver.goto(PORTAL_URL + '/offers')
+        self.live, self.started, self.total = True, True, None
+        return self
+
+    def _live_page(self, number, size):
+        if size != LIVE_PAGE_SIZE:
+            raise SessionError('xentraffic_visible_page_size_unsupported')
+        snapshot = (self.driver.xentraffic_catalog_snapshot() if number == 1
+                    else self.driver.xentraffic_offers_page(number))
+        payload = project_live_catalog(snapshot, expected_start=self.seen_count + 1,
+                                       expected_total=self.total)
+        self.total = payload['paging']['total_count']
+        return payload
+
     def api(self, path, method='GET', body=None):
         """Compatibility call shape only; performs visible DOM reads, not fetch."""
         if not self.started:
@@ -124,6 +230,12 @@ class FreshVisibleCatalogReader:
             if (method != 'POST' or body != {'filters': {'affiliate_status': '__all'}, 'search_terms': []}
                     or number != self.number + 1 or not 1 <= size <= 100 or number > 51):
                 raise SessionError('xentraffic_visible_catalog_request_out_of_sequence')
+            if getattr(self, 'live', False):
+                payload = self._live_page(number, size)
+                self.seen_count += len(payload['offers'])
+                self.names.update({row['network_offer_id']: row['name'] for row in payload['offers']})
+                self.number = number
+                return payload
             if number > 1:
                 if self.next_url is None:
                     raise SessionError('xentraffic_visible_pagination_not_integrated')
