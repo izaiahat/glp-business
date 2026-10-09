@@ -31,6 +31,21 @@ def ctr_proposals(page):
     return ns['loop_c'](page, dt.date(2026,10,9))
 
 class SnapshotHandoff(unittest.TestCase):
+    def test_native_acknowledgment_consumes_route_without_inventing_unknowns(self):
+        from ctr_snapshot import route_handoff
+        snapshot = {'as_of': '2026-10-09', 'pages': []}
+        consumed = []
+        def consume(page, date):
+            consumed.append(page)
+            return ctr_proposals(page)
+        receipt = route_handoff(snapshot, '/guides/not-yet-published/', 'topic-exact', consume)
+        self.assertEqual(consumed, [{'path': '/guides/not-yet-published/'}])
+        self.assertEqual(receipt['status'], 'AWAITING_PUBLICATION_AND_QUALIFIED_GSC_DATA')
+        self.assertIsNone(receipt['ctr_test'])
+        self.assertEqual(receipt['proposals'], [])
+        self.assertEqual(receipt['topic_id'], 'topic-exact')
+        self.assertEqual(receipt['effects']['title_changes'], 0)
+
     def test_measured_route_reaches_ctr_consumer(self):
         with tempfile.TemporaryDirectory() as work:
             db = Path(work) / 'fixture.db'
@@ -48,6 +63,11 @@ class SnapshotHandoff(unittest.TestCase):
             result = ctr_proposals({'path':'/guides/new-article/', 'ctr_test':ctr})
             self.assertEqual(result[0]['action'], 'PROPOSE_TITLE_REWRITE_AND_LOG_BASELINE')
             self.assertEqual(result[0]['evaluation_window_days'], [21,28])
+            from ctr_snapshot import route_handoff
+            native = route_handoff({'as_of': '2026-10-09', 'pages': pages}, '/guides/new-article/', 'topic-measured', lambda p, d: ctr_proposals(p))
+            self.assertEqual(native['status'], 'MEASURED_CTR_CONSUMED')
+            self.assertEqual(native['ctr_test'], ctr)
+            self.assertEqual(native['proposals'], result)
 
     def test_unknown_stale_or_missing_peer_never_becomes_zero(self):
         from ctr_snapshot import measured_ctr_tests

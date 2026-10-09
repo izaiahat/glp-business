@@ -6,6 +6,7 @@ same brief gate, per-article manifest, and O-2 weekly approval-wave chain.
 """
 from __future__ import annotations
 
+import hashlib
 import argparse
 import datetime as dt
 import json
@@ -548,12 +549,42 @@ def main() -> int:
     database_loops.add_argument("--config", type=Path, required=True)
     database_loops.add_argument("--output", type=Path, required=True)
     database_loops.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
+    handoff = sub.add_parser("ctr-handoff", help="Read-only native Loop C route consumption receipt; no measurements invented")
+    handoff.add_argument("--config", type=Path, required=True)
+    handoff.add_argument("--route", required=True)
+    handoff.add_argument("--topic-id", required=True)
+    handoff.add_argument("--selection-receipt", type=Path, required=True)
+    handoff.add_argument("--output", type=Path, required=True)
+    handoff.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
     feed = sub.add_parser("optimizer-to-topic")
     feed.add_argument("--optimizer", type=Path, required=True)
     feed.add_argument("--minimum-impressions", type=int, default=1)
     feed.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.command == "run":
+    if args.command == "ctr-handoff":
+        from ctr_snapshot import route_handoff
+        from selection_receipt import load_selection_receipt, selection_spec
+        _selection, selected = load_selection_receipt(args.selection_receipt)
+        if selected['topic_id'] != args.topic_id or selected['target_route'] != args.route:
+            raise ValueError('ctr_handoff_selection_identity_invalid')
+        policy = consumer_policy("improvement_loops", decision_class="search")
+        require_allowed(policy)
+        config = load_config(args.config)
+        aliases = load_route_aliases(config)
+        snapshot = build_loop_b_snapshot(config["paths"]["local_database"], args.as_of, aliases)
+        payload = route_handoff(snapshot, args.route, args.topic_id, loop_c)
+        payload["source_sha256"] = {
+            str(Path(__file__).resolve()): hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            str(Path(__file__).with_name("ctr_snapshot.py").resolve()): hashlib.sha256(Path(__file__).with_name("ctr_snapshot.py").read_bytes()).hexdigest(),
+        }
+        payload["selection_receipt"] = selection_spec(args.selection_receipt)
+        payload["invocation"] = {"command": "ctr-handoff", "topic_id": args.topic_id,
+                                 "route": args.route, "as_of": args.as_of.isoformat()}
+        payload["consumer_policy"] = policy
+        payload["config_sha256"] = hashlib.sha256(args.config.read_bytes()).hexdigest()
+        payload["receipt_sha256"] = digest(payload)
+        return_code = 0
+    elif args.command == "run":
         policy = consumer_policy("improvement_loops", decision_class="search")
         require_allowed(policy)
         payload = run_loops(read_json(args.snapshot))
