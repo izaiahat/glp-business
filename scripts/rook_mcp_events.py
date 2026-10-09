@@ -72,6 +72,7 @@ VERSION = '2026-07-28'
 EVENT = 'discord.rook.request.created'
 REPLY_KIND = 'rook.reply'
 ARGUMENTS = {'guild_id': GUILD, 'channel_id': CHANNEL}
+APPROVED_ORIGINS = ('https://chatgpt.com', 'https://chat.openai.com')
 
 
 def canonical(value):
@@ -1915,6 +1916,7 @@ class Config:
     local_tunnel_metadata: bool = False
     research: ResearchIdentity | None = None
     finch: FinchIdentity | None = None
+    allowed_origins: tuple[str, ...] = ()
 
     def policy_fields(self):
         fields = {'issuer': self.issuer, 'audience': self.audience, 'subject': self.subject}
@@ -1938,6 +1940,9 @@ class Config:
         return {'research.channel.read' if name == 'read_research_messages' else 'research.replies.write'}
 
     def __post_init__(self):
+        if (not isinstance(self.allowed_origins, tuple)
+                or any(origin not in APPROVED_ORIGINS for origin in self.allowed_origins)):
+            raise ValueError('only exact approved ChatGPT origins may be configured')
         if self.research is not None and not isinstance(self.research, ResearchIdentity):
             raise ValueError('validated Research identity required')
         if self.finch is not None and (not isinstance(self.finch, FinchIdentity) or self.research is not None):
@@ -2246,7 +2251,7 @@ class Application:
 
     def handle(self, method, path, headers, body):
         h = {k.lower(): v for k, v in headers.items()}
-        if h.get('origin'):
+        if 'origin' in h and h['origin'] not in self.config.allowed_origins:
             return 403, {}, {'error': 'origin_refused'}
         if method == 'GET' and path == '/.well-known/oauth-protected-resource/mcp':
             return 200, {}, {'resource': self.config.audience, 'authorization_servers': [self.config.issuer],
@@ -3110,6 +3115,8 @@ def main(argv=None):
     parser.add_argument('--max-run-seconds', type=int, required=True)
     parser.add_argument('--overnight-pilot', action='store_true', help='allow up to 57600s (16h) in full mode only; no auth or subscription extension')
     parser.add_argument('--allowed-host', action='append', default=[])
+    parser.add_argument('--allowed-origin', action='append', default=[], choices=APPROVED_ORIGINS,
+                        help='allow this exact ChatGPT Origin; repeat for both; default denies all origins')
     add_research_arguments(parser)
     args = parser.parse_args(argv)
     try:
@@ -3148,7 +3155,8 @@ def main(argv=None):
         os.umask(0o077)
         application = Application(Config(args.issuer, args.audience, args.operator_subject,
                                          args.protected_resource_metadata_url, args.metadata_only,
-                                         args.local_tunnel_metadata, research, finch), args.state_dir)
+                                         args.local_tunnel_metadata, research, finch,
+                                         tuple(args.allowed_origin)), args.state_dir)
         hosts = {'127.0.0.1:' + str(args.port), 'localhost:' + str(args.port), *args.allowed_host}
         server = HTTPServer(('127.0.0.1', args.port), make_handler(application, hosts))
         print(canonical({'status': 'starting', 'listen': f'http://127.0.0.1:{args.port}/mcp', 'protocol': VERSION,
