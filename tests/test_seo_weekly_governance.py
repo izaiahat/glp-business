@@ -73,6 +73,14 @@ def test_sunday_review_window_governs_the_following_week():
     assert w.review_week_start(dt.date(2026,10,13)) == dt.date(2026,10,12)
 
 
+def test_source_check_does_not_invent_a_price_check():
+    import compile_review_packet_article as c
+    assert c.article_source_dates({'sourceCheckedThrough':'2026-10-09'}) == {
+        'source_checked_through':'2026-10-09','prices_checked_date':None}
+    assert c.article_source_dates({'pricesCheckedDate':'2026-08-31'}) == {
+        'source_checked_through':'2026-08-31','prices_checked_date':'2026-08-31'}
+
+
 def test_dormant_review_target_has_admitted_parent():
     import ast
     path = Path(__file__).resolve().parents[1] / 'scripts/glp_seo_updater_source.py'

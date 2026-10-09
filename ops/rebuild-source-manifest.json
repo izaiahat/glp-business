@@ -2463,7 +2463,7 @@
         "GLP-7 publication-date binding"
       ],
       "kind": "script",
-      "sha256": "21cdad48600ab0c6cfac941554d0e0e3d53edfac668094cf6815b9833082ac6f"
+      "sha256": "574c476c9d01c1cb45e1a44d9932633c7e1751018ce7597e87382f971a44fb2c"
     },
     "systems/seo-blog-machine/scripts/current_content_base.py": {
       "callers": [
@@ -6126,7 +6126,7 @@
       "callers": [
         "L6 weekly-governed SEO machine"
       ],
-      "sha256": "275a5743c836730e4c391b00b3d9e66dcec975944fa39feb032a9bba95890067"
+      "sha256": "a6560859ae4eb9fbdb146838473cb99ad7c957954a2827932ed464767ce7f08a"
     },
     "ops/hermes-cron-scripts/glp_seo_refill_weekly_gate.py": {
       "kind": "registered_producer",
