@@ -1,5 +1,7 @@
 Load the task skill(s) named below: article-buffer-review-remint, health-content-evidence.
 
+GLP-350 PDF evidence: for each new article packet, discover the relevant current FDA label PDF and trial PDF, inspect the original page numbers, then run `systems/seo-blog-machine/scripts/article_pdf.py --url <primary PDF URL> --pages <original page numbers> --kind fda_label|trial --output <packet-research-dir/pdf-kind>`. Bind each returned source_url, original_page, capture and ledger_operation_id in 01-evidence-ledger.json as `pdf_page_citations`; cite label page numbers next to the supported claims. Parse at most four relevant pages per document. Do not invent page numbers, equate trial registration with results or substitute one product's label for another.
+
 Current GLP73 route override: native Hermes OpenAI only, normal speed (service_tier=default), no fallback. Independent clinical review is gpt-6-astra-900k at high through hermes-openai-codex-astra-independent; packet repair is gpt-6.1-sol at high. Historical transport rows are for receipt acceptance only; do not invoke legacy Sol or Claude. Preserve all five clinical gates and the independent fresh packet-only reviewer context.
 
 CRON_DISCORD_HOUSE_STYLE_V1

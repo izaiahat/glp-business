@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 849,
+  "tracked_count": 850,
   "files": {
+    "systems/seo-blog-machine/scripts/article_pdf.py": {
+      "kind": "script",
+      "callers": [
+        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
+      ],
+      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
+    },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
       "callers": [
@@ -5101,7 +5108,7 @@
       "callers": [
         "native Hermes d70cda5f4416 prompt projection"
       ],
-      "sha256": "208a46012868b88b46cc4afcc80b01da3f530ad0c375363d3daf30d0f157ada1"
+      "sha256": "800271778fb60dff09f4cca886f0be41ade139a0f45ee1978f97f35165642454"
     },
     "tests/test_glp44_neutral_commercial_clocks.py": {
       "kind": "test",
@@ -5535,14 +5542,14 @@
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "a046bd2601b3375fbd408f791b7d35470889b0b677d29f0c838d5e6d3fc2ba23"
+      "sha256": "ed3d1e2ff16ef64cd281820cda183b3983648c78fd38a60b88b1135f2364954b"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "d4b62d7c9d15fd0009dd7ed36b89ec9d6a8a40fa70c94a2ef5d67acea8c4459f"
+      "sha256": "8a7528a89011710e07b2bfa0961a392137eb4987c638778c9aa6a09a141eddef"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
