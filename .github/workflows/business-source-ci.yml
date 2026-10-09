@@ -18,6 +18,7 @@ jobs:
       - name: GLP73 autonomous article and Alexandria contracts (offline, exact head)
         run: |
           python3 -m unittest discover -s tests -p test_glp73_autonomous_articles.py -v
+          python3 -m unittest discover -s tests -p test_w10_ctr_snapshot_handoff.py -v
           python3 -m unittest discover -s tests -p test_glp73_article_research.py -v
           python3 -m unittest discover -s tests -p test_glp73_cogny_consumption.py -v
       - name: Q9 copy admission and report exclusions (offline, exact head)
