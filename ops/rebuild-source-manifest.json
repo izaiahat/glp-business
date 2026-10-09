@@ -4610,7 +4610,7 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "dd0a94824b57d3bd17727b5d242aa261f993b325c01f867ab3478c4f21b27be7"
+      "sha256": "c44d37e6aab87c30d4ea070a36f690c40a07685a848769a4023ca316a110427b"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
