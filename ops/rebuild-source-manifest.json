@@ -2422,7 +2422,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "5e93bf8018cb5f331f77b181b8a79327068ae8fc1f30979ecb36fca2a0c22113"
+      "sha256": "e846019bc0ae3b7d929330baa8cbac95ba7dd208a9ecc52205fd755df1b9878c"
     },
     "systems/seo-blog-machine/scripts/carrier_lock.py": {
       "callers": [
@@ -4414,7 +4414,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "5b631223d7e447e5a50e5b98067a8fdf35c6f85f58280aca01ae9fe4d24c262c"
+      "sha256": "a0421e34d8b16db7f982184261338702bc1ff277ecb938832d50f4261b367217"
     },
     "tests/test_glp76_continuation.py": {
       "callers": [
