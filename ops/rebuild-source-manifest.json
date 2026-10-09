@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 908,
+  "tracked_count": 913,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -6132,6 +6132,41 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "acfec642b12edc141874fe84637ad1c86ae6f5f7435a01ba2649da34bfa8614b"
+    },
+    "scripts/fleet_ingest.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
+      ],
+      "sha256": "0d3edf3657ac1062dd9fd68f17b1bb104e04bd8456a29095e099b09cc02b31f0"
+    },
+    "scripts/fleet_ingest.md": {
+      "kind": "documentation",
+      "callers": [
+        "fleet-output-ingestion"
+      ],
+      "sha256": "5b28cba1da72b4faa2f6b0854c27fdd71b784a3a4b70a351752792c599aca617"
+    },
+    "tests/test_fleet_ingest.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/fleet-ingest.yml"
+      ],
+      "sha256": "5f6807e971ec042416205c2328c753647bb0374b227f5e99d4a691bacdbcbb36"
+    },
+    "ops/hermes-cron-scripts/fleet_ingest_cron.sh": {
+      "kind": "script",
+      "callers": [
+        "Hermes fleet-output-ingestion"
+      ],
+      "sha256": "d5b7041333596b542ea7970bd577b710f0973baf0ed4776cea37be4ad468a65c"
+    },
+    ".github/workflows/fleet-ingest.yml": {
+      "kind": "repository_control",
+      "callers": [
+        "GitHub exact-head CI"
+      ],
+      "sha256": "bdb6dea8601c7b53e7b06705bfff768eaa772564571ce59e8faa5f782b3c0128"
     }
   }
 }
