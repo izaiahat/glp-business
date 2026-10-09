@@ -90,6 +90,27 @@ class CronBridgeTests(unittest.TestCase):
             failure.write_text(json.dumps(bad))
             self.assertFalse(cron.article_failed_before_publish(receipt))
 
+    def test_article_live_verifier_identifies_itself_instead_of_python_urllib(self):
+        from urllib.request import Request
+        machine = {'schema':'n8n.article_carrier.v1','status':'PASS_PUBLISHED',
+            'published':True,'url':'https://glpclinicscout.com/guides/coby/',
+            'route':'/guides/coby/','receipt_path':'fixture'}
+        def get(request, **kwargs):
+            self.assertIsInstance(request, Request)
+            self.assertEqual(request.get_header('User-agent'),
+                'Mozilla/5.0 (compatible; GLPClinicScoutPublicationVerifier/1.0)')
+            self.assertEqual(request.full_url,machine['url'])
+            from unittest.mock import MagicMock
+            response = MagicMock(); response.__enter__.return_value.status = 200
+            return response
+        with patch.object(cron,'machine_receipt',return_value=machine), \
+             patch('urllib.request.urlopen',side_effect=get), \
+             patch.object(cron,'heartbeat',return_value={'verified':True}), \
+             patch.object(cron,'post_once',return_value={'status':'SUPPRESSED_NO_SEND'}):
+            result = cron.finish_action('article_carrier_consume',{}, {'receipt_path':'fixture'}, {}, self.root/'state.json')
+        self.assertEqual(result['live_status'],200)
+        self.assertEqual(result['output_count'],1)
+
     def test_article_source_ci_registration_failure_is_prepublication_only(self):
         op = 'host-article-carrier-fixture'
         entry_id = 'a'*24

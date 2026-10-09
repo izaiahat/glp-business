@@ -622,13 +622,16 @@ def finish_action(action, args, job, state, state_path, *, call=None):
             raise RuntimeError("article_carrier_missed_day_or_refused_see_machine_receipt")
         effects = {"machine_status": status, "output_count": int(published)}
         if published:
-            from urllib.request import urlopen
+            from urllib.request import Request, urlopen
             from urllib.parse import urlparse
             url = str(r.get("url") or "")
             parsed = urlparse(url)
             if parsed.scheme != "https" or parsed.hostname not in ("glpclinicscout.com", "www.glpclinicscout.com") or parsed.path.startswith("/go/"):
                 raise RuntimeError("article_live_url_not_first_party_article")
-            with urlopen(url, timeout=30) as response:
+            request = Request(url, headers={
+                'User-Agent':'Mozilla/5.0 (compatible; GLPClinicScoutPublicationVerifier/1.0)',
+                'Accept':'*/*'})
+            with urlopen(request, timeout=30) as response:
                 if response.status != 200:
                     raise RuntimeError("article_published_but_not_live")
                 effects["live_status"] = response.status
