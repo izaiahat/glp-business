@@ -83,7 +83,7 @@ HTTP_HEADERS = {
 }
 
 
-def child_failure_cause(stderr: bytes) -> str:
+def child_failure_cause(stderr: bytes, stdout: bytes = b"") -> str:
     """Surface one stable cause while the receipt retains the complete stream."""
     lines = [" ".join(raw.strip().split()) for raw in stderr.decode("utf-8", "replace").splitlines()]
     blocked = [line.removeprefix("BLOCKED: ") for line in lines if line.startswith("BLOCKED: ")]
@@ -97,7 +97,16 @@ def child_failure_cause(stderr: bytes) -> str:
         prefix = line.partition(":")[0]
         if line and (prefix == "Error" or prefix.endswith("Error")):
             candidates.append(line)
-    return (candidates[-1] if candidates else "child_stderr_unclassified")[:240]
+    if candidates:
+        return candidates[-1][:240]
+    # The review loop's terminal refusal is JSON on stdout with empty stderr.
+    # Preserve that diagnostic only; it grants no retry or publication authority.
+    terminal = last_json_line(stdout)
+    if (terminal and terminal.get("schema") == "glp-opus-seo-bridge-escalation-v1"
+            and terminal.get("publication_invoked") is False
+            and terminal.get("status") == "BLOCKED_OPUS_NONCONVERGENCE"):
+        return "review_controller:BLOCKED_OPUS_NONCONVERGENCE"
+    return "child_stderr_unclassified"
 
 
 class ChildFailure(RuntimeError):
@@ -252,7 +261,7 @@ def run_child(
         "stderr": persist_bytes(output_dir / f"{label}.stderr.txt", stderr),
     }
     receipt = output_dir / f"{label}-execution.json"
-    failure_cause = child_failure_cause(stderr) if exit_code != 0 else None
+    failure_cause = child_failure_cause(stderr, stdout) if exit_code != 0 else None
     execution = {
         "schema": "glp-seo-updater-child-execution-v1",
         "status": "PASS_CHILD" if exit_code == 0 else "BLOCKED_CHILD_FAILED",
@@ -365,7 +374,7 @@ def run_effectful_child(
         exit_code = process.wait()
     stdout = stdout_path.read_bytes()
     stderr = stderr_path.read_bytes()
-    failure_cause = child_failure_cause(stderr) if exit_code != 0 else None
+    failure_cause = child_failure_cause(stderr, stdout) if exit_code != 0 else None
     execution = {
         "schema": "glp-seo-updater-effectful-child-v1",
         "status": "COMPLETE",
