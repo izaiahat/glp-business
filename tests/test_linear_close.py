@@ -86,4 +86,4 @@ def test_worker_result_closes_check_only(tmp_path, monkeypatch):
                                         'sha256': shipper_sha}]
     assert 'Installed: scripts/glp_affiliati_postback_ship.py ' + shipper_sha in posted['body'].splitlines()
     output = [line for line in posted['body'].splitlines() if line.startswith('Output: ')]
-    assert output and not lc.lo.is_bare_output(output[0][len('Output: '):])
+    assert len(output) == 1 and 'sha256' not in output[0].split(', ') and '8bb93c91' in output[0]

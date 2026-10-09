@@ -236,12 +236,13 @@ def test_r2_installed_bytes_must_equal_merge(completion, monkeypatch):
 
 
 @pytest.mark.parametrize('observed,ok', [(['rc=0'], False), (['200', 'active', 'ok'], False),
+                                         (['sha256', '2026-10-09', 'deployment'], False),
                                          (['deployment 8bb93c91'], True)])
 def test_r3_exit_code_only_evidence_refused(completion, monkeypatch, capsys, observed, ok):
     """R3: rc=0/ok/200/active alone is not business output; Output: must name real output."""
     _, path, data, writes, _, review = completion
     evidence = Path(data['evidence'][0]['path'])
-    evidence.write_text('drain rc=0 200 active ok deployment 8bb93c91')
+    evidence.write_text('drain rc=0 200 active ok sha256 2026-10-09 deployment 8bb93c91')
     data['evidence'][0].update(sha256=lo.sha(evidence), observed=observed)
     review['body'] = REVIEW.split('\nOutput:')[0] + '\nOutput: ' + observed[0]
     data['review']['body_sha256'] = digest(review['body'])

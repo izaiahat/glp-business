@@ -401,7 +401,10 @@ PROTECTED_EFFECTS = {
 # Exit/HTTP/status tokens alone are not business output (R3).
 BARE_OUTPUT = (r'(?i)\s*(?:(?:rc|exit(?:[ _]?code)?|returncode|status|http)\s*[=:]?\s*)?'
                r'(?:0|ok|okay|success|succeeded|200|201|202|204|active|running|ready|true|'
-               r'pass|passed|done|complete|completed|healthy|green)\s*')
+               r'pass|passed|done|complete|completed|healthy|green)\s*|'
+               # Field names, hash labels and bare timestamps name where output would be, not output.
+               r'\s*(?:[a-z][a-z0-9]*(?:_[a-z0-9]+)*|sha(?:1|256|512)?|'
+               r'\d{4}-\d{2}-\d{2}(?:[T ][0-9:.]+(?:Z|[+-]\d{2}:?\d{2})?)?)\s*')
 
 
 def acceptance_section(description):
