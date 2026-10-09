@@ -5605,7 +5605,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "94ca1f3a3767eececadff2b1ccfc1b337ea55587c70f4b6b642097480c4edf1c"
+      "sha256": "002792f1ab74362dceec68893a1e51b012b1bc2fba560d9756d280ce6038d1ec"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",

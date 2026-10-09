@@ -371,7 +371,7 @@ def harvest(rows: list[dict], fetcher, cache: dict, max_workers: int = 6) -> dic
 
 def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120, max_requests: int = 40):
     """Map-first public evidence; all requests, including polls, share one cap."""
-    key = api_key or _firecrawl_key()
+    key = api_key
     lock = threading.Lock()
     counts = {"requests": 0, "cap": max_requests}
 
@@ -384,7 +384,7 @@ def firecrawl_fetcher(api_key: str | None = None, timeout: int = 120, max_reques
         reserve_request()
         req = urllib.request.Request(
             f"https://api.firecrawl.dev/v2/{path}", data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+            headers={"Authorization": f"Bearer {key or _firecrawl_key()}", "Content-Type": "application/json"})
         from firecrawl_client import firecrawl_urlopen
         with firecrawl_urlopen(req, caller='affiliate_site_evidence', timeout=timeout) as resp:
             return json.load(resp)
