@@ -11,6 +11,24 @@ import glp_release_main as rm  # noqa: E402
 import glp_affiliate_sync_job as job  # noqa: E402
 
 
+def test_rebuild_manifests_are_retained_and_missing_inputs_refuse_skip(tmp_path):
+    names = ('artifacts/ops/build-report.json', 'artifacts/ops/price-index-manifest.json',
+             'artifacts/ops/wave4-deal-ingestion-manifest.json')
+    assert not job.rebuild_inputs_complete(tmp_path)
+    for name in names:
+        p = tmp_path / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('{"fixture":true}')
+    rows = job.build_authority_files(tmp_path)
+    assert tuple(r['file'] for r in rows) == names
+    assert all(r['sha256'] == job.sha(tmp_path / r['file']) for r in rows)
+    assert job.rebuild_inputs_complete(tmp_path)
+    p.unlink()
+    assert not job.rebuild_inputs_complete(tmp_path)
+    p.symlink_to(tmp_path / names[0])
+    assert not job.rebuild_inputs_complete(tmp_path)
+
+
 def test_purge_urls_only_bare_routes_never_hashed_assets():
     specs = [{'url_path': p} for p in ('/', '/assets/site.css', '/assets/analytics.js',
                                        '/assets/analytics.0a0a7729cb628fc7.js', '/sitemap.xml', '/assets/site.css')]

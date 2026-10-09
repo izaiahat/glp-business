@@ -66,6 +66,24 @@ def ci(pr,report):
     return evidence
 
 
+BUILD_AUTHORITY_FILES = (
+    'artifacts/ops/build-report.json',
+    'artifacts/ops/price-index-manifest.json',
+    'artifacts/ops/wave4-deal-ingestion-manifest.json',
+)
+
+
+def rebuild_inputs_complete(root):
+    return all((Path(root) / name).is_file() and not (Path(root) / name).is_symlink()
+               for name in BUILD_AUTHORITY_FILES)
+
+
+def build_authority_files(source):
+    if not rebuild_inputs_complete(source):
+        raise RuntimeError('native_build_rebuild_inputs_missing')
+    return [{'file': name, 'sha256': sha(source / name)} for name in BUILD_AUTHORITY_FILES]
+
+
 def build_gate(source,report,config,head):
     from glp_affiliate_release import pin,SCHEMA
     from glp_deploy_glp34_authority_v1 import package_tree
@@ -102,7 +120,7 @@ writeFileSync('artifacts/ops/affiliate-sync-census.json',JSON.stringify(census))
       'output_before':{'sha256':tree,'files':files},'output_after':{'sha256':tree,'files':files},
       'built_source_sha256':hashlib.sha256(json.dumps(source_rows,ensure_ascii=False,separators=(',',':')).encode()).hexdigest(),
       'generated_diff_sha256':hashlib.sha256(diff).hexdigest(),'generated_diff_paths':changed,
-      'authority_files':[{'file':'artifacts/ops/build-report.json','sha256':sha(source/'artifacts/ops/build-report.json')}],
+      'authority_files':build_authority_files(source),
       'steps':[{'id':'affiliate-census','status':'PASS','evidence':{'raw_held':census}}]}
     save(report/'GATE.json',gate)
 
@@ -119,7 +137,7 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     prior=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     prior_root=Path(prior['release_root'])
     surfaces=['data/program-registry.json','src/affiliate-relationship-sync.mjs','src/go-runtime-selection.mjs','scripts/build-staging.mjs','functions/go/program-manifest.js']
-    if outcome['changed']==0 and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
+    if outcome['changed']==0 and rebuild_inputs_complete(prior_root) and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
         from glp_affiliate_absence_audit import audit
         absence=audit(source,outcome,read(report/'registry/sheet-snapshot.json'),public=prior_root/'public')
         save(report/'ADVERSE-ABSENCE.json',absence)
