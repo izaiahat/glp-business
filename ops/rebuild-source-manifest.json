@@ -8,21 +8,21 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 862,
+  "tracked_count": 864,
   "files": {
-    "tests/test_firecrawl_glp350_pdf.py": {
+    "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
+      "sha256": "bbb62f42a9392d66083e3f5a1bd2d5302bf3d3495dac8452d22bdfe5f9b21187"
     },
-    "systems/seo-blog-machine/scripts/article_pdf.py": {
+    "ops/hermes-cron-scripts/affiliate_site_evidence_daily.sh": {
       "kind": "script",
       "callers": [
-        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
+        "Hermes d4047c17de28 site evidence daily entry"
       ],
-      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
+      "sha256": "e3c4833f1d44ff0dde44219cb9159bf2cb2c8aad2712eb930c798a0834fd5c70"
     },
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -5563,7 +5563,7 @@
       "callers": [
         "cron:8ecc8499748f"
       ],
-      "sha256": "6663a2162c181a90fb060d3711da5a9ef2c766998657b5af902a057e3158d513"
+      "sha256": "6c67f75f4c7dd6a5a026dd076a8e22d65d07fe660fb269465dcbe93cc5877c8f"
     },
     "ops/firecrawl/README.md": {
       "kind": "documentation",
@@ -5775,6 +5775,20 @@
       "callers": [],
       "kind": "test",
       "sha256": "730c7905d9cd445be874bcbcad5761acaa483499bacc444e9eaa860b908f10f1"
+    },
+    "tests/test_firecrawl_glp350_pdf.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
+    },
+    "systems/seo-blog-machine/scripts/article_pdf.py": {
+      "kind": "script",
+      "callers": [
+        "SEO refill PDF page citations: article_pdf.py --url --pages --kind --output"
+      ],
+      "sha256": "6c2f5852881fb582eec34eb270595b06c62ae944ab4d1dc2fe939b6b610a5fb7"
     },
     "tests/test_firecrawl_glp350_serp.py": {
       "kind": "test",
