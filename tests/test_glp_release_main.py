@@ -92,3 +92,28 @@ def test_sync_job_skips_pending_heads_already_in_production(tmp_path, monkeypatc
     assert job.superseded('NEW') is True
     assert job.superseded('OLD', gh=lambda path: {'status': 'ahead'}) is True
     assert job.superseded('OTHER', gh=lambda path: {'status': 'diverged'}) is False
+
+
+def test_main_release_base_skips_stale_prepared_chain_but_requires_terminal_pointer(tmp_path):
+    import hashlib
+    import glp_affiliate_release as release
+    final = tmp_path / 'final.json'
+    final.write_text(json.dumps({'status': 'PASS_PRODUCTION_TERMINAL',
+                                 'deployment': {'deployment_id': 'dep-1'}, 'site_head': 'H'}))
+    pointer = tmp_path / 'pointer.json'
+    good = {'status': 'PASS', 'deployment_id': 'dep-1', 'site_head': 'H',
+            'release_root': str(tmp_path / 'stale/release'),  # no PREPARED.json: never read
+            'final_receipt': {'path': str(final), 'sha256': hashlib.sha256(final.read_bytes()).hexdigest()}}
+    pointer.write_text(json.dumps(good))
+    carrier = SimpleNamespace(POINTER=pointer)
+    assert release.main_release_base(carrier)['deployment_id'] == 'dep-1'
+    for drift in ({'deployment_id': 'dep-2'}, {'status': 'FAIL'}, {'site_head': 'X'}):
+        pointer.write_text(json.dumps({**good, **drift}))
+        with pytest.raises(ValueError, match='main_release_base_not_terminal'):
+            release.main_release_base(carrier)
+    pointer.write_text(json.dumps({**good, 'final_receipt': {**good['final_receipt'], 'sha256': '0' * 64}}))
+    with pytest.raises(ValueError, match='evidence_drift'):
+        release.main_release_base(carrier)
+    # The fresh-main flag defaults off so legacy affiliate-sync callers keep the D1 replay.
+    import glp_deploy_glp34_authority_v1 as carrier_module
+    assert carrier_module.MAIN_RELEASE_FRESH is False

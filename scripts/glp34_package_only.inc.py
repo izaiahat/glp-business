@@ -272,6 +272,9 @@ def main(argv: list[str] | None = None) -> int:
 # Current-head successor. Historical authority bodies above stay unchanged.
 CURRENT_ROLLBACK = "8291d24b-a1c6-4340-bd42-2efa9f2ba2b7"
 CURRENT_REPOSITORY = "izaiahat/glp-site-candidate"
+# Workflow v3 operator-approved-main-release: a fresh build from merged main is not a
+# pinned D1 successor; skip only the frozen D1 route-shape/binding replay for it.
+MAIN_RELEASE_FRESH = False
 # Rebuilt 2026-10-09 from the unchanged package-lock.json (wrangler 4.114.0, npm ci
 # --ignore-scripts --no-bin-links) after a host pruner deleted node_modules.
 CURRENT_TOOLCHAIN = {"closure_sha256": "6542fa639a408d4bbf71e085c0b3f2b7db6d2e6cd3f3b1b4852a7beede853b5b",
@@ -610,7 +613,7 @@ def run_prepare_current(args: argparse.Namespace) -> dict[str, Any]:
             if sha_file(release / name) != digest:
                 fail("current_release_copy_drift")
         compiled = current_compile(compile_root)
-        if rollback == CURRENT_D1["rollback"]:
+        if rollback == CURRENT_D1["rollback"] and not MAIN_RELEASE_FRESH:
             current_d1_routes(compiled["routes"])
         if (gate.get("schema") in ("glp-f06-distributed-release-result-v1", "glp-affiliate-sync-release-result-v1")
                 and not any(r["route"] == "/api/postback/xentraffic" and r["modules"] for r in compiled["routes"])):
@@ -668,7 +671,7 @@ def current_prepared(root: Path, digest: str) -> dict[str, Any]:
     package = current_json(root / "PACKAGE-MANIFEST.json", value["package_manifest_sha256"])
     current_deploy_public(root / "deploy-public", package["files"], value["compiled"]["worker_sha256"])
     gate = current_json(root / "gate.json", value["build_receipt"]["sha256"])
-    if rollback == CURRENT_D1["rollback"]:
+    if rollback == CURRENT_D1["rollback"] and not MAIN_RELEASE_FRESH:
         current_d1_predecessor(base64.b64decode(value["predecessor_pointer"]["bytes_base64"], validate=True))
         current_d1_routes(current_routes((root / "deploy-public/_worker.js").read_bytes()))
         binding = current_d1_binding(value["site_head"], value["build_receipt"]["sha256"], value["package_manifest_sha256"])
