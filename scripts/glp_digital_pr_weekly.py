@@ -29,7 +29,7 @@ from zoneinfo import ZoneInfo
 BUSINESS = Path("/home/ubuntu/business")
 if str(BUSINESS) not in sys.path:
     sys.path.insert(0, str(BUSINESS))
-from scripts.glp_current_content_base_schema import validate_pointer_shape  # noqa: E402
+from scripts.glp_current_content_base_schema import is_prepared_pointer, validate_pointer_shape  # noqa: E402
 
 CONTENT_BASE_POINTER = BUSINESS / "reports/glp-clinic-scout/seo-machine/current-content-base.json"
 TARGETS_PATH = BUSINESS / "reports/glp-clinic-scout/growth/build-2-digital-pr-targets-20260808.json"
@@ -207,21 +207,51 @@ def https_url(value: Any) -> bool:
     return parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username and not parsed.password
 
 
+def _prepared_base_evidence(pointer: dict[str, Any], release_root: Path) -> dict[str, Any]:
+    """Validate a prepared pointer with the same evidence chain as other consumers."""
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from glp_price_index_weekly import _validate_base_evidence
+
+    return _validate_base_evidence(pointer, release_root)
+
+
 def resolve_content_base(
     pointer_path: Path = CONTENT_BASE_POINTER,
     *,
     releases_root: Path = BUSINESS / "site-system/flagship-v2/releases",
 ) -> ContentBase:
     pointer, pointer_raw = read_json(pointer_path)
+    prepared = is_prepared_pointer(pointer)
     try:
+        # GLP-43 prepared pointers live outside flagship releases/; their root
+        # custody is proven by the shared prepared-base evidence validator.
         validate_pointer_shape(
             pointer,
-            releases_root=releases_root,
+            releases_root=None if prepared else releases_root,
             require_release_dirs=True,
         )
     except RuntimeError as exc:
         raise DigitalPRError(f"content_base_pointer_invalid:{exc}") from exc
     release_root = Path(str(pointer.get("release_root") or ""))
+    if prepared:
+        try:
+            evidence = _prepared_base_evidence(pointer, release_root)
+        except RuntimeError as exc:
+            raise DigitalPRError(f"content_base_prepared_evidence_invalid:{exc}") from exc
+        tracker_path = release_root / "data/price-tracker.json"
+        tracker, tracker_raw = read_json(tracker_path)
+        return ContentBase(
+            pointer_path=pointer_path,
+            pointer_sha256=sha256_bytes(pointer_raw),
+            release_root=release_root,
+            release_tree_sha256=evidence["release_tree_sha256"],
+            price_tracker_path=tracker_path,
+            price_tracker_sha256=sha256_bytes(tracker_raw),
+            pointer=pointer,
+            tracker=tracker,
+        )
     releases_root = releases_root.resolve()
     try:
         release_root.resolve().relative_to(releases_root)

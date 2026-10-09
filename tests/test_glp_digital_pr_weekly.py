@@ -551,3 +551,30 @@ def test_sender_and_zero_effect_held_state_are_explicit(tmp_path: Path):
         "secret_reads": 0,
     }
     assert not paths["send_receipts"].exists()
+
+
+def test_prepared_pointer_outside_flagship_releases_resolves_via_shared_evidence(tmp_path: Path, monkeypatch):
+    # Regression: the live GLP-43 prepared pointer lives under reports/.../prepared/release,
+    # so the flagship releases_root containment check BLOCKED every weekly run.
+    paths = fixture_files(tmp_path, tracker_for(base_rows()), target_packet([target_row()]))
+    prepared_release = tmp_path / "reports/ops/run/prepared/release"
+    prepared_release.parent.mkdir(parents=True)
+    paths["release"].rename(prepared_release)
+    pointer = json.loads(paths["pointer"].read_text(encoding="utf-8"))
+    pointer.update({"release_root": str(prepared_release), "site_head": "a" * 40, "deploy_directory_sha256": "f" * 64})
+    paths["pointer"].write_text(json.dumps(pointer) + "\n", encoding="utf-8")
+    calls = []
+
+    def evidence(ptr, release):
+        calls.append(release)
+        return {"release_tree_sha256": ptr["release_tree_sha256"]}
+
+    monkeypatch.setattr(pr, "_prepared_base_evidence", evidence)
+    base = pr.resolve_content_base(paths["pointer"], releases_root=paths["releases"])
+    assert calls == [prepared_release]
+    assert base.release_root == prepared_release
+    assert base.tracker["price_index"]["route"] == pr.PRICE_INDEX_ROUTE
+
+    monkeypatch.setattr(pr, "_prepared_base_evidence", lambda *_: (_ for _ in ()).throw(RuntimeError("tampered")))
+    with pytest.raises(pr.DigitalPRError, match="content_base_prepared_evidence_invalid:tampered"):
+        pr.resolve_content_base(paths["pointer"], releases_root=paths["releases"])
