@@ -1,0 +1,71 @@
+{
+  "schema": "glp76-maintained-successor-source-v1",
+  "operator_approval": {
+    "path": "/home/ubuntu/business/ops/linear/approvals/OPERATOR-DEPLOY-COPY-FDA-QA-20261003.md",
+    "sha256": "4d8e6f316fc4c75deb17d5118994c13517eeffd12dabb81be817daa6f5fc4ac0"
+  },
+  "operator_quote_scope": {
+    "path": "/home/ubuntu/business/reports/ops/operator-deploy-copy-fda-qa-20261003/FDA-SCOPE-BINDING.json",
+    "sha256": "a4cb870054ad20c279edc80b9821b1a63f91df3af1b67190d37664fc5ac2c483"
+  },
+  "source_sha256": {
+    "00-authority.json": "8d06a816be978a3334c1917c423dbb3ec095a6c9c1252685cb076634360bddfe",
+    "01-evidence-ledger.json": "1684e91078e405d4194b77b4db9e0b46ed32fcc47f4394d807b100f6133fe3ed",
+    "02-serp-brief.json": "214a5bd6a05439d478be5dedc8e4f2a3f5cecfaf2937f05a80a613d14ae7af53",
+    "03-editorial-brief.md": "ed91f4d7da4479d88c002344cb062a8aa81722dbe847df63fa9b21200dc2a07d",
+    "04-draft.md": "0ca0bfe5c422c03cdde315f974f9be7516e1e9492ae203d08535863de84cd29f",
+    "05-claim-source-map.json": "d9ebb1a32389d2f127e8371fdcba28469e3c7d5f5ae742a2a684215bd2ca7d16"
+  },
+  "source_tuple_sha256": "8a6c035e23e7b75ac9bea61bb158f1ae4303cc91b8aae0e24546a0acc6e0e623",
+  "tuple_hash_encoding": "SHA256 of JSON source_sha256 sorted keys, compact separators, UTF-8, no trailing newline",
+  "draft_sha256": "0ca0bfe5c422c03cdde315f974f9be7516e1e9492ae203d08535863de84cd29f",
+  "native_qa": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/packet/07-qa-receipt.json",
+    "sha256": "de875c4c5ae3a2953397226426adcfe375a6b3ebde5c9a83188b88b22170adb0"
+  },
+  "native_qa_status": "PASS",
+  "native_job": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/review-job-glp76-approved-fda-20261003T2350.json",
+    "sha256": "814fd51563fd8612164c7ee7e2aad27115f592379f91a8f6186b0cb0c9f88120"
+  },
+  "original_topic_snapshot": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/fable-request/original-topic-authority-snapshot.json",
+    "sha256": "e9b20a2de97c4f62a06453aaaa45ec9d39f3eb597eb829e2f1345bcc45997efa"
+  },
+  "original_topic_snapshot_provenance": {
+    "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/review-job-r2-54abb90fc94b77a50f58-webhook-20261003T012017Z.json",
+    "sha256": "944ab5d85626d56eef50cc2e64cedf342b904b4c077b950feaa753b40f6741e6"
+  },
+  "current_topic_snapshot": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/topic-queue-snapshot-glp76-approved-fda-20261003T2350.json",
+    "sha256": "54d0dd011a050db3e57f51ad8c62ea5931e6ec5ea5c5f563ad4966e1e8ba25b0"
+  },
+  "selection": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/authority/01-r2-54abb90fc94b77a50f58-selection.json",
+    "receipt_sha256": "5c1ee18bd1b2da13c8d50a5ab9e51970508f79902b6708fe218491ef3cce3d30",
+    "sha256": "e4aea9c157aef3d1f2828ed5c96b16671aef1b4eecb366ee5901feebf95ce692"
+  },
+  "base_deployment": "8bb93c91-59fe-4a3b-b050-a956479c6ef5",
+  "status": "PREPARED_NATIVE_QA_PASS_INDEPENDENT_FABLE_PENDING_NOT_RELEASE_AUTHORITY",
+  "original_draft_sha256": "fa879ae8bb8a01bd77eafd36f933c7fa5074cbcc519ef8063b2840277e7c50ff",
+  "original_quotes_preserved": 27,
+  "original_claims_preserved": 47,
+  "approved_added_quote_ids": [
+    "S4-Q9",
+    "S1-Q5",
+    "S1-Q6"
+  ],
+  "packet_report_path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/native-preparation/packet",
+  "fable_request": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/FABLE-REQUEST.txt",
+    "sha256": "48af87a5c363b2fdcc3903724cc664bcf2e6fc21c2ea31e56704d99c1a0e1ca0"
+  },
+  "fable_handoff": {
+    "path": "/home/ubuntu/business/reports/ops/glp76-approved-fda-successor-20261003/FABLE-HANDOFF.json",
+    "sha256": "9a74637567434fbc11dd903deb4854b49bb62e7c05887fa98f3cc50998451cf3"
+  },
+  "fable_request_id": null,
+  "fable_reply_id": null,
+  "publication_invoked": false,
+  "receiving_limit": "Archive is not native queue admission. Parent must obtain real Fable verdict, coordinate exact installation of missing PR213 rebinder and packet admission through maintained registered producer. Preserve original daily packet, old job/claim/slot evidence. Any accepted GLP44 successor invalidates current-base prepared apply pins; rebind metadata using maintained producer and rerun necessary QA/review before registered publication."
+}

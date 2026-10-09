@@ -1,0 +1,706 @@
+{
+  "schema": "glp-opus-evidence-ledger-v1",
+  "status": "PASS_CURRENT_RUN_FIRECRAWL_CAPTURE_WITH_EXPLICIT_LIMITS",
+  "exact_query": "compounded tirzepatide vs zepbound",
+  "article_id": "national-wow-medium-compounded-tirzepatide-vs-zepbound-regulatory-status-20260723",
+  "topic_id": "r2-54abb90fc94b77a50f58",
+  "route": "/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+  "capture_date": "2026-10-03",
+  "source_boundary": {
+    "regulator": "FDA pages own approval, compounding, shortage-list, and 503A/503B statements.",
+    "manufacturer_and_approval_record": "FDA-hosted label, Lilly prescribing information, and Drugs@FDA own Zepbound identity and approval-record statements.",
+    "search_and_baseline": "Firecrawl search and live baseline captures support intent, structure, and current-page identity only; they do not support treatment, suitability, or provider claims.",
+    "unsupported_inferences": [
+      "product equivalence",
+      "individual eligibility",
+      "prescription decision",
+      "dose or switching instruction",
+      "coverage, savings, or outcome"
+    ],
+    "approved_supplemental_scope": "Supplemental FDA quotations S4-Q9/S1-Q5/S1-Q6 were adopted under OPERATOR-DEPLOY-COPY-FDA-QA-20261003; their retained October 2/3 Pacific capture clocks are not fresh checks of the September sources."
+  },
+  "source_pack": {
+    "provider": "Firecrawl MCP",
+    "mode": "search_then_maxAge_0_directQuote",
+    "raw_response_policy": "MCP-normalized captures are labeled as such; byte-exact network response bytes were not exposed by this runtime.",
+    "search_receipt": {
+      "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S0-exact-search-normalized.json",
+      "sha256": "7cbcccd0735370832d8bf7e898ef3b4d01200d9d60dbdc15e9b9eac44c002c59"
+    },
+    "search_id": "01a06a0f-bf8a-702c-9949-1413338016be",
+    "feedback_id": "01a06a0f-e009-7031-a558-d88e1c692be2"
+  },
+  "sources": [
+    {
+      "source_id": "S1",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_unapproved_glp1_statement",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss",
+      "requested_url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss",
+      "final_url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fdas-concerns-unapproved-glp-1-drugs-used-weight-loss",
+      "title": "FDA’s Concerns with Unapproved GLP-1 Drugs Used for Weight Loss",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-10-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-6aab-743a-a4c2-178fca1f98b2",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S1-fda-unapproved-directquote.json",
+        "sha256": "cffa148f7b46c3acffc6e10ef15551f65ccd28db13eae414b2c6ba6d9d33457a"
+      },
+      "supplemental_captures": [
+        {
+          "checked_at_utc": "2026-10-03T01:30:10Z",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S21-fda-unapproved-glp1-equivalence-warning-firecrawl.json",
+          "sha256": "0db1d508ed0e7258e999197943cda85d305274feee567caf9f63887a841e8bc7"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S25-fda-unapproved-glp1-dosing-errors-firecrawl.json",
+          "sha256": "378b543168abd42f5d9ef60b0144c773c54dc7dc597f4252f09a750df8a509c7",
+          "checked_at_utc": "2026-10-03T07:11:23Z"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S26-fda-unapproved-glp1-counterfeit-illegal-firecrawl.json",
+          "sha256": "4b52d21576d20a6fe1f15b12e8971efdf79cacd79b6c16ae4794eae9aeec9a61",
+          "checked_at_utc": "2026-10-03T07:11:23Z"
+        }
+      ],
+      "extract_sha256": "35a899d7ac8a62abedee183cd0777e75bda44f44609cc356fb6070953d0b4fb7",
+      "limitations": [
+        "The source addresses unapproved GLP-1 versions generally and does not assess a named preparation, pharmacy, facility, prescription, or batch.",
+        "MCP returned an answer excerpt rather than full Markdown; quote membership is bound to the saved answer field.",
+        "The first paragraph's measurement/self-administration errors and some hospitalizations concern compounded injectable semaglutide, not specifically tirzepatide. The separate second paragraph includes compounded semaglutide or tirzepatide prescribed beyond label doses. Preserve may be related; do not assert established causation, tirzepatide-specific hospitalization counts, risk rates, or dosing/conversion instructions.",
+        "Supplemental evidence is a retained normalized Firecrawl record, not recovered raw network bytes or a fresh FDA fetch; checked_at_utc records saved evidence because provider response timestamps were not exposed.",
+        "The subject is illegally marketed semaglutide and tirzepatide. Do not equate all compounding with counterfeiting, accuse a named seller or batch, or turn state-licensed-pharmacy guidance into an individual safety/legality endorsement."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S1-Q1",
+          "text": "However, compounded drugs are not FDA approved. This means the agency does not review compounded drugs for safety, effectiveness or quality before they are marketed.",
+          "quote_sha256": "93cfb0041c31c2e6697684807e7fb9bc14b7f1d1416afeae91aea3915ce36b49",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S1-fda-unapproved-directquote.json",
+            "sha256": "cffa148f7b46c3acffc6e10ef15551f65ccd28db13eae414b2c6ba6d9d33457a",
+            "checked_at_utc": "2026-09-04T01:24:29.483Z"
+          }
+        },
+        {
+          "quote_id": "S1-Q2",
+          "text": "This can be risky for patients, as unapproved versions do not undergo FDA’s review for safety, effectiveness and quality before they are marketed.",
+          "quote_sha256": "292be9bca6a48485f1ec0368db39a823fc08c68f8ea2ee57ef7fb9b77ea414ef",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S1-fda-unapproved-directquote.json",
+            "sha256": "cffa148f7b46c3acffc6e10ef15551f65ccd28db13eae414b2c6ba6d9d33457a",
+            "checked_at_utc": "2026-09-04T01:24:29.483Z"
+          }
+        },
+        {
+          "quote_id": "S1-Q3",
+          "text": "makes claims such as the compounded drug is the same as an FDA-approved drug",
+          "quote_sha256": "a29c20c35f4ed51ad6b0817d08618057dabbfa618acb8cb376f430950538df61",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S1-fda-unapproved-directquote.json",
+            "sha256": "cffa148f7b46c3acffc6e10ef15551f65ccd28db13eae414b2c6ba6d9d33457a",
+            "checked_at_utc": "2026-09-04T01:24:29.483Z"
+          }
+        },
+        {
+          "quote_id": "S1-Q4",
+          "text": "Look for these warning signs, including if a company:\n\n- makes claims such as the compounded drug is the same as an FDA-approved drug",
+          "quote_sha256": "9a93618a01f3ba4f44b4ee948ed30d98594063d371c3bb00ef1cbf454fabb008",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S21-fda-unapproved-glp1-equivalence-warning-firecrawl.json",
+            "sha256": "0db1d508ed0e7258e999197943cda85d305274feee567caf9f63887a841e8bc7",
+            "checked_at_utc": "2026-10-03T01:30:10Z"
+          }
+        },
+        {
+          "quote_id": "S1-Q5",
+          "text": "FDA received multiple reports of adverse events, some requiring hospitalization, that may be related to [dosing errors](https://www.fda.gov/drugs/human-drug-compounding/fda-alerts-health-care-providers-compounders-and-patients-dosing-errors-associated-compounded) associated with compounded injectable semaglutide products. These dosing errors resulted from patients measuring and self-administering incorrect doses of the drug, and in some cases, health care professionals miscalculating doses of the drug.\n\nAdditionally, the agency has received adverse event reports that may be related to patients prescribed compounded semaglutide or tirzepatide products in doses beyond what is in the FDA-approved drug label. This could mean using more product in a single dose, taking doses more frequently or increasing the amount more quickly (titration schedule). Some of the adverse events are serious and some patients reported seeking medical attention for their symptoms, including nausea, vomiting, diarrhea, abdominal pain and constipation.",
+          "quote_sha256": "7b79e367fee84a86c93d079e8aceef7b8707f92b33199d5557220c8eb500bb48",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S25-fda-unapproved-glp1-dosing-errors-firecrawl.json",
+            "sha256": "378b543168abd42f5d9ef60b0144c773c54dc7dc597f4252f09a750df8a509c7",
+            "checked_at_utc": "2026-10-03T07:11:23Z"
+          }
+        },
+        {
+          "quote_id": "S1-Q6",
+          "text": "FDA monitors the internet for fraudulent or unapproved drugs and has issued [warning letters](https://www.fda.gov/drugs/drug-supply-chain-integrity/internet-pharmacy-warning-letters) to stop the distribution of illegally marketed semaglutide and tirzepatide. These illegally marketed drugs:\n\nmay be counterfeit\n\ncould contain the wrong ingredients or harmful ingredients\n\ncould contain too little, too much or no active ingredient at all\n\nThe agency urges consumers to be vigilant when purchasing drugs online and only purchase from [state-licensed pharmacies](https://www.fda.gov/drugs/besaferx-your-source-online-pharmacy-information/locate-state-licensed-online-pharmacy).",
+          "quote_sha256": "06920c524ec4b81b2c6918f9d8672754925887b1bc9d73bc46bdefbc92f75687",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S26-fda-unapproved-glp1-counterfeit-illegal-firecrawl.json",
+            "sha256": "4b52d21576d20a6fe1f15b12e8971efdf79cacd79b6c16ae4794eae9aeec9a61",
+            "checked_at_utc": "2026-10-03T07:11:23Z"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S2",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_compounding_qa",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.fda.gov/drugs/human-drug-compounding/compounding-and-fda-questions-and-answers",
+      "requested_url": "https://www.fda.gov/drugs/human-drug-compounding/compounding-and-fda-questions-and-answers",
+      "final_url": "https://www.fda.gov/drugs/human-drug-compounding/compounding-and-fda-questions-and-answers",
+      "title": "Compounding and the FDA: Questions and Answers | FDA",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-10-02",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-73d5-776e-89c5-f8be83040aa5",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S2-fda-compounding-qa-directquote.json",
+        "sha256": "9950b75e24146f5e038c651a6aaa76dd216c2d33a65c006f3a5d4e4a54a12a30"
+      },
+      "supplemental_captures": [
+        {
+          "checked_at_utc": "2026-10-03T01:30:10Z",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S22-fda-compounding-qa-503b-firecrawl.json",
+          "sha256": "53d4c48b2d10ae145b4ea392b332a049ec0f41ae3accff2ed4df7b917cbaac49"
+        }
+      ],
+      "extract_sha256": "93f9aae66d230fbd4283705507202008397af99671694b82e10c6707f31baeb9",
+      "limitations": [
+        "The Q&A gives general federal compounding categories and does not decide whether compounding is appropriate for an individual or transaction.",
+        "The shortage-list language is conditional and is not a current transaction-level status determination."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S2-Q1",
+          "text": "A drug may be [compounded](https://www.fda.gov/drugs/guidance-compliance-regulatory-information/human-drug-compounding) for a patient who cannot be treated with an FDA-approved medication, such as a patient who has an allergy to a certain dye and needs a medication to be made without it, or an elderly patient or a child who cannot swallow a tablet or capsule and needs a medicine in a liquid dosage form. In these situations, compounding can serve an important patient need.",
+          "quote_sha256": "b14c49e627efaa0432c81b0b11667b5d0566ed2cb0431264d9d7f12c32c751d1",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S2-fda-compounding-qa-directquote.json",
+            "sha256": "9950b75e24146f5e038c651a6aaa76dd216c2d33a65c006f3a5d4e4a54a12a30",
+            "checked_at_utc": "2026-09-04T01:24:31.829Z"
+          }
+        },
+        {
+          "quote_id": "S2-Q2",
+          "text": "Compounded drugs are not FDA-approved.",
+          "quote_sha256": "ef9242bd04fe7fd909f11ea48451bc9abf25080d0f3dc36a02421d09e81a5261",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S2-fda-compounding-qa-directquote.json",
+            "sha256": "9950b75e24146f5e038c651a6aaa76dd216c2d33a65c006f3a5d4e4a54a12a30",
+            "checked_at_utc": "2026-09-04T01:24:31.829Z"
+          }
+        },
+        {
+          "quote_id": "S2-Q3",
+          "text": "Compounded drugs should only be used in patients whose medical needs cannot be met by an FDA-approved drug.",
+          "quote_sha256": "a978e147249cad176381abcc01f0b1e23997f6ce99a83e99b50df80715ce979e",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S2-fda-compounding-qa-directquote.json",
+            "sha256": "9950b75e24146f5e038c651a6aaa76dd216c2d33a65c006f3a5d4e4a54a12a30",
+            "checked_at_utc": "2026-09-04T01:24:31.829Z"
+          }
+        },
+        {
+          "quote_id": "S2-Q4",
+          "text": "Drugs compounded in outsourcing facilities are subject to current good manufacturing practice (CGMP) requirements. By contrast, drugs compounded by a licensed pharmacist in a state-licensed pharmacy or federal facility, or by a physician, in accordance with the conditions of section 503A of the FD&C Act, are not.",
+          "quote_sha256": "48d9712d79b1178cbc71cb04d8e0d66375f1933cfd1531039b4f6f150ac93510",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S2-fda-compounding-qa-directquote.json",
+            "sha256": "9950b75e24146f5e038c651a6aaa76dd216c2d33a65c006f3a5d4e4a54a12a30",
+            "checked_at_utc": "2026-09-04T01:24:31.829Z"
+          }
+        },
+        {
+          "quote_id": "S2-Q5",
+          "text": "Facilities that register with FDA as outsourcing facilities under section 503B are primarily overseen by FDA and inspected by FDA according to a risk-based schedule.",
+          "quote_sha256": "9f95ffdaef44ce62a28acf77c4adc39a5981544570defa96f66b5710dc64f5a2",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S22-fda-compounding-qa-503b-firecrawl.json",
+            "sha256": "53d4c48b2d10ae145b4ea392b332a049ec0f41ae3accff2ed4df7b917cbaac49",
+            "checked_at_utc": "2026-10-03T01:30:10Z"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S3",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_compounding_policy_update",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fda-clarifies-policies-compounders-national-glp-1-supply-begins-stabilize",
+      "requested_url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fda-clarifies-policies-compounders-national-glp-1-supply-begins-stabilize",
+      "final_url": "https://www.fda.gov/drugs/drug-alerts-and-statements/fda-clarifies-policies-compounders-national-glp-1-supply-begins-stabilize",
+      "title": "FDA clarifies policies for compounders as national GLP-1 supply begins to stabilize | FDA",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-09-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-7d80-72bf-824a-44c5f6d9d71c",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S3-fda-policy-update-directquote.json",
+        "sha256": "91526586443b03b338821b555cb5a33fa4740d560ca6576661030f52a5734fe5"
+      },
+      "extract_sha256": "36784efa23447581420f2c7a161c484bf2893edbf156a0707123558b97032c14",
+      "limitations": [
+        "The page contains dated historical updates; the 4/1/2026 status is not converted into an undated September guarantee.",
+        "It does not establish individual eligibility, named compounder compliance, local inventory, or a specific batch."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S3-Q1",
+          "text": "[4/1/2026] FDA reminds compounders certain conditions must be met for compounded drugs to qualify for the exemptions under sections 503A and 503B of the FD&C Act, including the highlights below.",
+          "quote_sha256": "76db9d5464cfcfd50fc87cdab13fb0d5db373f17db5b1874955e2c2bc74286f5",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S3-fda-policy-update-directquote.json",
+            "sha256": "91526586443b03b338821b555cb5a33fa4740d560ca6576661030f52a5734fe5",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        },
+        {
+          "quote_id": "S3-Q2",
+          "text": "Tirzepatide and semaglutide do not currently appear on the 503B bulks list or on FDA’s drug shortage list.",
+          "quote_sha256": "4e96b7110aa39e71baacaf0fc83d1450f023344474d043987bf7e29a99fbf414",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S3-fda-policy-update-directquote.json",
+            "sha256": "91526586443b03b338821b555cb5a33fa4740d560ca6576661030f52a5734fe5",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S4",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_current_zepbound_label",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/217806s002lbl.pdf",
+      "requested_url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/217806s002lbl.pdf",
+      "final_url": "https://www.accessdata.fda.gov/drugsatfda_docs/label/2026/217806s002lbl.pdf",
+      "title": "ZEPBOUND (tirzepatide) injection, for subcutaneous use",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_PDF_DIRECT_QUOTE",
+      "checked_date": "2026-10-02",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP PDF directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-8735-71b2-ac17-275b47a6db2c",
+      "num_pages": 61,
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+        "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32"
+      },
+      "supplemental_captures": [
+        {
+          "checked_at_utc": "2026-10-03T01:30:10Z",
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S23-fda-zepbound-label-indications-safety-trials-firecrawl.json",
+          "sha256": "2e88ab8ef7d77f6e1845f222b2726f827f6e82e7001ad27a3a9c639f97747531"
+        },
+        {
+          "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S24-fda-zepbound-label-boxed-warning-firecrawl.json",
+          "sha256": "6eee5ee5b7a936ae73a16e954291bb91af0eb518e181795f2b5357a1a68c93b9",
+          "checked_at_utc": "2026-10-03T06:48:02Z"
+        }
+      ],
+      "extract_sha256": "5658416779cfe04d5c82cf284c7dd45865f5e114a2450ebce16753ad3085eb9d",
+      "limitations": [
+        "The label supports Zepbound-specific identity, indication, presentation, and labeling statements; those statements do not transfer to a compounded preparation.",
+        "The captured box concerns thyroid C-cell tumors in rats; human relevance is unknown. Family history qualifies MTC, not MEN 2. Neither this quote nor Zepbound trial data validates a compounded preparation or an individual treatment decision.",
+        "Supplemental evidence is a retained normalized Firecrawl record, not recovered raw network bytes or a fresh FDA fetch; checked_at_utc records saved evidence because provider response timestamps were not exposed."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S4-Q1",
+          "text": "ZEPBOUND ®(tirzepatide) Injection, for subcutaneous use Initial U.S. Approval: 2022",
+          "quote_sha256": "ffe5c6c4888f50d9b9d9e0335812af66adf777def6c5e51e462cf317efe86a40",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+            "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32",
+            "checked_at_utc": "2026-09-04T01:24:36.789Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q2",
+          "text": "ZEPBOUND is a glucose-dependent insulinotropic polypeptide (GIP) receptor and glucagon-like peptide-1 (GLP-1) receptor agonist indicated in combination with a reduced-calorie diet and increased physical activity:",
+          "quote_sha256": "9f7b6b0a344872e088692c81219afd49fa2079a74c3814590500ec8b61a2bd9c",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+            "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32",
+            "checked_at_utc": "2026-09-04T01:24:36.789Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q3",
+          "text": "Injection: 2.5 mg, 5 mg, 7.5 mg, 10 mg, 12.5 mg, or 15 mg per 0.5 mL in single-dose pen or single-dose vial (3)",
+          "quote_sha256": "e23b57d3bbb530514a9147e90b5ffc69fdc54b309b6381a7767569fb146c130b",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+            "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32",
+            "checked_at_utc": "2026-09-04T01:24:36.789Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q4",
+          "text": "• to reduce excess body weight and maintain weight reduction long term in adults with obesity or adults with overweight in the presence of at least one weight-related comorbid condition.",
+          "quote_sha256": "ab7463fd21b2bd6602746d8bc09a7a19fe9e83c30c747da447814951298319db",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+            "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32",
+            "checked_at_utc": "2026-09-04T01:24:36.789Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q5",
+          "text": "• to treat moderate to severe obstructive sleep apnea (OSA) in adults with obesity.",
+          "quote_sha256": "e995c36c1587d55728a48c9171920a7a6c7f0692d5cbf2da9e57f835f0d14f74",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S4-fda-zepbound-label-directquote.json",
+            "sha256": "70c148fb54a3ff9b2f959a26967e1c89d23d24870b81772346e6ff208c254f32",
+            "checked_at_utc": "2026-09-04T01:24:36.789Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q6",
+          "text": "The most common adverse reactions, reported in ≥5% of patients treated with ZEPBOUND are: nausea, diarrhea, vomiting, constipation, abdominal pain, dyspepsia, injection site reactions, fatigue, hypersensitivity reactions, eructation, hair loss, gastroesophageal reflux disease.",
+          "quote_sha256": "99c7fe8f744bb3a3899dc7a5004811976a6f945a5b0948f68a8305d03825fb84",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S23-fda-zepbound-label-indications-safety-trials-firecrawl.json",
+            "sha256": "2e88ab8ef7d77f6e1845f222b2726f827f6e82e7001ad27a3a9c639f97747531",
+            "checked_at_utc": "2026-10-03T01:30:10Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q7",
+          "text": "The efficacy of ZEPBOUND for weight reduction in conjunction with a reduced-calorie diet and increased physical activity was studied in two randomized, double-blind, placebo-controlled fixed-dosage trials (Study 1 and Study 2) in adults aged 18 years and older.",
+          "quote_sha256": "96c7fa75dc07ad9d17455afc559966a518520da15bd7260f448feac4a7098b69",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S23-fda-zepbound-label-indications-safety-trials-firecrawl.json",
+            "sha256": "2e88ab8ef7d77f6e1845f222b2726f827f6e82e7001ad27a3a9c639f97747531",
+            "checked_at_utc": "2026-10-03T01:30:10Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q8",
+          "text": "ZEPBOUND was evaluated in 2 randomized, double-blind, placebo-controlled trials (Study 5 and Study 6) that included a total of 467 adult patients with moderate to severe OSA and obesity [see Clinical Studies (14.2)].",
+          "quote_sha256": "67db4d651ec8de3829a12f49c034f9bc717b11e4cbd3cf851d147d20d48be263",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-2fee278426fa277e-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-03-2fee278426fa277e/research/S23-fda-zepbound-label-indications-safety-trials-firecrawl.json",
+            "sha256": "2e88ab8ef7d77f6e1845f222b2726f827f6e82e7001ad27a3a9c639f97747531",
+            "checked_at_utc": "2026-10-03T01:30:10Z"
+          }
+        },
+        {
+          "quote_id": "S4-Q9",
+          "text": "WARNING: RISK OF THYROID C-CELL TUMORS\n\n• In rats, tirzepatide causes dose-dependent and treatment-duration-dependent thyroid C-cell tumors at clinically relevant exposures. It is unknown whether ZEPBOUND causes thyroid C-cell tumors, including medullary thyroid carcinoma (MTC), in humans as human relevance of tirzepatide-induced rodent thyroid C-cell tumors has not been determined [see Warnings and Precautions (5.1) and Nonclinical Toxicology (13.1)].\n\n• ZEPBOUND is contraindicated in patients with a personal or family history of MTC or in patients with Multiple Endocrine Neoplasia syndrome type 2 (MEN 2) [see Contraindications (4)]. Counsel patients regarding the potential risk for MTC with the use of ZEPBOUND and inform them of symptoms of thyroid tumors (e.g., a mass in the neck, dysphagia, dyspnea, persistent hoarseness). Routine monitoring of serum calcitonin or using thyroid ultrasound is of uncertain value for early detection of MTC in patients treated with ZEPBOUND [see Contraindications (4) and Warnings and Precautions (5.1)].",
+          "quote_sha256": "781ecff83e138adc13fb55b325708316a76b746960835b9db0d627374315cab6",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-02eeed71c6684d76-continuation-9fa60c4fcc84/updater-attempts/fbd98f369acf0650c802/attempt-04-02eeed71c6684d76/research/S24-fda-zepbound-label-boxed-warning-firecrawl.json",
+            "sha256": "6eee5ee5b7a936ae73a16e954291bb91af0eb518e181795f2b5357a1a68c93b9",
+            "checked_at_utc": "2026-10-03T06:48:02Z"
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S5",
+      "publisher": "Eli Lilly and Company",
+      "source_type": "primary_manufacturer_prescribing_information",
+      "tier": "primary_manufacturer",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://pi.lilly.com/us/zepbound-uspi.pdf",
+      "requested_url": "https://pi.lilly.com/us/zepbound-uspi.pdf",
+      "final_url": "https://pi.lilly.com/us/zepbound-uspi.pdf",
+      "title": "ZEPBOUND (tirzepatide) U.S. Prescribing Information",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_PDF_DIRECT_QUOTE",
+      "checked_date": "2026-09-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP PDF directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-b0ce-7568-a778-fd25f1415d17",
+      "num_pages": 33,
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S5-lilly-zepbound-pi-directquote.json",
+        "sha256": "087ec72fdd707382a16a36b492176d1a18ed2d53bd7a066cb7b6cf63a46a0466"
+      },
+      "extract_sha256": "b75e909802e8b096d9ba443124d467675fa9174161e09c9b4dc2b7f718b41e61",
+      "limitations": [
+        "This manufacturer document supports only statements attributed to Zepbound and does not establish compounded-product quality, equivalence, eligibility, or outcomes."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S5-Q1",
+          "text": "ZEPBOUND® (tirzepatide) Injection, for subcutaneous use Initial U.S.",
+          "quote_sha256": "b7e4b06aaf12eaadda1dfd5f36502d5e50318baf60e8429254b49518746b872a",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S5-lilly-zepbound-pi-directquote.json",
+            "sha256": "087ec72fdd707382a16a36b492176d1a18ed2d53bd7a066cb7b6cf63a46a0466",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        },
+        {
+          "quote_id": "S5-Q2",
+          "text": "• to reduce excess body weight and maintain weight reduction long term in adults with obesity or adults with overweight in the presence of at least one weight-related comorbid condition.",
+          "quote_sha256": "ab7463fd21b2bd6602746d8bc09a7a19fe9e83c30c747da447814951298319db",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S5-lilly-zepbound-pi-directquote.json",
+            "sha256": "087ec72fdd707382a16a36b492176d1a18ed2d53bd7a066cb7b6cf63a46a0466",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        },
+        {
+          "quote_id": "S5-Q3",
+          "text": "• to treat moderate to severe obstructive sleep apnea (OSA) in adults with obesity.",
+          "quote_sha256": "e995c36c1587d55728a48c9171920a7a6c7f0692d5cbf2da9e57f835f0d14f74",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S5-lilly-zepbound-pi-directquote.json",
+            "sha256": "087ec72fdd707382a16a36b492176d1a18ed2d53bd7a066cb7b6cf63a46a0466",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S6",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_drugs_at_fda_approval_record",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=217806",
+      "requested_url": "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=217806",
+      "final_url": "https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo=217806",
+      "title": "Drugs@FDA: FDA-Approved Drugs",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-09-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-e4c9-751e-9184-836bc2f295a1",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S6-drugs-at-fda-directquote.json",
+        "sha256": "721465a434b1cbff8db89a75dca500b26c1c1e0fd1cb0da9dacc6e5199a783df"
+      },
+      "extract_sha256": "8402594711b143ca0a230559d2086acbb42d67e62b93014addc1d9246eb349af",
+      "limitations": [
+        "The application record supports application-level product identity and marketing status; the label remains the authority for indications, presentation, and safety text."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S6-Q1",
+          "text": "| Drug Name | Active Ingredients | Strength | Dosage Form/Route | Marketing Status | TE Code | RLD | RS |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| ZEPBOUND | TIRZEPATIDE | 2.5MG/0.5ML (2.5MG/0.5ML) | SOLUTION;SUBCUTANEOUS | Prescription | None | Yes | Yes |",
+          "quote_sha256": "8ab79e01e0ae43073b33aa3e9fc55bea19cd2b4353e72a4c7cd58e81832b2399",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S6-drugs-at-fda-directquote.json",
+            "sha256": "721465a434b1cbff8db89a75dca500b26c1c1e0fd1cb0da9dacc6e5199a783df",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        },
+        {
+          "quote_id": "S6-Q2",
+          "text": "| Action Date | Submission | Action Type | Submission Classification | Review Priority; Orphan Status | Letters, Reviews, Labels, Patient Package Insert | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n| 11/08/2023 | ORIG-1 | Approval | PRIORITY |",
+          "quote_sha256": "71dbe182edd633dbd25efcd1b5c94b955853eab82db1fe16ecf1421c1d171baf",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S6-drugs-at-fda-directquote.json",
+            "sha256": "721465a434b1cbff8db89a75dca500b26c1c1e0fd1cb0da9dacc6e5199a783df",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S7",
+      "publisher": "GLP Clinic Scout",
+      "source_type": "current_live_article_baseline",
+      "tier": "current_site_observation",
+      "authoritative": false,
+      "primary": false,
+      "url": "https://glpclinicscout.com/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+      "requested_url": "https://glpclinicscout.com/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+      "final_url": "https://glpclinicscout.com/guides/compounded-tirzepatide-vs-zepbound-regulatory-status/",
+      "title": "Compounded Tirzepatide vs Zepbound: FDA Status Guide",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-09-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a04-ef01-76a7-8578-1972877c583e",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S7-live-baseline-directquote.json",
+        "sha256": "6b51a2ca4e6a2370d8b9cd4a9ae7b7b26e63d7dce83491e5166de8c3e2678e29"
+      },
+      "extract_sha256": "19b4045eab82b9ef3049acdccd3b8b612e0188dc17f757874fd59e17e352d730",
+      "limitations": [
+        "This is a baseline identity and structure observation, not authority for regulatory, product, treatment, or equivalence claims.",
+        "It is not used as a first-party medical source in the article claims."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S7-Q1",
+          "text": "Compounded tirzepatide vs Zepbound is a regulatory comparison, not a same-product comparison. Zepbound is an FDA-approved product that contains tirzepatide. Compounded tirzepatide is not FDA-approved and is not reviewed by FDA before marketing for safety, effectiveness, or quality. Shared ingredient wording does not establish product equivalence.",
+          "quote_sha256": "b54798bc6f5490da02933205c3b1d6a2123a4114634c5276a374138d651118f8",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S7-live-baseline-directquote.json",
+            "sha256": "6b51a2ca4e6a2370d8b9cd4a9ae7b7b26e63d7dce83491e5166de8c3e2678e29",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        }
+      ]
+    },
+    {
+      "source_id": "S8",
+      "publisher": "U.S. Food and Drug Administration",
+      "source_type": "primary_regulator_503b_proposal",
+      "tier": "primary_regulator",
+      "authoritative": true,
+      "primary": true,
+      "url": "https://www.fda.gov/news-events/press-announcements/fda-proposes-exclude-semaglutide-tirzepatide-and-liraglutide-503b-bulks-list",
+      "requested_url": "https://www.fda.gov/news-events/press-announcements/fda-proposes-exclude-semaglutide-tirzepatide-and-liraglutide-503b-bulks-list",
+      "final_url": "https://www.fda.gov/news-events/press-announcements/fda-proposes-exclude-semaglutide-tirzepatide-and-liraglutide-503b-bulks-list",
+      "title": "FDA Proposes to Exclude Semaglutide, Tirzepatide, and Liraglutide on 503B Bulks List | FDA",
+      "http_status": 200,
+      "access_state": "CAPTURED_FIRECRAWL_HTTP_200_DIRECT_QUOTE",
+      "checked_date": "2026-09-03",
+      "captured_at_utc": null,
+      "capture_time_basis": "Firecrawl MCP directQuote response; provider timestamp not exposed; sealed in the current PT-day research directory.",
+      "scrape_id": "01a06a05-149a-754f-a9d7-bea88e63a44e",
+      "raw_capture": {
+        "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S8-fda-503b-proposal-directquote.json",
+        "sha256": "88310a737ae9dcc275a3f86642c32a13e33e9cb256c0d4fe5e0d865023417e23"
+      },
+      "extract_sha256": "2d055476a2498a3c0ce7b657701f7bf22f9877ea0fd27f36ed22eb74c4114b89",
+      "limitations": [
+        "The source reports a proposal and comment process, not a final individualized compounding legality or transaction determination.",
+        "The source does not establish a named compounder, prescription, batch, quality, or patient suitability."
+      ],
+      "quotes": [
+        {
+          "quote_id": "S8-Q1",
+          "text": "Food and Drug Administration today announced it is [proposing to exclude semaglutide, tirzepatide, and liraglutide](https://www.federalregister.gov/public-inspection/2026-08552/list-of-bulk-drug-substances-for-which-there-is-a-clinical-need-under-the-federal-food-and-drug) on the [503B bulks list](https://www.fda.gov/drugs/human-drug-compounding/503b-bulk-drug-substances-list), finding no clinical need for outsourcing facilities to compound these drugs from bulk substances.",
+          "quote_sha256": "4e155fbfa2afa329dc4baf37d2934e3a2cd75fddc4ac7e22031126c4a8245adb",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S8-fda-503b-proposal-directquote.json",
+            "sha256": "88310a737ae9dcc275a3f86642c32a13e33e9cb256c0d4fe5e0d865023417e23",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        },
+        {
+          "quote_id": "S8-Q2",
+          "text": "After evaluating the nominations for these three substances, the FDA did not identify a clinical need for outsourcing facilities to compound semaglutide, tirzepatide, and liraglutide from bulk drug substances.",
+          "quote_sha256": "cc4dee1030013dfca0f3e49daadf2223da6a0256ab1a1ec95ff92313e1c63498",
+          "capture_binding": {
+            "path": "/home/ubuntu/business/reports/glp-clinic-scout/seo-machine/r2-update-carrier/2026-09-03/day-3-9366fde2c8f2e166-b24010c71716/research/S8-fda-503b-proposal-directquote.json",
+            "sha256": "88310a737ae9dcc275a3f86642c32a13e33e9cb256c0d4fe5e0d865023417e23",
+            "checked_date": "2026-09-03",
+            "checked_at_utc": null
+          }
+        }
+      ]
+    }
+  ],
+  "dropped_or_unavailable_claims": [
+    {
+      "claim": "A compounded preparation is equivalent to Zepbound because both use tirzepatide",
+      "status": "dropped_not_established"
+    },
+    {
+      "claim": "A specific compounded product is legal, safe, available, or suitable for a reader",
+      "status": "dropped_not_established"
+    },
+    {
+      "claim": "A reader should start, stop, switch, or use a particular dose",
+      "status": "dropped_not_medical_guidance"
+    },
+    {
+      "claim": "A price, savings amount, coverage result, or outcome applies to the reader",
+      "status": "dropped_not_current_first_party_evidence"
+    },
+    {
+      "claim": "FDA 503B proposal dated April 30, 2026",
+      "status": "dropped_no_captured_quote",
+      "reason": "No captured quote states the date.",
+      "attempted_source": "S8"
+    },
+    {
+      "claim": "Under section 503B, outsourcing facilities are restricted from compounding from bulk drug substances unless the substance appears on the 503B bulks list or the drug compounded from it is on FDA's drug shortage list at the relevant times",
+      "status": "dropped_no_captured_quote",
+      "reason": "No captured S3 quote states the removed bulks-list or shortage-list condition mechanism.",
+      "attempted_source": "S3"
+    },
+    {
+      "claim": "The FDA 503B proposal source describes a comment process",
+      "status": "dropped_no_captured_quote",
+      "reason": "No captured S8 quote mentions a comment process.",
+      "attempted_source": "S8"
+    },
+    {
+      "claim": "The April 1, 2026 date in S3-Q1 also dates the separate S3-Q2 list-status sentence",
+      "status": "dropped_unproven_date_linkage",
+      "reason": "S3-Q1 and S3-Q2 were captured separately; no captured quote binds the April 1, 2026 date to the list-status sentence.",
+      "attempted_source": "S3"
+    },
+    {
+      "claim": "The S3-Q2 list-status sentence and the S8 proposal are dated at draft lines 177, 205, and 219",
+      "status": "dropped_unproven_date_characterization",
+      "reason": "Only S3-Q1 carries a captured April 1, 2026 date; no captured quote dates S3-Q2 or S8.",
+      "attempted_sources": [
+        "S3",
+        "S8"
+      ],
+      "draft_lines": [
+        177,
+        205,
+        219
+      ]
+    },
+    {
+      "claim": "GSC observed the target query at four impressions and an average position of 68.25 with zero clicks in the selected row, while `is zepbound tirzepatide` had one impression at position 76 with zero clicks",
+      "status": "dropped_conflicting_packet_authority",
+      "reason": "Packet GSC rows conflict with the hash-bound authority selection row.",
+      "attempted_sources": [
+        "00-authority.json",
+        "02-serp-brief.json"
+      ]
+    },
+    {
+      "claim": "The Drugs@FDA record lists multiple Zepbound strengths",
+      "status": "dropped_no_captured_quote",
+      "reason": "No captured S6 quote lists more than one strength.",
+      "attempted_source": "S6"
+    },
+    {
+      "claim": "FDA's warning signs about a company claiming that a compounded drug is the same as an FDA-approved drug are a telehealth red-flags warning",
+      "status": "dropped_unsupported_characterization",
+      "reason": "Captured S1-Q3 and S1-Q4 do not use the word telehealth or provide a telehealth framing.",
+      "attempted_source": "S1"
+    }
+  ],
+  "not_stated_fields": [
+    "individual eligibility",
+    "prescription decision",
+    "dose",
+    "switching plan",
+    "local inventory",
+    "coverage",
+    "savings",
+    "outcome",
+    "specific compounder compliance",
+    "batch quality"
+  ]
+}
