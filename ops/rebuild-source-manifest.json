@@ -1509,7 +1509,7 @@
         "research-only source observation -> sheet_update_queue"
       ],
       "kind": "script",
-      "sha256": "b5a7251f007d1a5e7dc24f788a7c11679516ad28c000b4c2414c1877aabc1baf"
+      "sha256": "88fca064dad7474a2e1af55402f9999e362f1d84cf077dbbdceee92d1169879e"
     },
     "scripts/affiliate_supply_expansion.py": {
       "callers": [
@@ -5542,7 +5542,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "d4b62d7c9d15fd0009dd7ed36b89ec9d6a8a40fa70c94a2ef5d67acea8c4459f"
+      "sha256": "6aee87b12704500d90f70308f7a72b9fc4aecd4c6a3cd44a47f46dc953874cdb"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
@@ -5584,7 +5584,7 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "e3013fcf9fd86417ff465310aa10c2f0fdb689af4b585bd48fec763790aced85"
+      "sha256": "def307c68a029db2d3828598149329f9fd78736d5fdd6f57ee4baaf3c456a1fe"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
