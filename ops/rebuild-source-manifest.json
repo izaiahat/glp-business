@@ -2800,7 +2800,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "5002702257672cbebcd58436b7fa3c304a5845f1dc7697478a5c4cba3cdc8ff9"
+      "sha256": "f9110e92101adde74aad1ac1e533a726e508f4db3d661cad295f71f4502e868b"
     },
     "tests/test_cron_bridge_action.py": {
       "callers": [

@@ -99,7 +99,10 @@ class MainAllowanceTests(unittest.TestCase):
 
     def test_main_snapshot_cannot_skip_native_proof(self):
         import importlib.util
-        from scripts import glp_price_index_weekly as native
+        import scripts
+        from types import SimpleNamespace
+        native = SimpleNamespace(CURRENT_BASE=Path('/synthetic/current.json'),
+                                 _validate_base_evidence=lambda *_: None)
         source = Path(__file__).resolve().parents[1] / 'systems/seo-blog-machine/scripts/accepted_failure_contract.py'
         spec = importlib.util.spec_from_file_location('main_snapshot_test', source)
         contract = importlib.util.module_from_spec(spec)
@@ -112,12 +115,14 @@ class MainAllowanceTests(unittest.TestCase):
             snapshot = Path(temp) / 'snapshot.json'
             snapshot.write_text(json.dumps({'release_root': str(release)}))
             before = native.CURRENT_BASE
-            with patch.object(native, '_validate_base_evidence', side_effect=RuntimeError('terminal-invalid')) as verify:
+            with patch.object(scripts, 'glp_price_index_weekly', native, create=True), \
+                    patch.object(native, '_validate_base_evidence', side_effect=RuntimeError('terminal-invalid')) as verify:
                 with self.assertRaisesRegex(RuntimeError, 'terminal-invalid'):
                     contract.validate_main_pointer_snapshot(contract.descriptor(snapshot))
                 verify.assert_called_once()
             self.assertEqual(native.CURRENT_BASE, before)
             spec = contract.descriptor(snapshot)
             snapshot.write_text('{}')
-            with self.assertRaisesRegex(RuntimeError, 'hash_drift'):
-                contract.validate_main_pointer_snapshot(spec)
+            with patch.object(scripts, 'glp_price_index_weekly', native, create=True):
+                with self.assertRaisesRegex(RuntimeError, 'hash_drift'):
+                    contract.validate_main_pointer_snapshot(spec)
