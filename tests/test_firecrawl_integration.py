@@ -40,6 +40,14 @@ def test_no_v1_maintained_callers():
         assert 'api.firecrawl.dev/v1' not in (ROOT / rel).read_text(), rel
 
 
+def test_cleanup_maintained_price_and_sponsor():
+    price = (ROOT / 'scripts/glp_price_verification.py').read_text()
+    sponsor = (ROOT / 'glp-clinic-partner-outreach-machine/refill_email_ready_targets.py').read_text()
+    assert '/v1/' not in price and 'proxy: str = \'basic\'' in price
+    assert '"proxy": "enhanced"' not in price
+    assert 'LedgerSDKClient(Firecrawl(api_key=api_key)' in sponsor
+
+
 def test_client_refuses_v1_and_uncapped_agent(tmp_path):
     client = fc.FirecrawlClient('test', api_key='not-used', ledger_path=tmp_path/'ledger')
     with pytest.raises(ValueError):
@@ -56,6 +64,8 @@ def test_sdk_snake_case_credit_and_scrape_id():
 
 
 def test_page_two_us_weekly_top_three():
+    assert fc._options({'location': 'United States', 'tbs': 'qdr:w'})['location'] == 'United States'
+    assert fc._options({'location': 'United States', 'tbs': 'qdr:w'})['tbs'] == 'qdr:w'
     spec = importlib.util.spec_from_file_location('serp', ROOT / 'systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py')
     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
     assert module.MAX_TARGETS == 40 and module.RESULT_LIMIT == 3 and module.REFRESH_AFTER_HOURS == 168
