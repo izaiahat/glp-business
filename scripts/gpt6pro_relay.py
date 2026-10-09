@@ -1154,6 +1154,22 @@ if RETAINED:
     tab={{'targetId':RETAINED}}
 else:
     tab={{"targetId":_new_tab("https://chatgpt.com/")}}
+    landed=_here(tab['targetId'])
+    if landed!='https://chatgpt.com/' and not _conversation(landed):
+        # Normalize only this newly created, unbound, non-generating target.
+        from urllib.parse import urlsplit
+        parsed=urlsplit(landed)
+        state=_state()
+        if state['stop'] or state['human_challenge'] or state['security_interstitial'] or state['logged_out']:
+            _binding_error('NON_CHAT_ROUTE_HELD', state=state, tab=tab['targetId'])
+        if parsed.scheme=='https' and parsed.netloc=='chatgpt.com':
+            _page_load_slot()
+            _target(tab['targetId'])
+            cdp('Page.navigate', session_id=_sessions[tab['targetId']], url='https://chatgpt.com/')
+            for _ in range(50):
+                _target(tab['targetId'])
+                if _eval(tab['targetId'], 'document.readyState')=='complete': break
+                time.sleep(0.3)
 def _fresh():
     here=_here(tab["targetId"])
     if RETAINED:
