@@ -972,7 +972,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "25b5cd450fd2ef8df5d7ae67096f2d66193a07f36cefeca24d46eb1ff8eaabc9"
+      "sha256": "5f056f0066e0214378faac32218d0869a9852e27bafebcbde6c991a3d233d780"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
@@ -2392,7 +2392,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "4d40b857abc058ef0076cac9932a2e6f01ba9f37eadabc5f1e97a6f59f8d7d82"
+      "sha256": "1ea03231fc29425190e18331b2c124bcff4f67aa8801333d9bad550a1b0666d4"
     },
     "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py": {
       "callers": [
@@ -2511,7 +2511,7 @@
         "GLP-7 publication-date binding regression"
       ],
       "kind": "test",
-      "sha256": "8e6d6abac533b5aba7f641e87c65dc0d1b52d0bfe6417f997c27f42ea30c7890"
+      "sha256": "28dc7d268a8e5d0b17ee5e700cf7402c8f2e3fa66961e701021af7a0d5f25eb1"
     },
     "systems/seo-blog-machine/tests/test_text_only_image_fallback.py": {
       "callers": [
@@ -3935,7 +3935,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "c7b476b07aa50e431f28873d47f8fe628fb4a42ddef6ee173506c69b1dfb8e41"
+      "sha256": "aadcb78a7d4977a6d7a12d30d061c7aa54cf8ed1aefa49249156ae645c9e3324"
     },
     "ops/glp/evidence-refresh-k3/ASTRA-LOW-PROMPT.md": {
       "callers": [
