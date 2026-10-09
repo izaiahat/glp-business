@@ -64,6 +64,32 @@ class CronBridgeTests(unittest.TestCase):
                 invocation='manual_registered', due_slot=slot, **options)
             self.assertEqual(calls[-1]['args']['operation-id'], 'retained-explicit')
 
+    def test_article_import_failure_get_reconciles_only_proven_no_effect(self):
+        op = 'host-article-carrier-fixture'
+        failure = self.root / 'import-failure.json'
+        trace = f'Traceback (most recent call last):\n  File "{self.root}/systems/seo-blog-machine/scripts/article_buffer_cli.py", line 677, in main\n    result = consume_cli(args)\n  File "{self.root}/systems/seo-blog-machine/scripts/article_buffer_cli.py", line 467, in consume_cli\n    import article_source_carrier\nModuleNotFoundError: No module named \'article_source_carrier\'\n'
+        payload = {'status':'BLOCKED_CONSUME_FAILED','command':'consume','operation_id':op,
+                   'error_class':'ModuleNotFoundError','reason':"No module named 'article_source_carrier'",
+                   'exception':{'class':'ModuleNotFoundError','message':"No module named 'article_source_carrier'",'traceback':trace}}
+        failure.write_text(json.dumps({'schema':'glp.article_carrier.failure.v2','operation_id':op,
+            'exit_code':1,'cli_payload':payload,'stderr':trace,
+            'stderr_sha256':cron.hashlib.sha256(trace.encode()).hexdigest(),
+            'argv':['/usr/bin/python3',str(self.root/'systems/seo-blog-machine/scripts/article_buffer_cli.py'),'consume','--operation-id',op]}))
+        receipt = {'status':'BLOCKED_CONSUME_FAILED','published':False,'receipt_path':str(failure),
+                   'operation_id':op,'head_reconciliation':{'aligned':True,
+                    'pointer_head':{'deployment_id':'base'},'live_head':{'deployment_id':'base'}}}
+        with patch.object(cron,'ROOT',self.root), patch.object(cron,'article_current_base',return_value={'deployment_id':'base'}), patch.object(cron,'article_production_head_id',return_value='base'):
+            self.assertTrue(cron.article_failed_before_publish(receipt))
+            claim = self.root/'reports/glp-clinic-scout/seo-machine/article-buffer/claims'/(cron.hashlib.sha256(op.encode()).hexdigest()+'.json')
+            claim.parent.mkdir(parents=True); claim.write_text('{}')
+            self.assertFalse(cron.article_failed_before_publish(receipt))
+            claim.unlink()
+            with patch.object(cron,'article_production_head_id',return_value='changed'):
+                self.assertFalse(cron.article_failed_before_publish(receipt))
+            bad = json.loads(failure.read_text()); bad['stderr'] += 'source effect reached'
+            failure.write_text(json.dumps(bad))
+            self.assertFalse(cron.article_failed_before_publish(receipt))
+
     def test_article_failed_prebuild_clears_pending_only_with_zero_effect_proof(self):
         action = "article_carrier_consume"
         args = {"mode": "consume"}
