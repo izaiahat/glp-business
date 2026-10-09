@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 921,
+  "tracked_count": 924,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -28,7 +28,7 @@
         "systems/seo-blog-machine/scripts/article_buffer_cli.py",
         "systems/seo-blog-machine/scripts/validate_article_carrier_base_compatibility.py"
       ],
-      "sha256": "8f963638c5e446d0d9d3eac8e9ce766e911bc15848b111395471cd7ff1fb7a9f"
+      "sha256": "db816eff661c021a9cf62681630d83b7ac187b84cb9914ba1a0c292f25deda3c"
     },
     "tests/test_article_source_carrier.py": {
       "kind": "test",
@@ -599,7 +599,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d97c6883325e4d488fc0dc6f2430d928d020ede0b73f21cdd21ff58987ddf8b3"
+      "sha256": "f6117449450a2070442771625baf14a07d9fed26ef2b470011587f1bbda6e352"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2187,7 +2187,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "505cf1a56178637aa4dd1c29c23f82ac0be59df11e861f9577a3b4106b1e9b9b"
+      "sha256": "878187f0b290cdedd110b8a8277da9483330d9ac9659bb4da7af8c4f105a2bb4"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -2554,7 +2554,7 @@
         "GLP-73 B-01/F-01/T-01 source-only regressions"
       ],
       "kind": "test",
-      "sha256": "70282ff276c4fb40aa204fe0082e36229ba75f01effe5c947ec10301705cbc63"
+      "sha256": "578b3659c7d2025a288d9e0c81e322ccfce10d871487a1255786528e02544a53"
     },
     "systems/seo-blog-machine/tests/test_publication_date_binding.py": {
       "callers": [
@@ -5165,7 +5165,7 @@
       "callers": [
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
-      "sha256": "2eacda6f0d49f5a72f67b7bda358a43a0f8ed2442a2439cd16a8fa0ec6a0fe00"
+      "sha256": "23a86e9a0edb1204a825dfefe5e6a942d25387289554864ad4ca1ffda6b33eeb"
     },
     "systems/seo-blog-machine/scripts/repair_opus_packet.py": {
       "kind": "packet_repair_worker",
@@ -5816,7 +5816,7 @@
     "scripts/linear_close.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "e71cc78a6aed21f9e6b1de81433f933bcfb15b5a6acef0fb2cfdfd387e49a754"
+      "sha256": "f3233be9ea1c6cc914f96841e2a914f00d64d12ddc2b4ee4c1c6ba3c92f20e9f"
     },
     "tests/test_linear_close.py": {
       "callers": [],
@@ -6223,6 +6223,28 @@
         "host cron:deterministic native reply consumer"
       ],
       "sha256": "fa48734e59483b289ebbb90818c9c3c6b0450279dfea609b2dfdd9904ed9f607"
+    },
+    "scripts/article_health_acceptance.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/linear_close.py",
+        "scripts/linear_orchestrator.py"
+      ],
+      "sha256": "7e08b442ec19cab9d811e46379d40b0c60ba0a4b7a18b37526cda8c0e01bbc59"
+    },
+    "tests/test_article_health_acceptance.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5a9c8ff49775645891b3c6ff9d82839b49fb96e7611ac312c2708f4eefcab224"
+    },
+    "tests/test_article_reviewer_custody.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "eded526dd097afd8c65e72cbcda36015f3d1c59d7ad8577c92838e42a4db4462"
     }
   }
 }
