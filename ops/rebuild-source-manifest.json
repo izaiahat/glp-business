@@ -3644,7 +3644,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "5b10b09c0631c8058fb42ef757a59695c6b3c146d459f6f1359bc87e5925df5b"
+      "sha256": "ed1a01c6aafe5c2a20cb5bee4f58a59e466e95c2bd2cd7c19c9365c57b599c54"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3665,7 +3665,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "df6dae271518357a22506b10205209a776c6d514c9d8e6874b071335386712e7"
+      "sha256": "984438b424bb7a2057e74cf1fbd077ac81583bba5feeed9844687d3783d51094"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
