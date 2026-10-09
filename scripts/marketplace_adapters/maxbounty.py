@@ -738,6 +738,9 @@ def login_and_enumerate(login_url: str, *, run_id: str, headless: bool = True,
             or parsed_login.query or parsed_login.fragment
             or re.search(r'[\\\s%\x00-\x1f]', str(login_url))):
         raise MaxBountyError('maxbounty_sheet_login_url_invalid')
+    if (session_factory is None and fresh_driver is not None
+            and getattr(fresh_driver, 'read_method', '') == 'maxbounty_official_affiliate_api_v1'):
+        return _enumerate_via_official_api(fresh_driver, run_id=run_id, **discovery_options)
     if (session_factory is not None or fresh_driver is None
             or getattr(fresh_driver, 'fresh', False) is not True
             or not getattr(fresh_driver, 'owned_session', '')):
@@ -766,6 +769,44 @@ def login_and_enumerate(login_url: str, *, run_id: str, headless: bool = True,
     result = enumerate_search_categories(fresh_driver, **discovery_options)
     result['login'] = {'outcome': 'fresh_protected_principal_verified', 'login_submits': 0}
     result['read_method'] = 'fresh_ai_browser_vault'
+    result['status'] = ('COMPLETE' if (result.get('coverage') or {}).get('schema') ==
+                        'glp.maxbounty.account-catalog-coverage.v2' else 'PASS') if result.get('complete') is True else 'INCOMPLETE'
+    return result
+
+
+def _enumerate_via_official_api(api: Any, *, run_id: str, **discovery_options) -> dict[str, Any]:
+    """Official Affiliate API v1 read (API first); same completeness oracle.
+
+    The API session authenticates on demand and proves the principal through
+    GET /affiliate before any search. Search pages, campaign detail and the
+    previous-approval rechecks are the account API's own answers; nothing is
+    written to the provider and no tracking link is requested or followed.
+    """
+    from maxbounty_publisher_api import (APIListingTransport, api_direct_recheck,
+                                         capture_api_campaign)
+    principal = api.authenticate()
+    evidence_dir = discovery_options.pop('evidence_dir', None)
+    if evidence_dir is None:
+        raise MaxBountyError('maxbounty_api_evidence_directory_required')
+    account_context = discovery_options.pop('account_context', None) or {
+        'account': principal['account'], 'portal': 'https://affiliates.maxbounty.com',
+        'authenticated': True, 'run_id': run_id,
+        'receipts_dir': str(Path(evidence_dir) / 'retired-404')}
+    scopes = discovery_options.pop('scopes', None)
+    if scopes is None:
+        terms = ['glp','semaglutide','tirzepatide','liraglutide','retatrutide',
+                 'weight','metabolic','ozempic','wegovy','zepbound','mounjaro','docsearch','32619']
+        scopes = [{'key':'search-'+term,'kind':'search','value':term} for term in terms]
+        scopes.append({'key':'category-health','kind':'category','value':'58'})
+        scopes.append({'key':'account-approved','kind':'approved','value':''})
+    discovery_options.setdefault('direct_recheck', api_direct_recheck(api, account_context))
+    result = discovery.collect_scopes(
+        APIListingTransport(api, evidence_dir=evidence_dir),
+        lambda row: capture_api_campaign(api, row), scopes=scopes,
+        account_context=account_context, **discovery_options)
+    result['login'] = {'outcome': 'official_api_principal_verified', 'login_submits': 0,
+                       'principal': principal}
+    result['read_method'] = api.read_method
     result['status'] = ('COMPLETE' if (result.get('coverage') or {}).get('schema') ==
                         'glp.maxbounty.account-catalog-coverage.v2' else 'PASS') if result.get('complete') is True else 'INCOMPLETE'
     return result

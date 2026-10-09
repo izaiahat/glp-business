@@ -1580,10 +1580,13 @@ def previous_approval_baseline(snapshot: dict[str, Any], snapshot_path: Path) ->
             continue
         if relationship_from_status(cells[10], cells[11]) != "approved":
             continue
-        candidates = set(re.findall(r"\b(?:campaign|program|offer)\s+([0-9]+)\b", str(cells[23]), re.I))
+        # The exact portal detail href is the row's structured identity. Notes
+        # are free text that also cite unrelated evidence campaigns (row 716
+        # cites rail-shape capture 27300), so they are consulted only when no
+        # exact href exists, and must then name exactly one campaign.
         pid = mb.discovery.campaign_id(str(cells[5]))
-        if pid:
-            candidates.add(pid)
+        candidates = {pid} if pid else set(re.findall(
+            r"\b(?:campaign|programme|program|offer)\s+([0-9]+)\b", str(cells[23]), re.I))
         if len(candidates) != 1:
             raise RuntimeError(f"maxbounty_sheet_approved_identity_missing_or_ambiguous:{row_number}")
         ids.update(candidates)
@@ -1605,6 +1608,12 @@ def main(argv: list[str] | None = None, *, fresh_driver=None, discovery_options=
     parser.add_argument("--run-id", default="")
     parser.add_argument("--output", default="")
     args = parser.parse_args(argv)
+    if fresh_driver is None and args.mode != 'draft':
+        # API first (operator decision 2026-10-09): the official Affiliate API
+        # v1 authenticates on demand; the fresh vault-browser driver is the
+        # caller-supplied fallback. No credential file configured -> BLOCKED.
+        from maxbounty_publisher_api import MaxBountyPublisherAPI
+        fresh_driver = MaxBountyPublisherAPI.from_environment()
     if (args.mode != 'draft' and (fresh_driver is None
             or getattr(fresh_driver, 'fresh', False) is not True
             or not getattr(fresh_driver, 'owned_session', ''))):

@@ -247,4 +247,4 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp268_fresh_browser_callers.py tests/test_glp268_reconciler_access.py tests/test_glp268_remaining_callers.py tests/test_glp268_visible_catalogs.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp268_fresh_browser_callers.py tests/test_glp268_reconciler_access.py tests/test_glp268_remaining_callers.py tests/test_glp268_visible_catalogs.py tests/test_glp268_live_callers.py
