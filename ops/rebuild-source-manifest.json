@@ -5573,7 +5573,7 @@
       "callers": [
         "registered stage5 research fetch"
       ],
-      "sha256": "fc1e5692bd954ae17d4a17e31ffca0b2b7522c967c748559fdc973dd7993083a"
+      "sha256": "71bf3f42106fcf8ecfe188494bc61c9a24da2ad3c6523305edde7dd7cb72c12e"
     },
     "scripts/glp_price_verification.py": {
       "kind": "script",
@@ -5587,7 +5587,7 @@
       "callers": [
         "all maintained Firecrawl producers"
       ],
-      "sha256": "aae3a1609a432cb1cf14d116119ce30336b69f2839f371d65eeade92a0381cce"
+      "sha256": "1b63a2d7be1fd7242351afe33efa7f5f134986bc89a4250d8ba8412c4bb913fa"
     },
     "systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py": {
       "kind": "script",
@@ -5608,7 +5608,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "ad76344e79acc1677f5e32e47972770665ab1c0a7e97e08ea3fddea7fbd9967b"
+      "sha256": "f55d522a9d1f45e04f7d6449f3cc553cd1dfabfa57b9a921d061fae30485d88e"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",
