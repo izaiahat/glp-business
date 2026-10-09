@@ -995,7 +995,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "520797151afbe162b195eef932c08ecff053cf496cae241ec94a0f589c2d6ac3"
+      "sha256": "8dfb001ff4dcdeaa732501074fa4b9a738dba37b8bafe4c8f48b82a81c7233b3"
     },
     "ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh": {
       "callers": [
