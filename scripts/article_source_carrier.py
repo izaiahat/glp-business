@@ -125,6 +125,13 @@ def record_consumption(root, entry, operation_id, publication, claim=None):
     target = consumed_path(root,operation_id)
     if target.exists():
         return buffer._read_sealed(target,buffer.CONSUME_SCHEMA,'consumption_sha256')
+    receipt = publication.get('receipt')
+    if not receipt and (publication.get('release') or {}).get('report'):
+        receipt = str(Path(publication['release']['report']) / 'RESULT.json')
+    if not receipt:
+        pointer = json.loads((ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json').read_text())
+        receipt = pointer['final_receipt']['path']
+    publication = {**publication, 'receipt': receipt}
     payload = {'schema':buffer.CONSUME_SCHEMA,'status':'PASS_BUFFER_PUBLISHED',
                'operation_id':operation_id,'entry_id':entry['entry_id'],
                'topic_id':entry['topic_id'],'target_route':entry['target_route'],
