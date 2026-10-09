@@ -490,13 +490,16 @@ def _lint_ordinary_result(path, iss):
     try:
         data = json.loads(Path(path).read_text())
         require(isinstance(data, dict), 'result must be an object')
-        require(data.get('schema') == 'linear-ordinary-completion-v1', 'unknown schema')
+        health = data.get('schema') == 'linear-reviewed-health-completion-v1'
+        require(health or data.get('schema') == 'linear-ordinary-completion-v1', 'unknown schema')
         require(data.get('issue') == iss['identifier'] and data.get('status') == 'COMPLETE',
                 'exact issue and COMPLETE required')
         require(iss.get('team') == {'id': TEAM, 'key': 'GLP'}, 'issue must belong to GLP')
         readonly = data.get('scope') == 'ordinary-readonly-runtime'
-        require(data.get('scope') in ('ordinary-code', 'ordinary-runtime', 'ordinary-readonly-runtime') and
-                data.get('protected_effects') == [], 'protected scope requires independent acceptance')
+        require((health and data.get('scope') == 'reviewed-health-runtime'
+                 and data.get('protected_effects') == ['health-claim-publish']) or
+                (not health and data.get('scope') in ('ordinary-code', 'ordinary-runtime', 'ordinary-readonly-runtime')
+                 and data.get('protected_effects') == []), 'protected scope requires independent acceptance')
         description = iss.get('description') or ''
         require(re.search(r'##\s*Acceptance\s*\n\s*\S', description, re.I), 'current acceptance missing')
         require(data.get('description_sha256') == hashlib.sha256(description.encode()).hexdigest(),
@@ -505,8 +508,18 @@ def _lint_ordinary_result(path, iss):
         # new health claims need independent acceptance (the protected arms). The
         # classifier reads the title and Acceptance section(s) only.
         effect = protected_effect((iss.get('title') or '') + '\n' + acceptance_section(description))
-        require(effect is None, '%s requires --protected-runtime independent acceptance '
-                '(protected effect: %s)' % (effect, effect))
+        if health:
+            require(effect == 'health-claim-publish', 'health receipt cannot waive money/send or ordinary scope')
+            from article_health_acceptance import validate
+            try:
+                validate(data.get('independent_health_review'),
+                         natural=bool(re.search(r'\bnatural\b', (iss.get('title') or '') + '\n' +
+                             acceptance_section(description), re.I)), root=Path(__file__).resolve().parents[1])
+            except (ValueError, KeyError, OSError, RuntimeError) as exc:
+                require(False, str(exc))
+        else:
+            require(effect is None, '%s requires --protected-runtime independent acceptance '
+                    '(protected effect: %s)' % (effect, effect))
         if readonly:
             require('pr' not in data and data.get('changed_files', []) == [],
                     'read-only non-code work cannot claim a PR or source changes')
@@ -547,7 +560,7 @@ def _lint_ordinary_result(path, iss):
             # Site-candidate PRs are deployed by the release service; their live readback is
             # the runtime evidence. Business-repo runtime work must prove installed bytes.
             repo = re.fullmatch(r'https://github\.com/(izaiahat/glp-[a-z-]+)/pull/\d+', pr['url'])[1]
-            if (data['scope'] == 'ordinary-runtime' and repo == 'izaiahat/glp-business') or data.get('installed_files'):
+            if (data['scope'] in ('ordinary-runtime', 'reviewed-health-runtime') and repo == 'izaiahat/glp-business') or data.get('installed_files'):
                 _verify_installed(data, repo, require)
         review = data['review']
         comment_row = gql('query($id:String!){comment(id:$id){id body archivedAt createdAt user{id} issue{id}}}',
@@ -581,6 +594,11 @@ def _lint_ordinary_result(path, iss):
             for entry in data.get('installed_files') or []:
                 require(re.search(r'^Installed: (?:\S+ )?' + re.escape(entry['sha256']) + r'$', body, re.M),
                         'coordinator acceptance must bind Installed: <sha256> for each installed file')
+        if health:
+            acceptance_digest = hashlib.sha256(json.dumps(data['independent_health_review'],
+                sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+            require(re.findall(r'^Independent article acceptance SHA256: ([a-f0-9]{64})$', body, re.M)
+                    == [acceptance_digest], 'coordinator independent article binding missing or stale')
         # Coordinator checked it and set Done the same hour.
         from datetime import datetime, timezone
         created = datetime.fromisoformat(comment_row['createdAt'].replace('Z', '+00:00'))

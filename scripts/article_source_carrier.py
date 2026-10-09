@@ -281,6 +281,14 @@ def ensure_source_main(workspace, packet, entry):
     return gh('pr','view',pr['url'],'--json','url,state,headRefOid,mergeCommit')
 
 
+def publication_receipt(pr, result, live, row):
+    """Retain the exact accepted source/deployment for automatic health closure."""
+    if not result.get('deployment_id'):
+        raise RuntimeError('source_release_deployment_identity_missing')
+    return {'status': 'PASS_BUFFER_PUBLISHED', 'source_pr': pr, 'main_release': result,
+            'live': live, 'source_entry': row, 'deployment_id': result['deployment_id']}
+
+
 def consume(args):
     import article_buffer_cli as cli
     with carrier_lock() as lock_fd:
@@ -323,7 +331,7 @@ def consume(args):
         if row is None:
             raise RuntimeError('source_release_identity_missing')
         accepted_entry(args.root,current,row)
-        publication = {'status':'PASS_BUFFER_PUBLISHED','source_pr':pr,'main_release':result,'live':live}
+        publication = publication_receipt(pr, result, live, row)
         return record_consumption(args.root,entry,args.operation_id,publication,claim)
 
 
