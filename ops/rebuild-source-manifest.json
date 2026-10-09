@@ -4878,7 +4878,7 @@
       "callers": [
         ".github/workflows/glp110-archive-admission.yml"
       ],
-      "sha256": "308277146984a5ab328b900a5f0106de9a5a0d65e845d93d753e8074e47d3c97"
+      "sha256": "c880b7e770ecac82a6207935122996842f397c0aefd04a40d33b2b3d66e04975"
     },
     "ops/glp110-host-archive-admission.md": {
       "kind": "documentation",
@@ -4890,7 +4890,7 @@
       "callers": [
         "github-actions"
       ],
-      "sha256": "46b49ab915fbbc1b0f61d2a09f19ac57e641a3045c2c2c1602269c1000429963"
+      "sha256": "fa668756bfbc7313ec61579f2f9b5137cc5bfb50866b62099fbe4cf049d3e19f"
     },
     "scripts/evidence_preserving_pruner.py": {
       "kind": "script",
