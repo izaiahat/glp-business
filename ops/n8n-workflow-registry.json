@@ -1678,7 +1678,7 @@
     {
       "id": "ubpIUcu56h97S1Sf",
       "name": "glp/affiliati-postback-ship",
-      "active": true,
+      "active": false,
       "owner": {
         "accountable": "kael-sol",
         "runtime_owner_scripts": [

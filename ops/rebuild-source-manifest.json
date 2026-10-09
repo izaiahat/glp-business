@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 850,
+  "tracked_count": 851,
   "files": {
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -1068,7 +1068,7 @@
         "hermes:db3fb99c1044"
       ],
       "kind": "script",
-      "sha256": "b78245e97243f90655a1a4ca649481f6aefa5be56fb8c700ad6711aaa5e60934"
+      "sha256": "87a9bb2d3f3b372700102645b0e5a5a4d1d2736896f61ba4d38af8dc1e13848f"
     },
     "ops/hermes-cron-scripts/process_partner_info_replies_watchdog.sh": {
       "callers": [
@@ -5743,7 +5743,12 @@
         "hermes:db3fb99c1044"
       ],
       "kind": "data",
-      "sha256": "7ddba89d3cb01889c765a410334721ac67a083bce14c124d0211ce4662c93f70"
+      "sha256": "d9d7da5644a90d1e3d0197d4fa9464802a9cd69cc38d691e4fcae9b105bf9b3a"
+    },
+    "tests/test_n8n_workflow_registry_reconcile.py": {
+      "callers": [],
+      "kind": "test",
+      "sha256": "95e62b9352f9020db0b9a22fb96f2ad7198dbdb6ea02a090f709151e4a5b7ed6"
     }
   }
 }
