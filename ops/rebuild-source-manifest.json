@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 889,
+  "tracked_count": 891,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8f7449bdc9ecf55a57ed9acc6bc177837cbf5ab19d007ba314e7112f47b8eb6e"
+      "sha256": "3965548a9a7e5a552017db26ecdf3da712f86df64b1fc47940df867f8be495ad"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -559,7 +559,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8bda7571bacbd3e03e595021c462d2dfadbeb05f0485f5c783719e73345e264e"
+      "sha256": "e74ac465a8c62184e6475e2083a533b830fa436ada0cab5e1cc60e40b7388b01"
     },
     ".hermes.md": {
       "callers": [],
@@ -4946,7 +4946,7 @@
         "scripts/marketplace_adapters/portal_apply.py"
       ],
       "kind": "script",
-      "sha256": "2f016889b8dee7c858f700560ecc07e4698ba9f89a4668036784306408306822"
+      "sha256": "5bc0fa9ff67aa32b9de48770748a76f41c3b658aa25cb539fd1447444accb63e"
     },
     "ops/glp268-affiliate-access.md": {
       "callers": [
@@ -5689,14 +5689,14 @@
         "scripts/glp_xentraffic_enumerate.py",
         "scripts/xentraffic_fresh_catalog.py"
       ],
-      "sha256": "f749159f8456bd0d772b64aa3f5e1c5062b403232d651de02c129e349af03159"
+      "sha256": "5052b8f7798337eea312daf784b6cee3559f33381b1e1d6552d490358c1019a0"
     },
     "scripts/xentraffic_fresh_catalog.py": {
       "kind": "script",
       "callers": [
         "scripts/glp_xentraffic_enumerate.py"
       ],
-      "sha256": "9b9c8baf42b84b044f0097abb240102214517af79ea9f3b9ffac9da2d3f30ea9"
+      "sha256": "923dbad9813c52a8351dca4015f400bc73854f00ef980477cd6973887dc6f5f6"
     },
     "scripts/glp_maxbounty_lane.py": {
       "kind": "script",
@@ -5705,7 +5705,7 @@
         "scripts/affiliate_provider_metadata.py",
         "scripts/glp_wire_in_ready_queue.py"
       ],
-      "sha256": "948a0fea100cdcc7ca577c5486911ee3fb5be553fdf6dece02465355014f8879"
+      "sha256": "e5dd3915543737c6af65b6fe5ddf1808a8d8e1e20b6b8a8a52801ddb9c4e2ea7"
     },
     "scripts/marketplace_adapters/maxbounty.py": {
       "kind": "script",
@@ -5713,7 +5713,7 @@
         "scripts/glp_maxbounty_lane.py",
         "scripts/maxbounty_fresh_catalog.py"
       ],
-      "sha256": "4dfc285e06ab8086316fc4e5ab05b3dfae8ce011ee5ddf483b5d9e49bf8d45b2"
+      "sha256": "533890641a736852dfdf4b5c754b546d2d818d79aa4c0f4727a3510175005132"
     },
     "scripts/marketplace_adapters/maxbounty_discovery.py": {
       "kind": "script",
@@ -5721,28 +5721,28 @@
         "scripts/marketplace_adapters/maxbounty.py",
         "scripts/maxbounty_fresh_catalog.py"
       ],
-      "sha256": "853e7cb8f16856d570d9f842a29a500d61cf1258387207d2c678406d3b72268e"
+      "sha256": "3206b62096b15fb79df77b0ea3e23866e95391d34332474df6e2436c5d548c8c"
     },
     "scripts/maxbounty_fresh_catalog.py": {
       "kind": "script",
       "callers": [
         "scripts/marketplace_adapters/maxbounty.py"
       ],
-      "sha256": "99836aa8cd623526c27413d71286bbef54daf2dd6fcfe4223017a28453798dbf"
+      "sha256": "ffd962ca36d4a2365a5317426072805ada2ed0a02e366442c956297ccdc3e620"
     },
     "tests/test_glp268_remaining_callers.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "9841e09f7f6a4f2ef32cf7ce6ca156ef80762003a73335306c4e2a9b5e52319d"
+      "sha256": "fd480d2c809c001aebcbb950a4728a33fa286d104a1d9160d2f6953eebfa3303"
     },
     "tests/test_glp268_visible_catalogs.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "28c4596c80489f8352d160913cd1c669c9402938a412d7a415df479a30bfc7f4"
+      "sha256": "0468f88cae54cda57e13c70ae35480abcb8e897181c6247903248dc1d187c5ec"
     },
     "ops/glp268-remaining-callers.md": {
       "kind": "instruction_or_policy",
@@ -5998,6 +5998,21 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "e8519f0eb8a4e028e83f862f1e80b8bd4e9107d2f9411e4f44d5b36a0a0c3839"
+    },
+    "scripts/maxbounty_publisher_api.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/marketplace_adapters/maxbounty.py",
+        "scripts/glp_maxbounty_lane.py"
+      ],
+      "sha256": "929a3ef9837cb66301bfb21bdaa6b7bde4545517310650554d7bcdcab45e0f71"
+    },
+    "tests/test_glp268_live_callers.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "81da2585e71a1372a808a958ec667796a7fa0ab930479c5586f018a8593fd8a8"
     }
   }
 }

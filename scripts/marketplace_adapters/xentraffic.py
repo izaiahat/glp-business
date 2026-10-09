@@ -302,11 +302,13 @@ def diff_snapshots(previous: list[dict[str, Any]],
                            "name": offer.get("name"), "to": offer.get("status"),
                            "payout_display": offer.get("payout_display")})
             continue
-        if str(was.get("status") or "") != str(offer.get("status") or ""):
+        # The visible catalogue has no status column: '' is unknown, not a change.
+        if (str(was.get("status") or "") and str(offer.get("status") or "")
+                and str(was.get("status")) != str(offer.get("status"))):
             deltas.append({"kind": DELTA_STATUS, "offer_id": int(offer_id),
                            "name": offer.get("name"),
                            "from": was.get("status"), "to": offer.get("status")})
-        if _payout_key(was) != _payout_key(offer):
+        if _payout_changed(was, offer):
             deltas.append({"kind": DELTA_PAYOUT, "offer_id": int(offer_id),
                            "name": offer.get("name"),
                            "from": was.get("payout_display"),
@@ -316,6 +318,20 @@ def diff_snapshots(previous: list[dict[str, Any]],
             deltas.append({"kind": DELTA_GONE, "offer_id": int(offer_id),
                            "name": offer.get("name"), "from": offer.get("status")})
     return deltas
+
+
+def _payout_changed(was: dict[str, Any], now: dict[str, Any]) -> bool:
+    """Compare the portal's payout display when both sides have one.
+
+    Percentage payouts carry no amount in the visible table (and a 0
+    placeholder in the BFF), so amount-only comparison would flap.
+    """
+    if "MULTIPLE" in (str(was.get("payout_type") or "").upper(), str(now.get("payout_type") or "").upper()):
+        return False  # tiered payout not shown in the table: unknown, not a change
+    a, b = (" ".join(str(o.get("payout_display") or "").split()) for o in (was, now))
+    if a and b:
+        return a != b
+    return _payout_key(was) != _payout_key(now)
 
 
 def _payout_key(offer: dict[str, Any]) -> str:

@@ -85,7 +85,9 @@ _READS = {
       const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.visibility!=='collapse'&&s.display!=='none';};
       // Never read hidden innerText. Keep hidden cell slots; mixed descendant
       // layouts are unsupported and refuse before any receipt is returned.
-      const text=e=>{if(!shown(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!shown(n)))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
+      // A hidden childless spacer holds no text; checked structurally so hidden
+      // text is never read. Any hidden node with children still refuses.
+      const text=e=>{if(!shown(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!shown(n)&&n.hasChildNodes()))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
       const tables=Array.from(document.querySelectorAll('table')).filter(shown);
       const rows=tables.flatMap(t=>Array.from(t.querySelectorAll('tbody tr')).filter(shown).map(tr=>{
         const cells=Array.from(tr.querySelectorAll('td')).map(text);
@@ -115,7 +117,7 @@ _READS = {
     "visible_tables": """(() => {
       const visible=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);
         return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.visibility!=='collapse';};
-      const text=e=>{if(!visible(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!visible(n)))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
+      const text=e=>{if(!visible(e))return '';if(Array.from(e.querySelectorAll('*')).some(n=>!visible(n)&&n.hasChildNodes()))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
       const cell=e=>{if(['colspan','rowspan'].some(k=>!['1',null].includes(e.getAttribute(k))))throw Error('visible_table_layout_unknown');return text(e);};
       return {tables:Array.from(document.querySelectorAll('table')).filter(visible).map(t=>({
         // Preserve header/cell positions even when a column is hidden.
@@ -128,6 +130,39 @@ _READS = {
           .map(e=>({text:text(e),links:Array.from(e.querySelectorAll('a[href]')).filter(visible)
             .map(a=>({href:a.href,text:text(a),rel:a.rel,disabled:a.getAttribute('aria-disabled')==='true'}))}))};
     })()""",
+    # XenTraffic (Everflow) /offers: one table, a "N Total" label, and an
+    # Angular numbered pager without hrefs. innerText natively omits content
+    # with no box or CSS-hidden visibility, so such descendants cannot leak;
+    # a rendered zero-area box that clips text (overflow != visible) could, so
+    # it refuses. Zero-area boxes with visible overflow are painted text.
+    "xentraffic_catalog": r"""(() => {
+      const css=e=>getComputedStyle(e);
+      const boxed=e=>e.getClientRects().length>0&&!['hidden','collapse'].includes(css(e).visibility);
+      const clipped=n=>{if(!boxed(n)||!n.hasChildNodes())return false;const r=n.getBoundingClientRect(),s=css(n);
+        return (r.width===0||r.height===0)&&(s.overflow!=='visible'||s.overflowX!=='visible'||s.overflowY!=='visible');};
+      const text=e=>{if(!boxed(e))return '';if(Array.from(e.querySelectorAll('*')).some(clipped))throw Error('visible_text_layout_unknown');return e.innerText.trim();};
+      const cell=e=>{if(['colspan','rowspan'].some(k=>!['1',null].includes(e.getAttribute(k))))throw Error('visible_table_layout_unknown');return text(e);};
+      // Header rowspan is only accepted when it spans header rows that hold no
+      // cells at all (a single real header row); body spans always refuse.
+      const head=t=>{const rows=Array.from(t.querySelectorAll('thead tr')),full=rows.filter(r=>r.children.length);
+        if(full.length!==1)throw Error('visible_table_layout_unknown');
+        return Array.from(full[0].children).map(h=>{if(h.tagName!=='TH'||!['1',null].includes(h.getAttribute('colspan'))
+          ||!['1',null,String(rows.length)].includes(h.getAttribute('rowspan')))throw Error('visible_table_layout_unknown');return text(h);});};
+      const tables=Array.from(document.querySelectorAll('table')).filter(boxed).map(t=>({
+        headers:head(t),
+        rows:Array.from(t.querySelectorAll('tbody tr')).filter(boxed).map(tr=>({cells:Array.from(tr.querySelectorAll('td')).map(cell)}))}));
+      const totals=Array.from(document.querySelectorAll('span,div')).filter(e=>boxed(e)&&e.children.length===0)
+        .map(e=>e.innerText.trim()).filter(t=>/^[0-9][0-9,]*\s+Total$/.test(t));
+      const pages=Array.from(document.querySelectorAll('li.page-number')).filter(boxed)
+        .map(e=>({number:e.innerText.trim(),active:e.classList.contains('active')}));
+      return {tables,totals,pages};
+    })()""",
+    "xentraffic_page_click": r"""(n => {
+      const items=Array.from(document.querySelectorAll('li.page-number'))
+        .filter(e=>e.getClientRects().length>0&&e.innerText.trim()===String(n));
+      if(items.length<1)return false;
+      items[0].click();return true;
+    })""",
     "title": "document.title",
     "body_text": "document.body?.innerText||''",
     "buttons": """(() => Array.from(document.querySelectorAll('button'))
@@ -287,6 +322,40 @@ class FreshAIBrowserReadDriver:
                 or parts.query or parts.fragment):
             raise FreshAIBrowserRequired('maxbounty_exact_campaign_page_required')
         return self._read('maxbounty_sections')
+
+    def _xentraffic_offers_url(self):
+        parts = urlsplit(self._guard())
+        if (parts.netloc != 'xentraffic.everflowclient.io' or parts.path != '/offers'
+                or parts.query or parts.fragment):
+            raise FreshAIBrowserRequired('xentraffic_exact_offers_page_required')
+
+    def xentraffic_catalog_snapshot(self):
+        """Fixed visible projection of the /offers table, total label and pager."""
+        self._xentraffic_offers_url()
+        return self._read('xentraffic_catalog')
+
+    def xentraffic_offers_page(self, number):
+        """Select a numbered catalogue page (UI navigation only, no provider effect).
+
+        Waits until the pager marks exactly that page active and the first
+        visible row identity has changed from the previous page.
+        """
+        if type(number) is not int or not 2 <= number <= 51:
+            raise FreshAIBrowserRequired('xentraffic_page_number_invalid')
+        self._xentraffic_offers_url()
+        before = self._read('xentraffic_catalog')
+        first = lambda snap: ((snap.get('tables') or [{}])[0].get('rows') or [{}])[0].get('cells')
+        if self._read('xentraffic_page_click', number) is not True:
+            raise FreshAIBrowserRequired('xentraffic_page_control_missing')
+        for _ in range(60):
+            self.wait(250)
+            snap = self._read('xentraffic_catalog')
+            active = [p['number'] for p in snap.get('pages') or [] if p.get('active')]
+            if active and set(active) == {str(number)} and first(snap) != first(before):
+                self.wait(500)
+                if self._read('xentraffic_catalog') == snap:
+                    return snap
+        raise FreshAIBrowserRequired('xentraffic_page_change_unconfirmed')
 
     def visible_tables(self):
         """Fixed visible table/pager projection; no inputs, fetch or app state."""

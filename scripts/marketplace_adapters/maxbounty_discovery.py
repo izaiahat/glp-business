@@ -430,6 +430,33 @@ def validate_retired404(item, pid, account_context, capture_started_at):
     return data
 
 
+APPROVAL_LOST_STATUSES = ('request approval to run',)
+
+
+def validate_approval_lost(item, pid, capture_started_at):
+    """Exact current-run official account-API answer that approval was lost.
+
+    Only the publisher API's own campaign response qualifies: HTTP 200 for the
+    same campaign id with affiliate_campaign_status naming the apply state.
+    Anything else stays an unresolved continuity blocker (unknown is not zero).
+    """
+    evidence=item.get('evidence') or {}
+    if (item.get('program_id')!=pid or item.get('disposition')!='unavailable'
+            or evidence.get('source_class')!='official_publisher_api_response'
+            or evidence.get('endpoint')!='https://api.maxbounty.com/affiliates/api/campaign/'+pid
+            or evidence.get('status')!=200
+            or ' '.join(str(evidence.get('affiliate_campaign_status','')).split()).casefold() not in APPROVAL_LOST_STATUSES
+            or not re.fullmatch('[0-9a-f]{64}',str(evidence.get('body_sha256','')))):
+        return False
+    try:
+        observed=datetime.fromisoformat(str(item.get('observed_at_utc')).replace('Z','+00:00'))
+        started=datetime.fromisoformat(str(capture_started_at).replace('Z','+00:00'))
+    except ValueError:
+        return False
+    return (observed.tzinfo is not None and started.tzinfo is not None
+            and started<=observed<=datetime.now(timezone.utc))
+
+
 def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
                    baseline_sources=None, direct_recheck=None, max_pages=50,
                    max_campaigns=2000, account_context=None, capture_started_at=None):
@@ -503,7 +530,7 @@ def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
                 response=ev.get('query_response') or {}
                 if (not safe_search_url(ev.get('url','')) or q.get('af')!='true'
                         or q.get('st','')!='' or q.get('m','0')!='0' or q.get('c','0')!='0'
-                        or response.get('source_class')!='naturally_observed_UI_response'
+                        or response.get('source_class') not in ('naturally_observed_UI_response','official_publisher_api_response')
                         or response.get('program_ids')!=page_ids or response.get('reported_total')!=page.get('total')):
                     blockers.append({'error':'approved_account_scope_unproven','scope':scope['key']})
             total = page.get('total')
@@ -511,7 +538,7 @@ def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
             numbered = (all(type(pagination.get(k)) is int for k in ('current','last','page_size'))
                 and 1 <= pagination['current'] <= pagination['last'] <= max_pages
                 and 1 <= pagination['page_size'] <= 1000
-                and pagination.get('basis') in ('numeric_active_last','single_page_no_numeric_pager'))
+                and pagination.get('basis') in ('numeric_active_last','single_page_no_numeric_pager','official_api_total_pages'))
             if numbered:
                 n,last,size=(pagination[k] for k in ('current','last','page_size'))
                 if (str(n)!=page['page_key'] or n!=len(pages)+1
@@ -551,7 +578,7 @@ def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
             'denominator_basis':('provider_reported_total' if type(reported_total) is int else
                 'observed_pagination_exhaustion' if traversal_complete else 'unproven')}
     missing = sorted(set(previous_approved_ids or []) - set(links))
-    rechecks, retired = [], []
+    rechecks, retired, lost = [], [], []
     for pid in missing:
         item = {'program_id':pid,'disposition':'unknown','reason':'direct_recheck_unavailable'}
         if direct_recheck:
@@ -565,12 +592,18 @@ def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
                         raise ValueError('retirement_requires_approved_account_scope')
                     validate_retired404(observed,pid,account_context,capture_started_at)
                     retired.append(observed)
+                elif observed.get('disposition')=='unavailable' and account_scope:
+                    # The account API itself answered for this exact campaign in
+                    # this run and says it is no longer approved. That is a known
+                    # relationship change (approval lost), not missing coverage.
+                    if validate_approval_lost(observed,pid,capture_started_at):
+                        lost.append(observed)
                 item = observed
             except Exception as exc:
                 item = {'program_id':pid,'disposition':'unknown','reason':'direct_recheck_failed',
                         'exception_type':type(exc).__name__}
         rechecks.append(item)
-        if item.get('disposition')!='RETIRED_404':
+        if item.get('disposition')!='RETIRED_404' and item not in lost:
             blockers.append({'error':'campaign_absent_from_current_enumeration:'+pid,'program_id':pid})
     programs = []
     for pid,row in sorted(links.items()):
@@ -596,7 +629,8 @@ def collect_scopes(fetch, capture, *, scopes, previous_approved_ids=None,
                 'missing_previous_approved_ids':missing,'direct_rechecks':rechecks,
                 'previous_approved_ids':previous_approved_ids,'baseline_sources':baseline_sources,
                 **({'account_context':account_context,'capture_started_at':capture_started_at,
-                    'retired_404':retired,'unresolved_previous_approved_ids':sorted(set(missing)-{r['program_id'] for r in retired})} if account_scope else {})},
+                    'retired_404':retired,'approval_lost':lost,
+                    'unresolved_previous_approved_ids':sorted(set(missing)-{r['program_id'] for r in retired}-{r['program_id'] for r in lost})} if account_scope else {})},
             'effects':{'provider_mutations':0,'tracking_links_minted':0,'applications_submitted':0,'tracking_clicks':0}}
 
 

@@ -598,3 +598,6 @@
 !/scripts/host_disk_auto_classes.py
 !/tests/test_host_disk_auto_classes.py
 !/ops/hermes-cron-scripts/host_disk_low_free_trigger.py
+# GLP268 live callers: MaxBounty official API transport (source only)
+!/scripts/maxbounty_publisher_api.py
+!/tests/test_glp268_live_callers.py

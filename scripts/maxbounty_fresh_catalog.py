@@ -39,6 +39,9 @@ class FreshVisibleListingTransport:
                  'm': scope['value'] if scope['kind'] == 'category' else '0',
                  'c': '0', 'af': 'true' if scope['kind'] == 'approved' else 'false',
                  'pn': str(number), 'ob': 'date', 'ad': 'undefined',
+                 # Live 2026-10-09: without the native form's as=true the SPA
+                 # renders an empty root on direct navigation (no rows, no pager).
+                 'as': 'true',
                  **{key: 'true' for key in ('ep','cp','bp','sp','ip','lp','np','mp','bbp')},
                  **{key: 'false' for key in ('ff','rf','ar')},
                  'tstrict': '0', 'grstrict': '0',
