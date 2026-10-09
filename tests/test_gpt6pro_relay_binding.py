@@ -708,15 +708,15 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(len(self.browser.pages), 1)
         self.assertEqual(next(iter(self.browser.pages.values()))['url'], 'about:blank')
 
-    def test_single_managed_wave_qualifies_three_generating_chats(self):
-        """Actual wave + submit/poll code; fourth refuses before a browser send."""
+    def test_single_managed_wave_qualifies_two_generating_chats(self):
+        """Actual wave + submit/poll code; third refuses before a browser send."""
         wave_spec = importlib.util.spec_from_file_location('qualified_wave', RELAY_PATH.with_name('gpt6pro_wave.py'))
         assert wave_spec is not None and wave_spec.loader is not None
         wave = importlib.util.module_from_spec(wave_spec)
         with mock.patch.dict(sys.modules, {'gpt6pro_relay': relay}):
             wave_spec.loader.exec_module(wave)
-        jobs = ['qualified-one', 'qualified-two', 'qualified-three']
-        for job in [*jobs, 'qualified-four']:
+        jobs = ['qualified-one', 'qualified-two']
+        for job in [*jobs, 'qualified-three']:
             d = relay.job_dir(job)
             (d / 'PROMPT.md').write_text('Distinct useful review fixture: ' + job)
             (d / 'MANIFEST.json').write_text(json.dumps({'job': job, 'job_class': 'review', 'attach': [],
@@ -733,17 +733,17 @@ class BindingTests(unittest.TestCase):
             if args[0] == 'submit':
                 result = cli(args)
                 peak.append(len(relay.active_registry()))
-                if len(peak) == 3:
-                    self.assertEqual(peak, [1, 2, 3])
+                if len(peak) == 2:
+                    self.assertEqual(peak, [1, 2])
                     rows = [relay.job_state(j) for j in jobs]
                     self.assertTrue(all(r['status'] == 'running' for r in rows))
-                    self.assertEqual(len({r['conversation_id'] for r in rows}), 3)
-                    self.assertEqual(len({r['tab'] for r in rows}), 3)
+                    self.assertEqual(len({r['conversation_id'] for r in rows}), 2)
+                    self.assertEqual(len({r['tab'] for r in rows}), 2)
                     self.assertTrue(all(self.browser.pages[r['tab']]['stop'] for r in rows))
                     before = (len(self.browser.sent), len(self.browser.created))
-                    fourth = [a.replace('qualified-three', 'qualified-four') for a in args]
+                    third = [a.replace('qualified-two', 'qualified-three') for a in args]
                     with self.assertRaisesRegex(SystemExit, 'CAPACITY_ACCOUNT'):
-                        cli(fourth)
+                        cli(third)
                     self.assertEqual((len(self.browser.sent), len(self.browser.created)), before)
                     for r in rows:
                         page = self.browser.pages[r['tab']]
@@ -761,8 +761,8 @@ class BindingTests(unittest.TestCase):
              mock.patch.object(sys, 'argv', ['gpt6pro_wave.py', '--wave', str(wave_file), '--account', 'account-a']), \
              redirect_stdout(io.StringIO()) as out:
             self.assertEqual(wave.main(), 0)
-        self.assertEqual(peak, [1, 2, 3])
-        self.assertEqual(len(self.browser.sent), 3)
+        self.assertEqual(peak, [1, 2])
+        self.assertEqual(len(self.browser.sent), 2)
         self.assertTrue(all(relay.job_state(j)['status'] == 'done' for j in jobs))
         self.assertEqual(relay.active_registry(), [])
         self.assertIn('WAVE_DONE', out.getvalue())
@@ -2764,14 +2764,14 @@ console.log(JSON.stringify(fixtures.map(f => {
             relay.cmd_submit(self.args())
         self.assertEqual(len(self.browser.sent), 1)
 
-    def test_three_jobs_keep_distinct_bindings_and_replies(self):
-        for name in ("one", "two", "three"):
+    def test_two_jobs_keep_distinct_bindings_and_replies(self):
+        for name in ("one", "two"):
             self.clock += 60
             self.assertEqual(relay.cmd_submit(self.args(name)), 0)
-        states = [relay.job_state(n) for n in ("one", "two", "three")]
-        self.assertEqual(len({s["conversation_url"] for s in states}), 3)
-        self.assertEqual(len({s["tab"] for s in states}), 3)
-        for name in ("one", "two", "three"):
+        states = [relay.job_state(n) for n in ("one", "two")]
+        self.assertEqual(len({s["conversation_url"] for s in states}), 2)
+        self.assertEqual(len({s["tab"] for s in states}), 2)
+        for name in ("one", "two"):
             self.clock += 20
             self.assertEqual(relay.poll(name, False, 30, 3600), 3)
             self.assertFalse((relay.JOBS / name / "RESPONSE.md").exists())
@@ -2779,17 +2779,17 @@ console.log(JSON.stringify(fixtures.map(f => {
             self.assertEqual(relay.poll(name, False, 30, 3600), 0)
             self.assertEqual((relay.JOBS / name / "RESPONSE.md").read_text(), 'reply: ' + (relay.JOBS / name / 'MESSAGE.md').read_text())
 
-    def test_three_thinking_jobs_release_the_submit_lock(self):
+    def test_two_thinking_jobs_release_the_submit_lock(self):
         self.browser.defer_text = True
-        for name in ("one", "two", "three"):
+        for name in ("one", "two"):
             self.clock += 60
             self.assertEqual(relay.cmd_submit(self.args(name)), 0)
             self.assertFalse(relay._HELD_LOCKS)
-        states = [relay.job_state(n) for n in ("one", "two", "three")]
-        self.assertEqual(len({s["pending_conversation_url"] for s in states}), 3)
+        states = [relay.job_state(n) for n in ("one", "two")]
+        self.assertEqual(len({s["pending_conversation_url"] for s in states}), 2)
         self.assertTrue(all("conversation_url" not in s for s in states))
         self.assertTrue(all(self.browser.pages[s["tab"]]["stop"] for s in states))
-        for name in ("three", "one", "two"):
+        for name in ("two", "one"):
             page = self.browser.pages[relay.job_state(name)["tab"]]
             page.update(text="finished " + name, stop=False)
             self.clock += 20
@@ -3329,7 +3329,6 @@ console.log(JSON.stringify(fixtures.map(f => {
 
     def test_two_submit_reservations_race_for_last_account_slot(self):
         self.job('seed1', WANT[:-1] + '1')
-        self.job('seed2', WANT[:-1] + '2')
         code = '''import importlib.util, pathlib, sys, json
 spec=importlib.util.spec_from_file_location('r',sys.argv[1]); r=importlib.util.module_from_spec(spec); spec.loader.exec_module(r)
 r.BUSINESS=pathlib.Path(sys.argv[2]); r.JOBS=r.BUSINESS/'jobs'
@@ -3352,7 +3351,7 @@ except SystemExit as e: print(str(e),flush=True)
             results = [p.communicate(timeout=10) for p in procs]
             self.assertEqual(sum('ADMITTED' in out for out, err in results), 1)
             self.assertEqual(sum('CAPACITY_ACCOUNT' in out for out, err in results), 1)
-            self.assertEqual(len(relay.active_registry()), 3)
+            self.assertEqual(len(relay.active_registry()), 2)
         finally:
             for proc in procs:
                 if proc.poll() is None: proc.kill()
