@@ -1,0 +1,6 @@
+# GLP-347/351: detect network paused/ended/cancelled notices (read-only inbox +
+# reconciler DBs), queue paused live rows for the sole Sheet writer, and census
+# live sponsored CTAs. The :17 affiliate sync job ships the release.
+SHELL=/bin/bash
+PATH=/home/ubuntu/.hermes/node/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+7 * * * * ubuntu cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python -B scripts/glp_paused_program_monitor.py >> /home/ubuntu/business/logs/paused-program-monitor.log 2>&1

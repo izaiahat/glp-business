@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 874,
+  "tracked_count": 885,
   "files": {
     "tests/test_firecrawl_glp350_cron.py": {
       "kind": "test",
@@ -549,7 +549,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d4bb4f87d452c78894d4ba69e47f3f76087738517d055e2d93f5ccce9571506c"
+      "sha256": "f7c46676ef90dae24f1f826cefe74e4a74cfe83fbd64b0a10bb69d5c78963e89"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -559,7 +559,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "73fd135051cce16f49153c29f5780b33aaa55f89a948e2552f22b781570d37d3"
+      "sha256": "8bda7571bacbd3e03e595021c462d2dfadbeb05f0485f5c783719e73345e264e"
     },
     ".hermes.md": {
       "callers": [],
@@ -3599,7 +3599,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "de667cb4259ff4bea883f1fae267e86355199095f4084b03e76e2aaadec24f83"
+      "sha256": "115fdfb32c834f6f83587931c0fa339530ba37c5de8416cc6afe5e39d49f94c8"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -3620,7 +3620,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "470054a50375362341e4388446dbe17225304025241170a0cfdf97c320205b39"
+      "sha256": "994ddc8f2386eec60d5a5e1811671b77b7d02a4b9e5cb651f741b425e0c84e03"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
@@ -5542,7 +5542,7 @@
       "callers": [
         "topic supply refresh"
       ],
-      "sha256": "ccb14e66c66c30b378388d863a90e7d822cf8f82fe0e9df566b6743376edeef0"
+      "sha256": "4fecf29ec9bda8e6422aa32255ade3823029f36707330e9e04582514a2da42c3"
     },
     ".github/workflows/firecrawl-integration.yml": {
       "kind": "workflow",
@@ -5598,14 +5598,14 @@
       "callers": [
         "affiliate evidence producers"
       ],
-      "sha256": "002792f1ab74362dceec68893a1e51b012b1bc2fba560d9756d280ce6038d1ec"
+      "sha256": "e47a052f63195403ab64ac78104579f23743ce2c34a738c2c79fc5e08fef12d0"
     },
     "tests/test_glp80_registered_price_refresh.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "c6608d541a99c37051b37eaf2127ed25c8169bd902c0e9547be3256019f73172"
+      "sha256": "480839a50e1612a10d0191f12134fb2aafed813c3220389adf5027cdbb27d951"
     },
     "scripts/glp_price_freshness.py": {
       "kind": "script",
@@ -5613,14 +5613,14 @@
         "registered pricing_refresh cron action",
         "manual:GLP-80"
       ],
-      "sha256": "3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a"
+      "sha256": "dc4cf6af13abb59b5d417340a780aa4c5449453bcf799d63d174a1903f28beaa"
     },
     "tests/test_glp80_price_freshness.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/glp80-price-freshness.yml"
       ],
-      "sha256": "1d52351b31d81e7162287ae15e42de2a3d32f9e88a4d861795f8abd8956ad063"
+      "sha256": "5ca69a911b26e93bdb9114628283dd621789342542a0f1c1c6251d97e514c581"
     },
     ".github/workflows/glp80-price-freshness.yml": {
       "kind": "ci",
@@ -5795,14 +5795,14 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "17a280cdc8d3e643df366e9f02663b017cc06424bc01270f05cd251d689072f4"
+      "sha256": "f6aab319d6cfb28c68371cae90c2ffba37a96f0763cdbe2335ffc050bac97af3"
     },
     "tests/test_glp80_reattest.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "5a90c6101fa197fe9e6e49a6468f4d6055de80e63e3c772c10aac59bd7d8ac4a"
+      "sha256": "97a2683c3de72637d17355c68f30963fc370fcb862c9d79f1d8367e28d82a594"
     },
     "tests/test_firecrawl_glp350_monitor.py": {
       "kind": "test",
@@ -5830,7 +5830,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "fd528bfcc11bbab492205aa3ab07a1b52462f6103493f7e875bbb60b674afb39"
+      "sha256": "bf7a05e76f1dce08ce16763abe7b0b7f9773a4aed3f4cddaf10073be016bba68"
     },
     "tests/test_firecrawl_glp350_gov.py": {
       "kind": "test",
@@ -5909,6 +5909,67 @@
         "hermes:low-disk-trigger"
       ],
       "sha256": "e77161db4f176ecd8a235d5bfd4f3577ffcc634adf1623bb0143b0e3945924a3"
+    },
+    "ops/cron.d/glp-paused-program-monitor": {
+      "kind": "cron",
+      "callers": [
+        "host cron"
+      ],
+      "sha256": "0af02fa58f5be429cf0317a7610af0a9d27d3282e103e24678ae32e0bd25fa21"
+    },
+    "scripts/glp_paused_program_monitor.py": {
+      "kind": "script",
+      "callers": [
+        "ops/cron.d/glp-paused-program-monitor"
+      ],
+      "sha256": "179c2b726bc97ab6b7cc7a08d4c3ba0a25f803be0c37319082b1469189d9ef48"
+    },
+    "tests/test_glp_paused_program_monitor.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "42e5f1da3e50240e85513f81cf41f5ed283f3932f4f0b2871bc8d6ad50e27f51"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/00-authority.json": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "8d06a816be978a3334c1917c423dbb3ec095a6c9c1252685cb076634360bddfe"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/01-evidence-ledger.json": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "1684e91078e405d4194b77b4db9e0b46ed32fcc47f4394d807b100f6133fe3ed"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/02-serp-brief.json": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "214a5bd6a05439d478be5dedc8e4f2a3f5cecfaf2937f05a80a613d14ae7af53"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/03-editorial-brief.md": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "ed91f4d7da4479d88c002344cb062a8aa81722dbe847df63fa9b21200dc2a07d"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/04-draft.md": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "0ca0bfe5c422c03cdde315f974f9be7516e1e9492ae203d08535863de84cd29f"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/05-claim-source-map.json": {
+      "kind": "approved_article_source",
+      "callers": [],
+      "sha256": "d9ebb1a32389d2f127e8371fdcba28469e3c7d5f5ae742a2a684215bd2ca7d16"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/README.md": {
+      "kind": "article_source_custody",
+      "callers": [],
+      "sha256": "054b627c514cab5f005c8e6765749f38f19799458e739b04544708702d295a55"
+    },
+    "ops/glp/seo/article-packets/glp76-fda-20261003/SOURCE.json": {
+      "kind": "article_source_custody",
+      "callers": [],
+      "sha256": "d2ac5a4e98dbd5d64f1ffbf6b41abe13118142b31b6806954817868e460f6005"
     }
   }
 }

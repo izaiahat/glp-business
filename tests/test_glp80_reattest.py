@@ -65,6 +65,31 @@ def test_weekly_batch_and_unchanged_unknown_page_skip_json(tmp_path, monkeypatch
     monkeypatch.setattr(p.subprocess, 'check_output', lambda *a, **kw: cron[0])
     monkeypatch.setattr(p.subprocess, 'run', lambda *a, **kw: cron.__setitem__(0, kw['input']))
     installed = p.install_weekly()
-    assert installed['line'].startswith('20 8 * * 0 ')
+    assert installed['line'].startswith('20 * * * * ')
     assert "--cron '20 8 * * 0'" in installed['line']
     assert '1 2 * * * unrelated-job\n' in cron[0]
+
+
+def test_batch_recovers_only_explicit_terminal_engine_failure(tmp_path):
+    failed = 'https://clinic.example/pricing'
+    unknown = 'https://clinic.example/missing'
+    raw = 'Compounded semaglutide injection starts from $99/mo. ' * 3
+    calls = []
+    class Client:
+        def request(self, endpoint, payload=None, **kwargs):
+            if endpoint == 'batch/scrape':
+                return {'success': True, 'id': 'fixture-batch'}
+            if endpoint.endswith('/errors'):
+                return {'errors': [{'url': failed, 'code': 'SCRAPE_ALL_ENGINES_FAILED'}], 'robotsBlocked': []}
+            return {'status': 'completed', 'data': []}
+        def scrape(self, payload, **kwargs):
+            calls.append(payload)
+            return {'success': True, 'data': {'markdown': raw, 'metadata': {'sourceURL': failed, 'statusCode': 200, 'creditsUsed': 1}}}
+    result = p.batch_monitor(Client(), [failed, unknown], tmp_path, 1)
+    assert result[failed]['data']['markdown'] == raw
+    assert unknown not in result
+    assert len(calls) == 1
+    assert calls[0]['url'] == failed
+    assert calls[0]['formats'] == ['markdown']
+    assert calls[0]['proxy'] == 'enhanced'
+    assert result[failed]['transport_recovery']['first_error_code'] == 'SCRAPE_ALL_ENGINES_FAILED'

@@ -678,6 +678,12 @@ def price_coverage(active, results):
             'meaning': 'All known typed facts supported; declared UNKNOWN components retained. Not a complete selected-plan cost or publication.'}
 
 
+def monitor_changed(cache, text):
+    if cache.get('monitor_sha256'):
+        return cache['monitor_sha256'] != digest(text)
+    return changed(cache.get('markdown'), text)
+
+
 def batch_monitor(client, urls, out, concurrency):
     """Poll one forced-fresh markdown batch by exact ID, never repost it."""
     if not hasattr(client, 'request'):
@@ -705,8 +711,23 @@ def batch_monitor(client, urls, out, concurrency):
             raise TimeoutError('batch_status_deadline; reconcile retained ID')
         time.sleep(3)
     put(out / 'BATCH-DOCUMENTS.json', documents)
-    return {(data.get('metadata') or {}).get('sourceURL'): {'success': True, 'data': data}
-            for data in documents if (data.get('metadata') or {}).get('sourceURL') in urls}
+    monitored = {(data.get('metadata') or {}).get('sourceURL'): {'success': True, 'data': data}
+                 for data in documents if (data.get('metadata') or {}).get('sourceURL') in urls}
+    if set(urls) - monitored.keys():
+        errors = client.request('batch/scrape/' + start['id'] + '/errors', method='GET', timeout=150)
+        put(out / 'BATCH-ERRORS.json', errors)
+        for error in errors.get('errors', []):
+            url = error.get('url')
+            if (url not in urls or url in monitored or url in errors.get('robotsBlocked', [])
+                    or error.get('code') != 'SCRAPE_ALL_ENGINES_FAILED'):
+                continue
+            response = client.scrape({'url': url, 'formats': ['markdown'], 'onlyMainContent': False,
+                'maxAge': 0, 'timeout': 120000, 'proxy': 'enhanced', 'waitFor': 2000}, timeout=150)
+            response = copy.deepcopy(response)
+            response['transport_recovery'] = {'first_error_code': error['code'],
+                'batch_id': start['id'], 'attempts': 2, 'retry_options': {'proxy': 'enhanced', 'waitFor': 2000}}
+            monitored[url] = response
+    return monitored
 
 
 def reattest_row(row, captures):
@@ -790,7 +811,8 @@ def run(args, client=None):
                     page['monitor_transport_recovery'] = response['transport_recovery']
                 data = response_data(response, url)
                 text = data['markdown']
-                is_changed = changed(cache.get('markdown'), text, data.get('changeTracking'))
+                is_changed = monitor_changed(cache, text)
+                cache['monitor_sha256'] = digest(text)
                 fresh_captures[url] = {'source_url': url, 'markdown': text,
                     'content_sha256': digest(text), 'captured_at_utc': utc()}
                 (folder / (key + '.md')).write_text(text)
@@ -1086,7 +1108,9 @@ def install_weekly():
     lines[i], count = re.subn(r"--cron '[^']+'", "--cron '20 8 * * 0'", lines[i])
     if count != 1:
         raise ValueError('pricing_cron_guard_missing')
-    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 8 * * 0 ', lines[i], count=1)
+    # The host cron is UTC. Keep its existing hourly dispatcher so the
+    # Pacific weekly guard is reached in both standard and daylight time.
+    lines[i] = re.sub(r'^\S+(?:\s+\S+){4}\s+', '20 * * * * ', lines[i], count=1)
     updated = '\n'.join(lines) + '\n'
     if updated != old:
         if subprocess.check_output(['crontab', '-l'], text=True) != old:

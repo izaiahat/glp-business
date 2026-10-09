@@ -541,6 +541,22 @@
 !/tests/fixtures/glp344-price-evidence/claims-conflict.json
 !/tests/fixtures/glp344-price-evidence/provider-pricing-matrix.json
 
+# GLP76 approved three-FDA authored successor (no generated QA/review)
+!/ops/glp/seo/
+/ops/glp/seo/*
+!/ops/glp/seo/article-packets/
+/ops/glp/seo/article-packets/*
+!/ops/glp/seo/article-packets/glp76-fda-20261003/
+/ops/glp/seo/article-packets/glp76-fda-20261003/*
+!/ops/glp/seo/article-packets/glp76-fda-20261003/00-authority.json
+!/ops/glp/seo/article-packets/glp76-fda-20261003/01-evidence-ledger.json
+!/ops/glp/seo/article-packets/glp76-fda-20261003/02-serp-brief.json
+!/ops/glp/seo/article-packets/glp76-fda-20261003/03-editorial-brief.md
+!/ops/glp/seo/article-packets/glp76-fda-20261003/04-draft.md
+!/ops/glp/seo/article-packets/glp76-fda-20261003/05-claim-source-map.json
+!/ops/glp/seo/article-packets/glp76-fda-20261003/SOURCE.json
+!/ops/glp/seo/article-packets/glp76-fda-20261003/README.md
+
 # Hermes active-work gate: exact maintained predecessor and owning tests
 !/scripts/hermes_active_work_gate.py
 !/tests/test_hermes_active_work_gate.py
