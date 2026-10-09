@@ -775,7 +775,7 @@
         "hermes:58202b06bdc0"
       ],
       "kind": "script",
-      "sha256": "4e14384a6a5be58deeb93e49ca9068cc2563be3d7ed9594be236aa73cd9c82f8"
+      "sha256": "8f4eccb6e34daede6d0950617460a853e6b61edbaff7a648a4f7c8482258c01f"
     },
     "ops/hermes-cron-scripts/affiliate_supply_sweep_daily.sh": {
       "callers": [
@@ -3606,7 +3606,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "348fd4467e13ce1f7145fa41ad50bff3a367d13b52581d615c651217b2cd2f2f"
+      "sha256": "ebe89d716a712e85dfbba9b20fe8551257a81831340051e338a282644b3a2a7d"
     },
     "scripts/maintenance_admission.py": {
       "callers": [
