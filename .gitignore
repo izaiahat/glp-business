@@ -587,3 +587,14 @@
 !/tests/test_linear_close.py
 !/scripts/glp_digital_pr_weekly.py
 !/tests/test_glp_digital_pr_weekly.py
+# Host disk automatic pruner closure (source only)
+!/scripts/host_disk_cold_classes.py
+!/scripts/host_disk_large_classes.py
+!/scripts/host_disk_payload_guard.py
+!/scripts/host_disk_reference_guard.py
+!/scripts/host_disk_large_sweep.py
+!/scripts/host_disk_cleanup_large_unit.py
+!/tests/test_host_disk_large_guards.py
+!/scripts/host_disk_auto_classes.py
+!/tests/test_host_disk_auto_classes.py
+!/ops/hermes-cron-scripts/host_disk_low_free_trigger.py
