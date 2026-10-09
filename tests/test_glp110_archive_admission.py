@@ -506,8 +506,7 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
         with tarfile.open(artifact) as tar:
             members = {m.name: m for m in tar.getmembers()}
             assert len(members) == len(tar.getmembers())
-            assert 'state.db' in members
-            assert members['state.db'].mode == 0o600
+            assert 'state.db' not in members  # published separately as zstd
             assert not any(n.endswith(('-wal', '-shm')) for n in members)
             for name, payload in payloads.items():
                 member_file = tar.extractfile(name)
@@ -517,13 +516,11 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
             assert coverage_file is not None
             manifest = json.load(coverage_file)
             assert manifest['session_store']['status'] == 'SNAPSHOT_OK'
+            state_copies = list(backup_root.glob('hermes-state-db-????????.sqlite.zst'))
+            assert [p.name for p in state_copies] == [manifest['session_store']['artifact']]
+            assert state_copies[0].stat().st_mode & 0o777 == 0o600
             snapshot = tmp_path / 'state-snapshot.db'
-            with snapshot.open('xb') as target:
-                os.fchmod(target.fileno(), 0o600)
-                import shutil
-                member_file = tar.extractfile('state.db')
-                assert member_file is not None
-                shutil.copyfileobj(member_file, target)
+            subprocess.run(['zstd', '-q', '-d', str(state_copies[0]), '-o', str(snapshot)], check=True)
             restored = tmp_path / 'state-restored.db'
             with restored.open('xb') as target:
                 os.fchmod(target.fileno(), 0o600)
@@ -554,6 +551,13 @@ def test_daily_backup_restores_committed_wal_ledgers_privately_and_fails_closed(
                 assert dst.execute('select value from proof').fetchall() == [('committed-in-wal-'+name,)]
                 dst.close()
                 assert manifest['ledgers'][member]['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
+        # Retention: only 2 compressed state.db copies survive a new run.
+        for day in ('20000101', '20000102', '20000103'):
+            (backup_root / ('hermes-state-db-'+day+'.sqlite.zst')).write_bytes(b'old')
+        again = subprocess.run(['bash', str(producer)], env=env, capture_output=True, text=True, timeout=90)
+        assert again.returncode == 0, again.stdout + again.stderr
+        kept = sorted(p.name for p in backup_root.glob('hermes-state-db-*.sqlite.zst'))
+        assert kept == ['hermes-state-db-20000103.sqlite.zst', state_copies[0].name]
         prior = artifact.read_bytes()
         # Exact producer with scratch-only statvfs simulation, no live pressure.
         injection = tmp_path / 'low-space-python'

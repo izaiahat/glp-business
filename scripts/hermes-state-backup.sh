@@ -4,6 +4,8 @@
 # SQLite online backup API only: never raw tar of live ledgers/WAL/state.db.
 # Current state.db uses online backup, never quiesced archival or live raw copy.
 # Same-day atomic replacement and existing 14-day retention scope preserved.
+# state.db is published separately as zstd hermes-state-db-YYYYMMDD.sqlite.zst;
+# only the newest 2 such copies are kept (older pruned before a new snapshot).
 set -Eeuo pipefail
 umask 077
 exec python3 - "${HERMES_HOME:-$HOME/.hermes}" \
@@ -17,6 +19,7 @@ import os
 from pathlib import Path
 import sqlite3
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -51,6 +54,15 @@ now = dt.datetime.now(dt.timezone.utc)
 out = root / ('hermes-state-'+now.strftime('%Y%m%d')+'.tar.gz')
 if out.is_symlink() or (out.exists() and not out.is_file()):
     raise ValueError('unsafe backup output')
+
+STATE_KEEP = 2
+state_out = root / ('hermes-state-db-'+now.strftime('%Y%m%d')+'.sqlite.zst')
+if state_out.is_symlink() or (state_out.exists() and not state_out.is_file()):
+    raise ValueError('unsafe state backup output')
+
+def state_copies():
+    return sorted(p for p in root.glob('hermes-state-db-????????.sqlite.zst')
+                  if p.is_file() and not p.is_symlink())
 
 def log(text):
     print('['+dt.datetime.now(dt.timezone.utc).isoformat()+'] '+text, flush=True)
@@ -135,7 +147,13 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
             # plus 2 GiB for ordinary live growth. No source checkpoint or pause.
             # Permit up to 1 GiB of concurrent committed growth, pre-reserved.
             limit = logical_bytes + 1024**3 if is_state else MAX_LEDGER_BYTES
-            if is_state and free_bytes() < limit * 202 // 100 + MIN_FREE_BYTES:
+            if is_state:
+                # Disk: keep at most STATE_KEEP copies including the one being made.
+                for old in [p for p in state_copies() if p != state_out][:-(STATE_KEEP-1) or None]:
+                    old.unlink()
+                    log('pruned old state copy: '+old.name)
+            # Staging + compressed output bounded at half the logical size.
+            if is_state and free_bytes() < limit * 3 // 2 + MIN_FREE_BYTES:
                 raise ValueError('insufficient private state snapshot/archive headroom')
             if logical_bytes > limit:
                 raise ValueError('logical ledger exceeds staging bound: '+rel)
@@ -146,7 +164,8 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
                         or (is_state and free_bytes() < MIN_FREE_BYTES + remaining * page_size)
                         or (is_state and wal.exists() and wal.stat().st_size > wal_before + 1024**3)):
                     raise TimeoutError('bounded ledger snapshot refused: '+rel)
-            src.backup(dst, pages=256, progress=progress, sleep=0.1)
+            # 13G state.db: 256-page steps would sleep past the 30-min deadline.
+            src.backup(dst, pages=8192 if is_state else 256, progress=progress, sleep=0.1)
             # Release the private source read generation before validation and
             # compression, minimizing checkpoint delay without signalling holders.
             src.close()
@@ -160,15 +179,44 @@ with tempfile.TemporaryDirectory(prefix='.snapshot-', dir=root) as stage_name:
                 dst.close()
             if src is not None:
                 src.close()
-        snapshots[rel] = snapshot
+        if not is_state:
+            snapshots[rel] = snapshot
         record = {'status': 'SNAPSHOT_OK', 'quick_check': 'ok',
             'bytes': snapshot.stat().st_size,
             'sha256': digest(snapshot)}
         if is_state:
             manifest['session_store'] = {'path': rel, **record}
             manifest['session_store']['headroom_before_archive_bytes'] = free_bytes()
-            if free_bytes() < snapshot.stat().st_size * 101 // 100 + MIN_FREE_BYTES:
+            if free_bytes() < snapshot.stat().st_size // 2 + MIN_FREE_BYTES:
                 raise ValueError('insufficient state archive publication headroom')
+            zpartial = stage / 'state.db.zst'
+            zhash = hashlib.sha256()
+            with os.fdopen(os.open(zpartial, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as target:
+                os.fchmod(target.fileno(), 0o600)
+                writer = HeadroomWriter(target)
+                proc = subprocess.Popen(['zstd', '-q', '-3', '-T0', '-c', str(snapshot)], stdout=subprocess.PIPE)
+                try:
+                    for chunk in iter(lambda: proc.stdout.read(1024**2), b''):
+                        writer.write(chunk)
+                        zhash.update(chunk)
+                except BaseException:
+                    proc.kill()
+                    raise
+                finally:
+                    proc.stdout.close()
+                    rc = proc.wait()
+                if rc != 0:
+                    raise ValueError('zstd compression failed')
+                target.flush()
+                os.fsync(target.fileno())
+            if subprocess.run(['zstd', '-q', '-t', str(zpartial)]).returncode != 0:
+                raise ValueError('zstd verification failed')
+            os.replace(zpartial, state_out)
+            snapshot.unlink()  # free staging before the config archive
+            manifest['session_store'].update({'artifact': state_out.name,
+                'compression': 'zstd -3', 'artifact_bytes': state_out.stat().st_size,
+                'artifact_sha256': zhash.hexdigest()})
+            log('wrote '+str(state_out)+' ('+str(state_out.stat().st_size)+' bytes)')
         else:
             manifest['ledgers'][rel] = record
     coverage = stage / 'backup-coverage.json'
@@ -213,5 +261,6 @@ for old in root.glob('hermes-state-????????.tar.gz'):
 for partial in root.glob('hermes-state-*.tar.gz.partial.*'):
     if partial.is_file() and not partial.is_symlink() and int((time.time()-partial.stat().st_mtime)/86400) > 1:
         partial.unlink()
-log('hermes-state-backup done (retention='+str(retention)+'d, pruned='+str(deleted)+')')
+log('hermes-state-backup done (retention='+str(retention)+'d, pruned='+str(deleted)
+    +', state copies='+','.join(p.name for p in state_copies())+')')
 PY
