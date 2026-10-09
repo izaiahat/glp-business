@@ -119,6 +119,28 @@ class CronBridgeTests(unittest.TestCase):
                 self.assertEqual(fresh["status"], "PASS")
                 self.assertEqual(len(dispatches), 1)
 
+                # A later main release is not an effect of the failed article.
+                # Accept only an exact terminal successor and the hashed old base.
+                base_final = self.root / "base-final.json"
+                base_final.write_text(json.dumps({"schema": "glp-opus-production-terminal-receipt-v1",
+                    "status": "PASS_PRODUCTION_TERMINAL", "deployment": {"deployment_id": "unchanged"}}))
+                job_record = dict(json.loads(template.read_text()), base_final_receipt={"path": str(base_final),
+                    "sha256": hashlib.sha256(base_final.read_bytes()).hexdigest()})
+                (report / "release-job.json").write_text(json.dumps(job_record))
+                main_report = self.root / "main-successor"
+                (main_report / "prepared/release").mkdir(parents=True)
+                successor = {"deployment_id": "main-successor", "supersedes": {"deployment_id": "unchanged"},
+                             "release_root": str(main_report / "prepared/release")}
+                pointer.write_text(json.dumps(successor))
+                terminal = {"status": "PASS_PRODUCTION_TERMINAL", "scope": "operator-approved-main-release",
+                    "deployment_id": "main-successor", "predecessor_deployment_id": "unchanged", "report": str(main_report)}
+                (main_report / "MAIN-RELEASE-RESULT.json").write_text(json.dumps(terminal))
+                head.return_value = "main-successor"
+                self.assertTrue(cron.article_failed_before_publish(machine))
+                terminal["predecessor_deployment_id"] = "unrelated"
+                (main_report / "MAIN-RELEASE-RESULT.json").write_text(json.dumps(terminal))
+                self.assertFalse(cron.article_failed_before_publish(machine))
+
     def test_allowlisted_action_runs_with_bridge_validation_timeout_and_receipt(self):
         result = self.run_action()
         self.assertEqual(result["rc"], 0)
