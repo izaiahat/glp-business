@@ -2472,7 +2472,7 @@
         "GLP-73 article image release and text-only rendering"
       ],
       "kind": "script",
-      "sha256": "1503d070304a5f97f82efbe555d9fff2d7266595a6a8fb4fb6e7ecdc5a796c8b"
+      "sha256": "228c3347d0cdd32a11efe438aadab6c2bfe74bd881f68fc081407e5fa1fc6d91"
     },
     "systems/seo-blog-machine/scripts/machine_config.py": {
       "callers": [

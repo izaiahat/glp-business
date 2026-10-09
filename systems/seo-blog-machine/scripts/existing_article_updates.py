@@ -426,7 +426,7 @@ def weekly_plan(
     candidates: Iterable[dict[str, Any]], *, cogny_strategy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     # Advice can order already-admitted rows, never add routes or change tiers.
-    rows = copy.deepcopy(list(candidates))
+    rows = [dict(row) for row in candidates]
     if cogny_strategy is not None:
         for row in rows:
             queries = [q.get("query", "") for q in row.get("gsc_queries", [])] or [""]
