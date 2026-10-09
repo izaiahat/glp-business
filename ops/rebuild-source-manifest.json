@@ -5913,7 +5913,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+      "sha256": "837bdacd4bab4eea869b3fda34b704bcfc4673d5132075a9ca56c80a473a674c"
     },
     "scripts/host_disk_cold_classes.py": {
       "kind": "script",
@@ -6104,6 +6104,13 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "d406cba2a314f586de11b61d3fe48f2ff1387fd37dacb41893a516f3907ae39d"
+    },
+    "tests/test_firecrawl_glp350_reddit.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
     }
   }
 }
