@@ -8,6 +8,52 @@ import subscription_capacity_monitor as monitor
 NOW = datetime(2026, 9, 4, 21, tzinfo=timezone.utc)
 
 
+def test_codex_usage_binds_account_and_residency_without_auth_mutation():
+    import base64
+    from account_capacity_collector import collect_capacity
+
+    claims = {'https://api.openai.com/auth': {
+        'chatgpt_account_id': 'fixture-account', 'chatgpt_data_residency': 'us'}}
+    token = 'fixture.' + base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip('=') + '.fixture'
+    rows = [{'label': 'codex-account-1', 'access_token': token}]
+    before = json.dumps(rows)
+    calls = []
+
+    def getter(url, headers):
+        calls.append(url)
+        assert headers['ChatGPT-Account-ID'] == 'fixture-account'
+        assert headers['x-openai-internal-codex-residency'] == 'us'
+        return {'rate_limit': {'allowed': True, 'limit_reached': False,
+            'primary_window': {'used_percent': 68, 'limit_window_seconds': 604800,
+                               'reset_at': '2026-10-04T22:46:02Z'}},
+            'rate_limit_reset_credits': {'available_count': 1}}
+
+    report = collect_capacity(pool_reader=lambda: rows, usage_getter=getter,
+                              include_claude_fallback=False)
+    assert len(calls) == 1
+    assert report.records[0].weekly_remaining_pct == 32
+    assert report.records[0].operator_only['banked_reset_count'] == 1
+    assert json.dumps(rows) == before
+    serialized = json.dumps(report.to_dict(include_operator_only=True))
+    assert token not in serialized and 'fixture-account' not in serialized
+
+
+def test_report_prefers_live_banked_counts_and_discloses_roster_drift():
+    records = [{'provider': 'openai-codex', 'label': f'codex-account-{i}',
+        'weekly_remaining_pct': left, 'weekly_reset_at_utc': None,
+        'freshness': 'live', 'capacity_status': 'available' if left else 'depleted',
+        'operator_only': {'banked_reset_count': 1}} for i, left in enumerate((0, 0, 32), 1)]
+    report = {'records': records, 'account_count_ok': False,
+        'collection_errors': ['openai_account_set_changed'],
+        'banked_resets_operator': {'count': 1, 'pending_rollout_count': 3,
+                                   'reported_on': '2026-09-22'}}
+    text = monitor.render_report(report, NOW)
+    assert '3 across 3 observed accounts' in text
+    assert 'pending rollout' not in text
+    assert 'openai_account_set_changed' in text
+    assert '32% left' in text
+
+
 def test_claude_usage_reads_valid_persisted_token_without_refresh(monkeypatch):
     import hermes_cli.auth as auth
     import agent.anthropic_credentials as creds
@@ -339,7 +385,8 @@ def test_reset_rollout_keeps_reports_separate_from_live_capacity(tmp_path, monke
     assert report['banked_resets_operator']['count'] == 1
     assert {r['label'] for r in report['operator_only']} == set(accounts)
     assert report['records'] == sample(91)['records']
-    assert '3 pending rollout' in monitor.render_report(report, NOW, pacing={})
+    text = monitor.render_report(report, NOW, pacing={})
+    assert 'Measured Codex banked resets:' in text and '3 pending rollout' not in text
 
 
 def test_session_depletion_blocks_weekly_capacity_recommendation():
@@ -351,6 +398,9 @@ def test_session_depletion_blocks_weekly_capacity_recommendation():
 
 def test_missing_pro_ledger_and_operator_counts_are_unknown():
     report = sample()
+    for record in report['records']:
+        if record.get('provider') == 'openai-codex':
+            record['operator_only']['banked_reset_count'] = None
     report['pro_chat_ledger'] = [{'label': 'Pro relay', 'submitted_7d': None}]
     report['banked_resets_operator'] = {'count': None, 'reported_on': None}
     text = monitor.render_report(report, NOW)
@@ -365,7 +415,7 @@ def test_glp308_digest_separates_local_guards():
     text = monitor.render_report(report, NOW)
     assert len(report['pro_chat_ledger']) == 3
     assert sorted(r['local_weekly_guard'] for r in report['pro_chat_ledger']) == [50, 200, 200]
-    assert 'Banked resets: 0' in text and 'Fable-only' not in text
+    assert 'Measured Codex banked resets:' in text and 'Fable-only' not in text
     assert 'not provider quota' in text and 'useful work' in text
     assert len(text) <= 2000
     assert monitor.discord_fmt.lint(text, 'report')['status'] == 'pass'

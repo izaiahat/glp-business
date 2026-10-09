@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 913,
+  "tracked_count": 915,
   "files": {
     "scripts/article_health_acceptance.py": {
       "kind": "script",
@@ -1460,7 +1460,7 @@
         "subscription_capacity_monitor"
       ],
       "kind": "script",
-      "sha256": "4a352d70bab1f080152f6fba904e3f357961021224d5bfd7e6aaa9085e293025"
+      "sha256": "34e8fa83856760270855a8ff1f12106ee2b46bac983040be21a4add062fdaac1"
     },
     "scripts/affiliate_application_executor_gate.py": {
       "callers": [
@@ -1801,7 +1801,7 @@
         "ops/n8n-bridge/GLP44-SAFE-ACTIVATION.md"
       ],
       "kind": "repository_control",
-      "sha256": "b819a66c1faa3e37753985c23cdabb72a3209a9bd40e35097c95fcecbb398f97"
+      "sha256": "1f04f01cdde2d536451cd228e98b15f56163ca5797e73090278c5f5528edd402"
     },
     "scripts/glp44_scoped_adoption.py": {
       "callers": [],
@@ -2299,7 +2299,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1f53e9b211578acb036288f09dd772283d38987b940a9593e8334b75cc3bca54"
+      "sha256": "eecb7287224fbe456adc3abd6ad970e1560fb22499479de27d36d94e1722b71a"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -2348,12 +2348,12 @@
         "wrapper:ops/hermes-cron-scripts/subscription_capacity_monitor.py"
       ],
       "kind": "script",
-      "sha256": "02fb6d6f2558bf1c662b137cddde30d75ca2402057f1903904836bd093b445b3"
+      "sha256": "eeb937cffbed25bc29724288463bdb04880457f805d2d59a421c87f95badc916"
     },
     "scripts/sync_from_repo.py": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2be2410cc93a3d4ddd691ce9ede53bdede9e66f537d7b1942d7a89daa0c87ca7"
+      "sha256": "519229856c835b9de9a477d670ee6de799ac14e9b63054626514e87ac2e3beaf"
     },
     "scripts/sync_from_repo.sh": {
       "callers": [],
@@ -3557,7 +3557,7 @@
         "subscription_capacity_monitor"
       ],
       "kind": "test",
-      "sha256": "e839c07dfd4e6aebed41d16db1f77e4f4f5e223ef738102722925a7b9317fa68"
+      "sha256": "a6488f2e90ea49cbbc6a9cba5349111ac13921b80524266a5c0002f00fbdd815"
     },
     "tests/test_sync_from_repo.py": {
       "callers": [],
@@ -6168,6 +6168,20 @@
         "GitHub exact-head CI"
       ],
       "sha256": "bdb6dea8601c7b53e7b06705bfff768eaa772564571ce59e8faa5f782b3c0128"
+    },
+    "scripts/capacity_reset_policy.py": {
+      "callers": [
+        "scripts/subscription_capacity_monitor.py"
+      ],
+      "kind": "script",
+      "sha256": "4c8a3925ce2daa905fd6d2a11fa178a1629720971c34b047ea4a1674e078031d"
+    },
+    "tests/test_capacity_reset_policy.py": {
+      "callers": [
+        "subscription_capacity_monitor"
+      ],
+      "kind": "test",
+      "sha256": "329a457ff4b90bfae6ce873ef57a7d8ce2ce6df8c8f3c61c58f88ee989eb86f6"
     }
   }
 }
