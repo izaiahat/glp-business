@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 903,
+  "tracked_count": 904,
   "files": {
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -5088,6 +5088,13 @@
         "scripts/glp_sponsor_campaign.py"
       ],
       "sha256": "fcf3bb032b213ddfaf751082c8e69fc9b04b5089cbfbc9beb96a4fc344144798"
+    },
+    "tests/test_glp_sponsor_postal_address.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "063bdba661d1f2a8ad7a3e4ac11990ccbee5cc9c9e61a7a07cf895440f3583ed"
     },
     "tests/test_glp_sponsor_boundary_repairs.py": {
       "kind": "test",
