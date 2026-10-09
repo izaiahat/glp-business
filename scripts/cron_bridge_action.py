@@ -898,6 +898,72 @@ def article_materialization_failed_no_effect(receipt, child):
         return False
 
 
+def article_source_ci_failed_no_publish(receipt, failure):
+    """Recognize only GitHub's empty-check race before source merge/release.
+
+    A source PR/claim exists, so this is not zero local writes. Publication is
+    excluded by the exact traceback, sealed claim/base, still-OPEN exact source
+    branch, no consumed/output record and fresh unchanged production identity.
+    Preserve the claim: the next attempt resumes the same accepted operation.
+    """
+    import subprocess
+    try:
+        op = receipt['operation_id']
+        key = hashlib.sha256(op.encode()).hexdigest()
+        root = ROOT / 'reports/glp-clinic-scout/seo-machine/article-buffer'
+        claim = json.loads((root / 'claims' / (key + '.json')).read_text())
+        unsigned = dict(claim)
+        seal = unsigned.pop('claim_sha256')
+        canonical = (json.dumps(unsigned,sort_keys=True,separators=(',',':'),ensure_ascii=False)+'\n').encode()
+        entry_id = claim['entry_id']
+        if (hashlib.sha256(canonical).hexdigest() != seal
+                or claim.get('schema') != 'glp-seo-article-buffer-claim-v1'
+                or claim.get('status') != 'CLAIMED_OLDEST_VALID_READY_ENTRY'
+                or claim.get('operation_id') != op or not re.fullmatch('[a-f0-9]{24}',entry_id)):
+            return False
+        manifest = root / 'entries' / entry_id / 'entry.json'
+        if (claim['entry_manifest']['path'] != str(manifest)
+                or hashlib.sha256(manifest.read_bytes()).hexdigest() != claim['entry_manifest']['sha256']
+                or os.path.lexists(root / 'consumed' / (key+'.json'))):
+            return False
+        payload = failure['cli_payload']
+        msg = payload['reason']
+        match = re.fullmatch(r"source_child_failed:\['gh', 'pr', 'checks', '(https://github.com/izaiahat/glp-site-candidate/pull/[1-9][0-9]*)', '--watch', '--interval', '10'\]:rc=1\n\nno checks reported on the 'carrier/accepted-" + entry_id + r"' branch\n", msg)
+        trace = failure['stderr']
+        cli = ROOT / 'systems/seo-blog-machine/scripts/article_buffer_cli.py'
+        source = ROOT / 'scripts/article_source_carrier.py'
+        frames = [(str(cli),'main'),(str(cli),'consume_cli'),(str(source),'consume'),
+                  (str(source),'ensure_source_main'),(str(source),'run')]
+        if (not match or failure.get('schema') != 'glp.article_carrier.failure.v2'
+                or type(failure.get('exit_code')) is not int or failure['exit_code'] != 1
+                or failure.get('operation_id') != op or payload.get('operation_id') != op
+                or payload.get('command') != 'consume' or payload.get('status') != 'BLOCKED_CONSUME_FAILED'
+                or payload.get('error_class') != 'RuntimeError'
+                or failure.get('argv',[])[1:] != [str(cli),'consume','--operation-id',op]
+                or hashlib.sha256(trace.encode()).hexdigest() != failure.get('stderr_sha256')
+                or re.findall(r'  File "([^"]+)", line \d+, in ([^\n]+)\n',trace) != frames
+                or not trace.endswith('RuntimeError: '+msg+'\n')
+                or payload.get('exception') != {'class':'RuntimeError','message':msg,'traceback':trace}):
+            return False
+        base = ROOT / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
+        base_sha = hashlib.sha256(base.read_bytes()).hexdigest()
+        if claim['current_base_state'] != {'path':str(base),'sha256':base_sha}:
+            return False
+        pr = json.loads(subprocess.check_output(['gh','pr','view',match[1],
+            '--json','state,headRefName'],text=True,timeout=60))
+        if pr != {'state':'OPEN','headRefName':'carrier/accepted-'+entry_id}:
+            return False
+        current = article_current_base()
+        heads = receipt['head_reconciliation']
+        deployment = current['deployment_id']
+        return (current.get('pointer_sha256') == base_sha and heads.get('aligned') is True
+                and heads['pointer_head']['deployment_id'] == deployment
+                and heads['live_head']['deployment_id'] == deployment
+                and article_production_head_id() == deployment and article_current_base() == current)
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+        return False
+
+
 def article_failed_before_publish(receipt):
     """Prove a failed pre-report build never reached the publisher.
 
@@ -910,6 +976,8 @@ def article_failed_before_publish(receipt):
     try:
         failure = json.loads(Path(receipt["receipt_path"]).read_text())
         payload = failure["cli_payload"]
+        if payload.get('error_class') == 'RuntimeError' and str(payload.get('reason','')).startswith("source_child_failed:['gh', 'pr', 'checks',"):
+            return article_source_ci_failed_no_publish(receipt, failure)
         if payload.get('error_class') == 'ModuleNotFoundError':
             op = receipt.get('operation_id')
             trace = failure.get('stderr', '')
