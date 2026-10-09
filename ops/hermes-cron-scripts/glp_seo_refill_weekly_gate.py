@@ -19,7 +19,7 @@ def main():
     folder.mkdir(parents=True)
     path = folder/'selection.json'
     command = [sys.executable,str(B/'systems/seo-blog-machine/scripts/select_opus_content_queue.py'),
-               '--output-receipt',str(path)]
+               '--output-receipt',str(path),'--limit','1']
     proc = subprocess.run(command, cwd=B, capture_output=True, text=True, timeout=600)
     (folder/'selector.stdout').write_text(proc.stdout)
     (folder/'selector.stderr').write_text(proc.stderr)

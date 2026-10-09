@@ -8,6 +8,16 @@ import datetime as dt
 import hashlib
 import json
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+
+def review_week_start(day):
+    """Sunday review governs the upcoming Monday-through-Saturday supply week.
+
+    Before Sunday's review is ready, an absent new input means no dispatch.
+    Never silently keep using last week's topics after the Sunday rollover.
+    """
+    return day + dt.timedelta(days=1) if day.weekday() == 6 else day - dt.timedelta(days=day.weekday())
 
 DEFAULT_PATH=Path('/home/ubuntu/business/reports/glp-clinic-scout/weekly-strategy/current-strategy.json')
 
@@ -19,7 +29,7 @@ def bound(spec):
     return json.loads(raw),raw.decode()
 
 def load_strategy(path=DEFAULT_PATH, *, as_of=None):
-    path=Path(path);today=as_of or dt.datetime.now(dt.timezone.utc).date()
+    path=Path(path);today=as_of or dt.datetime.now(ZoneInfo('America/Los_Angeles')).date()
     meta={'path':str(path),'status':'UNKNOWN_COGNY_STRATEGY','applied':False,'keyword_gap_count':None,
           'publication_authorized':False,'own_site_analytics_gates_content':False}
     try:
@@ -29,7 +39,7 @@ def load_strategy(path=DEFAULT_PATH, *, as_of=None):
             raise ValueError('strategy_pointer_contract')
         doc,text=bound(pointer['updates'])
         week=dt.date.fromisoformat(doc['week_start'])
-        if pointer['week_start']!=doc['week_start'] or not 0 <= (today-week).days <= 7: raise ValueError('strategy_week_stale_or_future')
+        if pointer['week_start']!=doc['week_start'] or week != review_week_start(today): raise ValueError('strategy_week_stale_or_future')
         if (doc.get('schema')!='glp-weekly-strategy-updates-v1' or doc.get('publication_authorized') is not False
                 or doc.get('strategy_input_write_authorized') is not True or doc.get('unknown_is_not_zero') is not True):
             raise ValueError('strategy_updates_contract')

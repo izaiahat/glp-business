@@ -118,6 +118,15 @@ def stage(packet, route):
              '--r2-authority', str(authpath), '--operation', 'r2_refresh',
              '--materialization-reason', 'r2_refresh', '--review-transport', legacy.REVIEW_TRANSPORT,
              '--pt-date', today().isoformat()], cwd=ROOT, output_dir=work / 'children', timeout=600)
+        article = json.loads((target / '06-article.json').read_text())
+        if not updates.semantic_materiality(before, article)['material']:
+            result={'schema':'glp-source-update-stage-v1','status':'PASS_NO_MATERIAL_UPDATE',
+                    'route':route,'week_start':governed['strategy']['week_start'],
+                    'strategy':governed['strategy'],'no_op':True,'published':False,
+                    'date_modified_changed':False,'source_pr':None,
+                    'effects':{'publishes':0,'deployments':0,'source_prs':0}}
+            save(terminal,result)
+            return result
         job = Path(materialized['review_job'])
         # Explicitly WITHOUT --apply: the independently reviewed subject cannot
         # invoke its legacy publisher. Source commit and hourly release follow.

@@ -65,6 +65,14 @@ def test_noop_receipt_is_not_an_article_selection():
         s.selection_binding(doc)
 
 
+def test_sunday_review_window_governs_the_following_week():
+    import datetime as dt
+    import weekly_strategy_consumer as w
+    assert w.review_week_start(dt.date(2026,10,9)) == dt.date(2026,10,5)
+    assert w.review_week_start(dt.date(2026,10,11)) == dt.date(2026,10,12)
+    assert w.review_week_start(dt.date(2026,10,13)) == dt.date(2026,10,12)
+
+
 def test_dormant_review_target_has_admitted_parent():
     import ast
     path = Path(__file__).resolve().parents[1] / 'scripts/glp_seo_updater_source.py'
