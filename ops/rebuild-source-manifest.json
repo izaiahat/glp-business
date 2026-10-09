@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 846,
+  "tracked_count": 847,
   "files": {
     "scripts/glp_affiliati_postback_ship.py": {
       "kind": "registered_consumer",
@@ -3548,6 +3548,11 @@
       "callers": [],
       "kind": "repository_control",
       "sha256": "ca29fe02abdd74db6293078cbcf432e9e09647d8f350a4a522db5cafc6c08c79"
+    },
+    "tests/test_sync_reviewed_preimage.py": {
+      "callers": [],
+      "kind": "repository_control",
+      "sha256": "2a1ff77c8cc19302a41d5fe0db61e182b6bf9d04e1e89c5ec8f36aa3c79a4ea3"
     },
     "tests/test_therapeutic_taxonomy_refresh.py": {
       "callers": [],
