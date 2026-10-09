@@ -262,6 +262,21 @@ def retire_disposable_clones(root,*,keep=DISPOSABLE_KEEP,pins=(),active=None):
     return rows
 
 
+def superseded(head,*,gh=None):
+    """A pending source head already contained in the published pointer head is done.
+
+    Never rebuild (and so never re-publish) an ancestor of what production serves;
+    the main-release job may have shipped it inside a later merge.
+    """
+    try:current=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json').get('site_head')
+    except (OSError,ValueError):return False
+    if not current or current==head:return current==head
+    gh=gh or (lambda path:json.loads(run(['gh','api',path])))
+    try:status=gh(f'repos/{REPO}/compare/{head}...{current}').get('status')
+    except Exception:return False
+    return status in ('ahead','identical')
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--config',type=Path,default=CONFIG)
     p.add_argument('--resume-report',type=Path)
@@ -283,7 +298,7 @@ def main():
             pending=[]
             for intent in sorted(root.glob('*/source-intent.json')):
                 data=read(intent);pr_path=intent.parent/'PR.json'
-                if data['head'] not in completed and pr_path.is_file():
+                if data['head'] not in completed and pr_path.is_file() and not superseded(data['head']):
                     pending.append((data['head'],read(pr_path)['url']))
             if pending:a.source_ref,a.source_pr=pending[-1]
         if a.resume_report:
