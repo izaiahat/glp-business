@@ -8,6 +8,7 @@
 /ops/*
 !/ops/n8n_execution_budget.py
 !/ops/n8n_dt.py
+!/ops/n8n-workflow-registry.json
 !/reports/
 /reports/*
 !/scripts/
@@ -36,6 +37,7 @@
 !/tests/test_maintenance_window_lock_contention.py
 !/tests/test_maintenance_keeper_contention.py
 !/tests/test_n8n_execution_budget.py
+!/tests/test_n8n_workflow_registry_reconcile.py
 !/tests/test_rook_communication.py
 !/tests/test_glp109_scheduler_health.py
 !/.github/workflows/
