@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 850,
+  "tracked_count": 851,
   "files": {
+    "tests/test_firecrawl_glp350_pdf.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "85d8bb6be75119c307848e66f99dcbdad67994f91a6d7507f3a80a82c99f8e43"
+    },
     "systems/seo-blog-machine/scripts/article_pdf.py": {
       "kind": "script",
       "callers": [
@@ -5542,7 +5549,7 @@
       "callers": [
         "GitHub pull_request exact-head integration"
       ],
-      "sha256": "ed3d1e2ff16ef64cd281820cda183b3983648c78fd38a60b88b1135f2364954b"
+      "sha256": "7be4b40801ea684d1217165e72da5f91a93a03d93f08700be2b2e6cb76c57ff6"
     },
     "tests/test_firecrawl_integration.py": {
       "kind": "test",
