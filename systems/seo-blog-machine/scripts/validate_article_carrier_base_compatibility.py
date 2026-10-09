@@ -185,13 +185,14 @@ def validate_next_ready_entry(release: Path) -> dict[str, Any]:
 
 
 def validate_all() -> dict[str, Any]:
-    release = current_release()
+    # The scheduled new-guide producer uses accepted site source, not frozen
+    # catalog/image overlays. Its native main-release build owns those gates.
+    from article_source_carrier import preflight
+    result = preflight()
     return {
         "schema": "glp.article_carrier.base_compatibility.v1",
         "status": "PASS_CURRENT_BASE_AND_NEXT_ENTRY_COMPATIBLE",
-        "release_root": str(release),
-        "base_interfaces": validate_base_interfaces(release),
-        "next_entry": validate_next_ready_entry(release),
+        "source_lane": result,
         "effects": 0,
     }
 
