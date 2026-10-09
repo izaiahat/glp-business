@@ -52,6 +52,31 @@ def put(path, document):
     return {'path': str(path), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
+def test_native_hold_manifest_generator_detaches_only_candidate_hardlink(tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('cow_generated_contract', BUILDER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    base, candidate = tmp_path/'base', tmp_path/'candidate'
+    expected = Path('src/cost-affiliate-email-manifest.generated.mjs')
+    paths = {*module.ARTICLE_OVERLAYS, expected, Path('src/unrelated.mjs')}
+    for relative in paths:
+        original, target = base/relative, candidate/relative
+        original.parent.mkdir(parents=True, exist_ok=True)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        original.write_text('immutable predecessor')
+        original.chmod(0o444)
+        os.link(original,target)
+    before = (base/expected).stat()
+    module.detach_explicit_overlays(candidate)
+    assert not os.path.samestat((base/expected).stat(), (candidate/expected).stat())
+    (candidate/expected).write_text('generated successor')
+    assert (base/expected).read_text() == 'immutable predecessor'
+    assert (base/expected).stat().st_ino == before.st_ino
+    assert stat.S_IMODE((base/expected).stat().st_mode) == 0o444
+    assert os.path.samestat((base/'src/unrelated.mjs').stat(), (candidate/'src/unrelated.mjs').stat())
+
+
 def test_pagination_capture_accepts_native_graph_without_reintroducing_matches(tmp_path):
     node = next(n for n in ast.parse(BUILDER.read_text()).body
                 if isinstance(n, ast.FunctionDef) and n.name == 'rebind_pagination_capture_fixture')

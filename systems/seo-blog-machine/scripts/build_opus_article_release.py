@@ -102,6 +102,9 @@ CSS_BUILD_OUTPUTS = tuple(
     )
 )
 IN_PLACE_BUILD_OUTPUTS = (
+    # mirror-build.py runs the HOLD-only email-manifest producer before staging.
+    # It writes this module in place; never let it touch the sealed hardlink.
+    Path("src/cost-affiliate-email-manifest.generated.mjs"),
     Path("assets/provider-logos/pass2-lp-atlas.webp"),
     Path("assets/provider-logos/pass2-lp-atlas.json"),
     *HOME_IMAGE_BUILD_OUTPUTS,
