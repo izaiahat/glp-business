@@ -193,7 +193,11 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False):
     prior=read(ROOT/'reports/glp-clinic-scout/seo-machine/current-content-base.json')
     prior_root=Path(prior['release_root'])
     surfaces=['data/program-registry.json','src/affiliate-relationship-sync.mjs','src/go-runtime-selection.mjs','scripts/build-staging.mjs','functions/go/program-manifest.js']
-    if outcome['changed']==0 and rebuild_inputs_complete(prior_root) and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
+    # The registry no-change shortcut describes only affiliate surfaces. An
+    # explicit source PR/ref can add accepted guides or other site source while
+    # those surfaces are identical; it must traverse exact-head CI/build/release.
+    # glp_release_main.py owns the complete-source already-current check.
+    if not source_ref and not source_pr and outcome['changed']==0 and rebuild_inputs_complete(prior_root) and all((prior_root/p).is_file() and sha(prior_root/p)==sha(source/p) for p in surfaces):
         from glp_affiliate_absence_audit import audit
         absence=audit(source,outcome,read(report/'registry/sheet-snapshot.json'),public=prior_root/'public')
         save(report/'ADVERSE-ABSENCE.json',absence)

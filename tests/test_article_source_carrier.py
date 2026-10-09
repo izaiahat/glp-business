@@ -56,6 +56,42 @@ class SourceCarrierTests(unittest.TestCase):
                 self.assertEqual(carrier.reconcile_published(root,root)['status'],'PASS_SOURCE_RECONCILED')
                 self.assertEqual(record.call_count,1)
 
+    def test_published_operation_get_only_recovery_requires_current_bound_source(self):
+        import article_buffer_cli as cli
+        from types import SimpleNamespace
+        cron = SimpleNamespace(article_current_base=lambda: None, article_production_head_id=lambda: None)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pointer = root / 'pointer.json'; pointer.write_text('{}')
+            entry = {'entry_id':'a'*24,'topic_id':'topic','target_route':'/guides/new/'}
+            op = 'host-fixture-op'
+            claim = root / 'claim.json'
+            carrier.buffer._write_once(claim,{'schema':carrier.buffer.CLAIM_SCHEMA,
+                'operation_id':op,'entry_id':entry['entry_id']},'claim_sha256')
+            publication = {'status':'PASS_BUFFER_PUBLISHED','source_reconciled':True,
+                'deployment_id':'dep','current_base':carrier.buffer._spec(pointer), 'receipt':str(pointer)}
+            carrier.record_consumption(root,entry,op,publication,claim)
+            with patch.object(cli,'DEFAULT_ROOT',root), patch.object(cli,'POINTER',pointer), \
+                 patch.object(cli,'current_context',return_value=(None,root,{entry['target_route']},set())), \
+                 patch.object(carrier,'source_rows',return_value=[entry]), \
+                 patch.object(carrier,'accepted_entry',return_value=(root,entry,{'title':'Reviewed title'})), \
+                 patch.object(carrier,'live_readback',return_value={'http':200,'title':'Reviewed title','url':'https://glpclinicscout.com/guides/new/'}) as live, \
+                 patch.object(cron,'article_current_base',return_value={'deployment_id':'dep'}), \
+                 patch.object(cron,'article_production_head_id',return_value='dep') as head, \
+                 patch.dict(sys.modules,{'scripts.cron_bridge_action':cron}), \
+                 patch.object(carrier,'run',side_effect=AssertionError('writer must not run')):
+                self.assertEqual(carrier.published_operation_readback(op)['entry_id'],entry['entry_id'])
+                self.assertIsNone(carrier.published_operation_readback('wrong-operation'))
+                head.return_value='other'
+                self.assertIsNone(carrier.published_operation_readback(op)); head.return_value='dep'
+                live.side_effect=RuntimeError('wrong exact title')
+                self.assertIsNone(carrier.published_operation_readback(op)); live.side_effect=None
+                pointer.write_text('{"changed":true}')
+                self.assertIsNone(carrier.published_operation_readback(op)); pointer.write_text('{}')
+                claim.chmod(0o600)
+                claim.write_text('{"tampered":true}')
+                self.assertIsNone(carrier.published_operation_readback(op))
+
     def test_compatibility_preflight_uses_native_source_lane(self):
         import validate_article_carrier_base_compatibility as compatibility
         with patch.object(carrier,'preflight',return_value={'status':'PASS_SOURCE_MAIN_COMPATIBILITY'}) as preflight:

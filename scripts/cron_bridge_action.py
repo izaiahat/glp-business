@@ -599,6 +599,15 @@ def finish_action(action, args, job, state, state_path, *, call=None):
     if action == "article_carrier_consume":
         r = machine_receipt(job, schema="n8n.article_carrier.v1")
         status = r.get("status")
+        if status == 'BLOCKED_CONSUME_FAILED':
+            # A failed live readback can follow a no-op release or a real publish.
+            # GET-only exact-operation proof after native reconciliation may settle
+            # it; otherwise preserve pending and never replay an uncertain writer.
+            from scripts.article_source_carrier import published_operation_readback
+            recovered = published_operation_readback(r.get('operation_id'))
+            if recovered:
+                r = {**r, **recovered}
+                status = r['status']
         published = status == "PASS_PUBLISHED"
         replay = (status == "PASS_NOTHING_DUE" and bool(r.get("receipt_path"))
                   and "already completed; idempotent repeat consumed nothing" in str(r.get("reason", "")))
