@@ -1,4 +1,6 @@
 """Ordinary completion uses real GLP-60 identifiers; all transports are offline fakes."""
+import base64
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
@@ -35,6 +37,9 @@ REVIEW = ('Coordinator acceptance verified: PR #13 merged at ' + MERGE + '; exac
           'Read-only Discord GET verified TEST message ' + MESSAGE + ' in #payments matches the sent journal exactly. '
           'Prior replay returned ALREADY_SENT with same ID; transport-failure regressions pass. No new send or REAL earning claimed. '
           'Evidence: reports/ops/glp59-60-20260926/RESULT.json.')
+SOURCE_BYTES = b'fixture installed sender bytes'
+INSTALLED_SHA = hashlib.sha256(SOURCE_BYTES).hexdigest()
+REVIEW += '\nInstalled: scripts/glp_earnings_notice.py ' + INSTALLED_SHA + '\nOutput: ' + MESSAGE
 
 
 def digest(text):
@@ -57,12 +62,17 @@ def completion(tmp_path, monkeypatch):
             'review': {'comment_id': 'a976e1cb-b265-4915-ab5c-157417f9ed1a', 'body_sha256': digest(REVIEW)},
             'evidence': [{'kind': 'runtime', 'path': str(evidence), 'sha256': lo.sha(evidence),
                           'observed': [MESSAGE, 'ALREADY_SENT', 'QUEUED_UNCERTAIN', '12 passed']}]}
+    source = tmp_path / 'scripts/glp_earnings_notice.py'
+    source.parent.mkdir()
+    source.write_bytes(SOURCE_BYTES)
+    data['installed_files'] = [{'path': str(source), 'sha256': INSTALLED_SHA}]
     path = reports / 'RESULT.json'
     path.write_text(json.dumps(data))
     target = {'id': ISSUE_ID, 'identifier': 'GLP-60', 'title': 'Prove idempotent payments-only earnings notice',
               'description': DESCRIPTION, 'team': {'id': lo.TEAM, 'key': 'GLP'},
               'state': {'name': 'In Progress'}, 'labels': {'nodes': []}}
     review = {'id': data['review']['comment_id'], 'body': REVIEW, 'archivedAt': None,
+              'createdAt': datetime.now(timezone.utc).isoformat(),
               'user': {'id': lo.OPERATOR_USER_ID}, 'issue': {'id': ISSUE_ID}}
     remote = {'state': 'MERGED', 'headRefOid': HEAD, 'mergeCommit': {'oid': MERGE},
               'statusCheckRollup': [{'name': 'python-tests', 'detailsUrl': CI,
@@ -73,7 +83,15 @@ def completion(tmp_path, monkeypatch):
     monkeypatch.setattr(lo, 'states', lambda: {'Done': 'done', 'In Progress': 'started'})
     monkeypatch.setattr(lo, 'gql', lambda *args: {'comment': review})
     import subprocess
-    monkeypatch.setattr(subprocess, 'check_output', lambda *args, **kwargs: json.dumps(remote))
+    merged = {'bytes': SOURCE_BYTES}
+
+    def check_output(argv, **kwargs):
+        if argv[:2] == ['gh', 'api']:
+            assert ('ref=' + MERGE) in argv[2]
+            return json.dumps({'encoding': 'base64', 'content': base64.b64encode(merged['bytes']).decode()})
+        return json.dumps(remote)
+    monkeypatch.setattr(subprocess, 'check_output', check_output)
+    monkeypatch.setattr(lo, 'merged_fixture', merged, raising=False)
     monkeypatch.setattr(lo, 'comment', lambda iid, body: writes.append(('comment', iid, body)) or
                         {'success': True, 'comment': {'id': 'receipt'}})
     monkeypatch.setattr(lo, 'set_state', lambda iid, state: writes.append(('state', iid, state)) or
@@ -83,8 +101,7 @@ def completion(tmp_path, monkeypatch):
     return target, path, data, writes, remote, review
 
 
-@pytest.mark.parametrize('control', ['same_ops', 'same_ops_independent',
-                                   'distinct_independent', 'unbound_independent'])
+@pytest.mark.parametrize('control', ['same_ops', 'same_ops_independent'])
 def test_ops_author_equals_reviewer_must_refuse(completion, control):
     """R1 reviewer counterexample plus unbound/distinct-ID fail-closed controls.
 
@@ -99,9 +116,10 @@ def test_ops_author_equals_reviewer_must_refuse(completion, control):
         target['description'] += ('\n* Independent source acceptance by a reviewer '
                                   'other than the author is required.')
     data.update(scope='ordinary-code', description_sha256=digest(target['description']))
+    data.pop('installed_files')
     data['evidence'][0]['kind'] = 'check'
     review.update(user={'id': ops},
-                  body='Coordinator acceptance verified: source at ' + data['pr']['merge_sha'])
+                  body='Coordinator acceptance verified: source at ' + data['pr']['merge_sha'] + '\nOutput: 12 passed')
     data['review']['body_sha256'] = digest(review['body'])
     if control != 'unbound_independent':
         author = 'synthetic-other-author' if control == 'distinct_independent' else ops
@@ -110,7 +128,7 @@ def test_ops_author_equals_reviewer_must_refuse(completion, control):
         data['review']['reviewer_id'] = ops
     path.write_text(json.dumps(data))
     before = path.read_bytes()
-    with pytest.raises(SystemExit, match='author cannot accept|independent source acceptance'):
+    with pytest.raises(SystemExit, match='author cannot accept'):
         lo.pass_issue(target, path, {}, ordinary=True, check_only=True)
     assert path.read_bytes() == before and writes == []
 
@@ -150,19 +168,98 @@ def test_missing_live_acceptance_never_mutates(completion, monkeypatch, defect):
     assert writes == []
 
 
-@pytest.mark.parametrize('acceptance', [
-    'Release the candidate to production after independent approval.',
-    'Deploy the reviewed build and verify live readback.',
-    'Accept outward design with independent Fable review.',
-    'Mark positive REAL earnings only after independent financial acceptance.',
-    'Send the approved third-party message to providers.',
+GLP335_DESCRIPTION = '''## Outcome
+
+Replace glp/affiliati-postback-ship ingress on the host. This is the F06 release seam.
+
+## Acceptance
+
+- [ ] One genuine authorized Affiliati release intent is durably acknowledged on the host and correlated to exact terminal F06 deploy readback, with pending n8n state accounted for and zero replay of uncertain effects.
+
+## Relevant tool wiring
+
+authenticated n8n postback API, host ingress and affiliate conversion/payout APIs; no synthetic earnings.
+
+Fella/provider holds, privacy, consent/suppression, credential boundaries, independent review, sends/spend and release approvals remain intact.'''
+
+
+@pytest.mark.parametrize('acceptance,effect', [
+    ('Record the network payout in the ledger.', 'financial-write'),
+    ('Charge the sponsor invoice for the pilot.', 'financial-write'),
+    ('Mark positive REAL earnings in the report.', 'financial-write'),
+    ('Send the approved message to providers.', 'third-party-send'),
+    ('Email the onboarding sequence to subscribers.', 'third-party-send'),
+    ('Publish the new health claims page.', 'health-claim-publish'),
+    (None, None),  # GLP-335 shape: footer + "F06 deploy readback" + tool wiring -> ordinary.
+    ('Release the candidate to production and deploy with live readback.', None),
+    ('Accept outward design with independent Fable review.', None),
 ])
-def test_protected_acceptance_not_covered_by_ordinary_path(completion, monkeypatch, acceptance):
+def test_r4_only_three_effects_need_independent(completion, monkeypatch, capsys, acceptance, effect):
+    """R4: only financial writes, third-party sends and new health-claim publishing are protected."""
     target, path, data, writes, _, _ = completion
-    target['description'] = '## Acceptance\n\n* ' + acceptance
+    target['description'] = GLP335_DESCRIPTION if acceptance is None else '## Acceptance\n\n* ' + acceptance
     data['description_sha256'] = digest(target['description'])
     path.write_text(json.dumps(data))
-    with pytest.raises(SystemExit, match='protected'):
+    assert lo.protected_effect(target['title'] + '\n' + lo.acceptance_section(target['description'])) == effect
+    if effect:
+        with pytest.raises(SystemExit, match='protected effect: ' + effect):
+            run_cli(monkeypatch, path)
+    else:
+        run_cli(monkeypatch, path, '--check-only')
+        assert json.loads(capsys.readouterr().out)['validated'] is True
+    assert writes == []
+
+
+def test_r1_unmerged_or_red_ci_refused(completion, monkeypatch):
+    """R1: merged on green exact-head CI."""
+    _, path, _, writes, remote, _ = completion
+    for state, conclusion in (('OPEN', 'SUCCESS'), ('MERGED', 'FAILURE')):
+        remote['state'] = state
+        remote['statusCheckRollup'][0]['conclusion'] = conclusion
+        with pytest.raises(SystemExit, match='PR identity/merge|CI is not all successful'):
+            run_cli(monkeypatch, path, '--check-only')
+    assert writes == []
+
+
+def test_r2_installed_bytes_must_equal_merge(completion, monkeypatch):
+    """R2: installed bytes equal the merge; runtime scope cannot omit them."""
+    _, path, data, writes, _, _ = completion
+    lo.merged_fixture['bytes'] = b'different merged bytes'
+    with pytest.raises(SystemExit, match='installed bytes'):
+        run_cli(monkeypatch, path)
+    lo.merged_fixture['bytes'] = SOURCE_BYTES
+    data.pop('installed_files')
+    path.write_text(json.dumps(data))
+    with pytest.raises(SystemExit, match='installed source evidence required'):
+        run_cli(monkeypatch, path)
+    assert writes == []
+
+
+@pytest.mark.parametrize('observed,ok', [(['rc=0'], False), (['200', 'active', 'ok'], False),
+                                         (['deployment 8bb93c91'], True)])
+def test_r3_exit_code_only_evidence_refused(completion, monkeypatch, capsys, observed, ok):
+    """R3: rc=0/ok/200/active alone is not business output; Output: must name real output."""
+    _, path, data, writes, _, review = completion
+    evidence = Path(data['evidence'][0]['path'])
+    evidence.write_text('drain rc=0 200 active ok deployment 8bb93c91')
+    data['evidence'][0].update(sha256=lo.sha(evidence), observed=observed)
+    review['body'] = REVIEW.split('\nOutput:')[0] + '\nOutput: ' + observed[0]
+    data['review']['body_sha256'] = digest(review['body'])
+    path.write_text(json.dumps(data))
+    if ok:
+        run_cli(monkeypatch, path, '--check-only')
+        assert json.loads(capsys.readouterr().out)['validated'] is True
+    else:
+        with pytest.raises(SystemExit, match='business output required'):
+            run_cli(monkeypatch, path, '--check-only')
+    assert writes == []
+
+
+def test_stale_coordinator_check_refused(completion, monkeypatch):
+    """Coordinator check and Done must be the same hour."""
+    _, path, _, writes, _, review = completion
+    review['createdAt'] = '2026-01-01T00:00:00Z'
+    with pytest.raises(SystemExit, match='same hour'):
         run_cli(monkeypatch, path)
     assert writes == []
 
@@ -232,6 +329,7 @@ def test_glp329_ordinary_coordinator_identity_keeps_bindings_and_protected_gates
                   description='## Acceptance\n\n* Source-only preview preserves existing rows.')
     data.update(issue=target['identifier'], scope='ordinary-code',
                 description_sha256=digest(target['description']))
+    data.pop('installed_files')
     data['pr'].update(url='https://github.com/izaiahat/glp-business/pull/75',
                       head_sha='234bd75c69d25c1c2aec141d3cd828894e3396a0',
                       merge_sha='fc25cb61bbd78a96e5cb8dc128a703da9bcf97b7')
@@ -240,7 +338,8 @@ def test_glp329_ordinary_coordinator_identity_keeps_bindings_and_protected_gates
     data['review']['comment_id'] = 'ebd5b78b-7f97-4501-98fe-0342b4e5ef5d'
     review.update(id=data['review']['comment_id'], issue={'id': target['id']},
                   user={'id': '858c38f1-aa44-4ff2-b2b7-04ea63fcf1e7'},
-                  body='Coordinator acceptance verified: source fixture at ' + data['pr']['merge_sha'])
+                  body='Coordinator acceptance verified: source fixture at ' + data['pr']['merge_sha'] +
+                  '\nOutput: 12 passed')
     data['evidence'][0]['kind'] = 'check'
     data['review']['body_sha256'] = digest(review['body'])
     assert lo.OPERATOR_USER_ID == '86ceaadc-3c24-4810-ac3a-985cfc561a05'
@@ -252,7 +351,7 @@ def test_glp329_ordinary_coordinator_identity_keeps_bindings_and_protected_gates
     elif control == 'missing_author':
         review['user'] = None
     elif control == 'protected_scope':
-        target['description'] += '\n* Deploy after independent Fable review.'
+        target['description'] += '\n* Send the approved message to providers.'
         data['description_sha256'] = digest(target['description'])
     elif control == 'protected_effect':
         data['protected_effects'] = ['release']
@@ -279,7 +378,7 @@ def test_glp329_ordinary_coordinator_identity_keeps_bindings_and_protected_gates
     elif control == 'wrong_ci_url':
         data['pr']['checks'][0]['url'] += '9'
     elif control == 'unbound_merge':
-        review['body'] = 'Coordinator acceptance verified: source fixture'
+        review['body'] = 'Coordinator acceptance verified: source fixture\nOutput: 12 passed'
         data['review']['body_sha256'] = digest(review['body'])
     elif control == 'missing_evidence':
         data['evidence'] = []
@@ -480,7 +579,7 @@ def protected_runtime_completion(protected_noncode_completion, monkeypatch):
                 pr={'url': PR, 'head_sha': HEAD, 'merge_sha': MERGE,
                     'checks': [{'name': 'python-tests', 'url': CI}]})
     source = path.parents[1] / 'scripts/source.py'
-    source.parent.mkdir()
+    source.parent.mkdir(exist_ok=True)
     source.write_text('fixture source bytes')
     data['installed_files'] = [{'path': str(source), 'sha256': lo.sha(source)}]
     refresh_protected_bindings(data, parent, independent)
@@ -865,6 +964,7 @@ PR: pending (non-code effect: link receipt).
 Skills: credential-boundaries, headless-portal-apply-sessions.''')
     data.update(scope='ordinary-readonly-runtime', description_sha256=digest(target['description']))
     del data['pr']
+    data.pop('installed_files')
     data['evidence'] = []
     for name in ('first-session', 'second-session'):
         artifact = path.parent / (name + '.json')
@@ -875,7 +975,8 @@ Skills: credential-boundaries, headless-portal-apply-sessions.''')
     review['body'] = ('Acceptance verified by parent: first fresh-session receipt in reports/first-session.json '
                       'plus second in reports/second-session.json. Exact publisher test-publisher-uuid; '
                       'both fresh sessions respected device verification. No applications/sends. '
-                      'Non-code receipt satisfies both acceptance checks.')
+                      'Non-code receipt satisfies both acceptance checks.'
+                      '\nOutput: test-publisher-uuid')
     # Explicit version binding is synthetic fixture authority, not a live comment edit.
     review['body'] += '\nAccepted description SHA256: ' + data['description_sha256']
     data['review']['body_sha256'] = digest(review['body'])
@@ -922,7 +1023,7 @@ def test_protected_requirement_under_acceptance_subheading_must_refuse(
     path.write_text(json.dumps(data))
     assert review == prior_comment
     try:
-        with pytest.raises(SystemExit, match='protected send/application'):
+        with pytest.raises(SystemExit, match='protected send/application|third-party-send'):
             run_cli(monkeypatch, path, '--check-only')
     finally:
         assert writes == []
