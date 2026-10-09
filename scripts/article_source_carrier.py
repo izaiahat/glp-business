@@ -143,6 +143,49 @@ def record_consumption(root, entry, operation_id, publication, claim=None):
     return buffer._read_sealed(target,buffer.CONSUME_SCHEMA,'consumption_sha256')
 
 
+def published_operation_readback(operation_id):
+    """GET-only recovery of a failed acknowledgement after native reconciliation.
+
+    Require the exact sealed operation, claim, accepted source packet, current
+    pointer binding, production identity and live title. Never create a record
+    or invoke publication here; missing/stale evidence keeps the caller pending.
+    """
+    import article_buffer_cli as cli
+    from scripts.cron_bridge_action import article_current_base, article_production_head_id
+    if not operation_id:
+        return None
+    try:
+        path = consumed_path(cli.DEFAULT_ROOT, operation_id)
+        record = buffer._read_sealed(path,buffer.CONSUME_SCHEMA,'consumption_sha256')
+        if (record.get('operation_id') != operation_id or record.get('status') != 'PASS_BUFFER_PUBLISHED'
+                or record.get('publication_lane') != 'accepted-site-main-source'):
+            return None
+        publication = record['publication']
+        current = article_current_base()
+        if (publication.get('source_reconciled') is not True
+                or publication.get('deployment_id') != current['deployment_id']
+                or publication.get('current_base') != buffer._spec(cli.POINTER)):
+            return None
+        claim_path = buffer._verify_spec(record['claim'],'source_readback_claim')
+        claim = buffer._read_sealed(claim_path,buffer.CLAIM_SCHEMA,'claim_sha256')
+        if claim.get('operation_id') != operation_id or claim.get('entry_id') != record['entry_id']:
+            return None
+        _, release, routes, _ = cli.current_context()
+        row = next(r for r in source_rows(release) if r['entry_id'] == record['entry_id'])
+        _, entry, article = accepted_entry(cli.DEFAULT_ROOT,release,row)
+        if (record['target_route'] != entry['target_route'] or record['topic_id'] != entry['topic_id']
+                or entry['target_route'] not in routes):
+            return None
+        live = live_readback(entry['target_route'],article['title'])
+        if article_production_head_id() != current['deployment_id'] or article_current_base() != current:
+            return None
+        return {'status':'PASS_PUBLISHED','published':True,'entry_id':entry['entry_id'],
+                'topic_id':entry['topic_id'],'route':entry['target_route'],'url':live['url'],
+                'receipt_path':str(path),'reconciled_live':live}
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, StopIteration):
+        return None
+
+
 def reconcile_published(root, release):
     """Seal only source-bound, live exact titles; never publish during recovery."""
     reconciled = []

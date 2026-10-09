@@ -153,6 +153,32 @@ def test_cache_convergence_purges_once_then_runs_unchanged_matrix(tmp_path):
     assert receipt['stages']['cache_purge_by_url'] == {'deployment_id': 'd1', 'count': 1}
 
 
+def test_explicit_main_source_never_shortcuts_on_unchanged_affiliate_surfaces(tmp_path, monkeypatch):
+    import glp_affiliate_registry_sync as registry
+    import glp_affiliate_absence_audit as absence
+    monkeypatch.setattr(job, 'ROOT', tmp_path)
+    monkeypatch.setattr(job, 'run', lambda *a, **k: '')
+    monkeypatch.setattr(registry, 'sync', lambda *a, **k: {'changed': 0})
+    monkeypatch.setattr(job, 'read', lambda p: {'release_root': str(tmp_path / 'old'), 'deployment_id': 'old-deployment'})
+    monkeypatch.setattr(job, 'rebuild_inputs_complete', lambda p: True)
+    monkeypatch.setattr(job, 'sha', lambda p: 'same-affiliate-surface')
+    # The accepted-guide source changes, although these five affiliate surfaces do not.
+    for rel in ['data/program-registry.json','src/affiliate-relationship-sync.mjs',
+                'src/go-runtime-selection.mjs','scripts/build-staging.mjs','functions/go/program-manifest.js']:
+        p = tmp_path / 'old' / rel
+        p.parent.mkdir(parents=True, exist_ok=True); p.write_text('same')
+    monkeypatch.setattr(absence, 'audit', lambda *a, **k: {
+        'remaining_unmapped': 0,'evidenced_no_live_offer_presence': 0,'unaccounted': 0})
+    monkeypatch.setattr(job, 'save', lambda *a: None)
+    def ci(*args):
+        raise RuntimeError('exact-head-ci-gate-reached')
+    monkeypatch.setattr(job, 'ci', ci)
+    assert job.execute({},tmp_path / 'auto')['status'] == 'PASS_ALREADY_CURRENT'
+    for ref, pr in [('guide-head','guide-pr'), (None,'guide-pr')]:
+        with pytest.raises(RuntimeError,match='exact-head-ci-gate-reached'):
+            job.execute({},tmp_path / 'explicit',source_ref=ref,source_pr=pr,publish=True)
+
+
 def test_sync_job_skips_pending_heads_already_in_production(tmp_path, monkeypatch):
     pointer = tmp_path / 'reports/glp-clinic-scout/seo-machine/current-content-base.json'
     pointer.parent.mkdir(parents=True)
