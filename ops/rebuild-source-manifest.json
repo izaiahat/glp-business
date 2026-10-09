@@ -8,8 +8,22 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 915,
+  "tracked_count": 917,
   "files": {
+    "scripts/glp_affiliate_daily_decisions_report.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
+      ],
+      "sha256": "64b4b3b0113fd582db4f4e8afcae0c9c55c3bc07a01e243871a34b4d14444310"
+    },
+    "tests/test_clickdealer_mint_blocker.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "91b3aaa376269a4dc088d9dfc546f4d8c1ff682ddb4270377918b49e5084b884"
+    },
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
       "callers": [
