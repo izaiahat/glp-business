@@ -172,6 +172,8 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp76_carrier_calendar.py tests/test_glp76_calendar_workflow_guard.py tests/test_glp76_material_custody.py tests/test_glp76_continuation.py tests/test_glp76_native_terminal_base.py tests/test_glp76_review_publication_date.py
+      - name: GLP80 weekly batch and exact typed re-attestation (offline, exact head)
+        run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp80_reattest.py tests/test_glp80_price_freshness.py tests/test_glp80_registered_price_refresh.py
       - name: GLP44 old-resident activation bootstrap (offline, no privileged calls)
         run: .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp44_safe_bridge_activation.py tests/test_glp80_registry_adoption.py
       - name: Rook communication exact-head acceptance (offline, no credentials)

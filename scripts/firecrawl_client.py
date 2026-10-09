@@ -77,6 +77,14 @@ def _options(body):
             result[name] = value
     if body.get("proxy") in ("basic", "enhanced", "auto"):
         result["proxy"] = body["proxy"]
+    if body.get('location') == 'United States':
+        result['location'] = 'United States'
+    if body.get('country') == 'US':
+        result['country'] = 'US'
+    if body.get('tbs') == 'qdr:w':
+        result['tbs'] = 'qdr:w'
+    if isinstance(body.get('scrapeOptions'), dict):
+        result['scrapeOptions'] = _options(body['scrapeOptions'])
     if isinstance(body.get("formats"), list):
         result["formats"] = [v if isinstance(v, str) and v in {"markdown", "html", "rawHtml", "links", "screenshot", "json", "changeTracking"}
                              else v.get("type") if isinstance(v, dict) and v.get("type") in {"json", "changeTracking", "screenshot"} else "other"

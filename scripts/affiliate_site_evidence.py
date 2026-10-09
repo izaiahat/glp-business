@@ -56,7 +56,7 @@ CACHE_PATH = BUSINESS / "reports/glp-clinic-scout/affiliate-machine/site-evidenc
 CACHE_SCHEMA = "affiliate-site-evidence-cache-v1"
 
 _spec = importlib.util.spec_from_file_location(
-    "affiliate_niche_geo_filter", BUSINESS / "scripts/affiliate_niche_geo_filter.py")
+    "affiliate_niche_geo_filter", Path(__file__).resolve().with_name("affiliate_niche_geo_filter.py"))
 nfilter = importlib.util.module_from_spec(_spec)
 sys.modules[_spec.name] = nfilter
 _spec.loader.exec_module(nfilter)

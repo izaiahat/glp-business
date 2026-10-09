@@ -295,7 +295,7 @@
       "payloads": []
     },
     {
-      "id": "crontab:daf0c212391b0319",
+      "id": "crontab:c375f52003048c64",
       "surface": "crontab",
       "sources": [
         {
@@ -306,7 +306,7 @@
         {
           "path": "/home/ubuntu/business/scripts/glp_price_freshness.py",
           "source": "scripts/glp_price_freshness.py",
-          "reviewed_sha256": "c6d5ea10fffcc4243b98f41576c2905a1a7e67d7ee117415a52e438573943acd"
+          "reviewed_sha256": "3234e76ad51899d0120d08f1703a5d420cbfa8fed974f844bf7a815489966e9a"
         }
       ],
       "payloads": []
