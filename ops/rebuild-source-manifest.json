@@ -5580,7 +5580,7 @@
       "callers": [
         "manual:registered price verification"
       ],
-      "sha256": "92e966d4f0218ee240bff9af5b9d869956227c23fb13518a35a234c647f83808"
+      "sha256": "f487e71e33686e10360c242e93b6e5e58ccb202209c40dc242ac20387728fa21"
     },
     "scripts/firecrawl_client.py": {
       "kind": "script",
@@ -5608,7 +5608,7 @@
       "callers": [
         ".github/workflows/firecrawl-integration.yml"
       ],
-      "sha256": "ad76344e79acc1677f5e32e47972770665ab1c0a7e97e08ea3fddea7fbd9967b"
+      "sha256": "d4b62d7c9d15fd0009dd7ed36b89ec9d6a8a40fa70c94a2ef5d67acea8c4459f"
     },
     "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh": {
       "kind": "script",

@@ -40,6 +40,14 @@ def test_no_v1_maintained_callers():
         assert 'api.firecrawl.dev/v1' not in (ROOT / rel).read_text(), rel
 
 
+def test_cleanup_maintained_price_and_sponsor():
+    price = (ROOT / 'scripts/glp_price_verification.py').read_text()
+    sponsor = (ROOT / 'glp-clinic-partner-outreach-machine/refill_email_ready_targets.py').read_text()
+    assert '/v1/' not in price and 'proxy: str = \'basic\'' in price
+    assert '"proxy": "enhanced"' not in price
+    assert 'LedgerSDKClient(Firecrawl(api_key=api_key)' in sponsor
+
+
 def test_client_refuses_v1_and_uncapped_agent(tmp_path):
     client = fc.FirecrawlClient('test', api_key='not-used', ledger_path=tmp_path/'ledger')
     with pytest.raises(ValueError):
