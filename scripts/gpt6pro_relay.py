@@ -3758,6 +3758,10 @@ def _record_generation_observation(job: str, cfg: dict, st: dict, result: dict,
         generating = None
     else:
         generating = True
+    # Legacy bound jobs can lack a token; never fabricate its identity hash.
+    reply_token = st.get('reply_token')
+    reply_token_sha256 = (hashlib.sha256(reply_token.encode()).hexdigest()
+                          if isinstance(reply_token, str) and reply_token else None)
     ledger_append(cfg, {'event': 'generation_observation',
         'schema': 'gpt6pro-generation-observation-v1',
         'coverage': 'single_bound_read_only', 'read_started_at': started,
@@ -3765,7 +3769,7 @@ def _record_generation_observation(job: str, cfg: dict, st: dict, result: dict,
         'conversation_url': binding_url(st), 'conversation_id': st['conversation_id'],
         'binding_version': st['binding_version'], 'tab': result['tab'],
         'observed': observed, 'authenticated_generation_observed': generating,
-        'reply_token_sha256': hashlib.sha256(st['reply_token'].encode()).hexdigest(),
+        'reply_token_sha256': reply_token_sha256,
         **{key: st.get(key) for key in (*PROVENANCE_FIELDS, 'job_class', 'input_sha256')}})
 
 

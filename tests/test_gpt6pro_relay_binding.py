@@ -403,6 +403,38 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(self.browser.inserts, [])
         self.assertEqual(self.browser.sent, [])
 
+    def test_legacy_bound_poll_records_unknown_reply_token_hash(self):
+        """Legacy completion remains bound; absent identity is not fabricated."""
+        for token_fields in ({}, {'reply_token': None}, {'reply_token': ''}):
+            with self.subTest(token_fields=token_fields):
+                self.clock += 150
+                self.browser.pages['exact'] = {'url': WANT, 'text': 'wanted answer',
+                    'composer': '', 'messages': True, 'stop': False}
+                st = self.job(tab='exact', last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
+                st.update(token_fields)
+                relay.job_write('job', st)
+                self.assertEqual(relay.poll('job', False, 150, 3600), 0)
+                row = [r for r in relay.ledger_rows(self.cfg)
+                       if r['event'] == 'generation_observation'][-1]
+                self.assertIsNone(row['reply_token_sha256'])
+                self.assertIsNone(row['input_sha256'])
+                for key in relay.PROVENANCE_FIELDS:
+                    self.assertIsNone(row[key])
+                self.assertEqual(row['coverage'], 'single_bound_read_only')
+                self.assertIs(row['authenticated_generation_observed'], False)
+                self.assertEqual(row['conversation_url'], WANT)
+                self.assertEqual(row['tab'], 'exact')
+                self.assertNotIn('reply_token', row)
+                st = relay.job_state('job')
+                self.assertEqual(st['status'], 'done')
+                self.assertEqual(st.get('reply_token'), token_fields.get('reply_token'))
+                local = (relay.JOBS / 'job/RESPONSE.md').read_bytes()
+                self.assertEqual(local, b'wanted answer')
+                self.assertEqual(st['source_reply_sha256'], relay.hashlib.sha256(local).hexdigest())
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.sent, [])
+
     def test_poll_persists_only_actual_bound_generation_observations(self):
         """Real poll/read/ledger with established CDP fixture, not live qualification."""
         page = {'url': WANT, 'text': '', 'composer': '', 'messages': True,
