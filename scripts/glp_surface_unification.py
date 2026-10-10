@@ -113,6 +113,15 @@ def latest_release() -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
+def raw_direct_live_count(live: list[dict], ledger_by_id: dict) -> int:
+    """Raw row count, before relationship denials; match the native strict booleans."""
+    return sum(
+        1 for program in live
+        if (ledger_by_id.get(render_id(program)) or {}).get("live_link_allowed") is True
+        or (ledger_by_id.get(render_id(program)) or {}).get("promotion_authorized") is True
+    )
+
+
 def profile_of(program: dict) -> dict:
     return (program.get("profiles") or {}).get(PROFILE) or {}
 
@@ -267,11 +276,20 @@ def sourced_value(entry: dict, field: str) -> str:
 
 def evidence_flags(entry: dict, pid: str, governed_profile: dict) -> dict:
     """What this provider actually publishes, with price from governed adjudication."""
+    meds_value = entry.get("meds_offered")
+    # Deep-research rows may use a string list; consume its text, not repr/list.
+    if isinstance(meds_value, list):
+        if not all(isinstance(value, str) for value in meds_value):
+            fail(f"meds_offered_type_invalid:{pid}")
+        meds = " ".join(meds_value)
+    elif meds_value is None or isinstance(meds_value, str):
+        meds = meds_value or ""
+    else:
+        fail(f"meds_offered_type_invalid:{pid}")
     blob = " ".join(filter(None, [
-        entry.get("insurance"), entry.get("meds_offered"), entry.get("starting_price"),
+        entry.get("insurance"), meds, entry.get("starting_price"),
         sourced_value(entry, "consultation_fee"), sourced_value(entry, "first_month_price"),
     ]))
-    meds = entry.get("meds_offered") or ""
     return {
         "comparable_price": (governed_profile.get("calculator") or {}).get("mode") == "autofill",
         "insurance_support": bool(ACTIVE_INSURANCE.search(blob)) and not bool(CASH_ONLY.search(entry.get("insurance") or "")),
@@ -667,11 +685,7 @@ def _unify_in_place(release: Path) -> dict:
     # one link-dark program, so this wrote the wrong quantity for weeks without
     # anyone noticing. Lifting TRT Nation on 2026-08-18 separated them (33 vs 34)
     # and build-staging's affiliate_activation_live_count_desynced guard caught it.
-    direct_live_row_count = sum(
-        1 for program in live
-        if bool((ledger_by_id.get(render_id(program)) or {}).get("live_link_allowed")
-                or (ledger_by_id.get(render_id(program)) or {}).get("promotion_authorized"))
-    )
+    direct_live_row_count = raw_direct_live_count(live, ledger_by_id)
     eligibility["live_program_count"] = direct_live_row_count
     eligibility["program_count"] = len(eligibility["programs"])
     eligibility["derivation"] = (
