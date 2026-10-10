@@ -45,7 +45,9 @@ for pid,name,aliases in candidates:
     state_query=f'{name} US state telehealth prescribing GLP-1 compounded semaglutide rules restrictions'
     state=firecrawl_post('https://api.firecrawl.dev/v2/search/gov',caller='research_glp_batch2_fda_warning_provenance.states',headers=head,json={'query':state_query,'k':10},timeout=60)
     if state.status_code != 200 or state.json().get('success') is not True: raise RuntimeError('state_rules_unavailable_not_clearance')
-    state_path=RAW/f'{pid}-state-rules.json'; state_path.write_text(json.dumps({'query':state_query,'response':state.json(),'status':'DISCOVERY_REQUIRES_JURISDICTION_REVIEW_NOT_CLEARANCE'},indent=2)+'\n')
+    state_payload=state.json()
+    search_rows(state_payload, sources=('web',))
+    state_path=RAW/f'{pid}-state-rules.json'; state_path.write_text(json.dumps({'query':state_query,'response':state_payload,'status':'DISCOVERY_REQUIRES_JURISDICTION_REVIEW_NOT_CLEARANCE'},indent=2)+'\n')
     rows.append({'program_id':pid,'display_name':name,'aliases_and_domains_searched':aliases,'official_source_endpoint':'https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/compliance-actions-and-activities/warning-letters','firecrawl_query':query,'searched_at_utc':checked,'search_scope':'FDA-indexed warning-letter web results only; not legal clearance and not a complete enforcement-history guarantee','result_count':len(results),'exact_brand_or_domain_result_count':len(exact),'matched_results':exact,'status':status,'raw_receipt_path':raw_path.relative_to(B).as_posix(),'raw_receipt_sha256':hashlib.sha256(raw_bytes).hexdigest(),'refresh_due_date':(datetime.now(timezone.utc)+timedelta(days=30)).date().isoformat()})
     time.sleep(.15)
     rows[-1]['state_rules_receipt_path']=str(state_path)
