@@ -9,8 +9,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
-
 import glp_affiliate_link_rails as rails
 import glp_wire_in_ready_queue as queue
 
@@ -19,32 +17,27 @@ DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "reports/glp-clinic-scout
 
 
 def fetch_campaign(program_id: str) -> dict:
-    from affiliate_approval_auto_reconciler import portal_password, portal_username
+    from maxbounty_publisher_api import MaxBountyPublisherAPI
 
-    if not re.fullmatch(r"[0-9]+", program_id):
+    if not re.fullmatch(r"[1-9][0-9]*", program_id):
         raise RuntimeError("maxbounty_campaign_id_invalid")
-    username = portal_username("maxbounty")
-    if username.strip().lower() != "ops@glpclinicscout.com":
-        raise RuntimeError("maxbounty_account_mismatch")
-    with requests.Session() as session:
-        response = session.post(
-            f"{API_ROOT}/authenticationApp",
-            json={"email": username, "password": portal_password("maxbounty"), "ld": 0, "oid": 0},
-            timeout=120, allow_redirects=False,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"maxbounty_authentication_http:{response.status_code}")
-        login = response.json()
-        if login.get("success") is not True or not login.get("mb-app-token"):
-            raise RuntimeError("maxbounty_authentication_refused")
-        session.headers.update({"x-app-token": login["mb-app-token"], "Accept": "application/json"})
-        response = session.get(f"{API_ROOT}/campaign/{program_id}", timeout=120, allow_redirects=False)
-        if response.status_code != 200:
-            raise RuntimeError(f"maxbounty_campaign_http:{response.status_code}")
-        record = response.json()
+    api = MaxBountyPublisherAPI.from_environment()
+    if api is None:
+        raise RuntimeError("maxbounty_api_credentials_unavailable")
+    try:
+        # The maintained official transport verifies the principal via GET /affiliate.
+        api.authenticate()
+        status, record, _ = api.campaign(program_id)
+        if status != 200:
+            raise RuntimeError(f"maxbounty_campaign_http:{status}")
         if not isinstance(record, dict) or record.get("success") is not True:
             raise RuntimeError("maxbounty_campaign_readback_refused")
+        identity = record.get("campaign_id")
+        if isinstance(identity, bool) or not isinstance(identity, (str, int)) or str(identity) != program_id:
+            raise RuntimeError("maxbounty_campaign_identity_missing_or_mismatch")
         return record
+    finally:
+        api.close()
 
 
 def write_capture(record: dict, *, program_id: str, sheet_row: int,
