@@ -2625,13 +2625,16 @@ def route_unowned_inbox_action(event,binding,*,dry_run=False,client=None):
  journal=BUSINESS/'ops/linear/triage-journal.json'
  if not dry_run:
   client=client if client is not None else Client()
-  # Triage counts against the same cap. Reconcile existing identity at capacity.
+  # Cap actionable open issues, including Triage; parked Backlog and resolved
+  # Duplicate rows are not work admissions. Reconcile verified IDs at capacity.
   prior=json.loads(journal.read_text()) if journal.exists() else {'entries':{}}
   if (prior['entries'].get(source_id) or {}).get('status')!='VERIFIED':
    team=client.team('GLP')
    rows=client.connection('issues',{'filter':{'team':{'id':{'eq':team['id']}},
-                          'state':{'type':{'nin':['completed','canceled']}}}})
-   if len(rows)>=20:raise RuntimeError('inbox_triage_open_issue_cap_20')
+                          'state':{'type':{'nin':['completed','canceled','duplicate','backlog']},
+                                   'name':{'nin':['Backlog']}}},'includeArchived':False})
+   actionable=[row for row in rows if not row.get('trashed') and not row.get('archivedAt')]
+   if len(actionable)>=20:raise RuntimeError('inbox_triage_open_issue_cap_20')
  result=submit_idea(client,item,journal,entry_class='inbox-email',purpose='blocker',dry_run=dry_run)
  return dict(result,event_id=event['event_id'],action_kind='inbox_linear_triage',
              external_send=False,provider_mutation=False,mailbox_mutation=False)
