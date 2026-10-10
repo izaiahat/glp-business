@@ -217,10 +217,10 @@ def build_packet(c, *, site_root, capture_path, supply_path, output, receiver_ch
         target.parent.mkdir(parents=True, exist_ok=True)
         rows = sorted([r for r in cap['checks'] if r['surface']==surface], key=lambda r:r['viewport']!='mobile')
         native.capture_pdf(target, rows, c.ROOT, first_only=surface=='providers-sponsored-panel')
-    return finish_packet(c, bundle, config, cap, supply, producer, output, asset_review)
+    return finish_packet(c, bundle, config, cap, supply, producer, output, asset_review, bool(receiver_checkout))
 
 
-def finish_packet(c, bundle, config, cap, supply, producer, output, asset_review):
+def finish_packet(c, bundle, config, cap, supply, producer, output, asset_review, source_overlay_uninstalled):
     review = ('# Current sponsor packet\n\n'
               '$750 initial total: $250 setup and $500 placement; $500 affirmative renewal. '
               '720 hours; no automatic charge. Independent comparison publisher, not a clinic.\n\n'
@@ -248,7 +248,7 @@ def finish_packet(c, bundle, config, cap, supply, producer, output, asset_review
             archive.writestr(item, (bundle/name).read_bytes())
     c.save(output/'NATIVE-CAPTURE.json', cap)
     result=dict(status='CURRENT_PACKET_PREVIEW_REVIEW_REQUIRED', packet_sha256=c.digest(packet),
-                native_producer_sha256=c.digest(producer), source_overlay_uninstalled=True,
+                native_producer_sha256=c.digest(producer), source_overlay_uninstalled=source_overlay_uninstalled,
                 native_capture_head=cap['head'], asset_sha256=asset_hashes,
                 organizations=12, pricing=PRICING, postal_address=config['postal_address'],
                 sends=0, cron_resumed=False, receiver_ready=False)

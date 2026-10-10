@@ -44,7 +44,7 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "3a2677108d9d21adac38d0bd5edc6ac135d24fc0870088b4b33dedcccd82c850"
+      "sha256": "615aa45267e02bc6460069e1c2613f3c9a4716f031653808b3d753e197e53914"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
