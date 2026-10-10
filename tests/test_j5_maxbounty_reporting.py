@@ -5,7 +5,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-import affiliate_network_access as access
+import affiliate_network_access_j5 as access
 from marketplace_adapters import _base
 
 
@@ -82,7 +82,10 @@ def test_j5_successor_preserves_historical_wrapper_and_pins_exact_source():
     before, after = hashlib.sha256(old_manifest).hexdigest().encode(), hashlib.sha256(manifest).hexdigest().encode()
     assert original.count(before) == original.count(b'ops/glp/reporting-v2/source-manifest.json') == 2
     expected = original.replace(before, after).replace(b'ops/glp/reporting-v2/source-manifest.json', b'ops/glp/reporting-v2/source-manifest-j5.json')
+    old_job = (root / 'scripts/glp_affiliate_weekly_reporting_job.py').read_bytes()
+    new_job = (root / 'scripts/glp_affiliate_weekly_reporting_j5_job.py').read_bytes()
+    expected = expected.replace(hashlib.sha256(old_job).hexdigest().encode(), hashlib.sha256(new_job).hexdigest().encode()).replace(b'glp_affiliate_weekly_reporting_job.py', b'glp_affiliate_weekly_reporting_j5_job.py')
     assert (root / 'ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh').read_bytes() == expected
     pins = json.loads(manifest)['files']
-    for relative in ('scripts/affiliate_network_access.py', 'scripts/affiliate_reporting_maxbounty.py', 'scripts/maxbounty_publisher_api.py'):
+    for relative in ('scripts/affiliate_network_access.py', 'scripts/affiliate_network_access_j5.py', 'scripts/affiliate_reporting_maxbounty.py', 'scripts/maxbounty_publisher_api.py', 'scripts/glp_affiliate_weekly_reporting_j5.py', 'scripts/glp_affiliate_weekly_reporting_j5_job.py'):
         assert pins['/home/ubuntu/business/' + relative] == hashlib.sha256((root / relative).read_bytes()).hexdigest()

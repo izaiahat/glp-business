@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 957,
+  "tracked_count": 961,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -433,7 +433,7 @@
         "GLP-333 read-only network access contract"
       ],
       "kind": "script",
-      "sha256": "e77ac68998b51b13c6132cab07db5f0f83ab08d54f571b8bc7d216cad0b265cc"
+      "sha256": "719adeef4a6fbda84082f3762b502e40dfe37335c5f70d95f98c19b0d9ea5e22"
     },
     "scripts/glp_network_revenue_import_v2.py": {
       "callers": [
@@ -2284,7 +2284,7 @@
         "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
-      "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
+      "sha256": "d00694849568b8846c1ab25ec5e53de52524eb7aecbbb4676a523204435c6ad6"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
@@ -2332,7 +2332,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "394020307e2395e5309ff21f67036a2117e8265ec90075b5b86ba02fab4ac6e1"
+      "sha256": "30545fc9fb5dc7e6c64bc62eb8f2b492afdfc819b2d3556fa853c198856a39ea"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -6426,37 +6426,37 @@
       "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
     },
     "scripts/affiliate_reporting_maxbounty.py": {
-      "kind": "registered_producer",
+      "kind": "script",
       "callers": [
-        "scripts/affiliate_network_access.py"
+        "hermes:aadf6677c7f0"
       ],
-      "sha256": "eaf4004448780398bcb7b36d64154cccdd1f734b68812cad7c0937fa588a86eb"
+      "sha256": "2c7f71691c47d523af2b475cd1d87ceeb5dcbdd37337894920f4fb35f51a1752"
     },
     "ops/glp/reporting-v2/source-manifest-j5.json": {
-      "kind": "source_pins",
+      "kind": "runtime-pins",
       "callers": [
-        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh"
+        "hermes:aadf6677c7f0"
       ],
-      "sha256": "e532d1410e2f58c8d649135ddaefa572d4ef3c94aae4a971e43d5acbd322b27a"
+      "sha256": "6d54e3b7a65e34202bc0034ce4ba70e33b8a0a1f4d5dc88f1f964bca9c43cffa"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j5.sh": {
       "kind": "script",
       "callers": [
         "hermes:aadf6677c7f0"
       ],
-      "sha256": "faf679a34a4d30a35e285828265d72e0b82ac763af00e98721fb84169ebad314"
+      "sha256": "7e4cb543d47d17e7eb8182400fcb4ac8a8976ab174c53b98947606f7a5f940bf"
     },
     "tests/test_j5_maxbounty_reporting.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/j5-reporting.yml"
       ],
-      "sha256": "38029a9b1d6a3da8f0735b35fbef116f4cb6385a4259897cfdfca6146d4690fd"
+      "sha256": "bee419a3d317712de00410e86c869bd35bc907ab84aa8fd1371d8cb3bf8bfacc"
     },
     ".github/workflows/j5-reporting.yml": {
       "kind": "ci",
       "callers": [
-        "GitHub Actions"
+        "hermes:aadf6677c7f0"
       ],
       "sha256": "6f78fc1dc3f71b5224485728b123c16d113f113c354a82e97e8e6b265a9a0e32"
     },
@@ -6473,6 +6473,35 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "e86da8840557ad6762d71920eedc798e9fc67ba265c6675575da27b84a8e1b5f"
+    },
+    "tests/test_discord_rate_rejection.py": {
+      "callers": [
+        "post_discord_message",
+        "linear_audit"
+      ],
+      "kind": "test",
+      "sha256": "395ee8dca5bf0a7647c1aaaedd5948e900152572ae4f76534875922f51c11479"
+    },
+    "scripts/affiliate_network_access_j5.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "9d26abd1f3a26290cdfc1729a1a928fd100636fd2b9de1df3809f32dc168e712"
+    },
+    "scripts/glp_affiliate_weekly_reporting_j5.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "1ede40a339651dac59e6489ed9eb91ae26bcd41fb445373153b4910e14cc4fe2"
+    },
+    "scripts/glp_affiliate_weekly_reporting_j5_job.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9"
     }
   }
 }

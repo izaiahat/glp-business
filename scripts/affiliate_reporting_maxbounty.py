@@ -12,7 +12,7 @@ import re
 import time
 from urllib.parse import urlsplit, parse_qs
 
-from affiliate_network_access import AccessResult, ReadTransport, _window
+from affiliate_network_access_j5 import AccessResult, ReadTransport, _window
 from affiliate_reporting_partnerstack import _amount, _identifier
 from marketplace_adapters import _base
 from maxbounty_publisher_api import MaxBountyPublisherAPI, API_BASE, credentials_path
