@@ -2645,10 +2645,16 @@ def route_bound_inbox_actions(event_ids=None,*,dry_run=False):
  selected=set(event_ids or bindings['events'])
  if not selected<=set(bindings['events']):raise RuntimeError('inbox_triage_event_binding_missing')
  events=fetch_inbox_events(sorted(selected))
- if {e['event_id'] for e in events}!=selected:raise RuntimeError('inbox_triage_canonical_event_missing')
+ if event_ids and {e['event_id'] for e in events}!=selected:raise RuntimeError('inbox_triage_canonical_event_missing')
  outputs=[]
  for event in events:
-  result=route_unowned_inbox_action(event,bindings['events'][event['event_id']],dry_run=dry_run)
+  try:result=route_unowned_inbox_action(event,bindings['events'][event['event_id']],dry_run=dry_run)
+  except Exception as exc:
+   # A represented intake hold must not stop the owning affiliate machine.
+   # The intake journal owns ambiguous remote effects; never bypass/recreate it.
+   result={'status':'BLOCKED','event_id':event['event_id'],'action_kind':'inbox_linear_triage',
+           'blocker':type(exc).__name__+':'+str(exc)[:200],
+           'external_send':False,'provider_mutation':False,'mailbox_mutation':False}
   if result is not None:
    receipt=save_receipt(event['event_id'],result)
    outputs.append(dict(result,receipt=str(receipt)))
@@ -2710,7 +2716,8 @@ async def main(*,fresh_drivers=None):
    raise RuntimeError('linear_triage_requires_only_explicit_event_ids')
   outputs=route_bound_inbox_actions(args.event_id,dry_run=args.dry_run)
   if len(outputs)!=len(set(args.event_id)):raise RuntimeError('linear_triage_event_not_eligible')
-  print(json.dumps({'status':'COMPLETE','outputs':outputs,'outbound_send_count':0},sort_keys=True));return 0
+  blocked=any(row.get('status')=='BLOCKED' for row in outputs)
+  print(json.dumps({'status':'BLOCKED' if blocked else 'COMPLETE','outputs':outputs,'outbound_send_count':0},sort_keys=True));return 3 if blocked else 0
  if args.contract_terms_verification_only:
   if not args.event_id or args.cancellation_verification_only or args.dry_run or args.dry_run_output or args.validate_only or args.operator_handoff or args.recover_terminal_routine or args.access_only or args.access_program or args.access_name:
    raise RuntimeError('contract_terms_verification_requires_only_explicit_event_ids')

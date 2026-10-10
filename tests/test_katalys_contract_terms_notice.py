@@ -62,8 +62,9 @@ def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeyp
     import ast, hashlib, json, sys, types, uuid
     source = Path(__file__).resolve().parents[1] / 'scripts/affiliate_approval_auto_reconciler.py'
     tree = ast.parse(source.read_text())
-    selected = [n for n in tree.body if getattr(n, 'name', '') == 'route_unowned_inbox_action']
-    assert selected, 'reconciler lacks canonical unowned-action to Triage producer'
+    selected = [n for n in tree.body if getattr(n, 'name', '') in
+                {'route_unowned_inbox_action','route_bound_inbox_actions'}]
+    assert len(selected)==2, 'reconciler lacks canonical unowned-action to Triage producer'
     # Reduced mirror omits host-only intake client; these two edges are mocks,
     # not fake business evidence. Host invocation is verified after install.
     linear_triage = types.ModuleType('linear_triage')
@@ -123,3 +124,15 @@ def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeyp
     with pytest.raises(RuntimeError,match='cap'):
         route(event,binding,client=client)
     assert len(calls)==2
+    bindings_path=tmp_path/'reports/ops/inbox-linear-triage/BINDINGS.json'
+    bindings_path.parent.mkdir(parents=True)
+    bindings_path.write_text(json.dumps({'schema':'inbox-linear-triage-v1',
+                                       'events':{event['event_id']:binding}}))
+    ns['fetch_inbox_events']=lambda *_: [event]
+    ns['save_receipt']=lambda *args: tmp_path/'blocked-receipt.json'
+    ns['route_unowned_inbox_action']=lambda *args,**kw: route(*args,client=client,**kw)
+    outputs=ns['route_bound_inbox_actions']()
+    assert outputs[0]['status']=='BLOCKED' and 'cap' in outputs[0]['blocker']
+    assert len(calls)==2  # capacity hold cannot suppress other owning machines
+    ns['fetch_inbox_events']=lambda *_: []
+    assert ns['route_bound_inbox_actions']()==[]  # stale terminal bindings skip
