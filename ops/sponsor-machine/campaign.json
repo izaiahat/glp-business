@@ -20,11 +20,11 @@
   "require_canonical_reply_coverage": true,
   "pricing": {
     "currency": "USD",
-    "initial_total": 500,
+    "initial_total": 750,
     "setup": 250,
-    "initial_placement": 250,
+    "initial_placement": 500,
     "term_hours": 720,
-    "optional_same_scope_renewal": 250,
+    "optional_same_scope_renewal": 500,
     "auto_charge": false
   },
   "legal_operator": "Tilton Group LLC",

@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 949,
+  "tracked_count": 951,
   "files": {
     "tests/test_pro_root_home.py": {
       "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
@@ -888,7 +888,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "e8cc3e9241328124c350cb4546dfcf1abf10cc5431d2e097c042f89cf8f71560"
+      "sha256": "984d67ad44ac47416c607ce903ecb59268affedab3647aa1ad0752654fa4ec8f"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -2331,7 +2331,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "5431268f230b02f0ad7a314ac6ecd0c9aeb1ecdc9604fa7067dce1bb973318c1"
+      "sha256": "2711133f4a364a5600d3dc9d87d7ab1b0f7e102159d730c80f82e2399ec91bc4"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4603,7 +4603,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "31343218ca6eaaf5d18d19deea89b6cadfd8f17e4e99c7d03cdc5523ca9954ca"
+      "sha256": "d6a0018b788848a5f9e5356b62f99454914dae577ad1f7edb685806d6f05eac6"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
@@ -4652,14 +4652,14 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "c44d37e6aab87c30d4ea070a36f690c40a07685a848769a4023ca316a110427b"
+      "sha256": "767735cfd6b4ef7a7717a00fe7e25ef4681074b732ba0954caff01fc0e3af754"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "bbb8e3c77d2e5ffcb4f2f96087ed32540af5fbde0b2c6ce61667473844783263"
+      "sha256": "4cea936fed34d97a58586978296d4787e4883019c7323035e10f42b2c26e6b2a"
     },
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",
@@ -6409,6 +6409,20 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "63f3a6f4eede1b4049cc2d74abbc7008fba6b9b31c593dc2634de2ef15f322c3"
+    },
+    "tests/test_glp_sponsor_approved_pricing.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
+    },
+    "tests/test_j4_refersion_catalog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "2beb839fdff4191cee4cee62b4b8109c02f1a8620eed9622eaf6c75e50bc0110"
     }
   }
 }
