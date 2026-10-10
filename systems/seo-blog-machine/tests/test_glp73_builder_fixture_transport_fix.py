@@ -206,13 +206,14 @@ def test_native_reviewer_pins_standard_and_refuses_legacy_or_tools():
     args = wrapper.build_parser().parse_args(["--prompt", "Synthetic regression", "--disable-tools"])
     assert (args.provider, args.model, args.effort) == ("openai-codex", "gpt-6-astra-900k", "high")
     wrapper.validate_target_args(args)
-    kwargs = wrapper.hermes_agent_kwargs({}, args, "offline-fixture")
+    runtime_db = object()  # Native persistence is now required for result custody.
+    kwargs = wrapper.hermes_agent_kwargs({}, args, "offline-fixture", runtime_db)
     assert kwargs["request_overrides"]["service_tier"] == "default"
     assert kwargs["reasoning_config"]["effort"] == "high"
     assert kwargs["fallback_model"] is None
     assert kwargs["enabled_toolsets"] == []
     assert kwargs["skip_context_files"] and kwargs["skip_memory"]
-    assert kwargs["session_db"] is None and kwargs["max_iterations"] == 1
+    assert kwargs["session_db"] is runtime_db and kwargs["max_iterations"] == 1
     inp = wrapper.review_input(args, "Synthetic regression", {})
     assert inp["transport_id"] == "hermes-openai-codex-astra-independent"
     assert inp["speed"] == "normal" and inp["service_tier"] == "default"

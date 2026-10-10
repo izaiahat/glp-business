@@ -742,6 +742,25 @@ def preserve_r2_route_governance(
     return preserved
 
 
+def semantic_materiality(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    """Structural evidence for an independently judged material answer change.
+
+    Token churn and dates are diagnostics only. This does not replace claim
+    review: acceptance still needs the exact subject-bound five-gate receipt.
+    """
+    old_sources = {_source_identity(row) for row in before.get("sources") or []}
+    new_sources = [_source_identity(row) for row in after.get("sources") or []
+                   if _authoritative(row) and _source_identity(row) not in old_sources]
+    old_sections = {_canonical(row) for row in before.get("sections") or []}
+    changed = [row for row in after.get("sections") or [] if _canonical(row) not in old_sections
+               and len(re.findall(r"\w+", json.dumps(row))) >= 12]
+    return {"material": bool(changed and new_sources),
+            "basis": "evidence_backed_answer_change" if changed and new_sources else "no_material_evidence_change",
+            "changed_sections": [row.get("heading") or row.get("h2") for row in changed],
+            "new_primary_sources": new_sources,
+            "independent_semantic_review_required": True}
+
+
 def validate_r2_refresh(
     before: dict[str, Any],
     after: dict[str, Any],
@@ -758,9 +777,10 @@ def validate_r2_refresh(
         raise RuntimeError("r2_canonical_route_changed")
     if not before.get("article_id") or after.get("article_id") != before.get("article_id"):
         raise RuntimeError("r2_article_id_changed")
-    delta = substantive_delta_fraction(before, after)
-    if delta < R2_MINIMUM_DELTA:
-        raise RuntimeError(f"r2_substantive_delta_below_minimum:{delta:.6f}")
+    delta = substantive_delta_fraction(before, after)  # diagnostics, never a quota
+    materiality = semantic_materiality(before, after)
+    if not materiality["material"]:
+        raise RuntimeError("r2_no_semantically_material_change")
     query_sections = _query_answering_sections(before, after, gsc_queries)
     if not query_sections:
         raise RuntimeError("r2_gsc_query_answering_section_missing")
@@ -806,6 +826,7 @@ def validate_r2_refresh(
         "priority": priority,
         "canonical_route": route,
         "article_id": after["article_id"],
+        "semantic_materiality": materiality,
         "substantive_delta_fraction": round(delta, 6),
         "query_answering_sections": query_sections,
         "new_authoritative_sources": [_source_identity(row) for row in new_sources],
@@ -1159,7 +1180,13 @@ def build_selection_receipt(
         as_of=end,
         excluded_routes={row["route"] for row in strict_selected},
     )
-    reserve_selected = reserve[:max(0, week["required"] - len(strict_selected))]
+    # The review governs eligibility; arbitrary freshness reserves are not
+    # dispatch orders. Targets are aspirational, not forced date bumps.
+    from seo_weekly_governance import CADENCE, refresh_candidates
+    strict_selected = refresh_candidates([*strict_selected, *reserve], strategy)[:CADENCE["meaningful_updates_max_per_week"]]
+    week["required"] = CADENCE["meaningful_updates_min_per_week"]
+    week["cadence"] = CADENCE
+    reserve_selected = []
     week["strict_selected_count"] = len(strict_selected)
     week["strict_capacity_deficit"] = week["capacity_deficit"]
     week["cadence_reserve"] = {
@@ -1171,7 +1198,7 @@ def build_selection_receipt(
     week["selected"] = [*strict_selected, *reserve_selected]
     week["selected_count"] = len(week["selected"])
     week["capacity_deficit"] = max(0, week["required"] - week["selected_count"])
-    week["status"] = "PASS_WEEKLY_R2_PLAN" if week["capacity_deficit"] == 0 else "R2_CAPACITY_DEFICIT"
+    week["status"] = "PASS_WEEKLY_R2_PLAN" if week["capacity_deficit"] == 0 else "PASS_WEEKLY_REVIEW_NOOP_ALLOWED"
     reserve_routes = {row["route"] for row in reserve_selected}
     analytics_decisions = []
     for row in week["selected"]:

@@ -1,0 +1,4 @@
+# GLP Dots native reply inbox; deterministic, no model and no sends.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+* * * * * ubuntu cd /home/ubuntu/business && /usr/bin/timeout --foreground --signal=KILL 900 /home/ubuntu/.hermes/venvs/rook-mcp/bin/python -B scripts/dot_dispatch.py --consume --max-wait-seconds 1 >> /home/ubuntu/business/reports/ops/dot-tickets/CRON.log 2>&1

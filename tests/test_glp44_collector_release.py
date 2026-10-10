@@ -389,6 +389,50 @@ def test_effective_commercial_holds_are_not_required_or_unknown(synthetic_releas
         assert not any(row["static_instrumentation_pass"] for row in brain.route_matrix(packet)["routes"])
 
 
+@pytest.mark.parametrize("case", ["ended", "withdrawn", "missing-denial", "missing-clock", "runtime-grant", "unexplained-absence", "seal-drift"])
+def test_relationship_denial_without_runtime_membership_stays_forbidden(synthetic_release, case):
+    """Pallas-shaped sealed denial supersedes a historical promotion grant."""
+    fixture = synthetic_release
+    pid = "synthetic-allowed"
+    registry_path = fixture.release / AUTHORITIES[1]
+    registry = json.loads(registry_path.read_text())
+    program = next(row for row in registry["programs"] if row["program_id"] == pid)
+    program.update(commercial_state="live", profiles={"glp-clinic-scout": {
+        "wired": False, "vertical_fit": True, "surfaces": {"review": True}}})
+    if case != "unexplained-absence":
+        program["affiliate_relationship_snapshot"] = {
+            "network": "synthetic-network", "network_program_id": "1622", "sheet_row": 776,
+            "relationship_status": "ended_operator_contract_termination",
+            "source_checked_at": "2026-10-07T22:55:04Z", "promotion_denied": True,
+            "lifecycle": "withdrawn" if case == "withdrawn" else "ended", "reported_information": True}
+        if case == "missing-denial":
+            del program["affiliate_relationship_snapshot"]["promotion_denied"]
+        elif case == "missing-clock":
+            del program["affiliate_relationship_snapshot"]["source_checked_at"]
+    write_json(registry_path, registry)
+    if case != "runtime-grant":
+        fixture.local["programs"].pop(pid)
+    fixture.module.write_bytes(PREFIX + json.dumps(fixture.local).encode() + b");\n")
+    fixture.served["program_ids"] = sorted(fixture.local["programs"])
+    fixture.http.return_value = (200, json.dumps(fixture.served))
+    fixture.seal()
+    if case == "seal-drift":
+        registry_path.write_text(registry_path.read_text() + " ")
+    routes = {f"/providers/{pid}/", f"/reviews/{pid}/"}
+    fixture.control["affiliate_routes"].extend(sorted(routes))
+    static = [{"path": route, "sponsored_anchor_count": 1,
+               "sponsored_anchor_targets": [{"program_id": pid, "href": f"/go/{pid}"}]}
+              for route in sorted(routes)]
+    if case not in {"ended", "withdrawn"}:
+        with pytest.raises(RuntimeError, match="affiliate_(relationship_denial_invalid|runtime_authority_invalid|release_authority_drift)"):
+            collector.derive_affiliate_obligations(fixture.control, routes, static)
+        return
+    obligations = collector.derive_affiliate_obligations(fixture.control, routes, static)
+    assert {obligations[route] for route in routes} == {"forbidden"}
+    assert all(row["unauthorized_affiliate_anchor_count"] == 1 for row in static)
+    assert obligations["/providers/synthetic-withheld/"] == "forbidden"
+
+
 @pytest.mark.parametrize("case", ["direct", "go-denied", "wrong-href", "wrong-program", "receipt-drift", "current-hold", "hold-drift", "uncollected-href"])
 def test_direct_permission_is_not_redirect_permission(synthetic_release, case):
     """Synthetic regression: approved direct link, not an approved /go redirect."""
