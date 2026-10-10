@@ -71,7 +71,8 @@ else
 fi
 suites+=(tests/test_glp75_topic_supply_inputs.py)
 suites+=(tests/test_glp343_topic_first_party_scoring.py tests/test_glp343_integration_guards.py)
-suites+=(tests/test_affiliate_catalog_batch.py tests/test_j2_maxbounty_catalog.py)
+suites+=(tests/test_monday_discovery_background.py tests/test_reddit_fractional_clock.py tests/test_reddit_skill_repair.py)
+suites+=(tests/test_affiliate_catalog_batch.py tests/test_j2_maxbounty_catalog.py tests/test_j3_partnerstack_catalog.py)
 suites+=(tests/test_capacity_reset_policy.py)
 suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_review.py)
 suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)

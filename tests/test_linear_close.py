@@ -20,7 +20,7 @@ DESCRIPTION = '## Acceptance\n\n- [ ] Installed shipper drain completes with a r
 SHIPPER = b'merged shipper bytes'
 
 
-def test_worker_result_closes_check_only(tmp_path, monkeypatch):
+def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
     reports = tmp_path / 'reports'
     (reports / 'ops/job-receipts').mkdir(parents=True)
     receipt = reports / 'ops/job-receipts/ship-1.json'
@@ -87,6 +87,49 @@ def test_worker_result_closes_check_only(tmp_path, monkeypatch):
     assert 'Installed: scripts/glp_affiliati_postback_ship.py ' + shipper_sha in posted['body'].splitlines()
     output = [line for line in posted['body'].splitlines() if line.startswith('Output: ')]
     assert len(output) == 1 and 'sha256' not in output[0].split(', ') and '8bb93c91' in output[0]
+
+
+def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys):
+    reports = tmp_path / 'reports'
+    receipt = reports / 'ops/collector/receipt.json'
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text(json.dumps({'provider_rows': 58}))
+    worker = receipt.parent / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-44',
+        'live_run': 'Read-only snapshot provider_rows=58',
+        'receipt': 'reports/ops/collector/receipt.json'}))
+    target = {'id': ISSUE_ID, 'identifier': 'GLP-44', 'title': 'Collector snapshot',
+        'description': '## Acceptance\n\nRead-only snapshot of provider rows.\n',
+        'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
+    writes = []
+    def gql(query, variables=None):
+        if 'mutation' in query:
+            writes.append(query)
+            raise AssertionError('check-only attempted a Linear mutation')
+        assert query == 'query{viewer{id}}'
+        return {'viewer': {'id': lo.OPERATOR_USER_ID}}
+    def forbidden(*args, **kwargs):
+        writes.append(args)
+        raise AssertionError('check-only attempted a write')
+    monkeypatch.setattr(lc, 'ROOT', tmp_path)
+    monkeypatch.setattr(lc, 'REPORTS', reports)
+    monkeypatch.setattr(lo, '__file__', str(tmp_path / 'scripts/linear_orchestrator.py'))
+    monkeypatch.setattr(lo, 'issue', lambda ident: target)
+    monkeypatch.setattr(lo, 'gql', gql)
+    monkeypatch.setattr(lo, 'comment', forbidden)
+    monkeypatch.setattr(lc, 'write', forbidden)
+    monkeypatch.setattr(lc, 'orchestrate', forbidden)
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()}
+    assert lc.main(['GLP-44', str(worker), '--check-only']) == 0
+    assert 'GLP-44 PASS' in capsys.readouterr().out
+    # Same gate must refuse missing current acceptance, rather than trusting status.
+    target['description'] = 'No acceptance section'
+    assert lc.main(['GLP-44', str(worker), '--check-only']) == 3
+    assert 'REFUSED' in capsys.readouterr().out
+    assert writes == []
+    assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
+    assert not (worker.parent / 'GLP-44').exists()
+
 
 
 def test_letter_leading_hex_identifier_is_output():

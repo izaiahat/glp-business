@@ -103,6 +103,9 @@ def proof_argv(value):
         safe = (len(urls) == 1 and re.fullmatch(r'https://glpclinicscout\.com/(?:guides/[^?#]*|sitemap\.xml|robots\.txt)', urls[0]) is not None
                 and all(x in options or x in urls for x in value[1:]))
     safe |= base in {'python3', 'python'} and len(value) > 2 and value[1:3] == ['-m', 'unittest']
+    safe |= (base in {'python3', 'python'} and len(value) == 3
+             and value[1] == 'scripts/fleet_plan_proof.py' and ISSUE.fullmatch(value[2]) is not None)
+    safe |= (base in {'python3', 'python'} and value[1:] == ['scripts/glp_cogny_queue_drain.py', '--mode', 'status'])
     if not safe:
         raise ValueError('proof_cmd not in read-only allowlist; coordinator must supply a safe proof')
     return value
@@ -315,7 +318,9 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
             item['source_failure'] = 'worker RESULT issue mismatch'
     # Completion identity + trusted command + closer bytes are the replay key.
     fingerprint = hashlib.sha256(json.dumps({'event': item, 'policy': policy,
-        'closer': digest(closer) if closer.is_file() else None}, sort_keys=True).encode()).hexdigest()
+        'closer': digest(closer) if closer.is_file() else None,
+        'gate': digest(root / 'scripts/linear_orchestrator.py') if (root / 'scripts/linear_orchestrator.py').is_file() else None,
+        'proof_verifier': digest(root / 'scripts/fleet_plan_proof.py') if (root / 'scripts/fleet_plan_proof.py').is_file() else None}, sort_keys=True).encode()).hexdigest()
     prior = read(target)
     if prior.get('fingerprint') == fingerprint and not retry:
         return prior
@@ -323,6 +328,8 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
         raise ValueError('lane collision: source identities must have separate lanes')
     checks = {}
     failures = [item['source_failure']] if item['source_failure'] else []
+    if policy.get('proof_complete') is False:
+        failures.append('proof incomplete: ' + str(policy.get('proof_incomplete_reason') or 'prerequisite-only command'))
     try:
         argv = proof_argv(policy.get('proof_cmd'))
         proof = runner(argv, root, timeout)
@@ -343,6 +350,10 @@ def ingest(root, item, policy, runner=run, timeout=30, retry=False):
     if item['worker_result']:
         argv = [sys.executable, str(closer), item['issue'], item['worker_result'], '--check-only']
         checks['linear_close'] = {'argv': argv, **runner(argv, root, timeout)}
+        if checks['linear_close']['rc'] == 0 and not re.search(
+                r'^' + re.escape(str(item['issue'])) + r' PASS(?:\s|$)',
+                checks['linear_close'].get('stdout', ''), re.M):
+            checks['linear_close'].update(rc=3, stderr='no-write closer did not return explicit PASS')
     else:
         checks['linear_close'] = {'rc': 2, 'stderr': 'completion has no genuine worker RESULT.json for closure', 'stdout': ''}
     if checks['linear_close']['rc']:

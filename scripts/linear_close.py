@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """One-command ordinary Linear closer.
 
-  linear_close.py <GLP-n> <worker RESULT.json> [--apply]
+  linear_close.py <GLP-n> <worker RESULT.json> [--apply | --check-only]
+
+--check-only evaluates the same gate in memory, prints PASS/REFUSED and performs
+no filesystem or Linear writes. PASS means prevalidated for coordinator acceptance,
+not an authenticated acceptance or permission to close. Already-Done issues refuse.
+The legacy default prepares/posts acceptance; it is NOT a no-write dry run.
 
 Turns a worker's simple RESULT (status DONE_READY_TO_CLOSE, pr, install, live_run, receipt)
 into a typed linear-ordinary-completion-v1 RESULT at <worker dir>/<GLP-n>/RESULT.json,
@@ -10,11 +15,13 @@ coordinator acceptance comment, runs `pass --ordinary --check-only` and, with --
 the real `pass --ordinary`. No comment is posted for an issue the validator would refuse.
 Prints one line: issue, final state, typed RESULT path.
 """
+import sys
+# --check-only includes import-time artifacts: do not create __pycache__ files.
+sys.dont_write_bytecode = True
 import hashlib
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -190,7 +197,7 @@ def build(ident, worker_path, iss, gh=gh_pr):
     return data
 
 
-def preflight(typed_path, iss, body, viewer_id):
+def preflight(typed_path, iss, body, viewer_id, data=None):
     """Run the unmodified validator against the planned comment before posting it."""
     real = lo.gql
 
@@ -203,7 +210,7 @@ def preflight(typed_path, iss, body, viewer_id):
         return real(query, variables)
     lo.gql = planned
     try:
-        lo._lint_ordinary_result(str(typed_path), iss)
+        lo._lint_ordinary_result(str(typed_path), iss, result_data=data)
     except SystemExit as exc:
         raise Refused(str(exc)) from None
     finally:
@@ -223,14 +230,22 @@ def orchestrate(ident, typed_path, *extra):
     return run.stdout
 
 
-def close(ident, worker_path, apply=False):
+def close(ident, worker_path, apply=False, check_only=False):
+    if apply and check_only:
+        raise Refused('--apply and --check-only are mutually exclusive')
     worker_path = Path(worker_path).resolve()
     typed_path = worker_path.parent / ident / 'RESULT.json'
     iss = lo.issue(ident)
+    if check_only and iss['state']['name'] == 'Done':
+        raise Refused('issue is already Done; not an OPEN completion')
     if iss['state']['name'] == 'Done':
         return 'Done', typed_path
     data = build(ident, worker_path, iss)
     body = acceptance_body(data)
+    if check_only:
+        data['review'] = {'comment_id': 'planned', 'body_sha256': digest(body)}
+        preflight(typed_path, iss, body, lo.gql('query{viewer{id}}')['viewer']['id'], data=data)
+        return 'PASS', typed_path
     previous = json.loads(typed_path.read_text()) if typed_path.is_file() else {}
     review = previous.get('review') or {}
     if review.get('body_sha256') == digest(body) and review.get('comment_id') not in (None, 'planned'):
@@ -257,17 +272,18 @@ def close(ident, worker_path, apply=False):
 
 
 def main(argv):
-    args = [a for a in argv if a != '--apply']
-    if len(args) != 2:
+    args = [a for a in argv if a not in ('--apply', '--check-only')]
+    if len(args) != 2 or any(a.startswith('--') for a in args):
         print(__doc__)
         return 2
     ident = args[0]
     try:
-        state, typed_path = close(ident, args[1], apply='--apply' in argv)
-    except Refused as exc:
+        state, typed_path = close(ident, args[1], apply='--apply' in argv, check_only='--check-only' in argv)
+    except (Refused, OSError, ValueError) as exc:
         print('%s REFUSED %s' % (ident, exc))
         return 3
-    print('%s %s %s' % (ident, state, typed_path))
+    print('%s PASS gate=prevalidated coordinator-acceptance=required writes=0' % ident
+          if state == 'PASS' else '%s %s %s' % (ident, state, typed_path))
     return 0
 
 

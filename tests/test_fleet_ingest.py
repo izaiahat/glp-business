@@ -21,7 +21,7 @@ class FleetTest(unittest.TestCase):
             calls = []
             def runner(argv, cwd, timeout):
                 calls.append(argv)
-                return {'rc': 0, 'stdout': 'rows=12', 'stderr': ''}
+                return {'rc': 0, 'stdout': 'GLP-44 PASS rows=12', 'stderr': ''}
             event = m.event('native', 'GLP-44', 'sol', result, [result], result)
             plan = {'proof_cmd': ['stat', '-c', '%s', str(result)]}
             row = m.ingest(root, event, plan, runner)
@@ -91,6 +91,36 @@ class FleetTest(unittest.TestCase):
             cfg.write_text('{')
             items, errors = m.discover(root, root / 'missing', config, [])
             self.assertNotIn('dot', {e['source'] for e in items})
+    def test_zero_exit_without_pass_is_not_ready(self):
+        m = self.load()
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            item = m.event('native', 'GLP-44', 'sol', result, [result], result)
+            row = m.ingest(root, item, {'proof_cmd': ['stat', str(result)]},
+                lambda *args: {'rc': 0, 'stdout': 'GLP-44 Done old dry-run', 'stderr': ''})
+            self.assertEqual(row['status'], 'REDISPATCH')
+            self.assertIn('explicit PASS', row['failure_text'])
+
+    def test_partial_proof_and_exact_proof_allowlist(self):
+        m = self.load()
+        self.assertEqual(m.proof_argv(['python3', 'scripts/fleet_plan_proof.py', 'GLP-356'])[-1], 'GLP-356')
+        for bad in [['python3', 'scripts/fleet_plan_proof.py', 'GLP-356', '--apply'],
+                    ['python3', 'scripts/glp_cogny_queue_drain.py', '--mode', 'tick']]:
+            with self.assertRaises(ValueError):
+                m.proof_argv(bad)
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            result = root / 'RESULT.json'
+            result.write_text('{}')
+            item = m.event('native', 'GLP-44', 'sol', result, [result], result)
+            row = m.ingest(root, item, {'proof_cmd': ['stat', str(result)],
+                'proof_complete': False, 'proof_incomplete_reason': 'operator review still required'},
+                lambda *args: {'rc': 0, 'stdout': 'GLP-44 PASS', 'stderr': ''})
+            self.assertEqual(row['status'], 'REDISPATCH')
+            self.assertIn('operator review still required', row['failure_text'])
+
     def test_failed_checks_and_changed_closer_are_revalidated(self):
         m = self.load()
         with tempfile.TemporaryDirectory() as d:
@@ -126,7 +156,7 @@ class FleetTest(unittest.TestCase):
             item = m.event('pro', 'GLP-44', 'pro', advisory, [advisory])
             policy = {'proof_cmd': ['stat', str(result)], 'worker_result': str(result)}
             def runner(argv, cwd, timeout):
-                return {'rc': 0, 'stdout': 'actual output', 'stderr': ''}
+                return {'rc': 0, 'stdout': 'GLP-44 PASS actual output', 'stderr': ''}
             row = m.ingest(root, item, policy, runner)
             self.assertEqual(row['status'], 'READY_TO_CLOSE')
             self.assertIn(str(result), row['evidence'])
@@ -147,7 +177,7 @@ class FleetTest(unittest.TestCase):
             result = root / 'RESULT.json'
             result.write_text('{}')
             item = m.event('native', 'GLP-44', 'sol', result, [result], result)
-            m.ingest(root, item, {'proof_cmd': ['stat', str(result)]}, lambda *a: {'rc': 0, 'stdout': 'valid', 'stderr': ''})
+            m.ingest(root, item, {'proof_cmd': ['stat', str(result)]}, lambda *a: {'rc': 0, 'stdout': 'GLP-44 PASS valid', 'stderr': ''})
             result.write_text('changed')
             m.revoke_stale(root, [])
             row = m.read(root / 'reports/ops/fleet-inbox/GLP-44/sol/INGEST.json')
