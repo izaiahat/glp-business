@@ -73,7 +73,6 @@ def test_exact_draft_preflight_is_effect_free(offline_draft):
  users.drafts.return_value.send.assert_not_called()
  assert not n.JOURNAL.exists()
 
-
 @pytest.mark.parametrize('change',['cc','bcc','extra_to','duplicate_to','html','later_stop','later_reply'])
 def test_changed_envelope_or_new_reply_refuses_before_claim(offline_draft,change):
  from email.message import EmailMessage
@@ -90,7 +89,6 @@ def test_changed_envelope_or_new_reply_refuses_before_claim(offline_draft,change
  with pytest.raises(RuntimeError):n.run(send=True)
  users.drafts.return_value.send.assert_not_called()
  assert not n.JOURNAL.exists()
-
 
 def test_uncertain_submission_is_never_replayed(offline_draft):
  _,_,_,users=offline_draft
@@ -135,4 +133,3 @@ def test_send_time_guards_refuse_without_submission(offline_draft,monkeypatch,st
   with pytest.raises(RuntimeError):n.run(send=True)
  users.drafts.return_value.send.assert_not_called()
  assert not n.JOURNAL.exists()
-

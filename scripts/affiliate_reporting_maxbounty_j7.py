@@ -24,6 +24,7 @@ def explicit_absence(doc):
 @dataclass(frozen=True)
 class AccessResult(PriorResult):
     resource_counts: dict | None = None
+    source_identity: dict | None = None
 
 
 class ReadTransport(old.ReadTransport):
@@ -63,6 +64,7 @@ def collect(transport, *, start, end, deadline=None, max_requests=32):
     from urllib.parse import urlencode
     t=ReadTransport(transport,deadline=deadline,max_requests=max_requests)
     records,totals,binding,api=[],None,'UNKNOWN',None
+    identity=None
     counts={'conversions':None,'reversals':None,'balance_transactions':None}
     reason='CREDENTIAL_HTTP_SCHEMA_OR_PERIOD_UNPROVEN_NO_RETRY'
     try:
@@ -73,6 +75,9 @@ def collect(transport, *, start, end, deadline=None, max_requests=32):
         publisher=_identifier(t.raw_documents[-1].get('publisher_id'))
         if publisher is None:raise ValueError('publisher_identity_missing')
         binding='RESPONSE_OWNED_PUBLISHER_ID:'+publisher
+        identity={'account_id':publisher,'native_id_type':'publisher_id',
+                  'evidence':{'pointer':'/publisher_id','response_sha256':t.receipts[-1]['response_sha256']},
+                  'scope':'AUTHENTICATED_PUBLISHER_ONLY_NOT_PROGRAM_OR_FINANCIAL_CLASSIFICATION'}
         dates={'startDate':a.strftime('%Y-%m-%d'),'endDate':(b-timedelta(days=1)).strftime('%Y-%m-%d')}
         _,doc,_=api._request('/reports/earnings?'+urlencode(dates))
         if doc.get('success') is not True or not isinstance(doc.get('report'),list) or not isinstance(doc.get('totals'),dict):
@@ -120,4 +125,4 @@ def collect(transport, *, start, end, deadline=None, max_requests=32):
         if api:api.close()
     return AccessResult('maxbounty','conversions_earnings','SUPPORTED',SOURCE,
         coverage='PARTIAL' if records or t.receipts else 'UNKNOWN',records=tuple(records),receipts=tuple(t.receipts),
-        account_binding=binding,reported_totals=totals,resource_counts=counts,reason=reason)
+        account_binding=binding,reported_totals=totals,resource_counts=counts,source_identity=identity,reason=reason)
