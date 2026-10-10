@@ -3,11 +3,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - scripts/glp_seo_updater_run.py
-      - tests/test_seo_updater_child_diagnostic.py
-      - .github/workflows/seo-updater-diagnostics.yml
+      - ".github/workflows/seo-updater-diagnostics.yml"
+      - "scripts/glp_seo_updater_run.py"
+      - "tests/test_seo_updater_child_diagnostic.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   exact-head-diagnostics:
     runs-on: ubuntu-latest

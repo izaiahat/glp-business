@@ -2,8 +2,33 @@ name: glp333-network-access
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/glp333-network-access.yml"
+      - "ops/glp/reporting-v2/**"
+      - "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting.sh"
+      - "reports/ops/glp333-network-access-contract-20261001/RESULT.json"
+      - "scripts/affiliate_network_access.py"
+      - "scripts/affiliate_reporting_everflow.py"
+      - "scripts/glp_affiliate_weekly_reporting.py"
+      - "scripts/glp_affiliate_weekly_reporting_job.py"
+      - "scripts/glp_network_revenue_import_v2.py"
+      - "scripts/glp_network_revenue_v2.py"
+      - "scripts/impact_api_credentials.py"
+      - "scripts/marketplace_adapters/**"
+      - "systems/analytics-brain/analytics_brain.py"
+      - "tests/conftest.py"
+      - "tests/test_f12_scheduled_retained_input.py"
+      - "tests/test_glp319_incomplete_period.py"
+      - "tests/test_glp333_impact_subwindows.py"
+      - "tests/test_glp44_reporting_source_pin_pair.py"
+      - "tests/test_glp85_cj_reporting_identity.py"
+      - "tests/test_network_access_contract.py"
+      - "tests/test_network_access_review_regressions.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   network-contract-exact-head:
     runs-on: ubuntu-latest

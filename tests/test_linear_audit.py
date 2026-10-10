@@ -25,6 +25,31 @@ def test_real_cli_silent_clean_minimized_violation_and_sanitized_error(tmp_path)
     assert run.returncode == 2 and run.stdout == '' and 'SECRET' not in run.stderr
     assert json.loads(evidence.read_text())['unresolved_count'] is None
 
+def test_obsolete_pending_delivery_does_not_poison_distinct_audit(tmp_path):
+    import sqlite3, hashlib
+    a = auditor(); d = FakeDiscord(); state = tmp_path / 'delivery.sqlite'
+    report = a.audit([issue(project=None)], OP, NOW)
+    assert a.notify(report, state, d) == 'CONFIRMED'
+    current_content = a.notice_chunks(report)[0]
+    assert current_content.startswith('Linear audit v2 ')
+    old_content = current_content.replace('Linear audit v2 ', 'Linear audit ', 1)
+    digest = hashlib.sha256(old_content.encode()).hexdigest()
+    with sqlite3.connect(state) as db:
+        db.execute('INSERT INTO delivery VALUES (?,?,?,?,?)', (digest, a.CHANNEL, old_content, None, 'PENDING'))
+    assert a.notify(report, state, d) == 'DUPLICATE_CONFIRMED'
+    assert len(d.posts) == 1
+    with sqlite3.connect(state) as db:
+        assert db.execute('SELECT message_id,status FROM delivery WHERE digest=?', (digest,)).fetchone() == (None, 'PENDING')
+    # If those exact bytes become required again, never resend or claim success.
+    original = a.notice_chunks
+    a.notice_chunks = lambda report: [old_content]
+    try:
+        assert a.notify(report, state, d) == 'DELIVERY_UNKNOWN'
+        assert len(d.posts) == 1
+    finally:
+        a.notice_chunks = original
+
+
 class FakeDiscord:
     def __init__(self): self.posts=[]; self.messages={}; self.fail_send=False; self.fail_read=False
     def send(self,channel,content):

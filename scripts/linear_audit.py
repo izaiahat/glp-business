@@ -57,7 +57,9 @@ def notice_chunks(report):
     if not lines:
         return []
     digest = hashlib.sha256(json.dumps(lines, separators=(',',':')).encode()).hexdigest()
-    header = 'Linear audit '+digest+'\n'
+    # Delivery-scope upgrade is a new producer edition, not a replay of old
+    # uncertain bytes. Same-edition intents retain the existing exact fence.
+    header = 'Linear audit v2 '+digest+'\n'
     chunks, current = [], header
     for line in lines:
         require(len(header)+len(line)+1 <= 1900)
@@ -93,18 +95,24 @@ def notify(report, state, transport=None):
                 db.commit()
                 if not marker.exists():
                     durable_json(marker, {'schema':'linear-audit-delivery-v1'})
+                chunks = notice_chunks(report)
+                required_digests = {hashlib.sha256(content.encode()).hexdigest() for content in chunks}
                 for digest, channel, content, mid, status in db.execute('SELECT * FROM delivery').fetchall():
                     require(channel == CHANNEL and status in {'PENDING','CONFIRMED'})
                     require(hashlib.sha256(content.encode()).hexdigest() == digest)
                     if status == 'CONFIRMED':
                         require(bool(mid)); continue
+                    # Preserve old uncertain effects verbatim, but an unrelated
+                    # historical report is not a delivery requirement today.
+                    # Its exact digest remains fenced if needed again.
+                    if digest not in required_digests:
+                        continue
                     if not mid:
                         return 'DELIVERY_UNKNOWN'
                     fetched = transport.readback(channel, mid)
                     if fetched.get('id') != mid or fetched.get('channel_id') != channel or fetched.get('content') != content:
                         return 'DELIVERY_UNKNOWN'
                     db.execute('UPDATE delivery SET status=? WHERE digest=?', ('CONFIRMED',digest)); db.commit()
-                chunks = notice_chunks(report)
                 if not chunks:
                     return 'NOT_NEEDED'
                 sent = False

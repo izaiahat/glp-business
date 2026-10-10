@@ -2583,7 +2583,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
             and n.func.id == '_bound_js' and len(n.args) > 2
             and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
-        self.assertEqual(len(expressions), 15)  # Parent readback follows close, never the open preview.
+        self.assertEqual(len(expressions), 16)  # Includes new-target-only Home geometry; retained gate unchanged.
         evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
         node = r'''const expressions=JSON.parse(process.argv[1]);
             // Compile every actual generated constant after the nested Python parse.
@@ -2603,7 +2603,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         observed = json.loads(result.stdout)
-        self.assertEqual(observed['count'], 15)
+        self.assertEqual(observed['count'], 16)
         self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
             'assistants': 0, 'empty': True, 'challenge': False,
             'interstitial': False, 'login': False, 'rate': False,
@@ -2995,7 +2995,7 @@ console.log(JSON.stringify(fixtures.map(f => {
         self.assertFalse((relay.JOBS / 'job/outbox').exists())
         self.svc.files.return_value.get_media.assert_not_called()
 
-    def test_done_chat_empty_after_reopen_reload_recovers_exact_saved_reply(self):
+    def test_done_chat_empty_after_reopen_hydrates_exact_saved_reply_without_reload(self):
         self.prepare_bundle()
         st = relay.job_state('job'); st['tab'] = 'sibling'; relay.job_write('job', st)
         original = relay.read_reply
@@ -3009,7 +3009,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             return result
         with mock.patch.object(relay, 'read_reply', side_effect=delayed_reply):
             self.assertEqual(relay.cmd_fetch_outbox(types.SimpleNamespace(job='job')), 0)
-        self.assertTrue(calls[1]['reload'])
+        self.assertFalse(calls[1].get('reload', False))
         self.assertEqual(relay.job_state('job')['fetch_verification']['state'], 'VERIFIED')
         self.assertEqual((relay.JOBS / 'job/outbox/answer.diff').read_bytes(), b'verified fixture\n')
 
