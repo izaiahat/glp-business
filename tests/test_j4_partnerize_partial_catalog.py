@@ -2,6 +2,17 @@ from types import SimpleNamespace
 from scripts import affiliate_catalog_batch as batch
 
 
+def test_curated_manifest_tracks_exact_git_cardinality():
+    import json
+    import subprocess
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    files = subprocess.check_output(['git', 'ls-files', '-z'], cwd=root).split(b'\0')[:-1]
+    manifest = json.loads((root / 'ops/rebuild-source-manifest.json').read_text())
+    assert manifest['tracked_count'] == len(files)
+    assert set(manifest['files']) | {'ops/rebuild-source-manifest.json'} == {x.decode() for x in files}
+
+
 def test_failed_partnerize_bucket_preserves_other_real_readbacks():
     called = []
     def readback(transport, statuses):
