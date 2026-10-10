@@ -8,7 +8,7 @@ check_source() {
   actual="$(/usr/bin/sha256sum -- "$1")"
   [[ "${actual%% *}" == "$2" ]] || { printf 'K3_REPORTING_SOURCE_DRIFT\n' >&2; exit 66; }
 }
-check_source scripts/glp_affiliate_weekly_reporting_j7_job.py 690ce66c4cfcd24b72dfe022e737df253098d1804673326709a45fcc2401f0b7
+check_source scripts/glp_affiliate_weekly_reporting_j7_job.py cf05a94ae62d562df1b359a42b93a88d56199e0c79a245d0b14564a4c2a553ac
 check_source ops/glp/reporting-v2/source-manifest-j7.json 0cf83a4ff6f3f2e2176bb89e72377e701e1a6cfa5df43d1d4223fd2b458dba2d
 check_source ops/glp/reporting-v2/identity-registry.json 0dc42e332009d1438c08318fe36383949c68a059fb0e872eb0fee9d9be7ef513
 check_source reports/ops/orchestration-restore-20260907/WS-F/NETWORK-REPORTING-ALL/MARKETPLACES.json 9e0bc9ba3f1910e1f5e540bcbfcaa1c344a27366fbc0209ee55972ef4628a799
