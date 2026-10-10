@@ -2,11 +2,21 @@ name: glp80-price-freshness
 on:
   pull_request:
     paths:
-      - scripts/glp_price_freshness.py
-      - tests/test_glp80_price_freshness.py
-      - tests/test_glp80_registered_price_refresh.py
-      - ops/n8n-bridge/actions.json
-      - .github/workflows/glp80-price-freshness.yml
+      - ".github/workflows/glp80-price-freshness.yml"
+      - "ops/n8n-bridge/actions.json"
+      - "ops/scheduled-source-drift-manifest.json"
+      - "scripts/cron_bridge_action.py"
+      - "scripts/glp_price_freshness.py"
+      - "tests/conftest.py"
+      - "tests/fixtures/glp344-price-evidence/**"
+      - "tests/test_glp344_price_evidence_delta.py"
+      - "tests/test_glp80_price_freshness.py"
+      - "tests/test_glp80_registered_price_refresh.py"
+      - "tools/glp/evidence_refresh.py"
+      - "tools/glp/price_evidence_delta.py"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   price-freshness-exact-head:
     runs-on: ubuntu-latest

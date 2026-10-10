@@ -1,11 +1,20 @@
 name: maxbounty-fresh-probe
 on:
-  push:
-    branches: [feat/affiliate-loop-gaps-c09-c13]
   pull_request:
-    branches: [main, fix/glp318-fresh-capacity-probe]
+    branches: [main]
+    paths:
+      - ".github/workflows/maxbounty-fresh-probe.yml"
+      - "scripts/glp_awin_portal_login.py"
+      - "scripts/glp_maxbounty_capacity_monitor.py"
+      - "scripts/glp_maxbounty_fresh_probe.py"
+      - "tests/conftest.py"
+      - "tests/test_glp_awin_portal_login.py"
+      - "tests/test_glp_maxbounty_fresh_probe.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   offline-caller-regressions:
     runs-on: ubuntu-latest
