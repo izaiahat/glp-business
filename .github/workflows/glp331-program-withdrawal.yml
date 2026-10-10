@@ -2,8 +2,44 @@ name: glp331-program-withdrawal
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/glp331-program-withdrawal.yml"
+      - "inbox_control_plane/__init__.py"
+      - "inbox_control_plane/affiliate_decision_queue.py"
+      - "inbox_control_plane/affiliate_network_registry.py"
+      - "inbox_control_plane/affiliate_supply_intake.py"
+      - "inbox_control_plane/approved_gmail_sender.py"
+      - "inbox_control_plane/control_plane.py"
+      - "inbox_control_plane/outbound_style_guard.py"
+      - "ops/sender_envelope.py"
+      - "scripts/affiliate_program_relevance.py"
+      - "scripts/affiliate_program_withdrawal.py"
+      - "scripts/affiliate_provider_metadata.py"
+      - "scripts/affiliate_provider_row_scope.py"
+      - "scripts/affiliate_sheet_batch_writer.py"
+      - "scripts/affiliate_sheet_schema_guard.py"
+      - "scripts/affiliate_terms_fanout.py"
+      - "scripts/affiliate_withdrawal_candidate.py"
+      - "scripts/glp_deploy_glp34_authority_v1.py"
+      - "scripts/glp_sheet_sync_drain.py"
+      - "site-system/flagship-v2/work/glp215-accepted-base/scripts/**"
+      - "tests/conftest.py"
+      - "tests/fixtures/affiliate_terms*"
+      - "tests/fixtures/affiliate_terms_registry_validator.mjs"
+      - "tests/fixtures/glp331*/**"
+      - "tests/fixtures/glp331_native_surface_build.mjs"
+      - "tests/fixtures/glp331_provider_identity.mjs"
+      - "tests/support/google_stubs.py"
+      - "tests/test_affiliate_terms_fanout.py"
+      - "tests/test_cleanup_affiliate_decisions.py"
+      - "tests/test_glp250_partner_email_hold.py"
+      - "tests/test_glp331_program_withdrawal.py"
+      - "tests/test_glp331_withdrawal_candidate.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   offline-exact-head:
     runs-on: ubuntu-latest
