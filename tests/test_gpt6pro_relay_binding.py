@@ -2965,6 +2965,28 @@ console.log(JSON.stringify(fixtures.map(f => {
             relay.cmd_fetch_outbox(types.SimpleNamespace(job='job'))
         self.assertEqual(relay.job_state('job')['fetch_verification']['state'], 'UNKNOWN')
 
+    def test_native_saved_downloads_are_authoritative_not_unbound_drive_draft(self):
+        self.prepare_bundle()
+        download = self.root / 'native'; download.mkdir()
+        api = self.svc.files.return_value
+        for name, file_id in [('OUTPUT-MANIFEST.json','manifest'),('answer.diff','artifact')]:
+            (download / name).write_bytes(api.get_media(fileId=file_id).execute())
+        api.get_media.side_effect = lambda **kw: types.SimpleNamespace(execute=lambda:b'unbound earlier draft')
+        self.assertEqual(relay.cmd_fetch_outbox(types.SimpleNamespace(job='job', download_dir=download)), 0)
+        relay.drive.assert_not_called()
+        self.assertEqual(relay.job_state('job')['fetch_verification']['artifact_source'], 'native_downloads')
+
+    def test_native_saved_downloads_reject_wrong_payload_without_rewriting(self):
+        self.prepare_bundle()
+        download = self.root / 'native'; download.mkdir()
+        raw = self.svc.files.return_value.get_media(fileId='manifest').execute()
+        (download / 'OUTPUT-MANIFEST.json').write_bytes(raw)
+        (download / 'answer.diff').write_bytes(b'wrong bytes')
+        with self.assertRaisesRegex(SystemExit, 'file hash'):
+            relay.cmd_fetch_outbox(types.SimpleNamespace(job='job', download_dir=download))
+        self.assertFalse((relay.JOBS / 'job/outbox').exists())
+        self.assertEqual((download / 'OUTPUT-MANIFEST.json').read_bytes(), raw)
+
     def prepare_bundle(self, mutate=None, extra=False, body='wanted answer\n'):
         artifact = b'verified fixture\n'
         manifest = {'job': 'job', 'conversation_id': WANT.rsplit('/', 1)[1], 'input_sha256': 'a'*64,

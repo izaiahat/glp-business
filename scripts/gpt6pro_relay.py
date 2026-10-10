@@ -1748,27 +1748,38 @@ def _cmd_fetch_outbox(a) -> int:
         expected = text.encode() if st.get('reply_serialization') == 'raw_utf8' else (text + '\n').encode()
         need(local == expected, 'local reply differs')
         marker = re.fullmatch(r'(.*\n)RELAY_OUTPUT_MANIFEST_SHA256=([0-9a-f]{64})\s*', text, re.S)
-        svc = drive()
-        folders = drive_list_all(svc, f"'{cfg['drive']['outbox_id']}' in parents and name = '{a.job}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
-        if not folders:
-            # Exact-parent, fully paginated zero folders proves absence even if
-            # Pro never emitted a manifest marker. It does NOT authorize payload
-            # recovery; any nonzero folder still requires the final-chat receipt.
-            st['fetch_verification'] = {'state': 'ABSENT', 'reason': 'zero folders under configured outbox',
-                                        'source_reply_sha256': sha, 'at': now_iso()}
-            st['tab'] = r['tab']
-            job_write(a.job, st)
-            print(f'OUTBOX_ABSENT_VERIFIED job={a.job} advisory_response={JOBS / a.job / "RESPONSE.md"}')
-            return 10
-        need(marker, 'missing final-chat manifest receipt')
-        need(len(folders) == 1, 'ambiguous/missing folder')
-        files = drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")
-        names = [f['name'] for f in files]
+        download_dir = getattr(a, 'download_dir', None)
+        if download_dir is not None:
+            need(marker, 'missing final-chat manifest receipt')
+            directory = Path(download_dir)
+            need(not any(p.is_symlink() for p in (directory, *directory.parents)), 'download symlink')
+            need(directory.is_dir(), 'missing download directory')
+            by_name = {p.name: p for p in directory.iterdir()}
+            need(all(p.is_file() and not p.is_symlink() for p in by_name.values()), 'download non-file')
+            names = list(by_name)
+            read_artifact = lambda name: by_name[name].read_bytes()
+        else:
+            svc = drive()
+            folders = drive_list_all(svc, f"'{cfg['drive']['outbox_id']}' in parents and name = '{a.job}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+            if not folders:
+                st['fetch_verification'] = {'state': 'ABSENT', 'reason': 'zero folders under configured outbox',
+                                            'source_reply_sha256': sha, 'at': now_iso()}
+                st['tab'] = r['tab']
+                job_write(a.job, st)
+                print(f'OUTBOX_ABSENT_VERIFIED job={a.job} advisory_response={JOBS / a.job / "RESPONSE.md"}')
+                return 10
+            need(marker, 'missing final-chat manifest receipt')
+            need(len(folders) == 1, 'ambiguous/missing folder')
+            files = drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")
+            names = [f['name'] for f in files]
+            by_name = {f['name']: f for f in files}
+            def read_artifact(name):
+                need(not by_name[name]['mimeType'].startswith('application/vnd.google-apps'), 'native document')
+                return svc.files().get_media(fileId=by_name[name]['id']).execute()
         need(len(names) == len(set(names)), 'duplicate filenames')
         need(all(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', n) for n in names), 'unsafe filename')
-        by_name = {f['name']: f for f in files}
         need('OUTPUT-MANIFEST.json' in by_name, 'missing manifest')
-        raw = svc.files().get_media(fileId=by_name['OUTPUT-MANIFEST.json']['id']).execute()
+        raw = read_artifact('OUTPUT-MANIFEST.json')
         need(hashlib.sha256(raw).hexdigest() == marker[2], 'manifest receipt hash')
         manifest = json.loads(raw)
         need(manifest.get('job') == a.job, 'job/conversation')
@@ -1792,8 +1803,7 @@ def _cmd_fetch_outbox(a) -> int:
         blobs = {'OUTPUT-MANIFEST.json': raw}
         for name, digest in declared.items():
             need(isinstance(digest, str) and re.fullmatch(r'[0-9a-f]{64}', digest), 'invalid hash')
-            need(not by_name[name]['mimeType'].startswith('application/vnd.google-apps'), 'native document')
-            data = svc.files().get_media(fileId=by_name[name]['id']).execute()
+            data = read_artifact(name)
             need(hashlib.sha256(data).hexdigest() == digest, 'file hash ' + name)
             blobs[name] = data
         # Recheck final chat after downloads; never promote a stale/sibling result.
@@ -1814,7 +1824,8 @@ def _cmd_fetch_outbox(a) -> int:
                 os.replace(stage, dest)
         st.update(tab=final['tab'], outbox_files=sorted(blobs), fetch_verification={
             'state': 'VERIFIED', 'conversation_id': st['conversation_id'], 'source_reply_sha256': sha,
-            'manifest_sha256': marker[2], 'verified_at': now_iso()})
+            'manifest_sha256': marker[2], 'verified_at': now_iso(),
+            'artifact_source': 'native_downloads' if download_dir is not None else 'drive'})
         job_write(a.job, st)
         print(f'FETCHED_VERIFIED job={a.job} conversation={st["conversation_id"]} files={len(blobs)} -> {dest}')
         return 0
@@ -3530,7 +3541,11 @@ def _cmd_submit(a) -> int:
              'Do NOT include conversation_id: the relay verifies the actual chat URL, which you cannot know '
              'from the prompt. Do NOT include source_reply_sha256: the browser-rendered final reply may differ '
              'from the text you composed; the relay verifies its own exact captured reply hash. '
-             'Append RELAY_OUTPUT_MANIFEST_SHA256=<SHA256 of exact uploaded OUTPUT-MANIFEST.json bytes> '
+             'Choose one authoritative output channel: Drive or native downloads. Never produce a second revised '
+             'copy after hashing the first. Read back and hash the exact final manifest and payload bytes in '
+             'the chosen channel; identify the channel in the reply. The host must not reserialize a manifest '
+             'or reconstruct payload bytes from rendered chat. Earlier unbound copies remain unauthenticated. '
+             'Append RELAY_OUTPUT_MANIFEST_SHA256=<SHA256 of exact final authoritative OUTPUT-MANIFEST.json bytes> '
              'as the LAST line of your reply. Never invent hashes or save a manifest whose bytes you did not hash.\n')
     (d / "MESSAGE.md").write_text(text)
     reservation = {'job': a.job, 'job_class': a.job_class, 'account': acct['label'],
@@ -3801,6 +3816,7 @@ def main() -> int:
     s.add_argument("--interval", type=int, default=30)
     s.add_argument("--max-wait", type=int, default=3600)
     fo = sub.add_parser("fetch-outbox"); fo.add_argument("--job", required=True)
+    fo.add_argument('--download-dir', type=Path, help='exact original native downloads; same final-chat hash/token/payload checks, never rewrite Drive artifacts')
     f = sub.add_parser("followup")
     f.add_argument("--job", required=True)
     f.add_argument("--text-file", help="message text; default = resume-after-disconnect")
