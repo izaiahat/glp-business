@@ -8,8 +8,14 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 934,
+  "tracked_count": 936,
   "files": {
+    "tests/test_pro_root_home.py": {
+      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
+    },
+    "tests/test_pro_terminal_hydration.py": {
+      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
+    },
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
       "callers": [
