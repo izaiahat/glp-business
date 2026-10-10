@@ -1251,10 +1251,13 @@ def qualify_capture(
         "daily_timezone": "America/Los_Angeles",
         "cross_run_repeat": "PROHIBITED",
     }
+    # Replay recomputes fractional freshness ages from this exact clock. Keep
+    # subsecond precision here; historical whole-second clocks stay byte-identical.
+    as_of_utc = as_of.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
     run_id = derive_run_id(
         capture_sha256=source["capture_sha256"],
         evidence_sha256=evidence_sha256,
-        as_of_utc=utc_text(as_of),
+        as_of_utc=as_of_utc,
         policy=policy,
     )
 
@@ -1281,7 +1284,7 @@ def qualify_capture(
         "status": "PENDING_DURABLE_STATE",
         "run_id": run_id,
         "policy_version": POLICY_VERSION,
-        "as_of_utc": utc_text(as_of),
+        "as_of_utc": as_of_utc,
         "pt_day": pt_day(as_of),
         "source_capture": {
             "path": source["capture_path"],
