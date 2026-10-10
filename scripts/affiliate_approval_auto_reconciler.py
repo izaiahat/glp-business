@@ -2005,10 +2005,11 @@ def reconcile_campaign_cancellation(event,candidate,svc,gmail,state,dry_run):
  """A notice is not withdrawal authority; require bound provider verification."""
  auth=verify_affiliate_authentication(event,'MaxBounty')
  if auth['status']!='PASS':raise RuntimeError(auth['reason'])
- if not event.get('provider_verification'):
+ if 'provider_verification' not in event.keys() or not event['provider_verification']:
   receipt={'status':'BLOCKED','event_id':str(event['event_id']),'signal':'campaign_cancellation','disposition':'requires_provider_verification','action_completed':False,'sheet_write_count':0,'sheet_readback_verified':False,'provider_readback_verified':False,'outbound_send':False,'dry_run':dry_run}
   path=save_receipt(event['event_id'],receipt)
-  return {'event_id':event['event_id'],'receipt':str(path),'disposition':'requires_provider_verification','changes':[]}
+  mark_state(state,event['event_id'],'dry_run_blocked' if dry_run else 'blocked',blocker='requires_provider_verification',receipt=path)
+  return {'status':'BLOCKED','event_id':event['event_id'],'receipt':str(path),'disposition':'requires_provider_verification','changes':[]}
  values=execute_google_request(svc.spreadsheets().values().get(spreadsheetId=SHEET_ID,range=f"'{TAB}'!{EXPECTED_RANGE}",valueRenderOption='UNFORMATTED_VALUE'),'sheet_cancellation_read').get('values',[])
  if not values or pad(values[0])!=HEADERS:raise RuntimeError('canonical_sheet_header_mismatch')
  matches=[(number,pad(raw)) for number,raw in enumerate(values[1:],2) if str(pad(raw)[4])=='MaxBounty' and norm(pad(raw)[2])==norm(candidate['program_name'])]

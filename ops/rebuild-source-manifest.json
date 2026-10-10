@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 949,
+  "tracked_count": 950,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3"
+      "sha256": "eac69b202de76e134018ce01ca2a94b643cdb220c3a499f7630ed53e7d43ff56"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2715,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "416279253568368bfe3ab2e297141a688f026b96d422e34243b74710a411ccee"
+      "sha256": "51be7852c6ff962604a4d9c01d23f4c1193c22285b650e9467fb1452a1f14bbe"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
