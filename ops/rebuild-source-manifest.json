@@ -8,13 +8,14 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 964,
+  "tracked_count": 976,
   "files": {
-    "tests/test_pro_root_home.py": {
-      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
-    },
-    "tests/test_pro_terminal_hydration.py": {
-      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
+    "tests/test_glp_sponsor_approved_pricing.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "f59ab3ff9b02e8526df661785198c7fd451f62df0a192504872a6a2310c15235"
     },
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -355,7 +356,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "24129c4291528d5741053736515767b967a21d5d4ccb35fe652941b5914d0f31"
+      "sha256": "996986427ff721fadd05db2ad3841849a4c1d6b787cee7406bb1504c3044e232"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -641,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d86ab5591304b334a202511cce2e336774f67d06b6ecd0b35859b5ca26f7466"
+      "sha256": "8c124d8f710bf7fae749e0c124b5f44bdfb5f696ae902992edf13c4cd099807e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1506,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3"
+      "sha256": "eba80295ff77d8fef4f22d7b6f26b0a9ca6d9ca31eb6447bb86702f9bbeebee3"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2714,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "416279253568368bfe3ab2e297141a688f026b96d422e34243b74710a411ccee"
+      "sha256": "5e089d12d9fc2c3bf2ad14372887c3810d3bdb335926b7349700c287b3e10bc6"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
@@ -4645,7 +4646,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "052afd33245dd8e29ac3fe736a165fd80566dff5f6e57d4e1c00d0b659a0d031"
+      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -6147,14 +6148,14 @@
       "callers": [
         "manual:authorized-dot-ticket"
       ],
-      "sha256": "a8dd99625cf8e42477d70e1233b98b976e0205d3f63ae5eb4f8627c4f9d1c717"
+      "sha256": "eedeb2728028dcaa9d1e54c4cbef225551002621da714eb81f3a045a3fe51c62"
     },
     "tests/test_dot_dispatch.py": {
       "kind": "test",
       "callers": [
         "CI:native-reply-consumer"
       ],
-      "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
+      "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
     },
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
@@ -6288,48 +6289,6 @@
       ],
       "sha256": "295c636719a31d444d4c5b02663f4b93df98027c0b55c054426533d2bd9fb2c8"
     },
-    "tests/test_pro_route_consumer.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "eb5cb0640325b7c64c8b111cee346f656fa5c228740353b079ab084ce79a59d7"
-    },
-    "tests/test_firecrawl_glp350_reddit.py": {
-      "kind": "test",
-      "callers": [
-        "Firecrawl exact-head CI"
-      ],
-      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
-    },
-    "tests/test_native_review_prompt_binding.py": {
-      "kind": "test",
-      "callers": [
-        "L6 updater runtime integration"
-      ],
-      "sha256": "e9b7b513f40cf0cac3e58f62a91dd5c2ddead0d1d7b8fb2e7a1c35e50327f547"
-    },
-    "tests/test_updater_registry_projection.py": {
-      "kind": "test",
-      "callers": [
-        "L6 updater runtime integration"
-      ],
-      "sha256": "b14ad3a4edda82dae0fb41a169e0d5587e8db97b39db86b9b548f18e23671cb2"
-    },
-    "ops/hermes-cron-scripts/register_glp_seo_updater.py": {
-      "kind": "registered_producer",
-      "callers": [
-        "L6 updater runtime integration"
-      ],
-      "sha256": "635298a2c0d75629e01feeb20717bbe3505b05be9c055a9946c17b15cf2e9b98"
-    },
-    "tests/test_glp_sponsor_postal_address.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "063bdba661d1f2a8ad7a3e4ac11990ccbee5cc9c9e61a7a07cf895440f3583ed"
-    },
     "scripts/auto_coordinator_runner.py": {
       "kind": "script",
       "callers": [
@@ -6372,6 +6331,48 @@
       ],
       "sha256": "7ba4e16fe4beaa7892a9ea4e9587bf57e3e2bf4afcc2e0e1e9716d16504e85d4"
     },
+    "tests/test_firecrawl_glp350_reddit.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
+    },
+    "tests/test_native_review_prompt_binding.py": {
+      "kind": "test",
+      "callers": [
+        "L6 updater runtime integration"
+      ],
+      "sha256": "e9b7b513f40cf0cac3e58f62a91dd5c2ddead0d1d7b8fb2e7a1c35e50327f547"
+    },
+    "tests/test_updater_registry_projection.py": {
+      "kind": "test",
+      "callers": [
+        "L6 updater runtime integration"
+      ],
+      "sha256": "b14ad3a4edda82dae0fb41a169e0d5587e8db97b39db86b9b548f18e23671cb2"
+    },
+    "ops/hermes-cron-scripts/register_glp_seo_updater.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "L6 updater runtime integration"
+      ],
+      "sha256": "635298a2c0d75629e01feeb20717bbe3505b05be9c055a9946c17b15cf2e9b98"
+    },
+    "tests/test_pro_route_consumer.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "eb5cb0640325b7c64c8b111cee346f656fa5c228740353b079ab084ce79a59d7"
+    },
+    "tests/test_glp_sponsor_postal_address.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "063bdba661d1f2a8ad7a3e4ac11990ccbee5cc9c9e61a7a07cf895440f3583ed"
+    },
     "scripts/glp_monday_discovery_background.py": {
       "kind": "script",
       "callers": [],
@@ -6410,13 +6411,6 @@
       ],
       "sha256": "63f3a6f4eede1b4049cc2d74abbc7008fba6b9b31c593dc2634de2ef15f322c3"
     },
-    "tests/test_glp_sponsor_approved_pricing.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
-    },
     "tests/test_j4_refersion_catalog.py": {
       "kind": "test",
       "callers": [
@@ -6430,6 +6424,12 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+    },
+    "tests/test_pro_root_home.py": {
+      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
+    },
+    "tests/test_pro_terminal_hydration.py": {
+      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
     },
     "scripts/glp_maxbounty_identity_capture.py": {
       "kind": "script",
@@ -6508,6 +6508,90 @@
         "hermes:aadf6677c7f0"
       ],
       "sha256": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9"
+    },
+    "tests/inbox_notice_loader.py": {
+      "kind": "test",
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "sha256": "c8a0991c45345103b0ed1ede69a8621a59be37f39b42bcf93b72e1cf7ab73ffd"
+    },
+    "tests/test_katalys_contract_terms_notice.py": {
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "01a16355097910dce3bb27acd75c5781a1008558e073c186cda566890ae0208f"
+    },
+    ".github/workflows/j6-reporting.yml": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "repository_control",
+      "sha256": "2f6cc21cfdd608190a408ead4d5535846e9907912f43143d5ed25806fe6c3ff5"
+    },
+    "ops/glp/reporting-v2/source-manifest-j6.json": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "repository_control",
+      "sha256": "49d514f7cfe04ae48ce3d7085ffad593c8752e13be389bc8d3dd12aa15371a41"
+    },
+    "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "script",
+      "sha256": "70e1d56c8af68feea2fc749b69eaebf14601e95996a828cc8fba9269920504ef"
+    },
+    "scripts/affiliate_network_access_j6.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "script",
+      "sha256": "b7cdb17c227cec53a5488e1292fd3a3b6305ce2e1ef9cbef9ec8db2836955023"
+    },
+    "scripts/affiliate_reporting_digistore24.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "script",
+      "sha256": "36dcd390cc3f92d6c8d736a83432040cea1ee824824e54ea10690e42c35d7074"
+    },
+    "scripts/glp_affiliate_weekly_reporting_j6.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "script",
+      "sha256": "4d26d41533ca41abbbb717107872131bc6fbdf5a1bc0d26264e17378b14a8d1c"
+    },
+    "scripts/glp_affiliate_weekly_reporting_j6_job.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "script",
+      "sha256": "bb18d831dc63749980720f60ae02da13037c85c675896f507c1d39bd20abe594"
+    },
+    "tests/test_j6_digistore24_reporting.py": {
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
+      ],
+      "kind": "test",
+      "sha256": "e5070c5275be9ed23a41d3058734148af1916f307ea86ba0ed5e995dab0f90c6"
+    },
+    "scripts/affiliate_reporting_affiliati_j6.py": {
+      "kind": "script",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "1311b2f7c7591764cfded0e6b75b06e1b0a3854d09ebcb5b68bc8d27ece32fd2"
+    },
+    "tests/test_j6_affiliati_reporting.py": {
+      "kind": "test",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "2bb2442c1fdf10e935c509a20d221bd815fe0040c6fc983fabea53a4d50143f3"
     },
     "tests/test_glp_g6_traction_freshness.py": {
       "kind": "test",

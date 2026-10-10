@@ -299,6 +299,11 @@ def detect(subject,sender,body):
   if not name or not expiry:raise RuntimeError('campaign_cancellation_identity_or_date_missing')
   return {'network':'MaxBounty','action':'campaign_cancellation','program_name':' '.join(name.group(1).split()),'effective_at_network_time':expiry.group(1),'text':text}
  newest=latest_unquoted_reply(body); newest_low=newest.lower()
+ terms_notice=re.fullmatch(r'Your Contract Terms for (.+?) Have Changed\s*[^\w\s]*',str(subject).strip(),re.I)
+ if network_for_domain(sender_domain)==('katalys.com','Katalys') and terms_notice:
+  return {'network':'Katalys','action':'contract_terms_review','program_name':terms_notice.group(1).strip(),
+          'advertiser_name':terms_notice.group(1).strip(),'text':text,
+          'detail':'contract_terms_changed_requires_verified_capture'}
  coreage_offer=(
   network_for_domain(sender_domain)==('katalys.com','Katalys')
   and bool(re.search(r'\bCoreAge\s+Rx\b',subject,re.I))
@@ -2005,10 +2010,11 @@ def reconcile_campaign_cancellation(event,candidate,svc,gmail,state,dry_run):
  """A notice is not withdrawal authority; require bound provider verification."""
  auth=verify_affiliate_authentication(event,'MaxBounty')
  if auth['status']!='PASS':raise RuntimeError(auth['reason'])
- if not event.get('provider_verification'):
+ if 'provider_verification' not in event.keys() or not event['provider_verification']:
   receipt={'status':'BLOCKED','event_id':str(event['event_id']),'signal':'campaign_cancellation','disposition':'requires_provider_verification','action_completed':False,'sheet_write_count':0,'sheet_readback_verified':False,'provider_readback_verified':False,'outbound_send':False,'dry_run':dry_run}
   path=save_receipt(event['event_id'],receipt)
-  return {'event_id':event['event_id'],'receipt':str(path),'disposition':'requires_provider_verification','changes':[]}
+  mark_state(state,event['event_id'],'dry_run_blocked' if dry_run else 'blocked',blocker='requires_provider_verification',receipt=path)
+  return {'status':'BLOCKED','event_id':event['event_id'],'receipt':str(path),'disposition':'requires_provider_verification','changes':[]}
  values=execute_google_request(svc.spreadsheets().values().get(spreadsheetId=SHEET_ID,range=f"'{TAB}'!{EXPECTED_RANGE}",valueRenderOption='UNFORMATTED_VALUE'),'sheet_cancellation_read').get('values',[])
  if not values or pad(values[0])!=HEADERS:raise RuntimeError('canonical_sheet_header_mismatch')
  matches=[(number,pad(raw)) for number,raw in enumerate(values[1:],2) if str(pad(raw)[4])=='MaxBounty' and norm(pad(raw)[2])==norm(candidate['program_name'])]
@@ -2276,6 +2282,12 @@ async def process_event(event,svc,gmail,state,dry_run,provider_cache,operator_ha
      and cand['network'] in AFFILIATE_AUTH_DOMAINS and not exact_footprint_reducing_routine):
   auth=verify_affiliate_authentication(event,cand['network'])
   if auth['status']!='PASS':raise RuntimeError(auth['reason'])
+ if cand['action']=='contract_terms_review':
+  # Notification identity is not authority to accept a contract or alter payout.
+  raise AffiliateReviewRequired('legal_terms_capture','contract_terms_changed_requires_verified_capture',
+      {'notice_authenticated':True,'program_name':cand['program_name'],
+       'terms_capture_complete':False,'provider_readback_verified':False,
+       'terms_acceptance_allowed':False,'prior_provider_holds_preserved':True})
  if recover_terminal_routine:
   terminal_recovery=validate_terminal_routine_recovery(event,state,cand)
   if terminal_recovery.get('already_reconciled'):
@@ -2621,8 +2633,57 @@ def configure_dry_run_output(output):
   target.chmod(0o600)
  REPORT_DIR=root;STATE_DB=target
 
+def terms_notice_recovery_allowed(receipt):
+ return (receipt.get('status')=='PASS'
+         and receipt.get('action_kind')=='routine_affiliate_information'
+         and receipt.get('sheet_write_count')==0
+         and receipt.get('provider_mutation') is False
+         and receipt.get('provider_readback_verified') is False
+         and receipt.get('sheet_readback_verified') is False)
+
 async def main(*,fresh_drivers=None):
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');ap.add_argument('--cancellation-verification-only',action='store_true');ap.add_argument('--contract-terms-verification-only',action='store_true');args=ap.parse_args()
+ if args.contract_terms_verification_only:
+  if not args.event_id or args.cancellation_verification_only or args.dry_run or args.dry_run_output or args.validate_only or args.operator_handoff or args.recover_terminal_routine or args.access_only or args.access_program or args.access_name:
+   raise RuntimeError('contract_terms_verification_requires_only_explicit_event_ids')
+  events=fetch_inbox_events(args.event_id,include_terminal=True)
+  if {str(e['event_id']) for e in events}!=set(args.event_id):raise RuntimeError('contract_terms_event_set_missing')
+  state=init_state()
+  try:
+   selected=[]
+   for event in events:
+    subject,sender,body=message_text(event['raw_path']);candidate=detect(subject,sender,body)
+    if not candidate or candidate.get('action')!='contract_terms_review':raise RuntimeError('contract_terms_requires_exact_notice')
+    prior=state.execute('SELECT status,blocker_hash,receipt_path FROM events WHERE event_id=?',(event['event_id'],)).fetchone()
+    if str(event['state']) in TERMINAL_EVENT_STATES:
+     if not prior or not prior['receipt_path']:raise RuntimeError('contract_terms_prior_receipt_missing')
+     old=json.loads(Path(prior['receipt_path']).read_text())
+     already_held=(old.get('status')=='BLOCKED' and old.get('exception_type')=='legal_terms_capture' and old.get('sheet_write_count')==0)
+     if not already_held and not terms_notice_recovery_allowed(old):raise RuntimeError('contract_terms_prior_effects_not_zero')
+    selected.append((event,prior))
+   outputs=await process_selected_events(selected,None,None,state,False,{},recover_terminal_routine=True)
+   receipts=[dict(state.execute('SELECT event_id,status,receipt_path FROM events WHERE event_id=?',(e['event_id'],)).fetchone()) for e in events]
+  finally:state.close()
+  print(json.dumps({'schema':'affiliate.contract_terms_verification.v1','outputs':outputs,'receipts':receipts,'sheet_writes':0,'outbound_send_count':0,'provider_mutation_count':0},sort_keys=True))
+  return 0
+ if args.cancellation_verification_only:
+  # Exact real inbox replay without constructing any Sheet/provider client.
+  # This preserves the existing hold; it cannot admit withdrawal authority.
+  if not args.event_id or args.dry_run or args.dry_run_output or args.validate_only or args.operator_handoff or args.recover_terminal_routine or args.access_only or args.access_program or args.access_name:
+   raise RuntimeError('cancellation_verification_requires_only_explicit_event_ids')
+  events=fetch_inbox_events(args.event_id)
+  if {str(event['event_id']) for event in events}!=set(args.event_id):raise RuntimeError('cancellation_verification_event_set_missing')
+  for event in events:
+   subject,sender,body=message_text(event['raw_path']);candidate=detect(subject,sender,body)
+   if not candidate or candidate.get('action')!='campaign_cancellation' or ('provider_verification' in event.keys() and event['provider_verification']):
+    raise RuntimeError('cancellation_verification_requires_unverified_notice')
+  state=init_state()
+  try:
+   selected=[(event,state.execute('SELECT status,blocker_hash FROM events WHERE event_id=?',(event['event_id'],)).fetchone()) for event in events]
+   outputs=await process_selected_events(selected,None,None,state,False,{})
+  finally:state.close()
+  print(json.dumps({'schema':'affiliate.cancellation_verification.v1','outputs':outputs,'sheet_writes':0,'outbound_send_count':0,'provider_mutation_count':0},sort_keys=True))
+  return 0
  if args.access_only:
   # Registered read-only entry: no inbox/Sheet/queue/scheduler initialization,
   # no cards, mark-read, application, terms acceptance or link generation.
