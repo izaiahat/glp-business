@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 939,
+  "tracked_count": 940,
   "files": {
     "tests/test_pro_route_backlog.py": {
       "kind": "test",
@@ -606,7 +606,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "25bff3dd9b7de32a5db58a1886836df5fa95d1b1ae9cf04f8b8b9a6261be7f95"
+      "sha256": "9c7a9e7cb9c02d3557009d865df4ed9905c730a7dfefb7229d22da4da94a3f4e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -6252,7 +6252,7 @@
       "callers": [
         "L6 weekly-governed SEO machine"
       ],
-      "sha256": "4e0c3f428afd2c1a02d90a0863b28026e5109334606575dc417654e786b25b42"
+      "sha256": "7ccb19c0dec2c8c1c23a307a2bb7309251e476765dec9024d6cdc41dcf2eb07f"
     },
     "systems/seo-blog-machine/scripts/seo_weekly_governance.py": {
       "kind": "registered_producer",
@@ -6267,6 +6267,13 @@
         "L6 weekly-governed SEO machine"
       ],
       "sha256": "177f544f65029ade4e97e3d97ce865c703ba320a6af5e7972e3d8e4e84d480d8"
+    },
+    "tests/test_source_updater_staged_retry.py": {
+      "kind": "test",
+      "callers": [
+        "L6b unpublished staged retry admission"
+      ],
+      "sha256": "1af5b120324e0f14232723e4bce37101fe4f202c552082acd0678d9a4bb16ec5"
     },
     "tests/test_r2_compiler_governance.py": {
       "kind": "test",

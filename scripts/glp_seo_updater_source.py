@@ -35,7 +35,18 @@ def save(path, value):
 def today():
     return dt.datetime.now(ZoneInfo('America/Los_Angeles')).date()
 
-def plan():
+def verify_staged_retry(prior, current, predecessor, route, week):
+    """A source-only retry cannot replace an already changed published base."""
+    if (prior.get('status') != 'PASS_SOURCE_UPDATE_STAGED'
+            or prior.get('route') != route or prior.get('week_start') != week
+            or prior.get('published') is not False
+            or prior.get('review', {}).get('status') != 'PASS_OPUS_SEO_DRAFT'
+            or prior.get('review', {}).get('publication_invoked') is not False
+            or current != predecessor):
+        raise RuntimeError('staged_retry_scope_or_published_predecessor_changed')
+
+
+def plan(retry_route=None):
     strategy, meta = load_strategy(as_of=today())
     config = legacy.load_config(r2.DEFAULT_CONFIG)
     resolution = config['_current_content_base_resolution']
@@ -48,13 +59,13 @@ def plan():
     prior = [json.loads(p.read_text()) for p in OUT.glob('*/stage.json')]
     active = [r for r in prior if r.get('week_start') == week and r.get('status') == 'PASS_SOURCE_UPDATE_STAGED']
     staged = {r['route'] for r in active}
-    rows = [r for r in rows if r['route'] not in staged]
-    if len(active) >= CADENCE['meaningful_updates_max_per_week']:
-        rows = []
+    rows = [r for r in rows if r['route'] not in staged or r['route'] == retry_route]
+    if len(staged) >= CADENCE['meaningful_updates_max_per_week']:
+        rows = [r for r in rows if r['route'] == retry_route and retry_route in staged]
     result = {'schema':'glp-weekly-governed-updater-plan-v1',
         'status':'PASS_GOVERNED_UPDATE_PLAN' if rows else 'PASS_UPDATE_NOOP',
         'strategy':meta, 'cadence':CADENCE, 'selected':rows,
-        'staged_this_week':len(active), 'published':False,
+        'staged_this_week':len(staged), 'published':False,
         'release_owner':'415ec5eba194', 'legacy_direct_path':False,
         'selection':selection}
     stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
@@ -67,9 +78,29 @@ def review_target(operation):
     return ROOT / 'site-system/flagship-v2/releases' / ('source-review-' + operation)
 
 
-def stage(packet, route):
+def stage(packet, route, replace_staged=None):
     with carrier_lock():
-        governed = plan()
+        prior = None
+        predecessor = None
+        if replace_staged:
+            if len(replace_staged) != 24 or any(c not in '0123456789abcdef' for c in replace_staged):
+                raise RuntimeError('staged_retry_operation_invalid')
+            folder = OUT / replace_staged
+            for name in ('stage.json', 'before-article.json'):
+                path = folder / name
+                if folder.is_symlink() or path.is_symlink() or not path.is_file():
+                    raise RuntimeError('staged_retry_input_not_regular')
+            prior = json.loads((folder/'stage.json').read_text())
+            predecessor = json.loads((folder/'before-article.json').read_text())
+            stored = prior.get('source_pr') or {}
+            url = str(stored.get('url') or '')
+            prefix = 'https://github.com/izaiahat/glp-site-candidate/pull/'
+            if not url.startswith(prefix) or not url[len(prefix):].isdigit():
+                raise RuntimeError('staged_retry_source_pr_invalid')
+            remote = source.gh('pr','view',url,'--json','state,headRefOid,mergeCommit')
+            if remote.get('state') != 'MERGED' or any(remote.get(k) != stored.get(k) for k in ('headRefOid','mergeCommit')):
+                raise RuntimeError('staged_retry_source_pr_binding_changed')
+        governed = plan(retry_route=route if prior else None)
         choices = [r for r in governed['selected'] if r['route'] == route]
         if len(choices) != 1:
             raise RuntimeError('route_not_current_week_governed_or_already_staged')
@@ -95,6 +126,10 @@ def stage(packet, route):
         release = Path(resolution['pointer']['release_root'])
         articles, _ = updates.load_release_articles(release)
         before = next(a for a in articles if a['canonical_path'] == route)
+        if prior is not None:
+            verify_staged_retry(prior, before, predecessor, route, governed['strategy']['week_start'])
+            save(work/'staged-retry-binding.json', {'operation':replace_staged, 'source_pr':prior['source_pr'],
+                'predecessor_unchanged':True, 'new_independent_review_required':True})
         save(work / 'before-article.json', before)
         weekly = r2.write_sealed(work / 'weekly-selection.json', governed['selection'], 'receipt_sha256')
         minted = r2.mint_candidate(choices[0], output_dir=work / 'authority', config=config,
@@ -217,10 +252,11 @@ def main():
     parser.add_argument('mode', choices=['plan','stage'])
     parser.add_argument('--packet', type=Path)
     parser.add_argument('--route')
+    parser.add_argument('--replace-staged', help='Exact unpublished staged operation; requires unchanged published predecessor and a fresh review')
     args = parser.parse_args()
     if args.mode == 'stage' and (not args.packet or not args.route):
         parser.error('stage requires --packet and --route')
-    result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route)
+    result = plan() if args.mode == 'plan' else stage(args.packet.resolve(), args.route, args.replace_staged)
     if args.mode == 'plan':
         result = {key:value for key,value in result.items() if key != 'selection'}
         result['strategy'] = {key:value for key,value in result['strategy'].items() if key != 'source_observations'}
