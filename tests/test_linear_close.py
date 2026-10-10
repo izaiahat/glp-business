@@ -7,10 +7,57 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import linear_close as lc  # noqa: E402
 
 lo = lc.lo
+
+
+def test_reply_artifact_is_not_a_third_party_send():
+    # Real L2b blocker: file evidence is not the effect of replying to a customer.
+    for text in ('REPLY.md', 'dot ticket REPLY.md',
+                 'Read reports/ops/dot-tickets/rook-ticket/REPLY.md into the fleet inbox.',
+                 'Rook/Finch dispatch + reply consumer: ticket in, REPLY.md out',
+                 'Read sponsor REPLY.md evidence; no action requested'):
+        assert lo.protected_effect(text) is None
+
+
+def test_negative_duplicate_spend_is_not_a_financial_write():
+    # L6b's exact negative acceptance scope, not approval to spend.
+    assert lo.protected_effect('avoid duplicate finding/publication/spend') is None
+
+
+@pytest.mark.parametrize('text,effect', [
+    ('Reply to the customer with the approved offer.', 'third-party-send'),
+    ('Record the sponsor reply in evidence.', 'third-party-send'),
+    ('Send the approved message to providers; retain REPLY.md.', 'third-party-send'),
+    ('Email the onboarding sequence to subscribers.', 'third-party-send'),
+    ('Submit the application to the partner network.', 'third-party-send'),
+    ('Outreach pilot with a send.', 'third-party-send'),
+    ('Send occurs after approval.', 'third-party-send'),
+    ('avoid duplicate finding/publication/spend; spend $50 on ads.', 'financial-write'),
+    ('Spend $50; avoid duplicate finding/publication/spend.', 'financial-write'),
+    ('avoid duplicate finding/publication/spend and charge the invoice.', 'financial-write'),
+    ('Make the payout to the network.', 'financial-write'),
+    ('Record REAL earnings.', 'financial-write'),
+    ('Publish the new health claims page; retain REPLY.md.', 'health-claim-publish'),
+    ('avoid duplicate finding/publication/spend; publish new health claims.', 'health-claim-publish'),
+])
+def test_real_protected_effects_survive_artifacts_and_negative_guard(text, effect):
+    assert lo.protected_effect(text) == effect
+
+
+def test_genuine_send_refused_by_linear_close_even_with_reply_artifact(tmp_path):
+    worker = tmp_path / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-355'}))
+    issue = {'title': 'Partner outreach', 'description':
+             '## Acceptance\nSend the approved reply to sponsors; keep REPLY.md evidence.'}
+    with pytest.raises(lc.Refused, match='protected effect third-party-send'):
+        lc.build('GLP-355', worker, issue)
+
+
 ISSUE_ID = 'issue-uuid'
 HEAD = 'a' * 40
 MERGE = 'b' * 40
@@ -89,7 +136,8 @@ def test_legacy_dry_run_posts_acceptance(tmp_path, monkeypatch):
     assert len(output) == 1 and 'sha256' not in output[0].split(', ') and '8bb93c91' in output[0]
 
 
-def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys):
+@pytest.mark.parametrize('file_evidence', ['', ' Read dot ticket REPLY.md from the fleet inbox.'])
+def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path, monkeypatch, capsys, file_evidence):
     reports = tmp_path / 'reports'
     receipt = reports / 'ops/collector/receipt.json'
     receipt.parent.mkdir(parents=True)
@@ -99,7 +147,7 @@ def test_check_only_runs_real_gate_without_linear_or_filesystem_writes(tmp_path,
         'live_run': 'Read-only snapshot provider_rows=58',
         'receipt': 'reports/ops/collector/receipt.json'}))
     target = {'id': ISSUE_ID, 'identifier': 'GLP-44', 'title': 'Collector snapshot',
-        'description': '## Acceptance\n\nRead-only snapshot of provider rows.\n',
+        'description': '## Acceptance\n\nRead-only snapshot of provider rows.' + file_evidence + '\n',
         'team': {'id': lo.TEAM, 'key': 'GLP'}, 'state': {'name': 'In Progress'}}
     writes = []
     def gql(query, variables=None):

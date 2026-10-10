@@ -2223,7 +2223,7 @@
     "scripts/linear_orchestrator.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "2739736352574d87fa243a8f9ba1665084c629e5f3fea19d4a6bb24be18297fe"
+      "sha256": "6e1aa4730b369d731e955075d75bc82576ef93965fd3519c4c80c186727faefb"
     },
     "scripts/loom_delivery_rails.py": {
       "callers": [
@@ -5857,7 +5857,7 @@
     "tests/test_linear_close.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "f24e2f16d33ef2ff92484b89834886765d0ebf16d4c71e4366be79fb122d7f42"
+      "sha256": "2f3486aece678a0ab2aea8aae2e96a6a3e9ccef68abd89533fedef4bcded333e"
     },
     "ops/n8n-workflow-registry.json": {
       "callers": [
