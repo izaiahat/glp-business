@@ -364,7 +364,7 @@ def reconcile_conversions(snapshot, observations, identities):
 
 
 def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=None, budget_seconds=240, max_requests=32,
-        reconciliation_input=None):
+        reconciliation_input=None, statement_intake=None, statement_sha256=None):
     as_of = as_of or datetime.now(timezone.utc)
     window = windows(as_of, lookback_days)
     marketplaces = roster.get('marketplaces')
@@ -410,6 +410,9 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
             except Exception as exc:
                 result['gaps'].append({'network': name, 'state': 'SAFE_COLLECTOR_ERROR', 'exception_class': type(exc).__name__})
         save(output/'checkpoint.json', result)
+    if statement_intake:
+        from affiliate_closed_statement_j9 import read
+        result['closed_payout_statements'] = read(statement_intake, statement_sha256, as_of=as_of)
     from affiliate_account_identity_j8 import resolve_accounts
     result['account_identity_resolution'] = resolve_accounts(names, result['observations'])
     result['conversion_reconciliation'] = reconcile_conversions(reconciliation_input, result['observations'], identities)
@@ -439,6 +442,8 @@ def main(argv=None):
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
     p.add_argument('--reconciliation-input',type=Path,help='Optional local F12 evidence JSON; never fetches conversions')
+    p.add_argument('--statement-intake',type=Path)
+    p.add_argument('--statement-sha256')
     p.add_argument('--eden-intake',type=Path)
     p.add_argument('--eden-intake-sha256')
     p.add_argument('--xentraffic-intake',type=Path)
@@ -461,6 +466,8 @@ def main(argv=None):
         required += [here/'affiliate_reporting_everflow.py', here/'affiliate_network_access_j6.py', here/'affiliate_reporting_maxbounty.py', here/'maxbounty_publisher_api.py']
         required += [here/'marketplace_adapters'/f for f in (
             '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
+    if args.statement_intake:
+        required.append(here/'affiliate_closed_statement_j9.py')
     pin_hash=verify_pins(args.source_manifest,required)
     reconciliation_input = json.loads(args.reconciliation_input.read_text()) if args.reconciliation_input else None
     roster=json.loads(args.roster.read_text())
@@ -520,7 +527,8 @@ def main(argv=None):
         try:
             result=run(args.output,roster,registry.get('identities',[]),lookback_days=args.lookback_days,
                 collectors=collectors,budget_seconds=args.budget_seconds,max_requests=args.max_requests,
-                reconciliation_input=reconciliation_input)
+                reconciliation_input=reconciliation_input,
+                statement_intake=args.statement_intake, statement_sha256=args.statement_sha256)
             result['source_pins_sha256']=pin_hash
             result['invocation']='MANUAL_READ_ONLY' if live_readonly else 'OFFLINE_DRY_RUN_NO_PROVIDER_IO'
             save(args.output/'RESULT.json',result)
