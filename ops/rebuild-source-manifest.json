@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 930,
+  "tracked_count": 932,
   "files": {
     "tests/test_pro_route_backlog.py": {
       "kind": "test",
@@ -2296,7 +2296,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "988ffa441b5e78359816237adf5fac183364387e400bf38577de53ef695d7526"
+      "sha256": "ee9545e7ffccded59c359b9e31552f6ad7e968366551d30d6c798533041c603c"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -6288,6 +6288,18 @@
         "L6 weekly-governed SEO machine"
       ],
       "sha256": "295c636719a31d444d4c5b02663f4b93df98027c0b55c054426533d2bd9fb2c8"
+    },
+    "scripts/glp_monday_discovery_background.py": {
+      "kind": "script",
+      "callers": [],
+      "sha256": "047468aaadfedd32b9931124be3361ce62e812458ae4150d7002f7a83b9f3e74"
+    },
+    "tests/test_monday_discovery_background.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "5afee5b917e7c3e6ce8e1f6cbd3c786009f08d27bc8b220ed0e8f55c54be4e3c"
     }
   }
 }
