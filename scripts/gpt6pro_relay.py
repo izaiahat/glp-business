@@ -3735,6 +3735,44 @@ def reconcile_no_reply(job: str) -> int:
     return 3
 
 
+def _record_generation_observation(job: str, cfg: dict, st: dict, result: dict,
+                                   started: str, finished: str) -> None:
+    """Append v1 point evidence to the existing ledger, never interval qualification.
+
+    Caller has validated the exact bound read. UI authentication evidence means
+    an explicit non-login/non-challenge state and the full registered user marker;
+    it does not identify the signed-in email or prove continuous generation.
+    Missing booleans remain null. This receipt changes no admission/terminal gate.
+    Provenance covers this assigned job only, not the existence of fresh backlog.
+    """
+    state = result['state']
+    fields = ('stop', 'logged_out', 'security_interstitial', 'human_challenge',
+              'rate_limited', 'drive_reconnect', 'thinking_failed', 'user_identity_matched')
+    observed = {key: state.get(key) if type(state.get(key)) is bool else None
+                for key in fields}
+    expected = {key: key in ('stop', 'user_identity_matched') for key in fields}
+    if any(observed[key] is not None and observed[key] != value
+           for key, value in expected.items()):
+        generating = False
+    elif any(value is None for value in observed.values()):
+        generating = None
+    else:
+        generating = True
+    # Legacy bound jobs can lack a token; never fabricate its identity hash.
+    reply_token = st.get('reply_token')
+    reply_token_sha256 = (hashlib.sha256(reply_token.encode()).hexdigest()
+                          if isinstance(reply_token, str) and reply_token else None)
+    ledger_append(cfg, {'event': 'generation_observation',
+        'schema': 'gpt6pro-generation-observation-v1',
+        'coverage': 'single_bound_read_only', 'read_started_at': started,
+        'read_finished_at': finished, 'job': job, 'account': st['account'],
+        'conversation_url': binding_url(st), 'conversation_id': st['conversation_id'],
+        'binding_version': st['binding_version'], 'tab': result['tab'],
+        'observed': observed, 'authenticated_generation_observed': generating,
+        'reply_token_sha256': reply_token_sha256,
+        **{key: st.get(key) for key in (*PROVENANCE_FIELDS, 'job_class', 'input_sha256')}})
+
+
 def _poll_once(job: str, cfg: dict, interval: int) -> tuple[int, int]:
     st = job_state(job)
     if not st:
@@ -3754,10 +3792,13 @@ def _poll_once(job: str, cfg: dict, interval: int) -> tuple[int, int]:
     prev = st.get("last_text_sha")
     # Missing Stop/assistant nodes can be virtualized generation, not completion.
     # No poll count or elapsed time permits navigation of a nonterminal binding.
+    read_started = now_iso()
     r = read_reply(conv, st.get("tab"), existing_only=True, protected=protected_tabs(st),
                    expected_identity=_failed_generation_identity(st),
                    capture_mode=st.get('reply_render_mode'))
+    read_finished = now_iso()
     require_binding(st, r)
+    _record_generation_observation(job, cfg, st, r, read_started, read_finished)
     if _record_failed_generation(job, cfg, st, r):
         print(f"poll job={job} GENERATION_FAILED reason=THINKING_FAILED; no resend", flush=True)
         return 5, 0

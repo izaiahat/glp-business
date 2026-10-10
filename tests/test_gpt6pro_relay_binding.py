@@ -403,6 +403,104 @@ class BindingTests(unittest.TestCase):
         self.assertEqual(self.browser.inserts, [])
         self.assertEqual(self.browser.sent, [])
 
+    def test_legacy_bound_poll_records_unknown_reply_token_hash(self):
+        """Legacy completion remains bound; absent identity is not fabricated."""
+        for token_fields in ({}, {'reply_token': None}, {'reply_token': ''}):
+            with self.subTest(token_fields=token_fields):
+                self.clock += 150
+                self.browser.pages['exact'] = {'url': WANT, 'text': 'wanted answer',
+                    'composer': '', 'messages': True, 'stop': False}
+                st = self.job(tab='exact', last_text_sha=relay.hashlib.sha256(b'wanted answer').hexdigest())
+                st.update(token_fields)
+                relay.job_write('job', st)
+                self.assertEqual(relay.poll('job', False, 150, 3600), 0)
+                row = [r for r in relay.ledger_rows(self.cfg)
+                       if r['event'] == 'generation_observation'][-1]
+                self.assertIsNone(row['reply_token_sha256'])
+                self.assertIsNone(row['input_sha256'])
+                for key in relay.PROVENANCE_FIELDS:
+                    self.assertIsNone(row[key])
+                self.assertEqual(row['coverage'], 'single_bound_read_only')
+                self.assertIs(row['authenticated_generation_observed'], False)
+                self.assertEqual(row['conversation_url'], WANT)
+                self.assertEqual(row['tab'], 'exact')
+                self.assertNotIn('reply_token', row)
+                st = relay.job_state('job')
+                self.assertEqual(st['status'], 'done')
+                self.assertEqual(st.get('reply_token'), token_fields.get('reply_token'))
+                local = (relay.JOBS / 'job/RESPONSE.md').read_bytes()
+                self.assertEqual(local, b'wanted answer')
+                self.assertEqual(st['source_reply_sha256'], relay.hashlib.sha256(local).hexdigest())
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.sent, [])
+
+    def test_poll_persists_only_actual_bound_generation_observations(self):
+        """Real poll/read/ledger with established CDP fixture, not live qualification."""
+        page = {'url': WANT, 'text': '', 'composer': '', 'messages': True,
+                'stop': True, 'identity_matched': True}
+        self.browser.pages['exact'] = page
+        st = self.job(tab='exact', sent=True, typed=True, input_sha256='a'*64,
+                      reply_token='b'*64, job_class='review', dispatcher_profile='default',
+                      hermes_session_id='offline', linear_child='GLP-test', request_id='test')
+        (relay.JOBS / 'job/MESSAGE.md').write_text(relay._failed_generation_identity(st))
+        relay.ledger_append(self.cfg, {'event': 'submission_bound', 'job': 'job',
+            'account': st['account'], 'conversation_url': WANT,
+            **{key: st[key] for key in relay.PROVENANCE_FIELDS}})
+        def observations():
+            return [r for r in relay.ledger_rows(self.cfg) if r['event'] == 'generation_observation']
+        self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+        rows = observations()
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row['schema'], 'gpt6pro-generation-observation-v1')
+        self.assertIs(row['authenticated_generation_observed'], True)
+        self.assertEqual(row['coverage'], 'single_bound_read_only')
+        self.assertEqual(row['conversation_url'], WANT)
+        self.assertEqual(row['tab'], 'exact')
+        self.assertEqual(row['request_id'], st['request_id'])
+        self.assertEqual(row['input_sha256'], st['input_sha256'])
+        self.assertEqual(row['reply_token_sha256'], relay.hashlib.sha256(st['reply_token'].encode()).hexdigest())
+        self.assertIs(row['observed']['user_identity_matched'], True)
+        self.assertLessEqual(row['read_started_at'], row['read_finished_at'])
+        self.assertNotIn('elapsed_s', row)
+        self.assertNotIn('text', row)
+        self.assertNotIn('reply_token', row)
+        # Pacing refusal is not an observation; sparse reads never fill a gap.
+        self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+        self.assertEqual(len(observations()), 1)
+        self.clock += 3600
+        page.update(stop=False, identity_matched=False)
+        self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+        self.assertIs(observations()[-1]['authenticated_generation_observed'], False)
+        self.clock += 150
+        page.update(stop=True, identity_matched=True)
+        self.browser.app_overrides['logged_out'] = True
+        with self.assertRaisesRegex(SystemExit, 'LOGGED_OUT'):
+            relay.poll('job', False, 150, 3600)
+        self.assertIs(observations()[-1]['authenticated_generation_observed'], False)
+        self.browser.app_overrides.clear()
+        self.clock += 150
+        real_read = relay.read_reply
+        def missing_auth_field(*args, **kwargs):
+            result = real_read(*args, **kwargs)
+            result['state'].pop('logged_out')
+            return result
+        with mock.patch.object(relay, 'read_reply', side_effect=missing_auth_field):
+            self.assertEqual(relay.poll('job', False, 150, 3600), 3)
+        self.assertIsNone(observations()[-1]['observed']['logged_out'])
+        self.assertIsNone(observations()[-1]['authenticated_generation_observed'])
+        self.clock += 150
+        self.browser.pages['exact']['url'] = SIBLING
+        with self.assertRaises(SystemExit):
+            relay.poll('job', False, 150, 3600)
+        self.assertEqual(len(observations()), 4)
+        self.assertEqual(relay.job_state('job')['status'], 'running')
+        self.assertEqual(self.browser.navigations, [])
+        self.assertEqual(self.browser.created, [])
+        self.assertEqual(self.browser.sent, [])
+        self.assertFalse((relay.JOBS / 'job/RESPONSE.md').exists())
+
     def test_postinsert_guard_terminal_preserves_unknown_and_draft(self):
         """Exact custody branch, never an error-string or empty-page waiver."""
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
@@ -842,7 +940,12 @@ class BindingTests(unittest.TestCase):
         self.assertTrue(current['sent'])
         self.assertFalse(current.get('reloaded_once', False))
         self.assertEqual([r['job'] for r in relay.active_registry()], ['job'])
-        self.assertEqual(relay.ledger_rows(self.cfg), events)
+        rows = relay.ledger_rows(self.cfg)
+        self.assertEqual([r for r in rows if r['event'] != 'generation_observation'], events)
+        observations = [r for r in rows if r['event'] == 'generation_observation']
+        self.assertEqual(len(observations), 4)  # Only the four successful bound poll reads.
+        self.assertTrue(all(r['authenticated_generation_observed'] is False for r in observations))
+        self.assertTrue(all(r['observed']['stop'] is False for r in observations))
         self.assertEqual(self.browser.navigations, [])
         self.assertEqual(self.browser.created, [])
         self.assertEqual(self.browser.inserts, [])
