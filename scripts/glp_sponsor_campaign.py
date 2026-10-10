@@ -30,6 +30,13 @@ MEDICATION=re.compile(r'glp[- ]?1|semaglutide|tirzepatide|wegovy|zepbound|mounja
 def digest(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def load(path):return json.loads(Path(path).read_text())
 def now():return dt.datetime.now(dt.timezone.utc)
+def require_sponsor_send_window(at=None):
+ """Operator window: weekdays, 06:00 inclusive to 17:00 exclusive Pacific."""
+ local=(at or now()).astimezone(PT)
+ if local.weekday()>=5 or not 6<=local.hour<17:
+  raise RuntimeError('outside_approved_weekday_06_17_PT_send_window')
+
+
 def stamp(value=None):return (value or now()).isoformat()
 def save(path,value):
  path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
@@ -464,6 +471,7 @@ def mail_admit(recipient,previous,client):
 
 def send_message(client,preview,previous,attachments):
  """Use existing partner-mail client and verified alias, with attachment readback."""
+ require_sponsor_send_window()
  import glp_application_email_apply as partner
  partner.require_alias(client)
  message=EmailMessage();message['From']=f'GLP Clinic Scout <{SENDER}>';message['Reply-To']=SENDER;message['To']=preview['to'];message['Subject']=preview['subject'];message['List-Unsubscribe']=f'<mailto:{SENDER}?subject=STOP>'
@@ -472,6 +480,7 @@ def send_message(client,preview,previous,attachments):
  message.set_content(preview['body'])
  for p in attachments:message.add_attachment(p.read_bytes(),maintype='application',subtype='pdf',filename=p.name)
  raw=base64.urlsafe_b64encode(message.as_bytes()).decode()
+ require_sponsor_send_window()  # Alias/authentication/attachments may cross 17:00.
  if previous.get('sent'):
   # Thread binding uses the same authorized client, with its dash check above.
   body={'raw':raw,'threadId':previous['sent'][0]['thread_id']}
@@ -771,7 +780,7 @@ def run(config,dry_run=False):
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   enabled=False if dry_run else approval_ready(config)
   at=now();pt=at.astimezone(PT)
-  if enabled and (pt.weekday() not in config.get('send_days',[0,1,2,3,4]) or pt.hour!=9):raise RuntimeError('outside_approved_09_PT_send_window')
+  if enabled:require_sponsor_send_window(at)
   values=read_values();discovery=load(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json');local=read_local()
   plan=recipients(values,discovery,local)
   sourcing_readiness=refresh_apollo_sources(plan,at) if config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
@@ -845,8 +854,8 @@ def run(config,dry_run=False):
     # Re-read the LAST shared-ledger decision after all contact/mail/auth work,
     # using effect-boundary time, not run-start time. This is a read, never a debit.
     boundary_at=now();boundary_pt=boundary_at.astimezone(PT)
-    if boundary_pt.weekday() not in config.get('send_days',[0,1,2,3,4]) or boundary_pt.hour!=9:
-     boundary_exclusions.append({'host':recipient['host'],'reason':'outside_approved_09_PT_send_window'});continue
+    if boundary_pt.weekday()>=5 or not 6<=boundary_pt.hour<17:
+     boundary_exclusions.append({'host':recipient['host'],'reason':'outside_approved_weekday_06_17_PT_send_window'});continue
     if config.get('require_bouncer') is True:
      verified=readiness.bouncer_readiness(recipient['email'],ROOT/'reports/bouncer-shared-credit-ledger-2026-06-25.jsonl',boundary_at)
      if verified['send_eligible'] is not True:
