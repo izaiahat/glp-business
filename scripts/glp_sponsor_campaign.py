@@ -392,6 +392,9 @@ def coordinator_technical_ready(approval,config):
 
 def approval_ready(config):
  if config.get('send_enabled') is not True:return False
+ from glp_sponsor_current_receiving import approval_ready as current_receiving_ready
+ current=current_receiving_ready(sys.modules[__name__],config)
+ if current is not None:return current
  approval=load(STATE/'approval.json')
  if approval.get('discord_message_id')=='1557532710128324609' and approval.get('packet_sha256')!=TECHNICAL_PREDECESSOR_SHA256:
   raise RuntimeError('original_personal_message_scope_changed')

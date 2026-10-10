@@ -2332,7 +2332,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "30545fc9fb5dc7e6c64bc62eb8f2b492afdfc819b2d3556fa853c198856a39ea"
+      "sha256": "9b241c892274d164055fa3464161cb7a25dfdda8400abb174f4309a1212cba33"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4646,7 +4646,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
+      "sha256": "fc13caa23c4f93b059c905f071cc2fa8a2089d72c03c36864828c5cc10bc03ea"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
