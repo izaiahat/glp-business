@@ -21,7 +21,7 @@ def start_tick(pid):
         return None
 
 
-def inspect(budget=BUDGET, tick=start_tick):
+def inspect(budget=BUDGET, tick=start_tick, owned_token=None):
     try:
         with Path(budget).open() as f:
             fcntl.flock(f, fcntl.LOCK_SH)
@@ -32,15 +32,37 @@ def inspect(budget=BUDGET, tick=start_tick):
                 or not str(r['start']).isdigit() or not isinstance(r['token'], str) or not r['token']
                 for r in rows):
             raise ValueError('malformed host lease state')
-        active = [r for r in rows if tick(r['pid']) == str(r['start'])]
+        active = [r for r in rows if tick(r['pid']) == str(r['start']) and r['token'] != owned_token]
         return {'status': 'DEFERRED_TUI_CHILDREN' if active else 'IDLE',
                 'live_child_slots': len(active), 'owner_pids': sorted({int(r['pid']) for r in active})}
     except (ValueError, TypeError, OSError) as exc:
         return {'status': 'DEFERRED_UNKNOWN', 'reason': type(exc).__name__}
 
 
+def owned_token():
+    """Ignore only the installed runner's lease in its own process ancestry."""
+    import os
+    token = os.environ.get('GLP_AUTO_COORDINATOR_LEASE_TOKEN')
+    try:
+        owner = int(os.environ.get('GLP_AUTO_COORDINATOR_LEASE_PID', '0'))
+        pid = os.getppid()
+        for _ in range(64):
+            if pid < 1:
+                break
+            if pid == owner:
+                args = Path('/proc/%s/cmdline' % pid).read_bytes().decode().split('\0')
+                if '/home/ubuntu/business/scripts/auto_coordinator_runner.py' in args:
+                    return token
+                break
+            tail = Path('/proc/%s/stat' % pid).read_text().rsplit(')', 1)[1].split()
+            pid = int(tail[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 def main():
-    result = inspect()
+    result = inspect(owned_token=owned_token())
     print(json.dumps(result, sort_keys=True))
     return 0 if result['status'] == 'IDLE' else 10
 

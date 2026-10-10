@@ -2,7 +2,7 @@ name: fleet-ingest
 on:
   pull_request:
     branches: [main]
-    paths: ['scripts/fleet_ingest.py', 'scripts/linear_close.py', 'scripts/linear_orchestrator.py', 'scripts/fleet_plan_proof.py', 'scripts/auto_coordinator_guard.py', 'tests/test_fleet_ingest.py', 'tests/test_linear_close.py', 'tests/test_auto_coordinator_guard.py', 'tests/test_fleet_plan_proof.py', 'ops/hermes-cron-scripts/glp_auto_coordinator.sh', 'ops/linear/AUTO-COORDINATOR.md', 'ops/hermes-cron-scripts/fleet_ingest_cron.sh', '.github/workflows/fleet-ingest.yml']
+    paths: ['scripts/fleet_ingest.py', 'scripts/linear_close.py', 'scripts/linear_orchestrator.py', 'scripts/fleet_plan_proof.py', 'scripts/auto_coordinator_guard.py', 'scripts/auto_coordinator_runner.py', 'tests/test_fleet_ingest.py', 'tests/test_linear_close.py', 'tests/test_auto_coordinator_guard.py', 'tests/test_fleet_plan_proof.py', 'ops/hermes-cron-scripts/glp_auto_coordinator.sh', 'ops/linear/AUTO-COORDINATOR.md', 'ops/hermes-cron-scripts/fleet_ingest_cron.sh', '.github/workflows/fleet-ingest.yml']
 permissions:
   contents: read
 jobs:

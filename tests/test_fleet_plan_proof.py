@@ -31,15 +31,23 @@ def test_missing_receipt_and_empty_ledger_refuse_without_writes(tmp_path, monkey
     assert {str(p): p.read_bytes() for p in tmp_path.rglob('*') if p.is_file()} == before
 
 
-def test_current_output_counts_and_missing_new_closure(tmp_path, monkeypatch):
+def test_current_output_requires_natural_proof_and_does_not_claim_closure(tmp_path, monkeypatch):
     m = load()
     monkeypatch.setattr(m, 'ROOT', tmp_path)
     p = tmp_path / 'reports/ops/fleet-inbox/LAST-RUN.json'
     p.parent.mkdir(parents=True)
     p.write_text(json.dumps({'status':'COMPLETE','sources':{'dot':2,'native':4,'pro':24},
         'linear_mutations':0,'row_count':30}))
-    with pytest.raises(ValueError, match='CLOSURE.json'):
+    with pytest.raises(ValueError, match='NATURAL-RUN.json'):
         m.fleet_ingestion()
-    p.write_text(json.dumps({'status':'COMPLETE','sources':{'dot':2},'linear_mutations':0}))
+    natural = tmp_path / m.PLAN / 'lanes/L2/NATURAL-RUN.json'
+    natural.parent.mkdir(parents=True)
+    natural.write_text(json.dumps({'job_id':'bbc82551321b','last_status':'ok',
+        'sources':{'dot':2,'native':4,'pro':24},'linear_mutations':0,'rows':30}))
+    result = m.fleet_ingestion()
+    assert result['row_count'] == 30
+    assert result['closure_postcondition'].startswith('pending GLP-355')
+    assert 'closed_issue' not in result
+    p.write_text(json.dumps({'status':'COMPLETE','sources':{'dot':2}, 'linear_mutations':0}))
     with pytest.raises(ValueError, match='three production sources'):
         m.fleet_ingestion()

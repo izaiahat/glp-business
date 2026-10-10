@@ -19,14 +19,15 @@ if [ "$GUARD_RC" -ne 0 ]; then
 fi
 # Included OpenAI executor only: no paid fallback, reset redemption, new support
 # sends, maintenance, ad work or publishing outside the PLAN dispatch/close loop.
-export LINEAR_ROLE=orchestrator
-export GLP_AUTO_COORDINATOR_MODE=plan-dispatch-close-only
-# Fast OpenAI model is explicitly configured in the current runtime. The guard
-# remains mandatory inside the prompt before each dispatch or closure effect.
-timeout --foreground 2400 /home/ubuntu/.hermes/hermes-agent/venv/bin/hermes chat --oneshot \
-  --query-file /home/ubuntu/business/ops/linear/AUTO-COORDINATOR.md \
-  --provider openai-codex -m gpt-6.1-sol --reasoning high --yolo > "$OUT" 2>&1 < /dev/null
+# The runner reserves one shared host slot before starting the coordinator and
+# releases it only after the oneshot actually exits. Its own lease is ignored
+# only by guards in that installed runner's process ancestry.
+/home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/auto_coordinator_runner.py > "$OUT" 2>&1 < /dev/null
 RC=$?
+if [ "$RC" -eq 10 ]; then
+  printf '⚠️ **GLP Auto-Coordinator** — deferred by shared host admission\n\nclosed: **0** · dispatches: **0**\n→ current owner retains its live work; inspect the admission readback\n-# artifacts: %s\n' "$OUT"
+  exit 0
+fi
 python3 -c 'import re,sys;lines=[re.sub(r"\x1b\[[0-9;]*[a-zA-Z]","",x) for x in open(sys.argv[1])];lines=[x.rstrip() for x in lines if x.strip() and "┊" not in x and "preparing" not in x];print("\n".join(lines[-10:]))' "$OUT"
 if [ "$RC" -ne 0 ]; then
   printf '⚠️ **GLP Auto-Coordinator** — run failed\n\nrc: **%s**\n→ inspect the exact run log before retrying\n-# artifacts: %s\n' "$RC" "$OUT"

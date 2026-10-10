@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 935,
+  "tracked_count": 936,
   "files": {
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -6202,7 +6202,7 @@
       "callers": [
         "GitHub exact-head CI"
       ],
-      "sha256": "3551f87f2d29fa5c53752bdd2188c3826961a49cab5d53a7a00c2c8cb404e975"
+      "sha256": "d5ffa537beef12019ff6d91af7051568c3d940fd00bb76f5a40f47a3ff0dabf6"
     },
     "scripts/capacity_reset_policy.py": {
       "callers": [
@@ -6282,6 +6282,13 @@
       ],
       "sha256": "295c636719a31d444d4c5b02663f4b93df98027c0b55c054426533d2bd9fb2c8"
     },
+    "scripts/auto_coordinator_runner.py": {
+      "kind": "script",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
+      ],
+      "sha256": "bdd3ae35c63d2403b8e176bc913b1091c9545e58ef8c59c5928fe0bf7b340f1d"
+    },
     "scripts/fleet_plan_proof.py": {
       "kind": "script",
       "callers": [
@@ -6294,28 +6301,28 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
       ],
-      "sha256": "577da1230d6d2447b25e9f4e6a4169415585a311da444d77d7834fdfacbc01b9"
+      "sha256": "b30b13d80e162c6ca1210a684cd97154a75401357d5840628f03b30bc5cd2059"
     },
     "ops/hermes-cron-scripts/glp_auto_coordinator.sh": {
       "kind": "script",
       "callers": [
         "Hermes cron:13d3fff8734a"
       ],
-      "sha256": "f2db64d3a61968e28a8971d80b87f091ae62231f0a5437ada2ae855453401c5d"
+      "sha256": "c0057a0a74b73b233396a5c9d70fde6d70c8d81e972547bc9ec6eb344459d720"
     },
     "tests/test_auto_coordinator_guard.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/fleet-ingest.yml"
       ],
-      "sha256": "6aed5b03f885591f59e9224aad801baf8887cf580a476c4098803fd1ee15a769"
+      "sha256": "077927a705a625889befb83a489cbfff1567dd411af127c9478bc70a6daf6477"
     },
     "tests/test_fleet_plan_proof.py": {
       "kind": "test",
       "callers": [
         ".github/workflows/fleet-ingest.yml"
       ],
-      "sha256": "1777e4a0b729590f895bb7c0641e900dcb2d1502580761951e2c6c4f52a64070"
+      "sha256": "3ad78b7c01b11516aa8ce521c821bb41b9b01911ed782fd425c87107a8958405"
     },
     "tests/test_firecrawl_glp350_reddit.py": {
       "kind": "test",
