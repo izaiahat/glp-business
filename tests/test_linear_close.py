@@ -17,7 +17,9 @@ lo = lc.lo
 
 def test_reply_artifact_is_not_a_third_party_send():
     # Real L2b blocker: file evidence is not the effect of replying to a customer.
-    for text in ('REPLY.md', 'dot ticket REPLY.md',
+    for text in ('REPLY.md', 'dot ticket REPLY.md', 'reply.md',
+                 'reports/REPLY-provider.json', 'REPLY-customer.md',
+                 'Read scripts/send-provider.py and reports/spend.json.',
                  'Read reports/ops/dot-tickets/rook-ticket/REPLY.md into the fleet inbox.',
                  'Rook/Finch dispatch + reply consumer: ticket in, REPLY.md out',
                  'Read sponsor REPLY.md evidence; no action requested'):
@@ -31,8 +33,13 @@ def test_negative_duplicate_spend_is_not_a_financial_write():
 
 @pytest.mark.parametrize('text,effect', [
     ('Reply to the customer with the approved offer.', 'third-party-send'),
+    ('Reply to jane@example.com with the offer.', 'third-party-send'),
+    ('Sent a reply yesterday; evidence REPLY.md.', 'third-party-send'),
+    ('Send a reply after approval.', 'third-party-send'),
     ('Record the sponsor reply in evidence.', 'third-party-send'),
     ('Send the approved message to providers; retain REPLY.md.', 'third-party-send'),
+    ('`Send REPLY.md to the customer`', 'third-party-send'),
+    ('Send reports/REPLY.md to subscribers.', 'third-party-send'),
     ('Email the onboarding sequence to subscribers.', 'third-party-send'),
     ('Submit the application to the partner network.', 'third-party-send'),
     ('Outreach pilot with a send.', 'third-party-send'),
