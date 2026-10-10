@@ -30,7 +30,9 @@ def test_obsolete_pending_delivery_does_not_poison_distinct_audit(tmp_path):
     a = auditor(); d = FakeDiscord(); state = tmp_path / 'delivery.sqlite'
     report = a.audit([issue(project=None)], OP, NOW)
     assert a.notify(report, state, d) == 'CONFIRMED'
-    old_content = 'historical unresolved notification'
+    current_content = a.notice_chunks(report)[0]
+    assert current_content.startswith('Linear audit v2 ')
+    old_content = current_content.replace('Linear audit v2 ', 'Linear audit ', 1)
     digest = hashlib.sha256(old_content.encode()).hexdigest()
     with sqlite3.connect(state) as db:
         db.execute('INSERT INTO delivery VALUES (?,?,?,?,?)', (digest, a.CHANNEL, old_content, None, 'PENDING'))

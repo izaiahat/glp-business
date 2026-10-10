@@ -2225,7 +2225,7 @@
         "crontab:45"
       ],
       "kind": "script",
-      "sha256": "327f400938aa906f0e422daa3155235ddae1f073005146c084320144430713e6"
+      "sha256": "55f06988d0d08b91de7ab7f08ac45d08f5362e1e819890b7d427bcbfc12ad26d"
     },
     "scripts/linear_orchestrator.py": {
       "callers": [],
@@ -3476,7 +3476,7 @@
         "linear_audit"
       ],
       "kind": "test",
-      "sha256": "770e1ee127668dccb5b32515787a4fafb8e824c9ee736c65fa73b3bdd73ea52b"
+      "sha256": "899697bd07fc2afab8b30025b3c1868e080fc62680f9f0772f8531e4e293c03e"
     },
     "tests/test_linear_ordinary_completion.py": {
       "callers": [],
