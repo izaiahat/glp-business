@@ -3,16 +3,21 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - scripts/native_reply_consumer.py
-      - scripts/dot_dispatch.py
-      - tests/test_dot_dispatch.py
-      - scripts/receive_one_discord_message.py
-      - scripts/rook_mcp_events.py
-      - tests/test_native_reply_consumer.py
-      - ops/rook-mcp/requirements.txt
-      - .github/workflows/native-reply-consumer.yml
+      - ".github/workflows/native-reply-consumer.yml"
+      - "ops/rook-mcp/requirements.txt"
+      - "scripts/dot_dispatch.py"
+      - "scripts/native_reply_consumer.py"
+      - "scripts/post_discord_message.py"
+      - "scripts/receive_one_discord_message.py"
+      - "scripts/rook_mcp_events.py"
+      - "tests/conftest.py"
+      - "tests/test_dot_dispatch.py"
+      - "tests/test_native_reply_consumer.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   exact-head-result-protocol:
     runs-on: ubuntu-latest

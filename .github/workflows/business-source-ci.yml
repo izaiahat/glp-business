@@ -1,11 +1,12 @@
 name: business-source-ci
 on:
-  push:
-    branches: [feat/affiliate-loop-gaps-c09-c13]
   pull_request:
-    branches: [main, fix/glp318-fresh-capacity-probe]
+    branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   package-only-exact-head:
     runs-on: ubuntu-latest
