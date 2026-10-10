@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 953,
+  "tracked_count": 954,
   "files": {
+    "tests/test_glp_sponsor_approved_pricing.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
+    },
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
       "callers": [
@@ -2277,7 +2284,7 @@
         "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
-      "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
+      "sha256": "d00694849568b8846c1ab25ec5e53de52524eb7aecbbb4676a523204435c6ad6"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
@@ -2325,7 +2332,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "4e4cbd430c35d356d048bf85645bccaab6296f0db6eca4e738077ca1c22590be"
+      "sha256": "1471c01e1f1f923c920e172a8f27e16d2f4a64887e6c9d5e62a67d39ab4f6098"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -3577,6 +3584,14 @@
       "callers": [],
       "kind": "test",
       "sha256": "7a7f5c9c543d43a945ebfb4ea6daf6f1fd3ca26dd481d1f142d94c66df39fde0"
+    },
+    "tests/test_discord_rate_rejection.py": {
+      "callers": [
+        "post_discord_message",
+        "linear_audit"
+      ],
+      "kind": "test",
+      "sha256": "395ee8dca5bf0a7647c1aaaedd5948e900152572ae4f76534875922f51c11479"
     },
     "tests/test_subscription_capacity_monitor.py": {
       "callers": [
@@ -6411,6 +6426,13 @@
       ],
       "sha256": "2beb839fdff4191cee4cee62b4b8109c02f1a8620eed9622eaf6c75e50bc0110"
     },
+    "tests/test_j4_partnerize_partial_catalog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+    },
     "scripts/glp_maxbounty_identity_capture.py": {
       "kind": "script",
       "callers": [
@@ -6424,20 +6446,6 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "e86da8840557ad6762d71920eedc798e9fc67ba265c6675575da27b84a8e1b5f"
-    },
-    "tests/test_glp_sponsor_approved_pricing.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
-    },
-    "tests/test_j4_partnerize_partial_catalog.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
     },
     "tests/test_glp_g6_traction_freshness.py": {
       "kind": "test",
