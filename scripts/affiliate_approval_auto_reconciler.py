@@ -2626,7 +2626,7 @@ def route_unowned_inbox_action(event,binding,*,dry_run=False,client=None):
   client=client if client is not None else Client()
   # Triage counts against the same cap. Reconcile existing identity at capacity.
   prior=json.loads(journal.read_text()) if journal.exists() else {'entries':{}}
-  if source_id not in prior['entries']:
+  if (prior['entries'].get(source_id) or {}).get('status')!='VERIFIED':
    team=client.team('GLP')
    rows=client.connection('issues',{'filter':{'team':{'id':{'eq':team['id']}},
                           'state':{'type':{'nin':['completed','canceled']}}}})

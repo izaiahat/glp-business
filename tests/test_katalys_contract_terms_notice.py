@@ -124,6 +124,11 @@ def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeyp
     with pytest.raises(RuntimeError,match='cap'):
         route(event,binding,client=client)
     assert len(calls)==2
+    journal=tmp_path/'ops/linear/triage-journal.json'
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({'entries':{'inbox:evt_regression':{'status':'CANDIDATE'}}}))
+    with pytest.raises(RuntimeError,match='cap'):
+        route(event,binding,client=client)  # a local candidate is not an issued identity
     bindings_path=tmp_path/'reports/ops/inbox-linear-triage/BINDINGS.json'
     bindings_path.parent.mkdir(parents=True)
     bindings_path.write_text(json.dumps({'schema':'inbox-linear-triage-v1',

@@ -356,7 +356,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "878f61bf199af5a2b570613dac221c6b61517780a813eaacbe63b48a01c58c9e"
+      "sha256": "b77136feedff4ab0e57ebe60460c224f2d5b30462fa350a108598263730550ad"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "b259c582c22a96ca3bc43933125a65a52d1b3353976b2187cf076757c3b6567b"
+      "sha256": "0ceadc69e197adfdd2a05ac74a7e50f74b23b02e21ed50159a17d57a969bb906"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -6521,7 +6521,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "730420c08cc723e90b488d3c7015743197de1abd68d1c01d9761806c866374db"
+      "sha256": "34122d7607a8fbd9dcb61d2b5ef0e31ecea122272e5f232faa80eef057440893"
     },
     ".github/workflows/j6-reporting.yml": {
       "callers": [
