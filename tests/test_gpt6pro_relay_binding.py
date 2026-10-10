@@ -947,6 +947,24 @@ class BindingTests(unittest.TestCase):
                                      attach=[], drive_attach=[], prompt_on_drive=False, dry_run=False,
                                      wait=wait, interval=30, max_wait=3600)
 
+    def test_submit_producer_commits_one_final_authoritative_channel(self):
+        args = self.args('channel-contract')
+        args.dry_run = True
+        with mock.patch.object(relay, 'send_message', return_value={'dry_run': True}) as sender:
+            self.assertEqual(relay.cmd_submit(args), 0)
+        text = sender.call_args.args[0]
+        saved = (relay.JOBS / args.job / 'MESSAGE.md').read_text()
+        self.assertEqual(text, saved)
+        self.assertIn('For output files in either channel supply OUTPUT-MANIFEST.json', text)
+        self.assertIn('Choose one authoritative output channel: Drive or native downloads.', text)
+        self.assertIn('Never produce a second revised copy after hashing the first.', text)
+        self.assertIn('Read back and hash the exact final manifest and payload bytes in the chosen channel', text)
+        self.assertIn('Earlier unbound copies remain unauthenticated.', text)
+        self.assertIn('exact final authoritative OUTPUT-MANIFEST.json bytes', text)
+        self.assertIn('as the LAST line of your reply.', text)
+        self.assertEqual(text.count('RELAY_OUTPUT_MANIFEST_SHA256='), 1)
+        self.assertEqual(self.browser.sent, [])
+
     def test_non_chat_redirect_returns_own_new_tab_to_home(self):
         self.browser.home_redirect = HOME + 'codex'
         self.browser.pages['sibling']['stop'] = True
@@ -1526,7 +1544,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                           'messages': False, 'stop': False}
         old_js = self.browser.js
         extra = {'url': HOME, 'time_origin': 12345.5, 'composer_empty': True,
-                 'user_count': 0}
+                 'user_count': 0, 'transcript_count': 0, 'stop': False}
         expressions = set()
         def probe(expression):
             if expression.startswith('(()=>{const e=') and 'time_origin' in expression:
@@ -1665,12 +1683,14 @@ console.log(JSON.stringify(fixtures.map(f => {
                      'const e={tagName:"DIV",getAttribute:k=>k==="contenteditable"?"true":null,'
                      'classList:{contains:k=>k==="ProseMirror"},childNodes:[p]};'
                      'const document={querySelector:s=>s==="#prompt-textarea"?'
-                     + ('e' if primary else 'null') + ':' + ('e' if fallback else 'null') + ','
+                     + ('e' if primary else 'null') + ':'
+                     + ('(s.includes("contenteditable")?e:null)' if fallback else 'null') + ','
                      'querySelectorAll:s=>Array(' + str(users) + ').fill({})};')
             result = subprocess.run(['node', '-e', setup + 'console.log(JSON.stringify(' + expression + '))'],
                                     capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(result.stdout), {'url': HOME, 'time_origin': 12345.5,
-                             'composer_empty': empty, 'user_count': users})
+                             'composer_empty': empty, 'user_count': users,
+                             'transcript_count': users, 'stop': False})
 
     def test_proof_bound_preinsert_terminal_actual_cli(self):
         """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
@@ -1738,7 +1758,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
             self.assertEqual((d/'JOB.json').read_bytes(), preimage)
             self.assertEqual(ledger.read_bytes(), before_ledger)
-            witness.assert_called_with(tab, origin)
+            witness.assert_called_with(tab, origin, disposition_only=True)
             for key, value in [('typed', True), ('sent', 'UNKNOWN')]:
                 relay.job_write(job, {**held, key: value})
                 changed = sha((d/'JOB.json').read_bytes())
@@ -1751,6 +1771,16 @@ console.log(JSON.stringify(fixtures.map(f => {
             with self.assertRaisesRegex(SystemExit, 'TAB_EVIDENCE'): call()
             witness.return_value = True
             with self.assertRaises(SystemExit): call('--apply')
+            backup = d / ('JOB.pre-terminal-unsent-'+sha(preimage)+'.json')
+            witness.side_effect = lambda *a, **kw: not backup.exists()
+            with self.assertRaisesRegex(SystemExit, 'TAB_EVIDENCE'):
+                call('--apply', '--authorize-preimage', sha(preimage))
+            self.assertEqual((d/'JOB.json').read_bytes(), preimage)
+            self.assertEqual(ledger.read_bytes(), before_ledger)
+            self.assertTrue(backup.exists())
+            self.assertFalse(relay._verified_terminal_unsent(relay.job_state(job)))
+            backup.unlink()  # isolated synthetic fixture only, not runtime custody
+            witness.side_effect = None
             self.assertEqual(call('--apply', '--authorize-preimage', sha(preimage))[0], 0)
             terminal = relay.job_state(job)
             self.assertEqual({k:v for k,v in terminal.items() if k != 'terminal_unsent'}, held)
@@ -1989,7 +2019,8 @@ console.log(JSON.stringify(fixtures.map(f => {
             if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
                 p = self.browser.pages[tab]
                 return {'url': p['url'], 'time_origin': p['origin'],
-                        'composer_empty': p['composer'] == '', 'user_count': int(p['messages'])}
+                        'composer_empty': p['composer'] == '', 'user_count': int(p['messages']),
+                        'transcript_count': int(p['messages']), 'stop': p['stop']}
             return real_js(expr)
         self.browser.js = probe
         def call(*extra):
@@ -2255,7 +2286,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         def probe(expr):
             if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
                 return {'url': self.browser.pages[tab]['url'], 'time_origin': origin,
-                        'composer_empty': not self.browser.pages[tab]['composer'].strip(), 'user_count': 0}
+                        'composer_empty': not self.browser.pages[tab]['composer'].strip(), 'user_count': 0,
+                        'transcript_count': 0, 'stop': self.browser.pages[tab]['stop']}
             if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
                 p = self.browser.pages[tab]
                 return {'origin': origin, 'users': 0, 'assistants': int(bool(p['text'])),
@@ -2363,7 +2395,8 @@ console.log(JSON.stringify(fixtures.map(f => {
         def probe(expr):
             if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
                 return {'url': self.browser.pages[self.browser.active]['url'],
-                        'time_origin': 12345.5, 'composer_empty': True, 'user_count': 0}
+                        'time_origin': 12345.5, 'composer_empty': True, 'user_count': 0,
+                        'transcript_count': 0, 'stop': False}
             if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
                 p = self.browser.pages[self.browser.active]
                 return {'origin': 12345.5, 'users': int(p.get('users', 0)),
@@ -2507,7 +2540,8 @@ console.log(JSON.stringify(fixtures.map(f => {
             expr = expression
             if expr.startswith('(()=>{const e=') and 'time_origin' in expr:
                 return {'url': page['url'], 'time_origin': page['origin'],
-                        'composer_empty': not page['composer'].strip(), 'user_count': 0}
+                        'composer_empty': not page['composer'].strip(), 'user_count': 0,
+                        'transcript_count': 0, 'stop': page['stop']}
             if expr.startswith('(()=>{const e=') and 'origin:performance.timeOrigin' in expr:
                 return {'origin': page['origin'], 'users': 0, 'assistants': 0,
                         'empty': not page['composer'].strip(), 'challenge': False,
@@ -2964,6 +2998,28 @@ console.log(JSON.stringify(fixtures.map(f => {
         with self.assertRaisesRegex(SystemExit, 'local reply differs'):
             relay.cmd_fetch_outbox(types.SimpleNamespace(job='job'))
         self.assertEqual(relay.job_state('job')['fetch_verification']['state'], 'UNKNOWN')
+
+    def test_native_saved_downloads_are_authoritative_not_unbound_drive_draft(self):
+        self.prepare_bundle()
+        download = self.root / 'native'; download.mkdir()
+        api = self.svc.files.return_value
+        for name, file_id in [('OUTPUT-MANIFEST.json','manifest'),('answer.diff','artifact')]:
+            (download / name).write_bytes(api.get_media(fileId=file_id).execute())
+        api.get_media.side_effect = lambda **kw: types.SimpleNamespace(execute=lambda:b'unbound earlier draft')
+        self.assertEqual(relay.cmd_fetch_outbox(types.SimpleNamespace(job='job', download_dir=download)), 0)
+        relay.drive.assert_not_called()
+        self.assertEqual(relay.job_state('job')['fetch_verification']['artifact_source'], 'native_downloads')
+
+    def test_native_saved_downloads_reject_wrong_payload_without_rewriting(self):
+        self.prepare_bundle()
+        download = self.root / 'native'; download.mkdir()
+        raw = self.svc.files.return_value.get_media(fileId='manifest').execute()
+        (download / 'OUTPUT-MANIFEST.json').write_bytes(raw)
+        (download / 'answer.diff').write_bytes(b'wrong bytes')
+        with self.assertRaisesRegex(SystemExit, 'file hash'):
+            relay.cmd_fetch_outbox(types.SimpleNamespace(job='job', download_dir=download))
+        self.assertFalse((relay.JOBS / 'job/outbox').exists())
+        self.assertEqual((download / 'OUTPUT-MANIFEST.json').read_bytes(), raw)
 
     def prepare_bundle(self, mutate=None, extra=False, body='wanted answer\n'):
         artifact = b'verified fixture\n'
