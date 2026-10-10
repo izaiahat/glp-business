@@ -109,7 +109,29 @@ def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeyp
     monkeypatch.setattr(linear_triage, 'submit_idea', publish)
     class Client:
         def team(self, _): return {'id':'team'}
-        def connection(self, *_): return [{}]*self.count
+        def connection(self, name, variables):
+            assert name == 'issues'
+            # Honor the real GraphQL filters. The old open-only filter includes
+            # these parked Backlog and Duplicate rows and wrongly refuses 19.
+            rows = [{'state':{'type':'triage','name':'Triage'}}] + [
+                {'state':{'type':'started','name':'In Progress'}}
+                for _ in range(self.count - 1)]
+            rows += [{'state':{'type':'backlog','name':'Backlog'}}] * 10
+            rows += [{'state':{'type':'duplicate','name':'Duplicate'}}] * 5
+            rows += [{'state':{'type':'completed','name':'Done'}},
+                     {'state':{'type':'canceled','name':'Canceled'}}]
+            # Also exercise renamed/mistyped Backlog and hidden records.
+            rows += [{'state':{'type':'unstarted','name':'Backlog'}}]
+            rows += [{'state':{'type':'started','name':'In Progress'},
+                      'archivedAt':'2026-10-01T00:00:00Z'},
+                     {'state':{'type':'started','name':'In Progress'},'trashed':True}]
+            state_filter = variables['filter']['state']
+            rows = [row for row in rows
+                    if row['state']['type'] not in state_filter['type']['nin']
+                    and row['state']['name'] not in state_filter.get('name',{}).get('nin',[])]
+            if variables.get('includeArchived') is False:
+                rows = [row for row in rows if not row.get('archivedAt')]
+            return rows
         count=19
     client = Client()
     for _ in range(2):
