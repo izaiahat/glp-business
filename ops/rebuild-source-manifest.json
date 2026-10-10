@@ -356,7 +356,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "24129c4291528d5741053736515767b967a21d5d4ccb35fe652941b5914d0f31"
+      "sha256": "f6d454292309b04ee9614e4a6ae62b9dc3b8261d1cc589571f1fcb50f99f96c6"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
