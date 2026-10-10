@@ -1738,7 +1738,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             self.assertIn('WOULD_TERMINALIZE_UNSENT', text)
             self.assertEqual((d/'JOB.json').read_bytes(), preimage)
             self.assertEqual(ledger.read_bytes(), before_ledger)
-            witness.assert_called_with(tab, origin)
+            witness.assert_called_with(tab, origin, disposition_only=True)
             for key, value in [('typed', True), ('sent', 'UNKNOWN')]:
                 relay.job_write(job, {**held, key: value})
                 changed = sha((d/'JOB.json').read_bytes())

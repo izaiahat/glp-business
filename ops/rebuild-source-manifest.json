@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 973,
+  "tracked_count": 974,
   "files": {
+    "tests/test_pro_unsent_nonchat.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "aae3426c6dd14a97d1ecd86ebe8441bbb9955541861a322ea81a1d1424d2c92b"
+    },
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
       "callers": [
@@ -642,7 +649,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d86ab5591304b334a202511cce2e336774f67d06b6ecd0b35859b5ca26f7466"
+      "sha256": "6e08461a791dec8ad9c55ffe7ee20f237d15811be4143b76e8e98695c4196f6d"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2162,7 +2169,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "12d318eff687323ceea68de4168599bef1d939a9586e314619e7abac2b2253ca"
+      "sha256": "ce2f5a02d19d547b920f56df59c1ac1ac020d592684c41440a73b7fd5697d6a1"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3450,7 +3457,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "11f0fd6af8790eeb527b9d50b9f98f45900eb2aafc10325ac9af256f5c3a0359"
+      "sha256": "daf0935af6608dad7be4007c7e85b77a037a12bf70dc62fa3ed578393a4935e6"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [

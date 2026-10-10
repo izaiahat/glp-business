@@ -2197,11 +2197,19 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
         return 0
 
 
-def _retained_empty_witness(tab, time_origin):
-    """Read the existing document only; never activate, navigate or modify its page."""
-    # Share the sender's exact logical emptiness contract before any one-shot
-    # custody write. Unsupported shapes and whitespace-only text must refuse.
-    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + COMPOSER_TEXT_JS + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()''')
+def _retained_empty_witness(tab, time_origin, *, disposition_only=False):
+    """Read the existing document only; never activate, navigate or modify its page.
+
+    Terminal disposition is NOT send readiness: an owned, never-inserted job
+    can be retired on the captured empty Codex root. Keep the sender's reader
+    unchanged; only the disposition caller recognizes this exact placeholder.
+    Complete custody/ledger proofs are checked before this passive observation.
+    """
+    reader = COMPOSER_TEXT_JS
+    if disposition_only:
+        reader = reader.replace("p.getAttribute('data-placeholder')==='Ask ChatGPT'",
+            "['Ask ChatGPT','Work with ChatGPT'].includes(p.getAttribute('data-placeholder'))")
+    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + reader + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()''')
     witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\nextra={extra!r}\n' + '''
 before=[t['targetId'] for t in list_tabs()]
 if tab not in before: _binding_error('retained_target_missing', tab=tab)
@@ -3080,7 +3088,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     if c.get('postinsert_guard'):
         if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
             refuse('TAB_EVIDENCE')
-    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
+    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin'], disposition_only=True):
         refuse('TAB_EVIDENCE')
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
