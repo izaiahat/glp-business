@@ -113,6 +113,16 @@ def latest_release() -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
+def eligibility_with_retained_holds(rows: list[dict], live_ids: list[str]) -> list[dict]:
+    """Keep explicit denial evidence; membership counts must not erase holds."""
+    live = set(live_ids)
+    return [row for row in rows if row["program_id"] in live or (
+        row.get("live_link_allowed") is False
+        and row.get("promotion_authorized") is False
+        and isinstance(row.get("research_hold_receipt"), dict)
+    )]
+
+
 def raw_direct_live_count(live: list[dict], ledger_by_id: dict) -> int:
     """Raw row count, before relationship denials; match the native strict booleans."""
     return sum(
@@ -676,7 +686,7 @@ def _unify_in_place(release: Path) -> dict:
         })
         eligibility["programs"].append(entry)
         eligibility_ids.add(pid)
-    eligibility["programs"] = [p for p in eligibility["programs"] if p["program_id"] in set(live_ids)]
+    eligibility["programs"] = eligibility_with_retained_holds(eligibility["programs"], live_ids)
     # NOT live_count. live_count is MERCHANT identities (aliases collapsed) and is
     # what reader-facing copy says. These two fields are read by build-staging.mjs
     # as the direct-affiliate ROW count - one row per affiliate relationship,

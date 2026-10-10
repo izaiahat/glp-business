@@ -29,6 +29,12 @@ class SurfaceInputTests(unittest.TestCase):
         self.assertEqual(u.raw_direct_live_count(programs, ledger), 61)
         self.assertEqual(u.raw_direct_live_count(programs[:58], ledger), 58)
 
+    def test_preserve_existing_denial_evidence_rows_outside_live_set(self):
+        held = {'program_id': 'held', 'live_link_allowed': False, 'promotion_authorized': False, 'research_hold_receipt': {'path': 'data/receipt.json', 'sha256': 'a' * 64}}
+        rows = [{'program_id': 'live'}, held, {'program_id': 'obsolete'}]
+        self.assertEqual(u.eligibility_with_retained_holds(rows, ['live']), rows[:2])
+        self.assertEqual(held['live_link_allowed'], False)
+
     def test_invalid_medication_values_refuse(self):
         for meds in [{'compounded': True}, ['oral', {'injectable': True}], 1]:
             with self.assertRaisesRegex(SystemExit, 'meds_offered_type_invalid'):
