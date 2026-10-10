@@ -3178,7 +3178,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "0044d39c1fba40ec0675635e0d2d15ef30549c0b7f609e4e5cbaca2be8163804"
+      "sha256": "1e32d72046166eec74b43f2002a3db9a2f82290874c23654240d2da1dc3cf688"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -6099,7 +6099,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "9f70f38ebba85a45e4ee3e2e1b4c4e27fb6b4d35b68bfd576f7595c6568e7a18"
+      "sha256": "24226df947a6f532868de51a0923733a64a643cd0b4bcfc3b5162517e318121b"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
