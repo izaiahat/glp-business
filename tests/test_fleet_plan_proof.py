@@ -51,3 +51,14 @@ def test_current_output_requires_natural_proof_and_does_not_claim_closure(tmp_pa
     p.write_text(json.dumps({'status':'COMPLETE','sources':{'dot':2}, 'linear_mutations':0}))
     with pytest.raises(ValueError, match='three production sources'):
         m.fleet_ingestion()
+
+
+def test_closed_unmerged_site_pr_does_not_prove_deployment(monkeypatch):
+    m = load()
+    report = {'executed_phases':5,'each_run':{'sitemap_route_rows':300},
+              'hourly':'PASS_SEARCH_ONLY','weekly':'PASS_SEARCH_ONLY',
+              'current_matrix':{'rows':319,'static_fail':0,'probe_fail':0,'missing_obligations':0}}
+    monkeypatch.setattr(m, 'read', lambda rel: {'manual_runs':{'analytics':report}})
+    monkeypatch.setattr(m, 'gh', lambda *args: {'state':'CLOSED'})
+    with pytest.raises(ValueError, match='not MERGED'):
+        m.analytics()

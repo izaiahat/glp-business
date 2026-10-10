@@ -6294,7 +6294,7 @@
       "callers": [
         "scripts/fleet_ingest.py"
       ],
-      "sha256": "9279397babfac3983f5acdb32e10caadf0dd8edca04ca90fad5d86c695ef96ac"
+      "sha256": "fb365a1ef29d95cb34e077c017f1bd79d6ac2234b72d8dcdb909fc7035b931d8"
     },
     "scripts/auto_coordinator_guard.py": {
       "kind": "script",
@@ -6322,7 +6322,7 @@
       "callers": [
         ".github/workflows/fleet-ingest.yml"
       ],
-      "sha256": "3ad78b7c01b11516aa8ce521c821bb41b9b01911ed782fd425c87107a8958405"
+      "sha256": "7ba4e16fe4beaa7892a9ea4e9587bf57e3e2bf4afcc2e0e1e9716d16504e85d4"
     },
     "tests/test_firecrawl_glp350_reddit.py": {
       "kind": "test",

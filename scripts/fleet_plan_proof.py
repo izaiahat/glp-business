@@ -84,7 +84,7 @@ def analytics():
     matrix = report['current_matrix']
     require(matrix['rows'] > 0 and matrix['static_fail'] == matrix['probe_fail'] == matrix['missing_obligations'] == 0, 'route coverage did not pass')
     pr = gh('pr', 'view', '31', '--repo', 'izaiahat/glp-site-candidate', '--json', 'state')
-    require(pr['state'] in {'MERGED', 'CLOSED'}, 'site PR31 still OPEN: designated privacy/design review required')
+    require(pr['state'] == 'MERGED', 'site PR31 not MERGED: a rejected/superseded PR is not proof of a deployed privacy-reviewed release')
     return {'route_rows': matrix['rows'], 'collector_rows': report['each_run']['sitemap_route_rows'], 'site_pr31_state': pr['state']}
 
 
