@@ -4,18 +4,26 @@ import time
 import affiliate_network_access_j6 as prior
 
 
-def weekly_collectors(names,transport):
+def weekly_collectors(names,transport,*,eden_intake=None,eden_sha256=None):
     collectors=prior.weekly_collectors(names,transport)
     if 'everflow' in names:
+        from affiliate_reporting_eden_portal_j7 import collector as portal_reader
+        portal=portal_reader(eden_intake,eden_sha256) if eden_intake else None
         def generic_everflow(window,deadline,max_requests,*,sink):
             from affiliate_reporting_everflow_roster_j7 import collect
+            saved=[];refusal=None
+            if portal:
+                try:portal(window,deadline,max_requests,sink=saved.append)
+                except ValueError:refusal='FRESH_PORTAL_INTAKE_RENEWAL_OR_BINDING_REQUIRED'
+            by_period={r['period_purpose']:r for r in saved}
             rows=[];remaining=max_requests
             for label,start,end in [('closed_week',window['week_start'],window['end_exclusive']),
                     ('lookback',window['lookback_start'],window['end_exclusive']),
                     ('closed_month',window['last_closed_month_start'],window['last_closed_month_end'])]:
-                result=collect(transport,start=start,end=end,deadline=deadline,max_requests=remaining)
+                result=collect(transport,start=start,end=end,deadline=deadline,max_requests=remaining,eden_observation=by_period.get(label))
                 remaining-=len(result.receipts)
                 page=result.to_dict()
+                page['portal_intake_refusal']=refusal
                 page.update(schema='coverage_observation',period_purpose=label,start_inclusive=start,end_exclusive=end,
                     payload_complete=False,account_scope_complete=False,financial_classification='UNKNOWN',
                     reporting_timezone='UNKNOWN_VENDOR_QUERY_CALENDAR')

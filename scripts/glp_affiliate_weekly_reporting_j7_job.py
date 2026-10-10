@@ -23,6 +23,8 @@ def main(argv=None):
     parser.add_argument('--max-requests',type=int,default=32)
     parser.add_argument('--budget-seconds',type=int,default=240)
     parser.add_argument('--reconciliation-input',type=Path)
+    parser.add_argument('--eden-intake',type=Path)
+    parser.add_argument('--eden-intake-sha256')
     parser.add_argument('--xentraffic-intake',type=Path)
     parser.add_argument('--xentraffic-sha256')
     parser.add_argument('--live-cj-readonly',action='store_true')
@@ -45,6 +47,8 @@ def main(argv=None):
         '--identity-registry',str(args.identity_registry),'--output',str(args.report_root/run_id),
         '--lookback-days',str(args.lookback_days),'--max-requests',str(args.max_requests),
         '--budget-seconds',str(args.budget_seconds)]
+    if args.eden_intake:
+        command += ['--eden-intake',str(args.eden_intake),'--eden-intake-sha256',args.eden_intake_sha256]
     if args.xentraffic_intake:
         command += ['--xentraffic-intake',str(args.xentraffic_intake),'--xentraffic-sha256',args.xentraffic_sha256]
     if args.reconciliation_input:

@@ -437,6 +437,8 @@ def main(argv=None):
     p.add_argument('--budget-seconds',type=int,default=240)
     p.add_argument('--max-requests',type=int,default=32)
     p.add_argument('--reconciliation-input',type=Path,help='Optional local F12 evidence JSON; never fetches conversions')
+    p.add_argument('--eden-intake',type=Path)
+    p.add_argument('--eden-intake-sha256')
     p.add_argument('--xentraffic-intake',type=Path)
     p.add_argument('--xentraffic-sha256')
     p.add_argument('--live-cj-readonly',action='store_true')
@@ -453,7 +455,7 @@ def main(argv=None):
         required += [here/'affiliate_network_access.py', here/'impact_api_credentials.py']
         required += [here/('affiliate_reporting_'+name+'.py') for name in (
             'partnerstack','admitad','clickbank','refersion','healthtrader')]
-        required += [here/'affiliate_network_access_j7.py', here/'affiliate_reporting_maxbounty_j7.py', here/'marketplace_adapters/katalys_j7.py', here/'affiliate_reporting_everflow_roster_j7.py']
+        required += [here/'affiliate_network_access_j7.py', here/'affiliate_reporting_maxbounty_j7.py', here/'marketplace_adapters/katalys_j7.py', here/'affiliate_reporting_everflow_roster_j7.py', here/'affiliate_reporting_eden_portal_j7.py']
         required += [here/'affiliate_reporting_everflow.py', here/'affiliate_network_access_j6.py', here/'affiliate_reporting_maxbounty.py', here/'maxbounty_publisher_api.py']
         required += [here/'marketplace_adapters'/f for f in (
             '__init__.py','_base.py','awin.py','impact.py','cj.py','affiliati.py','katalys.py','partnerize.py')]
@@ -496,7 +498,7 @@ def main(argv=None):
         from affiliate_network_access_j7 import weekly_collectors
         from marketplace_adapters._base import RequestsTransport
         collectors=weekly_collectors([token(m['marketplace']) for m in roster['marketplaces']],
-                                     RequestsTransport(timeout=30))
+                                     RequestsTransport(timeout=30), eden_intake=args.eden_intake, eden_sha256=args.eden_intake_sha256)
     if args.live_network_readonly and args.xentraffic_intake:
         from affiliate_reporting_xentraffic_j7 import collector
         collectors['xentraffic']=collector(args.xentraffic_intake,args.xentraffic_sha256)

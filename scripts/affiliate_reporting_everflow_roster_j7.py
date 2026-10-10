@@ -19,14 +19,21 @@ class Result(AccessResult):
     unbound_tenants: tuple[str, ...] = ('liferxmd.everflowclient.io', 'wisp.everflowclient.io')
 
 
-def collect(transport, *, start, end, deadline=None, max_requests=32):
+def collect(transport, *, start, end, deadline=None, max_requests=32, eden_observation=None):
     partitions, receipts, records = [], [], []
     remaining = max_requests
     for tenant, host in TENANT_HOSTS.items():
         if remaining <= 0:
             break
-        result = official.collect(transport, tenant=tenant, start=start, end=end,
-                                  deadline=deadline, max_requests=remaining).to_dict()
+        if tenant=='everflow_eden' and eden_observation is not None:
+            if (eden_observation.get('account_id')!='62' or eden_observation.get('tenant_id')!=host
+                    or eden_observation.get('account_binding')!='RESPONSE_OWNED_PARTNER_ID:62'
+                    or eden_observation.get('requested_utc_window')!={'start':start,'end':end}):
+                raise ValueError('eden_portal_partition_binding_unverified')
+            result=dict(eden_observation,coverage='COMPLETE')
+        else:
+            result = official.collect(transport, tenant=tenant, start=start, end=end,
+                                      deadline=deadline, max_requests=remaining).to_dict()
         partitions.append(dict(result, tenant_host=host))
         receipts.extend(dict(row, tenant_host=host) for row in result['receipts'])
         records.extend(dict(row, tenant_host=host, tenant=tenant) for row in result['records'])
