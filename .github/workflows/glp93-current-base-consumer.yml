@@ -2,8 +2,18 @@ name: glp93-current-base-consumer
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/glp93-current-base-consumer.yml"
+      - "scripts/glp_affiliate_wire_backlog_worker.py"
+      - "scripts/glp_current_content_base_schema.py"
+      - "scripts/glp_price_index_weekly.py"
+      - "scripts/site_tree_materializer.py"
+      - "tests/test_glp93_current_base_consumer.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   authenticated-current-base:
     runs-on: ubuntu-latest

@@ -2,9 +2,32 @@ name: fleet-ingest
 on:
   pull_request:
     branches: [main]
-    paths: ['scripts/fleet_ingest.py', 'scripts/linear_close.py', 'scripts/linear_orchestrator.py', 'scripts/fleet_plan_proof.py', 'scripts/auto_coordinator_guard.py', 'scripts/auto_coordinator_runner.py', 'tests/test_fleet_ingest.py', 'tests/test_linear_close.py', 'tests/test_auto_coordinator_guard.py', 'tests/test_fleet_plan_proof.py', 'ops/hermes-cron-scripts/glp_auto_coordinator.sh', 'ops/linear/AUTO-COORDINATOR.md', 'ops/hermes-cron-scripts/fleet_ingest_cron.sh', '.github/workflows/fleet-ingest.yml']
+    paths:
+      - ".github/workflows/fleet-ingest.yml"
+      - "ops/hermes-cron-scripts/fleet_ingest_cron.sh"
+      - "ops/hermes-cron-scripts/glp_auto_coordinator.sh"
+      - "ops/linear/AUTO-COORDINATOR.md"
+      - "scripts/auto_coordinator_guard.py"
+      - "scripts/auto_coordinator_runner.py"
+      - "scripts/fleet_ingest.py"
+      - "scripts/fleet_plan_proof.py"
+      - "scripts/glp_affiliati_postback_ship.py"
+      - "scripts/glp_cogny_queue_drain.py"
+      - "scripts/glp_deploy_build6_authority_v1.py"
+      - "scripts/glp_earnings_notice.py"
+      - "scripts/linear_close.py"
+      - "scripts/linear_orchestrator.py"
+      - "tests/conftest.py"
+      - "tests/test_auto_coordinator_guard.py"
+      - "tests/test_fleet_ingest.py"
+      - "tests/test_fleet_plan_proof.py"
+      - "tests/test_linear_close.py"
+      - "tests/test_linear_ordinary_completion.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   offline-exact-head:
     runs-on: ubuntu-latest

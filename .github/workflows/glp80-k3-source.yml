@@ -3,23 +3,48 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - ops/glp/evidence-refresh-k3/**
-      - ops/hermes-cron-scripts/glp_evidence_refresh_daily.py
-      - tools/glp/evidence_refresh*
-      - scripts/glp_price_index_weekly.py
-      - scripts/glp_deploy_glp34_authority_v1.py
-      - scripts/glp_current_content_base_schema.py
-      - scripts/site_tree_materializer.py
-      - systems/seo-blog-machine/scripts/build_opus_article_release.py
-      - tests/test_glp73_builder_current_base.py
-      - tests/test_glp80_k3_prepared_consumer.py
-      - tests/test_glp80_daily_progress.py
-      - tests/test_glp80_registered_taxonomy_intake.py
-      - site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py
-      - site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json
-      - .github/workflows/glp80-k3-source.yml
+      - ".github/workflows/glp80-k3-source.yml"
+      - ".gitignore"
+      - "ops/glp/evidence-refresh-k3/**"
+      - "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
+      - "ops/rebuild-source-manifest.json"
+      - "scripts/affiliate_direct_evidence_capture.py"
+      - "scripts/firecrawl_client.py"
+      - "scripts/glp_current_content_base_schema.py"
+      - "scripts/glp_deploy_glp34_authority_v1.py"
+      - "scripts/glp_price_index_weekly.py"
+      - "scripts/glp_served_test_contract.py"
+      - "scripts/site_tree_materializer.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json"
+      - "systems/analytics-brain/analytics_brain.py"
+      - "systems/analytics-brain/decision_policy.py"
+      - "systems/seo-blog-machine/scripts/accepted_failure_contract.py"
+      - "systems/seo-blog-machine/scripts/article_image_release_contract.py"
+      - "systems/seo-blog-machine/scripts/article_images.py"
+      - "systems/seo-blog-machine/scripts/build_opus_article_release.py"
+      - "systems/seo-blog-machine/scripts/carrier_fixture_contracts.py"
+      - "systems/seo-blog-machine/scripts/carrier_lock.py"
+      - "systems/seo-blog-machine/scripts/current_content_base.py"
+      - "systems/seo-blog-machine/scripts/defect_remediation.py"
+      - "systems/seo-blog-machine/scripts/existing_article_updates.py"
+      - "systems/seo-blog-machine/scripts/r2_execution_control.py"
+      - "systems/seo-blog-machine/scripts/review_transports.py"
+      - "systems/seo-blog-machine/scripts/weekly_strategy_consumer.py"
+      - "tests/conftest.py"
+      - "tests/fixtures/glp344-price-evidence/**"
+      - "tests/test_glp73_builder_current_base.py"
+      - "tests/test_glp73_current_pointer_consumer.py"
+      - "tests/test_glp80_daily_progress.py"
+      - "tests/test_glp80_k3_prepared_consumer.py"
+      - "tests/test_glp80_registered_taxonomy_intake.py"
+      - "tools/glp/evidence_refresh*"
+      - "tools/glp/evidence_refresh.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   k3-prepared-consumer-exact-head:
     runs-on: ubuntu-latest

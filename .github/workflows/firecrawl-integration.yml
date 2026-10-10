@@ -2,8 +2,50 @@ name: firecrawl-integration
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/firecrawl-integration.yml"
+      - "glp-clinic-partner-outreach-machine/refill_email_ready_targets.py"
+      - "ops/glp/evidence-refresh-k3/registered_taxonomy.py"
+      - "ops/hermes-cron-scripts/affiliate_site_evidence_daily.sh"
+      - "ops/hermes-cron-scripts/glp_reddit_daily_scout_wrapper.sh"
+      - "scripts/affiliate_direct_evidence_capture.py"
+      - "scripts/affiliate_site_evidence.py"
+      - "scripts/affiliate_supply_discovery.py"
+      - "scripts/firecrawl*"
+      - "scripts/firecrawl_client.py"
+      - "scripts/g6_r1a_stage5_research_fetch.py"
+      - "scripts/glp_evidence_capture_refresh.py"
+      - "scripts/glp_evidence_refresh_cycle.py"
+      - "scripts/glp_firecrawl_monitors.py"
+      - "scripts/glp_price_verification.py"
+      - "scripts/glp_reddit_daily_scout.py"
+      - "scripts/research_glp_batch2_fda_warning_provenance.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json"
+      - "systems/seo-blog-machine/scripts/article_pdf.py"
+      - "systems/seo-blog-machine/scripts/competitor_gap.py"
+      - "systems/seo-blog-machine/scripts/refresh_topic_supply_firecrawl.py"
+      - "tests/conftest.py"
+      - "tests/fixtures/firecrawl*/**"
+      - "tests/fixtures/therapeutic-taxonomy-coverage.json"
+      - "tests/test_firecrawl_credit_loops.py"
+      - "tests/test_firecrawl_glp350_*.py"
+      - "tests/test_firecrawl_glp350_affiliate.py"
+      - "tests/test_firecrawl_glp350_cron.py"
+      - "tests/test_firecrawl_glp350_gov.py"
+      - "tests/test_firecrawl_glp350_monitor.py"
+      - "tests/test_firecrawl_glp350_pdf.py"
+      - "tests/test_firecrawl_glp350_reddit.py"
+      - "tests/test_firecrawl_glp350_serp.py"
+      - "tests/test_firecrawl_integration.py"
+      - "tests/test_glp80_taxonomy_correction.py"
+      - "tests/test_therapeutic_taxonomy_refresh.py"
+      - "tools/glp/evidence_refresh.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   focused-exact-head:
     runs-on: ubuntu-latest
