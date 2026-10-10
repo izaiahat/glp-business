@@ -135,7 +135,10 @@ def fixture(tmp_path, monkeypatch):
     # these fixed substitutions, refusing a missing or drifted installed input.
     legacy_dependencies = ''
     for relative, (legacy, reviewed) in release.GLP331_DEPENDENCY_BINDINGS.items():
-        body = (ROOT/relative).read_bytes()
+        # Replay the immutable oracle with its exact historical input. The
+        # explicit current-base gate authenticates BOTH new dependencies first.
+        from glp93_current_base_binding import historical_dependency_bytes
+        body = historical_dependency_bytes(ROOT, relative)
         assert p.sha_bytes(body) == reviewed
         (repo/relative).write_bytes(body)
         (business/relative).write_bytes(body)
