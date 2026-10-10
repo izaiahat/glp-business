@@ -170,6 +170,77 @@ def partnerstack_inventory(legacy, transport):
         'blockers': blockers})
 
 
+def refersion_inventory(legacy, transport, *, page_size=100, max_pages=20):
+    """Collect the offers surface, not just our merchant memberships.
+
+    Refersion's live schema exposes limit+offset on offers. Exhaust an explicit
+    empty terminal page; never substitute that observation for a provider total.
+    Preserve denied/pending membership on exact overlapping offer IDs.
+    """
+    if type(page_size) is not int or type(max_pages) is not int or not 0 < page_size <= 100 or not 0 < max_pages <= 20:
+        raise ValueError('refersion_catalog_bounds_invalid')
+    adapter = legacy.refersion
+    joined = adapter.readback(transport)
+    blockers = list(joined.get('blockers') or [])
+    members = {}
+    for row in joined.get('programs') or []:
+        key = row.get('program_id')
+        if not isinstance(key, str) or not key or key in members:
+            blockers.append({'error_class': 'refersion_membership_identity_invalid'})
+            continue
+        members[key] = row
+    if len(joined.get('programs') or []) >= 200:
+        blockers.append({'error_class': 'refersion_membership_limit_unproven'})
+    programs, seen, offset, pages = [], set(), 0, []
+    exhausted = False
+    for page in range(max_pages):
+        query = (adapter.OFFERS_QUERY % page_size).replace(
+            f'limit:{page_size}', f'limit:{page_size}, offset:{offset}', 1)
+        try:
+            raw = adapter.graphql(transport, query, 'readback')
+        except Exception as exc:
+            blockers.append({'error_class': 'refersion_catalog_read_failed',
+                             'exception_class': type(exc).__name__, 'offset': offset})
+            break
+        rows = raw.get('offers')
+        if not isinstance(rows, list):
+            blockers.append({'error_class': 'refersion_catalog_shape_invalid'})
+            break
+        pages.append({'offset': offset, 'raw_count': len(rows),
+                      'response_sha256': hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()})
+        if not rows:
+            exhausted = True
+            break
+        valid_page = True
+        for row in rows:
+            key = row.get('id') if isinstance(row, dict) else None
+            if not isinstance(key, str) or not key or key in seen:
+                blockers.append({'error_class': 'refersion_catalog_identity_invalid', 'offset': offset})
+                valid_page = False
+                continue
+            seen.add(key)
+            shop = row.get('shop') or {}
+            program = {'network': 'refersion', 'program_id': key,
+                       'name': str(shop.get('name') or ''), 'relationship': 'marketplace_offer',
+                       'url': str(shop.get('url') or ''),
+                       'commission': (f"{row['commission']} ({row.get('type')})"
+                                      if row.get('commission') not in (None, '') else ''),
+                       'cookie_days': str(row.get('cookie_days') or ''),
+                       'categories': [row['business_category']] if row.get('business_category') else []}
+            programs.append({**program, **members.get(key, {})})
+        if not valid_page:
+            break
+        offset += len(rows)
+    else:
+        blockers.append({'error_class': 'refersion_catalog_page_cap'})
+    programs.extend(row for key, row in members.items() if key not in seen)
+    return legacy.b.readback_payload('Refersion', 'graphql_x_refersion_key', programs, {
+        'reported_total': None, 'marketplace_enumerated': len(seen),
+        'marketplace_exhausted': exhausted, 'pages': pages,
+        'denominator_scope': 'account_visible_offers_plus_memberships_no_independent_total',
+        'blockers': blockers})
+
+
 def live_legacy():
     source = BUSINESS / 'scripts/marketplace_supply_sweep.py'
     if hashlib.sha256(source.read_bytes()).hexdigest() != LEGACY_SHA:
@@ -182,6 +253,7 @@ def live_legacy():
     module.SWEEPS['awin'] = lambda transport: awin_inventory(module, transport)
     module.SWEEPS['partnerstack'] = lambda transport: partnerstack_inventory(module, transport)
     module.SWEEPS['maxbounty'] = lambda transport: maxbounty_inventory(module, transport)
+    module.SWEEPS['refersion'] = lambda transport: refersion_inventory(module, transport)
     return module
 
 
