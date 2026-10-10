@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 969,
+  "tracked_count": 971,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -642,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "048e84f4db21d92642a538204e70c2740b93e4fe9279569c78d90d670842d15d"
+      "sha256": "8d86ab5591304b334a202511cce2e336774f67d06b6ecd0b35859b5ca26f7466"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -652,7 +652,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "a1c33bf7d8823de98404a9c09450837febba5297646485517be9e02b20b5c853"
+      "sha256": "969e3649d8069ae5b1b394f5a04bd6334a44d6952126e821d79b6a1cfaa9b5ed"
     },
     ".hermes.md": {
       "callers": [],
@@ -2162,7 +2162,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "003b577e94351c5e6a7bd2f0cb7aefbf2cde9a7cf205c3f3e60f0efe1fd4d05a"
+      "sha256": "12d318eff687323ceea68de4168599bef1d939a9586e314619e7abac2b2253ca"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3450,7 +3450,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "ba933ed6c224ac4db69fa83dc76a25d23a267dea245c10d93397d93cffb61ba4"
+      "sha256": "11f0fd6af8790eeb527b9d50b9f98f45900eb2aafc10325ac9af256f5c3a0359"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -5411,7 +5411,7 @@
     "tests/test_pro_route.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "bab42f0da4f6d1aca5b488f1212a904751161d70c0af8e91280ef128c6f3d413"
+      "sha256": "7b193fc463d413d81d7a12a6d08a210809a27a87b164b4e1096c884adf3240c7"
     },
     "ops/glp/weekly_strategy_sync.py": {
       "callers": [
@@ -6558,6 +6558,12 @@
       ],
       "kind": "test",
       "sha256": "5c32e66e1bb28e83774c47da2bd6e38f0c89338d0f1f1ce634c3e1d49aa68247"
+    },
+    "tests/test_pro_root_home.py": {
+      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
+    },
+    "tests/test_pro_terminal_hydration.py": {
+      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
     }
   }
 }
