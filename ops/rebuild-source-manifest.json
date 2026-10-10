@@ -11,7 +11,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "01333ec74adad6c97e0fec3b12e0056fc3e31c4b9b1285c93884f0ff313d0dd6"
+      "sha256": "47a1e597fc1dfb398310bedf6d1efd6e6de69ff660bf4347e77ddef4119743fc"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -173,7 +173,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "aa14aedd95ba73ace28f1e051944b3ed3d7e0c052c24d0b0a6ce6d0216c8a4eb"
+      "sha256": "bd6e5a5c872928926cc582f53c69213ce273eacc86c8fcc7dbdab6a80a4e782c"
     },
     ".hermes.md": {
       "callers": [],
@@ -6839,6 +6839,20 @@
       ],
       "sha256": "419ce138cf623ddf11ca6083dce866870e71ce4a771d21ddc176dbc8383e9998"
     },
+    "scripts/glp_surface_unification.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/build_glp_affiliate_wirein_incremental_v2.py"
+      ],
+      "sha256": "9d07af2bbaae0c7d7191b67f9839ccb50b124062bb32430f6e3d818a6d83ab06"
+    },
+    "tests/test_glp93_surface_inputs.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "30be8c7a390411d3e70d2d673c47c8c5056886a12fc2c6badc237a716a4b0afb"
+    },
     "tests/test_glp_g6_traction_freshness.py": {
       "kind": "test",
       "callers": [
@@ -6855,5 +6869,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1009
+  "tracked_count": 1011
 }

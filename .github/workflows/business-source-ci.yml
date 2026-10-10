@@ -63,6 +63,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -B -m unittest discover -s tests -p test_glp93_review_projection.py -v
+          python3 -B -m unittest discover -s tests -p test_glp93_surface_inputs.py -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv

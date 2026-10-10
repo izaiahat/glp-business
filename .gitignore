@@ -18,9 +18,11 @@
 !/scripts/agent_exec.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
 !/scripts/glp_review_editorial_projection.py
+!/scripts/glp_surface_unification.py
 !/tests/
 /tests/*
 !/tests/test_glp93_review_projection.py
+!/tests/test_glp93_surface_inputs.py
 !/tests/test_pro_root_home.py
 !/tests/test_pro_terminal_hydration.py
 !/tests/test_article_source_carrier.py
