@@ -502,7 +502,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "a2ed0963355d2580b6a11c2e06ac75e3a9b7de8e8615a3e26f0855e1060bb267"
+      "sha256": "5cba43b8b18c43354e726af007703c937a2b343ee127e51a1d9a0a5f31ae317e"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -983,7 +983,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "12a22abd04a1f1378574def1cd6618bbdcb8fd371d3c451fbb92817e1cc86cc4"
+      "sha256": "bd50bdc4a10ba9edf9db7e304fb4abad2eb7458e31701e9f7ee9bde3757aa456"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2538,7 +2538,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "2d585b9e1368738f1bd2c474776e8c802bd77ed35e1977c486eac815b19d4a79"
+      "sha256": "e7c76b60eee0b4a966188c772a1a4a119aae329afd6408f69dd6eb5d3f53134b"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -6645,7 +6645,7 @@
       "callers": [
         "hermes:aadf6677c7f0"
       ],
-      "sha256": "326bbc46ec3e6b19cb908a5501cec0d593e43a34da63a6e1996377522e16427c",
+      "sha256": "fcdddb8c9cd1b0eb6e80d4bd4231e605997f060158c559b140f2a895862ea7c9",
       "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
     },
     "scripts/affiliate_reporting_maxbounty_j7.py": {
@@ -6679,6 +6679,22 @@
       ],
       "sha256": "7a7bfaf11011629a1511c3aee89aa88804560858bb59981b4241dcad05ef6da0",
       "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "scripts/affiliate_reporting_everflow_roster_j7.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "d1d184905224ae7197328e3fa40de0b0c4c6eda09bd4e3fcd9fd64d2a0f95833",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "tests/test_j7_everflow_roster.py": {
+      "kind": "test",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "d9a68924930eaa011244c5377fe4efe11f26f3522278740b47415ab9b4349cfc",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
     }
   },
   "omitted_runtime_inputs": [
@@ -6689,5 +6705,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 987
+  "tracked_count": 989
 }

@@ -6,6 +6,22 @@ import affiliate_network_access_j6 as prior
 
 def weekly_collectors(names,transport):
     collectors=prior.weekly_collectors(names,transport)
+    if 'everflow' in names:
+        def generic_everflow(window,deadline,max_requests,*,sink):
+            from affiliate_reporting_everflow_roster_j7 import collect
+            rows=[];remaining=max_requests
+            for label,start,end in [('closed_week',window['week_start'],window['end_exclusive']),
+                    ('lookback',window['lookback_start'],window['end_exclusive']),
+                    ('closed_month',window['last_closed_month_start'],window['last_closed_month_end'])]:
+                result=collect(transport,start=start,end=end,deadline=deadline,max_requests=remaining)
+                remaining-=len(result.receipts)
+                page=result.to_dict()
+                page.update(schema='coverage_observation',period_purpose=label,start_inclusive=start,end_exclusive=end,
+                    payload_complete=False,account_scope_complete=False,financial_classification='UNKNOWN',
+                    reporting_timezone='UNKNOWN_VENDOR_QUERY_CALENDAR')
+                sink(page);rows.append(page)
+            return rows
+        collectors['everflow']=generic_everflow
     if 'maxbounty' in names:
         def maxbounty(window,deadline,max_requests,*,sink):
             from affiliate_reporting_maxbounty_j7 import collect
