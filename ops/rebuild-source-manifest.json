@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "eba80295ff77d8fef4f22d7b6f26b0a9ca6d9ca31eb6447bb86702f9bbeebee3"
+      "sha256": "4c98de5239930c987e55a01e6b77955a442e520d6d8199382a4ddffa692b2ba9"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -6521,7 +6521,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "01a16355097910dce3bb27acd75c5781a1008558e073c186cda566890ae0208f"
+      "sha256": "b89999cf21d5df7de9a41cab7c525a13c69925d6642f52b4bbf24df3c82c6622"
     },
     ".github/workflows/j6-reporting.yml": {
       "callers": [
