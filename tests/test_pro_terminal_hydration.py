@@ -8,7 +8,8 @@ import gpt6pro_relay as relay
 
 
 def setup(monkeypatch, texts, stop=False):
-    st={'job':'j','status':'done','tab':'t','conversation_id':'00000000-0000-0000-0000-000000000001',
+    st={'job':'j','status':'done','tab':'t','binding_version':2,'conversation_id':'00000000-0000-0000-0000-000000000001',
+        'conversation_url':'https://chatgpt.com/c/00000000-0000-0000-0000-000000000001',
         'last_text_sha':hashlib.sha256(b'complete receipt').hexdigest(),'reply_render_mode':'selection_markdown'}
     calls=[]
     def read(*args,**kwargs):
@@ -43,6 +44,14 @@ def test_generation_never_retried_or_reloaded(monkeypatch):
     st,calls=setup(monkeypatch,['streaming'],stop=True)
     assert relay.read_terminal_reply(st)['state']['stop'] is True
     assert len(calls)==1
+
+
+def test_missing_exact_binding_rejected_before_browser(monkeypatch):
+    st,calls=setup(monkeypatch,['complete receipt'])
+    st.pop('conversation_url')
+    with pytest.raises(ValueError,match='exact conversation binding'):
+        relay.read_terminal_reply(st)
+    assert not calls
 
 
 def test_nonterminal_rejected_before_any_browser_read(monkeypatch):
