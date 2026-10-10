@@ -11,7 +11,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "57de217080134a5747655d744a8f7a56a16b37fafeb1212524ddb6c7e60b1bfe"
+      "sha256": "01333ec74adad6c97e0fec3b12e0056fc3e31c4b9b1285c93884f0ff313d0dd6"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -173,7 +173,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "969e3649d8069ae5b1b394f5a04bd6334a44d6952126e821d79b6a1cfaa9b5ed"
+      "sha256": "aa14aedd95ba73ace28f1e051944b3ed3d7e0c052c24d0b0a6ce6d0216c8a4eb"
     },
     ".hermes.md": {
       "callers": [],
@@ -947,7 +947,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
+      "sha256": "94982ab9d23429adb7a1efb72132195b2cf4f5dd0bc22accc3085e8b4d3b2ac4"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2195,7 +2195,33 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432"
+      "sha256": "bb00b621999b4580c700b23b86b6cfb792c5a63a90fcad087fb0968c84f9e754"
+    },
+    "scripts/glp93_current_base_binding.py": {
+      "kind": "script",
+      "callers": [
+        "tests/test_glp331_carrier_closure.py",
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "77f6f81c52e137f5a1684632f0b8d48c60e78ec8cd8254a9041882e641d0b26a"
+    },
+    "tests/test_glp93_current_base_binding.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_glp331_carrier_closure.py",
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d4bd8a4863e65691106cc20aad9cc31c7920a116edcb2c032ea0c4dc0f170507"
+    },
+    "scripts/glp_review_editorial_projection.py": {
+      "kind": "script",
+      "callers": ["scripts/build_glp_affiliate_wirein_incremental_v2.py"],
+      "sha256": "6c9a7831568c9eaff82f6899381d49d2b512dfe2b5cc5e736525d4faf330ce33"
+    },
+    "tests/test_glp93_review_projection.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "4a4751539f8d1e329023350f8bb9132a9d817e243cddc7fd4b3dd79f0afe6ebc"
     },
     "scripts/business_output_health_sensor.py": {
       "callers": [
@@ -4967,7 +4993,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
+      "sha256": "52be5995db5cc6ec9e5209d73b6947644be88909fca2f48fbd0b99aa2ac9e9cb"
     },
     "tests/test_glp186_binding_diagnostics.py": {
       "callers": [],
@@ -5111,7 +5137,7 @@
         "GLP331 disposable native fixture; no live effects"
       ],
       "kind": "test",
-      "sha256": "bc1cc358b5165773416338a03ac87b5ba0ce772c5a9a886bec6339150764d1ef"
+      "sha256": "7ee71ab99972df309b96892ef1fbd14cb9cb39e24935047a04faa6af522e3d8d"
     },
     "tests/test_glp331_carrier_generation.py": {
       "callers": [
@@ -6544,7 +6570,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
+      "sha256": "3899ab324e84afea27e5afe20cd6feb9857d7c3515c3688d33e6a1bbf62f0feb"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
@@ -6816,5 +6842,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1004
+  "tracked_count": 1008
 }

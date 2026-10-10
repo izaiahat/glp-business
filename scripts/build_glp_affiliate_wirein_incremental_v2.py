@@ -43,6 +43,10 @@ from urllib.parse import parse_qs, urlparse
 BUSINESS = Path("/home/ubuntu/business")
 sys.path.insert(0, str(BUSINESS / "scripts"))
 from build_glp_affiliate_expansion_13 import validate_tracking  # noqa: E402
+from glp_review_editorial_projection import (  # noqa: E402
+    captured_review_sources, project_review_inputs,
+    normalize_provider_review_editorial_source,
+)
 import glp_registry_evidence as registry_evidence  # noqa: E402
 from site_tree_materializer import (  # noqa: E402
     constructor_provenance,
@@ -99,6 +103,7 @@ ALLOWED_SOURCE_CHANGES = {
     "scripts/validate-provider-fastpath-plus5.mjs",
     "src/blog-system.mjs",
     "src/cost-calculator.mjs",
+    "src/provider-review.mjs",  # exact fail-closed editorial migration only
     "tests/affiliate-expansion-13.test.mjs",
     "tests/cost-calculator.test.mjs",
     "tests/provider-surfaces-repair.test.mjs",
@@ -955,8 +960,9 @@ def canonical_field_sources(spec: dict, research: dict) -> dict[str, list[str]]:
         + supplied_urls("cancellation_and_roles", "program_terms"),
         "regulatory": urls("pharmacy_type") + supplied_urls("regulatory"),
     }
+    captures = captured_review_sources(research)
     for key, values in groups.items():
-        groups[key] = list(dict.fromkeys(values))
+        groups[key] = [url for url in dict.fromkeys(values) if url in captures]
         if not groups[key]:
             raise RuntimeError(f"field_source_group_missing:{spec['program_id']}:{key}")
     return groups
@@ -998,6 +1004,7 @@ def validate_checked_as_of(spec: dict) -> None:
 def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
                    publisher_id: str) -> dict:
     validate_checked_as_of(spec)
+    spec, research = project_review_inputs(spec, research)
     pid = spec["program_id"]
     price = quote(research, "first_month_price")
     states = quote(research, "states_served")
@@ -1031,6 +1038,9 @@ def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
         **({"tracking_host": spec["tracking_host"]} if spec.get("tracking_host") else {}),
         "review_path": f"/reviews/{pid}/",
         "field_sources": canonical_field_sources(spec, research),
+        "source_capture_bindings": {
+            url: capture["binding"] for url, capture in captured_review_sources(research).items()
+        },
         "logo_contract": {
             "asset_ready": True,
             "intended_public_path": logo["path"],
@@ -1304,6 +1314,7 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     # The live predecessor predates the PASS 2 route-master COW repair. Apply the
     # exact fail-closed migration inside the candidate constructor so its build
     # validates the vendored bytes rather than an obsolete predecessor pathname.
+    notes["provider_review_editorial_projection"] = normalize_provider_review_editorial_source(target)
     notes["article_route_master_cow_validation"] = (
         normalize_article_route_master_cow_validation(target)
     )
