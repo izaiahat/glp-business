@@ -50,3 +50,8 @@ def test_runner_never_spawns_with_live_tui_children(monkeypatch):
         raise AssertionError('coordinator spawned despite live TUI children')
     monkeypatch.setattr(runner.subprocess, 'run', forbidden)
     assert runner.main() == 10
+
+
+def test_missing_proof_blocks_closure_not_authorized_dispatch():
+    text = (SOURCE.parents[1] / 'ops/linear/AUTO-COORDINATOR.md').read_text()
+    assert 'Missing/incomplete proof prohibits closure, not authorized dispatch.' in text

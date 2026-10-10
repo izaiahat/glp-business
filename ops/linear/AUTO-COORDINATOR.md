@@ -9,8 +9,11 @@ In this mode these rules supersede the maintenance/support actions below:
   immediately before every dispatch/close. An unknown/corrupt lease is not idle.
 * Use only `reports/ops/fable-plan-2-20261009/PLAN.json`, sorted by numeric order.
   Setup S1–S8 rows and existing issue rows are both included. Never invent work.
-  Skip Done, parked/operator-held rows, incomplete proof contracts, unmet
-  dependencies and any issue with a live owner. Never reopen a closed issue.
+  Skip Done, parked/operator-held rows, unmet dependencies and any issue with a
+  live owner. Never reopen a closed issue.
+  Missing/incomplete proof prohibits closure, not authorized dispatch.
+  Include its exact proof gap in the same PLAN owner's brief; the end-to-end
+  owner must bind genuine output and an executable read-only proof, never a stub.
 * Read poller-produced `INGEST.json`; READY_TO_CLOSE is preflight, not acceptance.
   Re-run its PLAN `proof_cmd` and the no-write closer. Only the coordinator then
   runs `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py ISSUE RESULT --apply`.
@@ -21,7 +24,9 @@ In this mode these rules supersede the maintenance/support actions below:
   reviewer, only within existing PLAN scope and eight-slot host admission. Keep
   routing/provider/model/effort explicit: included OpenAI execution, no paid
   fallback. Do not perform reset redemption, pruning, account repair, polling of
-  individual executors, new support tickets, publishing, ad changes or sends.
+  individual executors, unassigned support tickets, publishing, ad changes or sends.
+  A PLAN-assigned Rook/Finch dispatch is permitted only under its existing ticket,
+  owner/correlation, standing authorization and duplicate-send guard.
 * Output at most ten lines for the registered ops-alerts delivery. Only the TUI
   parent writes shared STATE. Empty eligible PLAN/inbox means IDLE, not filler.
 Cron may remain enabled in this guarded mode while TUI children are live; such a

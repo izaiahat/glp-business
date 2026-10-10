@@ -6153,7 +6153,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
       "callers": [],
-      "sha256": "8b5b132489d375ef268a5d4db115ca29a87f2bddd2304b80c9819ae355f7cd93"
+      "sha256": "adb4f47a550fd3d83c66d93d62101db5c7d37c4f49d72eeb32724065579f9f2b"
     },
     "ops/cron.d/glp-dot-consumer": {
       "kind": "cron",
@@ -6315,7 +6315,7 @@
       "callers": [
         ".github/workflows/fleet-ingest.yml"
       ],
-      "sha256": "077927a705a625889befb83a489cbfff1567dd411af127c9478bc70a6daf6477"
+      "sha256": "133b557b5a6bbcfc29dc5347b627828aa36c3a0bdd067036da54029ec9d468a4"
     },
     "tests/test_fleet_plan_proof.py": {
       "kind": "test",
