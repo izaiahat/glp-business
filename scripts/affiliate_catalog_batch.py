@@ -129,6 +129,47 @@ def maxbounty_inventory(legacy, transport):
                                     'it is not a full marketplace denominator.'}]}
 
 
+def partnerstack_inventory(legacy, transport):
+    """Bind the denominator to the same two-surface union as the rows.
+
+    PartnerStack's marketplace total excludes delisted joined partnerships.
+    Keep its provider total separately; add only independently enumerated,
+    distinct partnership identities not present on that marketplace surface.
+    Missing totals and genuine catalog drift remain incomplete.
+    """
+    market = legacy.partnerstack.marketplace(transport)
+    joined = legacy.partnerstack.partnerships(transport)
+    blockers = list(market.get('blockers') or []) + list(joined.get('blockers') or [])
+    merged = {}
+    catalog_ids = set()
+    joined_only = set()
+    for surface, rows in (('marketplace', market['programs']),
+                          ('partnerships', joined['programs'])):
+        seen = set()
+        for row in rows:
+            key = row.get('group_slug') or row.get('program_id')
+            if not key or key in seen:
+                blockers.append({'error_class': 'partnerstack_catalog_identity_invalid',
+                                 'surface': surface})
+                continue
+            seen.add(key)
+            if surface == 'marketplace':
+                catalog_ids.add(key)
+            elif key not in catalog_ids:
+                joined_only.add(key)
+            merged[key] = {**merged.get(key, {}), **row}
+    total = market.get('reported_total')
+    # Never substitute our observed count for a missing provider denominator.
+    union_total = total + len(joined_only) if type(total) is int and total >= 0 else None
+    return legacy.b.readback_payload('PartnerStack', 'AUTHENTICATED', list(merged.values()), {
+        'reported_total': union_total, 'marketplace_reported_total': total,
+        'marketplace_enumerated': len(catalog_ids),
+        'joined_only_enumerated': len(joined_only),
+        'denominator_scope': 'marketplace_plus_distinct_joined_only',
+        'endpoints': [market.get('endpoint'), joined.get('endpoint')],
+        'blockers': blockers})
+
+
 def live_legacy():
     source = BUSINESS / 'scripts/marketplace_supply_sweep.py'
     if hashlib.sha256(source.read_bytes()).hexdigest() != LEGACY_SHA:
@@ -139,6 +180,7 @@ def live_legacy():
     spec.loader.exec_module(module)
     module._portal_catalog_sweep = portal_refusal
     module.SWEEPS['awin'] = lambda transport: awin_inventory(module, transport)
+    module.SWEEPS['partnerstack'] = lambda transport: partnerstack_inventory(module, transport)
     module.SWEEPS['maxbounty'] = lambda transport: maxbounty_inventory(module, transport)
     return module
 
