@@ -2598,6 +2598,69 @@ def prepare_sheet_schema(svc,allow_repair):
   return repair,schema
  return None,require_checkbox_schema_pass(svc,SHEET_ID,TAB)
 
+def route_unowned_inbox_action(event,binding,*,dry_run=False,client=None):
+ """Minimized Triage, not admission; unknown ownership requires review first."""
+ import uuid
+ from linear_triage import submit_idea,validate_item
+ from linear_client import Client
+ if (event.get('canonical_actionable')!=1 or event.get('canonical_venture')!='glp'
+     or event.get('canonical_lifecycle')!='active' or event.get('state')!='ingested'
+     or event.get('canonical_category') in {'affiliate_network_response','human_lead'}):return None
+ if not binding or binding.get('machine_ownership_reviewed') is not True:return None
+ if 'owning_machine' not in binding or binding['owning_machine'] is not None:return None
+ # Positive affiliate detection still belongs to its existing machine, even when
+ # coarse classification drifted. No raw sender, subject or body leaves the host.
+ if detect(*message_text(event['raw_path'])) is not None:return None
+ if (binding.get('event_id')!=event['event_id'] or binding.get('privacy_reviewed') is not True
+     or binding.get('raw_sha256')!=event.get('raw_sha256')
+     or hashlib.sha256(Path(event['raw_path']).read_bytes()).hexdigest()!=event.get('raw_sha256')):
+  raise RuntimeError('inbox_triage_binding_unverified')
+ source_id='inbox:'+event['event_id']
+ operation=str(uuid.UUID(bytes=hashlib.sha256(source_id.encode()).digest()[:16],version=4))
+ item={'operation_id':operation,'source_id':source_id,'source_label':'source:inbox',
+       'title':binding['title'],'summary':binding['summary'],'lane':binding['lane'],
+       'class':binding['class'],'out_of_scope':True,'privacy_reviewed':True}
+ validate_item(item)
+ journal=BUSINESS/'ops/linear/triage-journal.json'
+ if not dry_run:
+  client=client if client is not None else Client()
+  # Triage counts against the same cap. Reconcile existing identity at capacity.
+  prior=json.loads(journal.read_text()) if journal.exists() else {'entries':{}}
+  if (prior['entries'].get(source_id) or {}).get('status')!='VERIFIED':
+   team=client.team('GLP')
+   rows=client.connection('issues',{'filter':{'team':{'id':{'eq':team['id']}},
+                          'state':{'type':{'nin':['completed','canceled']}}}})
+   if len(rows)>=20:raise RuntimeError('inbox_triage_open_issue_cap_20')
+ result=submit_idea(client,item,journal,entry_class='inbox-email',purpose='blocker',dry_run=dry_run)
+ return dict(result,event_id=event['event_id'],action_kind='inbox_linear_triage',
+             external_send=False,provider_mutation=False,mailbox_mutation=False)
+
+
+def route_bound_inbox_actions(event_ids=None,*,dry_run=False):
+ """Registered reconciler consumes reviewed event bindings, never raw forwarding."""
+ path=BUSINESS/'reports/ops/inbox-linear-triage/BINDINGS.json'
+ if not path.exists():return []
+ bindings=json.loads(path.read_text())
+ if bindings.get('schema')!='inbox-linear-triage-v1':raise RuntimeError('inbox_triage_binding_schema')
+ selected=set(event_ids or bindings['events'])
+ if not selected<=set(bindings['events']):raise RuntimeError('inbox_triage_event_binding_missing')
+ events=fetch_inbox_events(sorted(selected))
+ if event_ids and {e['event_id'] for e in events}!=selected:raise RuntimeError('inbox_triage_canonical_event_missing')
+ outputs=[]
+ for event in events:
+  try:result=route_unowned_inbox_action(event,bindings['events'][event['event_id']],dry_run=dry_run)
+  except Exception as exc:
+   # A represented intake hold must not stop the owning affiliate machine.
+   # The intake journal owns ambiguous remote effects; never bypass/recreate it.
+   result={'status':'BLOCKED','event_id':event['event_id'],'action_kind':'inbox_linear_triage',
+           'blocker':type(exc).__name__+':'+str(exc)[:200],
+           'external_send':False,'provider_mutation':False,'mailbox_mutation':False}
+  if result is not None:
+   receipt=save_receipt(event['event_id'],result)
+   outputs.append(dict(result,receipt=str(receipt)))
+ return outputs
+
+
 def fetch_inbox_events(event_ids=None,include_terminal=False):
  inbox=sqlite3.connect(f'file:{INBOX_DB}?mode=ro',uri=True);inbox.row_factory=sqlite3.Row;params=[]
  recovery="""e.state='resolved_externally'
@@ -2611,6 +2674,9 @@ def fetch_inbox_events(event_ids=None,include_terminal=False):
  if event_ids:where+=' AND e.event_id IN ('+','.join('?' for _ in event_ids)+')';params.extend(event_ids)
  rows=inbox.execute(f'''SELECT e.event_id,e.provider_message_id,e.subject,e.raw_path,e.raw_sha256,e.received_at,e.state,
  (SELECT c.category FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_category,
+ (SELECT c.actionable FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_actionable,
+ (SELECT c.venture FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_venture,
+ (SELECT c.venture_lifecycle FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_lifecycle,
  (SELECT c.route FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_route,
  (SELECT c.policy_version FROM inbox_classifications c WHERE c.event_id=e.event_id ORDER BY c.rowid DESC LIMIT 1) AS canonical_policy_version,
  CASE WHEN {missing_fact} THEN 1 ELSE 0 END AS missing_approval_fact_recovery,
@@ -2642,7 +2708,16 @@ def terms_notice_recovery_allowed(receipt):
          and receipt.get('sheet_readback_verified') is False)
 
 async def main(*,fresh_drivers=None):
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');ap.add_argument('--cancellation-verification-only',action='store_true');ap.add_argument('--contract-terms-verification-only',action='store_true');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');ap.add_argument('--cancellation-verification-only',action='store_true');ap.add_argument('--contract-terms-verification-only',action='store_true');ap.add_argument('--linear-triage-only',action='store_true');args=ap.parse_args()
+ if args.linear_triage_only:
+  if (not args.event_id or args.contract_terms_verification_only or args.cancellation_verification_only
+      or args.validate_only or args.operator_handoff or args.recover_terminal_routine
+      or args.access_only or args.access_program or args.access_name or args.dry_run_output):
+   raise RuntimeError('linear_triage_requires_only_explicit_event_ids')
+  outputs=route_bound_inbox_actions(args.event_id,dry_run=args.dry_run)
+  if len(outputs)!=len(set(args.event_id)):raise RuntimeError('linear_triage_event_not_eligible')
+  blocked=any(row.get('status')=='BLOCKED' for row in outputs)
+  print(json.dumps({'status':'BLOCKED' if blocked else 'COMPLETE','outputs':outputs,'outbound_send_count':0},sort_keys=True));return 3 if blocked else 0
  if args.contract_terms_verification_only:
   if not args.event_id or args.cancellation_verification_only or args.dry_run or args.dry_run_output or args.validate_only or args.operator_handoff or args.recover_terminal_routine or args.access_only or args.access_program or args.access_name:
    raise RuntimeError('contract_terms_verification_requires_only_explicit_event_ids')
@@ -2705,6 +2780,9 @@ async def main(*,fresh_drivers=None):
  elif args.dry_run_output:raise RuntimeError('dry_run_output_requires_dry_run')
  if args.operator_handoff and not args.event_id:raise RuntimeError('operator_handoff_requires_explicit_event_ids')
  if args.recover_terminal_routine and (args.operator_handoff or not args.event_id or len(args.event_id)!=1):raise RuntimeError('terminal_routine_recovery_requires_one_explicit_event')
+ if not args.event_id and not args.operator_handoff and not args.validate_only:
+  triage_outputs=route_bound_inbox_actions(dry_run=args.dry_run)
+  if triage_outputs:print(json.dumps({'inbox_linear_triage':triage_outputs},sort_keys=True))
  explicit_handoff=load_operator_handoff(args.operator_handoff) if args.operator_handoff else None
  if explicit_handoff and set(args.event_id)!=set(explicit_handoff['affiliate_subset']):raise RuntimeError('operator_handoff_requires_full_affiliate_subset')
  policy_snapshot=load_snapshot()
