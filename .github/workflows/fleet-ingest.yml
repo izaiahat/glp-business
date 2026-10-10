@@ -2,7 +2,7 @@ name: fleet-ingest
 on:
   pull_request:
     branches: [main]
-    paths: ['scripts/fleet_ingest.py', 'tests/test_fleet_ingest.py', 'ops/hermes-cron-scripts/fleet_ingest_cron.sh', '.github/workflows/fleet-ingest.yml']
+    paths: ['scripts/fleet_ingest.py', 'scripts/linear_close.py', 'scripts/linear_orchestrator.py', 'scripts/fleet_plan_proof.py', 'scripts/auto_coordinator_guard.py', 'scripts/auto_coordinator_runner.py', 'tests/test_fleet_ingest.py', 'tests/test_linear_close.py', 'tests/test_auto_coordinator_guard.py', 'tests/test_fleet_plan_proof.py', 'ops/hermes-cron-scripts/glp_auto_coordinator.sh', 'ops/linear/AUTO-COORDINATOR.md', 'ops/hermes-cron-scripts/fleet_ingest_cron.sh', '.github/workflows/fleet-ingest.yml']
 permissions:
   contents: read
 jobs:
@@ -14,10 +14,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+      - name: Install test runner
+        run: python3 -m pip install pytest==8.4.2
       - name: Terminal adapters, read-only proofs, idempotency and stale revocation
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python3 -m unittest discover -s tests -p test_fleet_ingest.py -v
+          python3 -m pytest tests/test_fleet_ingest.py tests/test_linear_close.py tests/test_linear_ordinary_completion.py tests/test_auto_coordinator_guard.py tests/test_fleet_plan_proof.py -q
           bash -n ops/hermes-cron-scripts/fleet_ingest_cron.sh
+          bash -n ops/hermes-cron-scripts/glp_auto_coordinator.sh

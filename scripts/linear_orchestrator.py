@@ -462,7 +462,7 @@ def _verify_installed(data, repo, require):
     return installed
 
 
-def _lint_ordinary_result(path, iss):
+def _lint_ordinary_result(path, iss, *, result_data=None):
     """Read-only ordinary outcome check, not authority for any protected effect.
 
     The coordinator supplies a current description binding, existing acceptance
@@ -488,7 +488,9 @@ def _lint_ordinary_result(path, iss):
             raise SystemExit('ordinary completion refused: ' + message)
 
     try:
-        data = json.loads(Path(path).read_text())
+        # Preflight supplies the typed object in memory; all gates below are
+        # identical to the persisted-result path, including business output.
+        data = json.loads(Path(path).read_text()) if result_data is None else result_data
         require(isinstance(data, dict), 'result must be an object')
         health = data.get('schema') == 'linear-reviewed-health-completion-v1'
         require(health or data.get('schema') == 'linear-ordinary-completion-v1', 'unknown schema')
