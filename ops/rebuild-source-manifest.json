@@ -6148,14 +6148,14 @@
       "callers": [
         "manual:authorized-dot-ticket"
       ],
-      "sha256": "a8dd99625cf8e42477d70e1233b98b976e0205d3f63ae5eb4f8627c4f9d1c717"
+      "sha256": "eedeb2728028dcaa9d1e54c4cbef225551002621da714eb81f3a045a3fe51c62"
     },
     "tests/test_dot_dispatch.py": {
       "kind": "test",
       "callers": [
         "CI:native-reply-consumer"
       ],
-      "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
+      "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
     },
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
