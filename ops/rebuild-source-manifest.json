@@ -15,7 +15,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "aae3426c6dd14a97d1ecd86ebe8441bbb9955541861a322ea81a1d1424d2c92b"
+      "sha256": "1e6193a321b39cefd4533713cbe62fc311b0670f0fd8de03f411a0a22369e5a3"
     },
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",

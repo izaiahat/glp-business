@@ -46,7 +46,7 @@ def test_nonchat_native_dom_is_empty_only_for_exact_known_shape():
     tree=ast.parse(scripts[0])
     expr=next(ast.literal_eval(n.value) for n in tree.body if isinstance(n,ast.Assign)
               and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='extra')
-    import subprocess
+    import subprocess, os, tempfile
     from tests.test_gpt6pro_relay_binding import NATIVE_COMPOSER_FIXTURE
     # fixture's initial cases assert the disposition's own composer_empty value.
     html=('<div contenteditable="true" data-composer-markdown="" class="ProseMirror">'
@@ -59,7 +59,8 @@ def test_nonchat_native_dom_is_empty_only_for_exact_known_shape():
            {'name':'extra','mutate':'e.append(p.cloneNode(true))'}]
     result=subprocess.run(['node','-e',NATIVE_COMPOSER_FIXTURE],capture_output=True,text=True,
         input=json.dumps({'expressions':[expr], 'initial':{'html':html,'attributes':[],
-            'cases':cases,'exact':expr,'preflight':expr,'prepare':expr}}),timeout=30)
+            'cases':cases,'exact':expr,'preflight':expr,'prepare':expr}}),timeout=30,
+        env={**os.environ, 'TMPDIR': tempfile.gettempdir()})
     assert result.returncode==0,result.stderr
     actual=json.loads(result.stdout)['initial']['cases']
     assert actual[0]['preflight'] is True
