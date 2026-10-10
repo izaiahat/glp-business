@@ -502,7 +502,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "a0932f7df5787ce6634c69ac5d84ae1c64ec664fda4b2e27e23b252b67fe579f"
+      "sha256": "a2ed0963355d2580b6a11c2e06ac75e3a9b7de8e8615a3e26f0855e1060bb267"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -983,7 +983,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "5a545342aa9e03736ee76ff96c00ea60ff52d532adce330c770c62671c5543fb"
+      "sha256": "12a22abd04a1f1378574def1cd6618bbdcb8fd371d3c451fbb92817e1cc86cc4"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -2538,7 +2538,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "e3d3d405029a545bc1d10f2d2bd964f486f24160c5432e597d87a20e918528c0"
+      "sha256": "2d585b9e1368738f1bd2c474776e8c802bd77ed35e1977c486eac815b19d4a79"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
@@ -6640,11 +6640,46 @@
       "kind": "script",
       "sha256": "3ad7c99968d0d243dd08c4f0ad96351e9d0f33a49d8eda55df535b250bda9266"
     },
-    "scripts/affiliate_network_access_j7.py": "326bbc46ec3e6b19cb908a5501cec0d593e43a34da63a6e1996377522e16427c",
-    "scripts/affiliate_reporting_maxbounty_j7.py": "ba273f28f5bef04fcd297867a286b008f68fcd86adceb002f184d378b66b7aeb",
-    "scripts/marketplace_adapters/katalys_j7.py": "0a23388ed746223401b0d4bbf4890ba0ba78e421aed8392ffa7f1cf5ff101b54",
-    "tests/test_j7_maxbounty_balance.py": "9dfeb3fe9d0f469f7d8998ac1757d2e076181fc3ddc350e5453ffe1e04faec7c",
-    "tests/test_j7_katalys_population.py": "7a7bfaf11011629a1511c3aee89aa88804560858bb59981b4241dcad05ef6da0"
+    "scripts/affiliate_network_access_j7.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "326bbc46ec3e6b19cb908a5501cec0d593e43a34da63a6e1996377522e16427c",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "scripts/affiliate_reporting_maxbounty_j7.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "ba273f28f5bef04fcd297867a286b008f68fcd86adceb002f184d378b66b7aeb",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "scripts/marketplace_adapters/katalys_j7.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "0a23388ed746223401b0d4bbf4890ba0ba78e421aed8392ffa7f1cf5ff101b54",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "tests/test_j7_maxbounty_balance.py": {
+      "kind": "test",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "9dfeb3fe9d0f469f7d8998ac1757d2e076181fc3ddc350e5453ffe1e04faec7c",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "tests/test_j7_katalys_population.py": {
+      "kind": "test",
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "sha256": "7a7bfaf11011629a1511c3aee89aa88804560858bb59981b4241dcad05ef6da0",
+      "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    }
   },
   "omitted_runtime_inputs": [
     "~/.hermes/cron/jobs.json (live scheduler/state)",
@@ -6654,5 +6689,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 982
+  "tracked_count": 987
 }
