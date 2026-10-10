@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 963,
+  "tracked_count": 964,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -642,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d86ab5591304b334a202511cce2e336774f67d06b6ecd0b35859b5ca26f7466"
+      "sha256": "73ff6a1952d634a50772c5cf35f614a0b41eba92d0644a9b5462a6048918623e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -6508,6 +6508,13 @@
         "hermes:aadf6677c7f0"
       ],
       "sha256": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9"
+    },
+    "tests/test_katalys_contract_terms_notice.py": {
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "63aecbac60d4cd14069cfe48428a163d5ece65406b94711d5b74af6c286cfb87"
     }
   }
 }
