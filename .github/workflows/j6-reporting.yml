@@ -1,0 +1,25 @@
+name: j6-reporting
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  exact-head-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Install test runner
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3'
+      - name: Exact-head offline reporting and retained-oracle regression
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PYTHONPATH: scripts
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pytest -q tests/test_j6_digistore24_reporting.py tests/test_j5_maxbounty_reporting.py tests/test_api_collectors_wiring.py tests/test_api_collectors_smoke.py tests/test_pr148_reporting_followups.py
