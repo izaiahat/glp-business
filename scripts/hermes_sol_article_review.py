@@ -283,6 +283,19 @@ def validate_target_args(args: argparse.Namespace) -> None:
 SESSION_DB = Path('/home/ubuntu/.hermes/state.db')
 
 
+def native_system_prompt(db, session):
+    inline = session['system_prompt'] or ''
+    digest = session['system_prompt_hash'] if 'system_prompt_hash' in session.keys() else None
+    if not digest:
+        return inline
+    row = db.execute('select prompt from system_prompts where hash=?', (digest,)).fetchone()
+    if row is None or sha_bytes(row['prompt'].encode()) != digest:
+        raise ValueError('native system prompt content hash differs')
+    if inline and inline != row['prompt']:
+        raise ValueError('native inline system prompt conflicts with content address')
+    return row['prompt']
+
+
 def authenticate_result(session_id: str, payload: str, response: str, *,
                         model: str, provider: str, effort: str, session_db=None) -> dict:
     """Read native runtime custody; receipt hashes are bindings, never authority.
@@ -298,6 +311,7 @@ def authenticate_result(session_id: str, payload: str, response: str, *,
             session = db.execute('select * from sessions where id=?', (session_id,)).fetchone()
             rows = db.execute('select id,role,content,tool_calls,timestamp from messages '
                               'where session_id=? order by id', (session_id,)).fetchall()
+            system_prompt = native_system_prompt(db, session) if session else ''
         if session is None:
             raise ValueError('reviewer session absent')
         config = json.loads(session['model_config'] or '{}')
@@ -306,7 +320,7 @@ def authenticate_result(session_id: str, payload: str, response: str, *,
                 and config.get('reasoning_config', {}).get('effort') == effort == TARGET_EFFORT
                 and config.get('max_iterations') == 1
                 and session['api_call_count'] == 1 and session['tool_call_count'] == 0
-                and SYSTEM_BRIEF in (session['system_prompt'] or '')):
+                and SYSTEM_BRIEF in system_prompt):
             raise ValueError('runtime reviewer identity/configuration differs')
         if [row['role'] for row in rows] != ['user', 'assistant'] or any(
                 json.loads(row['tool_calls'] or 'null') for row in rows):
@@ -320,7 +334,7 @@ def authenticate_result(session_id: str, payload: str, response: str, *,
                 'model': model, 'provider': provider, 'effort': effort,
                 'started_at': session['started_at'], 'ended_at': session['ended_at'],
                 'input_message_id': rows[0]['id'], 'response_message_id': rows[1]['id'],
-                'system_prompt_sha256': sha_bytes(session['system_prompt'].encode()),
+                'system_prompt_sha256': sha_bytes(system_prompt.encode()),
                 'payload_sha256': sha_bytes(payload.encode()),
                 'response_sha256': sha_bytes(advisory_output(response).encode())}
     except (OSError, sqlite3.Error, KeyError, IndexError, TypeError, ValueError) as exc:
@@ -463,6 +477,9 @@ def run_hermes(
         agent = AIAgent(**hermes_agent_kwargs(runtime, args, session_id, session_db))
         if agent.tools or agent.valid_tool_names:
             raise RuntimeError("hermes_review_tool_surface_not_empty")
+        # Open native custody before the first input timestamp; no wrapper DB writes.
+        setattr(agent, '_cached_system_prompt', getattr(agent, '_build_system_prompt')(SYSTEM_BRIEF))
+        getattr(agent, '_ensure_db_session')()
         result = agent.run_conversation(payload, system_message=SYSTEM_BRIEF)
     finally:
         try:
