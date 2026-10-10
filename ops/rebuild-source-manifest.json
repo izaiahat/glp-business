@@ -2284,7 +2284,7 @@
         "scripts/receive_one_discord_message.py"
       ],
       "kind": "script",
-      "sha256": "c9e4cd4d3fa4a7ac9cd09cce6cb152e667660cfe897cc868041edb2f8de85603"
+      "sha256": "d00694849568b8846c1ab25ec5e53de52524eb7aecbbb4676a523204435c6ad6"
     },
     "scripts/pro_relay_landing_monitor.py": {
       "callers": [],
@@ -2332,7 +2332,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "394020307e2395e5309ff21f67036a2117e8265ec90075b5b86ba02fab4ac6e1"
+      "sha256": "30545fc9fb5dc7e6c64bc62eb8f2b492afdfc819b2d3556fa853c198856a39ea"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
