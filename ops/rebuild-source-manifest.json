@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 949,
+  "tracked_count": 950,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -6423,7 +6423,7 @@
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "2394413c30fd53e2cdd3989f6de48f96d09a3a762954bbdc28b8b92d7369f45b"
+      "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
     }
   }
 }
