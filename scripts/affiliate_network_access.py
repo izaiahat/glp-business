@@ -39,6 +39,7 @@ class AccessResult:
     report_complete_period: bool = False
     declared_row_count: int | None = None  # provider envelope claim; diagnostic only, never coverage
     returned_row_count: int | None = None
+    reported_totals: dict | None = None  # source amounts, never normalized cash or verified revenue
 
     def __post_init__(self):
         if self.status not in {'SUPPORTED','PORTAL_ONLY','UNSUPPORTED','UNKNOWN'}:
@@ -128,7 +129,7 @@ def conversions_earnings(network, transport, *, start, end, deadline=None,
     import time
     from datetime import timedelta
     a, b = _window(start, end)
-    if network in ADDITIONAL_REPORTING_NETWORKS:
+    if network in ADDITIONAL_REPORTING_NETWORKS or network == 'maxbounty':
         from importlib import import_module
         return import_module('affiliate_reporting_' + network).collect(
             transport, start=start, end=end, deadline=deadline, max_requests=max_requests)
@@ -415,6 +416,7 @@ class ReadTransport:
             'api.partnerstack.com': r'/api/v2/(rewards|transactions|payouts)',
             'api.admitad.com': r'/statistics/actions/',
             'api.clickbank.com': r'/rest/1\.3/quickstats/list',
+            'api.maxbounty.com': r'/affiliates/api/(affiliate|reports/(earnings|conversions|reversals)|accountBalance/[0-9]{4})',
         }
         post = {'https://commissions.api.cj.com/query', 'https://api.katalys.com/v1/report/conversions',
                 'https://graphql.refersion.com', 'https://api.eflow.team/v1/affiliates/reporting/conversions'}
