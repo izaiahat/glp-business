@@ -57,7 +57,9 @@ def notice_chunks(report):
     if not lines:
         return []
     digest = hashlib.sha256(json.dumps(lines, separators=(',',':')).encode()).hexdigest()
-    header = 'Linear audit '+digest+'\n'
+    # Delivery-scope upgrade is a new producer edition, not a replay of old
+    # uncertain bytes. Same-edition intents retain the existing exact fence.
+    header = 'Linear audit v2 '+digest+'\n'
     chunks, current = [], header
     for line in lines:
         require(len(header)+len(line)+1 <= 1900)
