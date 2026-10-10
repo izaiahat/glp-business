@@ -8,8 +8,15 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 980,
+  "tracked_count": 981,
   "files": {
+    "ops/hermes-cron-scripts/s1_glp125_queued_reply.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes one-shot S1 Monday Nu Image queue"
+      ],
+      "sha256": "fbf25df0ce07356c83b10ee9064457d4903222376d3aa1faa46e3c4f8ed6d524"
+    },
     "scripts/glp_sponsor_nuimage_reply.py": {
       "kind": "script",
       "callers": [
