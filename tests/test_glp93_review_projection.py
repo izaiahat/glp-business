@@ -1,4 +1,5 @@
 """Q6 named renderer/producer regressions. Offline synthetic captures only."""
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -9,8 +10,22 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-import build_glp_affiliate_wirein_incremental_v2 as builder
 import glp_review_editorial_projection as projection
+
+# The constructor has uncurated host-only eager imports. Execute its unchanged
+# pure citation-projection AST, with only its maintained helper dependency.
+# This is function-level CI, not native authoring/adoption acceptance. Q7 also
+# exercises the complete real host producer against authenticated Q4 captures.
+import types
+builder = types.ModuleType('review_producer_pure_fixture')
+builder.__dict__.update(captured_review_sources=projection.captured_review_sources,
+                        project_review_inputs=projection.project_review_inputs,
+                        normalize_provider_review_editorial_source=projection.normalize_provider_review_editorial_source)
+producer_tree = ast.parse((ROOT / 'scripts/build_glp_affiliate_wirein_incremental_v2.py').read_text())
+nodes = [node for node in producer_tree.body if isinstance(node, ast.FunctionDef)
+         and node.name == 'canonical_field_sources']
+assert len(nodes) == 1
+exec(compile(ast.Module(body=nodes, type_ignores=[]), 'maintained-producer-pure-fixture', 'exec'), builder.__dict__)
 
 
 class ReviewProjectionTests(unittest.TestCase):
