@@ -1748,27 +1748,38 @@ def _cmd_fetch_outbox(a) -> int:
         expected = text.encode() if st.get('reply_serialization') == 'raw_utf8' else (text + '\n').encode()
         need(local == expected, 'local reply differs')
         marker = re.fullmatch(r'(.*\n)RELAY_OUTPUT_MANIFEST_SHA256=([0-9a-f]{64})\s*', text, re.S)
-        svc = drive()
-        folders = drive_list_all(svc, f"'{cfg['drive']['outbox_id']}' in parents and name = '{a.job}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
-        if not folders:
-            # Exact-parent, fully paginated zero folders proves absence even if
-            # Pro never emitted a manifest marker. It does NOT authorize payload
-            # recovery; any nonzero folder still requires the final-chat receipt.
-            st['fetch_verification'] = {'state': 'ABSENT', 'reason': 'zero folders under configured outbox',
-                                        'source_reply_sha256': sha, 'at': now_iso()}
-            st['tab'] = r['tab']
-            job_write(a.job, st)
-            print(f'OUTBOX_ABSENT_VERIFIED job={a.job} advisory_response={JOBS / a.job / "RESPONSE.md"}')
-            return 10
-        need(marker, 'missing final-chat manifest receipt')
-        need(len(folders) == 1, 'ambiguous/missing folder')
-        files = drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")
-        names = [f['name'] for f in files]
+        download_dir = getattr(a, 'download_dir', None)
+        if download_dir is not None:
+            need(marker, 'missing final-chat manifest receipt')
+            directory = Path(download_dir)
+            need(not any(p.is_symlink() for p in (directory, *directory.parents)), 'download symlink')
+            need(directory.is_dir(), 'missing download directory')
+            by_name = {p.name: p for p in directory.iterdir()}
+            need(all(p.is_file() and not p.is_symlink() for p in by_name.values()), 'download non-file')
+            names = list(by_name)
+            read_artifact = lambda name: by_name[name].read_bytes()
+        else:
+            svc = drive()
+            folders = drive_list_all(svc, f"'{cfg['drive']['outbox_id']}' in parents and name = '{a.job}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+            if not folders:
+                st['fetch_verification'] = {'state': 'ABSENT', 'reason': 'zero folders under configured outbox',
+                                            'source_reply_sha256': sha, 'at': now_iso()}
+                st['tab'] = r['tab']
+                job_write(a.job, st)
+                print(f'OUTBOX_ABSENT_VERIFIED job={a.job} advisory_response={JOBS / a.job / "RESPONSE.md"}')
+                return 10
+            need(marker, 'missing final-chat manifest receipt')
+            need(len(folders) == 1, 'ambiguous/missing folder')
+            files = drive_list_all(svc, f"'{folders[0]['id']}' in parents and trashed = false")
+            names = [f['name'] for f in files]
+            by_name = {f['name']: f for f in files}
+            def read_artifact(name):
+                need(not by_name[name]['mimeType'].startswith('application/vnd.google-apps'), 'native document')
+                return svc.files().get_media(fileId=by_name[name]['id']).execute()
         need(len(names) == len(set(names)), 'duplicate filenames')
         need(all(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,159}', n) for n in names), 'unsafe filename')
-        by_name = {f['name']: f for f in files}
         need('OUTPUT-MANIFEST.json' in by_name, 'missing manifest')
-        raw = svc.files().get_media(fileId=by_name['OUTPUT-MANIFEST.json']['id']).execute()
+        raw = read_artifact('OUTPUT-MANIFEST.json')
         need(hashlib.sha256(raw).hexdigest() == marker[2], 'manifest receipt hash')
         manifest = json.loads(raw)
         need(manifest.get('job') == a.job, 'job/conversation')
@@ -1792,8 +1803,7 @@ def _cmd_fetch_outbox(a) -> int:
         blobs = {'OUTPUT-MANIFEST.json': raw}
         for name, digest in declared.items():
             need(isinstance(digest, str) and re.fullmatch(r'[0-9a-f]{64}', digest), 'invalid hash')
-            need(not by_name[name]['mimeType'].startswith('application/vnd.google-apps'), 'native document')
-            data = svc.files().get_media(fileId=by_name[name]['id']).execute()
+            data = read_artifact(name)
             need(hashlib.sha256(data).hexdigest() == digest, 'file hash ' + name)
             blobs[name] = data
         # Recheck final chat after downloads; never promote a stale/sibling result.
@@ -1814,7 +1824,8 @@ def _cmd_fetch_outbox(a) -> int:
                 os.replace(stage, dest)
         st.update(tab=final['tab'], outbox_files=sorted(blobs), fetch_verification={
             'state': 'VERIFIED', 'conversation_id': st['conversation_id'], 'source_reply_sha256': sha,
-            'manifest_sha256': marker[2], 'verified_at': now_iso()})
+            'manifest_sha256': marker[2], 'verified_at': now_iso(),
+            'artifact_source': 'native_downloads' if download_dir is not None else 'drive'})
         job_write(a.job, st)
         print(f'FETCHED_VERIFIED job={a.job} conversation={st["conversation_id"]} files={len(blobs)} -> {dest}')
         return 0
@@ -2197,11 +2208,19 @@ print('RELAY_JSON:'+json.dumps({'cleared':isinstance(left['text'],str) and not l
         return 0
 
 
-def _retained_empty_witness(tab, time_origin):
-    """Read the existing document only; never activate, navigate or modify its page."""
-    # Share the sender's exact logical emptiness contract before any one-shot
-    # custody write. Unsupported shapes and whitespace-only text must refuse.
-    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + COMPOSER_TEXT_JS + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()''')
+def _retained_empty_witness(tab, time_origin, *, disposition_only=False):
+    """Read the existing document only; never activate, navigate or modify its page.
+
+    Terminal disposition is NOT send readiness: an owned, never-inserted job
+    can be retired on the captured empty Codex root. Keep the sender's reader
+    unchanged; only the disposition caller recognizes this exact placeholder.
+    Complete custody/ledger proofs are checked before this passive observation.
+    """
+    reader = COMPOSER_TEXT_JS
+    if disposition_only:
+        reader = reader.replace("p.getAttribute('data-placeholder')==='Ask ChatGPT'",
+            "['Ask ChatGPT','Work with ChatGPT'].includes(p.getAttribute('data-placeholder'))")
+    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + reader + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length,transcript_count:document.querySelectorAll('[data-message-author-role], [data-chatgpt-selection-message-id]').length,stop:!!document.querySelector('button[data-testid="stop-button"],button[aria-label="Stop generating"]')};})()''')
     witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\nextra={extra!r}\n' + '''
 before=[t['targetId'] for t in list_tabs()]
 if tab not in before: _binding_error('retained_target_missing', tab=tab)
@@ -2225,7 +2244,8 @@ print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':las
                  'stop', 'drive_reconnect', 'thinking_failed')) and
             first == last and first.get('url') == 'https://chatgpt.com/' and
             first.get('time_origin') == time_origin and
-            first.get('composer_empty') is True and first.get('user_count') == 0)
+            first.get('composer_empty') is True and first.get('user_count') == 0 and
+            first.get('transcript_count') == 0 and first.get('stop') is False)
 
 
 def _reconcile_unsent_readiness(job, cfg, st, path, preimage, report_path, apply, account, inspect_only=False):
@@ -3077,11 +3097,13 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
         refuse('ADMISSION')
     # Pre-insert incidents retain strict-empty proof. The one post-insertion
     # guard refusal instead preserves the exact populated draft, never clears it.
-    if c.get('postinsert_guard'):
-        if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+    def tab_recheck():
+        if c.get('postinsert_guard'):
+            if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+                refuse('TAB_EVIDENCE')
+        elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin'], disposition_only=True):
             refuse('TAB_EVIDENCE')
-    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin']):
-        refuse('TAB_EVIDENCE')
+    tab_recheck()
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
                 any((path.parent / name).exists() for name in ('RESPONSE.md', 'outbox')) or _legacy_live_jobs()):
@@ -3096,6 +3118,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
     try: os.fsync(fd)
     finally: os.close(fd)
+    tab_recheck()
     recheck()
     event = _terminal_unsent_event(st, report, custody[(BUSINESS / report).resolve()], now_iso())
     ledger_append(cfg, {**event, 'phase': 'STARTED'})
@@ -3516,13 +3539,17 @@ def _cmd_submit(a) -> int:
         separators=(',', ':')).encode()).hexdigest()
     reply_token = secrets.token_hex(32)
     text += (f'\n\nRELAY_IDENTITY job={a.job} input_sha256={input_sha} reply_token={reply_token}\n'
-             'For Drive files supply OUTPUT-MANIFEST.json with schema="gpt6pro-output-manifest-v2", '
+             'For output files in either channel supply OUTPUT-MANIFEST.json with schema="gpt6pro-output-manifest-v2", '
              'job, input_sha256, reply_token (copy the exact values above), and files (object mapping '
              'payload basename to SHA256 of the exact saved file bytes; exclude OUTPUT-MANIFEST.json itself). '
              'Do NOT include conversation_id: the relay verifies the actual chat URL, which you cannot know '
              'from the prompt. Do NOT include source_reply_sha256: the browser-rendered final reply may differ '
              'from the text you composed; the relay verifies its own exact captured reply hash. '
-             'Append RELAY_OUTPUT_MANIFEST_SHA256=<SHA256 of exact uploaded OUTPUT-MANIFEST.json bytes> '
+             'Choose one authoritative output channel: Drive or native downloads. Never produce a second revised '
+             'copy after hashing the first. Read back and hash the exact final manifest and payload bytes in '
+             'the chosen channel; identify the channel in the reply. The host must not reserialize a manifest '
+             'or reconstruct payload bytes from rendered chat. Earlier unbound copies remain unauthenticated. '
+             'Append RELAY_OUTPUT_MANIFEST_SHA256=<SHA256 of exact final authoritative OUTPUT-MANIFEST.json bytes> '
              'as the LAST line of your reply. Never invent hashes or save a manifest whose bytes you did not hash.\n')
     (d / "MESSAGE.md").write_text(text)
     reservation = {'job': a.job, 'job_class': a.job_class, 'account': acct['label'],
@@ -3793,6 +3820,7 @@ def main() -> int:
     s.add_argument("--interval", type=int, default=30)
     s.add_argument("--max-wait", type=int, default=3600)
     fo = sub.add_parser("fetch-outbox"); fo.add_argument("--job", required=True)
+    fo.add_argument('--download-dir', type=Path, help='exact original native downloads; same final-chat hash/token/payload checks, never rewrite Drive artifacts')
     f = sub.add_parser("followup")
     f.add_argument("--job", required=True)
     f.add_argument("--text-file", help="message text; default = resume-after-disconnect")
