@@ -84,8 +84,8 @@ def parse_sections(body: str) -> tuple[list[dict[str, Any]], list[dict[str, str]
     return sections, faqs
 
 
-def r2_publication_date(authority: dict[str, Any]) -> str | None:
-    """Read first-publication truth from the sealed predecessor, not frontmatter."""
+def r2_original_article(authority: dict[str, Any]) -> dict[str, Any] | None:
+    """Authenticate the exact regular-file predecessor for R2 metadata."""
     if authority.get('operation') != 'r2_refresh' or not authority.get('existing_article'):
         return None
     e = authority['existing_article']
@@ -109,6 +109,14 @@ def r2_publication_date(authority: dict[str, Any]) -> str | None:
             or a.get('article_id') != authority.get('existing_article_id')
             or a.get('canonical_path') != e.get('canonical_path')):
         raise RuntimeError('r2_publication_article_binding_invalid')
+    return a
+
+
+def r2_publication_date(authority: dict[str, Any]) -> str | None:
+    """Read first-publication truth from the sealed predecessor, not frontmatter."""
+    a = r2_original_article(authority)
+    if a is None:
+        return None
     value = a.get('date_published') or a.get('updated_at')
     if not isinstance(value, str) or re.fullmatch(r'\d{4}-\d{2}-\d{2}', value) is None:
         raise RuntimeError('r2_publication_date_invalid')
@@ -275,6 +283,11 @@ def compile_packet(packet: Path) -> dict[str, Any]:
                             "clinical_reviewer": None, "clinical_credentials_claimed": False},
     }
     if operation == "r2_refresh":
+        from existing_article_updates import preserve_r2_route_governance
+        predecessor = r2_original_article(authority)
+        if predecessor is None:
+            raise RuntimeError('r2_predecessor_required')
+        result = preserve_r2_route_governance(predecessor, result)
         result["r2_contract"] = authority["r2_contract"]
     return result
 

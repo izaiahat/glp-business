@@ -172,7 +172,7 @@ jobs:
           .venv/bin/python -m pip install 'Pillow==11.3.0'
           .venv/bin/python -m pytest -q systems/seo-blog-machine/tests/test_glp73_image_lineage_fallback.py systems/seo-blog-machine/tests/test_text_only_image_fallback.py
       - name: GLP-76 host transport acceptance (no network or updater execution)
-        run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py tests/test_updater_registry_projection.py tests/test_seo_weekly_governance.py tests/test_weekly_strategy_updater_adoption.py
+        run: .venv/bin/python -m pytest -q tests/test_glp76_host_transport.py tests/test_updater_registry_projection.py tests/test_seo_weekly_governance.py tests/test_weekly_strategy_updater_adoption.py tests/test_r2_compiler_governance.py
       - name: GLP-85 CJ parent existing-account evidence mapping (offline, no financial event)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
