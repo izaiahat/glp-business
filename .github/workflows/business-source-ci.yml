@@ -64,17 +64,18 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -B -m unittest discover -s tests -p test_glp93_review_projection.py -v
           python3 -B -m unittest discover -s tests -p test_glp93_surface_inputs.py -v
-      - name: Q11 GLP93 capture-root regression (synthetic offline, exact head; no runtime effects)
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          python3 -B -m unittest discover -s tests -p test_glp93_capture_roots.py -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: Q11 GLP93 capture-root regression (synthetic offline, exact head; no runtime effects)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          .venv/bin/python -m pip install 'google-auth==2.55.1' 'google-api-python-client==2.194.0'
+          .venv/bin/python -B -m unittest discover -s tests -p test_glp93_capture_roots.py -v
       - name: Pro relay root surface and terminal hydration (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
