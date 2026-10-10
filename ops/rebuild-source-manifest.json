@@ -356,7 +356,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "24129c4291528d5741053736515767b967a21d5d4ccb35fe652941b5914d0f31"
+      "sha256": "f6d454292309b04ee9614e4a6ae62b9dc3b8261d1cc589571f1fcb50f99f96c6"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3"
+      "sha256": "2e7b0ac841036e704eea45590c1202099cf43fe722b4ecd25db0681dbcffd994"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2715,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "416279253568368bfe3ab2e297141a688f026b96d422e34243b74710a411ccee"
+      "sha256": "0d9ac333ee8ee05dc80b6c5925c81d42a1d71a75e8b8cfdf0fb58ee503b128c2"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
