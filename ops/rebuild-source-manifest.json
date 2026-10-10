@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 973,
+  "tracked_count": 975,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -356,7 +356,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "f6d454292309b04ee9614e4a6ae62b9dc3b8261d1cc589571f1fcb50f99f96c6"
+      "sha256": "996986427ff721fadd05db2ad3841849a4c1d6b787cee7406bb1504c3044e232"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -642,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "8d86ab5591304b334a202511cce2e336774f67d06b6ecd0b35859b5ca26f7466"
+      "sha256": "8c124d8f710bf7fae749e0c124b5f44bdfb5f696ae902992edf13c4cd099807e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "2e7b0ac841036e704eea45590c1202099cf43fe722b4ecd25db0681dbcffd994"
+      "sha256": "eba80295ff77d8fef4f22d7b6f26b0a9ca6d9ca31eb6447bb86702f9bbeebee3"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2715,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "0d9ac333ee8ee05dc80b6c5925c81d42a1d71a75e8b8cfdf0fb58ee503b128c2"
+      "sha256": "5e089d12d9fc2c3bf2ad14372887c3810d3bdb335926b7349700c287b3e10bc6"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
@@ -6425,6 +6425,34 @@
       ],
       "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
     },
+    "tests/test_pro_root_home.py": {
+      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
+    },
+    "tests/test_pro_terminal_hydration.py": {
+      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
+    },
+    "scripts/glp_maxbounty_identity_capture.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_maxbounty_lane.py"
+      ],
+      "sha256": "52d176249707e1d7acb917950d497e439050b5ba4ae2a3b0e82fc50787e15ecd"
+    },
+    "tests/test_maxbounty_identity_capture_transport.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "e86da8840557ad6762d71920eedc798e9fc67ba265c6675575da27b84a8e1b5f"
+    },
+    "tests/test_discord_rate_rejection.py": {
+      "callers": [
+        "post_discord_message",
+        "linear_audit"
+      ],
+      "kind": "test",
+      "sha256": "395ee8dca5bf0a7647c1aaaedd5948e900152572ae4f76534875922f51c11479"
+    },
     "scripts/affiliate_reporting_maxbounty.py": {
       "kind": "script",
       "callers": [
@@ -6460,28 +6488,6 @@
       ],
       "sha256": "6f78fc1dc3f71b5224485728b123c16d113f113c354a82e97e8e6b265a9a0e32"
     },
-    "scripts/glp_maxbounty_identity_capture.py": {
-      "kind": "script",
-      "callers": [
-        "scripts/glp_maxbounty_lane.py"
-      ],
-      "sha256": "52d176249707e1d7acb917950d497e439050b5ba4ae2a3b0e82fc50787e15ecd"
-    },
-    "tests/test_maxbounty_identity_capture_transport.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "e86da8840557ad6762d71920eedc798e9fc67ba265c6675575da27b84a8e1b5f"
-    },
-    "tests/test_discord_rate_rejection.py": {
-      "callers": [
-        "post_discord_message",
-        "linear_audit"
-      ],
-      "kind": "test",
-      "sha256": "395ee8dca5bf0a7647c1aaaedd5948e900152572ae4f76534875922f51c11479"
-    },
     "scripts/affiliate_network_access_j5.py": {
       "kind": "script",
       "callers": [
@@ -6502,6 +6508,20 @@
         "hermes:aadf6677c7f0"
       ],
       "sha256": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9"
+    },
+    "tests/inbox_notice_loader.py": {
+      "kind": "test",
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "sha256": "c8a0991c45345103b0ed1ede69a8621a59be37f39b42bcf93b72e1cf7ab73ffd"
+    },
+    "tests/test_katalys_contract_terms_notice.py": {
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "01a16355097910dce3bb27acd75c5781a1008558e073c186cda566890ae0208f"
     },
     ".github/workflows/j6-reporting.yml": {
       "callers": [
@@ -6558,12 +6578,6 @@
       ],
       "kind": "test",
       "sha256": "e5070c5275be9ed23a41d3058734148af1916f307ea86ba0ed5e995dab0f90c6"
-    },
-    "tests/test_pro_root_home.py": {
-      "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
-    },
-    "tests/test_pro_terminal_hydration.py": {
-      "sha256": "ea3f37511a67b355921f9da22fc4febcf88d70b72fb196d811c5950df792fda4"
     },
     "scripts/affiliate_reporting_affiliati_j6.py": {
       "kind": "script",

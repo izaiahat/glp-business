@@ -6,11 +6,8 @@ from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import MagicMock
 
-SPEC = importlib.util.spec_from_file_location(
-    'cancellation_reconciler', Path(__file__).resolve().parents[1] / 'scripts/affiliate_approval_auto_reconciler.py')
-reconciler = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(reconciler)
-import glp_sheet_sync_drain as drain
+from tests.inbox_notice_loader import load
+reconciler = load()
 
 
 def test_cancellation_email_dry_run_status_update(tmp_path, monkeypatch):
