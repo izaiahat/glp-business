@@ -48,6 +48,56 @@ def strict(text):
     return json.loads(text, object_pairs_hook=unique)
 
 
+HOME = Path('/home/ubuntu/.hermes')
+PROC = Path('/proc')
+
+
+def process_identity(pid):
+    """Kernel launch metadata, not mutable receiver environment overrides."""
+    base = PROC / str(pid)
+    stat = (base/'stat').read_text().rsplit(')', 1)[1].split()
+    env = dict(x.split('=', 1) for x in (base/'environ').read_bytes().decode().split('\0') if '=' in x)
+    return {'pid': int(pid), 'ppid': int(stat[1]), 'start': stat[19],
+            'argv': (base/'cmdline').read_bytes().decode().rstrip('\0').split('\0'), 'env': env}
+
+
+def live_coordinator():
+    """Resolve the single default-profile live TUI and its current root session.
+
+    This is a local custody guard, not a security boundary against a same-UID
+    process that can rewrite the session database, /proc memory or this source.
+    A restart/session switch invalidates receiving; do not replay old receipts.
+    """
+    import sqlite3
+    found = []
+    for base in PROC.iterdir():
+        if not base.name.isdigit():
+            continue
+        try:
+            row = process_identity(base.name)
+            if row['argv'] != [str(HOME/'hermes-agent/venv/bin/python'), '-m', 'tui_gateway.entry']:
+                continue
+            if row['env'].get('HERMES_HOME') != str(HOME):
+                continue
+            active = Path(row['env']['HERMES_TUI_ACTIVE_SESSION_FILE'])
+            if active.is_symlink() or active.parent.resolve() != (HOME/'cache/scratch').resolve():
+                continue
+            session = strict(active.read_text())['session_id']
+            with sqlite3.connect(f'file:{HOME / "state.db"}?mode=ro', uri=True) as db:
+                entry = db.execute('SELECT parent_session_id, source FROM sessions WHERE id=?', (session,)).fetchone()
+            if not entry or entry[0] is not None or entry[1] not in ('cli', 'tui', 'claude-code'):
+                continue
+            if process_identity(base.name) != row or strict(active.read_text())['session_id'] != session:
+                continue
+            found.append({'pid': row['pid'], 'start': row['start'], 'session_id': session,
+                          'active_file': str(active)})
+        except (OSError, ValueError, KeyError, sqlite3.Error):
+            continue
+    if len(found) != 1:
+        raise RuntimeError('current_coordinator_execution_required:live_TUI_ambiguous_or_missing')
+    return found[0]
+
+
 def current_authority(c):
     plan = strict((c.ROOT / PLAN).read_text())
     if plan.get('schema') != 'glp-fable-plan-2-v1' or plan.get('executor_keys', {}).get('coordinator') != 'TUI or auto-coordinator cron acting on fleet-inbox rows':
@@ -55,19 +105,34 @@ def current_authority(c):
     decision = (c.ROOT / DECISION).read_text()
     if 'GO at 25/day' not in decision or 'Mon-Fri 06:00-17:00 America/Los_Angeles' not in decision:
         raise RuntimeError('current_operator_decision_missing')
-    return {'plan_sha256': c.digest(c.ROOT / PLAN), 'decision_sha256': c.digest(c.ROOT / DECISION)}
+    return {'plan_sha256': c.digest(c.ROOT / PLAN), 'decision_sha256': c.digest(c.ROOT / DECISION),
+            'coordinator': live_coordinator()}
 
 
 def require_coordinator_execution():
-    # Current live TUI identity is resolved now, never a named historical actor.
-    # A leaf inherits the active-session pointer but has its own session ID.
-    active = os.environ.get('HERMES_TUI_ACTIVE_SESSION_FILE', '')
-    session = os.environ.get('HERMES_SESSION_ID', '')
-    if os.environ.get('LINEAR_ROLE') != 'orchestrator' or not active or not session:
-        raise RuntimeError('current_coordinator_execution_required')
-    if strict(Path(active).read_text()).get('session_id') != session:
-        raise RuntimeError('current_coordinator_execution_required')
-    return session
+    try:
+        current = live_coordinator()
+        session = current['session_id']
+        if (os.environ.get('LINEAR_ROLE') != 'orchestrator'
+            or os.environ.get('HERMES_SESSION_ID') != session
+            or os.environ.get('HERMES_TUI_ACTIVE_SESSION_FILE') != current['active_file']):
+            raise ValueError('caller_identity')
+        # Find the actual terminal launched by the backend. Shell exports in a
+        # leaf command cannot rewrite its original kernel environment.
+        pid, seen = os.getppid(), set()
+        while pid > 1 and pid not in seen:
+            seen.add(pid)
+            row = process_identity(pid)
+            if row['ppid'] == current['pid']:
+                if (row['env'].get('HERMES_SESSION_ID') != session
+                    or row['env'].get('HERMES_TUI_ACTIVE_SESSION_FILE') != current['active_file']
+                    or live_coordinator() != current):
+                    raise ValueError('terminal_identity')
+                return session
+            pid = row['ppid']
+    except (OSError, ValueError, KeyError):
+        pass
+    raise RuntimeError('current_coordinator_execution_required')
 
 
 def packet_binding(c, packet, config):
@@ -120,6 +185,22 @@ def packet_binding(c, packet, config):
     return manifest
 
 
+SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S1/SOURCE-REVIEW.json'
+
+
+def reviewed_source_head(c):
+    review = strict((c.ROOT/SOURCE_REVIEW).read_bytes())
+    pins = {'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
+            'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
+            'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py'}
+    head = review.get('reviewed_source_head', '')
+    if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] == 'S1'
+        or not re.fullmatch('[0-9a-f]{40}', head)
+        or any(review.get(key) != c.digest(c.ROOT/name) for key, name in pins.items())):
+        raise RuntimeError('independent_installed_source_review_required')
+    return head
+
+
 def approval_ready(c, config):
     path = c.STATE / RECEIPT
     if not path.exists():
@@ -129,13 +210,15 @@ def approval_ready(c, config):
     fields = {'schema','actor','coordinator_authority','receiving_session_id','packet_sha256',
               'decision','reviewed_source_head','installed_bindings'}
     sha = c.digest(packet)
-    # Validate cheap receipt identity before resolving installed packet content.
+    # Bind both receipt copies to the currently live coordinator, not a name
+    # or merely well-formed historical session string.
+    authority = current_authority(c)
     if (set(receipt) != fields or receipt.get('schema') != SCHEMA or receipt.get('actor') != 'coordinator'
-        or receipt.get('coordinator_authority') != current_authority(c)
-        or not re.fullmatch(r'[A-Za-z0-9_\-]{8,100}', receipt.get('receiving_session_id',''))
+        or receipt.get('coordinator_authority') != authority
+        or receipt.get('receiving_session_id') != authority['coordinator']['session_id']
         or receipt.get('packet_sha256') != sha or config.get('packet_sha256') != sha
         or receipt.get('decision') != 'RECEIVE CURRENT SPONSOR PACKET ' + sha
-        or not re.fullmatch(r'[0-9a-f]{40}', receipt.get('reviewed_source_head',''))):
+        or receipt.get('reviewed_source_head') != reviewed_source_head(c)):
         raise RuntimeError('current_coordinator_receiving_invalid')
     if strict((c.STATE/'approval.json').read_bytes()) != receipt:
         raise RuntimeError('current_coordinator_receiving_invalid:approval_binding_disagree')
@@ -154,7 +237,7 @@ def receive(c, packet_sha256, source_head, result):
         if result.exists() or (c.STATE / RECEIPT).exists():
             raise RuntimeError('current_receipt_exists_inspect_do_not_overwrite')
         packet = c.ROOT / PACKET
-        if c.digest(packet) != packet_sha256 or not re.fullmatch(r'[0-9a-f]{40}', source_head):
+        if c.digest(packet) != packet_sha256 or source_head != reviewed_source_head(c):
             raise RuntimeError('current_receiving_exact_head_or_packet_changed')
         config = c.load(c.CONFIG)
         config.update(send_enabled=True, packet_sha256=packet_sha256)

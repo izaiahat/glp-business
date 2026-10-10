@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT=Path('/home/ubuntu/business')
 LANE=ROOT/'reports/ops/fable-plan-2-20261009/lanes/S1'
 SOURCE=ROOT/'scripts/glp_sponsor_nuimage_reply.py'
-PIN='c2d102717d6ffe8c4df4625075134e6e8ba3c07bc308a6406dd643fbd68eca94'
+PIN='4a80776331b998ba1f327f92e93264194525d1dde4869009d3b087288fc73473'
 REVIEW=LANE/'SOURCE-REVIEW.json'
 def main():
     if not SOURCE.is_file() or hashlib.sha256(SOURCE.read_bytes()).hexdigest()!=PIN:

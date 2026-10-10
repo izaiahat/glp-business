@@ -15,21 +15,21 @@
       "callers": [
         "Hermes one-shot S1 Monday Nu Image queue"
       ],
-      "sha256": "861aa837efbf70186c4276ffebcefb7e1e74afa04e7a84dfaacacd86015ff13b"
+      "sha256": "9d884739a035543fa29e0b7efe9c9b80f14d0344d306129a95431bc5656fb22f"
     },
     "scripts/glp_sponsor_nuimage_reply.py": {
       "kind": "script",
       "callers": [
         "S1 authorized queued Nu Image reply"
       ],
-      "sha256": "c2d102717d6ffe8c4df4625075134e6e8ba3c07bc308a6406dd643fbd68eca94"
+      "sha256": "4a80776331b998ba1f327f92e93264194525d1dde4869009d3b087288fc73473"
     },
     "tests/test_glp_sponsor_nuimage_reply.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "9b044d610eb36487096b3e72baf1613202e9a319fa6682b4d96fb8ee711305f5"
+      "sha256": "0134278c02dcf8e88ce9bc13258bcde7d694f265ed5445225502dcf5b7ac29c3"
     },
     ".github/workflows/s1-current-sponsor-receiving.yml": {
       "kind": "config",
@@ -44,14 +44,14 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "615aa45267e02bc6460069e1c2613f3c9a4716f031653808b3d753e197e53914"
+      "sha256": "2f738895919deac524d20c0a4d434f1d4e3607e248fee6cb4ea98edbaf5f5d15"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "7f545e10b558e2ef4df3a4e0f74a3eca118908f35707bf190e59c0ed2d4d7577"
+      "sha256": "419ce138cf623ddf11ca6083dce866870e71ce4a771d21ddc176dbc8383e9998"
     },
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -4689,7 +4689,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "fc13caa23c4f93b059c905f071cc2fa8a2089d72c03c36864828c5cc10bc03ea"
+      "sha256": "2e4b978caedaa45ae3291d30b94de4c67815b1d86d80daab504ae16c87530e8b"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -4703,7 +4703,7 @@
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "4cea936fed34d97a58586978296d4787e4883019c7323035e10f42b2c26e6b2a"
+      "sha256": "8f83a095d4ec3e470020321aabcaad0f75936c73c7543a0265f34314826997b8"
     },
     "ops/sponsor-machine/README.md": {
       "kind": "source_control",

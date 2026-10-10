@@ -83,8 +83,9 @@ def run(send=False):
                 if hashlib.sha256(body.encode()).hexdigest()==BODY_SHA or ('Our proposed sponsor pilot is $750' in body and 'Hi Andreas,' in body):
                     matches.append(item['id'])
             elif 'DRAFT' not in labels and int(row.get('internalDate','0'))>int(source.get('internalDate','0')):
-                if any(v in body.lower() for v in ('stop emailing','unsubscribe','do not contact','not interested','spam complaint')):
-                    raise RuntimeError('later_adverse_inbound')
+                # Any new inbound invalidates the approved response context,
+                # including a bare STOP or an unclassified change of mind.
+                raise RuntimeError('later_inbound_requires_review')
         if matches:
             return dict(status='ALREADY_SENT_DO_NOT_RESEND',message_ids=matches,sends=0)
         if JOURNAL.exists():
@@ -97,6 +98,10 @@ def run(send=False):
             or parseaddr(str(message['To']))[1].lower()!=TO
             or str(message['Subject'])!=queue['subject']
             or str(message['In-Reply-To']).strip()!=queue['source_rfc_message_id']
+            or message.is_multipart() or message.get_content_type() != 'text/plain'
+            or message.defects
+            or any(len(message.get_all(key, [])) != 1 for key in ('From','To','Subject','In-Reply-To'))
+            or any(key.lower() in ('cc','bcc','resent-to','resent-cc','resent-bcc','resent-from','sender') for key in message.keys())
             or list(message.iter_attachments())):
             raise RuntimeError('draft_exact_bytes_thread_or_identity_changed')
         assert_raw_rfc822_dash_free(wire,context='GLP125-exact-approved-draft')
@@ -106,7 +111,10 @@ def run(send=False):
         if not send:return result
         c.save(JOURNAL,dict(result,status='SUBMISSION_STARTED',claimed_at=c.stamp(),body_sha256=BODY_SHA))
         require_schedule()
-        sent=client.service.users().drafts().send(userId='me',body={'id':queue['draft_id']}).execute(num_retries=0)
+        # Gmail supports supplying the validated MIME bytes in drafts.send;
+        # sending only its mutable ID would race a concurrent draft edit.
+        sent=client.service.users().drafts().send(userId='me',body={'id':queue['draft_id'],
+            'message':{'raw':base64.urlsafe_b64encode(wire).decode(), 'threadId':THREAD}}).execute(num_retries=0)
         c.save(JOURNAL,dict(result,status='SUBMITTED_READBACK_PENDING',message_id=sent['id'],sends=1))
         got=client.get_message(sent['id'],format='raw');verified,body=parsed_body(raw_message(got))
         if ('SENT' not in got.get('labelIds',[]) or got['threadId']!=THREAD

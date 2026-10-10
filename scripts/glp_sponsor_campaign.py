@@ -247,6 +247,13 @@ def footer(config):
  address=config.get('postal_address','').strip()
  return f"\nIzaiah Tilton\nGLP Clinic Scout | operated by Tilton Group LLC\nhttps://glpclinicscout.com\n{address or '[VERIFIED BUSINESS POSTAL ADDRESS REQUIRED BEFORE SEND]'}\n\nThis is a sponsorship proposal. Reply STOP or unsubscribe to opt out. Any reply pauses this sequence."
 
+def organization_display(value):
+ # Preserve raw registry/offer evidence; remove only display dashes authorized
+ # for this campaign. Never scrub the completed message to bypass its guard.
+ from inbox_control_plane.outbound_style_guard import DASH_CHARS
+ return re.sub(' *['+re.escape(DASH_CHARS)+']+ *',' ',value)
+
+
 def render(recipient,stage,config):
  copy=load(ROOT/'ops/sponsor-machine/copy.json')
  relation=recipient.get('relationship',{'variant':'cold'})
@@ -258,8 +265,8 @@ def render(recipient,stage,config):
    variant=relation['variant']
   item=copy['variants'][variant][stage]
  else:item=copy['sequence'][stage]
- body=item['body'].replace('{organization}',recipient['organization']).replace('{network}',relation.get('network',''))+footer(config)
- subject=item['subject'].replace('{organization}',recipient['organization'])
+ body=item['body'].replace('{organization}',organization_display(recipient['organization'])).replace('{network}',relation.get('network',''))+footer(config)
+ subject=item['subject'].replace('{organization}',organization_display(recipient['organization']))
  if '\u2014' in body or '\u2013' in body or '\u2014' in item['subject']:raise RuntimeError('outbound_dash_rule')
  return {'to':recipient['email'],'from':SENDER,'subject':subject,'variant':variant,'body':body,'stage':stage,'attachments':['rate-card.pdf','placement-template.pdf','promo-page-preview.pdf']}
 
@@ -762,7 +769,7 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
   event=entry['stop_event_id']
   item=load(ROOT/'ops/sponsor-machine/copy.json')['interested_next_step']
   preview={'to':email,'from':SENDER,'subject':item['subject'],
-           'body':item['body'].replace('{organization}',entry['organization'])+footer(config),'attachments':[]}
+           'body':item['body'].replace('{organization}',organization_display(entry['organization']))+footer(config),'attachments':[]}
   client=service('send')
   # Authentication can take time. Re-read current registry and suppression at
   # the same final boundary as invoice admission; canonical opt-outs win next.
