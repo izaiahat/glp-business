@@ -6639,7 +6639,12 @@
       ],
       "kind": "script",
       "sha256": "3ad7c99968d0d243dd08c4f0ad96351e9d0f33a49d8eda55df535b250bda9266"
-    }
+    },
+    "scripts/affiliate_network_access_j7.py": "326bbc46ec3e6b19cb908a5501cec0d593e43a34da63a6e1996377522e16427c",
+    "scripts/affiliate_reporting_maxbounty_j7.py": "ba273f28f5bef04fcd297867a286b008f68fcd86adceb002f184d378b66b7aeb",
+    "scripts/marketplace_adapters/katalys_j7.py": "0a23388ed746223401b0d4bbf4890ba0ba78e421aed8392ffa7f1cf5ff101b54",
+    "tests/test_j7_maxbounty_balance.py": "9dfeb3fe9d0f469f7d8998ac1757d2e076181fc3ddc350e5453ffe1e04faec7c",
+    "tests/test_j7_katalys_population.py": "7a7bfaf11011629a1511c3aee89aa88804560858bb59981b4241dcad05ef6da0"
   },
   "omitted_runtime_inputs": [
     "~/.hermes/cron/jobs.json (live scheduler/state)",
