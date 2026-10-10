@@ -476,6 +476,92 @@ def consume_outboxes(client=None, writer=None):
     return results
 
 
+def open_prep_issues():
+    """Fresh read-only Linear census; stale PLAN status is not an open issue."""
+    sys.path.append(str(ROOT / 'scripts'))
+    from linear_client import Client
+    client = Client(role='fleet', max_retries=0)
+    query = '''query($after:String){issues(first:50,after:$after,filter:{team:{key:{eq:"GLP"}},state:{type:{nin:["completed","canceled","backlog"]}}}){nodes{identifier} pageInfo{hasNextPage endCursor}}}'''
+    return {r['identifier'] for r in client.pages(query, {}, ('issues',))}
+
+
+def send_refill_note(body):
+    """Use the existing authorized ops-alerts webhook; never disclose its URL."""
+    import urllib.request
+    url = (Path.home() / '.hermes/secrets/n8n/ops-alerts-webhook.txt').read_text().strip()
+    request = urllib.request.Request(url + ('&' if '?' in url else '?') + 'wait=true',
+                                    data=json.dumps({'content': body}).encode(), method='POST',
+                                    headers={'Content-Type': 'application/json', 'User-Agent': 'glp-pro-refill/1.0'})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        reply = json.loads(response.read())
+    if not reply.get('id') or str(reply.get('channel_id')) != '1487300132054765629':
+        raise ValueError('REFILL_NOTE_READBACK_MISMATCH')
+    return {'message_id': str(reply['id']), 'channel': 'ops-alerts'}
+
+
+def refill_alert():
+    """Alert once per shortage episode, never mint/replay prompts or uncertain posts.
+
+    Six is ready-to-submit supply, NOT running chats or uncertain/outbox-held jobs.
+    Explicit second-round prompts count only when not blocked; arbitrary old prep
+    comments or repeated first-round successes never cover the second-round need.
+    """
+    with singleton():
+        control_path = directory() / 'CONTROL.json'
+        control = json.loads(control_path.read_text()) if control_path.exists() else {}
+        if not control.get('refill_plan'):
+            return {'state': 'unconfigured'}
+        plan_source = Path(control['refill_plan'])
+        plan_path = plan_source.resolve(strict=True)
+        if not plan_path.is_relative_to(ROOT.resolve()) or plan_source.is_symlink():
+            raise ValueError('REFILL_PLAN_OUTSIDE_ROOT')
+        rows = request_rows()
+        queued = sum(r['state'] == 'queued' and not relay.job_state(r['job']) for r in rows)
+        path = directory() / 'REFILL-ALERT.json'
+        prior = json.loads(path.read_text()) if path.exists() else {}
+        if queued >= 6:
+            receipt = {'schema': 'pro-refill-alert-v1', 'state': 'stocked',
+                       'unsubmitted': queued, 'checked_at': relay.now_iso()}
+            if prior.get('state') not in ('stocked', 'posting', 'uncertain'):
+                relay._atomic_json(path, receipt)
+            return receipt
+        # Posting/uncertain is a durable no-replay fence; even refills cannot
+        # erase ambiguous custody. The parent must reconcile the exact note.
+        if prior.get('state') in ('posting', 'uncertain', 'delivered'):
+            return {**prior, 'unsubmitted': queued, 'retained': True}
+        covered = set()
+        for row in rows:
+            name = row.get('backlog_file', '')
+            if (row['state'] not in ('queued', 'running', 'complete') or
+                    not re.fullmatch(r'[0-9]+-GLP-[1-9][0-9]*-(auto|acct[123])\.md', name)):
+                continue
+            prompt = directory() / 'backlog' / name
+            lines = prompt.read_text().splitlines() if prompt.is_file() and not prompt.is_symlink() else []
+            if lines and 'SECOND-ROUND PREP' in lines[0]:
+                covered.add(row['issue'])
+        live = open_prep_issues()
+        plan = json.loads(plan_path.read_text())
+        lacking = list(dict.fromkeys(r['issue'] for r in sorted(plan['issues'], key=lambda r: (r['order'], r['issue']))
+                                     if r['issue'] in live and r['issue'] not in covered))
+        body = ('ops-alerts: Pro prompt supply below refill threshold: ' + str(queued) +
+                '/6 unsubmitted. Issues lacking usable second-round prep (PLAN order): ' +
+                (', '.join(lacking) or 'none; replenish deeper source-bound work for open PLAN issues') +
+                '. Owner: coordinator/prep supplier. Use installed backlog; no ambiguous resends, '
+                'no automatic prompt minting. Pro remains research/planning only.')
+        receipt = {'schema': 'pro-refill-alert-v1', 'state': 'posting', 'unsubmitted': queued,
+                   'issues_lacking_second_round': lacking, 'plan_sha256': hash_file(plan_path),
+                   'body_sha256': hashlib.sha256(body.encode()).hexdigest(), 'started_at': relay.now_iso()}
+        relay._atomic_json(path, receipt)  # BEFORE outward effect
+        try:
+            reply = send_refill_note(body)
+            receipt.update(state='delivered', **reply, delivered_at=relay.now_iso())
+        except Exception as exc:
+            # Errors can contain webhook URLs; retain only a nonsecret type.
+            receipt.update(state='uncertain', error=type(exc).__name__)
+        relay._atomic_json(path, receipt)
+        return receipt
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -513,8 +599,9 @@ def main(argv=None):
             parser.error('--max-actions must be 1..6')
         results = dispatch(max_actions=args.max_actions)
         deliveries = consume_outboxes()
-        if results or deliveries:
-            print(json.dumps({'actions': results, 'prep_deliveries': deliveries}), flush=True)
+        note = refill_alert()
+        if results or deliveries or note.get('state') not in ('stocked', 'unconfigured'):
+            print(json.dumps({'actions': results, 'prep_deliveries': deliveries, 'refill': note}), flush=True)
     elif args.command == 'consume':
         print(json.dumps(consume_outboxes()), flush=True)
     elif args.command == 'status':

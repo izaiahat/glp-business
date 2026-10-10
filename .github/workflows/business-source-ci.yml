@@ -67,7 +67,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pro_root_home.py tests/test_pro_terminal_hydration.py tests/test_pro_unsent_nonchat.py tests/test_pro_route.py tests/test_gpt6pro_relay_binding.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_pro_root_home.py tests/test_pro_terminal_hydration.py tests/test_pro_unsent_nonchat.py tests/test_pro_route.py tests/test_pro_route_refill.py tests/test_gpt6pro_relay_binding.py
       - name: S4 weekly strategy updater adoption (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
