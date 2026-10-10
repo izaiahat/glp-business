@@ -1,6 +1,7 @@
 # Generated from ops/rebuild-source-manifest.json: deny by default
 
 # GLP331 maintained producer closure (source only)
+# Q7 maintained editorial projection and offline regressions
 /*
 !/.github/
 /.github/*
@@ -16,8 +17,10 @@
 !/scripts/article_source_carrier.py
 !/scripts/agent_exec.py
 !/scripts/glp_go_runtime_manifest_refresh.mjs
+!/scripts/glp_review_editorial_projection.py
 !/tests/
 /tests/*
+!/tests/test_glp93_review_projection.py
 !/tests/test_pro_root_home.py
 !/tests/test_pro_terminal_hydration.py
 !/tests/test_article_source_carrier.py

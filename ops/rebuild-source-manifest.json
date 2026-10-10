@@ -11,7 +11,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "57de217080134a5747655d744a8f7a56a16b37fafeb1212524ddb6c7e60b1bfe"
+      "sha256": "f093f71b785071336903ed0076d4af0fc4dc5d4f5644113b1b14d9bc2caa216e"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -173,7 +173,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "969e3649d8069ae5b1b394f5a04bd6334a44d6952126e821d79b6a1cfaa9b5ed"
+      "sha256": "aa14aedd95ba73ace28f1e051944b3ed3d7e0c052c24d0b0a6ce6d0216c8a4eb"
     },
     ".hermes.md": {
       "callers": [],
@@ -2195,7 +2195,17 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432"
+      "sha256": "bb00b621999b4580c700b23b86b6cfb792c5a63a90fcad087fb0968c84f9e754"
+    },
+    "scripts/glp_review_editorial_projection.py": {
+      "kind": "script",
+      "callers": ["scripts/build_glp_affiliate_wirein_incremental_v2.py"],
+      "sha256": "6c9a7831568c9eaff82f6899381d49d2b512dfe2b5cc5e736525d4faf330ce33"
+    },
+    "tests/test_glp93_review_projection.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "c634a12b87fde9722f99b7629c3ec98db42be65f2f77053cd2cbf096bb85402c"
     },
     "scripts/business_output_health_sensor.py": {
       "callers": [
@@ -6816,5 +6826,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1004
+  "tracked_count": 1006
 }
