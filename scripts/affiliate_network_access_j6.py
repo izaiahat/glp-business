@@ -13,10 +13,11 @@ class AccessResult(j5.AccessResult):
 class ReadTransport(j5.ReadTransport):
     def request(self,method,url,**kwargs):
         parsed=urlparse(url)
-        if parsed.hostname != 'www.digistore24.com':
+        own_affiliati=parsed.hostname=='login.affiliatinetwork.com' and parsed.path in {'/affiliates/api/Reports/Conversions','/affiliates/api/Billing/Bills'}
+        if parsed.hostname != 'www.digistore24.com' and not own_affiliati:
             return super().request(method,url,**kwargs)
-        if (method!='GET' or parsed.scheme!='https' or parsed.netloc!='www.digistore24.com'
-                or not re.fullmatch(r'/api/call/(getUserInfo|listCommissions|listPayouts)',parsed.path)):
+        allowed=(parsed.netloc=='www.digistore24.com' and re.fullmatch(r'/api/call/(getUserInfo|listCommissions|listPayouts)',parsed.path)) or own_affiliati and parsed.netloc=='login.affiliatinetwork.com'
+        if method!='GET' or parsed.scheme!='https' or not allowed:
             raise ValueError('route_not_read_allowlisted')
         # Delegate envelope/budget/hash handling after the route is validated.
         import hashlib,time
@@ -30,13 +31,16 @@ class ReadTransport(j5.ReadTransport):
         if response.status!=200:
             raise legacy.ProviderResponseError('http_status_unproven')
         doc=response.json()
-        if not isinstance(doc,dict) or doc.get('result')!='success':
+        if not isinstance(doc,dict) or (doc.get('success') is not True if own_affiliati else doc.get('result')!='success'):
             raise legacy.ProviderResponseError('provider_response_unproven')
         self.raw_documents.append(doc)
         return response
 
 
 def conversions_earnings(network,transport,**kwargs):
+    if network=='affiliati':
+        from affiliate_reporting_affiliati_j6 import collect
+        return collect(transport,**kwargs)
     if network!='digistore24':
         return j5.conversions_earnings(network,transport,**kwargs)
     from affiliate_reporting_digistore24 import collect
@@ -45,20 +49,22 @@ def conversions_earnings(network,transport,**kwargs):
 
 def weekly_collectors(names,transport):
     collectors=j5.weekly_collectors(names,transport)
-    if 'digistore24' not in names:
-        return collectors
-    def collect(window,deadline,max_requests,*,sink):
-        observations,remaining=[],max_requests
-        for label,start,end in [('closed_week',window['week_start'],window['end_exclusive']),('lookback',window['lookback_start'],window['end_exclusive']),('closed_month',window['last_closed_month_start'],window['last_closed_month_end'])]:
-            result=conversions_earnings('digistore24',transport,start=start,end=end,deadline=deadline,max_requests=remaining)
-            remaining-=len(result.receipts)
-            page=result.to_dict()
-            page.update(schema='coverage_observation',period_purpose=label,start_inclusive=start,end_exclusive=end,
-                payload_complete=False,account_scope_complete=False,financial_classification='UNKNOWN',reporting_timezone='UNKNOWN_QUERY_CALENDAR_CEST_IS_CURRENT_RESPONSE_NOT_PERIOD_PROOF')
-            sink(page)
-            observations.append(page)
-            if any(r['http_status'] in (401,403,429) for r in result.receipts):
-                break
-        return observations
-    collectors['digistore24']=collect
+    def bind(network):
+        def collect(window,deadline,max_requests,*,sink):
+            observations,remaining=[],max_requests
+            for label,start,end in [('closed_week',window['week_start'],window['end_exclusive']),('lookback',window['lookback_start'],window['end_exclusive']),('closed_month',window['last_closed_month_start'],window['last_closed_month_end'])]:
+                result=conversions_earnings(network,transport,start=start,end=end,deadline=deadline,max_requests=remaining)
+                remaining-=len(result.receipts)
+                page=result.to_dict()
+                page.update(schema='coverage_observation',period_purpose=label,start_inclusive=start,end_exclusive=end,
+                    payload_complete=False,account_scope_complete=False,financial_classification='UNKNOWN',reporting_timezone='UNKNOWN_VENDOR_QUERY_CALENDAR')
+                sink(page)
+                observations.append(page)
+                if any(r['http_status'] in (401,403,429) for r in result.receipts):
+                    break
+            return observations
+        return collect
+    for network in ('affiliati','digistore24'):
+        if network in names:
+            collectors[network]=bind(network)
     return collectors
