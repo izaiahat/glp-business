@@ -1575,7 +1575,7 @@
         "scripts/glp_sponsor_campaign.py"
       ],
       "kind": "source_control",
-      "sha256": "4cea936fed34d97a58586978296d4787e4883019c7323035e10f42b2c26e6b2a"
+      "sha256": "8f83a095d4ec3e470020321aabcaad0f75936c73c7543a0265f34314826997b8"
     },
     "ops/systemd/GLP-349-host-safety.md": {
       "callers": [
@@ -3070,7 +3070,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
+      "sha256": "2e4b978caedaa45ae3291d30b94de4c67815b1d86d80daab504ae16c87530e8b"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3589,7 +3589,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "30545fc9fb5dc7e6c64bc62eb8f2b492afdfc819b2d3556fa853c198856a39ea"
+      "sha256": "e7f6b39c93a4363219066519d9da406c95137cc9b484852d1d8b87cd94840b24"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -6758,6 +6758,49 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "sha256": "f5bc2d5f38321c76fae9a02fe6dcae484333c928aac8f49beb86b945dd29e3df"
+    },
+    "ops/hermes-cron-scripts/s1_glp125_queued_reply.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes one-shot S1 Monday Nu Image queue"
+      ],
+      "sha256": "9d884739a035543fa29e0b7efe9c9b80f14d0344d306129a95431bc5656fb22f"
+    },
+    "scripts/glp_sponsor_nuimage_reply.py": {
+      "kind": "script",
+      "callers": [
+        "S1 authorized queued Nu Image reply"
+      ],
+      "sha256": "4a80776331b998ba1f327f92e93264194525d1dde4869009d3b087288fc73473"
+    },
+    "tests/test_glp_sponsor_nuimage_reply.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "4e44b8450bb3cfd36ec055de8e9e1034c71b40dd58e1c6e1f84d541eceb56d00"
+    },
+    ".github/workflows/s1-current-sponsor-receiving.yml": {
+      "kind": "config",
+      "callers": [
+        "GitHub Actions"
+      ],
+      "sha256": "34d1e21faf51605f9b0620db12eb018f136f2c1d9cdc840c10e88306fba13bb1"
+    },
+    "scripts/glp_sponsor_current_receiving.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py",
+        "coordinator-only current packet receiving"
+      ],
+      "sha256": "2f738895919deac524d20c0a4d434f1d4e3607e248fee6cb4ea98edbaf5f5d15"
+    },
+    "tests/test_glp_sponsor_current_receiving.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "419ce138cf623ddf11ca6083dce866870e71ce4a771d21ddc176dbc8383e9998"
     }
   },
   "omitted_runtime_inputs": [
@@ -6768,5 +6811,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 997
+  "tracked_count": 1003
 }
