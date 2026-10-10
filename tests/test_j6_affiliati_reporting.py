@@ -39,6 +39,15 @@ def test_bill_count_conflict_refuses(monkeypatch):
     assert 'bills_count_mismatch' in result.reason
     assert result.cash_minor is None
 
+def test_transport_exception_never_prints_query_secrets(monkeypatch):
+    monkeypatch.setattr(_base,'secret_json',lambda *args:{'affiliate_id':'99','api_key':'SYNTHETIC_KEY'})
+    class BadTransport:
+        def request(self,*args,**kwargs):
+            raise ValueError('SYNTHETIC_KEY')
+    result=access.conversions_earnings('affiliati',BadTransport(),start='2026-09-01T00:00:00+00:00',end='2026-10-01T00:00:00+00:00')
+    assert 'SYNTHETIC_KEY' not in json.dumps(result.to_dict())
+
+
 def test_bill_route_rejects_mutations():
     with pytest.raises(ValueError):
         access.ReadTransport(Transport()).request('POST','https://login.affiliatinetwork.com/affiliates/api/Billing/Bills')

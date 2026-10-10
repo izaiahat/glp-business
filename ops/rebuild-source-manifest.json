@@ -6515,21 +6515,21 @@
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "repository_control",
-      "sha256": "56f41d7ec144d84fb5ee0e426ca94b4967792d38aab70b08eb83dd4c9c023d04"
+      "sha256": "49d514f7cfe04ae48ce3d7085ffad593c8752e13be389bc8d3dd12aa15371a41"
     },
     "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "script",
-      "sha256": "d1120dfe3cfb0b9883bd24127af1971a1ef8f16c7d773442e28640f7cdc4f00c"
+      "sha256": "70e1d56c8af68feea2fc749b69eaebf14601e95996a828cc8fba9269920504ef"
     },
     "scripts/affiliate_network_access_j6.py": {
       "callers": [
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "script",
-      "sha256": "66cd35d213b3c3f9af4d909156a173bd246565be8abe2ea02e5b331641ef10e3"
+      "sha256": "b7cdb17c227cec53a5488e1292fd3a3b6305ce2e1ef9cbef9ec8db2836955023"
     },
     "scripts/affiliate_reporting_digistore24.py": {
       "callers": [
@@ -6557,7 +6557,7 @@
         "ops/hermes-cron-scripts/glp_affiliate_weekly_reporting_j6.sh"
       ],
       "kind": "test",
-      "sha256": "5c32e66e1bb28e83774c47da2bd6e38f0c89338d0f1f1ce634c3e1d49aa68247"
+      "sha256": "e5070c5275be9ed23a41d3058734148af1916f307ea86ba0ed5e995dab0f90c6"
     },
     "tests/test_pro_root_home.py": {
       "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
@@ -6570,14 +6570,14 @@
       "callers": [
         "hermes:aadf6677c7f0"
       ],
-      "sha256": "ac1c2c8f95a5e9d25a3cd9e63136916204f1b15fa951ccc6dd45121d9e97045b"
+      "sha256": "1311b2f7c7591764cfded0e6b75b06e1b0a3854d09ebcb5b68bc8d27ece32fd2"
     },
     "tests/test_j6_affiliati_reporting.py": {
       "kind": "test",
       "callers": [
         "hermes:aadf6677c7f0"
       ],
-      "sha256": "387f98ba6db14763e190888f89044df86b36a381735e425d7b6ea8536a1628ec"
+      "sha256": "2bb2442c1fdf10e935c509a20d221bd815fe0040c6fc983fabea53a4d50143f3"
     }
   }
 }

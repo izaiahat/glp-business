@@ -66,7 +66,7 @@ def test_count_conflict_never_becomes_zero(monkeypatch):
 
 def test_read_guard_refuses_mutations_and_unbound_paths():
     wrapped=access.ReadTransport(object())
-    for method,url in [('POST','https://www.digistore24.com/api/call/listPayouts'),('GET','https://www.digistore24.com/api/call/createPayout'),('GET','https://www.digistore24.com/api/call/listPayouts/other'),('GET','https://tracking.digistore24.com/api/call/listPayouts')]:
+    for method,url in [('POST','https://www.digistore24.com/api/call/listPayouts'),('GET','https://www.digistore24.com/api/call/createPayout'),('GET','https://www.digistore24.com/api/call/listPayouts/other'),('GET','https://tracking.digistore24.com/api/call/listPayouts'),('GET','https://www.digistore24.com/api/call/listPayouts?api_key=SYNTHETIC_KEY'),('GET','https://login.affiliatinetwork.com/affiliates/api/Billing/Bills#SYNTHETIC_KEY')]:
         with pytest.raises(ValueError,match='route_not_read_allowlisted'):
             wrapped.request(method,url)
 

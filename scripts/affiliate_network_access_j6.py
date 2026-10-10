@@ -17,7 +17,7 @@ class ReadTransport(j5.ReadTransport):
         if parsed.hostname != 'www.digistore24.com' and not own_affiliati:
             return super().request(method,url,**kwargs)
         allowed=(parsed.netloc=='www.digistore24.com' and re.fullmatch(r'/api/call/(getUserInfo|listCommissions|listPayouts)',parsed.path)) or own_affiliati and parsed.netloc=='login.affiliatinetwork.com'
-        if method!='GET' or parsed.scheme!='https' or not allowed:
+        if method!='GET' or parsed.scheme!='https' or parsed.query or parsed.fragment or not allowed:
             raise ValueError('route_not_read_allowlisted')
         # Delegate envelope/budget/hash handling after the route is validated.
         import hashlib,time

@@ -69,8 +69,10 @@ def collect(transport,*,start,end,deadline=None,max_requests=32):
                 'classification':'UNKNOWN','amount_semantics':'reported_bill_not_verified_settlement',
                 'receipt_sha256':t.receipts[-1]['response_sha256'],'receipt_pointer':f'/data/{i}'})
         reason='NATIVE_CONVERSION_AND_BILL_IDS_RETAINED_ACCOUNT_CALENDAR_CURRENCY_REAL_TEST_MEMBERSHIP_UNPROVEN'
-    except (OSError,ValueError,KeyError,TypeError) as exc:
-        reason='AFFILIATI_READ_UNPROVEN:'+str(exc) if type(exc) is ValueError else 'AFFILIATI_READ_UNPROVEN:'+type(exc).__name__
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError) as exc:
+        known={'resource_schema_unproven','conversions_count_mismatch','conversion_identity_unproven','bills_count_mismatch','bill_identity_unproven','provider_response_unproven','http_status_unproven','budget_exhausted'}
+        code=str(exc) if type(exc) is ValueError and str(exc) in known else type(exc).__name__
+        reason='AFFILIATI_READ_UNPROVEN:'+code
     return AccessResult(network='affiliati',capability='conversions_earnings',status='SUPPORTED',
         source='AFFILIATI_OFFICIAL_CONVERSION_AND_BILL_API',coverage='PARTIAL' if t.receipts else 'UNKNOWN',
         records=tuple(records),receipts=tuple(t.receipts),reason=reason,resource_counts=counts,
