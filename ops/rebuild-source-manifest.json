@@ -1799,7 +1799,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "e31e2d4da25cfa3ff4f466db1b2c75c213e5eb3f3466a7685774e4c9f1a8facd"
+      "sha256": "21e3c1de1e90b999d648ca19b3f687caabe4c1e1d51c84afaf93144ecfb5e315"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -5111,7 +5111,7 @@
         "GLP331 disposable native fixture; no live effects"
       ],
       "kind": "test",
-      "sha256": "6af3ca9cf0104bc1b40945cd8f55ae36e1ed958053da597daaaaa4b65286d2b8"
+      "sha256": "bc1cc358b5165773416338a03ac87b5ba0ce772c5a9a886bec6339150764d1ef"
     },
     "tests/test_glp331_carrier_generation.py": {
       "callers": [
@@ -6273,7 +6273,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "9c65b07b605ae339f7fb5e25f1485da513d3bb8d819e4f4d9482225e5da5b62d"
+      "sha256": "5279afefe77400e138627d60585d40eb4482f7f3446b0d54e6177741dd850bdd"
     },
     "tests/test_linear_audit.py": {
       "callers": [
