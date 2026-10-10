@@ -43,6 +43,10 @@ from urllib.parse import parse_qs, urlparse
 BUSINESS = Path("/home/ubuntu/business")
 sys.path.insert(0, str(BUSINESS / "scripts"))
 from build_glp_affiliate_expansion_13 import validate_tracking  # noqa: E402
+from glp_review_editorial_projection import (  # noqa: E402
+    captured_review_sources, project_review_inputs,
+    normalize_provider_review_editorial_source,
+)
 import glp_registry_evidence as registry_evidence  # noqa: E402
 from site_tree_materializer import (  # noqa: E402
     constructor_provenance,
@@ -91,6 +95,7 @@ ALLOWED_SOURCE_CHANGES = {
     "data/provider-fastpath-contract.json",
     "data/provider-logo-sources.json",
     "data/provider-page-contracts.json",
+    "data/provider-cta-identity-v2.json",
     "data/worker-manifest.staging.json",
     "artifacts/ops/worker-manifest.staging.json",
     "scripts/build-staging.mjs",
@@ -99,6 +104,7 @@ ALLOWED_SOURCE_CHANGES = {
     "scripts/validate-provider-fastpath-plus5.mjs",
     "src/blog-system.mjs",
     "src/cost-calculator.mjs",
+    "src/provider-review.mjs",  # exact fail-closed editorial migration only
     "tests/affiliate-expansion-13.test.mjs",
     "tests/cost-calculator.test.mjs",
     "tests/provider-surfaces-repair.test.mjs",
@@ -118,6 +124,8 @@ SURFACE_TRANSACTION_OUTPUTS = {
 SURFACE_INTEGRATION_CHANGES = {"data/program-content-ledger.json"} | SURFACE_TRANSACTION_OUTPUTS
 DECLARED_MUTATION_PATHS = ALLOWED_SOURCE_CHANGES | SURFACE_INTEGRATION_CHANGES
 MAY_BE_ABSENT_BEFORE_WRITE = {
+    # Older authentic source bases predate the optional native identity overlay.
+    "data/provider-cta-identity-v2.json",
     "data/worker-manifest.staging.json",
     "artifacts/ops/worker-manifest.staging.json",
     "data/program-content-ledger.json",
@@ -532,6 +540,38 @@ def stage_bound_logos(target: Path, specs: list[dict]) -> dict:
             "manifest_rederivation": rederived}
 
 
+def paired_cta_identity_successor(before_raw: bytes, after: dict, migration: dict,
+                                  added_ids: list[str]) -> dict:
+    """Rebind only an authenticated append-only contract successor.
+
+    Preserve every retained row (including issued hrefs), every identity overlay,
+    and all other contract metadata. The existing site loader remains the final
+    oracle for both the predecessor and emitted pair. No caller-supplied digest.
+    """
+    if (migration.get("schema") != "glp-provider-cta-identity-v2"
+            or migration.get("metadata_only") is not True
+            or sha_bytes(before_raw) != migration.get("baseline_contract_sha256")):
+        raise RuntimeError("cta_identity_baseline_mismatch")
+    before = json.loads(before_raw)
+    old_rows = before["providers"]
+    old_ids = [row["program_id"] for row in old_rows]
+    new_rows = after["providers"][len(old_rows):]
+    if (not added_ids or len(set(added_ids)) != len(added_ids)
+            or len(set(old_ids)) != len(old_ids)
+            or set(old_ids).intersection(added_ids)
+            or [row["program_id"] for row in new_rows] != added_ids):
+        raise RuntimeError("cta_identity_successor_scope_invalid")
+    expected = json.loads(before_raw)
+    expected["providers"].extend(new_rows)
+    expected["target_release"]["requested_provider_review_count"] += len(added_ids)
+    if after != expected:
+        raise RuntimeError("cta_identity_successor_scope_invalid")
+    successor = json.loads(json.dumps(migration))
+    successor["baseline_contract_sha256"] = sha_bytes(
+        (json.dumps(after, indent=2, sort_keys=True) + "\n").encode())
+    return successor
+
+
 def write_json(path: Path, value, private: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
@@ -550,6 +590,16 @@ def sub_once(path: Path, pattern: str, repl, flags: int = 0) -> str:
         raise RuntimeError(f"patch_noop:{path.name}:{pattern[:80]!r}")
     path.write_text(new_text)
     return matches[0].group(0)
+
+
+def append_calculator_inventory_test_ids(path: Path, ids: list[str]) -> None:
+    """Extend membership, never reinterpret a current null-price eligibility rule."""
+    quoted = "".join(f', "{pid}"' for pid in ids)
+    sub_once(
+        path,
+        r'(for \(const id of \[[^\]]*)(\]\) assert\.ok\((?:eligibleIds|canonicalIds)\.has\(id\), id\))',
+        lambda m: m.group(1) + quoted + m.group(2),
+    )
 
 
 def normalize_inline_guide_source_markers(target: Path) -> dict[str, str]:
@@ -955,8 +1005,9 @@ def canonical_field_sources(spec: dict, research: dict) -> dict[str, list[str]]:
         + supplied_urls("cancellation_and_roles", "program_terms"),
         "regulatory": urls("pharmacy_type") + supplied_urls("regulatory"),
     }
+    captures = captured_review_sources(research)
     for key, values in groups.items():
-        groups[key] = list(dict.fromkeys(values))
+        groups[key] = [url for url in dict.fromkeys(values) if url in captures]
         if not groups[key]:
             raise RuntimeError(f"field_source_group_missing:{spec['program_id']}:{key}")
     return groups
@@ -998,6 +1049,7 @@ def validate_checked_as_of(spec: dict) -> None:
 def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
                    publisher_id: str) -> dict:
     validate_checked_as_of(spec)
+    spec, research = project_review_inputs(spec, research)
     pid = spec["program_id"]
     price = quote(research, "first_month_price")
     states = quote(research, "states_served")
@@ -1031,6 +1083,9 @@ def build_contract(spec: dict, research: dict, tracking_url: str, logo: dict,
         **({"tracking_host": spec["tracking_host"]} if spec.get("tracking_host") else {}),
         "review_path": f"/reviews/{pid}/",
         "field_sources": canonical_field_sources(spec, research),
+        "source_capture_bindings": {
+            url: capture["binding"] for url, capture in captured_review_sources(research).items()
+        },
         "logo_contract": {
             "asset_ready": True,
             "intended_public_path": logo["path"],
@@ -1246,7 +1301,16 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
 
     # 1. provider-page-contracts.json
     contracts_path = target / "data/provider-page-contracts.json"
-    contracts = read_json(contracts_path)
+    before_contract_raw = contracts_path.read_bytes()
+    contracts = json.loads(before_contract_raw)
+    identity_path = target / "data/provider-cta-identity-v2.json"
+    identity = read_json(identity_path) if identity_path.exists() else None
+    if identity is not None:
+        # Authenticate the real predecessor with the unchanged site oracle before
+        # constructing anything; invalid overlay identities must never be blessed.
+        subprocess.run(["node", "--input-type=module", "-e",
+            "import {loadProviderPageContracts} from './src/provider-cta-contract.mjs';"
+            "loadProviderPageContracts(process.cwd());"], cwd=target, check=True)
     present = {p["program_id"] for p in contracts["providers"]}
     for spec in specs:
         if spec["program_id"] in present:
@@ -1255,7 +1319,18 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
             build_contract(spec, research[spec["program_id"]], tracking[spec["program_id"]],
                            logos[spec["program_id"]], publishers[spec["program_id"]]))
     contracts["target_release"]["requested_provider_review_count"] += n
+    identity_successor = (paired_cta_identity_successor(
+        before_contract_raw, contracts, identity, ids) if identity is not None else None)
     write_json(contracts_path, contracts)
+    if identity_successor is not None:
+        assert identity is not None
+        write_json(identity_path, identity_successor)
+        notes["paired_cta_identity_binding"] = {
+            "before_sha256": identity["baseline_contract_sha256"],
+            "after_sha256": identity_successor["baseline_contract_sha256"],
+            "added_ids": ids, "retained_rows": len(present),
+            "retained_identities_unchanged": True,
+        }
     notes["requested_provider_review_count"] = contracts["target_release"]["requested_provider_review_count"]
 
     # 2. provider-fastpath-contract.json — integrations, counts, self-hash.
@@ -1304,6 +1379,7 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     # The live predecessor predates the PASS 2 route-master COW repair. Apply the
     # exact fail-closed migration inside the candidate constructor so its build
     # validates the vendored bytes rather than an obsolete predecessor pathname.
+    notes["provider_review_editorial_projection"] = normalize_provider_review_editorial_source(target)
     notes["article_route_master_cow_validation"] = (
         normalize_article_route_master_cow_validation(target)
     )
@@ -1423,11 +1499,7 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     quoted = "".join(f', "{pid}"' for pid in ids)
     sub_once(fp_test, r'(const activeIds = new Set\(\[[^\]]*)\]\)',
              lambda m: m.group(1) + quoted + "])")
-    sub_once(
-        fp_test,
-        r'(for \(const id of \[[^\]]*)\]\) assert\.ok\(eligibleIds\.has\(id\), id\)',
-        lambda m: m.group(1) + quoted + "]) assert.ok(eligibleIds.has(id), id)",
-    )
+    append_calculator_inventory_test_ids(fp_test, ids)
     sub_once(
         fp_test,
         r'(assert\.deepEqual\(new Set\(added\.map\(\(review\) => review\.program_id\)\), new Set\(\[[^\]]*)\]\)\);',

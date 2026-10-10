@@ -10,7 +10,24 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import tempfile
+import atexit
 from types import SimpleNamespace
+
+from scripts.glp_review_editorial_projection import captured_review_sources, project_review_inputs
+
+# Authenticated synthetic capture bytes for the date-only caller fixture. These
+# are not clinical evidence or production acceptance receipts.
+_CAPTURE_DIR = tempfile.TemporaryDirectory(prefix='glp183-date-capture-fixture-')
+atexit.register(_CAPTURE_DIR.cleanup)
+_CAPTURE_ROOT = Path(_CAPTURE_DIR.name)
+_RAW = json.dumps({'data': {'markdown': 'Fixture source text'}}).encode()
+(_CAPTURE_ROOT / 'raw.json').write_bytes(_RAW)
+_BUNDLE = json.dumps({'captures': [dict(url=url, markdown='Fixture source text', status=200,
+    raw_capture_path=str(_CAPTURE_ROOT / 'raw.json'), raw_capture_sha256=hashlib.sha256(_RAW).hexdigest())
+    for url in ('https://provider.example/terms', 'https://provider.example/extra')]}).encode()
+(_CAPTURE_ROOT / 'bundle.json').write_bytes(_BUNDLE)
+_CAPTURE_BINDING = {'path':str(_CAPTURE_ROOT / 'bundle.json'), 'sha256':hashlib.sha256(_BUNDLE).hexdigest()}
 
 import pytest
 
@@ -26,16 +43,19 @@ def load_contract_functions():
     tree = ast.parse(source.read_text(), filename=str(source))
     names = {"quote", "stated", "canonical_field_sources", "normalize_regulatory_banner",
              "build_contract", "validate_checked_as_of", "apply_changes", "main",
-             "read_json", "write_json", "file_sha", "sha_bytes", "logo_mutation_paths"}
+             "read_json", "write_json", "file_sha", "sha_bytes", "logo_mutation_paths",
+             "paired_cta_identity_successor"}
     functions = [node for node in tree.body
                  if isinstance(node, ast.FunctionDef) and node.name in names]
     # Permit predecessor loading for explicit red runs: it lacks the new helper.
-    assert {node.name for node in functions} >= names - {"validate_checked_as_of"}
+    assert {node.name for node in functions} >= names - {"validate_checked_as_of", "paired_cta_identity_successor"}
     constants = [node for node in tree.body if isinstance(node, ast.Assign)
                  and any(isinstance(target, ast.Name) and target.id == "COMPOUNDED_TAIL"
                          for target in node.targets)]
     assert len(constants) == 1
     namespace = dict(Path=Path, datetime=datetime, re=re, hashlib=hashlib,
+                     captured_review_sources=captured_review_sources,
+                     project_review_inputs=project_review_inputs,
                      json=json, os=os, argparse=argparse, sys=sys, shutil=shutil)
     exec(compile(ast.Module(body=[*constants, *functions], type_ignores=[]), str(source), "exec"),
          namespace)
@@ -63,7 +83,8 @@ def inputs():
         "row_contract": {"best_for": "Fixture", "cons": [], "insurance": "Unknown",
                          "medications": [], "pros": [], "starting_price": "Unknown"},
     }
-    research = {"schema": "program-deep-research-v1", "fields": {
+    research = {"schema": "program-deep-research-v1", "captured_at_utc": "2026-08-31T00:00:00Z",
+        "first_party_source_captures": deepcopy(_CAPTURE_BINDING), "fields": {
         name: {"value": "Fixture source text", "source_url": "https://provider.example/terms",
                "verified_as_of": "2026-08-31"}
         for name in ("first_month_price", "states_served", "consultation_fee",
@@ -148,6 +169,12 @@ def test_64_valid_contracts_match_predecessor_serialized_bytes():
                     spec["field_sources"] = {"program_terms": ["https://provider.example/extra"]}
                 before = deepcopy((spec, research, logo))
                 result = build(spec, research, logo)
+                # Q7 adds authenticated capture custody to the contract. Keep the
+                # exact pre-Q7 golden for all prior fields; test custody separately.
+                source_bindings = result.pop("source_capture_bindings")
+                assert set(source_bindings) == {'https://provider.example/terms', 'https://provider.example/extra'}
+                assert all(binding['raw_capture_sha256'] == hashlib.sha256(_RAW).hexdigest()
+                           for binding in source_bindings.values())
                 digest.update((json.dumps(result, indent=2, sort_keys=True) + "\n").encode())
                 assert (spec, research, logo) == before
                 count += 1
@@ -268,3 +295,47 @@ def test_actual_cli_caller_refuses_before_materialization_or_cleanup(tmp_path, m
     assert snapshot(tmp_path) == before
     assert output.stat().st_mtime_ns == directory_mtime
     assert sorted(p.name for p in output.iterdir()) == ["untouched.txt"]
+
+
+def test_three_added_contracts_produce_paired_identity_binding():
+    # Synthetic rows exercise the exact constructor helper without private inputs.
+    before = {"providers": [{"program_id": f"retained-{i}", "network_contract": {"tracking_url": f"https://example.invalid/{i}"}} for i in range(43)],
+              "target_release": {"requested_provider_review_count": 43}}
+    raw = (json.dumps(before, indent=2, sort_keys=True) + "\n").encode()
+    migration = {"schema": "glp-provider-cta-identity-v2", "metadata_only": True,
+                 "baseline_contract_sha256": hashlib.sha256(raw).hexdigest(),
+                 "programs": {"jrnys-review": {"fixture": "unchanged"}, "medvi-review": {"fixture": "unchanged"}}}
+    added = ["ivim-health-review", "rightwell-review", "willow-review"]
+    after = deepcopy(before)
+    after["providers"] += [{"program_id": pid} for pid in added]
+    after["target_release"]["requested_provider_review_count"] += 3
+    assert hasattr(builder, "paired_cta_identity_successor"), "constructor lacks guarded paired CTA identity writer"
+    successor = builder.paired_cta_identity_successor(raw, after, migration, added)
+    assert successor["baseline_contract_sha256"] == hashlib.sha256((json.dumps(after, indent=2, sort_keys=True) + "\n").encode()).hexdigest()
+    assert successor["programs"] == migration["programs"]
+    assert after["providers"][:43] == before["providers"]
+    assert len(after["providers"]) == 46
+    assert migration["baseline_contract_sha256"] == hashlib.sha256(raw).hexdigest()
+
+
+@pytest.mark.parametrize("drift", ["retained_href", "retained_id", "unexplained_addition", "removed_row", "top_level", "predecessor_bytes"])
+def test_unexplained_identity_changes_fail_paired_successor(drift):
+    before = {"providers": [{"program_id": "retained", "network_contract": {"tracking_url": "https://example.invalid/original"}}],
+              "target_release": {"requested_provider_review_count": 1}}
+    raw = (json.dumps(before, indent=2, sort_keys=True) + "\n").encode()
+    migration = {"schema": "glp-provider-cta-identity-v2", "metadata_only": True,
+                 "baseline_contract_sha256": hashlib.sha256(raw).hexdigest(), "programs": {}}
+    after = deepcopy(before)
+    after["providers"].append({"program_id": "new-review"})
+    after["target_release"]["requested_provider_review_count"] = 2
+    if drift == "retained_href": after["providers"][0]["network_contract"]["tracking_url"] = "https://example.invalid/drift"
+    if drift == "retained_id": after["providers"][0]["program_id"] = "unexpected"
+    if drift == "unexplained_addition": after["providers"].append({"program_id": "unexpected"})
+    if drift == "removed_row": after["providers"].pop(0)
+    if drift == "top_level": after["unexpected"] = True
+    if drift == "predecessor_bytes": raw += b" "
+    assert hasattr(builder, "paired_cta_identity_successor"), "constructor lacks guarded paired CTA identity writer"
+    snapshot = deepcopy((after, migration))
+    with pytest.raises(RuntimeError, match="cta_identity_(baseline_mismatch|successor_scope_invalid)"):
+        builder.paired_cta_identity_successor(raw, after, migration, ["new-review"])
+    assert (after, migration) == snapshot

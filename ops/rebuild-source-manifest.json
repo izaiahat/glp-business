@@ -11,7 +11,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "57de217080134a5747655d744a8f7a56a16b37fafeb1212524ddb6c7e60b1bfe"
+      "sha256": "01333ec74adad6c97e0fec3b12e0056fc3e31c4b9b1285c93884f0ff313d0dd6"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -173,7 +173,7 @@
     ".gitignore": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "969e3649d8069ae5b1b394f5a04bd6334a44d6952126e821d79b6a1cfaa9b5ed"
+      "sha256": "aa14aedd95ba73ace28f1e051944b3ed3d7e0c052c24d0b0a6ce6d0216c8a4eb"
     },
     ".hermes.md": {
       "callers": [],
@@ -947,7 +947,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
+      "sha256": "5bd5e413190c5cd6d61d74ef168d68062b48a96bba6d2cc8b6402e69d2683468"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2195,7 +2195,37 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "a58ac5ecae59727c0106590305188e3db47af78fb399b043004a56fdf3cf8432"
+      "sha256": "cbe43edb08ca45b580a09508f3609139b1ddfaf699b32bd465a047f61ac8b9fd"
+    },
+    "scripts/glp93_current_base_binding.py": {
+      "kind": "script",
+      "callers": [
+        "tests/test_glp331_carrier_closure.py",
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "4e9c28a54248bd375be6aaf0f7606ce5513280bc9dac3091b189e40260da31fb"
+    },
+    "tests/test_glp93_current_base_binding.py": {
+      "kind": "test",
+      "callers": [
+        "tests/test_glp331_carrier_closure.py",
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "d4bd8a4863e65691106cc20aad9cc31c7920a116edcb2c032ea0c4dc0f170507"
+    },
+    "scripts/glp_review_editorial_projection.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/build_glp_affiliate_wirein_incremental_v2.py"
+      ],
+      "sha256": "6c9a7831568c9eaff82f6899381d49d2b512dfe2b5cc5e736525d4faf330ce33"
+    },
+    "tests/test_glp93_review_projection.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5630c9d8ded0bf765e3c10bf35a05b3248ce778149876593ba50a5d38b9032fe"
     },
     "scripts/business_output_health_sensor.py": {
       "callers": [
@@ -3178,7 +3208,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "0044d39c1fba40ec0675635e0d2d15ef30549c0b7f609e4e5cbaca2be8163804"
+      "sha256": "1e32d72046166eec74b43f2002a3db9a2f82290874c23654240d2da1dc3cf688"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -4967,7 +4997,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "f17b67c3823a50ae15a8ffb3e6f62891a4af7a85b0d50af027ab6bc836c35bfc"
+      "sha256": "2b41279f091e920202ed393837f2cfe873975641ae0a138748675e5bd217abaa"
     },
     "tests/test_glp186_binding_diagnostics.py": {
       "callers": [],
@@ -5111,7 +5141,7 @@
         "GLP331 disposable native fixture; no live effects"
       ],
       "kind": "test",
-      "sha256": "bc1cc358b5165773416338a03ac87b5ba0ce772c5a9a886bec6339150764d1ef"
+      "sha256": "7ee71ab99972df309b96892ef1fbd14cb9cb39e24935047a04faa6af522e3d8d"
     },
     "tests/test_glp331_carrier_generation.py": {
       "callers": [
@@ -6099,7 +6129,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "9f70f38ebba85a45e4ee3e2e1b4c4e27fb6b4d35b68bfd576f7595c6568e7a18"
+      "sha256": "24226df947a6f532868de51a0923733a64a643cd0b4bcfc3b5162517e318121b"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -6546,7 +6576,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
+      "sha256": "3899ab324e84afea27e5afe20cd6feb9857d7c3515c3688d33e6a1bbf62f0feb"
     },
     "tests/test_recurrence_batch_rail_identity_20260827.py": {
       "callers": [
@@ -6825,5 +6855,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1005
+  "tracked_count": 1009
 }

@@ -236,6 +236,8 @@ class FakeCDP:
             identity_selector = ('[data-message-author-role=user]' in expression if page.get('identity_location') == 'user-role-only'
                                  else 'div.text-size-chat.whitespace-pre-wrap' in expression or '[data-message-author-role=user]' in expression)
             return bool(identity_selector and page.get("identity_matched", False))
+        if 'function ensureProChatSurface' in expression:
+            return {'switched': False}  # Legacy Chat-only fixture; actual DOM is exercised below.
         if 'function pickerActionable' in expression:
             # Transport state only; NativeComposerTests runs the actual DOM gates.
             committed_model = self.app_overrides.get('model', self.selected_model)
@@ -2617,7 +2619,7 @@ console.log(JSON.stringify(fixtures.map(f => {
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
             and n.func.id == '_bound_js' and len(n.args) > 2
             and isinstance(n.args[2], ast.Constant) and isinstance(n.args[2].value, str)]
-        self.assertEqual(len(expressions), 16)  # Includes new-target-only Home geometry; retained gate unchanged.
+        self.assertEqual(len(expressions), 17)  # Includes idle Chat/Work action; retained gate unchanged.
         evidence = next(x for x in expressions if 'origin:performance.timeOrigin' in x)
         node = r'''const expressions=JSON.parse(process.argv[1]);
             // Compile every actual generated constant after the nested Python parse.
@@ -2637,7 +2639,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         observed = json.loads(result.stdout)
-        self.assertEqual(observed['count'], 16)
+        self.assertEqual(observed['count'], 17)
         self.assertEqual(observed['clean'], {'origin': 12345.5, 'users': 0,
             'assistants': 0, 'empty': True, 'challenge': False,
             'interstitial': False, 'login': False, 'rate': False,
@@ -2720,6 +2722,61 @@ console.log(JSON.stringify(fixtures.map(f => {
             with self.assertRaisesRegex(SystemExit, 'MODEL_RECONCILE_REFUSED_UNLISTED ' + job):
                 relay.reconcile_unsent_model(job, apply=apply)
         self.assertEqual(relay.job_state(job), state)
+
+    def test_work_composer_switches_to_chat_before_pro_admission_on_every_account(self):
+        # Run the actual emitted DOM action, not the transport mock, including
+        # unsafe drafts/generation/transcripts and unavailable UI controls.
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('packet')
+        action = next(n.value for n in ast.walk(ast.parse(scripts[0]))
+                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                      and n.value.startswith('(()=>{function ensureProChatSurface'))
+        node = r'''const vm=require('vm'),action=JSON.parse(process.argv[1]);
+        const results={};for(const kind of ['work','chat','draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden']){
+            let clicks=0;const elem=(text,pressed)=>({innerText:text,textContent:'',parentElement:null,
+              getClientRects:()=>[{}],getAttribute:k=>k==='aria-pressed'?pressed:null,click:()=>{clicks++}});
+            const chat=elem('Chat',kind==='chat'?'true':kind==='unknown'?null:'false'),
+                  work=elem('Work',kind==='chat'?'false':'true'),editor=elem('','');
+            if(kind==='draft')editor.textContent='private draft';
+            if(kind==='disabled')chat.disabled=true;
+            if(kind==='hidden')chat.hidden=true;
+            const doc={querySelector:s=>s==='main'?{querySelectorAll:()=>kind==='duplicate'?[chat,chat,work]:[chat,work]}:
+              kind==='stop'||kind==='transcript'?{}:null,querySelectorAll:()=>[editor]};
+            const value=vm.runInNewContext(action,{document:doc,location:{pathname:kind==='wrong_path'?'/c/old':'/'},
+              getComputedStyle:()=>({display:'block',visibility:'visible'})});results[kind]={value,clicks};
+        }console.log(JSON.stringify(results));'''
+        proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
+        actual = json.loads(proc.stdout)
+        self.assertEqual(actual['work'], {'value': {'switched': True}, 'clicks': 1})
+        self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
+        for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
+            self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
+        original_js = self.browser.js
+        mode = {'work': True, 'clicked': False, 'refuse': False}
+        def js(expression):
+            if not expression.startswith('(()=>{const here=location.href;') and 'function ensureProChatSurface' in expression:
+                if mode['refuse']:
+                    return {'error': 'CHAT_SURFACE_REFUSED'}
+                mode['work'] = False
+                mode['clicked'] = True
+                return {'switched': True}
+            if not expression.startswith('(()=>{const here=location.href;') and 'function pickerActionable' in expression and mode['work']:
+                return False
+            return original_js(expression)
+        self.browser.js = js
+        for profile in ('acct1', 'acct2', 'acct3'):
+            with self.subTest(profile=profile):
+                self.browser.pages = {k:v for k,v in self.browser.pages.items() if not k.startswith('new-')}
+                mode.update(work=True, clicked=False, refuse=False)
+                result = relay.send_message('packet')
+                self.assertNotIn('error', result)
+                self.assertTrue(mode['clicked'])
+                mode.update(work=True, clicked=False, refuse=True)
+                before = (len(self.browser.inserts), len(self.browser.sent))
+                refused = relay.send_message('packet')
+                self.assertEqual(refused.get('error'), 'CHAT_SURFACE_REFUSED')
+                self.assertEqual((len(self.browser.inserts), len(self.browser.sent)), before)
 
     def test_undefined_focus_value_does_not_abort_before_typing(self):
         self.browser.omit_undefined_value = True
