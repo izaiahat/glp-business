@@ -2155,7 +2155,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "2f9ae180133be46a0422c8723ed77102fd3eba8862ed9eb082c2a6d0a748355e"
+      "sha256": "bcccd561e4f6cfdca9a78c43599af7974193bc35ad68fa0e2f13841ada685451"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [

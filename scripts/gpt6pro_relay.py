@@ -1687,8 +1687,12 @@ def read_terminal_reply(st: dict) -> dict:
     if st.get('status') != 'done':
         raise ValueError('terminal reply requires done state')
     tab = st.get('tab')
+    url = binding_url(st)
+    if url is None:
+        raise ValueError('terminal reply requires exact conversation binding')
+    reply: dict = {}
     for attempt in range(11):
-        reply = read_reply(binding_url(st), tab, protected=protected_tabs(st),
+        reply = read_reply(url, tab, protected=protected_tabs(st),
                            capture_mode=st.get('reply_render_mode'))
         require_binding(st, reply)
         tab = reply['tab']
