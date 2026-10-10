@@ -25,8 +25,11 @@ BODY_SHA = 'c7004388dcab9180ce146d9825bd9d67f992d06ffdfd5fa5c889d8c0eb292f39'
 
 
 def require_schedule():
-    if c.now() < dt.datetime.fromisoformat('2026-10-12T06:00:00-07:00'):
+    at=c.now()
+    if at < dt.datetime.fromisoformat('2026-10-12T06:00:00-07:00'):
         raise RuntimeError('nuimage_not_before_Monday_0600_PT')
+    if at >= dt.datetime.fromisoformat('2026-10-12T17:00:00-07:00'):
+        raise RuntimeError('nuimage_exact_Monday_window_expired_do_not_defer')
     c.require_sponsor_send_window()
 
 

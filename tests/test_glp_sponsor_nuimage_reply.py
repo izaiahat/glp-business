@@ -12,6 +12,7 @@ import glp_sponsor_nuimage_reply as n
  ('2026-10-12T06:00:00-07:00',True),
  ('2026-10-12T16:59:59-07:00',True),
  ('2026-10-12T17:00:00-07:00',False),
+    ('2026-10-13T06:00:00-07:00',False),
  ('2026-10-17T09:00:00-07:00',False),
 ])
 def test_nuimage_not_before_monday_and_installed_weekday_window(monkeypatch,clock,allowed):

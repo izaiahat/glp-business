@@ -15,21 +15,21 @@
       "callers": [
         "Hermes one-shot S1 Monday Nu Image queue"
       ],
-      "sha256": "fbf25df0ce07356c83b10ee9064457d4903222376d3aa1faa46e3c4f8ed6d524"
+      "sha256": "861aa837efbf70186c4276ffebcefb7e1e74afa04e7a84dfaacacd86015ff13b"
     },
     "scripts/glp_sponsor_nuimage_reply.py": {
       "kind": "script",
       "callers": [
         "S1 authorized queued Nu Image reply"
       ],
-      "sha256": "30422cb287ddf50b788c7946581c4baaaedebe8e740a232c2214b2f3ca22e869"
+      "sha256": "c2d102717d6ffe8c4df4625075134e6e8ba3c07bc308a6406dd643fbd68eca94"
     },
     "tests/test_glp_sponsor_nuimage_reply.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "9db87e16792c43ebff6c85e44d4165f4fcb042a5e5a515d80944fa0dcfbfbbd7"
+      "sha256": "9b044d610eb36487096b3e72baf1613202e9a319fa6682b4d96fb8ee711305f5"
     },
     ".github/workflows/s1-current-sponsor-receiving.yml": {
       "kind": "config",
