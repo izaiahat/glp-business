@@ -67,7 +67,15 @@ def fixture(tmp_path, monkeypatch):
             self.base_url = 'https://chatgpt.com/backend-api/codex'
             self.input_tokens, self.output_tokens = 100, 10
             self.closed = False
+            self.started = False
+            self._cached_system_prompt = None
+        def _build_system_prompt(self, system_message):
+            return system_message
+        def _ensure_db_session(self):
+            self.started = True
         def run_conversation(self, user_message, **kwargs):
+            assert self.started
+            assert kwargs['system_message'] == review.SYSTEM_BRIEF
             assert user_message == payload
             return {'final_response': response, 'api_calls': 1, 'completed': True,
                     'provider': args.provider, 'model': args.model, 'session_id': 'reviewer',
