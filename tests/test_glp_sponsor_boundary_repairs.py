@@ -9,6 +9,18 @@ from pathlib import Path
 import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT/'scripts')]
+
+
+def test_technical_successor_pins_committed_shared_firecrawl_client():
+ """Current committed shared dependency must be bindable by the sealed producer.
+
+ This is source parity only: old archives/receipts remain historical, and a
+ successor still needs independent review plus genuine parent receiving.
+ """
+ import hashlib
+ expected = hashlib.sha256((ROOT/'scripts/firecrawl_client.py').read_bytes()).hexdigest()
+ assert m.TECHNICAL_SOURCE_SHA256['scripts/firecrawl_client.py'] == expected
+
 spec = importlib.util.spec_from_file_location('sponsor_author_helpers', ROOT/'tests/test_glp_sponsor_campaign.py')
 helpers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helpers)

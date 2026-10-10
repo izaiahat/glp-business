@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 936,
+  "tracked_count": 937,
   "files": {
     "tests/test_pro_root_home.py": {
       "sha256": "43732765c69000a7baa68aedbeff290f9488994b95c12146aab8e8250ed11d63"
@@ -641,7 +641,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "b1038f6c2dcf1f2fbcebaba386de4a02a155936e79d2e164df3157c1762f19d5"
+      "sha256": "0ba73a34e38e1beaeb7e5216db1b93eb462fff450c90df8aadf8007e99a71144"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -4645,14 +4645,14 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "a36157c3678feedbd5d013dedbbb430dab08ab7ed7184d42734d4c95affaea48"
+      "sha256": "052afd33245dd8e29ac3fe736a165fd80566dff5f6e57d4e1c00d0b659a0d031"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
       "callers": [
         "scripts/glp_sponsor_campaign.py"
       ],
-      "sha256": "dd0a94824b57d3bd17727b5d242aa261f993b325c01f867ab3478c4f21b27be7"
+      "sha256": "c44d37e6aab87c30d4ea070a36f690c40a07685a848769a4023ca316a110427b"
     },
     "ops/sponsor-machine/copy.json": {
       "kind": "source_control",
@@ -5136,7 +5136,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "809f034f5a35f3765345b5f5a8c02532aafe316b25a689f96e9d25012f1c0032"
+      "sha256": "fbe723e06f3d25117e8f6cd10d3016ebbf20ef65ab4e0343e74c8201022234ea"
     },
     "scripts/glp_sponsor_paypal.py": {
       "kind": "script",
@@ -6322,6 +6322,13 @@
         "L6 updater runtime integration"
       ],
       "sha256": "635298a2c0d75629e01feeb20717bbe3505b05be9c055a9946c17b15cf2e9b98"
+    },
+    "tests/test_glp_sponsor_postal_address.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "063bdba661d1f2a8ad7a3e4ac11990ccbee5cc9c9e61a7a07cf895440f3583ed"
     }
   }
 }
