@@ -8,43 +8,14 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 929,
+  "tracked_count": 930,
   "files": {
-    "tests/test_j2_maxbounty_catalog.py": {
+    "tests/test_pro_route_backlog.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "848e4c7daf363d562064e0fa09c6c2d0a3ed82794c2840acbfc344d0d5503a06"
-    },
-    "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
-      "kind": "script",
-      "callers": [
-        "hermes:f0c6a95a371c"
-      ],
-      "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
-    },
-    "tests/test_reconciliation_b2_worker_pin.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
-    },
-    "scripts/glp_affiliate_daily_decisions_report.py": {
-      "kind": "registered_producer",
-      "callers": [
-        "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
-      ],
-      "sha256": "64b4b3b0113fd582db4f4e8afcae0c9c55c3bc07a01e243871a34b4d14444310"
-    },
-    "tests/test_clickdealer_mint_blocker.py": {
-      "kind": "test",
-      "callers": [
-        ".github/workflows/business-source-ci.yml"
-      ],
-      "sha256": "91b3aaa376269a4dc088d9dfc546f4d8c1ff682ddb4270377918b49e5084b884"
+      "sha256": "acfec642b12edc141874fe84637ad1c86ae6f5f7435a01ba2649da34bfa8614b"
     },
     "tests/test_seo_updater_child_diagnostic.py": {
       "kind": "test",
@@ -5944,7 +5915,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+      "sha256": "837bdacd4bab4eea869b3fda34b704bcfc4673d5132075a9ca56c80a473a674c"
     },
     "scripts/host_disk_cold_classes.py": {
       "kind": "script",
@@ -6136,6 +6107,54 @@
       ],
       "sha256": "d406cba2a314f586de11b61d3fe48f2ff1387fd37dacb41893a516f3907ae39d"
     },
+    "ops/linear/AUTO-COORDINATOR.md": {
+      "kind": "instruction_or_policy",
+      "callers": [],
+      "sha256": "48753554609c5197d1c101a19ee9ec4505d6c39f0f1a8be30334a46dff8646ea"
+    },
+    "tests/test_firecrawl_glp350_reddit.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
+    },
+    "tests/test_j2_maxbounty_catalog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "848e4c7daf363d562064e0fa09c6c2d0a3ed82794c2840acbfc344d0d5503a06"
+    },
+    "ops/hermes-cron-scripts/glp_affiliate_reconciliation_current_base.sh": {
+      "kind": "script",
+      "callers": [
+        "hermes:f0c6a95a371c"
+      ],
+      "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
+      "sha256": "7545a8dd9cf59ea464ec48bac9107dddd6c18783a559dc521370fe2728f5ded6"
+    },
+    "tests/test_reconciliation_b2_worker_pin.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "5ce869bc4c6bb85ac940e0a777c62198882f2a3dfa27bd71b9b838396e0c4fad"
+    },
+    "scripts/glp_affiliate_daily_decisions_report.py": {
+      "kind": "registered_producer",
+      "callers": [
+        "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
+      ],
+      "sha256": "64b4b3b0113fd582db4f4e8afcae0c9c55c3bc07a01e243871a34b4d14444310"
+    },
+    "tests/test_clickdealer_mint_blocker.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "91b3aaa376269a4dc088d9dfc546f4d8c1ff682ddb4270377918b49e5084b884"
+    },
     "scripts/dot_dispatch.py": {
       "kind": "script",
       "callers": [
@@ -6150,24 +6169,12 @@
       ],
       "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
     },
-    "ops/linear/AUTO-COORDINATOR.md": {
-      "kind": "instruction_or_policy",
-      "callers": [],
-      "sha256": "48753554609c5197d1c101a19ee9ec4505d6c39f0f1a8be30334a46dff8646ea"
-    },
     "ops/cron.d/glp-dot-consumer": {
       "kind": "cron",
       "callers": [
         "host cron:deterministic native reply consumer"
       ],
       "sha256": "fa48734e59483b289ebbb90818c9c3c6b0450279dfea609b2dfdd9904ed9f607"
-    },
-    "tests/test_pro_route_backlog.py": {
-      "kind": "test",
-      "callers": [
-        "scripts/run_tests.sh"
-      ],
-      "sha256": "acfec642b12edc141874fe84637ad1c86ae6f5f7435a01ba2649da34bfa8614b"
     },
     "scripts/fleet_ingest.py": {
       "kind": "registered_producer",
