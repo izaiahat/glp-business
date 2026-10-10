@@ -65,6 +65,29 @@ def test_genuine_send_refused_by_linear_close_even_with_reply_artifact(tmp_path)
         lc.build('GLP-355', worker, issue)
 
 
+@pytest.mark.parametrize('text', [
+    'Send REPLY.md to jane@example.com',
+    'Email reports/REPLY.md to jane.doe@example.com',
+    'Send the reply after approval.',
+])
+def test_explicit_send_survives_reply_artifact_masking(tmp_path, text):
+    assert lo.protected_effect(text) == 'third-party-send'
+    worker = tmp_path / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-355'}))
+    issue = {'title': 'Artifact handling', 'description': '## Acceptance\n' + text}
+    with pytest.raises(lc.Refused, match='protected effect third-party-send'):
+        lc.build('GLP-355', worker, issue)
+
+
+def test_duplicate_constraint_cannot_hide_actual_financial_write(tmp_path):
+    text = 'avoid duplicate finding/publication/spend; charge $50; keep REPLY.md'
+    assert lo.protected_effect(text) == 'financial-write'
+    worker = tmp_path / 'RESULT.json'
+    worker.write_text(json.dumps({'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-355'}))
+    with pytest.raises(lc.Refused, match='protected effect financial-write'):
+        lc.build('GLP-355', worker, {'title': 'Settlement', 'description': '## Acceptance\n' + text})
+
+
 ISSUE_ID = 'issue-uuid'
 HEAD = 'a' * 40
 MERGE = 'b' * 40

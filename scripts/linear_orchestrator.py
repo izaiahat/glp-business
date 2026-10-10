@@ -395,7 +395,9 @@ PROTECTED_EFFECTS = {
         r'networks?|advertisers?|recipients?)\b|\boutreach\b|'
         r'\b(?:partners?|providers?|customers?|sponsors?|subscribers?|recipients?)\s+repl(?:y|ies)\b(?![./])|'
         r'\brepl(?:y|ies|ied|ying)\s+to\b|'
-        r'\b(?:send|sent)\s+(?:a\s+)?repl(?:y|ies)\b(?![./])|'
+        r'\b(?:send\w*|sent|e-?mail\w*|messag\w*|deliver\w*)\b[^\n.]{0,60}'
+        r'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|'
+        r'\b(?:send|sent)\s+(?:(?:a|the)\s+)?repl(?:y|ies)\b(?![./])|'
         r'(?<!no )(?<!never )(?<!zero )(?<!without )\b(?:a send|send occurs)\b'),
     'health-claim-publish': (
         r'\b(?:publish(?!ers?\b)\w*|publicat\w*)\b[^\n.]{0,60}\b(?:claims?|articles?|pages?|copy|content)\b|'
