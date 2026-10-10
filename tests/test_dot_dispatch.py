@@ -98,6 +98,61 @@ class DispatchTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             d.publish_reply(ticket, state, {'results': [dict(value, text='altered')]})
 
+    def test_audited_no_reply_expiry_releases_guard_and_retains_late_reply(self):
+        def api(method, route, payload=None):
+            if method == 'POST':
+                self.message['content'] = payload['content']
+            if '?limit=100' in route:
+                return [dict(self.message)]
+            return dict(self.message)
+        result = self.dispatch(api)
+        ticket = Path(result['ticket_dir'])
+        sent = json.loads((ticket / 'TICKET.json').read_text())['sent_at']
+        with patch.object(d.time, 'time', return_value=sent + 21601):
+            expired = d.expire(ticket, reason='D1 absent native intake after timeout',
+                owner='orchestrator', api=api, probe=lambda _: {'status': 'absent'})
+        self.assertEqual(expired['state'], 'expired')
+        audit = json.loads((ticket / 'EXPIRY.json').read_text())
+        self.assertEqual(audit['timeout_seconds'], 21600)
+        self.assertEqual(audit['reason'], 'D1 absent native intake after timeout')
+        self.assertEqual(audit['recorded_by'], 'orchestrator')
+        self.assertFalse((ticket / 'REPLY.md').exists())
+        d.dispatch('rook', 'GLP-359', 'next evidence read', root=self.root,
+            api=api, ready=lambda _: {'expires': 9999999999})
+        late = {'status': 'staged', 'correlation': expired['correlation'],
+            'text': 'RESULT ' + result['ticket'] + ' retained evidence', 'outcome': 'result',
+            'author_id': d.DOTS['rook']['user'], 'reply_id': '1560000000000000000',
+            'trust': d.TRUST, 'operator_approval': False}
+        with patch.object(d.subprocess, 'run', return_value=type('Proc', (), {
+                'returncode': 0, 'stdout': json.dumps({'results': [late]}), 'stderr': ''})()):
+            d.consume(self.root)
+        final = json.loads((ticket / 'TICKET.json').read_text())
+        self.assertEqual(final['state'], 'expired')
+        self.assertTrue(final['late'])
+        self.assertIn('LATE_REPLY_TO_EXPIRED_TICKET', (ticket / 'REPLY.md').read_text())
+        self.assertTrue(json.loads((ticket / 'COMPLETION.json').read_text())['late'])
+
+    def test_live_ticket_still_blocks_and_cannot_expire_early(self):
+        def api(method, route, payload=None):
+            if method == 'POST':
+                self.message['content'] = payload['content']
+            return dict(self.message)
+        result = self.dispatch(api)
+        ticket = Path(result['ticket_dir'])
+        with self.assertRaisesRegex(ValueError, 'timeout_not_elapsed'):
+            d.expire(ticket, reason='not old enough', owner='orchestrator',
+                api=lambda *_: self.fail('must refuse before history read'),
+                probe=lambda _: self.fail('must refuse before native read'))
+        with self.assertRaisesRegex(ValueError, 'one_open_ticket_per_dot'):
+            d.dispatch('rook', 'GLP-359', 'new brief', root=self.root,
+                api=lambda *_: self.fail('no POST'), ready=lambda _: {})
+        sent = json.loads((ticket / 'TICKET.json').read_text())['sent_at']
+        with patch.object(d.time, 'time', return_value=sent + 21601):
+            with self.assertRaisesRegex(ValueError, 'native_confirmation_or_live_effect'):
+                d.expire(ticket, reason='must not cancel effect', owner='orchestrator',
+                    api=api, probe=lambda _: {'status': 'confirmed'})
+        self.assertEqual(json.loads((ticket / 'TICKET.json').read_text())['state'], 'sent')
+
     def test_live_consumer_source_pins_do_not_follow_candidate_adapter(self):
         live = Path(self.tmp.name) / 'live'
         (live / 'scripts').mkdir(parents=True)
