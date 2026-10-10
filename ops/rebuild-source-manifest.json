@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 948,
+  "tracked_count": 949,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -889,7 +889,7 @@
         "hermes:ecbe6fdc0163"
       ],
       "kind": "script",
-      "sha256": "984d67ad44ac47416c607ce903ecb59268affedab3647aa1ad0752654fa4ec8f"
+      "sha256": "ab52f8ed24b03363e542019a79ed53050084cd30459b7d267bdd7ee93619fa0d"
     },
     "ops/hermes-cron-scripts/business_output_health_cron.sh": {
       "callers": [
@@ -2332,7 +2332,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2711133f4a364a5600d3dc9d87d7ab1b0f7e102159d730c80f82e2399ec91bc4"
+      "sha256": "5e836ad9cf6ad0ae12dfcfad20baa984c18b36c7355b32798cd0bca6fc887a87"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -4604,7 +4604,7 @@
         "hermes:ecbe6fdc0163",
         "scripts/affiliate_best_terms_machine.py"
       ],
-      "sha256": "d6a0018b788848a5f9e5356b62f99454914dae577ad1f7edb685806d6f05eac6"
+      "sha256": "5d54653462b04c9c9f1ffa923ad9dc79bea49308be45c69c59f9be84255410a3"
     },
     "scripts/affiliate_catalog_discovery.py": {
       "kind": "script",
@@ -6417,6 +6417,13 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "2beb839fdff4191cee4cee62b4b8109c02f1a8620eed9622eaf6c75e50bc0110"
+    },
+    "tests/test_j4_partnerize_partial_catalog.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "2394413c30fd53e2cdd3989f6de48f96d09a3a762954bbdc28b8b92d7369f45b"
     }
   }
 }

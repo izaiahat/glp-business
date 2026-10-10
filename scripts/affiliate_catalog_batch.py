@@ -241,6 +241,53 @@ def refersion_inventory(legacy, transport, *, page_size=100, max_pages=20):
         'blockers': blockers})
 
 
+def partnerize_inventory(legacy, transport):
+    """Keep successful real buckets when another catalog read times out.
+
+    Brand Discovery advertises brands, not an independent campaign denominator;
+    retain only exact campaign identities and never promote an advertiser ID.
+    """
+    adapter = legacy.partnerize
+    programs, blockers = [], []
+    for status in adapter.STATUSES:
+        try:
+            out = adapter.readback(transport, statuses=(status,))
+        except Exception as exc:
+            blockers.append({'error_class': 'partnerize_campaign_bucket_read_failed',
+                             'status': status, 'exception_class': type(exc).__name__})
+            continue
+        programs.extend(out.get('programs') or [])
+        blockers.extend(out.get('blockers') or [])
+    try:
+        discovery = adapter.discovery(transport)
+    except Exception as exc:
+        discovery = {}
+        blockers.append({'error_class': 'partnerize_discovery_read_failed',
+                         'exception_class': type(exc).__name__})
+    if discovery and discovery.get('http_status') != 200:
+        blockers.append({'error_class': 'partnerize_brand_discovery_v2_blocked',
+                         'http_status': discovery.get('http_status')})
+    seen = {row.get('program_id') for row in programs}
+    missing_campaign = 0
+    for row in discovery.get('advertisers') or []:
+        key = row.get('campaign_id')
+        if not isinstance(key, str) or not key:
+            missing_campaign += 1
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        programs.append({'program_id': key, 'advertiser_id': row.get('advertiser_id'),
+                         'name': row.get('name') or '', 'description': row.get('description') or '',
+                         'relationship': 'notjoined', 'url': row.get('url') or ''})
+    return legacy.b.readback_payload('Partnerize', 'PASS' if programs else 'BLOCKED', programs, {
+        'reported_total': None, 'blockers': blockers,
+        'statuses_swept': list(adapter.STATUSES),
+        'discovery_advertiser_count': discovery.get('advertiser_count'),
+        'discovery_advertisers_without_campaign_id': missing_campaign,
+        'denominator_scope': 'relationship_buckets_plus_exact_discovery_campaign_ids_no_campaign_total'})
+
+
 def live_legacy():
     source = BUSINESS / 'scripts/marketplace_supply_sweep.py'
     if hashlib.sha256(source.read_bytes()).hexdigest() != LEGACY_SHA:
@@ -254,6 +301,7 @@ def live_legacy():
     module.SWEEPS['partnerstack'] = lambda transport: partnerstack_inventory(module, transport)
     module.SWEEPS['maxbounty'] = lambda transport: maxbounty_inventory(module, transport)
     module.SWEEPS['refersion'] = lambda transport: refersion_inventory(module, transport)
+    module.SWEEPS['partnerize'] = lambda transport: partnerize_inventory(module, transport)
     return module
 
 
