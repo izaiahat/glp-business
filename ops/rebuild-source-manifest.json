@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 997,
+  "tracked_count": 998,
   "files": {
     "ops/hermes-cron-scripts/s1_glp125_queued_reply.py": {
       "kind": "script",
@@ -6658,7 +6658,7 @@
       ],
       "kind": "registered_producer",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "bfbbad193fc180d2642b62c24f02812c738fe584c17bda78f2f842954c31faa9"
+      "sha256": "d7c7309175997864a30f9de355ae9322653a89327b77ff19421740a777e73fb6"
     },
     "scripts/affiliate_reporting_xentraffic_j7.py": {
       "callers": [
@@ -6763,6 +6763,14 @@
       ],
       "sha256": "7e20e89c46ca41d8b062eef5e61a8dc1cff071b11ffd2c72f25da34b79f41c45",
       "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes."
+    },
+    "tests/test_j7_registered_shell_pins.py": {
+      "kind": "test",
+      "callers": [
+        "j7-reporting exact-head CI"
+      ],
+      "sha256": "af5bb23204a31eaaf9dc6756a4573ac9e6d17c8909775c3e5d092a4e4f091e98",
+      "scope": "Registered shell rejects mismatched imported job source before provider reads."
     }
   }
 }
