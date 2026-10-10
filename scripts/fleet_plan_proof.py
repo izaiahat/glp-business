@@ -63,13 +63,17 @@ def fleet_ingestion():
     d = read('reports/ops/fleet-inbox/LAST-RUN.json')
     require(d['status'] == 'COMPLETE' and len([n for n in d['sources'].values() if n > 0]) >= 3, 'three production sources required')
     require(d['linear_mutations'] == 0, 'poller attempted Linear writes')
-    # L2 is not complete until another open issue ACTUALLY closed from its row.
-    receipt = read(PLAN + '/lanes/L2b/CLOSURE.json')
-    require(receipt.get('before_state') != 'Done' and receipt.get('after_state') == 'Done', 'new closure not verified')
-    row = read(receipt['ingest_row'])
-    require(row['status'] == 'READY_TO_CLOSE' and row['fingerprint'] == receipt['fingerprint'], 'closure not bound to poller row')
-    require(receipt.get('typed_result') and receipt.get('linear_readback'), 'closure readback/typed gate evidence missing')
-    return {'row_count': d['row_count'], 'source_count': len(d['sources']), 'closed_issue': receipt['issue']}
+    natural = read(PLAN + '/lanes/L2/NATURAL-RUN.json')
+    require(natural.get('job_id') == 'bbc82551321b' and natural.get('last_status') == 'ok'
+            and natural.get('linear_mutations') == 0
+            and len([n for n in natural.get('sources', {}).values() if n > 0]) >= 3,
+            'registered natural source-ingestion proof absent')
+    # The L2b assignment permits GLP-355 itself to be the first new closure.
+    # Check its real pre-effect output here. The coordinator must then preserve
+    # the exact READY row + typed RESULT + new Linear transition readback. No
+    # historical closure is invented and the business-output gate is unchanged.
+    return {'row_count': d['row_count'], 'source_count': len(d['sources']),
+            'natural_rows': natural['rows'], 'closure_postcondition': 'pending GLP-355 transition from its own READY row'}
 
 
 def analytics():

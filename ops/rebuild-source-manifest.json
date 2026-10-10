@@ -6287,7 +6287,7 @@
       "callers": [
         "scripts/fleet_ingest.py"
       ],
-      "sha256": "cc36239711bd6287bb9de4010ac6c72d2d3e383d49b9f80f2ada79c980ac03bd"
+      "sha256": "9279397babfac3983f5acdb32e10caadf0dd8edca04ca90fad5d86c695ef96ac"
     },
     "scripts/auto_coordinator_guard.py": {
       "kind": "script",
