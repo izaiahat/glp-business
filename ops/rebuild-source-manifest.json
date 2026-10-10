@@ -501,8 +501,8 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "registered_producer",
-      "scope": "J8 account-only typed role/receipt diagnostic; financial acceptance oracle unchanged.",
-      "sha256": "86fc2b0a9f46d597f0c821e47270c3c0d60ad3087452015a4d510147f21c73e3"
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "66105677630b09bbe14d50ed12b37d6777ef48ca26b9474aec9c1d20a92f42c2"
     },
     "ops/glp/reporting-v2/source-manifest.json": {
       "callers": [
@@ -982,8 +982,8 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "registered_producer",
-      "scope": "J8 account-only typed role/receipt diagnostic; financial acceptance oracle unchanged.",
-      "sha256": "574555b75ac7d99ecf8dce7bf34470dc8bac7d01018de2e7db881a72bf4229df"
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "8d904c02390969a61f4d0fa3fe254e885ca9f6d0219aa56ae2f99acbfa2e9b73"
     },
     "ops/hermes-cron-scripts/glp_article_image_health.sh": {
       "callers": [
@@ -1575,7 +1575,7 @@
         "scripts/glp_sponsor_campaign.py"
       ],
       "kind": "source_control",
-      "sha256": "4cea936fed34d97a58586978296d4787e4883019c7323035e10f42b2c26e6b2a"
+      "sha256": "8f83a095d4ec3e470020321aabcaad0f75936c73c7543a0265f34314826997b8"
     },
     "ops/systemd/GLP-349-host-safety.md": {
       "callers": [
@@ -1830,6 +1830,14 @@
       ],
       "kind": "script",
       "sha256": "dc9dddb3d22312c948a2e6bf950b4cacb00db68c4423ee89c9d13eac41357cb0"
+    },
+    "scripts/affiliate_closed_statement_j9.py": {
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "kind": "registered_producer",
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "f84b200739d142d2e1b78b01b34d0d294afc9879dd160ede7651301f804291c8"
     },
     "scripts/affiliate_direct_evidence_capture.py": {
       "callers": [
@@ -2577,16 +2585,16 @@
         "hermes:aadf6677c7f0"
       ],
       "kind": "registered_producer",
-      "scope": "J8 account-only typed role/receipt diagnostic; financial acceptance oracle unchanged.",
-      "sha256": "acdc876a335203d2cb134317595f04047cda0ddbf955283851fa80bcffab0bea"
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "a46ba03586180fa0d845a8d853aab5ed45e755f61bbebbc2bf72893b96da536d"
     },
     "scripts/glp_affiliate_weekly_reporting_j7_job.py": {
       "callers": [
         "hermes:aadf6677c7f0"
       ],
       "kind": "registered_producer",
-      "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "cf05a94ae62d562df1b359a42b93a88d56199e0c79a245d0b14564a4c2a553ac"
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "f4f0f959bb0e7fd01530faac48aee7af8e5c0fabcaeed73fcf5831efec41eecb"
     },
     "scripts/glp_affiliate_weekly_reporting_job.py": {
       "callers": [
@@ -3062,7 +3070,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
+      "sha256": "2e4b978caedaa45ae3291d30b94de4c67815b1d86d80daab504ae16c87530e8b"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3581,7 +3589,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "1471c01e1f1f923c920e172a8f27e16d2f4a64887e6c9d5e62a67d39ab4f6098"
+      "sha256": "4d87469224490f6d7a04c64ed39adffe75b1aa70a08d7990b875a7afe9721f0c"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -5099,10 +5107,10 @@
       "sha256": "d42130ec692c6928a81978d63705cee72e069d36b6a7260c60ecf80b1b17fb4a"
     },
     "tests/test_glp331_carrier_closure.py": {
-      "kind": "test",
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
+      "kind": "test",
       "sha256": "bc1cc358b5165773416338a03ac87b5ba0ce772c5a9a886bec6339150764d1ef"
     },
     "tests/test_glp331_carrier_generation.py": {
@@ -6189,6 +6197,14 @@
       "kind": "test",
       "sha256": "e5070c5275be9ed23a41d3058734148af1916f307ea86ba0ed5e995dab0f90c6"
     },
+    "tests/test_j7_closed_statement_j9.py": {
+      "callers": [
+        "hermes:aadf6677c7f0"
+      ],
+      "kind": "test",
+      "scope": "J9 historical source-owned paid statement intake; no revenue eligibility or financial writes.",
+      "sha256": "511252958a59723f9cd1ebd5e724db52d6aadbfc247397c86b14d315830f33fd"
+    },
     "tests/test_j7_eden_portal.py": {
       "callers": [
         "hermes:aadf6677c7f0"
@@ -6743,6 +6759,49 @@
       ],
       "sha256": "f5bc2d5f38321c76fae9a02fe6dcae484333c928aac8f49beb86b945dd29e3df"
     },
+    "ops/hermes-cron-scripts/s1_glp125_queued_reply.py": {
+      "kind": "script",
+      "callers": [
+        "Hermes one-shot S1 Monday Nu Image queue"
+      ],
+      "sha256": "9d884739a035543fa29e0b7efe9c9b80f14d0344d306129a95431bc5656fb22f"
+    },
+    "scripts/glp_sponsor_nuimage_reply.py": {
+      "kind": "script",
+      "callers": [
+        "S1 authorized queued Nu Image reply"
+      ],
+      "sha256": "4a80776331b998ba1f327f92e93264194525d1dde4869009d3b087288fc73473"
+    },
+    "tests/test_glp_sponsor_nuimage_reply.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "4e44b8450bb3cfd36ec055de8e9e1034c71b40dd58e1c6e1f84d541eceb56d00"
+    },
+    ".github/workflows/s1-current-sponsor-receiving.yml": {
+      "kind": "config",
+      "callers": [
+        "GitHub Actions"
+      ],
+      "sha256": "34d1e21faf51605f9b0620db12eb018f136f2c1d9cdc840c10e88306fba13bb1"
+    },
+    "scripts/glp_sponsor_current_receiving.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_sponsor_campaign.py",
+        "coordinator-only current packet receiving"
+      ],
+      "sha256": "2f738895919deac524d20c0a4d434f1d4e3607e248fee6cb4ea98edbaf5f5d15"
+    },
+    "tests/test_glp_sponsor_current_receiving.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "419ce138cf623ddf11ca6083dce866870e71ce4a771d21ddc176dbc8383e9998"
+    },
     "tests/test_glp_g6_traction_freshness.py": {
       "kind": "test",
       "callers": [
@@ -6759,5 +6818,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 996
+  "tracked_count": 1004
 }
