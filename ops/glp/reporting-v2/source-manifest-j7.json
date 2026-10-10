@@ -1,5 +1,6 @@
 {
   "files": {
+    "/home/ubuntu/business/scripts/affiliate_account_identity_j8.py": "d2dd7d0192ba162080b1321acd89045b5ae799c19661314031b8f5eaa2c83921",
     "/home/ubuntu/business/scripts/affiliate_network_access.py": "719adeef4a6fbda84082f3762b502e40dfe37335c5f70d95f98c19b0d9ea5e22",
     "/home/ubuntu/business/scripts/affiliate_network_access_j5.py": "9d26abd1f3a26290cdfc1729a1a928fd100636fd2b9de1df3809f32dc168e712",
     "/home/ubuntu/business/scripts/affiliate_network_access_j6.py": "b7cdb17c227cec53a5488e1292fd3a3b6305ce2e1ef9cbef9ec8db2836955023",
@@ -13,7 +14,7 @@
     "/home/ubuntu/business/scripts/affiliate_reporting_everflow_roster_j7.py": "644c1f2d310e5cadfb28da0942c65b15fdd08ed350ff1513c321fb20f2c8fc72",
     "/home/ubuntu/business/scripts/affiliate_reporting_healthtrader.py": "7a06aa6092833cf7530a4d2ca4782b6c3366f0583fc3765a0e8f8615c331467d",
     "/home/ubuntu/business/scripts/affiliate_reporting_maxbounty.py": "2c7f71691c47d523af2b475cd1d87ceeb5dcbdd37337894920f4fb35f51a1752",
-    "/home/ubuntu/business/scripts/affiliate_reporting_maxbounty_j7.py": "ba273f28f5bef04fcd297867a286b008f68fcd86adceb002f184d378b66b7aeb",
+    "/home/ubuntu/business/scripts/affiliate_reporting_maxbounty_j7.py": "44a498e9302e413934613d41b1d8eafab716eec0ef59907be2c374a75900f639",
     "/home/ubuntu/business/scripts/affiliate_reporting_partnerstack.py": "4240277a9115278da04c976c0f2b26899684ac44d83982ce8d907fec8dc7e7fa",
     "/home/ubuntu/business/scripts/affiliate_reporting_refersion.py": "21e277d6bf41ca8484bc8ad91486dfd85900a5f6f4123e30b1440c139d3a3bee",
     "/home/ubuntu/business/scripts/affiliate_reporting_xentraffic_j7.py": "4b402e88d6c53fe81aedb3ba4772e4637e6a6cb75bb9f2278000bf78a1a87165",
@@ -22,7 +23,7 @@
     "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j5_job.py": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9",
     "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j6.py": "4d26d41533ca41abbbb717107872131bc6fbdf5a1bc0d26264e17378b14a8d1c",
     "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j6_job.py": "bb18d831dc63749980720f60ae02da13037c85c675896f507c1d39bd20abe594",
-    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j7.py": "729a8c6ec74b626ba11e5bdbb9649900010e11109176d18f3fb4e622192039a4",
+    "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j7.py": "acdc876a335203d2cb134317595f04047cda0ddbf955283851fa80bcffab0bea",
     "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_j7_job.py": "cf05a94ae62d562df1b359a42b93a88d56199e0c79a245d0b14564a4c2a553ac",
     "/home/ubuntu/business/scripts/glp_affiliate_weekly_reporting_job.py": "8888f3d1c342267abbdffd70e08bf490eb3c2e4c83199e909d0ba9723d685949",
     "/home/ubuntu/business/scripts/glp_network_revenue_import_v2.py": "0fc7e127a2e68fc3f283983b334bd320d0d3beec320d3dabb4089ee702b0386c",

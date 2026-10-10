@@ -410,6 +410,8 @@ def run(output, roster, identities, *, as_of=None, lookback_days=90, collectors=
             except Exception as exc:
                 result['gaps'].append({'network': name, 'state': 'SAFE_COLLECTOR_ERROR', 'exception_class': type(exc).__name__})
         save(output/'checkpoint.json', result)
+    from affiliate_account_identity_j8 import resolve_accounts
+    result['account_identity_resolution'] = resolve_accounts(names, result['observations'])
     result['conversion_reconciliation'] = reconcile_conversions(reconciliation_input, result['observations'], identities)
     result['completed_at'] = datetime.now(timezone.utc).isoformat()
     save(output/'RESULT.json', result)
@@ -446,7 +448,7 @@ def main(argv=None):
     args=p.parse_args(argv)
     here=Path(__file__).resolve().parent
     business=Path('/home/ubuntu/business')
-    required=[Path(__file__).resolve(),here/'glp_network_revenue_v2.py',here/'affiliate_reporting_xentraffic_j7.py']
+    required=[Path(__file__).resolve(),here/'glp_network_revenue_v2.py',here/'affiliate_reporting_xentraffic_j7.py',here/'affiliate_account_identity_j8.py']
     if args.live_cj_readonly:
         required += [business/'scripts/marketplace_adapters'/f for f in ('__init__.py','cj.py','_base.py')]
     if args.live_network_readonly:

@@ -55,3 +55,93 @@ def test_terms_mode_rejects_unknown_effects_before_consumer(tmp_path, monkeypatc
     monkeypatch.setattr(a, 'google_service', lambda: pytest.fail('Sheet client forbidden'))
     with pytest.raises(RuntimeError, match='contract_terms_prior_effects_not_zero'):
         asyncio.run(a.main())
+
+
+def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeypatch):
+    """Exact source slice; intake/API edge mocked, host roundtrip is separate."""
+    import ast, hashlib, json, sys, types, uuid, sqlite3
+    source = Path(__file__).resolve().parents[1] / 'scripts/affiliate_approval_auto_reconciler.py'
+    tree = ast.parse(source.read_text())
+    selected = [n for n in tree.body if getattr(n, 'name', '') in
+                {'route_unowned_inbox_action','route_bound_inbox_actions'}]
+    assert len(selected)==2, 'reconciler lacks canonical unowned-action to Triage producer'
+    # Reduced mirror omits host-only intake client; these two edges are mocks,
+    # not fake business evidence. Host invocation is verified after install.
+    linear_triage = types.ModuleType('linear_triage')
+    def validate(item):
+        assert uuid.UUID(item['operation_id']).version==4
+        assert item['source_id'].startswith('inbox:')
+        assert item['out_of_scope'] is item['privacy_reviewed'] is True
+    linear_triage.validate_item = validate
+    linear_triage.submit_idea = None
+    monkeypatch.setitem(sys.modules,'linear_triage',linear_triage)
+    linear_client = types.ModuleType('linear_client')
+    linear_client.Client = lambda: pytest.fail('unmocked remote client')
+    monkeypatch.setitem(sys.modules,'linear_client',linear_client)
+    ns = dict(Path=Path, hashlib=hashlib, json=json, BUSINESS=tmp_path,
+              TERMINAL_EVENT_STATES={'resolved_externally','held','archived'},
+              message_text=lambda _: ('PRIVATE SUBJECT', 'secret@example.invalid', 'PRIVATE BODY'),
+              detect=lambda *_: None)
+    exec(compile(ast.Module(selected, type_ignores=[]), str(source), 'exec'), ns)
+    route = ns['route_unowned_inbox_action']
+    raw = tmp_path / 'raw.eml'; raw.write_text('PRIVATE BODY')
+    event = dict(event_id='evt_regression', state='ingested', raw_path=str(raw),
+                 raw_sha256=hashlib.sha256(raw.read_bytes()).hexdigest(),
+                 canonical_actionable=1, canonical_category='unknown',
+                 canonical_venture='glp', canonical_lifecycle='active')
+    canonical=sqlite3.connect(':memory:'); canonical.row_factory=sqlite3.Row
+    event=canonical.execute('SELECT '+','.join('? AS '+k for k in event),
+                            tuple(event.values())).fetchone()
+    canonical.close()  # reproduce real fetch_inbox_events mapping, not only dicts
+    binding = dict(event_id=event['event_id'], raw_sha256=event['raw_sha256'],
+                   owning_machine=None, machine_ownership_reviewed=True,
+                   privacy_reviewed=True, title='Review infrastructure retention notice',
+                   summary='Review the retained notice; no paid upgrade is authorized.',
+                   lane='lane:kael', **{'class':'class:ops'})
+    calls = []
+    def publish(client, item, journal, **kwargs):
+        linear_triage.validate_item(item)
+        assert kwargs == {'entry_class':'inbox-email','purpose':'blocker','dry_run':False}
+        calls.append(item)
+        # Replay identity stays stable, as required by real submit_idea journal.
+        if len(calls)>1: assert calls[-1] == calls[0]
+        return {'status':'LINKED','issue':{'identifier':'GLP-FIXTURE'}}
+    monkeypatch.setattr(linear_triage, 'submit_idea', publish)
+    class Client:
+        def team(self, _): return {'id':'team'}
+        def connection(self, *_): return [{}]*self.count
+        count=19
+    client = Client()
+    for _ in range(2):
+        assert route(event,binding,client=client)['status']=='LINKED'
+    assert calls[0]['source_id']=='inbox:evt_regression'
+    assert uuid.UUID(calls[0]['operation_id']).version==4
+    assert 'PRIVATE' not in json.dumps(calls)
+    for changed in ({'canonical_actionable':0},{'state':'sent_verified'},
+                    {'canonical_category':'affiliate_network_response'}):
+        assert route(dict(event,**changed),binding,client=client) is None
+    assert route(event,dict(binding,owning_machine='sponsor'),client=client) is None
+    assert route(event,None,client=client) is None  # unknown ownership is not idle
+    with pytest.raises(RuntimeError,match='binding'):
+        route(event,dict(binding,raw_sha256='0'*64),client=client)
+    client.count=20
+    with pytest.raises(RuntimeError,match='cap'):
+        route(event,binding,client=client)
+    assert len(calls)==2
+    journal=tmp_path/'ops/linear/triage-journal.json'
+    journal.parent.mkdir(parents=True)
+    journal.write_text(json.dumps({'entries':{'inbox:evt_regression':{'status':'CANDIDATE'}}}))
+    with pytest.raises(RuntimeError,match='cap'):
+        route(event,binding,client=client)  # a local candidate is not an issued identity
+    bindings_path=tmp_path/'reports/ops/inbox-linear-triage/BINDINGS.json'
+    bindings_path.parent.mkdir(parents=True)
+    bindings_path.write_text(json.dumps({'schema':'inbox-linear-triage-v1',
+                                       'events':{event['event_id']:binding}}))
+    ns['fetch_inbox_events']=lambda *_: [event]
+    ns['save_receipt']=lambda *args: tmp_path/'blocked-receipt.json'
+    ns['route_unowned_inbox_action']=lambda *args,**kw: route(*args,client=client,**kw)
+    outputs=ns['route_bound_inbox_actions']()
+    assert outputs[0]['status']=='BLOCKED' and 'cap' in outputs[0]['blocker']
+    assert len(calls)==2  # capacity hold cannot suppress other owning machines
+    ns['fetch_inbox_events']=lambda *_: []
+    assert ns['route_bound_inbox_actions']()==[]  # stale terminal bindings skip
