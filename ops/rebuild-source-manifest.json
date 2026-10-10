@@ -947,7 +947,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "54c3f1645cffbd174773a7d125c641ca1d8c69612e7a21f85aa6f0c8f7424550"
+      "sha256": "5bd5e413190c5cd6d61d74ef168d68062b48a96bba6d2cc8b6402e69d2683468"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
