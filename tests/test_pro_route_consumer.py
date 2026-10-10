@@ -71,6 +71,24 @@ def test_destination_symlink_refuses(tmp_path,monkeypatch):
  assert not list(other.iterdir())
 
 
+def test_comment_uses_authenticated_bytes_despite_source_change(tmp_path, monkeypatch):
+ m,job,d=fixture(tmp_path,monkeypatch);c=Client()
+ original=(d/'ADVISORY.md').read_text()
+ operation=c.operation
+ def change_after_copy(name,variables):
+  if name=='issue_get':
+   (d/'ADVISORY.md').write_text('UNVERIFIED replacement after copy')
+  return operation(name,variables)
+ c.operation=change_after_copy
+ def write(client,kind,inp):
+  client.writes.append(inp)
+  return {'id':'comment-1','body':inp['body'],'issue':{'id':'id-47'}}
+ result=m.consume_outboxes(client=c,writer=write)
+ assert result[0]['state']=='delivered'
+ assert c.writes[0]['body'].endswith(original)
+ assert 'UNVERIFIED replacement' not in c.writes[0]['body']
+
+
 def test_dispatch_automatically_consumes(tmp_path,monkeypatch):
  m=load(tmp_path,monkeypatch);calls=[]
  monkeypatch.setattr(m,'dispatch',lambda **k:calls.append('dispatch') or [])

@@ -412,13 +412,19 @@ def consume_outboxes(client=None, writer=None):
                 if any(p.is_symlink() for p in (dest, *dest.parents) if p != ROOT.parent):
                     raise ValueError('PREP_DESTINATION_SYMLINK')
                 dest.mkdir(parents=True, exist_ok=True)
+                advisory = ''
                 for name, expected in files.items():
                     src = source / name; target = dest / name
                     if src.is_symlink() or target.is_symlink() or (target.exists() and hash_file(target) != expected):
                         raise ValueError('PREP_COPY_DRIFT')
+                    content = src.read_bytes()
+                    if hashlib.sha256(content).hexdigest() != expected:
+                        raise ValueError('PREP_COPY_DRIFT')
+                    if name == 'ADVISORY.md':
+                        advisory = content.decode('utf-8')
                     if not target.exists():
                         with target.open('xb') as out:
-                            out.write(src.read_bytes()); out.flush(); os.fsync(out.fileno())
+                            out.write(content); out.flush(); os.fsync(out.fileno())
                     if hash_file(target) != expected:
                         raise ValueError('PREP_COPY_DRIFT')
                 issue = client.operation('issue_get', {'id': row['issue']})['issue']
@@ -428,7 +434,7 @@ def consume_outboxes(client=None, writer=None):
                         '\nAccount: ' + str(row.get('account', 'unknown')) +
                         '\nArtifacts: ' + str(dest.relative_to(ROOT)) +
                         '\nNative manifest SHA256: ' + files['OUTPUT-MANIFEST.json'] +
-                        '\n\n' + (source / 'ADVISORY.md').read_text())
+                        '\n\n' + advisory)
                 body_sha = hashlib.sha256(body.encode()).hexdigest()
                 if started and receipt.get('body_sha256') != body_sha:
                     raise ValueError('PREP_POST_CUSTODY_DRIFT')
