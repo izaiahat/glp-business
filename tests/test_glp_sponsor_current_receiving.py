@@ -26,7 +26,8 @@ def test_current_coordinator_receiving_is_not_a_historical_session(tmp_path, mon
                'decision': 'RECEIVE CURRENT SPONSOR PACKET ' + sha,
                'reviewed_source_head': '1'*40, 'installed_bindings': {'source': 'a'*64}}
     c.save(c.STATE / r.RECEIPT, receipt)
-    assert c.approval_ready(config) is True
+    c.save(c.STATE / 'approval.json', receipt)
+    assert c.approval_ready(config)
     original = (c.STATE / r.RECEIPT).read_text()
     for field, bad in [('actor', 'source-author'), ('coordinator_authority', {'plan_sha256':'0'*64}),
                        ('packet_sha256','0'*64), ('installed_bindings', {'source':'0'*64}),

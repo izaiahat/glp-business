@@ -137,6 +137,8 @@ def approval_ready(c, config):
         or receipt.get('decision') != 'RECEIVE CURRENT SPONSOR PACKET ' + sha
         or not re.fullmatch(r'[0-9a-f]{40}', receipt.get('reviewed_source_head',''))):
         raise RuntimeError('current_coordinator_receiving_invalid')
+    if strict((c.STATE/'approval.json').read_bytes()) != receipt:
+        raise RuntimeError('current_coordinator_receiving_invalid:approval_binding_disagree')
     if receipt.get('installed_bindings') != packet_binding(c, packet, config):
         raise RuntimeError('current_coordinator_receiving_invalid')
     return True
@@ -145,6 +147,7 @@ def approval_ready(c, config):
 def receive(c, packet_sha256, source_head, result):
     session = require_coordinator_execution()
     import fcntl
+    import shutil
     import sync_from_repo as sync
     with sync.source_lock(c.ROOT), (c.STATE / 'run.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -160,7 +163,14 @@ def receive(c, packet_sha256, source_head, result):
                        receiving_session_id=session, packet_sha256=packet_sha256,
                        decision='RECEIVE CURRENT SPONSOR PACKET '+packet_sha256,
                        reviewed_source_head=source_head, installed_bindings=bindings)
+        preimages=result.parent/'canonical-preimages'
+        preimages.mkdir(parents=True,exist_ok=True)
+        for name in ('approval.json','activation.json'):
+            original=c.STATE/name
+            if original.is_file():
+                shutil.copyfile(original,preimages/(name+'.'+c.digest(original)))
         c.save(c.STATE / RECEIPT, receipt)
+        c.save(c.STATE / 'approval.json', receipt)
         # Runtime activation is separate from maintained source config, preserving
         # source hashes and scoped importer baselines.
         c.save(c.STATE / 'activation.json', {'send_enabled':True, 'packet_sha256':packet_sha256})

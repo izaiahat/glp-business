@@ -44,14 +44,14 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "94a3e44b8644a5f2adcb4d77feef6ab403048617e60bfa0dd1bb41d1f44e1ee2"
+      "sha256": "3a2677108d9d21adac38d0bd5edc6ac135d24fc0870088b4b33dedcccd82c850"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "d299a91436eb51d9a3e9a1e2e340ff6ef26e9c85d6b7d71a0b0515dc2433e31b"
+      "sha256": "7f545e10b558e2ef4df3a4e0f74a3eca118908f35707bf190e59c0ed2d4d7577"
     },
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
