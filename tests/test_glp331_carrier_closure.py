@@ -37,7 +37,7 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
     successor = {'scripts/affiliate_approval_auto_reconciler.py': (
         '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
         # Keep original adoption immutable; bind the reviewed inbox-Triage successor.
-        '0ceadc69e197adfdd2a05ac74a7e50f74b23b02e21ed50159a17d57a969bb906'),
+        'e31e2d4da25cfa3ff4f466db1b2c75c213e5eb3f3466a7685774e4c9f1a8facd'),
         # GLP347 preserves the historical adoption producer and binds the current denial-only successors.
         'scripts/affiliate_sheet_batch_writer.py': (
             '0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66',
