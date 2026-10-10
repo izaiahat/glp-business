@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 995,
+  "tracked_count": 996,
   "files": {
     "tests/test_pro_unsent_nonchat.py": {
       "kind": "test",
@@ -649,7 +649,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "48673c394a972b40ae6da61d42c91cf14dea752850168ec7a0e709717994b832"
+      "sha256": "57de217080134a5747655d744a8f7a56a16b37fafeb1212524ddb6c7e60b1bfe"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -5403,7 +5403,12 @@
     "scripts/pro_route.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "93b9c5ce9e563809473c312a68d173779afafa6c46d029cf1b75d7f5c4fc36a9"
+      "sha256": "423bd87da422a0d22aaa26887696f882a33e1005041ae34d4e62a173c51207af"
+    },
+    "tests/test_pro_route_refill.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "f246ef36a3d26c3faf0c3465c4410aa019ea317298094cf3184310557cd9121e"
     },
     "tests/test_pro_dispatch.py": {
       "callers": [],
