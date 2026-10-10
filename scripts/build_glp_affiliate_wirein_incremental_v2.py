@@ -95,6 +95,7 @@ ALLOWED_SOURCE_CHANGES = {
     "data/provider-fastpath-contract.json",
     "data/provider-logo-sources.json",
     "data/provider-page-contracts.json",
+    "data/provider-cta-identity-v2.json",
     "data/worker-manifest.staging.json",
     "artifacts/ops/worker-manifest.staging.json",
     "scripts/build-staging.mjs",
@@ -123,6 +124,8 @@ SURFACE_TRANSACTION_OUTPUTS = {
 SURFACE_INTEGRATION_CHANGES = {"data/program-content-ledger.json"} | SURFACE_TRANSACTION_OUTPUTS
 DECLARED_MUTATION_PATHS = ALLOWED_SOURCE_CHANGES | SURFACE_INTEGRATION_CHANGES
 MAY_BE_ABSENT_BEFORE_WRITE = {
+    # Older authentic source bases predate the optional native identity overlay.
+    "data/provider-cta-identity-v2.json",
     "data/worker-manifest.staging.json",
     "artifacts/ops/worker-manifest.staging.json",
     "data/program-content-ledger.json",
@@ -535,6 +538,38 @@ def stage_bound_logos(target: Path, specs: list[dict]) -> dict:
     return {"status": "PASS_BOUND_LOGOS_STAGED", "logos": staged_rows,
             "logo_sources": staged_sources,
             "manifest_rederivation": rederived}
+
+
+def paired_cta_identity_successor(before_raw: bytes, after: dict, migration: dict,
+                                  added_ids: list[str]) -> dict:
+    """Rebind only an authenticated append-only contract successor.
+
+    Preserve every retained row (including issued hrefs), every identity overlay,
+    and all other contract metadata. The existing site loader remains the final
+    oracle for both the predecessor and emitted pair. No caller-supplied digest.
+    """
+    if (migration.get("schema") != "glp-provider-cta-identity-v2"
+            or migration.get("metadata_only") is not True
+            or sha_bytes(before_raw) != migration.get("baseline_contract_sha256")):
+        raise RuntimeError("cta_identity_baseline_mismatch")
+    before = json.loads(before_raw)
+    old_rows = before["providers"]
+    old_ids = [row["program_id"] for row in old_rows]
+    new_rows = after["providers"][len(old_rows):]
+    if (not added_ids or len(set(added_ids)) != len(added_ids)
+            or len(set(old_ids)) != len(old_ids)
+            or set(old_ids).intersection(added_ids)
+            or [row["program_id"] for row in new_rows] != added_ids):
+        raise RuntimeError("cta_identity_successor_scope_invalid")
+    expected = json.loads(before_raw)
+    expected["providers"].extend(new_rows)
+    expected["target_release"]["requested_provider_review_count"] += len(added_ids)
+    if after != expected:
+        raise RuntimeError("cta_identity_successor_scope_invalid")
+    successor = json.loads(json.dumps(migration))
+    successor["baseline_contract_sha256"] = sha_bytes(
+        (json.dumps(after, indent=2, sort_keys=True) + "\n").encode())
+    return successor
 
 
 def write_json(path: Path, value, private: bool = False) -> None:
@@ -1266,7 +1301,16 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
 
     # 1. provider-page-contracts.json
     contracts_path = target / "data/provider-page-contracts.json"
-    contracts = read_json(contracts_path)
+    before_contract_raw = contracts_path.read_bytes()
+    contracts = json.loads(before_contract_raw)
+    identity_path = target / "data/provider-cta-identity-v2.json"
+    identity = read_json(identity_path) if identity_path.exists() else None
+    if identity is not None:
+        # Authenticate the real predecessor with the unchanged site oracle before
+        # constructing anything; invalid overlay identities must never be blessed.
+        subprocess.run(["node", "--input-type=module", "-e",
+            "import {loadProviderPageContracts} from './src/provider-cta-contract.mjs';"
+            "loadProviderPageContracts(process.cwd());"], cwd=target, check=True)
     present = {p["program_id"] for p in contracts["providers"]}
     for spec in specs:
         if spec["program_id"] in present:
@@ -1275,7 +1319,18 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
             build_contract(spec, research[spec["program_id"]], tracking[spec["program_id"]],
                            logos[spec["program_id"]], publishers[spec["program_id"]]))
     contracts["target_release"]["requested_provider_review_count"] += n
+    identity_successor = (paired_cta_identity_successor(
+        before_contract_raw, contracts, identity, ids) if identity is not None else None)
     write_json(contracts_path, contracts)
+    if identity_successor is not None:
+        assert identity is not None
+        write_json(identity_path, identity_successor)
+        notes["paired_cta_identity_binding"] = {
+            "before_sha256": identity["baseline_contract_sha256"],
+            "after_sha256": identity_successor["baseline_contract_sha256"],
+            "added_ids": ids, "retained_rows": len(present),
+            "retained_identities_unchanged": True,
+        }
     notes["requested_provider_review_count"] = contracts["target_release"]["requested_provider_review_count"]
 
     # 2. provider-fastpath-contract.json — integrations, counts, self-hash.

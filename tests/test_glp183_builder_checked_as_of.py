@@ -43,11 +43,12 @@ def load_contract_functions():
     tree = ast.parse(source.read_text(), filename=str(source))
     names = {"quote", "stated", "canonical_field_sources", "normalize_regulatory_banner",
              "build_contract", "validate_checked_as_of", "apply_changes", "main",
-             "read_json", "write_json", "file_sha", "sha_bytes", "logo_mutation_paths"}
+             "read_json", "write_json", "file_sha", "sha_bytes", "logo_mutation_paths",
+             "paired_cta_identity_successor"}
     functions = [node for node in tree.body
                  if isinstance(node, ast.FunctionDef) and node.name in names]
     # Permit predecessor loading for explicit red runs: it lacks the new helper.
-    assert {node.name for node in functions} >= names - {"validate_checked_as_of"}
+    assert {node.name for node in functions} >= names - {"validate_checked_as_of", "paired_cta_identity_successor"}
     constants = [node for node in tree.body if isinstance(node, ast.Assign)
                  and any(isinstance(target, ast.Name) and target.id == "COMPOUNDED_TAIL"
                          for target in node.targets)]
@@ -294,3 +295,47 @@ def test_actual_cli_caller_refuses_before_materialization_or_cleanup(tmp_path, m
     assert snapshot(tmp_path) == before
     assert output.stat().st_mtime_ns == directory_mtime
     assert sorted(p.name for p in output.iterdir()) == ["untouched.txt"]
+
+
+def test_three_added_contracts_produce_paired_identity_binding():
+    # Synthetic rows exercise the exact constructor helper without private inputs.
+    before = {"providers": [{"program_id": f"retained-{i}", "network_contract": {"tracking_url": f"https://example.invalid/{i}"}} for i in range(43)],
+              "target_release": {"requested_provider_review_count": 43}}
+    raw = (json.dumps(before, indent=2, sort_keys=True) + "\n").encode()
+    migration = {"schema": "glp-provider-cta-identity-v2", "metadata_only": True,
+                 "baseline_contract_sha256": hashlib.sha256(raw).hexdigest(),
+                 "programs": {"jrnys-review": {"fixture": "unchanged"}, "medvi-review": {"fixture": "unchanged"}}}
+    added = ["ivim-health-review", "rightwell-review", "willow-review"]
+    after = deepcopy(before)
+    after["providers"] += [{"program_id": pid} for pid in added]
+    after["target_release"]["requested_provider_review_count"] += 3
+    assert hasattr(builder, "paired_cta_identity_successor"), "constructor lacks guarded paired CTA identity writer"
+    successor = builder.paired_cta_identity_successor(raw, after, migration, added)
+    assert successor["baseline_contract_sha256"] == hashlib.sha256((json.dumps(after, indent=2, sort_keys=True) + "\n").encode()).hexdigest()
+    assert successor["programs"] == migration["programs"]
+    assert after["providers"][:43] == before["providers"]
+    assert len(after["providers"]) == 46
+    assert migration["baseline_contract_sha256"] == hashlib.sha256(raw).hexdigest()
+
+
+@pytest.mark.parametrize("drift", ["retained_href", "retained_id", "unexplained_addition", "removed_row", "top_level", "predecessor_bytes"])
+def test_unexplained_identity_changes_fail_paired_successor(drift):
+    before = {"providers": [{"program_id": "retained", "network_contract": {"tracking_url": "https://example.invalid/original"}}],
+              "target_release": {"requested_provider_review_count": 1}}
+    raw = (json.dumps(before, indent=2, sort_keys=True) + "\n").encode()
+    migration = {"schema": "glp-provider-cta-identity-v2", "metadata_only": True,
+                 "baseline_contract_sha256": hashlib.sha256(raw).hexdigest(), "programs": {}}
+    after = deepcopy(before)
+    after["providers"].append({"program_id": "new-review"})
+    after["target_release"]["requested_provider_review_count"] = 2
+    if drift == "retained_href": after["providers"][0]["network_contract"]["tracking_url"] = "https://example.invalid/drift"
+    if drift == "retained_id": after["providers"][0]["program_id"] = "unexpected"
+    if drift == "unexplained_addition": after["providers"].append({"program_id": "unexpected"})
+    if drift == "removed_row": after["providers"].pop(0)
+    if drift == "top_level": after["unexpected"] = True
+    if drift == "predecessor_bytes": raw += b" "
+    assert hasattr(builder, "paired_cta_identity_successor"), "constructor lacks guarded paired CTA identity writer"
+    snapshot = deepcopy((after, migration))
+    with pytest.raises(RuntimeError, match="cta_identity_(baseline_mismatch|successor_scope_invalid)"):
+        builder.paired_cta_identity_successor(raw, after, migration, ["new-review"])
+    assert (after, migration) == snapshot
