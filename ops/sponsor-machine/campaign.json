@@ -9,8 +9,8 @@
     4,
     10
   ],
-  "postal_address": "1021 E Lincolnway, STE #266, Cheyenne, WY 82001",
-  "postal_address_source": "glp-clinic-partner-outreach-machine/outreach_config.json; operator supplied 2026-06-19",
+  "postal_address": "2108 N St, Ste N, Sacramento, California 95816, United States",
+  "postal_address_source": "scripts/glp_everflow_portal_apply.py PUBLISHED_ADDRESS; operator correction 2026-10-09",
   "activation": "Exact operator approval of packet SHA plus locally retained approval receipt and send_enabled=true; never auto-enable from an email reply.",
   "new_provider_daily_cap": 25,
   "follow_up_daily_cap": 50,
