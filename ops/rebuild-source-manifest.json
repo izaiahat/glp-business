@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 952,
+  "tracked_count": 953,
   "files": {
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -1065,7 +1065,7 @@
         "hermes:0d734f16c0e9"
       ],
       "kind": "script",
-      "sha256": "29692f247224b472ddb047719dea215fe5b239521e29f67b69e03a51b380bf17"
+      "sha256": "2bd313908e460adfbfa1b7243346d517e56f21f07b83da577099de057afcbe6b"
     },
     "ops/hermes-cron-scripts/glp_google_ads_spend_guard.py": {
       "callers": [
@@ -1991,7 +1991,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_g6_weekly_traction_report.sh"
       ],
       "kind": "script",
-      "sha256": "f4d86f0d41f968db01551c7ed16c7b78f534f2ed6f9103eefbb63552b4d71e54"
+      "sha256": "3d90b4c87940a4b70a77110ad3b6dbc9c2ff03e35a8edaabc47460fa672ff2e8"
     },
     "scripts/glp_llms_txt_gate.py": {
       "callers": [
@@ -2325,7 +2325,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "394020307e2395e5309ff21f67036a2117e8265ec90075b5b86ba02fab4ac6e1"
+      "sha256": "4e4cbd430c35d356d048bf85645bccaab6296f0db6eca4e738077ca1c22590be"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
@@ -6438,6 +6438,13 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+    },
+    "tests/test_glp_g6_traction_freshness.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "c62fa3d0b667052c9154ec023a1eb489f43240e2a9bda6017c4b6063b6073764"
     }
   }
 }
