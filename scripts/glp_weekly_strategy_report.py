@@ -29,6 +29,9 @@ def save(path,doc):
 def run(output, *, update_strategy=False):
     from ops.glp.weekly_strategy_inputs import topic_recommendations
     from ops.glp.seo_weekly_modules import read_bound
+    from zoneinfo import ZoneInfo
+    sys.path.insert(0,str(B/'systems/seo-blog-machine/scripts'))
+    from weekly_strategy_consumer import review_week_start
     collector=load(B/'scripts/glp_weekly_seo_collect.py','weekly_strategy_collector')
     analysis=load(B/'scripts/glp_weekly_seo_analysis.py','weekly_strategy_analysis')
     analysis.verify_pins()
@@ -58,7 +61,9 @@ def run(output, *, update_strategy=False):
         except (OSError,ValueError,TypeError,KeyError): continue
     held=[r['review_path'] for r in money.get('programs',[]) if r.get('permission',{}).get('held_preserved')]
     topics=topic_recommendations(gsc,held_routes=held)
-    topics['evidence_binding']=inputs['gsc-28'];topics['week_start']=receipt['week_start']
+    topics['evidence_binding']=inputs['gsc-28']
+    topics['analysis_week_start']=receipt['week_start']
+    topics['week_start']=review_week_start(dt.datetime.now(ZoneInfo('America/Los_Angeles')).date()).isoformat()
     topics['module_binding']={'path':str(output/'analysis/modules/receipt.json'),'sha256':hashlib.sha256((output/'analysis/modules/receipt.json').read_bytes()).hexdigest()}
     save(output/'TOPIC-RECOMMENDATIONS.json',topics)
     strategy_update={'status':'REPORT_ONLY_NOT_REQUESTED'}
