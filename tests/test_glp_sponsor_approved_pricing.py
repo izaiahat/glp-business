@@ -32,3 +32,26 @@ def test_approved_prices_reach_all_variants(monkeypatch):
     assert '$750' in copy['interested_next_step']['body']
     assert 'renewal is $500' in copy['interested_next_step']['body']
     assert not config['send_enabled']  # prices alone never create send authority
+
+
+def test_sponsor_weekday_business_hours_refuse_at_transport(monkeypatch):
+    import datetime as dt
+    import pytest
+    # Boundaries in Pacific time, including the user's Friday-evening stop.
+    cases=[('2026-10-09T05:59:59-07:00',False),
+           ('2026-10-09T06:00:00-07:00',True),
+           ('2026-10-09T16:59:59-07:00',True),
+           ('2026-10-09T17:00:00-07:00',False),
+           ('2026-10-09T18:00:00-07:00',False),
+           ('2026-10-10T09:00:00-07:00',False),
+           ('2026-10-11T09:00:00-07:00',False),
+           ('2026-10-12T09:00:00-07:00',True),
+           ('2026-11-02T06:00:00-08:00',True)]
+    for value,eligible in cases:
+        at=dt.datetime.fromisoformat(value)
+        monkeypatch.setattr(c,'now',lambda:at)
+        if eligible:
+            c.require_sponsor_send_window()
+        else:
+            with pytest.raises(RuntimeError,match='outside_approved_weekday_06_17_PT_send_window'):
+                c.send_message(None,{}, {}, [])
