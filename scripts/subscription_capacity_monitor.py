@@ -26,6 +26,7 @@ from account_capacity_collector import collect_capacity, claude_statusline_recor
 ROOT = Path('/home/ubuntu/business')
 STATE_DIR = ROOT / 'ops/subscription-capacity'
 CHANNEL = '1487300132054765629'
+REPORT_VERSION = 3  # API demand meter now resolves its package transport.
 TOKEN_PATH = Path('/home/ubuntu/.hermes/secrets/boring-ai/discord_bot_token')
 PACIFIC = ZoneInfo('America/Los_Angeles')
 sys.path.insert(0, str(ROOT))
@@ -462,7 +463,10 @@ def s7_credit_snapshot():
 
 def s7_meter_read(**kwargs):
     from ops.n8n_execution_budget import health_check
-    return health_check(**kwargs)
+    from ops.n8n_dt import _native_http
+    # The package caller does not put ops/ on sys.path. Bind the approved
+    # read-only transport explicitly instead of health_check's legacy import.
+    return health_check(get=_native_http, **kwargs)
 
 
 def s7_extensions(directory, now, *, dry_run_reset=False):
@@ -708,7 +712,7 @@ def tick(directory=STATE_DIR, *, notify=True, force=False, collector=collect_mon
         day = local.date().isoformat()
         acknowledged = load_json(directory / 'notification-state.json', {})
         daily = local.hour >= 9 and acknowledged.get('daily_date') != day
-        changed = state != acknowledged.get('alert_state') or acknowledged.get('report_version') != 2
+        changed = state != acknowledged.get('alert_state') or acknowledged.get('report_version') != REPORT_VERSION
         if notify and (force or daily or changed or (directory / 'pending-delivery.json').exists()):
             previous_state = {(s.get('label'), s.get('scope')): s for s in acknowledged.get('alert_state', [])}
             crossings = []
@@ -723,7 +727,7 @@ def tick(directory=STATE_DIR, *, notify=True, force=False, collector=collect_mon
             # A recovered old pending receipt doesn't acknowledge newer data.
             if receipt.get('content') == message:
                 atomic_json(directory / 'notification-state.json', {'alert_state': state, 'daily_date': day,
-                    'message_id': receipt['message_id'], 'acknowledged_at': stamp(now), 'report_version': 2})
+                    'message_id': receipt['message_id'], 'acknowledged_at': stamp(now), 'report_version': REPORT_VERSION})
         return report
 
 

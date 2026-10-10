@@ -3,6 +3,37 @@ from types import SimpleNamespace
 import json
 
 import pytest
+
+
+def test_s7_meter_resolves_package_transport_without_ops_path(tmp_path, monkeypatch):
+    import subscription_capacity_monitor as monitor
+    from ops import n8n_dt, n8n_execution_budget
+    seen = {}
+    def fake_health(**kwargs):
+        seen.update(kwargs)
+        return {'snapshot': {'month_execution_high_water': 31, 'projected_month_end': 96}}
+    monkeypatch.setattr(n8n_execution_budget, 'health_check', fake_health)
+    monitor.s7_meter_read(state_path=tmp_path / 'demand.json')
+    assert seen['get'] is n8n_dt._native_http
+
+
+def test_s7_notification_upgrade_emits_once_preserving_day(tmp_path, monkeypatch):
+    import subscription_capacity_monitor as monitor
+    from types import SimpleNamespace
+    collector = lambda **_: SimpleNamespace(to_dict=lambda **__: {'records': [], 'collection_errors': []})
+    now = datetime(2026, 10, 10, 1, tzinfo=timezone.utc)
+    before = monitor.tick(tmp_path, collector=collector, now=now, notify=False)
+    monitor.atomic_json(tmp_path / 'notification-state.json', {'report_version': 2, 'daily_date': '2026-10-09', 'alert_state': monitor.alert_state(before, now)})
+    sent = []
+    def sender(message, directory):
+        sent.append(message)
+        return {'content': message, 'message_id': '1'}
+    monitor.tick(tmp_path, collector=collector, now=now, sender=sender)
+    monitor.tick(tmp_path, collector=collector, now=now, sender=sender)
+    assert len(sent) == 1
+    saved = monitor.load_json(tmp_path / 'notification-state.json', {})
+    assert saved['daily_date'] == '2026-10-09' and saved['report_version'] == 3
+
 import subscription_capacity_monitor as monitor
 
 NOW = datetime(2026, 9, 4, 21, tzinfo=timezone.utc)
