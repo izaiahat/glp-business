@@ -2220,7 +2220,7 @@ def _retained_empty_witness(tab, time_origin, *, disposition_only=False):
     if disposition_only:
         reader = reader.replace("p.getAttribute('data-placeholder')==='Ask ChatGPT'",
             "['Ask ChatGPT','Work with ChatGPT'].includes(p.getAttribute('data-placeholder'))")
-    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + reader + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length};})()''')
+    extra = (r'''(()=>{const e=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');''' + reader + r'''return {url:location.href,time_origin:performance.timeOrigin,composer_empty:composerText(e)==='',user_count:document.querySelectorAll('[data-message-author-role=user]').length,transcript_count:document.querySelectorAll('[data-message-author-role], [data-chatgpt-selection-message-id]').length,stop:!!document.querySelector('button[data-testid="stop-button"],button[aria-label="Stop generating"]')};})()''')
     witness = bu_json(BU_PRELUDE + f'\ntab={tab!r}\nextra={extra!r}\n' + '''
 before=[t['targetId'] for t in list_tabs()]
 if tab not in before: _binding_error('retained_target_missing', tab=tab)
@@ -2244,7 +2244,8 @@ print('RELAY_JSON:'+json.dumps({'tab':tab,'state':state,'first':first,'last':las
                  'stop', 'drive_reconnect', 'thinking_failed')) and
             first == last and first.get('url') == 'https://chatgpt.com/' and
             first.get('time_origin') == time_origin and
-            first.get('composer_empty') is True and first.get('user_count') == 0)
+            first.get('composer_empty') is True and first.get('user_count') == 0 and
+            first.get('transcript_count') == 0 and first.get('stop') is False)
 
 
 def _reconcile_unsent_readiness(job, cfg, st, path, preimage, report_path, apply, account, inspect_only=False):
@@ -3096,11 +3097,13 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
         refuse('ADMISSION')
     # Pre-insert incidents retain strict-empty proof. The one post-insertion
     # guard refusal instead preserves the exact populated draft, never clears it.
-    if c.get('postinsert_guard'):
-        if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+    def tab_recheck():
+        if c.get('postinsert_guard'):
+            if not _retained_draft_witness(c['tab'], c['time_origin'], c['draft_sha256']):
+                refuse('TAB_EVIDENCE')
+        elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin'], disposition_only=True):
             refuse('TAB_EVIDENCE')
-    elif c['tab'] is not None and not _retained_empty_witness(c['tab'], c['time_origin'], disposition_only=True):
-        refuse('TAB_EVIDENCE')
+    tab_recheck()
     def recheck():
         if (path.read_bytes() != preimage or any(p.read_bytes() != b for p, b in custody.items()) or
                 any((path.parent / name).exists() for name in ('RESPONSE.md', 'outbox')) or _legacy_live_jobs()):
@@ -3115,6 +3118,7 @@ def _reconcile_terminal_unsent(cfg, st, path, preimage, report, apply, authorize
     fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
     try: os.fsync(fd)
     finally: os.close(fd)
+    tab_recheck()
     recheck()
     event = _terminal_unsent_event(st, report, custody[(BUSINESS / report).resolve()], now_iso())
     ledger_append(cfg, {**event, 'phase': 'STARTED'})
@@ -3535,7 +3539,7 @@ def _cmd_submit(a) -> int:
         separators=(',', ':')).encode()).hexdigest()
     reply_token = secrets.token_hex(32)
     text += (f'\n\nRELAY_IDENTITY job={a.job} input_sha256={input_sha} reply_token={reply_token}\n'
-             'For Drive files supply OUTPUT-MANIFEST.json with schema="gpt6pro-output-manifest-v2", '
+             'For output files in either channel supply OUTPUT-MANIFEST.json with schema="gpt6pro-output-manifest-v2", '
              'job, input_sha256, reply_token (copy the exact values above), and files (object mapping '
              'payload basename to SHA256 of the exact saved file bytes; exclude OUTPUT-MANIFEST.json itself). '
              'Do NOT include conversation_id: the relay verifies the actual chat URL, which you cannot know '
