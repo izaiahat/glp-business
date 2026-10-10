@@ -99,7 +99,8 @@ def test_cli_submit_status_fetch_use_one_persistent_identity(tmp_path, monkeypat
 
 def test_account_routing_capacity_and_unbound_hold(tmp_path, monkeypatch):
     from contextlib import nullcontext
-    m = route(); cfg = {'accounts': [{'label': 'A', 'cdp_port': 1}, {'label': 'B', 'cdp_port': 2}, {'label': 'C', 'cdp_port': 3}], 'envelope': {'max_concurrent_chats_per_ip': 6, 'max_concurrent_chats_per_account': 3}}
+    m = route(); monkeypatch.setattr(m, 'ROOT', tmp_path)
+    cfg = {'accounts': [{'label': 'A', 'cdp_port': 1}, {'label': 'B', 'cdp_port': 2}, {'label': 'C', 'cdp_port': 3}], 'envelope': {'max_concurrent_chats_per_ip': 6, 'max_concurrent_chats_per_account': 3}}
     monkeypatch.setattr(m.relay, 'load_config', lambda: cfg)
     rows = [{'account': 'A'}] * 3
     monkeypatch.setattr(m.relay, 'active_registry', lambda: rows)
