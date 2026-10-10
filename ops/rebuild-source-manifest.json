@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 951,
+  "tracked_count": 953,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -642,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "f94376b8e677e513e787839e872a989e30e21fe8c632cbafd2d18cd6dd247104"
+      "sha256": "3d1a694f24111aae0fb00e5142d37f35772123cc37ce295906cb9fbc1684d9bf"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -6432,6 +6432,20 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "16103d32f839970d8b1484cdf923103a2a1efcff14ee0b7781ed4a18bfe04352"
+    },
+    "scripts/glp_maxbounty_identity_capture.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/glp_maxbounty_lane.py"
+      ],
+      "sha256": "52d176249707e1d7acb917950d497e439050b5ba4ae2a3b0e82fc50787e15ecd"
+    },
+    "tests/test_maxbounty_identity_capture_transport.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "e86da8840557ad6762d71920eedc798e9fc67ba265c6675575da27b84a8e1b5f"
     }
   }
 }
