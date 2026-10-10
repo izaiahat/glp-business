@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 934,
+  "tracked_count": 935,
   "files": {
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -5944,7 +5944,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+      "sha256": "837bdacd4bab4eea869b3fda34b704bcfc4673d5132075a9ca56c80a473a674c"
     },
     "scripts/host_disk_cold_classes.py": {
       "kind": "script",
@@ -6316,6 +6316,13 @@
         ".github/workflows/fleet-ingest.yml"
       ],
       "sha256": "1777e4a0b729590f895bb7c0641e900dcb2d1502580761951e2c6c4f52a64070"
+    },
+    "tests/test_firecrawl_glp350_reddit.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
     }
   }
 }
