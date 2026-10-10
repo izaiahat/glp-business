@@ -23,6 +23,9 @@ def test_untrusted_or_promotional_notice_does_not_use_contract_review(subject, s
     assert (a.detect(subject, sender, 'Program updates: apply to join') or {}).get('action') != 'contract_terms_review'
 
 def test_terms_review_has_no_sheet_or_mailbox_effect(tmp_path, monkeypatch):
+    monkeypatch.setattr(a, 'REPORT_DIR', tmp_path / 'reports')
+    monkeypatch.setattr(a, 'STATE_DB', tmp_path / 'state.sqlite3')
+    monkeypatch.setattr(a, 'load_control_plane', lambda: pytest.fail('terms notice must not reach mailbox writer'))
     event = {'event_id':'evt_terms_fixture', 'state':'ingested', 'raw_path':'unused', 'canonical_category':'affiliate_network_response'}
     monkeypatch.setattr(a, 'message_text', lambda _: ('Your Contract Terms for CoreAge Rx GLP-1 Have Changed 🔧', 'notifications@katalys.com', 'Contract terms have changed'))
     monkeypatch.setattr(a, 'verify_affiliate_authentication', lambda *args: {'status':'PASS'})
@@ -35,3 +38,21 @@ def test_terminal_terms_recovery_requires_exact_zero_effect_receipt():
     assert a.terms_notice_recovery_allowed({'status':'PASS','action_kind':'routine_affiliate_information','sheet_write_count':0,'provider_mutation':False,'provider_readback_verified':False,'sheet_readback_verified':False})
     assert not a.terms_notice_recovery_allowed({'status':'PASS','action_kind':'routine_affiliate_information','sheet_write_count':1})
     assert not a.terms_notice_recovery_allowed({'status':'PASS','action_kind':'affiliate_relationship_reconciliation','sheet_write_count':0})
+
+
+def test_terms_mode_rejects_unknown_effects_before_consumer(tmp_path, monkeypatch):
+    import json
+    import sys
+    monkeypatch.setattr(a, 'STATE_DB', tmp_path / 'state.sqlite3')
+    prior = tmp_path / 'prior.json'
+    prior.write_text(json.dumps({'status':'PASS','action_kind':'routine_affiliate_information','sheet_write_count':1}))
+    state = a.init_state()
+    a.mark_state(state, 'evt_terms_fixture', 'pass', receipt=prior)
+    state.close()
+    event = {'event_id':'evt_terms_fixture','state':'resolved_externally','raw_path':'unused'}
+    monkeypatch.setattr(a, 'fetch_inbox_events', lambda *args, **kwargs: [event])
+    monkeypatch.setattr(a, 'message_text', lambda _: ('Your Contract Terms for CoreAge Rx GLP-1 Have Changed 🔧','notifications@katalys.com','Contract terms changed'))
+    monkeypatch.setattr(sys, 'argv', ['reconciler','--contract-terms-verification-only','--event-id','evt_terms_fixture'])
+    monkeypatch.setattr(a, 'google_service', lambda: pytest.fail('Sheet client forbidden'))
+    with pytest.raises(RuntimeError, match='contract_terms_prior_effects_not_zero'):
+        asyncio.run(a.main())
