@@ -947,6 +947,25 @@ class BindingTests(unittest.TestCase):
                                      attach=[], drive_attach=[], prompt_on_drive=False, dry_run=False,
                                      wait=wait, interval=30, max_wait=3600)
 
+    def test_non_chat_redirect_returns_own_new_tab_to_home(self):
+        self.browser.home_redirect = HOME + 'codex'
+        self.browser.pages['sibling']['stop'] = True
+        sibling_before = dict(self.browser.pages['sibling'])
+        real = self.browser.cdp
+        def once(method, **params):
+            result = real(method, **params)
+            if method == 'Page.navigate' and params['url'] == HOME:
+                self.browser.home_redirect = None
+            return result
+        with mock.patch.object(self.browser, 'cdp', side_effect=once) as cdp:
+            result = relay.send_message('packet', forbidden=[SIBLING])
+        self.assertNotIn('error', result)
+        navigations = [c.kwargs for c in cdp.call_args_list if c.args == ('Page.navigate',)]
+        self.assertEqual(len(navigations), 2)
+        self.assertTrue(all(c['session_id'] == 'session-new-1' and c['url'] == HOME for c in navigations))
+        self.assertEqual(self.browser.pages['sibling'], sibling_before)
+        self.assertEqual(self.browser.sent, [('new-1', 'packet')])
+
     def test_sibling_collision_never_typed(self):
         self.job("older", SIBLING, status="done")
         self.browser.home_redirect = SIBLING
