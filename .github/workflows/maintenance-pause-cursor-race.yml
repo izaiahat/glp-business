@@ -2,8 +2,31 @@ name: maintenance-pause-cursor-race
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/maintenance-pause-cursor-race.yml"
+      - "ops/n8n-bridge/actions.json"
+      - "scripts/glp_current_content_base_schema.py"
+      - "scripts/glp_host_ingress.py"
+      - "scripts/glp_price_index_weekly.py"
+      - "scripts/maintenance_*.py"
+      - "scripts/maintenance_admission.py"
+      - "scripts/maintenance_cohort.py"
+      - "scripts/maintenance_inventory.py"
+      - "scripts/maintenance_window.py"
+      - "scripts/site_tree_materializer.py"
+      - "tests/conftest.py"
+      - "tests/fixtures/maintenance*/**"
+      - "tests/test_maintenance_admission_review.py"
+      - "tests/test_maintenance_native_admission.py"
+      - "tests/test_maintenance_pause_cursor_race.py"
+      - "tests/test_maintenance_post_pause_completion.py"
+      - "tests/test_maintenance_restoration_review.py"
+      - "tests/test_maintenance_window.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   exact-head-native-race:
     runs-on: ubuntu-latest

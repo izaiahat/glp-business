@@ -3,11 +3,17 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - scripts/glp_ads_three_platform_monitor.py
-      - tests/test_glp_ads_three_platform_monitor.py
-      - .github/workflows/glp345-bing-report-only-guard.yml
+      - ".github/workflows/glp345-bing-report-only-guard.yml"
+      - "ops/glp/seo_data_rails.py"
+      - "ops/n8n-bridge/actions.json"
+      - "scripts/glp_ads_three_platform_monitor.py"
+      - "tests/conftest.py"
+      - "tests/test_glp_ads_three_platform_monitor.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   bing-report-only-guard-exact-head:
     runs-on: ubuntu-latest
