@@ -8,15 +8,36 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 977,
+  "tracked_count": 980,
   "files": {
+    "scripts/glp_sponsor_nuimage_reply.py": {
+      "kind": "script",
+      "callers": [
+        "S1 authorized queued Nu Image reply"
+      ],
+      "sha256": "30422cb287ddf50b788c7946581c4baaaedebe8e740a232c2214b2f3ca22e869"
+    },
+    "tests/test_glp_sponsor_nuimage_reply.py": {
+      "kind": "test",
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "sha256": "9db87e16792c43ebff6c85e44d4165f4fcb042a5e5a515d80944fa0dcfbfbbd7"
+    },
+    ".github/workflows/s1-current-sponsor-receiving.yml": {
+      "kind": "config",
+      "callers": [
+        "GitHub Actions"
+      ],
+      "sha256": "34d1e21faf51605f9b0620db12eb018f136f2c1d9cdc840c10e88306fba13bb1"
+    },
     "scripts/glp_sponsor_current_receiving.py": {
       "kind": "script",
       "callers": [
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "22e23f07aa603a9dbdb24be4b81fb9cf4d04b6d41e89fb92c105317f5bf73ea7"
+      "sha256": "94a3e44b8644a5f2adcb4d77feef6ab403048617e60bfa0dd1bb41d1f44e1ee2"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
@@ -2347,7 +2368,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "9b241c892274d164055fa3464161cb7a25dfdda8400abb174f4309a1212cba33"
+      "sha256": "e7f6b39c93a4363219066519d9da406c95137cc9b484852d1d8b87cd94840b24"
     },
     "scripts/seat_autodispatch.py": {
       "callers": [
