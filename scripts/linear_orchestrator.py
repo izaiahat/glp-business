@@ -389,10 +389,16 @@ PROTECTED_EFFECTS = {
         r'\b(?:record|mark|claim|book|reconcile|verify|confirm|establish)\w*[^\n.]{0,40}'
         r'\b(?:earning\w*|commission\w*|settlement\w*|cash|payout\w*)\b'),
     'third-party-send': (
-        r'\b(?:send\w*|sent|e-?mail\w*|messag\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying|ication\w*))\b'
+        r'\b(?:send\w*|sent|e-?mail\w*|messag\w*|deliver\w*|submit\w*|appl(?:y|ies|ied|ying|ication\w*)|'
+        r'repl(?:y|ies|ied|ying))\b'
         r'[^\n.]{0,60}\b(?:partners?|providers?|customers?|sponsors?|users?|subscribers?|clinics?|'
         r'networks?|advertisers?|recipients?)\b|\boutreach\b|'
-        r'(?<!no )(?<!never )(?<!zero )(?<!without )\b(?:a send|send occurs|replies|reply)\b'),
+        r'\b(?:partners?|providers?|customers?|sponsors?|subscribers?|recipients?)\s+repl(?:y|ies)\b(?![./])|'
+        r'\brepl(?:y|ies|ied|ying)\s+to\b|'
+        r'\b(?:send\w*|sent|e-?mail\w*|messag\w*|deliver\w*)\b[^\n.]{0,60}'
+        r'\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|'
+        r'\b(?:send|sent)\s+(?:(?:a|the)\s+)?repl(?:y|ies)\b(?![./])|'
+        r'(?<!no )(?<!never )(?<!zero )(?<!without )\b(?:a send|send occurs)\b'),
     'health-claim-publish': (
         r'\b(?:publish(?!ers?\b)\w*|publicat\w*)\b[^\n.]{0,60}\b(?:claims?|articles?|pages?|copy|content)\b|'
         r'\b(?:articles?|claims?)\b[^\n.]{0,20}\bpublish(?:ing|es|ed)?\b|'
@@ -422,10 +428,26 @@ def acceptance_section(description):
 
 
 def protected_effect(text):
-    """Return the first protected effect class named in text, else None."""
+    """Classify effect semantics, not internal reply artifacts or a negative guard.
+
+    Do not discard whole clauses: a protected action beside file evidence or a
+    no-duplicate constraint still needs independent acceptance.
+    """
     import re
+    # Remove only artifact tokens, never an entire clause/backtick span. A verb
+    # or third-party recipient beside a filename must still classify protected.
+    text = re.sub(r'(?<![\w/.-])/?(?:[\w.-]+/)*[\w.-]+\.'
+                  r'(?:md|jsonl?|py|sh|txt|csv|ya?ml|log)\b',
+                  lambda m: ' ' * len(m[0]), text or '', flags=re.I)
     for name, pattern in PROTECTED_EFFECTS.items():
-        if re.search(pattern, text or '', re.I):
+        for match in re.finditer(pattern, text, re.I):
+            # This is the retained SEO no-duplicate guard, not a spend action.
+            # Exempt only its exact spend token; later/adjacent financial effects
+            # (and all ambiguous negations) remain protected.
+            if (name == 'financial-write' and match[0].lower() == 'spend'
+                    and re.search(r'\bavoid\s+duplicate\s+finding\s*/\s*publication\s*/\s*$',
+                                  text[:match.start()], re.I)):
+                continue
             return name
     return None
 
