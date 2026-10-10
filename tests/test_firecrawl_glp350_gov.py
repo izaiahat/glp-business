@@ -175,3 +175,25 @@ def test_fda_execution_unavailable_state_never_grants_clearance(offline_fda, cap
     assert not (output / 'fda-warning-bounded-search-ledger.json').exists()
     assert not list(output.rglob('*-state-rules.json'))
     assert capsys.readouterr().out == ''
+
+
+@pytest.mark.parametrize('payload', [
+    {'success': True},
+    {'success': True, 'data': None},
+    {'success': True, 'data': []},
+    {'success': True, 'data': {}},
+    {'success': True, 'data': {'news': []}},
+    {'success': True, 'data': {'web': None}},
+    {'success': True, 'data': {'web': {}}},
+    {'success': True, 'data': {'web': 'not a list'}},
+    {'success': True, 'data': {'web': [None]}},
+])
+def test_fda_execution_malformed_state_never_writes_pass_provenance(offline_fda, capsys, payload):
+    execute, output, _, calls = offline_fda
+    with pytest.raises(ValueError, match='firecrawl_search_grouped_data_'):
+        execute([(200, {'success': True, 'data': {'web': []}}), (200, payload)])
+    assert len(calls) == 2  # One warning search, one state search; no replay.
+    assert (output / 'fda-warning-search-raw/fixture-clinic.json').exists()
+    assert not (output / 'fda-warning-bounded-search-ledger.json').exists()
+    assert not list(output.rglob('*-state-rules.json'))
+    assert capsys.readouterr().out == ''
