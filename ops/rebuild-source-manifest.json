@@ -15,7 +15,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
+      "sha256": "f59ab3ff9b02e8526df661785198c7fd451f62df0a192504872a6a2310c15235"
     },
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -4646,7 +4646,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "052afd33245dd8e29ac3fe736a165fd80566dff5f6e57d4e1c00d0b659a0d031"
+      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
