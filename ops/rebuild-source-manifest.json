@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 932,
+  "tracked_count": 933,
   "files": {
     "scripts/glp_affiliate_daily_decisions_report.py": {
       "kind": "registered_producer",
@@ -5922,7 +5922,7 @@
       "callers": [
         "Firecrawl exact-head CI"
       ],
-      "sha256": "0b8cbb5fbd578d8e05a3546edefbd194a38ebf7d0d5cc7ad89e60c3acb67ba10"
+      "sha256": "837bdacd4bab4eea869b3fda34b704bcfc4673d5132075a9ca56c80a473a674c"
     },
     "scripts/host_disk_cold_classes.py": {
       "kind": "script",
@@ -6302,6 +6302,13 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "848e4c7daf363d562064e0fa09c6c2d0a3ed82794c2840acbfc344d0d5503a06"
+    },
+    "tests/test_firecrawl_glp350_reddit.py": {
+      "kind": "test",
+      "callers": [
+        "Firecrawl exact-head CI"
+      ],
+      "sha256": "d0341ad3c1f4a1fccc078b4b54c35501cfdcda74c8ef8318b1b808e0ebd4473e"
     }
   }
 }
