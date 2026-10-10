@@ -59,7 +59,7 @@ def test_terms_mode_rejects_unknown_effects_before_consumer(tmp_path, monkeypatc
 
 def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeypatch):
     """Exact source slice; intake/API edge mocked, host roundtrip is separate."""
-    import ast, hashlib, json, sys, types, uuid
+    import ast, hashlib, json, sys, types, uuid, sqlite3
     source = Path(__file__).resolve().parents[1] / 'scripts/affiliate_approval_auto_reconciler.py'
     tree = ast.parse(source.read_text())
     selected = [n for n in tree.body if getattr(n, 'name', '') in
@@ -89,6 +89,10 @@ def test_unowned_action_routes_minimized_triage_once_per_event(tmp_path, monkeyp
                  raw_sha256=hashlib.sha256(raw.read_bytes()).hexdigest(),
                  canonical_actionable=1, canonical_category='unknown',
                  canonical_venture='glp', canonical_lifecycle='active')
+    canonical=sqlite3.connect(':memory:'); canonical.row_factory=sqlite3.Row
+    event=canonical.execute('SELECT '+','.join('? AS '+k for k in event),
+                            tuple(event.values())).fetchone()
+    canonical.close()  # reproduce real fetch_inbox_events mapping, not only dicts
     binding = dict(event_id=event['event_id'], raw_sha256=event['raw_sha256'],
                    owning_machine=None, machine_ownership_reviewed=True,
                    privacy_reviewed=True, title='Review infrastructure retention notice',

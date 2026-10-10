@@ -2603,6 +2603,7 @@ def route_unowned_inbox_action(event,binding,*,dry_run=False,client=None):
  import uuid
  from linear_triage import submit_idea,validate_item
  from linear_client import Client
+ event=dict(event)  # canonical fetch returns sqlite3.Row, not a dict
  if (event.get('canonical_actionable')!=1 or event.get('canonical_venture')!='glp'
      or event.get('canonical_lifecycle')!='active' or event.get('state')!='ingested'
      or event.get('canonical_category') in {'affiliate_network_response','human_lead'}):return None
