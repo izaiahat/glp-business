@@ -64,6 +64,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 -B -m unittest discover -s tests -p test_glp93_review_projection.py -v
           python3 -B -m unittest discover -s tests -p test_glp93_surface_inputs.py -v
+      - name: Q11 GLP93 capture-root regression (synthetic offline, exact head; no runtime effects)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_glp93_capture_roots.py -v
       - name: Install isolated test runner
         run: |
           python3 -m venv .venv

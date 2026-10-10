@@ -37,7 +37,7 @@ fi
 # The rail scanner is a queue-only preflight and must still report when the
 # protected live glp-design/deploy surface is changing under its own pin gate.
 wire_scanner='/home/ubuntu/business/scripts/glp_wire_in_ready_queue.py'
-wire_scanner_expected_sha256='f1c097bbdfcb2a64e9445d89f0896a020b7c3f2eea9dde0f983a5e39140190c1'
+wire_scanner_expected_sha256='a5c20feed5c2a8395d598fde28363d4a034682093629c5b90c7ab22dc984fcd1'
 wire_rails='/home/ubuntu/business/scripts/glp_affiliate_link_rails.py'
 wire_rails_expected_sha256='7a87021aee03c60215fb9d6eb85e9c7405812efbf14d488d65fd58b30c6c70d6'
 wire_scope='/home/ubuntu/business/scripts/affiliate_provider_row_scope.py'
@@ -74,7 +74,7 @@ if [[ "$(sha256sum "$wire_fit_manifest" | cut -d' ' -f1)" != "$wire_fit_manifest
 fi
 pt_date="$(TZ=America/Los_Angeles date +%F)"
 wire_report_dir="/home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine/wire-in-ready/daily/${pt_date}"
-wire_args=(--apply --fit-manifest "$wire_fit_manifest" --captures /home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine --recursive-captures --fail-on-stuck)
+wire_args=(--apply --fit-manifest "$wire_fit_manifest" --captures /home/ubuntu/business/reports/glp-clinic-scout/affiliate-machine --additional-captures /home/ubuntu/business/reports/glp-affiliate-auto-reconciler/maxbounty-approval-chain --recursive-captures --fail-on-stuck)
 if [[ $dry_run -eq 1 ]]; then
   wire_report_dir="$offline_output/scanner"
   wire_args=(--values "$fixture_root/sheet-values.json" --captures "$fixture_root/captures" --recursive-captures --fail-on-stuck)
