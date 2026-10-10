@@ -2,8 +2,25 @@ name: glp80-taxonomy-unblock
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/workflows/glp80-taxonomy-unblock.yml"
+      - "ops/glp/evidence-refresh-k3/registered_taxonomy.py"
+      - "scripts/affiliate_direct_evidence_capture.py"
+      - "scripts/firecrawl_client.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/refresh-therapeutic-taxonomy.py"
+      - "site-system/flagship-v2/candidates/glp34-provider-families-20260912/scripts/therapeutic-taxonomy-refresh-policies.json"
+      - "tests/conftest.py"
+      - "tests/fixtures/glp80-eden/**"
+      - "tests/fixtures/therapeutic-taxonomy-coverage.json"
+      - "tests/test_glp80_eden_policy.py"
+      - "tests/test_glp80_eden_qualified_projection.py"
+      - "tests/test_glp80_taxonomy_correction.py"
+      - "tests/test_therapeutic_taxonomy_refresh.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   focused-exact-head:
     runs-on: ubuntu-latest

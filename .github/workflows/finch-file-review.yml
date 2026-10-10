@@ -1,9 +1,31 @@
 name: finch-file-review
 on:
   pull_request:
-    branches: [main, baseline/finch-deployed-af5cc609-20261006, fix/finch-file-review-gate-20261006, fix/finch-receiving-sandbox-20261006]
+    branches: [main]
+    paths:
+      - ".github/workflows/finch-file-review.yml"
+      - "ops/rook-mcp/**"
+      - "scripts/native_reply_consumer.py"
+      - "scripts/post_discord_message.py"
+      - "scripts/receive_one_discord_message.py"
+      - "scripts/rook_mcp_events.py"
+      - "tests/conftest.py"
+      - "tests/finch_*"
+      - "tests/finch_cabx_acceptance.py"
+      - "tests/finch_png_acceptance.py"
+      - "tests/test_finch_file_review.py"
+      - "tests/test_finch_kernel_harness.py"
+      - "tests/test_finch_network.py"
+      - "tests/test_finch_receiving_sandbox.py"
+      - "tests/test_native_reply_consumer.py"
+      - "tests/test_receive_one_discord_message.py"
+      - "tests/test_rook_communication.py"
+      - "tests/test_rook_mcp_events.py"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   synthetic-exact-head:
     runs-on: ubuntu-latest

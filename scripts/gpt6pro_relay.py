@@ -900,6 +900,25 @@ def _state(probe=js):
 '''
 
 
+# Home is the supported app-shell transition out of Codex Cloud. Use it only
+# on the relay's newly created, empty literal root; never on retained documents.
+ROOT_CHAT_HOME_JS = r'''(()=>{
+    if(location.href!=='https://chatgpt.com/'||
+       document.querySelector('button[aria-label="Select ChatGPT model"]')||
+       document.querySelector('button[data-testid="stop-button"]')||
+       document.querySelector('[data-message-author-role], [data-chatgpt-selection-message-id]'))return null;
+    const mode=document.querySelector('button[aria-label="Work in"]');
+    if(!mode||mode.innerText.trim()!=='Cloud'||!document.body.innerText.includes('GPT-6.1 Sol'))return null;
+    const editor=document.querySelector('#prompt-textarea')||document.querySelector('[data-composer-markdown][contenteditable=true]');
+    if(!editor||editor.textContent.trim()||editor.innerText.trim())return null;
+    const homes=[...document.querySelectorAll('button')].filter(e=>e.innerText.trim()==='Home'&&
+        !e.disabled&&e.getClientRects().length&&getComputedStyle(e).display!=='none'&&getComputedStyle(e).visibility!=='hidden');
+    if(homes.length!==1)return null;
+    const rect=homes[0].getBoundingClientRect();
+    return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};
+})()'''
+
+
 def browser_state(url: str | None = None) -> dict:
     # Read the state of a chatgpt.com tab, never the daemon's own about:blank tab: on 2026-09-17 `status` reported
     # account 3 as logged_out=False while its only ChatGPT tab was the logged-out landing page (the daemon's current
@@ -1200,10 +1219,11 @@ def _input(method, **params):
 # Chrome throttles BACKGROUND renderers; a 60k-char composer insert then blows the daemon's 5s CDP timeout
 # (wave 1, 2026-09-16: five submits failed with zero messages sent). Foreground the tab while we type.
 activate_tab(tab["targetId"])
-# A complete document can still be a passive security interstitial. Observe
-# this exact fresh target for at most 90s, without another navigation or click.
-# Readiness is NOT model approval: the full model/maximum gate below is unchanged.
+# Readiness is NOT model approval. Only the observed empty Codex root may get
+# one supported Home transition; security surfaces get observation only.
+# The full model/maximum gate below is unchanged.
 ready_started=time.monotonic()
+home_repaired=False
 for readiness_observations in range(1, 47):
     if _fresh()!=fresh:
         _binding_error("conversation_mismatch", tab=tab["targetId"])
@@ -1217,6 +1237,16 @@ for readiness_observations in range(1, 47):
         _binding_error("LOGGED_OUT", state=st, tab=tab["targetId"], readiness=readiness)
     if st["rate_limited"]:
         _binding_error("RATE_LIMITED", state=st, tab=tab["targetId"], readiness=readiness)
+    if not RETAINED and not home_repaired and not st['model_trigger'] and not st['security_interstitial'] and st['ready_state']=='complete':
+        home=_bound_js(tab['targetId'], fresh, {ROOT_CHAT_HOME_JS!r})
+        if home:
+            home_repaired=True  # one supported action, not a reload or cookie edit
+            _fresh()
+            for typ in ('mousePressed','mouseReleased'):
+                cdp('Input.dispatchMouseEvent',session_id=_sessions[tab['targetId']],type=typ,
+                    x=home['x'],y=home['y'],button='left',clickCount=1)
+            time.sleep(1)
+            continue
     remaining=90-(time.monotonic()-ready_started)
     if (remaining>=0 and not st["security_interstitial"] and st["ready_state"]=="complete" and
             st["composer_present"] and (st["model"] or st["model_trigger"])):
@@ -1664,6 +1694,32 @@ def drive_list_all(svc, query):
         seen.add(token)
 
 
+def read_terminal_reply(st: dict) -> dict:
+    """Hydration is not content drift. Wait boundedly for the saved exact hash.
+
+    No renderer substitution, rehash, navigation or reload. All observations keep
+    exact conversation custody; any resumed generation returns to the final gate.
+    """
+    if st.get('status') != 'done':
+        raise ValueError('terminal reply requires done state')
+    tab = st.get('tab')
+    url = binding_url(st)
+    if url is None:
+        raise ValueError('terminal reply requires exact conversation binding')
+    reply: dict = {}
+    for attempt in range(11):
+        reply = read_reply(url, tab, protected=protected_tabs(st),
+                           capture_mode=st.get('reply_render_mode'))
+        require_binding(st, reply)
+        tab = reply['tab']
+        if (reply['state']['stop'] or
+                hashlib.sha256(reply['text'].encode()).hexdigest() == st.get('last_text_sha')):
+            return reply
+        if attempt < 10:
+            time.sleep(2)
+    return reply  # unchanged final-hash gate must still reject a genuinely changed reply
+
+
 def _cmd_fetch_outbox(a) -> int:
     """Folder names locate data; only a final-chat-bound manifest authorizes it."""
     cfg = load_config(); st = job_state(a.job)
@@ -1672,17 +1728,12 @@ def _cmd_fetch_outbox(a) -> int:
         raise SystemExit('BINDING_PENDING poll before fetch-outbox')
     if st.get('status') == 'done':
         cleanup_tabs()
-    r = read_reply(binding_url(st), st.get('tab'), protected=protected_tabs(st),
-                   existing_only=st.get('status') != 'done',
-                   capture_mode=st.get('reply_render_mode'))
+    if st.get('status') == 'done':
+        r = read_terminal_reply(st)
+    else:
+        r = read_reply(binding_url(st), st.get('tab'), protected=protected_tabs(st),
+                       existing_only=True, capture_mode=st.get('reply_render_mode'))
     require_binding(st, r)  # no Drive call or destination writes before exact session verification
-    # Poll closes a completed tab. A later reopened, non-generating page can
-    # initially render no assistant text; reload only that exact finished chat.
-    # Never reload a generating chat or accept a changed reply hash.
-    if st.get('status') == 'done' and not r['state'].get('stop') and not r.get('text'):
-        r = read_reply(binding_url(st), r['tab'], reload=True, protected=protected_tabs(st),
-                       capture_mode=st.get('reply_render_mode'))
-        require_binding(st, r)
     try:
         def need(ok, reason):
             if not ok: raise ValueError(reason)
@@ -2567,6 +2618,18 @@ TERMINAL_UNSENT_PR52 = {
 # Acct2's consumed UNKNOWN job is deliberately absent; stale error flags cannot
 # establish unsent custody. These pins do not broaden PR52/canary exceptions.
 TERMINAL_UNSENT_CURRENT = {
+    # Exact L4 pre-insert APP_NOT_READY refusal on a restored Codex root.
+    # Preserve retry_blocked and error.tab; only NEW jobs gain admission.
+    'route-glp-47-4edd8591b79590e9fdf5b3e5': {
+        'job': 'route-glp-47-4edd8591b79590e9fdf5b3e5',
+        'held': 'ff39c24573c0f21466d2d7ad27d11165028bf87894c204728e64e12dcad9384c',
+        'status': 'failed', 'reason': 'APP_NOT_READY', 'backup': None,
+        'message': 'eb9bbe2d25537562d5499b3af76f286afa198b40909d7591fdaaacb63053d503',
+        'manifest': '8bd6bb3a064b43b0f3a4f29e78b986c2a8bea2dabcf250777c1e4afbddb78f20',
+        'drive_prompt': 'a63f1d906c8618a05391d2ec7b5e3e4ec25c2d4bd94113a3b3350acf6b0bb2f8',
+        'ledger_lines': ('0a13f638dc191e91de0ae5b051bfade8e50708ae6a317f32407bfb59b305feb5',),
+        'tab': 'FA0A5B8FA98BC31CF4BE7B0A623DB702', 'time_origin': 1791583174138.6,
+    },
     # Exact first-attempt refusal at _new_tab, before creation/typing; no retry.
     'route-glp-80-0165c8c734145a8044438815': {
         'job': 'route-glp-80-0165c8c734145a8044438815',

@@ -36,7 +36,8 @@ def test_scope_matches_withheld_pr117_cohort_not_pin_dependencies():
     # successor bound separately; the producer must still stage the original.
     successor = {'scripts/affiliate_approval_auto_reconciler.py': (
         '26df9de611b1eeb02443abc60912cd784c5c0d49d41b1e8cfd2ba97b73220c46',
-        '9d50c77f56f13df24c314833c92034bfacf7c7150b33a940fde7b066e0a466f3'),
+        # M2 retains the original adoption blob and binds the sqlite-row/hold-only repair successor.
+        '2e7b0ac841036e704eea45590c1202099cf43fe722b4ecd25db0681dbcffd994'),
         # GLP347 preserves the historical adoption producer and binds the current denial-only successors.
         'scripts/affiliate_sheet_batch_writer.py': (
             '0fd0453ed5ce2c696befb7687a15b35223fad97889a90f93e0b4286f7c563d66',
