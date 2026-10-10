@@ -557,6 +557,16 @@ def sub_once(path: Path, pattern: str, repl, flags: int = 0) -> str:
     return matches[0].group(0)
 
 
+def append_calculator_inventory_test_ids(path: Path, ids: list[str]) -> None:
+    """Extend membership, never reinterpret a current null-price eligibility rule."""
+    quoted = "".join(f', "{pid}"' for pid in ids)
+    sub_once(
+        path,
+        r'(for \(const id of \[[^\]]*)(\]\) assert\.ok\((?:eligibleIds|canonicalIds)\.has\(id\), id\))',
+        lambda m: m.group(1) + quoted + m.group(2),
+    )
+
+
 def normalize_inline_guide_source_markers(target: Path) -> dict[str, str]:
     """Mark in-prose guide citations before an approved domain can trip the gate.
 
@@ -1434,11 +1444,7 @@ def apply_changes(target: Path, specs: list[dict], tracking: dict[str, str],
     quoted = "".join(f', "{pid}"' for pid in ids)
     sub_once(fp_test, r'(const activeIds = new Set\(\[[^\]]*)\]\)',
              lambda m: m.group(1) + quoted + "])")
-    sub_once(
-        fp_test,
-        r'(for \(const id of \[[^\]]*)\]\) assert\.ok\(eligibleIds\.has\(id\), id\)',
-        lambda m: m.group(1) + quoted + "]) assert.ok(eligibleIds.has(id), id)",
-    )
+    append_calculator_inventory_test_ids(fp_test, ids)
     sub_once(
         fp_test,
         r'(assert\.deepEqual\(new Set\(added\.map\(\(review\) => review\.program_id\)\), new Set\(\[[^\]]*)\]\)\);',

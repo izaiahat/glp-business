@@ -150,6 +150,25 @@ class ReviewProjectionTests(unittest.TestCase):
         self.assertEqual(actual['provider_dynamic_profile']['brand_offer_unknown'], ['mounjaro','zepbound'])
         self.assertEqual(actual['provider_dynamic_profile']['evidence_bindings'][0]['evidence_text'], '# The Wegovy® Pill is Here')
 
+    def test_current_calculator_inventory_anchor_preserves_unknown_eligibility(self):
+        nodes = [n for n in producer_tree.body if isinstance(n, ast.FunctionDef)
+                 and n.name in {'sub_once', 'append_calculator_inventory_test_ids'}]
+        self.assertEqual(len(nodes), 2, 'current canonical inventory assertion has no maintained migration')
+        import re
+        env = {'Path':Path, 're':re}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), 'real-producer-inventory-helper', 'exec'), env)
+        f = self.root / 'test.mjs'
+        for target in ['canonicalIds', 'eligibleIds']:
+            before = f'for (const id of ["old"]) assert.ok({target}.has(id), id);\nassert.equal(eligibleIds.has("strut-health"), false);\n'
+            f.write_text(before)
+            env['append_calculator_inventory_test_ids'](f, ['new'])
+            self.assertEqual(f.read_text(), before.replace('["old"]', '["old", "new"]'))
+        f.write_text('for (const id of ["old"]) assert.ok(anything.has(id), id);')
+        before=f.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, 'patch_match_count'):
+            env['append_calculator_inventory_test_ids'](f, ['new'])
+        self.assertEqual(f.read_bytes(), before)
+
     def test_willow_products_qualified_and_pharmacy_claims_attributed(self):
         spec = {'program_id':'willow-review','page_copy':{'description':'oral and injectable GLP-1','bottom_line':'Willow offers semaglutide and tirzepatide'},
                 'row_contract':{'best_for':'oral and injectable semaglutide and tirzepatide','medications':'Semaglutide and tirzepatide','starting_price':'Semaglutide from $299; tirzepatide from $399','pros':['Oral and injectable options']}}
