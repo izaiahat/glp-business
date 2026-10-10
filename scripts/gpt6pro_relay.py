@@ -1203,9 +1203,9 @@ def _input(method, **params):
 # Chrome throttles BACKGROUND renderers; a 60k-char composer insert then blows the daemon's 5s CDP timeout
 # (wave 1, 2026-09-16: five submits failed with zero messages sent). Foreground the tab while we type.
 activate_tab(tab["targetId"])
-# A complete document can still be a passive security interstitial. Observe
-# this exact fresh target for at most 90s, without another navigation or click.
-# Readiness is NOT model approval: the full model/maximum gate below is unchanged.
+# Readiness is NOT model approval. Only the observed empty Codex root may get
+# one supported Home transition; security surfaces get observation only.
+# The full model/maximum gate below is unchanged.
 ready_started=time.monotonic()
 home_repaired=False
 for readiness_observations in range(1, 47):
