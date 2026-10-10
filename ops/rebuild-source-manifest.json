@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 974,
+  "tracked_count": 976,
   "files": {
     "tests/test_pro_unsent_nonchat.py": {
       "kind": "test",
@@ -22,7 +22,7 @@
       "callers": [
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "8766039e634ac8474ead09678e2171088fe78a4655c5e68870a43cec386d1ee6"
+      "sha256": "f59ab3ff9b02e8526df661785198c7fd451f62df0a192504872a6a2310c15235"
     },
     "tests/test_j2_maxbounty_catalog.py": {
       "kind": "test",
@@ -363,7 +363,7 @@
       "callers": [
         "GLP331 disposable native fixture; no live effects"
       ],
-      "sha256": "f6d454292309b04ee9614e4a6ae62b9dc3b8261d1cc589571f1fcb50f99f96c6"
+      "sha256": "996986427ff721fadd05db2ad3841849a4c1d6b787cee7406bb1504c3044e232"
     },
     "ops/glp331-carrier-closure.md": {
       "kind": "documentation",
@@ -649,7 +649,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "6e08461a791dec8ad9c55ffe7ee20f237d15811be4143b76e8e98695c4196f6d"
+      "sha256": "48673c394a972b40ae6da61d42c91cf14dea752850168ec7a0e709717994b832"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -1514,7 +1514,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "2e7b0ac841036e704eea45590c1202099cf43fe722b4ecd25db0681dbcffd994"
+      "sha256": "eba80295ff77d8fef4f22d7b6f26b0a9ca6d9ca31eb6447bb86702f9bbeebee3"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2722,7 +2722,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "0d9ac333ee8ee05dc80b6c5925c81d42a1d71a75e8b8cfdf0fb58ee503b128c2"
+      "sha256": "5e089d12d9fc2c3bf2ad14372887c3810d3bdb335926b7349700c287b3e10bc6"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
@@ -4653,7 +4653,7 @@
       "callers": [
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
-      "sha256": "052afd33245dd8e29ac3fe736a165fd80566dff5f6e57d4e1c00d0b659a0d031"
+      "sha256": "463b3092afe79ff14e2bfc3863d5daa4de9362677ecc3e23d891112aa81407ad"
     },
     "ops/sponsor-machine/campaign.json": {
       "kind": "source_control",
@@ -6155,14 +6155,14 @@
       "callers": [
         "manual:authorized-dot-ticket"
       ],
-      "sha256": "a8dd99625cf8e42477d70e1233b98b976e0205d3f63ae5eb4f8627c4f9d1c717"
+      "sha256": "eedeb2728028dcaa9d1e54c4cbef225551002621da714eb81f3a045a3fe51c62"
     },
     "tests/test_dot_dispatch.py": {
       "kind": "test",
       "callers": [
         "CI:native-reply-consumer"
       ],
-      "sha256": "55e638046e7d2dd16e9b7455d850577f69e17852259436fb51f03f76404936c3"
+      "sha256": "41c1406515baa32434f18c5f1d7975ea7d4554aa6663cf00ac4b526b13fcbe80"
     },
     "ops/linear/AUTO-COORDINATOR.md": {
       "kind": "instruction_or_policy",
@@ -6585,6 +6585,20 @@
         "hermes:aadf6677c7f0"
       ],
       "sha256": "2bb2442c1fdf10e935c509a20d221bd815fe0040c6fc983fabea53a4d50143f3"
+    },
+    "tests/inbox_notice_loader.py": {
+      "kind": "test",
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "sha256": "c8a0991c45345103b0ed1ede69a8621a59be37f39b42bcf93b72e1cf7ab73ffd"
+    },
+    "tests/test_katalys_contract_terms_notice.py": {
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "kind": "test",
+      "sha256": "01a16355097910dce3bb27acd75c5781a1008558e073c186cda566890ae0208f"
     }
   }
 }

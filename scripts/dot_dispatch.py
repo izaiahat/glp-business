@@ -237,7 +237,7 @@ def dispatch(dot_name, issue, brief, *, root=TICKETS, api=discord_api,
             return {'ticket': ticket_id, 'ticket_dir': str(ticket), 'request_id': state['request_id'], 'repeat': True}
         for existing in root.glob('*/TICKET.json'):
             old = json.loads(existing.read_text())
-            if old.get('dot') == dot_name and old.get('state') not in {'complete', 'blocked'}:
+            if old.get('dot') == dot_name and old.get('state') not in {'complete', 'blocked', 'expired'}:
                 raise ValueError('one_open_ticket_per_dot_reconcile_existing')
         subscription = ready(dot)
         private_dir(ticket)
@@ -270,6 +270,8 @@ def reconcile(ticket, api=discord_api):
     ticket = Path(ticket)
     with locked(ticket.parent):
         state = json.loads((ticket / 'TICKET.json').read_text())
+        if state['state'] == 'expired':
+            raise ValueError('expired_ticket_retained_poll_late_reply_no_reopen')
         if state.get('request_id'):
             message = api('GET', f"/channels/{state['channel_id']}/messages/{state['request_id']}")
         else:
@@ -281,6 +283,90 @@ def reconcile(ticket, api=discord_api):
             message = matches[0]
             state['request_id'] = message['id']
         return register(ticket, state, message)
+
+
+def native_expiry_probe(ticket):
+    """Use the supported consumer, preserving staged evidence and native custody."""
+    import native_reply_consumer as native
+    config = ticket / 'NATIVE-CONFIG.json'
+    directory, registrations = native.load_registrations(config)
+    def refuse_reply_read(*_):
+        raise ValueError('expiry_native_confirmation_or_live_effect')
+    with native.Receipts(directory) as receipts:
+        # collect validates registration/staged custody. Never issue a remote
+        # reply read here: a confirmed effect must be reconciled, not expired.
+        value = native.collect(registrations[0], receipts, replay=True, reader=refuse_reply_read)
+    row = native.native_row(registrations[0])
+    return {'status': 'absent' if row is None and value['status'] == 'waiting_native_confirmation'
+            else value['status'], 'native_state': row.get('state') if row else None}
+
+
+def expire(ticket, *, reason, owner, timeout_seconds=21600, api=discord_api,
+           probe=native_expiry_probe):
+    """Explicit orchestrator-only administrative expiry; never a dot-authored reply.
+
+    Refuse uncertain sends, confirmed/staged replies, live native grants/effects,
+    incomplete history and early expiry. Do not mutate the native request DB.
+    """
+    import math
+    ticket = Path(ticket)
+    if not isinstance(owner, str) or not 1 <= len(owner.strip()) <= 200:
+        raise ValueError('recorded_expiry_owner_required')
+    if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000:
+        raise ValueError('recorded_expiry_reason_required')
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError('positive_expiry_timeout_required')
+    with locked(ticket.parent):
+        private_dir(ticket)
+        state = json.loads((ticket / 'TICKET.json').read_text())
+        if state['state'] == 'expired':
+            audit = json.loads((ticket / 'EXPIRY.json').read_text())
+            if (audit['reason'], audit['recorded_by'], audit['timeout_seconds']) != (reason, owner, timeout_seconds):
+                raise ValueError('expiry_audit_conflict')
+            return state
+        if state['state'] != 'sent' or not state.get('exact_readback'):
+            raise ValueError('expiry_requires_reconciled_sent_ticket')
+        now = time.time()
+        if now - state['sent_at'] < timeout_seconds:
+            raise ValueError('expiry_timeout_not_elapsed')
+        if any((ticket / name).exists() for name in ('REPLY.md', 'COMPLETION.json')):
+            raise ValueError('expiry_reply_already_present')
+        migrate_contract(ticket, state)
+        native = probe(ticket)
+        if native['status'] not in {'absent', 'request_expired'}:
+            raise ValueError('expiry_native_confirmation_or_live_effect')
+        message = api('GET', f"/channels/{state['channel_id']}/messages/{state['request_id']}")
+        check_readback(state, message)
+        history = api('GET', f"/channels/{state['channel_id']}/messages?limit=100")
+        if not history or min(int(m['id']) for m in history) > int(state['request_id']):
+            raise ValueError('expiry_history_does_not_cover_request')
+        replies = [m for m in history if m.get('author', {}).get('id') == DOTS[state['dot']]['user']
+            and (m.get('message_reference', {}).get('message_id') == state['request_id']
+                 or state['ticket'] in m.get('content', '')
+                 or state['correlation'] in m.get('content', ''))]
+        if replies:
+            raise ValueError('expiry_reply_present_requires_reconciliation')
+        if probe(ticket)['status'] not in {'absent', 'request_expired'}:
+            raise ValueError('expiry_native_confirmation_or_live_effect')
+        audit = dict(schema='DOT_NO_REPLY_EXPIRY_V1', ticket=state['ticket'],
+            correlation=state['correlation'], reason=reason, recorded_by=owner,
+            expired_at=now, timeout_seconds=timeout_seconds, age_seconds=now - state['sent_at'],
+            native=native, history_messages_checked=len(history), matching_reply_count=0,
+            history_covers_request=True, history_sha256=digest(canonical(history)),
+            ticket_preimage_sha256=digest(canonical(state)), source_pins=source_pins(),
+            operator_approval=False)
+        audit_path = ticket / 'EXPIRY.json'
+        if audit_path.exists():  # recover an interrupted audit-before-state commit
+            old = json.loads(audit_path.read_text())
+            if any(old[k] != audit[k] for k in ('ticket_preimage_sha256', 'reason', 'recorded_by', 'timeout_seconds', 'source_pins')):
+                raise ValueError('expiry_audit_conflict')
+            audit = old
+        else:
+            atomic_json(audit_path, audit)
+        state.update(state='expired', expired_at=audit['expired_at'],
+                     expiry_audit_sha256=digest(canonical(audit)))
+        atomic_json(ticket / 'TICKET.json', state)
+        return state
 
 
 def publish_reply(ticket, state, completion):
@@ -296,14 +382,20 @@ def publish_reply(ticket, state, completion):
         or value.get('trust') != TRUST or value.get('operator_approval') is not False
         or value.get('text_truncated') or not value.get('text')):
         raise ValueError('terminal_native_reply_required_no_ack_or_uncertainty')
-    reply = f"# {state['ticket']}\n\n{TRUST}\n\n{value['text']}\n"
+    late = state.get('state') == 'expired'
+    marker = 'LATE_REPLY_TO_EXPIRED_TICKET\n\n' if late else ''
+    reply = f"# {state['ticket']}\n\n{TRUST}\n\n{marker}{value['text']}\n"
     if (ticket / 'REPLY.md').exists() and (ticket / 'REPLY.md').read_text() != reply:
         raise ValueError('reply_conflict')
+    if late:
+        completion = dict(completion, late=True, expired_at=state['expired_at'])
     atomic_json(ticket / 'COMPLETION.json', completion)
     atomic_text(ticket / 'REPLY.md', reply)
-    state.update(state='complete' if value['outcome'] == 'result' else 'blocked',
+    state.update(state='expired' if late else ('complete' if value['outcome'] == 'result' else 'blocked'),
         reply_id=value['reply_id'], reply_sha256=digest(reply),
         completed_at=time.time(), latency_seconds=time.time() - state['sent_at'])
+    if late:
+        state.update(late=True, reply_outcome=value['outcome'])
     atomic_json(ticket / 'TICKET.json', state)
     return True
 
@@ -317,13 +409,21 @@ def consume(root=TICKETS, max_wait_seconds=1):
             ticket = config.parent
             state = json.loads((ticket / 'TICKET.json').read_text())
             migrate_contract(ticket, state)
-            if state['state'] in {'complete', 'blocked'}:
+            if state['state'] in {'complete', 'blocked'} or state['state'] == 'expired' and state.get('reply_id'):
                 output.append({'ticket': state['ticket'], 'status': 'already_' + state['state']})
                 continue
-            if state['state'] != 'sent':
+            if state['state'] not in {'sent', 'expired'}:
                 output.append({'ticket': state['ticket'], 'status': 'reconciliation_required'})
                 continue
-            if state['source_pins'] != source_pins():
+            pins = state['source_pins']
+            if state['state'] == 'expired':
+                audit = json.loads((ticket / 'EXPIRY.json').read_text())
+                if digest(canonical(audit)) != state.get('expiry_audit_sha256'):
+                    raise ValueError('expiry_audit_integrity_failed')
+                # Explicit expiry binds the reviewed poller for late replies only.
+                # Never re-pin a live ticket or change native registration/custody.
+                pins = audit['source_pins']
+            if pins != source_pins():
                 output.append({'ticket': state['ticket'], 'status': 'frozen_source_changed_hold'})
                 continue
             dot = DOTS[state['dot']]
@@ -361,10 +461,19 @@ def main():
     p.add_argument('--consume', action='store_true')
     p.add_argument('--max-wait-seconds', type=float, default=1)
     p.add_argument('--reconcile', type=Path)
+    p.add_argument('--expire', type=Path, help='Orchestrator audited no-reply expiry; never auto-expires')
+    p.add_argument('--reason', help='Required recorded administrative expiry reason')
+    p.add_argument('--expiry-timeout-seconds', type=float, default=21600,
+                   help='Minimum no-reply age before explicit expiry (default: 6 hours)')
     a = p.parse_args()
     os.umask(0o077)
     try:
-        if a.consume:
+        if sum(bool(v) for v in (a.consume, a.reconcile, a.expire)) > 1:
+            raise ValueError('choose_one_dispatcher_action')
+        if a.expire:
+            result = expire(a.expire, reason=a.reason, owner=a.owner,
+                            timeout_seconds=a.expiry_timeout_seconds)
+        elif a.consume:
             result = consume(a.root, a.max_wait_seconds)
         elif a.reconcile:
             result = reconcile(a.reconcile)
