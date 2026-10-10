@@ -10,7 +10,24 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import tempfile
+import atexit
 from types import SimpleNamespace
+
+from scripts.glp_review_editorial_projection import captured_review_sources, project_review_inputs
+
+# Authenticated synthetic capture bytes for the date-only caller fixture. These
+# are not clinical evidence or production acceptance receipts.
+_CAPTURE_DIR = tempfile.TemporaryDirectory(prefix='glp183-date-capture-fixture-')
+atexit.register(_CAPTURE_DIR.cleanup)
+_CAPTURE_ROOT = Path(_CAPTURE_DIR.name)
+_RAW = json.dumps({'data': {'markdown': 'Fixture source text'}}).encode()
+(_CAPTURE_ROOT / 'raw.json').write_bytes(_RAW)
+_BUNDLE = json.dumps({'captures': [dict(url=url, markdown='Fixture source text', status=200,
+    raw_capture_path=str(_CAPTURE_ROOT / 'raw.json'), raw_capture_sha256=hashlib.sha256(_RAW).hexdigest())
+    for url in ('https://provider.example/terms', 'https://provider.example/extra')]}).encode()
+(_CAPTURE_ROOT / 'bundle.json').write_bytes(_BUNDLE)
+_CAPTURE_BINDING = {'path':str(_CAPTURE_ROOT / 'bundle.json'), 'sha256':hashlib.sha256(_BUNDLE).hexdigest()}
 
 import pytest
 
@@ -36,6 +53,8 @@ def load_contract_functions():
                          for target in node.targets)]
     assert len(constants) == 1
     namespace = dict(Path=Path, datetime=datetime, re=re, hashlib=hashlib,
+                     captured_review_sources=captured_review_sources,
+                     project_review_inputs=project_review_inputs,
                      json=json, os=os, argparse=argparse, sys=sys, shutil=shutil)
     exec(compile(ast.Module(body=[*constants, *functions], type_ignores=[]), str(source), "exec"),
          namespace)
@@ -63,7 +82,8 @@ def inputs():
         "row_contract": {"best_for": "Fixture", "cons": [], "insurance": "Unknown",
                          "medications": [], "pros": [], "starting_price": "Unknown"},
     }
-    research = {"schema": "program-deep-research-v1", "fields": {
+    research = {"schema": "program-deep-research-v1", "captured_at_utc": "2026-08-31T00:00:00Z",
+        "first_party_source_captures": deepcopy(_CAPTURE_BINDING), "fields": {
         name: {"value": "Fixture source text", "source_url": "https://provider.example/terms",
                "verified_as_of": "2026-08-31"}
         for name in ("first_month_price", "states_served", "consultation_fee",
@@ -148,6 +168,12 @@ def test_64_valid_contracts_match_predecessor_serialized_bytes():
                     spec["field_sources"] = {"program_terms": ["https://provider.example/extra"]}
                 before = deepcopy((spec, research, logo))
                 result = build(spec, research, logo)
+                # Q7 adds authenticated capture custody to the contract. Keep the
+                # exact pre-Q7 golden for all prior fields; test custody separately.
+                source_bindings = result.pop("source_capture_bindings")
+                assert set(source_bindings) == {'https://provider.example/terms', 'https://provider.example/extra'}
+                assert all(binding['raw_capture_sha256'] == hashlib.sha256(_RAW).hexdigest()
+                           for binding in source_bindings.values())
                 digest.update((json.dumps(result, indent=2, sort_keys=True) + "\n").encode())
                 assert (spec, research, logo) == before
                 count += 1
