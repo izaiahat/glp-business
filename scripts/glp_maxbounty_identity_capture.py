@@ -9,9 +9,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import glp_affiliate_link_rails as rails
-import glp_wire_in_ready_queue as queue
-
 API_ROOT = "https://api.maxbounty.com/affiliates/api"
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "reports/glp-clinic-scout/affiliate-machine/maxbounty-identity/identity-captures"
 
@@ -42,6 +39,9 @@ def fetch_campaign(program_id: str) -> dict:
 
 def write_capture(record: dict, *, program_id: str, sheet_row: int,
                   program: str, tracking_link: str, output_dir: Path) -> Path:
+    import glp_affiliate_link_rails as rails
+    import glp_wire_in_ready_queue as queue
+
     identity = record.get("campaign_id")
     if isinstance(identity, bool) or not isinstance(identity, (str, int)) or str(identity) != str(program_id):
         raise RuntimeError("maxbounty_campaign_identity_missing_or_mismatch")

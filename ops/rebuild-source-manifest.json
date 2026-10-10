@@ -6416,7 +6416,7 @@
       "callers": [
         "scripts/glp_maxbounty_lane.py"
       ],
-      "sha256": "47ca6841b80e1a83d7055a88300ad520e3f69742ad0263144cb92a6e0d4d8391"
+      "sha256": "52d176249707e1d7acb917950d497e439050b5ba4ae2a3b0e82fc50787e15ecd"
     },
     "tests/test_maxbounty_identity_capture_transport.py": {
       "kind": "test",
