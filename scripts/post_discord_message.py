@@ -6,6 +6,8 @@ import hashlib
 import json
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -36,8 +38,22 @@ def send(channel_id: str, content: str) -> dict:
         },
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read().decode('utf-8'))
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                return json.loads(resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as exc:
+            # A 429 explicitly rejects the POST; unlike a timeout/5xx it is
+            # not an ambiguous effect. Never retry any other failure.
+            if exc.code != 429 or attempt == 3:
+                raise
+            payload = json.loads(exc.read().decode('utf-8'))
+            delay = payload.get('retry_after')
+            if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not 0 <= delay <= 30:
+                raise
+            print('DISCORD_POST_RATE_REJECTED: explicit HTTP 429; bounded retry', file=sys.stderr)
+            time.sleep(delay)
+    raise RuntimeError('discord_rate_retry_exhausted')
 
 
 def readback(channel_id: str, message_id: str) -> dict:

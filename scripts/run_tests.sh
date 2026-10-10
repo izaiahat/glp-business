@@ -79,4 +79,5 @@ suites+=(tests/test_n8n_execution_budget.py tests/test_n8n_execution_budget_revi
 suites+=(tests/test_glp109_scheduler_health.py tests/test_glp320_host_failure_sensor.py)
 suites+=(tests/test_pro_route.py tests/test_pro_route_backlog.py tests/test_pro_route_consumer.py tests/test_pro_picker_family.py tests/test_pro_dispatch.py)
 suites+=(tests/test_linear_audit.py::test_obsolete_pending_delivery_does_not_poison_distinct_audit tests/test_subscription_capacity_monitor.py::test_s7_meter_resolves_package_transport_without_ops_path tests/test_subscription_capacity_monitor.py::test_s7_notification_upgrade_emits_once_preserving_day)
+suites+=(tests/test_discord_rate_rejection.py)
 python3 -m pytest -q "${suites[@]}"
