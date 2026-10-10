@@ -105,3 +105,47 @@ def test_cancellation_consumer_does_not_report_pass_for_verification_hold(tmp_pa
         assert saved['receipt_path'] == result[0]['receipt']
     finally:
         state.close()
+
+
+def test_registered_payload_exact_cancellation_mode_has_no_sheet_or_provider_clients(tmp_path, monkeypatch, capsys):
+    import sqlite3
+    import sys
+    message = EmailMessage()
+    message['From'] = 'affiliates@maxbounty.com'
+    message['Subject'] = 'Campaign Cancellation Notice'
+    message['Authentication-Results'] = 'mx.google.com; dmarc=pass header.from=maxbounty.com'
+    message.set_content('The advertiser for campaign Roman Health requires that it expire on 10/09/2026 21:30.')
+    raw = tmp_path / 'cancellation.eml'
+    raw.write_bytes(message.as_bytes())
+    monkeypatch.setattr(reconciler, 'REPORT_DIR', tmp_path / 'reports')
+    monkeypatch.setattr(reconciler, 'STATE_DB', tmp_path / 'state.sqlite3')
+    with sqlite3.connect(':memory:') as db:
+        db.row_factory = sqlite3.Row
+        event = db.execute('SELECT ? AS event_id, ? AS raw_path, ? AS received_at, ? AS state, ? AS canonical_category', ('evt_exact_cancellation', str(raw), '2026-10-09T12:00:00Z', 'ingested', 'affiliate_network_response')).fetchone()
+    monkeypatch.setattr(reconciler, 'fetch_inbox_events', lambda ids: [event])
+    def denied(*args, **kwargs):
+        raise AssertionError('No Google client or schema writer in cancellation verification mode')
+    monkeypatch.setattr(reconciler, 'google_service', denied)
+    monkeypatch.setattr(reconciler, 'gmail_service', denied)
+    monkeypatch.setattr(reconciler, 'prepare_sheet_schema', denied)
+    monkeypatch.setattr(sys, 'argv', ['reconciler', '--cancellation-verification-only', '--event-id', event['event_id']])
+    assert asyncio.run(reconciler.main()) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt['outputs'][0]['status'] == 'BLOCKED'
+    assert receipt['sheet_writes'] == receipt['outbound_send_count'] == 0
+
+
+def test_exact_cancellation_mode_refuses_non_notice_before_state_or_clients(tmp_path, monkeypatch):
+    import sys
+    import pytest
+    raw = tmp_path / 'not-a-cancellation.eml'
+    raw.write_text('From: no-reply@awin.com\nSubject: Membership Active\n\nApplication approved.')
+    event = {'event_id': 'evt_not_cancellation', 'raw_path': str(raw), 'state': 'ingested'}
+    monkeypatch.setattr(reconciler, 'fetch_inbox_events', lambda ids: [event])
+    def denied(*args, **kwargs):
+        raise AssertionError('invalid selection must fail before side effects')
+    for name in ('init_state', 'google_service', 'gmail_service'):
+        monkeypatch.setattr(reconciler, name, denied)
+    monkeypatch.setattr(sys, 'argv', ['reconciler', '--cancellation-verification-only', '--event-id', event['event_id']])
+    with pytest.raises(RuntimeError, match='requires_unverified_notice'):
+        asyncio.run(reconciler.main())

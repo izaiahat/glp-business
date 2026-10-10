@@ -2623,7 +2623,25 @@ def configure_dry_run_output(output):
  REPORT_DIR=root;STATE_DB=target
 
 async def main(*,fresh_drivers=None):
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--dry-run-output');ap.add_argument('--event-id',action='append');ap.add_argument('--validate-only',action='store_true');ap.add_argument('--operator-handoff');ap.add_argument('--recover-terminal-routine',action='store_true');ap.add_argument('--access-only',choices=('maxbounty','healthtrader','katalys'));ap.add_argument('--access-program');ap.add_argument('--access-name');ap.add_argument('--cancellation-verification-only',action='store_true');args=ap.parse_args()
+ if args.cancellation_verification_only:
+  # Exact real inbox replay without constructing any Sheet/provider client.
+  # This preserves the existing hold; it cannot admit withdrawal authority.
+  if not args.event_id or args.dry_run or args.dry_run_output or args.validate_only or args.operator_handoff or args.recover_terminal_routine or args.access_only or args.access_program or args.access_name:
+   raise RuntimeError('cancellation_verification_requires_only_explicit_event_ids')
+  events=fetch_inbox_events(args.event_id)
+  if {str(event['event_id']) for event in events}!=set(args.event_id):raise RuntimeError('cancellation_verification_event_set_missing')
+  for event in events:
+   subject,sender,body=message_text(event['raw_path']);candidate=detect(subject,sender,body)
+   if not candidate or candidate.get('action')!='campaign_cancellation' or ('provider_verification' in event.keys() and event['provider_verification']):
+    raise RuntimeError('cancellation_verification_requires_unverified_notice')
+  state=init_state()
+  try:
+   selected=[(event,state.execute('SELECT status,blocker_hash FROM events WHERE event_id=?',(event['event_id'],)).fetchone()) for event in events]
+   outputs=await process_selected_events(selected,None,None,state,False,{})
+  finally:state.close()
+  print(json.dumps({'schema':'affiliate.cancellation_verification.v1','outputs':outputs,'sheet_writes':0,'outbound_send_count':0,'provider_mutation_count':0},sort_keys=True))
+  return 0
  if args.access_only:
   # Registered read-only entry: no inbox/Sheet/queue/scheduler initialization,
   # no cards, mark-read, application, terms acceptance or link generation.

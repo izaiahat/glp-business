@@ -1507,7 +1507,7 @@
         "migration-survivor"
       ],
       "kind": "script",
-      "sha256": "eac69b202de76e134018ce01ca2a94b643cdb220c3a499f7630ed53e7d43ff56"
+      "sha256": "2e7b0ac841036e704eea45590c1202099cf43fe722b4ecd25db0681dbcffd994"
     },
     "scripts/affiliate_auto_apply.py": {
       "callers": [
@@ -2715,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "51be7852c6ff962604a4d9c01d23f4c1193c22285b650e9467fb1452a1f14bbe"
+      "sha256": "0d9ac333ee8ee05dc80b6c5925c81d42a1d71a75e8b8cfdf0fb58ee503b128c2"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
