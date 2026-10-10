@@ -8,7 +8,7 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 964,
+  "tracked_count": 965,
   "files": {
     "tests/test_glp_sponsor_approved_pricing.py": {
       "kind": "test",
@@ -642,7 +642,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "de2305529760ba820355f7cdca1b66769570f6b62cebf7e3445341b3c02b1587"
+      "sha256": "8c124d8f710bf7fae749e0c124b5f44bdfb5f696ae902992edf13c4cd099807e"
     },
     ".github/workflows/maxbounty-fresh-probe.yml": {
       "callers": [],
@@ -2715,7 +2715,7 @@
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "0d9ac333ee8ee05dc80b6c5925c81d42a1d71a75e8b8cfdf0fb58ee503b128c2"
+      "sha256": "5e089d12d9fc2c3bf2ad14372887c3810d3bdb335926b7349700c287b3e10bc6"
     },
     "tests/test_affiliate_cron_domain_repair.py": {
       "callers": [
@@ -6509,12 +6509,19 @@
       ],
       "sha256": "2846d96997de5a4f475dc78f5aa4a83dc1cff997b1f02a50059be579839da7d9"
     },
+    "tests/inbox_notice_loader.py": {
+      "kind": "test",
+      "callers": [
+        "affiliate_approval_auto_reconciler"
+      ],
+      "sha256": "c8a0991c45345103b0ed1ede69a8621a59be37f39b42bcf93b72e1cf7ab73ffd"
+    },
     "tests/test_katalys_contract_terms_notice.py": {
       "callers": [
         "affiliate_approval_auto_reconciler"
       ],
       "kind": "test",
-      "sha256": "e18e37aa8838e90b696cd8b9600b5af5ecd88c5cd858cef1c1b9b12f1cf5feeb"
+      "sha256": "01a16355097910dce3bb27acd75c5781a1008558e073c186cda566890ae0208f"
     }
   }
 }

@@ -4,9 +4,8 @@ import importlib.util
 from pathlib import Path
 import pytest
 
-spec = importlib.util.spec_from_file_location('terms_notice_reconciler', Path(__file__).resolve().parents[1] / 'scripts/affiliate_approval_auto_reconciler.py')
-a = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(a)
+from tests.inbox_notice_loader import load
+a = load()
 
 @pytest.mark.parametrize('name', ['CoreAge Rx GLP-1', 'GLP-1 Weight Loss - MEDGm Program'])
 def test_katalys_exact_contract_terms_notice_requires_review(name):
