@@ -167,3 +167,14 @@ def test_stage5_v2_404_body_cannot_be_onboarding_evidence(monkeypatch):
     assert result['status'] == 'not_found'
     assert result['source_http_status'] == 404
     assert 'onboarding_fields' not in result
+
+
+def test_alexandria_reported_cost_and_sdk_scrape_id_are_accounted():
+    ident, credits = fc._receipt({'scrape_id': 'provider-id', 'data': {
+        'alexandria': [{'creditsCost': 5}, {'credits_cost': 2}]}})
+    assert credits == 7
+    assert ident == 'sha256:' + fc._hash('provider-id')
+    assert fc._receipt({'creditsUsed': 3, 'data': {'alexandria': [{'creditsCost': 9}]}})[1] == 3
+    for cost in (None, True, -1, '5'):
+        assert fc._receipt({'data': {'alexandria': [{'creditsCost': cost}]}})[1] is None
+    assert fc._receipt({'data': {'alexandria': []}})[1] is None
