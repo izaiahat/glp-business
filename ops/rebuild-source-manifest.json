@@ -53,7 +53,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "693801f036ec14cd5a0e64249bceb0713e47cf14408966290623a8cf5d7cd218"
+      "sha256": "e0a0e7c6cab57a3edd02814f917ef31ea650cd5d67ac3530cfd5f13085e77b10"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -308,7 +308,7 @@
         "inbox_control_plane/control_plane.py"
       ],
       "kind": "source_control",
-      "sha256": "3ca1515dc6cdd477592e2087e738595f5c85fdbb0a0370ca61e63bd124ace42f"
+      "sha256": "506dff5d3a9cad7c5ee1ec8b49a6e09411a88c36934c84bea0f0eaca22c22603"
     },
     "inbox_control_plane/validate_inbox_control_plane.py": {
       "callers": [],
@@ -3149,7 +3149,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "2e4b978caedaa45ae3291d30b94de4c67815b1d86d80daab504ae16c87530e8b"
+      "sha256": "3d41160b2cfd513da1a4ace21cb55a5de6686454343f2da595d469bd223d3034"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3668,7 +3668,7 @@
     "scripts/run_tests.sh": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e7f6b39c93a4363219066519d9da406c95137cc9b484852d1d8b87cd94840b24"
+      "sha256": "d59260e1296e157a7cc8829d59c2c0fa4087066bf940f1dcae3e363f4ad9741e"
     },
     "scripts/scheduled_job_health_carrier_release.py": {
       "callers": [
@@ -6105,6 +6105,14 @@
       "kind": "test",
       "sha256": "096868f982787ca55e0324c6e071e19d47a612a06128fc96854026cae5793daa"
     },
+    "tests/test_glp_sponsor_followup_notifications.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml",
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "9d13e39be391072dc79c88062c23404e3d6afe01845fb18e10de8d3b80148875"
+    },
     "tests/test_glp_sponsor_continuation.py": {
       "callers": [
         ".github/workflows/business-source-ci.yml"
@@ -6911,5 +6919,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1017
+  "tracked_count": 1018
 }

@@ -282,9 +282,14 @@ def due(recipient,ledger,at):
  sent=row.get('sent',[])
  if not sent:return 0
  if len(sent)>=3:return None
- initial=dt.datetime.fromisoformat(sent[0]['sent_at'])
- last=dt.datetime.fromisoformat(sent[-1]['sent_at'])
- earliest=max(initial+dt.timedelta(days=DAY_DELAYS[len(sent)]),last+dt.timedelta(days=4 if len(sent)==1 else 6))
+ initial=dt.datetime.fromisoformat(sent[0]['sent_at']).astimezone(PT)
+ last=dt.datetime.fromisoformat(sent[-1]['sent_at']).astimezone(PT)
+ # Day 4 and day 10 are Pacific calendar days from enrollment, not rolling
+ # delays from a late follow-up or its variable transport minute. The weekday
+ # job and final transport gate defer weekend/out-of-window dates safely.
+ day=initial.date()+dt.timedelta(days=DAY_DELAYS[len(sent)])
+ if len(sent)>1:day=max(day,last.date()+dt.timedelta(days=1))
+ earliest=dt.datetime.combine(day,dt.time(6),tzinfo=PT)
  return len(sent) if at>=earliest else None
 
 def campaign_config():

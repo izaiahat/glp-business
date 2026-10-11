@@ -63,11 +63,27 @@ def stage(store,*,event_id,mailbox,parsed,raw,thread_id,now,newest_body):
     store.conn.execute("""INSERT OR IGNORE INTO mailbox_actions(action_id,event_id,action,status,provider_receipt_json,created_at,updated_at)
                          VALUES(?,?,'sponsor_reply_stop','verified',?,?,?)""",(action_id,event_id,json.dumps(receipt,sort_keys=True),now,now))
     purpose='sponsor_agreement_candidate' if disposition['kind']=='agreement_candidate' else 'sponsor_reply_stop'
-    # No body/contact copied to a new channel; the existing private event is
-    # the evidence. Agreement is merely a review candidate, not a payable order.
-    payload=(f"Sponsor reply: {disposition['kind']}\nProvider: {', '.join(receipt['provider_hosts'])}\n"
+    # Minimized business identity only, never reply body, health data or raw
+    # headers. Existing private Discord routes and canonical outbox are retained.
+    from urllib.parse import quote
+    def label(value):return re.sub(r'[\r\n\t`<>]', ' ', str(value))[:120]
+    companies=sorted({label(ledger[address].get('organization') or host) for address,host in matches})
+    account=mailbox.get('canonical_address') or ('ops@glpclinicscout.com' if mailbox['mailbox_id']=='glp_ops_gmail' else 'izaiah@glpclinicscout.com')
+    link='https://mail.google.com/mail/u/?authuser='+quote(account,safe='')+'#all/'+quote(str(thread_id or ''),safe='')
+    actions={
+        'agreement_candidate':'Review scope and agreement before confirming terms; do not activate placement or charge.',
+        'interested':'Review the thread and respond with the approved sponsor details; keep the cold sequence stopped.',
+        'question':'Read the question and prepare a scoped answer for review.',
+        'opt_out':'Honor the opt-out and retain suppression; do not contact again.',
+        'not_interested':'Retain suppression and close this outreach without another follow-up.',
+        'bounce':'Review the delivery failure and retain suppression; do not retry or guess another address.',
+        'out_of_office':'Review after '+str(disposition.get('review_after','the return date'))+'; do not automatically resume.',
+    }
+    action=actions.get(disposition['kind'],'Read the thread and decide whether a manual response is needed; keep the sequence stopped.')
+    payload=(f"Sponsor reply: {disposition['kind']}\nSender: {label(sender)}\nCompany: {', '.join(companies)[:240]}\n"
+             f"Thread: {link}\n"
              "All automatic follow-ups stopped. No order, payment or placement approved.\n"
-             f"Review the private canonical event `{event_id}`.")
+             f"Suggested next action: {action}\nPrivate canonical event: `{event_id}`.")
     store.queue_notification(event_id,purpose,DECISIONS if purpose=='sponsor_agreement_candidate' else OPS,
                              'sponsor-reply:'+event_id,payload,transactional=True)
     return receipt
