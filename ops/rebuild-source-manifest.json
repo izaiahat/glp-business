@@ -11,7 +11,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "47a1e597fc1dfb398310bedf6d1efd6e6de69ff660bf4347e77ddef4119743fc"
+      "sha256": "693801f036ec14cd5a0e64249bceb0713e47cf14408966290623a8cf5d7cd218"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -947,7 +947,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "5bd5e413190c5cd6d61d74ef168d68062b48a96bba6d2cc8b6402e69d2683468"
+      "sha256": "7ec9e0ba919ffcfdb1c2265b78479905c6d53a5d3313a29db32d69d34e41d80d"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2203,7 +2203,14 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "4e9c28a54248bd375be6aaf0f7606ce5513280bc9dac3091b189e40260da31fb"
+      "sha256": "dd379d4e0a5a1b88986f594771752dfe78adf8450701fdc97b4cd8c5dd9410ac"
+    },
+    "tests/test_glp93_capture_roots.py": {
+      "kind": "test",
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "sha256": "95ab6c5f662d177d16c1f8d0389e652b3d0b9403a9cc77cc1b28ddaf52761eb5"
     },
     "tests/test_glp93_current_base_binding.py": {
       "kind": "test",
@@ -3187,7 +3194,7 @@
         "wrapper:ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh"
       ],
       "kind": "script",
-      "sha256": "f1c097bbdfcb2a64e9445d89f0896a020b7c3f2eea9dde0f983a5e39140190c1"
+      "sha256": "a5c20feed5c2a8395d598fde28363d4a034682093629c5b90c7ab22dc984fcd1"
     },
     "scripts/glp_xentraffic_enumerate.py": {
       "callers": [
@@ -4671,7 +4678,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "088c4af69e2b444e4d695c39f7b48603e25b2f2d5f95c0412bcb5ab3ad285368"
+      "sha256": "80bb52f66fcc9852061f636fedc77aa609b0336e2a933bba8b41a6b2a4b6073e"
     },
     "tests/test_cleanup_affiliate_decisions.py": {
       "callers": [
@@ -6862,5 +6869,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1010
+  "tracked_count": 1011
 }
