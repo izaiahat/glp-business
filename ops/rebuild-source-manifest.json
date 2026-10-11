@@ -1039,7 +1039,7 @@
       ],
       "kind": "script",
       "scope": "Explicit PR138 worker successor; historical cleanup and GLP331 adoption wrapper preserved unchanged. Registered allowed-root delivery selects this source, changes only the exact worker literal and reenrolls scheduler hash.",
-      "sha256": "7ec9e0ba919ffcfdb1c2265b78479905c6d53a5d3313a29db32d69d34e41d80d"
+      "sha256": "72d2ada0ccf43ef1621afc7f38c7afae0f2bffad1d4e3a687f667da18026c994"
     },
     "ops/hermes-cron-scripts/glp_affiliate_reconciliation_honesty.sh": {
       "callers": [
@@ -2295,7 +2295,7 @@
         "tests/test_glp331_carrier_closure.py",
         ".github/workflows/business-source-ci.yml"
       ],
-      "sha256": "dd379d4e0a5a1b88986f594771752dfe78adf8450701fdc97b4cd8c5dd9410ac"
+      "sha256": "40db37606d5eb6aba99f62951f99819aab3b8a5d061551adafe05038fc379540"
     },
     "tests/test_glp93_capture_roots.py": {
       "kind": "test",
@@ -6973,6 +6973,27 @@
         "business source CI"
       ],
       "sha256": "d9d24e65b33412ec027a2ca5b8bc9ef25f71b4b4ff66528840c1cb271832beee"
+    },
+    "scripts/glp_review_tracking_rebind.py": {
+      "kind": "script",
+      "callers": [
+        "GLP93 approved review tracking successor"
+      ],
+      "sha256": "2e586c3e8f70cba82abba2627582aca0e17f0d5ec310da96d58bed7c29b49ff5"
+    },
+    "tests/test_review_tracking_successor.py": {
+      "kind": "test",
+      "callers": [
+        "GLP93 approved review tracking successor"
+      ],
+      "sha256": "2ea817c9689aec0343a52282f251dd7bfcfd8a422a6bae372d7e3b1afd13366d"
+    },
+    ".github/workflows/review-tracking-successor.yml": {
+      "kind": "workflow",
+      "callers": [
+        "GLP93 approved review tracking successor"
+      ],
+      "sha256": "fdb19d5a7780d4997b2bca3a2f692255f9661599534f4b7a10082812908c7300"
     }
   },
   "omitted_runtime_inputs": [
@@ -6983,5 +7004,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1027
+  "tracked_count": 1030
 }

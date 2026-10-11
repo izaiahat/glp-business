@@ -45,6 +45,9 @@ def project(target, receipts, snapshot):
   authority['programs'][pid]={'status':'VERIFIED','promotion_authorized':True,'constructor_verified':True,'network':'MaxBounty','direct_only':True,'issued_link':link,'tracking_link_sha256':hashlib.sha256(link.encode()).hexdigest(),'reason':'approved_api_link_sole_writer_ready','source_receipt':f'data/review-tracking-receipts.json#{pid}'}
  if not updates:raise RuntimeError('review_tracking_receipts_empty')
  successor=paired_cta_tracking_successor(raw,contracts,migration,updates)
+ fastpath=json.loads((data/'provider-fastpath-contract.json').read_text())
+ if fastpath.get('current_contract_sha256')!=hashlib.sha256(raw).hexdigest():raise RuntimeError('review_tracking_fastpath_pair_drift')
+ fastpath['current_contract_sha256']=successor['baseline_contract_sha256']
  # Existing generated comparison hrefs and approval corroboration receive the
  # same exact string. All unrelated values, metadata and prose are retained.
  def replace(value):
@@ -58,7 +61,7 @@ def project(target, receipts, snapshot):
   if isinstance(value,list):return [replace(v) for v in value]
   if isinstance(value,str):return changes.get(value,value)
   return value
- outputs={'provider-page-contracts.json':contracts,'provider-cta-identity-v2.json':successor,'go-runtime-promotion-authority.json':authority,'review-tracking-receipts.json':{'schema':'glp-review-approved-tracking-v1','tracking_clicks':0,'programs':sources}}
+ outputs={'provider-fastpath-contract.json':fastpath,'provider-page-contracts.json':contracts,'provider-cta-identity-v2.json':successor,'go-runtime-promotion-authority.json':authority,'review-tracking-receipts.json':{'schema':'glp-review-approved-tracking-v1','tracking_clicks':0,'programs':sources}}
  for rel in ('affiliate-wire-in-approvals.json','money-page-specs.json'):
   outputs[rel]=replace(json.loads((data/rel).read_text()))
  for rel,value in outputs.items():write_json(data/rel,value)

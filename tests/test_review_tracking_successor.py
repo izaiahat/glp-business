@@ -1,7 +1,16 @@
 import copy,hashlib,json,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from build_glp_affiliate_wirein_incremental_v2 import paired_cta_tracking_successor
+# Pure maintained function extraction: the complete native producer is separately
+# exercised against real API and sole-writer receipts in T1 projection evidence.
+import ast
+from urllib.parse import urlparse
+root=Path(__file__).resolve().parents[1]
+nodes=[n for n in ast.parse((root/'scripts/build_glp_affiliate_wirein_incremental_v2.py').read_text()).body if isinstance(n,ast.FunctionDef) and n.name=='paired_cta_tracking_successor']
+assert len(nodes)==1
+namespace={'json':json,'urlparse':urlparse,'sha_bytes':lambda b:hashlib.sha256(b).hexdigest()}
+exec(compile(ast.Module(body=nodes,type_ignores=[]),'maintained-cta-successor','exec'),namespace)
+paired_cta_tracking_successor=namespace['paired_cta_tracking_successor']
 class TrackingPairTest(unittest.TestCase):
  def setUp(self):
   self.before={'providers':[{'program_id':'one','network_contract':{'network':'MaxBounty','tracking_url':'https://old.test'},'row_contract':{'affiliate_href':'https://old.test'}},{'program_id':'other','network_contract':{},'row_contract':{}}]}
