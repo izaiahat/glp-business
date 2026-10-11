@@ -1,0 +1,5 @@
+# R1 secret-free Codex VPN expiry fallback; no model, mint, revoke or ACL changes.
+# Hourly 73h threshold ensures >=72h operator lead time between hourly slots.
+SHELL=/bin/bash
+PATH=/home/ubuntu/.hermes/node/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+5 * * * * ubuntu cd /home/ubuntu/business && /usr/bin/python3 -B scripts/codex_cloud_key_renewal.py >> /home/ubuntu/business/logs/codex-cloud-key-renewal.log 2>&1

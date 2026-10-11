@@ -1,6 +1,48 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/codex_cloud_key_renewal.py": {
+      "callers": [
+        "ops/cron.d/codex-cloud-key-renewal"
+      ],
+      "kind": "script",
+      "sha256": "17c7ad6fce19c5eac2c8c86b4c3c380a7eb5ea920f788db4864540bc3ccc7d6e"
+    },
+    "ops/cron.d/codex-cloud-key-renewal": {
+      "callers": [
+        "host cron"
+      ],
+      "kind": "cron",
+      "sha256": "17c6e9dc042a8c9b7c160bf43db945fbc62453e0370d90e195f6868f90204814"
+    },
+    "ops/codex-cloud/tailscale-renewal.json": {
+      "callers": [
+        "scripts/codex_cloud_key_renewal.py"
+      ],
+      "kind": "operations",
+      "sha256": "087dd08c8229d89a1c4764719348d3896d5f3ee6710c2c94aa4ac0f9705960bc"
+    },
+    "ops/codex-cloud/KEY-RENEWAL.md": {
+      "callers": [
+        "manual:operator-secure-renewal"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "dc6196d203ad6ffe81aaeec53dae6b80cc1938c7b0b297687a163aac209dc241"
+    },
+    "tests/test_codex_cloud_key_renewal.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "f53c15dc075f3f0a04e0ced1456e9d80f4d8c0573a60fe8b6facba82cf5ac1f6"
+    },
+    "tests/test_glp_single_publisher.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "7b035e3dbaf439d498f2d1a9ab90c5c8e707b71cd529ca44fd9bf042dbd0cd0d"
+    },
     ".codex-task/RESULT.md": {
       "callers": [
         "GLP affiliate front-half repair"
@@ -328,7 +370,7 @@
         "host cron"
       ],
       "kind": "cron",
-      "sha256": "50645fd2db1c8df0ef51546269ec9c84fa366981805553decd2337ffa9935c4f"
+      "sha256": "70ba6b95af00b585c9f09527ab8b8e3b3415ef1cddfed6048d081e60022017f6"
     },
     "ops/cron.d/glp-dot-consumer": {
       "callers": [
@@ -2580,7 +2622,7 @@
         "ops/cron.d/glp-affiliate-terms-sync"
       ],
       "kind": "script",
-      "sha256": "80fad74ce8ebaf910f8d979beaa2be69cac990e95595ca532aaa7e05ebd4511b"
+      "sha256": "535191d044e659a03063622674a72c728b3a1873cf1adae33ec5ae029a1fe25c"
     },
     "scripts/glp_affiliate_weekly_reporting.py": {
       "callers": [
@@ -2989,7 +3031,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "c875dd788823434de5fc7f34b944ed1670c936ac0e8033263206c9b38385e191"
+      "sha256": "0375fa8fe516c16e7b86b844edd94e1628cbfa6e020a3ce77666c3820017a684"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
@@ -5960,7 +6002,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "2b5129aef7a8e3e7c18135e155864b68ebef83f68e57c9d0e574788be76a2a00"
+      "sha256": "c4ecbde61d50539dcb3a3ba8e3383c7dfb9c87d35349361aae1cfad707815944"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -6869,5 +6911,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1011
+  "tracked_count": 1017
 }
