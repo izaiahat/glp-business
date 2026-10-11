@@ -8,6 +8,16 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import glp_release_main as rm  # noqa: E402
+from test_codex_cloud_key_renewal import (
+    test_renewal_monitor_deadline_and_exact_readback,
+    test_renewal_monitor_uncertain_post_reconciles_without_repost,
+    test_renewal_registry_preserves_existing_scope,
+)
+from test_glp_single_publisher import (
+    test_registered_f03_ignores_legacy_publish_flag,
+    test_f03_merge_handoff_is_selected_by_hourly_release,
+    test_f03_resume_cannot_publish,
+)
 import glp_affiliate_sync_job as job  # noqa: E402
 
 
@@ -173,7 +183,7 @@ def test_explicit_main_source_never_shortcuts_on_unchanged_affiliate_surfaces(tm
     def ci(*args):
         raise RuntimeError('exact-head-ci-gate-reached')
     monkeypatch.setattr(job, 'ci', ci)
-    assert job.execute({},tmp_path / 'auto')['status'] == 'PASS_ALREADY_CURRENT'
+    assert job.execute({},tmp_path / 'auto',source_only=False)['status'] == 'PASS_ALREADY_CURRENT'
     for ref, pr in [('guide-head','guide-pr'), (None,'guide-pr')]:
         with pytest.raises(RuntimeError,match='exact-head-ci-gate-reached'):
             job.execute({},tmp_path / 'explicit',source_ref=ref,source_pr=pr,publish=True)

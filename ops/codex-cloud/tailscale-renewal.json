@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "mode": "manual_fallback",
+  "documentation_checked": "2026-10-11",
+  "environments": [
+    {
+      "name": "hermes-evidence-account1",
+      "account": "izaiahtilton1@gmail.com",
+      "environment_id": "4fd5c849-3fad-41f8-8e3c-55b171c5a941~asenvcfg_41020c228cc481918e4b94912317cb66",
+      "key_id": "kU3CvrzjoJ11CNTRL",
+      "expires": "2026-10-17T03:02:50Z",
+      "tags": ["tag:codex-cloud"],
+      "metadata_source": "reports/ops/codex-cloud-tailscale-20261009/T4/RESULT.json:account1_key"
+    },
+    {
+      "name": "hermes-evidence-account2",
+      "account": "izaiahtilton@gmail.com",
+      "environment_id": "fcff8e56-512b-4e4b-9df2-ec764a5bdb64~asenvcfg_13e81e9de5d08191b4e1f77418ea0124",
+      "key_id": "kn2zbEUGE421CNTRL",
+      "expires": "2026-10-17T02:16:48Z",
+      "tags": ["tag:codex-cloud"],
+      "metadata_source": "reports/ops/codex-cloud-tailscale-20261009/T3/RESULT.json:key"
+    }
+  ]
+}
