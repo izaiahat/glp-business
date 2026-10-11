@@ -3,7 +3,8 @@
 This is a supply filter, never clinical, provider or publication authority.
 Targets are not mandatory date bumps: no evidence-backed material change is a no-op.
 """
-CADENCE = {'new_target_per_day': 1, 'new_ceiling_per_day': 3,
+CADENCE = {'new_target_per_day': 1, 'new_ceiling_per_day': 1,
+           'research_ceiling_per_day': 3, 'publication_weekdays': [0, 1, 2, 3, 4],
            'meaningful_updates_min_per_week': 2, 'meaningful_updates_max_per_week': 4,
            'no_op_allowed': True}
 

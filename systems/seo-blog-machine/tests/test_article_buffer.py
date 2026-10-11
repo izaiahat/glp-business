@@ -1282,8 +1282,8 @@ def test_consumption_rereads_current_nonpublication_truth_under_lock(tmp_path):
 
 def test_pool_contract_min_target_max(tmp_path):
     status = buffer.pool_status(tmp_path / "pool", current_routes=set(), current_topic_ids=set())
-    assert (status["minimum"], status["target"], status["maximum"]) == (3, 4, 5)
-    assert status["deficit_to_minimum"] == 3
+    assert (status["minimum"], status["target"], status["maximum"]) == (5, 5, 5)
+    assert status["deficit_to_minimum"] == 5
 
 
 def test_claimed_history_does_not_permanently_block_refill_to_max(tmp_path):

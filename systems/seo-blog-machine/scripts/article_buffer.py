@@ -19,8 +19,9 @@ import review_transports
 from carrier_lock import carrier_lock
 from selection_receipt import load_selection_receipt
 
-READY_MIN = 3
-READY_TARGET = 4
+# Five weekday publications require a five-article independently accepted reserve.
+READY_MIN = 5
+READY_TARGET = 5
 READY_MAX = 5
 PT = ZoneInfo("America/Los_Angeles")
 REQUIRED_SUBJECTS = {
@@ -2203,7 +2204,7 @@ def refill_review_only(
     control_files: dict[str, str],
     admitted_at_utc: str,
 ) -> dict[str, Any]:
-    """Refill to four by invoking the standard Opus loop with apply=False."""
+    """Refill to five by invoking the standard Opus loop with apply=False."""
     admitted: list[str] = []
     failures: list[dict[str, str]] = []
     for candidate in candidates:

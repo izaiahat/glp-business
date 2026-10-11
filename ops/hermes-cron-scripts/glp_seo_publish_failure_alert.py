@@ -73,7 +73,7 @@ def publication_summary(day: str) -> dict[str, object]:
     day_date = dt.date.fromisoformat(day)
     routes = new_routes_today(day)
     refresh = outcome_cards.r2_refreshes_today(day_date)
-    new_scheduled = day_date.weekday() in (0, 2, 4)  # Mon/Wed/Fri
+    new_scheduled = day_date.weekday() in (0, 1, 2, 3, 4)  # Mon-Fri
     receipt = refresh.get("receipt")
     return {
         "schema": "glp-seo-publication-summary-v1",
@@ -81,7 +81,7 @@ def publication_summary(day: str) -> dict[str, object]:
         "new_route": {
             "kind": "NEW_ROUTE",
             "scheduled": new_scheduled,
-            "cadence": "M/W/F",
+            "cadence": "Mon-Fri",
             "published_count": len(routes),
             "routes": routes,
             "source": "published-route-ledger.json",
@@ -163,7 +163,7 @@ def host_carrier_terminal(day: str, *, runs: Path | None = None) -> str | None:
             boundary = dt.datetime.fromisoformat(slot[:16]).replace(tzinfo=PT)
             if (start.tzinfo is None or finish.tzinfo is None or finish < start
                     or start.astimezone(PT).date().isoformat() != day
-                    or boundary.weekday() not in (0, 2, 4) or start < boundary):
+                    or boundary.weekday() not in (0, 1, 2, 3, 4) or start < boundary):
                 return None
             bridge = receipt.get("bridge") or {}
             terminal = (bridge.get("status") in ("done", "error")
@@ -319,7 +319,7 @@ def test_main(mode: str) -> int:
             raise RuntimeError('TEST requires bound terminal producer failure, not unknown')
         summary = {
             'new_route': {'scheduled': True, 'published_count': int(mode != 'failure'),
-                          'cadence': 'M/W/F', 'accepted_failures': {}},
+                          'cadence': 'Mon-Fri', 'accepted_failures': {}},
             'r2_refresh': {'scheduled': True, 'ok': True, 'status': 'TEST_FIXTURE',
                            'published_count': 2, 'completed': 2, 'required': 2, 'deficit': 0},
         }
