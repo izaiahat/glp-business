@@ -59,7 +59,11 @@ def existing_pins(pins):
 
 
 def custody_pins(pins):
-    return tuple(existing_pins(pins))+tuple(live_symlink_targets())
+    from host_disk_custody import collect
+    live=existing_pins(set(pins)|collect())
+    # Resolve current alias chains again at every gate, not from cached prose.
+    live.update(p.resolve(strict=False) for p in tuple(live))
+    return tuple(live)+tuple(live_symlink_targets())
 
 _PIN_CACHE={}
 
@@ -72,7 +76,7 @@ def protected(p, pins=()):
         cached=(pins,frozenset(map(str,pins))); _PIN_CACHE[key]=cached
     pinset=cached[1]
     referenced=any(str(a) in pinset for a in [p,*p.parents])
-    return (referenced or
+    return (referenced or p.name.endswith('.tar.zst.partial') or
             p.suffix.lower() in {'.db','.sqlite','.sqlite3','.duckdb','.db-wal','.db-shm','.db-journal','.sqlite-wal','.sqlite-shm','.sqlite-journal','.sqlite3-wal','.sqlite3-shm','.zst','.tar','.tgz','.gz'} or
             any(n in PROTECTED or n.startswith(('.env','tmux-','.org.chromium.',
                 'browser-profile','chrome-profile','chromium-profile','sealed','seal-'))
@@ -271,6 +275,7 @@ def discard_staging(api, owned):
     uncommitted output. Live symlink custody and independent process checks still
     veto rollback. Call only before a retirement ledger exists.
     """
+    runtime_pins=custody_pins(())
     for p, identity in owned.items():
         if not p.exists():
             continue
@@ -279,6 +284,7 @@ def discard_staging(api, owned):
         if (current[:3] != identity[:3] or current[6] != 1
                 or not stat.S_ISREG(current[2])
                 or any(p == q or q in p.parents or p in q.parents for q in live)
+                or any(p == q or q in p.parents for q in runtime_pins)
                 or not inactive(api, p)):
             raise ValueError('staging rollback custody/identity refused')
         if signature(p) != current:

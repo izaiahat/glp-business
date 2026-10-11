@@ -154,13 +154,14 @@ def external_pins():
     return existing_pins(pins - LAYOUT)
 
 
-def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False):
+def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False, protection=None):
     """Shared effect path: every existing veto, then a single bounded removal."""
     from host_disk_large_classes import snapshot, lsof_inactive
     from host_disk_payload_guard import reject_database_payloads
     row = {'rule': rule, 'path': str(p), 'bytes_freed': 0}
+    protect = protection or m.protected
     try:
-        if p.is_symlink() or p.resolve() != p.absolute() or m.protected(p, pins):
+        if p.is_symlink() or p.resolve() != p.absolute() or protect(p, pins):
             raise ValueError('scope/protection')
         if extra_check:
             extra_check(p)
@@ -174,8 +175,9 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
             if cutoff is not None and stamp > cutoff:
                 raise ValueError('young descendant')
         fresh = m.custody_pins(pins)
-        if any(m.protected(p / r[0], fresh) for r in before):
+        if any(protect(p / r[0], fresh) for r in before):
             raise ValueError('new live symlink custody')
+        if extra_check:extra_check(p)
         if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
             raise ValueError('reference/identity')
         row['eligible_bytes'] = amount

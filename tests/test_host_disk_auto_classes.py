@@ -28,6 +28,14 @@ class API:
 
 REAL_TIME = time.time
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_scheduler_custody(monkeypatch):
+    import host_disk_custody
+    monkeypatch.setattr(host_disk_custody, 'collect', lambda: set())
+
 
 def shift(monkeypatch, days):
     """ctime cannot be backdated; advance the clock instead (time module is shared)."""
