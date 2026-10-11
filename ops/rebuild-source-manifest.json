@@ -2527,7 +2527,7 @@
         "registered stage5 research fetch"
       ],
       "kind": "script",
-      "sha256": "6aa51ed639709c9994b8a85ac47608fe60e38ff2a00938f5c9d9a59f65f6bde3"
+      "sha256": "4b8570ea086af2f64b096393c82d1d14219fb1576d828366c9b9fc2a7b29f7a2"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [

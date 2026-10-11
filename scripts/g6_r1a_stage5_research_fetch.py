@@ -66,7 +66,6 @@ import requests
 BUSINESS = Path("/home/ubuntu/business")
 sys.path.insert(0, str(BUSINESS / "scripts"))
 from glp_price_verification import env_value  # noqa: E402
-import glp_headful_capture as headful  # noqa: E402
 import glp_capture_fetch_receipts as fetch_receipts  # noqa: E402
 
 FIRECRAWL_URL = "https://api.firecrawl.dev/v2/scrape"
@@ -224,6 +223,8 @@ def capture_program(urls: list[str], key: str | None,
     if not retry_idx:
         return primary
     try:
+        # Headful is an optional fallback, not a Firecrawl parser dependency.
+        import glp_headful_capture as headful
         fallback = headful.capture([primary[i]["url"] for i in retry_idx])
     except Exception as exc:  # the browser lane itself is unavailable
         for i in retry_idx:
