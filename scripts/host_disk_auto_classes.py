@@ -55,7 +55,14 @@ def worktree_pins(roots=(BUS / '.worktrees', BUS / 'worktrees')):
             common = gitdir.parent.parent  # <repo>/.git/worktrees/<name> -> <repo>/.git
             pins.add(common.parent)
             for record in (common / 'worktrees').glob('*/gitdir'):
-                pins.add(Path(record.read_text().strip()).parent)
+                target = Path(record.read_text().strip()).parent
+                # Administrative git records can outlive removed worktrees.
+                # lstat raises on permission/IO failures instead of authorizing effects.
+                try:
+                    target.lstat()
+                except FileNotFoundError:
+                    continue
+                pins.add(target)
     return pins
 
 
@@ -143,7 +150,8 @@ def external_pins():
     pins = set()
     for source in (worktree_pins, prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins):
         pins |= source()
-    return pins - LAYOUT
+    from host_disk_cold_classes import existing_pins
+    return existing_pins(pins - LAYOUT)
 
 
 def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False):

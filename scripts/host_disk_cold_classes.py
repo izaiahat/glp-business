@@ -42,8 +42,24 @@ def live_symlink_targets(home=None,max_depth=3):
             stack.extend((Path(e.path),depth+1) for e in es)
     return targets
 
+def existing_pins(pins):
+    """Drop stale narrative/administrative paths; unreadable custody fails closed.
+
+    Keep dangling symlinks themselves. Resolved live symlink targets are added
+    separately and remain protected regardless of current target availability.
+    """
+    live = set()
+    for p in map(Path, pins):
+        try:
+            p.lstat()
+        except FileNotFoundError:
+            continue
+        live.add(p)
+    return live
+
+
 def custody_pins(pins):
-    return tuple(map(Path,pins))+tuple(live_symlink_targets())
+    return tuple(existing_pins(pins))+tuple(live_symlink_targets())
 
 _PIN_CACHE={}
 
@@ -248,7 +264,80 @@ def verify_archive(archive,rows,listing):
         if proc.poll() is None:
             proc.stdout.close(); proc.wait(timeout=30)
 
-def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0):
+def discard_staging(api, owned):
+    """Only this transaction's new ordinary inodes, never evidence/custody.
+
+    Report-root narrative pins intentionally cover evidence, not our exclusive
+    uncommitted output. Live symlink custody and independent process checks still
+    veto rollback. Call only before a retirement ledger exists.
+    """
+    for p, identity in owned.items():
+        if not p.exists():
+            continue
+        current = signature(p)
+        live = live_symlink_targets()
+        if (current[:3] != identity[:3] or current[6] != 1
+                or not stat.S_ISREG(current[2])
+                or any(p == q or q in p.parents or p in q.parents for q in live)
+                or not inactive(api, p)):
+            raise ValueError('staging rollback custody/identity refused')
+        if signature(p) != current:
+            raise ValueError('staging rollback changed')
+        p.unlink()
+
+
+def cleanup_abandoned_archives(api, prune_root, *, source_roots, dry_run, deadline):
+    """Recover pre-retirement staging only; manifests prove originals untouched.
+
+    This runs under the controller singleton. Crash leftovers lacking a complete
+    original-identity/hash proof, or ANY retirement/verification custody, stay.
+    """
+    result=[]
+    for partial in sorted(Path(prune_root).glob('*/large/archives/*.tar.zst.partial')):
+        if time.monotonic()>deadline: break
+        dest=Path(str(partial).removesuffix('.partial'))
+        manifest=Path(str(dest)+'.manifest.json')
+        row={'rule':'abandoned_archive_staging','path':str(partial),'bytes_freed':0,'ok':True}
+        try:
+            siblings=[dest,Path(str(dest)+'.retirement.jsonl'),Path(str(dest)+'.verified.json')]
+            if any(p.exists() or p.is_symlink() for p in siblings):
+                raise ValueError('retirement/recovery custody')
+            if partial.is_symlink() or manifest.is_symlink() or partial.parent.resolve()!=partial.parent.absolute():
+                raise ValueError('staging symlink custody')
+            before={p:signature(p) for p in (partial,manifest)}
+            data=json.loads(manifest.read_text());root=Path(data['source']);members=data['members']
+            if not root.is_absolute() or not any(root==q or q in root.parents for q in map(Path,source_roots)):
+                raise ValueError('unadmitted source')
+            if root.resolve()!=root.absolute() or not members or dirty_worktree(root) or not inactive(api,root):
+                raise ValueError('source active/dirty/symlink/unknown')
+            seen=set()
+            for member in members:
+                name=Path(member['name']);p=root/name
+                if name.is_absolute() or '..' in name.parts or str(name) in seen:
+                    raise ValueError('invalid/duplicate member')
+                seen.add(str(name))
+                if time.monotonic()>deadline:raise TimeoutError('abandoned source proof deadline')
+                if p.resolve()!=p.absolute() or signature(p)!=member['signature'] or sha(p)!=member['sha256']:
+                    raise ValueError('original missing/changed')
+                if signature(p)!=member['signature']:raise ValueError('original changed during hash')
+            if any(signature(p)!=identity for p,identity in before.items()):
+                raise ValueError('staging changed')
+            owned=dict(before)
+            listing=Path(str(dest)+'.listing.txt')
+            if listing.exists():owned[listing]=signature(listing)
+            amount=sum(p.stat().st_blocks*512 for p in owned)
+            if dry_run:
+                row.update(status='ELIGIBLE_ABANDONED_STAGING',eligible_bytes=amount)
+            else:
+                discard_staging(api,owned)
+                row.update(status='ABANDONED_STAGING_REMOVED',bytes_freed=amount)
+        except (OSError,ValueError,KeyError,TypeError,TimeoutError) as exc:
+            row.update(status='REFUSED',reason=str(exc))
+        result.append(row)
+    return result
+
+
+def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None):
     """Compress explicit cold members, preserve protected leaves and directory skeletons."""
     root=Path(root); dest=Path(destination); pins=custody_pins(pins)
     row={'rule':'cold_evidence_archive','path':str(root),'bytes_freed':0}
@@ -283,56 +372,81 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
     manifest=dest.with_suffix(dest.suffix+'.manifest.json')
     listing=dest.with_suffix(dest.suffix+'.listing.txt')
     ledger=dest.with_suffix(dest.suffix+'.retirement.jsonl')
-    write_json(manifest,{'source':str(root),'members':rows,'retained':skipped,'cold_days':cold_days})
     tmp=dest.with_suffix(dest.suffix+'.partial')
-    with tmp.open('xb') as output:
-        proc=subprocess.Popen(['zstd','-q','-3','--long=27','-T1','-c'],stdin=subprocess.PIPE,stdout=output)
-        try:
-            with tarfile.open(fileobj=proc.stdin,mode='w|',format=tarfile.PAX_FORMAT,dereference=True) as tf:
-                for r in rows:
-                    p=root/r['name']
-                    if signature(p)!=r['signature']: raise ValueError('source changed during build')
-                    info=tf.gettarinfo(str(p),arcname=r['name'])
-                    fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
-                    with os.fdopen(fd,'rb') as f: tf.addfile(info,f)
-            proc.stdin.close()
-            if proc.wait(timeout=max(1,deadline-time.monotonic()))!=0: raise ValueError('compression failed')
-            output.flush(); os.fsync(output.fileno())
-        finally:
-            if proc.poll() is None: proc.stdin.close(); proc.wait(timeout=30)
-    if min_bytes and amount-(tmp.stat().st_blocks*512+manifest.stat().st_blocks*512+len(rows)*2048)<min_bytes:
-        identity=signature(tmp)
-        if not protected(tmp,custody_pins(pins)) and inactive(api,tmp) and signature(tmp)==identity:
-            tmp.unlink()
-            return dict(row,status='GATED_NO_NET_SAVINGS',bytes_freed=-manifest.stat().st_blocks*512)
-        return dict(row,status='GATED_TEMP_ACTIVE_OR_UNKNOWN',bytes_freed=0)
-    os.replace(tmp,dest)
-    verify_archive(dest,rows,listing)
-    archive_sha=sha(dest)
-    # All identities checked before first effect; check again per unlink below.
-    fresh_pins=custody_pins(pins)
-    if any(protected(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
-    if not inactive(api,root) or dirty_worktree(root): raise ValueError('new active/dirty reference')
-    if any(signature(root/r['name'])!=r['signature'] for r in rows): raise ValueError('source changed before retire')
-    verify={'archive_sha256':archive_sha,'manifest_sha256':sha(manifest),
-            'listing_sha256':sha(listing),'verified_members':len(rows),'verified':True}
-    write_json(dest.with_suffix(dest.suffix+'.verified.json'),verify)
-    freed=0; own_unlinks={}
-    with ledger.open('x') as f:
-        for r in rows:
-            if time.monotonic()>deadline: raise TimeoutError('retirement')
-            p=root/r['name'];current=signature(p);expected=r['signature'];key=tuple(expected[:2])
-            own=own_unlinks.get(key,0)
-            # Our earlier hardlink unlink changes nlink/ctime only. Any other
-            # drift still vetoes; verify exact bytes when ctime legitimately moves.
-            if (current[:5]!=expected[:5] or current[7:]!=expected[7:] or current[6]!=expected[6]-own
-                or (not own and current[5]!=expected[5]) or (own and sha(p)!=r['sha256'])):
-                raise ValueError('changed before unlink')
-            p.unlink();own_unlinks[key]=own+1
-            n=r['allocated_bytes'] if current[6]==1 else 0; freed+=n
-            f.write(json.dumps({'source':str(p),'member':r['name'],'sha256':r['sha256'],'freed_bytes':n})+'\n')
-        f.flush(); os.fsync(f.fileno())
-    overhead=sum(x.stat().st_blocks*512 for x in [dest,manifest,listing,ledger,dest.with_suffix(dest.suffix+'.verified.json')])
-    row.update(status='ARCHIVED_VERIFIED_RETIRED',gross_bytes_freed=freed,overhead_bytes=overhead,
-               bytes_freed=freed-overhead,archive=str(dest),manifest=str(manifest),**verify)
-    return row
+    verified=dest.with_suffix(dest.suffix+'.verified.json')
+    outputs=[tmp,dest,manifest,listing,verified,ledger]
+    if any(p.exists() or p.is_symlink() for p in outputs):
+        raise ValueError('archive transaction already exists')
+    if dest.parent.resolve()!=dest.parent.absolute():
+        raise ValueError('archive destination symlink custody')
+    owned={}; committed=False
+    try:
+        with manifest.open('x') as f:
+            owned[manifest]=signature(manifest)
+            json.dump({'source':str(root),'members':rows,'retained':skipped,'cold_days':cold_days},f)
+            f.flush(); os.fsync(f.fileno())
+        with tmp.open('xb') as output:
+            owned[tmp]=signature(tmp)
+            proc=subprocess.Popen(['zstd','-q','-3','--long=27','-T1','-c'],stdin=subprocess.PIPE,stdout=output)
+            try:
+                with tarfile.open(fileobj=proc.stdin,mode='w|',format=tarfile.PAX_FORMAT,dereference=True) as tf:
+                    for r in rows:
+                        if time.monotonic()>deadline: raise TimeoutError('build deadline')
+                        p=root/r['name']
+                        if signature(p)!=r['signature']: raise ValueError('source changed during build')
+                        info=tf.gettarinfo(str(p),arcname=r['name'])
+                        fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NOATIME)
+                        with os.fdopen(fd,'rb') as f: tf.addfile(info,f)
+                proc.stdin.close()
+                if proc.wait(timeout=max(1,deadline-time.monotonic()))!=0: raise ValueError('compression failed')
+                output.flush(); os.fsync(output.fileno())
+            finally:
+                # Drain the compressor naturally; never kill a live archive writer.
+                if not proc.stdin.closed: proc.stdin.close()
+                proc.wait()
+        net_floor=min_bytes if min_net_bytes is None else min_net_bytes
+        if net_floor and amount-(tmp.stat().st_blocks*512+manifest.stat().st_blocks*512+len(rows)*2048)<net_floor:
+            return dict(row,status='GATED_NO_NET_SAVINGS',bytes_freed=0)
+        with listing.open('x') as f:
+            owned[listing]=signature(listing)
+        verify_archive(tmp,rows,listing)
+        archive_sha=sha(tmp)
+        # Verification is complete before publishing the archive or retiring originals.
+        fresh_pins=custody_pins(pins)
+        if any(protected(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
+        if not inactive(api,root) or dirty_worktree(root): raise ValueError('new active/dirty reference')
+        if any(signature(root/r['name'])!=r['signature'] for r in rows): raise ValueError('source changed before retire')
+        verify={'archive_sha256':archive_sha,'manifest_sha256':sha(manifest),
+                'listing_sha256':sha(listing),'verified_members':len(rows),'verified':True}
+        with verified.open('x') as f:
+            owned[verified]=signature(verified)
+            json.dump(verify,f);f.flush();os.fsync(f.fileno())
+        os.replace(tmp,dest);owned[dest]=owned.pop(tmp)
+        fd=os.open(dest.parent,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+        freed=0; own_unlinks={}
+        if time.monotonic()>deadline: raise TimeoutError('pre-retirement deadline')
+        with ledger.open('x') as f:
+            for r in rows:
+                if time.monotonic()>deadline: raise TimeoutError('retirement')
+                p=root/r['name'];current=signature(p);expected=r['signature'];key=tuple(expected[:2])
+                own=own_unlinks.get(key,0)
+                # Only exact self-caused link-count changes may relax ctime.
+                if (current[:5]!=expected[:5] or current[7:]!=expected[7:] or current[6]!=expected[6]-own
+                    or (not own and current[5]!=expected[5]) or (own and sha(p)!=r['sha256'])):
+                    raise ValueError('changed before unlink')
+                p.unlink();own_unlinks[key]=own+1
+                n=r['allocated_bytes'] if current[6]==1 else 0; freed+=n
+                f.write(json.dumps({'source':str(p),'member':r['name'],'sha256':r['sha256'],'freed_bytes':n})+'\n')
+                f.flush();os.fsync(f.fileno())
+        overhead=sum(x.stat().st_blocks*512 for x in [dest,manifest,listing,ledger,verified])
+        row.update(status='ARCHIVED_VERIFIED_RETIRED',gross_bytes_freed=freed,overhead_bytes=overhead,
+                   bytes_freed=freed-overhead,archive=str(dest),manifest=str(manifest),**verify)
+        committed=True
+        return row
+    finally:
+        # Even an empty retirement ledger retains recovery custody. Never roll
+        # back a partially retired source, including on timeout/ENOSPC/signals.
+        if not committed and not ledger.exists():
+            discard_staging(api,owned)

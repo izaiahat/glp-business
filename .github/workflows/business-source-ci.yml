@@ -94,7 +94,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git config --global user.email ci@example.invalid && git config --global user.name ci
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_host_disk_auto_classes.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_host_disk_auto_classes.py tests/test_host_disk_large_guards.py
       - name: GLP335 registered current-contract reconciliation (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

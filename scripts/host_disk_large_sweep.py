@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 BUS=Path('/home/ubuntu/business')
-sys.path.insert(0,str(BUS/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import host_disk_cold_classes as m
 import host_disk_pruner as api
 
@@ -82,7 +82,7 @@ def load_external_pins(path,max_age=3600):
     data=json.loads(Path(path).read_text())
     if data.get('schema')!='host-disk-external-pins-v1' or time.time()-data['collected_at']>max_age:
         raise ValueError('stale external pin inventory')
-    return {Path(p) for p in data['pins']}
+    return m.existing_pins(data['pins'])
 
 
 def auto_classes(guarded,report,pins,external,*,dry_run,deadline):
@@ -116,6 +116,11 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
         save('auto_classes')
         try:
             external=load_external_pins(external_pins)
+            save('abandoned_archive_staging')
+            rows.extend(m.cleanup_abandoned_archives(guarded,BUS/'reports/host-disk-prune',
+                source_roots=(BUS/'reports/ops',BUS/'site-system/flagship-v2/archives',BUS/'site-system/archives'),
+                dry_run=dry_run,deadline=deadline))
+            save('auto_classes')
             pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=deadline)
             rows.extend(auto_rows);external_ok=True
         except (OSError,ValueError,KeyError,RuntimeError,TimeoutError) as e:
@@ -145,7 +150,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
         dest=report/'archives'/(p.name+'.tar.zst')
         try:
             rows.append(m.cold_archive(guarded,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
-                min_bytes=128*1024**2,reserve_bytes=1024**3))
+                min_bytes=128*1024**2,min_net_bytes=1024**2 if pressure else None,reserve_bytes=1024**3))
         except Exception as e:
             effect,gross=partial_archive_effect(dest)
             rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
