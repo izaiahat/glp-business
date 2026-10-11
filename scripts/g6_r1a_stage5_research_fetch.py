@@ -135,7 +135,12 @@ def scrape(url: str, key: str, attempts: int = 3, cycle_id: str = "") -> dict[st
     if response.status_code != 200:
         return {"url": url, "status": "http_error", "http_status": response.status_code,
                 "fetched_at_utc": now()}
-    markdown = ((response.json().get("data") or {}).get("markdown") or "").strip()
+    data = response.json().get("data") or {}
+    source_status = (data.get("metadata") or {}).get("statusCode", response.status_code)
+    if not isinstance(source_status, int) or source_status != 200:
+        return {"url": url, "status": "not_found" if source_status == 404 else "source_http_error",
+                "source_http_status": source_status, "fetched_at_utc": now()}
+    markdown = (data.get("markdown") or "").strip()
     low = markdown[:400].lower()
     if any(marker in low for marker in NOT_FOUND_MARKERS):
         return {"url": url, "status": "not_found", "fetched_at_utc": now(), "chars": len(markdown)}

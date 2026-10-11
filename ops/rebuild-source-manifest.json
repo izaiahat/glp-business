@@ -2527,7 +2527,7 @@
         "registered stage5 research fetch"
       ],
       "kind": "script",
-      "sha256": "2ee9fa180d4651e86c922e2815ee953391b3e8f5f2d66bf44789d27c1172e3a3"
+      "sha256": "6aa51ed639709c9994b8a85ac47608fe60e38ff2a00938f5c9d9a59f65f6bde3"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -3032,7 +3032,7 @@
         "manual:registered price verification"
       ],
       "kind": "script",
-      "sha256": "f487e71e33686e10360c242e93b6e5e58ccb202209c40dc242ac20387728fa21"
+      "sha256": "b8ca267055d2795ca828eab70270223282866cac742a37142d22cf9921d6e9f9"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -5026,7 +5026,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "245c660807ede537c97694ccf814e6d0736e4b41881f1451acab594502a59032"
+      "sha256": "7d62c4ea876ae7064c737c9beefb990d9c37fb8888a5a6b1eb847943b2a7b2d7"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [

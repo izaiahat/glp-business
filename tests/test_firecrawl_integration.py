@@ -138,3 +138,32 @@ def test_actual_affiliate_caller_refuses_invalid_grouped_search(monkeypatch, tmp
     with pytest.raises((ValueError, RuntimeError)):
         supply.firecrawl_search()('fixture query')
     assert fc.search_rows({'success': True, 'data': {'web': []}}, sources=('web',)) == []
+
+
+@pytest.mark.parametrize('status', [404, 403, 500])
+def test_price_v2_source_status_not_provider_http_status(monkeypatch, status):
+    import glp_price_verification as price
+    from types import SimpleNamespace
+    payload = {'success': True, 'data': {'markdown': 'Error page is not price evidence. ' * 20,
+               'metadata': {'statusCode': status, 'title': 'Page Not Found'}}}
+    monkeypatch.setattr(fc, 'firecrawl_post', lambda *a, **kw: SimpleNamespace(
+        status_code=200, content=json.dumps(payload).encode(), json=lambda: payload))
+    result = price.firecrawl_fetch('https://example.invalid/pricing', 'fixture-only')
+    assert result['http_status'] == status
+    assert result['text'] == ''
+
+
+def test_stage5_v2_404_body_cannot_be_onboarding_evidence(monkeypatch):
+    path = ROOT / 'scripts/g6_r1a_stage5_research_fetch.py'
+    spec = importlib.util.spec_from_file_location('stage5_v2_source_status_fixture', path)
+    stage = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(stage)
+    from types import SimpleNamespace
+    payload = {'success': True, 'data': {'markdown': 'The page you are looking for is not available. ' * 30,
+               'metadata': {'statusCode': 404}, 'json': {}}}
+    monkeypatch.setattr(fc, 'firecrawl_post', lambda *a, **kw: SimpleNamespace(
+        status_code=200, content=json.dumps(payload).encode(), text=json.dumps(payload), headers={}, json=lambda: payload))
+    result = stage.scrape('https://example.invalid/pricing', 'fixture-only', attempts=1)
+    assert result['status'] == 'not_found'
+    assert result['source_http_status'] == 404
+    assert 'onboarding_fields' not in result
