@@ -94,6 +94,15 @@ def test_refill_plan_order_once_per_scope_and_idle_only(tmp_path):
     assert lane.select('finch', issues, plan, policy, {'first':{}}, []) is None
 
 
+def test_cron_loop_handoff_then_refill_keeps_success_stdout_silent():
+    root = Path(__file__).resolve().parents[1]
+    source = (root/'ops/hermes-cron-scripts/fleet_ingest_cron.sh').read_text()
+    assert source.index('dot_lane.py ingest') < source.index('dot_lane.py refill')
+    assert source.count('>>reports/ops/dot-refill/FLEET-CRON.log') == 2
+    assert 'mkdir -p -m 700 reports/ops/dot-refill' in source
+    assert 'umask 077' in source
+
+
 def test_new_acceptance_versions_replenish_without_repeating_same_scope():
     import dot_lane as lane
     policy = dict(scopes=[],continuous_public_research_issues=['GLP-93'])
