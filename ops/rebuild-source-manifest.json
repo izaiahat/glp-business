@@ -3378,7 +3378,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "b66b4b31bc7fcd69a5ec8818f21d275a80688613dacf1e1ebbef843fd91c3730"
+      "sha256": "c822286f383a491eddfac5b2f040423e8efcc9c7de289d8182b46d0ccd2915e1"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6264,7 +6264,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "67af71c61e7d4bfe6ec4c722d15d2fa62761c04e9c94ba6d46c8c60244bebdea"
+      "sha256": "345c7587aae47c46f4f40c7e4b015f58a88ea8f0c9a67267622afa3fc3362b50"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [

@@ -95,6 +95,24 @@ def auto_classes(guarded,report,pins,external,*,dry_run,deadline):
     return pins,rows
 
 
+def cold_report_roots(pins, *, pressure):
+    """Enroll publisher evidence under pressure, retaining all member/live gates.
+
+    The old dated-ops-only selector silently ignored the 60GiB publisher tree.
+    This only proposes archival; inactive/dirty/cold/DB/R8/custody and verified
+    manifest/roundtrip checks still decide whether each original may retire.
+    """
+    roots=[]
+    for base in (BUS/'reports/ops', BUS/'reports/glp-clinic-scout'):
+        if base.name=='glp-clinic-scout' and not pressure: continue
+        if not base.exists(): continue
+        for p in sorted(base.iterdir()):
+            if p.is_symlink() or not p.is_dir() or m.protected(p,pins): continue
+            if base.name=='ops' and not re.search(r'20\d{6}',p.name): continue
+            roots.append(p)
+    return roots
+
+
 def run(report,*,dry_run=False,budget=1800,external_pins=None):
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
     deadline=time.monotonic()+budget
@@ -118,7 +136,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
             external=load_external_pins(external_pins)
             save('abandoned_archive_staging')
             rows.extend(m.cleanup_abandoned_archives(guarded,BUS/'reports/host-disk-prune',
-                source_roots=(BUS/'reports/ops',BUS/'site-system/flagship-v2/archives',BUS/'site-system/archives'),
+                source_roots=(BUS/'reports/ops',BUS/'reports/glp-clinic-scout',BUS/'site-system/flagship-v2/archives',BUS/'site-system/archives'),
                 dry_run=dry_run,deadline=deadline))
             save('auto_classes')
             pins,auto_rows=auto_classes(guarded,report,pins,external,dry_run=dry_run,deadline=deadline)
@@ -135,8 +153,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     targets=list(scratch.iterdir())+list(Path('/tmp').glob('glp-ultracode-browser-nowrite-*'))
     rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
     save('cold_evidence')
-    roots=[p for p in (BUS/'reports/ops').iterdir() if p.is_dir() and not m.protected(p,pins)
-           and re.search(r'20\d{6}',p.name)]
+    roots=cold_report_roots(pins,pressure=pressure)
     estimates=[]
     for root in roots:
         if time.monotonic()>deadline:break
@@ -147,7 +164,10 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     for amount,p in sorted(estimates,reverse=True):
         if not external_ok:break  # PR/Linear/release references unknown: no new archives
         if amount<250_000_000 or time.monotonic()+60>deadline:continue
-        dest=report/'archives'/(p.name+'.tar.zst')
+        fs=os.statvfs('/')
+        if pressure and fs.f_bavail/fs.f_blocks>=0.15:break
+        name=('publisher-' if p.parent==BUS/'reports/glp-clinic-scout' else '')+p.name
+        dest=report/'archives'/(name+'.tar.zst')
         try:
             rows.append(m.cold_archive(guarded,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
                 min_bytes=128*1024**2,min_net_bytes=1024**2 if pressure else None,reserve_bytes=1024**3))

@@ -329,6 +329,20 @@ def test_compressor_failure_rolls_back_all_uncommitted_outputs(tmp_path, monkeyp
     assert (root / 'proof').exists() and not list(dest.parent.iterdir())
 
 
+def test_pressure_enrolls_cold_publisher_reports_without_enrolling_live_pins(tmp_path, monkeypatch):
+    import host_disk_large_sweep as sweep
+    bus = tmp_path / 'business'
+    ops = bus / 'reports/ops'; ops.mkdir(parents=True)
+    old = ops / 'old-20260901'; old.mkdir()
+    reports = bus / 'reports/glp-clinic-scout'; reports.mkdir()
+    cold = reports / 'evidence-refresh'; cold.mkdir()
+    live = reports / 'live'; live.mkdir()
+    link = reports / 'link'; link.symlink_to(cold, target_is_directory=True)
+    monkeypatch.setattr(sweep, 'BUS', bus)
+    assert sweep.cold_report_roots((live,), pressure=False) == [old]
+    assert set(sweep.cold_report_roots((live,), pressure=True)) == {old, cold}
+
+
 def test_release_toolchains_are_protected_roots():
     import host_disk_cold_classes as cold
     root = Path('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13')
