@@ -180,6 +180,15 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
         if extra_check:extra_check(p)
         if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
             raise ValueError('reference/identity')
+        if extra_check:
+            extra_check(p)
+            if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
+                raise ValueError('reference/identity after custody scan')
+            for r in before:
+                s = (p / r[0]).lstat()
+                if cutoff is not None and max(s.st_mtime, s.st_ctime,
+                        s.st_atime if check_atime and stat.S_ISREG(s.st_mode) else 0) > cutoff:
+                    raise ValueError('young descendant after custody scan')
         row['eligible_bytes'] = amount
         if dry_run:
             row['status'] = 'ELIGIBLE'
@@ -187,7 +196,7 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
             row.update(status='REMOVED', bytes_freed=amount)
         else:
             row['status'] = 'PARTIAL_UNKNOWN'
-    except (OSError, ValueError, TimeoutError) as e:
+    except (OSError, ValueError, TimeoutError, AttributeError, IndexError, UnicodeError, RuntimeError) as e:
         row.update(status='REFUSED', reason=str(e))
     return row
 
@@ -224,6 +233,11 @@ def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, 
             raise ValueError('scope/protection')
         if m.dirty_worktree(p):
             raise ValueError('dirty/active')
+        from host_disk_tmp_custody import declared_directory, require_unreferenced
+        if p.name.startswith('aeo-declared-'):
+            if not declared_directory(p, root):
+                raise ValueError('scope/protection')
+            require_unreferenced(p, deadline)
     rows = []
     # Largest first; entries under the floor are not worth a /proc + lsof veto pass each.
     du = subprocess.run(['du', '-x', '-B1', '-d', '1', str(root)], capture_output=True, text=True, timeout=600)

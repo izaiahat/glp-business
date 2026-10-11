@@ -88,6 +88,12 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_weekly_strategy_updater_adoption.py tests/test_glp44_strategy_sync.py systems/seo-blog-machine/tests/test_learning_loop_actions.py
+      - name: GLP354 declared tmp custody (disposable fixtures, exact head; no host cleanup)
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -B -m unittest discover -s tests -p test_host_disk_tmp_custody.py -v
       - name: Host disk automatic pruner classes and registry clone retention (offline, exact head)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
