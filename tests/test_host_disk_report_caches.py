@@ -38,6 +38,16 @@ def test_referenced_cache_and_extensionless_database_are_held(tmp_path,monkeypat
     assert not rows or rows[0]['status']=='REFUSED'
 
 
+def test_default_directory_alone_is_not_a_browser_profile(tmp_path,monkeypatch):
+    reports=tmp_path/'reports';cache=reports/'ordinary/Default/Cache'
+    cache.mkdir(parents=True);(cache/'blob').write_bytes(b'evidence')
+    import host_disk_custody
+    monkeypatch.setattr(host_disk_custody,'collect',lambda:set())
+    monkeypatch.setattr(m,'live_symlink_targets',lambda:set())
+    rows=caches.run(API(),m,reports,pins=(),dry_run=False,deadline=time.monotonic()+60)
+    assert rows==[] and cache.exists()
+
+
 def test_live_profile_owner_vetoes_cache_removal(tmp_path,monkeypatch):
     reports=tmp_path/'reports';cache=reports/'old/browser-profiles/Default/Cache'
     cache.mkdir(parents=True);(cache/'blob').write_bytes(b'x'*4096)

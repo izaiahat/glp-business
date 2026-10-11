@@ -27,7 +27,7 @@ def run(api,m,reports,*,pins,dry_run,deadline):
         p=stack.pop()
         if p.is_symlink() or protect(p,pins):continue
         if p.name in NAMES:
-            anchors=[a for a in p.parents if reports in a.parents and profile_part(a.name)]
+            anchors=[a for a in p.parents if reports in a.parents and a.name!='Default' and profile_part(a.name)]
             if anchors:targets.append((p,anchors[-1]))
             continue
         with os.scandir(p) as entries:

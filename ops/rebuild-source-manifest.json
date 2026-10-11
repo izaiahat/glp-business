@@ -7007,7 +7007,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "script",
-      "sha256": "fd8be781750de6ebcfbe7c27df6d8e14566ac35bace0c9d58b74cda79927b0e6"
+      "sha256": "bf72cde59a30a4a826a5774833b5e5ca843c242b835ac8f1bc78934eb0b6e95c"
     },
     "tests/test_host_disk_custody.py": {
       "callers": [
@@ -7021,7 +7021,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "8437b4cf9321d18bf612ca8e1f32ccc9ac6f8bdca14ae5571ec02ce8d12433c4"
+      "sha256": "9f6a40a7430f9f553a53a5e990511c122aea62719deabc7f984f93df74f78015"
     }
   },
   "omitted_runtime_inputs": [
