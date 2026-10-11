@@ -515,7 +515,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "341865c3ed9a2063f1c8a80711059ab7acae2e50ad12e03a26c98896eb8f3a05"
+      "sha256": "75533ef6e1c330e221c941a57cb906630162ee193950637760e949727de2bb83"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "callers": [
@@ -1131,7 +1131,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "956e1a9df9bf9c0b0b0510d4ab9ee20711f6df7fcae8a26d8cd09d7cdc3e3114"
+      "sha256": "d9ec947c922b65a7d035b003fa0c50a48020ea33408377d28b94c26e77b7ba30"
     },
     "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
       "callers": [
@@ -3199,7 +3199,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "3d41160b2cfd513da1a4ace21cb55a5de6686454343f2da595d469bd223d3034"
+      "sha256": "41c98955b0c2261f746613e058ea167f04ff7b3ec73d8bb739e82c3e2567a03c"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -7036,6 +7036,14 @@
       ],
       "kind": "test",
       "sha256": "e0376c5916c083187e47039a65bf7f66d689794eda244f0e926cd49fc85f4777"
+    },
+    "scripts/glp_capture_fetch_receipts.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/g6_r1a_stage5_research_fetch.py",
+        "scripts/glp_onboarding_authoring_dispatch.py"
+      ],
+      "sha256": "7b79f501ca500f919f17f95043893340f6bcd07e2315382f92e36eabe5c13229"
     }
   },
   "omitted_runtime_inputs": [
@@ -7046,5 +7054,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1036
+  "tracked_count": 1037
 }
