@@ -435,6 +435,31 @@ def finish_decisions(job, state, state_path, call):
     return effects
 
 
+def article_supply_exhausted_before_consume(receipt):
+    """Retire only a conclusive registered empty-supply verdict, never a writer.
+
+    The producer emits this before claiming or publishing an entry. Require its
+    explicit zero-effect shape and absence of operation claims/consumption;
+    malformed, partial and uncertain outcomes remain GET-only pending.
+    """
+    expected = {'schema': 'n8n.article_carrier.v1', 'mode': 'consume',
+                'status': 'MISSED_DAY_SUPPLY_EXHAUSTED', 'published': False,
+                'ready': 0, 'resume_claim': False, 'stale_claim_count': 0,
+                'entry_id': None, 'topic_id': None, 'route': None, 'url': None,
+                'post_publish_supply': None}
+    if any(key not in receipt or type(receipt[key]) is not type(value)
+           or receipt[key] != value for key, value in expected.items()):
+        return False
+    operation = receipt.get('operation_id')
+    if not isinstance(operation, str) or not re.fullmatch(
+            r'host-article-carrier-[0-9a-f]{24}', operation):
+        return False
+    key = hashlib.sha256(operation.encode()).hexdigest() + '.json'
+    root = ROOT / 'reports/glp-clinic-scout/seo-machine/article-buffer'
+    return not any((root / folder / key).exists() or (root / folder / key).is_symlink()
+                   for folder in ('claims', 'consumed'))
+
+
 def finish_action(action, args, job, state, state_path, *, call=None):
     """Graph-owned postconditions for the migrated branches, not rc-only success."""
     if action == "research_autowire":
@@ -617,6 +642,8 @@ def finish_action(action, args, job, state, state_path, *, call=None):
             # statuses can follow a live effect and remain held for reconciliation.
             if status == "BLOCKED_BASE_COMPATIBILITY":
                 raise TerminalRefusal(status)
+            if article_supply_exhausted_before_consume(r):
+                raise TerminalRefusal(status, "article_carrier_supply_exhausted_before_consume")
             if article_failed_before_publish(r):
                 raise TerminalRefusal(status, "article_carrier_failed_before_publish_no_effect")
             raise RuntimeError("article_carrier_missed_day_or_refused_see_machine_receipt")
