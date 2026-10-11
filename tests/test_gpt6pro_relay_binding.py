@@ -161,7 +161,7 @@ class FakeCDP:
                 'aria-expanded':'false','data-codex-intelligence-trigger':'true','data-composer-navigation-target':'reasoning'}[k]||null)};
             const document={readyState:'complete',title:p.challenge?'Just a moment...':'ChatGPT',
               body:{innerText:p.challenge?'Checking your browser':'ChatGPT'},
-              querySelector:s=>s.includes('prompt-textarea')?editor:
+              querySelector:s=>s==='main'?{querySelectorAll:()=>['Chat','Work'].map(name=>({innerText:name,textContent:name,parentElement:null,getClientRects:()=>[1],getAttribute:k=>k==='aria-pressed'?String(name==='Chat'):null}))}:s.includes('prompt-textarea')?editor:
                 s.includes('send-button')?button:null,
               querySelectorAll:s=>s==='button'?[model]:s==='button[aria-label="Select ChatGPT model"]'?[trigger]:[],};
             const performance={timeOrigin:p.origin||12345.5};
@@ -236,8 +236,8 @@ class FakeCDP:
             identity_selector = ('[data-message-author-role=user]' in expression if page.get('identity_location') == 'user-role-only'
                                  else 'div.text-size-chat.whitespace-pre-wrap' in expression or '[data-message-author-role=user]' in expression)
             return bool(identity_selector and page.get("identity_matched", False))
-        if 'function ensureProChatSurface' in expression:
-            return {'switched': False}  # Legacy Chat-only fixture; actual DOM is exercised below.
+        if expression == '(()=>{' + relay.PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()':
+            return {'switched': False}  # Chat fixture; actual DOM is exercised below.
         if 'function pickerActionable' in expression:
             # Transport state only; NativeComposerTests runs the actual DOM gates.
             committed_model = self.app_overrides.get('model', self.selected_model)
@@ -2826,7 +2826,7 @@ console.log(JSON.stringify(fixtures.map(f => {
                 relay.reconcile_unsent_model(job, apply=apply)
         self.assertEqual(relay.job_state(job), state)
 
-    def test_work_composer_switches_to_chat_before_pro_admission_on_every_account(self):
+    def test_work_composer_refuses_before_pro_admission_on_every_account(self):
         # Run the actual emitted DOM action, not the transport mock, including
         # unsafe drafts/generation/transcripts and unavailable UI controls.
         scripts = []
@@ -2851,19 +2851,17 @@ console.log(JSON.stringify(fixtures.map(f => {
         }console.log(JSON.stringify(results));'''
         proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
         actual = json.loads(proc.stdout)
-        self.assertEqual(actual['work'], {'value': {'switched': True}, 'clicks': 1})
+        self.assertEqual(actual['work'], {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
         self.assertEqual(actual['chat'], {'value': {'switched': False}, 'clicks': 0})
         for kind in ('draft','stop','transcript','duplicate','disabled','unknown','wrong_path','hidden'):
             self.assertEqual(actual[kind], {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
         original_js = self.browser.js
         mode = {'work': True, 'clicked': False, 'refuse': False}
         def js(expression):
-            if not expression.startswith('(()=>{const here=location.href;') and 'function ensureProChatSurface' in expression:
-                if mode['refuse']:
+            if expression == '(()=>{' + relay.PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()':
+                if mode['refuse'] or mode['work']:
                     return {'error': 'CHAT_SURFACE_REFUSED'}
-                mode['work'] = False
-                mode['clicked'] = True
-                return {'switched': True}
+                return {'switched': False}
             if not expression.startswith('(()=>{const here=location.href;') and 'function pickerActionable' in expression and mode['work']:
                 return False
             return original_js(expression)
@@ -2871,15 +2869,45 @@ console.log(JSON.stringify(fixtures.map(f => {
         for profile in ('acct1', 'acct2', 'acct3'):
             with self.subTest(profile=profile):
                 self.browser.pages = {k:v for k,v in self.browser.pages.items() if not k.startswith('new-')}
-                mode.update(work=True, clicked=False, refuse=False)
+                mode.update(work=False, clicked=False, refuse=False)
                 result = relay.send_message('packet')
                 self.assertNotIn('error', result)
-                self.assertTrue(mode['clicked'])
-                mode.update(work=True, clicked=False, refuse=True)
+                self.assertFalse(mode['clicked'])
+                mode.update(work=True, clicked=False, refuse=False)
                 before = (len(self.browser.inserts), len(self.browser.sent))
                 refused = relay.send_message('packet')
                 self.assertEqual(refused.get('error'), 'CHAT_SURFACE_REFUSED')
                 self.assertEqual((len(self.browser.inserts), len(self.browser.sent)), before)
+
+    def test_work_composer_refuses_without_switch_type_or_send(self):
+        scripts = []
+        with mock.patch.object(relay, 'bu_json', side_effect=lambda s, **kw: scripts.append(s) or {}):
+            relay.send_message('packet')
+        action = next(n.value for n in ast.walk(ast.parse(scripts[0]))
+                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                      and n.value.startswith('(()=>{function ensureProChatSurface'))
+        node = r'''const vm=require('vm'),action=JSON.parse(process.argv[1]);
+        let clicks=0;const elem=(text,pressed)=>({innerText:text,parentElement:null,
+          getClientRects:()=>[{}],getAttribute:k=>k==='aria-pressed'?pressed:null,click:()=>{clicks++}});
+        const chat=elem('Chat','false'),work=elem('Work','true');
+        const document={querySelector:s=>s==='main'?{querySelectorAll:()=>[chat,work]}:null,
+          querySelectorAll:()=>[{textContent:'',getClientRects:()=>[{}],getAttribute:()=>null,parentElement:null}]};
+        console.log(JSON.stringify({value:vm.runInNewContext(action,{document,location:{pathname:'/'},
+          getComputedStyle:()=>({display:'block',visibility:'visible'})}),clicks}));'''
+        proc = subprocess.run(['node', '-e', node, json.dumps(action)], capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(proc.stdout), {'value': {'error': 'CHAT_SURFACE_REFUSED'}, 'clicks': 0})
+        original_js = self.browser.js
+        def js(expression):
+            if expression.startswith('(()=>{function ensureProChatSurface'):
+                return {'error': 'CHAT_SURFACE_REFUSED'}
+            return original_js(expression)
+        self.browser.js = js
+        result = relay.send_message('packet')
+        self.assertEqual(result.get('error'), 'CHAT_SURFACE_REFUSED')
+        self.assertIs(result['typed'], False)
+        self.assertIs(result['sent'], False)
+        self.assertEqual(self.browser.inserts, [])
+        self.assertEqual(self.browser.sent, [])
 
     def test_undefined_focus_value_does_not_abort_before_typing(self):
         self.browser.omit_undefined_value = True
@@ -3597,7 +3625,7 @@ except SystemExit as e: print(str(e),flush=True)
         self.browser.sent_times = []
         original = self.browser.js
         def timed(expression):
-            if expression.startswith('(()=>{function pickerActionable') and 'const b=document.querySelector' in expression and 'b.click();return true;' in expression:
+            if expression.startswith('(()=>{function ensureProChatSurface') and 'function pickerActionable' in expression and 'const b=document.querySelector' in expression and 'b.click();return true;' in expression:
                 self.browser.sent_times.append(self.browser.clock)
             return original(expression)
         with mock.patch.object(self.browser, 'js', side_effect=timed):
@@ -4157,9 +4185,11 @@ const composer=el({contenteditable:'true'});composer.tagName='DIV';composer.clas
 const send=el();send.onclick=()=>sends++;
 let selection={isCollapsed:true};composer.focus=()=>document.activeElement=composer;
 window.getSelection=()=>selection;selection.removeAllRanges=()=>{};selection.addRange=r=>{selection.anchorNode=r.node;selection.anchorOffset=r.offset};
-document={readyState:'complete',title:'ChatGPT',body:{innerText:''},
+ const chat=el({'aria-pressed':'true'},'Chat'),work=el({'aria-pressed':'false'},'Work');
+ chat.textContent='Chat';work.textContent='Work';
+ document={readyState:'complete',title:'ChatGPT',body:{innerText:''},
  createRange:()=>({setStart(n,o){this.node=n;this.offset=o},collapse(){}}),
- querySelector:s=>s.includes('prompt-textarea')?composer:s.includes('send-button')?send:s==='button'?trigger:null,
+ querySelector:s=>s==='main'?{querySelectorAll:()=>[chat,work]}:s.includes('prompt-textarea')?composer:s.includes('send-button')?send:s==='button'?trigger:null,
  querySelectorAll:s=>s==='button[aria-label="Select ChatGPT model"]'?[trigger]:s==='[id]'?[menu]:s==='button'?[trigger,send]:[]};
 '''
         node = r'''
@@ -4186,6 +4216,9 @@ let ctx;
                 return None
             cases = {
                 'positive': '',
+                'work_mode': "chat.setAttribute('aria-pressed','false');work.setAttribute('aria-pressed','true')",
+                'mode_unknown': "chat.setAttribute('aria-pressed','unknown')",
+                'mode_missing': "const query=document.querySelector;document.querySelector=s=>s==='main'?null:query(s)",
                 'duplicate_accessor': 'const bad={...props};Object.defineProperty(bad,"selectedModel",{get(){getters++;return null}});owner.return={type:owner.type,memoizedProps:bad,return:null}',
                 'duplicate_missing': 'const bad={...props};delete bad.models;owner.return={type:owner.type,memoizedProps:bad,return:null}',
                 'duplicate_null_props': 'owner.return={type:owner.type,memoizedProps:null,return:null}',
@@ -4254,6 +4287,7 @@ let ctx;
                                and any(isinstance(t, ast.Name) and t.id == 'html' for t in n.targets)))
         html = html.replace('aria-expanded="true"', 'aria-expanded="true" data-selected-reasoning-effort="medium" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning"')
         html = html.replace('<div data-reasoning-slider=', '<div data-model-picker-power-slider style="width:200px;height:30px"></div><div data-reasoning-slider=')
+        html += '<main><button aria-pressed="true">Chat</button><button aria-pressed="false">Work</button></main>'
         html += '<div id="prompt-textarea" contenteditable="true" class="ProseMirror"><p><br class="ProseMirror-trailingBreak"></p></div>'
         node = NATIVE_COMPOSER_FIXTURE.replace("const f=JSON.parse(fs.readFileSync(0,'utf8'));", 'const f={};')
         left, right = node.index('const output={};'), node.index('}finally{await cleanup')
@@ -4722,7 +4756,7 @@ async function js(expression){const r=await cdp('Runtime.evaluate',{expression,r
 const target=(await cdp('Target.createTarget',{url:'about:blank'})).targetId;
 sid=(await cdp('Target.attachToTarget',{targetId:target,flatten:true})).sessionId;
 await cdp('Network.enable',{},sid);await cdp('Network.setBlockedURLs',{urls:['*']},sid);
-await js(`document.body.innerHTML='<div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button aria-label="Select ChatGPT model" data-selected-reasoning-effort="maximum" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning">6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
+await js(`document.body.innerHTML='<main><button aria-pressed="true">Chat</button><button aria-pressed="false">Work</button></main><div data-composer-markdown contenteditable="true" class="ProseMirror" style="white-space:break-spaces"></div><button data-testid="send-button">Send</button><button aria-label="Select ChatGPT model" data-selected-reasoning-effort="maximum" data-codex-intelligence-trigger="true" data-composer-navigation-target="reasoning">6 Pro</button>';window.clicks=0;document.querySelector('[data-testid=send-button]').onclick=()=>window.clicks++;window.render=(text)=>{const e=document.querySelector('[contenteditable]');e.replaceChildren(...text.split('\\n').map(t=>{const p=document.createElement('p');if(t)p.append(document.createTextNode(t));else{p.setAttribute('data-empty-paragraph','');const b=document.createElement('br');b.className='ProseMirror-trailingBreak';p.append(b);}return p;}));};`);
 const output={};
 await js(__MODEL_OWNER_FIXTURE__);
 for(const expr of f.expressions)new Function('return ('+expr+')');
