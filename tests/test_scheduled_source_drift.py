@@ -409,6 +409,15 @@ def test_current_inventory_adds_only_three_exact_reviewed_native_pins():
     assert sha((ROOT/pricing_source).read_bytes()) == pricing_pin
     pricing_rows[0]['sources'][1] = {'path': '/home/ubuntu/business/'+pricing_source,
         'source': pricing_source, 'reviewed_sha256': pricing_pin}
+    # D1: only the retained disk monitor launcher pin changes; cron identity and
+    # all other source/payload metadata remain equal to the historical cohort.
+    monitor = 'ops/hermes-cron-scripts/disk_monitor.sh'
+    monitor_pin = '1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c'
+    assert sha((ROOT/monitor).read_bytes()) == monitor_pin
+    monitor_rows = [r for r in expected['jobs'] if r['id'] == 'crontab:d1449753b8c4b011']
+    assert len(monitor_rows) == 1 and len(monitor_rows[0]['sources']) == 1
+    assert monitor_rows[0]['sources'][0]['reviewed_sha256'] == '1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447'
+    monitor_rows[0]['sources'][0]['reviewed_sha256'] = monitor_pin
     # Retain full-document equality and the historical fixed-cohort pins above.
     assert json.loads((ROOT/path).read_text()) == expected
 
