@@ -1617,7 +1617,7 @@
       "scheduler": "cron",
       "migration_status": "host cron installed but GLP-40 live-release declined before bridge dispatch; n8n workflow inactive as of 2026-09-25T21:11:17.900Z; no live publish inferred",
       "cron_lines": [
-        "0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py article_carrier_consume --scheduled --cron '0 11 * * 1,3,5' --timezone America/Los_Angeles --arg mode=consume >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
+        "0 * * * * cd /home/ubuntu/business && /home/ubuntu/.hermes/hermes-agent/venv/bin/python /home/ubuntu/business/scripts/cron_bridge_action.py article_carrier_consume --scheduled --cron '0 11 * * 1-5' --timezone America/Los_Angeles --arg mode=consume >> /home/ubuntu/business/reports/ops/n8n-to-cron-20260924/cron.log 2>&1"
       ],
       "schedule_readback": "reports/ops/n8n-to-cron-20260924/ruling-readback/uabEqV8bzEYanLVJ.json",
       "owner": {
@@ -1643,7 +1643,7 @@
               "interval": [
                 {
                   "field": "cronExpression",
-                  "expression": "0 11 * * 1,3,5"
+                  "expression": "0 11 * * 1-5"
                 }
               ]
             }

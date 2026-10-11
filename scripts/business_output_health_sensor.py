@@ -57,13 +57,13 @@ def check(name: str, ok: bool, expected: str, actual: str) -> dict:
 
 def last_carrier_day(today: dt.date) -> dt.date:
     day = today
-    while day.weekday() not in (0, 2, 4):          # Mon/Wed/Fri
+    while day.weekday() not in (0, 1, 2, 3, 4):    # Mon-Fri
         day -= dt.timedelta(days=1)
     return day
 
 
 def seo_net_new() -> dict:
-    """The most recent Mon/Wed/Fri must have published >=1 announced article."""
+    """The most recent weekday must have published >=1 announced article."""
     target = last_carrier_day(now_pt().date())
     ledger = read_json(BUSINESS / "reports/glp-clinic-scout/seo-machine/published-route-ledger.json")
     hits = []
