@@ -960,9 +960,8 @@ COMPOSER_TEXT_JS = r'''function composerText(e){
 }'''
 
 
-# The root surface remembers Chat/Work independently of the Pro model. Work
-# offers Sol even when last Chat model is Pro. Only use its supported idle UI
-# toggle; never rewrite cookies, account defaults, or Codex Cloud state.
+# Chat/Work is independent of selectedModel. The sender verifies only; idle
+# mode correction is a separately authorized UI action, never a send fallback.
 PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
     const visible=e=>{
         if(!e.getClientRects().length)return false;
@@ -977,21 +976,15 @@ PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
     const buttons=[...main.querySelectorAll('button')].filter(visible);
     const chat=buttons.filter(e=>e.innerText.trim()==='Chat');
     const work=buttons.filter(e=>e.innerText.trim()==='Work');
-    // Legacy Chat-only surface still passes the exact Pro admission below.
-    if(chat.length===0&&work.length===0)return {switched:false};
     if(chat.length!==1||work.length!==1)return {error:'CHAT_SURFACE_REFUSED'};
     if(chat[0].getAttribute('aria-pressed')==='true'&&work[0].getAttribute('aria-pressed')==='false')return {switched:false};
-    const editors=[...document.querySelectorAll('#prompt-textarea,[data-composer-markdown][contenteditable=true]')].filter(visible);
-    if(chat[0].getAttribute('aria-pressed')!=='false'||work[0].getAttribute('aria-pressed')!=='true'||
-       location.pathname!=='/'||editors.length!==1||editors[0].textContent.trim()!==''||
-       document.querySelector('button[data-testid=stop-button],[data-message-author-role],[data-chatgpt-selection-message-id]'))return {error:'CHAT_SURFACE_REFUSED'};
-    chat[0].click();return {switched:true};
+    return {error:'CHAT_SURFACE_REFUSED'};
 }'''
 
 
 # Current picker visibility belongs to its active view ancestor, not the row.
 # Keep the complete label, maximum badge, exact scale and actionable menu proof.
-MODEL_PICKER_JS = r'''function pickerActionable(e,visualThumb=false){
+MODEL_PICKER_JS = PRO_CHAT_SURFACE_JS + r'''function pickerActionable(e,visualThumb=false){
         if(!e||!e.getClientRects().length)return false;
         for(let p=e;p;p=p.parentElement){
             const s=getComputedStyle(p);
@@ -1013,6 +1006,9 @@ function pickerMenu(){
     return menus.length===1&&pickerActionable(menus[0])&&menus[0].getAttribute('role')==='menu'?menus[0]:null;
 }
 function committed6ProMaximum(){
+    // Revalidate Chat at every existing initial/chunk/Send admission, including
+    // retained atomic Send. A stale Pro selection never authorizes Work quota.
+    if(ensureProChatSurface().error)return false;
     const trigger=pickerTrigger();
     // The trigger's candidate effort also labels staged state. Only the closed
     // selection owner's incoming selectedModel is a parent-acceptance witness.
@@ -1286,12 +1282,13 @@ for readiness_observations in range(1, 47):
     time.sleep(min(2, remaining))
 # Do not touch a model picker on a replacement document after the readiness wait.
 if RETAINED: _fresh()
-# Resolve the independent Work/Sol composer preference before the picker.
-# This account-agnostic supported UI action precedes all prompt focus/input.
+# Verify the independent composer mode before every path's picker. The sender
+# never changes Work to Chat; unverified/ambiguous mode refuses before input.
 chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
 if not isinstance(chat_surface,dict) or chat_surface.get('error'):
     print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId']}})); raise SystemExit(0)
-if chat_surface.get('switched'):time.sleep(0.5)
+if chat_surface.get('switched') is not False:
+    _binding_error('CHAT_SURFACE_REFUSED', tab=tab['targetId'])
 # All paths must commit supported 6 Pro maximum explicitly, even when
 # button text or an open preview already says 6 Pro/maximum. Those are not
 # authoritative selected effort and must never skip this same gate.
