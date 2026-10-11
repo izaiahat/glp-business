@@ -53,7 +53,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "db5dff56ea97c1dcfcfaedbd91309ffb9cd4c4d144f6fe9e0c3438ee459e0451"
+      "sha256": "96b7da80679a1aefcfaa15fbc8bbfeb52b6c0b399af7530b4f4584a6039ba0ec"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3842,7 +3842,7 @@
         "GLP-7 registered article buffer"
       ],
       "kind": "script",
-      "sha256": "100986d1d03e19231ebeb30f1225301319df6d32addd1db0d909f4c240c1a7ae"
+      "sha256": "54d93ea5fa5efda79344925f2922ebfdad8867664a997b251f0433945c4a7fa9"
     },
     "systems/seo-blog-machine/scripts/article_buffer_cli.py": {
       "callers": [
@@ -6907,7 +6907,14 @@
       "callers": [
         "business source CI"
       ],
-      "sha256": "55090880c9d2effd69bdf845d745d9f6333f073a0e78841515ef9957dc1f6f67"
+      "sha256": "946a332e84a3b5cc26824e4ff42b3b6e67d3d06164d3d4a5253a326db71fe70f"
+    },
+    "tests/test_article_retained_topic_authority.py": {
+      "kind": "test",
+      "callers": [
+        "business source CI"
+      ],
+      "sha256": "d9d24e65b33412ec027a2ca5b8bc9ef25f71b4b4ff66528840c1cb271832beee"
     }
   },
   "omitted_runtime_inputs": [
@@ -6918,5 +6925,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1017
+  "tracked_count": 1018
 }

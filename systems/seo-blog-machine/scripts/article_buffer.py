@@ -148,7 +148,12 @@ def _resolve_topic_authority(spec: dict[str, Any], packet: Path) -> Path:
     live = Path(str(spec.get("path") or "")).resolve()
     if live.is_file() and not live.is_symlink() and _sha(live) == expected:
         return live
-    for candidate in sorted(packet.resolve().parent.glob(TOPIC_QUEUE_SNAPSHOT_GLOB)):
+    # Admission retains the exact queue under the immutable entry evidence.
+    # Carrier validation runs on that copied packet after the mutable live queue
+    # may regenerate. Digest equality is still mandatory, never path authority.
+    snapshots = list(packet.resolve().parent.glob(TOPIC_QUEUE_SNAPSHOT_GLOB))
+    snapshots.append(packet.resolve().parent / 'evidence/topic_authority.json')
+    for candidate in sorted(snapshots):
         if candidate.is_file() and not candidate.is_symlink() and _sha(candidate) == expected:
             return candidate.resolve()
     raise RuntimeError("buffer_topic_authority_pin_invalid")
