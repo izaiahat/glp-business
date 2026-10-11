@@ -94,6 +94,82 @@ def test_refill_plan_order_once_per_scope_and_idle_only(tmp_path):
     assert lane.select('finch', issues, plan, policy, {'first':{}}, []) is None
 
 
+def test_new_acceptance_versions_replenish_without_repeating_same_scope():
+    import dot_lane as lane
+    policy = dict(scopes=[],continuous_public_research_issues=['GLP-93'])
+    issue = dict(identifier='GLP-93',title='Provider source evidence',description='One unresolved public terms gap',priority=1,state={'type':'started'})
+    plan = {'issues':[{'issue':'GLP-93','order':1}]}
+    first = lane.select('rook',[issue],plan,policy,{},[])[0]
+    assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[]) is None
+    issue['description'] += '; newly admitted official terms question'
+    assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[])[0]['id'] != first['id']
+
+
+def test_cloud_brief_requires_both_renewed_environment_confirmations(tmp_path):
+    import dot_lane as lane
+    p = tmp_path/'reports/ops/fable-plan-2-20261009/lanes/R1/RESULT.json'
+    p.parent.mkdir(parents=True)
+    p.write_text(json.dumps({'status':'IN_PROGRESS','cloud_ready_for_dots':False}))
+    assert lane.cloud_brief(tmp_path, 'rook') == ''
+    p.write_text(json.dumps({'status':'DONE_READY_TO_CLOSE','cloud_ready_for_dots':True}))
+    assert 'hermes-evidence-account1' in lane.cloud_brief(tmp_path,'rook')
+    assert 'hermes-evidence-account2' in lane.cloud_brief(tmp_path,'finch')
+
+
+def test_rook_cloud_updates_exact_readback_and_no_replay(tmp_path):
+    import dot_lane as lane
+    import dot_dispatch as d
+    message = dict(id='123456789',channel_id=d.DOTS['rook']['channel'],author={'id':d.DOTS['rook']['user']},
+                   content='Codex Cloud Tailscale public configuration receipt; private key not present.')
+    def api(method, route):
+        return [message] if '?limit=' in route else message
+    events = []
+    def effects(kind, issue, body, marker):
+        events.append((kind,issue))
+        return {'id':str(len(events))}
+    lane.cloud_updates(tmp_path,api=api,effects=effects)
+    lane.cloud_updates(tmp_path,api=api,effects=effects)
+    assert events == [('linear','GLP-359'),('discord','GLP-359')]
+    inbox = tmp_path/'reports/ops/fable-plan-2-20261009/lanes/DOTS/INBOX.jsonl'
+    receipt = json.loads(inbox.read_text())
+    assert receipt['schema'] == 'DOT_CLOUD_UPDATE_V1'
+    assert receipt['operator_approval'] is False
+
+
+def test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,monkeypatch):
+    import dot_lane as lane
+    import dot_dispatch as d
+    policy = dict(ingest_since=0,scopes=[
+        dict(id='one',issue='GLP-253',dots=['rook'],effect='public_research',coordinator_authorized=True,files=[],brief='Public official source question.'),
+        dict(id='two',issue='GLP-328',dots=['finch'],effect='public_research',coordinator_authorized=True,files=[],brief='Public official source question.')])
+    plan = {'issues':[{'issue':'GLP-253','order':1},{'issue':'GLP-328','order':2}]}
+    p = tmp_path/'ops/dots/lane-policy.json'
+    p.parent.mkdir(parents=True)
+    p.write_text(json.dumps(policy))
+    p = tmp_path/'reports/ops/fable-plan-2-20261009/PLAN.json'
+    p.parent.mkdir(parents=True)
+    p.write_text(json.dumps(plan))
+    issues = [dict(identifier='GLP-253',state={'type':'started'}),dict(identifier='GLP-328',state={'type':'started'})]
+    events = []
+    monkeypatch.setattr(d,'subscription_ready',lambda dot:{'id':'ready'})
+    def cloud(root):
+        events.append('cloud')
+    def dispatch(dot,issue,brief,root,parent,owner):
+        events.append(dot)
+        ticket = dot+'-'+issue.lower()+'-test'
+        p = Path(root)/ticket/'TICKET.json'
+        p.parent.mkdir(parents=True)
+        p.write_text(json.dumps(dict(ticket=ticket,dot=dot,issue=issue,state='sent')))
+        return dict(ticket=ticket,request_id='123456789',exact_readback=True)
+    effects = lambda *args: {'id':'comment'}
+    out = lane.refill(tmp_path,issues=issues,dispatch=dispatch,effects=effects,cloud_reader=cloud)
+    assert [r['status'] for r in out] == ['dispatched','dispatched']
+    assert events == ['cloud','rook','finch']
+    out = lane.refill(tmp_path,issues=issues,dispatch=dispatch,effects=effects,cloud_reader=cloud)
+    assert [r['status'] for r in out] == ['busy','busy']
+    assert events == ['cloud','rook','finch']
+
+
 def test_uncertain_ingest_queries_but_does_not_repeat_external_write(tmp_path):
     # The already exercised receipt fixture provides a real staged terminal pair.
     import dot_lane as lane

@@ -30,8 +30,11 @@ request. Do not re-open it or fabricate a reply.
 Existing `fleet-output-ingestion` job **bbc82551321b** runs
 `fleet_ingest_cron.sh`; it is NOT 113e1599dbbb (that is article-image-health).
 Its existing deterministic fleet/native consumer refresh is retained; the
-wrapper adds DOTS receipt/comment/notification handoff. Host cron
-`ops/cron.d/glp-dot-refill` runs every 15 minutes and dispatches only idle dots.
+wrapper adds DOTS receipt/comment/notification handoff followed by idle refill
+in the same existing five-minute cycle. Host cron
+`ops/cron.d/glp-dot-refill` is a fifteen-minute backup. Each dot has one in-flight
+ticket when safe admitted supply and its exact native subscription are available;
+refusal/capacity/empty-supply states are logged, never papered over with fake work.
 
 Evidence lands in `reports/ops/fleet-ingest/<ticket>.json` and
 `reports/ops/fable-plan-2-20261009/lanes/DOTS/INBOX.jsonl`. Each PR's URL,
@@ -54,10 +57,29 @@ Only `public_research` and explicitly file-scoped `independent_pr` scopes are
 eligible. Held/protected scopes refuse. No money, credentials, sends,
 health-claim acceptance, installs or merge permissions are inferred from a
 root issue. The seed supply is new public Ro rail and WW/Noom contact research;
-previous cohorts are not repeated. The coordinator adds real safe subtasks as
-work becomes available; exhausted supply logs `no_safe_open_scope`, not filler.
+previous cohorts are not repeated. For the allowlisted public-research roots,
+a new live acceptance-description digest supplies one bounded evidence-gap
+follow-up, never another run of the same unchanged research. The coordinator adds
+real safe subtasks as work becomes available; exhausted supply logs
+`no_safe_open_scope`, not filler.
 Independent-PR files remain reserved in the claim ledger until coordinator
 review explicitly releases the scope. Other-owner files must never be added.
+
+## Cloud integration before Rook refill
+
+Before each actual Rook refill, read the three latest exact Rook-authored Cloud /
+Tailscale replies, read them back individually, and hand them to GLP-359 and the
+same DOTS INBOX. `DOT_CLOUD_UPDATE_V1` explicitly distinguishes this historical
+readback from a native ticket completion; it never launches/replays a Cloud task.
+PR links carry GitHub head/author and coordinator non-author review, never merge.
+The Linear writer uses the installed scoped **fleet** client, not an operator-key
+fallback.
+
+R1 owns renewed-key acceptance. Only after R1 writes `cloud_ready_for_dots: true`
+in its own RESULT does every brief enable builds/tests/private evidence reads in
+`hermes-evidence-account1` for Rook or `hermes-evidence-account2` for Finch.
+Current R1 source-only/pending-publication results do not enable this capability.
+Do not modify R1's result on its behalf or change keys, ACLs, proxies or grants.
 
 ## Manual proof
 

@@ -20,14 +20,14 @@
         "scripts/dot_lane.py"
       ],
       "kind": "operations",
-      "sha256": "0d98fdc196a1ea483c5780f2c63db0e23a46f6eea93e2cfecbb1cc43f4f69605"
+      "sha256": "390d10ecf41d19baf351d2b29b6e51fa97a6feda58779d9427525bec6e432bed"
     },
     "ops/dots/README.md": {
       "callers": [
         "manual:DOTS coordinator"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "3950e6de94ea105dbf289c5eab434e2a662cfa18bafc3af88e75bf0b35c7844f"
+      "sha256": "6fc324d33f49eb8c4075ffc95f0a486670321b9a23558eb2bb71e1ecb9965860"
     },
     "ops/cron.d/glp-dot-refill": {
       "callers": [
@@ -42,14 +42,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "71b367aaac6cedd3619dc30e8ff15343a20ab7e722a616045ca83270d666efd3"
+      "sha256": "89389135bbfca3219319f1dcb178a8f08f72d8bed931f255bdd98c17126f9e60"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "c7b7949e38ca6127f87e7c63818925518aaf17a7fedd12c7c55553ef868b21e2"
+      "sha256": "adc8e523b07b896b9b4307afaffa275baceb3826f672a0d5f7d6573294a466cd"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
@@ -981,7 +981,7 @@
         "Hermes fleet-output-ingestion"
       ],
       "kind": "script",
-      "sha256": "3e93189b49a2f08c0f3c9a17cea425684db545c7c8ef896d2ae1d989313104e6"
+      "sha256": "6ce02a6434fd5df2e95266151863cf62f747bae7083177824fd3755c5071250b"
     },
     "ops/hermes-cron-scripts/glp334_live_reconciliation.sh": {
       "callers": [
