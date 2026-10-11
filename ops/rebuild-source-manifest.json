@@ -6264,7 +6264,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "4d67bc0166509120c533dd41942ea4e56e6a532fd08f8afaa7d63b6abe84f3f0"
+      "sha256": "67af71c61e7d4bfe6ec4c722d15d2fa62761c04e9c94ba6d46c8c60244bebdea"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [

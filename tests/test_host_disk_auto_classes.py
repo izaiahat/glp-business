@@ -302,6 +302,7 @@ def test_disk_monitor_triggers_cleanup_even_when_alert_is_unchanged(tmp_path, mo
     import types
     source = (Path(__file__).resolve().parents[1] / 'ops/hermes-cron-scripts/disk_monitor.sh').read_text()
     body = source.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    body = body.replace("Path('/home/ubuntu/.hermes')", f"Path({str(tmp_path / 'hermes')!r})")
     ns = {'__name__': 'fixture'}; exec(compile(body, 'disk_monitor.sh', 'exec'), ns)
     state = tmp_path / 'state'; state.write_text('critical')
     calls = []; posts = []
