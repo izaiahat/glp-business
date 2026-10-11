@@ -26,6 +26,7 @@ PROTECTED.update({'.enzyme','.ssh','.aws','.gnupg','.azure','.config','financial
 PROTECTED.add('toolchains')
 
 LIVE_HOME=Path('/home/ubuntu/.hermes')
+TMP_ROOT=Path('/tmp')
 
 def live_symlink_targets(home=None,max_depth=3):
     """All live Hermes symlink targets are custody roots, including external skills.
@@ -191,15 +192,18 @@ def node_modules(api,targets,*,pins=(),dry_run=True,deadline):
     return out
 
 def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
-    """Only immediate scratch entries or glp-ultracode-nowrite tmp roots >24h idle."""
+    """Scratch or explicit browser/aeo tmp classes >24h idle with live custody vetoes."""
     from host_disk_large_classes import snapshot,lsof_inactive
+    from host_disk_tmp_custody import declared_directory,require_unreferenced
     out=[]; cutoff=time.time()-86400; pins=custody_pins(pins)
     for target in targets:
         p=Path(target); row={'rule':'idle_scratch_tmp','path':str(p),'bytes_freed':0}
         try:
+            declared=declared_directory(p,TMP_ROOT)
             allowed=(p.parent==Path('/home/ubuntu/.hermes/cache/scratch') or
-                     (p.parent==Path('/tmp') and p.name.startswith('glp-ultracode-browser-nowrite-')))
+                     (p.parent==TMP_ROOT and p.name.startswith('glp-ultracode-browser-nowrite-')) or declared)
             if not allowed or protected(p,pins) or p.is_symlink() or p.resolve()!=p.absolute():raise ValueError('scope/protection')
+            if declared:require_unreferenced(p,deadline)
             # Directory atime moves whenever any scanner (including this pruner)
             # lists it; only regular-file atime is a use signal.
             if max(p.lstat().st_mtime,p.lstat().st_ctime,p.lstat().st_atime if p.is_file() else 0)>cutoff:raise ValueError('young/used')
@@ -214,10 +218,20 @@ def idle_scratch(api,targets,*,pins=(),dry_run=True,deadline):
             fresh_pins=custody_pins(pins)
             if any(protected(p/r[0],fresh_pins) for r in before): raise ValueError('new live symlink custody')
             if not lsof_inactive(p) or not inactive(api,p) or snapshot(p,deadline)[0]!=before:raise ValueError('reference/identity')
+            if declared:
+                require_unreferenced(p,deadline)
+                # Reference scans may take time. Recheck every member's use and
+                # identity after the final scan, before handing off removal.
+                for r in before:
+                    s=(p/r[0]).lstat()
+                    if max(s.st_mtime,s.st_ctime,s.st_atime if stat.S_ISREG(s.st_mode) else 0)>cutoff:
+                        raise ValueError('young/used after custody scan')
+                if not lsof_inactive(p) or not inactive(api,p) or snapshot(p,deadline)[0]!=before:
+                    raise ValueError('reference/identity after custody scan')
             if dry_run:row.update(status='ELIGIBLE',eligible_bytes=amount)
             elif api.remove_disposable(p,deadline=deadline) and not p.exists():row.update(status='REMOVED',bytes_freed=amount)
             else:row['status']='PARTIAL_UNKNOWN'
-        except (OSError,ValueError,TimeoutError) as e:row.update(status='REFUSED',reason=str(e))
+        except (OSError,ValueError,TimeoutError,AttributeError,IndexError,UnicodeError,RuntimeError) as e:row.update(status='REFUSED',reason=str(e))
         out.append(row)
     return out
 

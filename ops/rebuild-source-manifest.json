@@ -3537,7 +3537,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "820d546d4fc6099c3d03f8e61a6ef157ad7ad2c1706cddb87aa85669c000f560"
+      "sha256": "5883c985fb79db6113bb7169895577c71360afa9dee4d9e1ffe019d787d0aad0"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3551,7 +3551,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "8d7a8d58a94b2b00b7c7c43c50d23a75a832f24dddcb6ec9bf9cb356f0ceb6b5"
+      "sha256": "ba211f79f8470579b37c32a7abdd4e24ecd96b323082cf77bd2f4ff9e79329e5"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -3565,7 +3565,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "23f1b3a588d6ee59d965c7d34b601c1902b758ab51e5b3d759181ba5419409d3"
+      "sha256": "95017d3999d37ee40c26c254f2510d76b5ee8b399ce67e4603a77a30746c4785"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -7805,6 +7805,21 @@
         "scripts/run_tests.sh"
       ],
       "sha256": "f898df4543c09004a497f9735212caaa1c307237f6b11dd2ccecee7e2e4c617a"
+    },
+    "scripts/host_disk_tmp_custody.py": {
+      "callers": [
+        "scripts/host_disk_cold_classes.py",
+        "scripts/host_disk_auto_classes.py"
+      ],
+      "kind": "script",
+      "sha256": "b78a9936a2b044a1fb0d24d1578bc4d37ddcca59c912687047d36dfc05d0d680"
+    },
+    "tests/test_host_disk_tmp_custody.py": {
+      "callers": [
+        "business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "01f8f7ec70d7f7cd2ec3d11045e5e7a03b4e6b9f1d29b24332826888e24c76bb"
     }
   },
   "omitted_runtime_inputs": [
@@ -7815,5 +7830,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1144
+  "tracked_count": 1146
 }

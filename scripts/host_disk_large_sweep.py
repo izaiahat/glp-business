@@ -27,7 +27,7 @@ def references(report):
             continue
         if p.suffix not in {'.json','.md','.py','.log','.jsonl','.mjs','.sh','.txt','.yaml','.yml','.toml','.csv'}:continue
         source_hashes[str(p)]=m.sha(p)
-        pattern=r'(?:/home/ubuntu/(?:business/|\.hermes/cache/scratch/)|/tmp/glp-ultracode-browser-nowrite-|(?:reports|site-system|\.worktrees)/)[^\s\"<>\x60,;\)\]\}]+'
+        pattern=r'(?:/home/ubuntu/(?:business/|\.hermes/cache/scratch/)|/tmp/|(?:reports|site-system|\.worktrees)/)[^\s\"<>\x60,;\)\]\}]+'
         for s in re.findall(pattern,p.read_text(errors='replace')):
             s=s.rstrip("'/:.");q=Path(s) if s.startswith('/') else BUS/s
             refs.add(q)
@@ -141,6 +141,16 @@ def cold_report_roots(pins, *, pressure):
     return roots
 
 
+def idle_targets(scratch, tmp=Path('/tmp'), *, include_declared=True):
+    """Discover explicit tmp classes; a prefix alone never authorizes removal."""
+    targets=list(scratch.iterdir())
+    prefixes=('glp-ultracode-browser-nowrite-',)
+    if include_declared:prefixes+=('aeo-declared-',)
+    for prefix in prefixes:
+        targets.extend(tmp.glob(prefix+'*'))
+    return targets
+
+
 def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=False):
     if completed_ci_only and not dry_run:raise ValueError('scoped completed-CI entry is dry-run only')
     report=Path(report);report.mkdir(parents=True,exist_ok=True)
@@ -190,7 +200,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None,completed_ci_only=
     rows.extend(m.node_modules(guarded,nodes,pins=pins,dry_run=dry_run,deadline=deadline))
     save('idle_scratch')
     scratch=Path('/home/ubuntu/.hermes/cache/scratch')
-    targets=list(scratch.iterdir())+list(Path('/tmp').glob('glp-ultracode-browser-nowrite-*'))
+    targets=idle_targets(scratch,include_declared=bool(external_pins) and external_ok)
     rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
     save('cold_evidence')
     roots=cold_report_roots(pins,pressure=pressure)
