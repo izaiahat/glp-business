@@ -1,0 +1,33 @@
+name: dot-lane
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dot-lane.yml'
+      - 'ops/dots/**'
+      - 'ops/cron.d/glp-dot-refill'
+      - 'ops/hermes-cron-scripts/fleet_ingest_cron.sh'
+      - 'scripts/dot_lane.py'
+      - 'scripts/dot_dispatch.py'
+      - 'tests/test_dot_lane.py'
+permissions:
+  contents: read
+jobs:
+  offline-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install pytest==8.4.2 -r ops/dots/requirements.txt
+      - env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 -m pytest tests/test_dot_lane.py tests/test_dot_dispatch.py tests/test_fleet_ingest.py -q
+          bash -n ops/hermes-cron-scripts/fleet_ingest_cron.sh

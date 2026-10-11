@@ -1,6 +1,13 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    ".github/workflows/dot-lane.yml": {"callers": ["DOT1 exact-head CI"], "kind": "repository_control", "sha256": "4ffe4dbf63404fbd318bd137eb64d96301cfb2cb76bd9f4a344434289ca548fd"},
+    "ops/dots/requirements.txt": {"callers": ["dot dispatcher and approved interpreter install"], "kind": "operations", "sha256": "9d5655db623ae9f20d07ed63fc6ff538ed97ce5765ef98ff136ec0f679e35ab9"},
+    "ops/dots/lane-policy.json": {"callers": ["scripts/dot_lane.py"], "kind": "operations", "sha256": "0d98fdc196a1ea483c5780f2c63db0e23a46f6eea93e2cfecbb1cc43f4f69605"},
+    "ops/dots/README.md": {"callers": ["manual:DOTS coordinator"], "kind": "instruction_or_policy", "sha256": "3950e6de94ea105dbf289c5eab434e2a662cfa18bafc3af88e75bf0b35c7844f"},
+    "ops/cron.d/glp-dot-refill": {"callers": ["host cron every 15 min"], "kind": "cron", "sha256": "ec22b5629655db7be0a5ded88bc43079a6752a33d33847ca6f291a80e5c9f037"},
+    "scripts/dot_lane.py": {"callers": ["fleet_ingest_cron.sh", "ops/cron.d/glp-dot-refill"], "kind": "script", "sha256": "71b367aaac6cedd3619dc30e8ff15343a20ab7e722a616045ca83270d666efd3"},
+    "tests/test_dot_lane.py": {"callers": [".github/workflows/dot-lane.yml"], "kind": "test", "sha256": "c7b7949e38ca6127f87e7c63818925518aaf17a7fedd12c7c55553ef868b21e2"},
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
         "ops/cron.d/codex-cloud-key-renewal"
@@ -931,7 +938,7 @@
         "Hermes fleet-output-ingestion"
       ],
       "kind": "script",
-      "sha256": "d5b7041333596b542ea7970bd577b710f0973baf0ed4776cea37be4ad468a65c"
+      "sha256": "3e93189b49a2f08c0f3c9a17cea425684db545c7c8ef896d2ae1d989313104e6"
     },
     "ops/hermes-cron-scripts/glp334_live_reconciliation.sh": {
       "callers": [

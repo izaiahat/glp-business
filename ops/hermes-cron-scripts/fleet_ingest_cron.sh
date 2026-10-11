@@ -4,8 +4,16 @@
 set -uo pipefail
 cd /home/ubuntu/business || exit 70
 mkdir -p reports/ops/fleet-inbox
-timeout --foreground --signal=TERM --kill-after=10 240 python3 /home/ubuntu/business/scripts/fleet_ingest.py 2>reports/ops/fleet-inbox/LAST-ERROR.log
+# Pin the approved interpreter; scheduler PATH may otherwise select host Python.
+PYTHON=/home/ubuntu/.hermes/hermes-agent/venv/bin/python3
+timeout --foreground --signal=TERM --kill-after=10 240 "$PYTHON" /home/ubuntu/business/scripts/fleet_ingest.py 2>reports/ops/fleet-inbox/LAST-ERROR.log
 rc=$?
+# The existing fleet driver consumes native registrations. DOT1 adds the durable
+# Linear/ops-alerts/coordinator handoff, without accepting or merging any output.
+if [ "$rc" -eq 0 ]; then
+    timeout --foreground --signal=TERM --kill-after=10 120 "$PYTHON" -B /home/ubuntu/business/scripts/dot_lane.py ingest 2>>reports/ops/fleet-inbox/LAST-ERROR.log
+    rc=$?
+fi
 if [ "$rc" -ne 0 ]; then
     printf '🔴 **Fleet ingestion** — completion inbox refresh failed\n\nNo issue was closed and no executor was redispatched. Existing inbox rows are retained.\n→ Repair the deterministic poller from its private error log.\n-# receipt: reports/ops/fleet-inbox/LAST-ERROR.log\n'
 fi
