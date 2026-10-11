@@ -22,7 +22,7 @@
         {
           "path": "/home/ubuntu/.hermes/scripts/disk_monitor.sh",
           "source": "ops/hermes-cron-scripts/disk_monitor.sh",
-          "reviewed_sha256": "1f9c64eb1f8957c34aac6bd96f48ff42c79cafc4068c96da3fe3747b959f3447"
+          "reviewed_sha256": "1061caac91653c9328e66634983fb713f84d7c1148e960d2ad86babd07755e4c"
         }
       ],
       "payloads": []
