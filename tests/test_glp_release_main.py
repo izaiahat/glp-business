@@ -346,4 +346,3 @@ def test_sync_existing_pr_reconciled_before_create(tmp_path, monkeypatch, prior,
     monkeypatch.setattr(job,'ci',ci)
     with pytest.raises(RuntimeError,match=reason):job.execute({},tmp_path,source_only=True)
     assert not any(c[:3]==['gh','pr','create'] for c in calls)
-
