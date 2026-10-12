@@ -150,27 +150,47 @@ def browser(env, action):
         raise ValueError('browser_'+action+'_failed:'+reason) from None
 
 
-def parse_proof(body, env, nonce):
+def parse_proof(body, env, nonce, native_custody=None):
     import re
     if re.search(r'tskey-|Bearer |PRIVATE KEY',body,re.I):
         raise ValueError('unsafe_proof_body_no_credentials')
     start,end=body.find('{'),body.rfind('}')
     value=json.loads(body[start:end+1])
+    claimed_native=value.pop('native_creation',None)
+    if claimed_native is not None:
+        if native_custody is not None and claimed_native!=native_custody:
+            raise ValueError('conflicting_native_creation_custody')
+        native_custody=claimed_native
     if set(value)!={'schema','nonce','environment_id','new_cloud_task','task_id','task_url','allowed','denied'} or set(value.get('allowed',{}))!={'command_exit','http','schema','generated_at'} or set(value.get('denied',{}))!={'port','command_exit','http'}:
         raise ValueError('proof_fields_not_allowlisted')
-    if value.get('schema')!='codex-cloud-vpn-proof-v1' or value.get('nonce')!=nonce or value.get('environment_id')!=env['environment_id']:
+    if value.get('schema')!='codex-cloud-vpn-proof-v1' or value.get('nonce')!=nonce:
+        raise ValueError('cloud_proof_binding_mismatch')
+    # Runtime IDs are opaque and are NOT environmentConfigIds. Retain a separate
+    # native creation selector; this is not a server-side runtime/config join.
+    native_bound = native_custody is not None
+    if native_bound:
+        if not isinstance(native_custody,dict) or set(native_custody)!={'task_id','environment_config_id','runtime_environment_id'} or native_custody['task_id']!=value.get('task_id') or native_custody['environment_config_id']!=env['environment_id'] or native_custody['runtime_environment_id']!=value.get('environment_id'):
+            raise ValueError('native_creation_selector_mismatch')
+    elif value.get('environment_id')!=env['environment_id']:
         raise ValueError('cloud_proof_binding_mismatch')
     import uuid
-    if value.get('new_cloud_task') is not True or not value.get('task_id') or not value.get('task_url','').startswith('https://chatgpt.com/'):
+    if value.get('new_cloud_task') is not True or not value.get('task_id'):
         raise ValueError('new_cloud_task_custody_missing')
     try: uuid.UUID(value['task_id'])
     except (ValueError,TypeError,AttributeError): raise ValueError('cloud_task_id_invalid') from None
-    if value['task_id'] not in value['task_url']:
-        raise ValueError('cloud_task_url_id_mismatch')
-    url=urllib.parse.urlsplit(value['task_url'])
-    if url.hostname!='chatgpt.com' or url.username or url.password or url.port not in (None,443):
-        raise ValueError('cloud_task_url_not_allowed')
-    value['task_url']=urllib.parse.urlunsplit((url.scheme,url.netloc,url.path,'',''))
+    task_url=value.get('task_url')
+    if task_url is None:
+        if not native_bound:
+            raise ValueError('native_creation_required_for_unknown_url')
+    else:
+        if not isinstance(task_url,str) or not task_url.startswith('https://chatgpt.com/'):
+            raise ValueError('new_cloud_task_custody_missing')
+        if value['task_id'] not in task_url:
+            raise ValueError('cloud_task_url_id_mismatch')
+        url=urllib.parse.urlsplit(task_url)
+        if url.hostname!='chatgpt.com' or url.username or url.password or url.port not in (None,443):
+            raise ValueError('cloud_task_url_not_allowed')
+        value['task_url']=urllib.parse.urlunsplit((url.scheme,url.netloc,url.path,'',''))
     allowed,denied=value['allowed'],value['denied']
     try:
         generated=dt.datetime.fromisoformat(allowed['generated_at'].replace('Z','+00:00'))
@@ -215,7 +235,7 @@ def proof(env, row, state):
     result=terminal(directory,ticket)
     if result['outcome']!='result':
         raise ValueError('native_cloud_proof_blocked_no_old_key_revoke')
-    value=parse_proof(result['text'],env,row['proof_nonce'])
+    value=parse_proof(result['text'],env,row['proof_nonce'],row.get('native_creation_custody'))
     row.update(phase='CLOUD_PROVED',cloud_proof=value,native_reply_id=ticket['reply_id'])
     atomic(STATE,state)
     return value

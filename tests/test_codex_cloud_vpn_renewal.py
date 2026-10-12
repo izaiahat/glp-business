@@ -57,6 +57,19 @@ def test_vpn_cloud_proof_requires_new_task_nonce_allowed_and_denied():
         with pytest.raises(ValueError): r.parse_proof(json.dumps({**value,**change}),env,'fixture-nonce')
 
 
+def test_vpn_native_runtime_id_and_null_url_require_creation_selector():
+    env=fixture_env()
+    value={'schema':'codex-cloud-vpn-proof-v1','nonce':'fixture-nonce','environment_id':'ccarenv_b64_fixture','new_cloud_task':True,'task_id':'11111111-1111-4111-8111-111111111111','task_url':None,'allowed':{'command_exit':0,'http':200,'schema':'codex-evidence-v1','generated_at':'2026-10-11T00:00:00Z'},'denied':{'port':8443,'command_exit':0,'http':503}}
+    custody={'task_id':value['task_id'],'environment_config_id':env['environment_id'],'runtime_environment_id':value['environment_id']}
+    assert r.parse_proof(json.dumps(value),env,'fixture-nonce',custody)['task_url'] is None
+    assert r.parse_proof(json.dumps({**value,'native_creation':custody}),env,'fixture-nonce')['task_url'] is None
+    for change in ({'task_id':'22222222-2222-4222-8222-222222222222'}, {'environment_config_id':'foreign-env'}, {'runtime_environment_id':'foreign-runtime'}):
+        with pytest.raises(ValueError):
+            r.parse_proof(json.dumps(value),env,'fixture-nonce',{**custody,**change})
+    with pytest.raises(ValueError):
+        r.parse_proof(json.dumps(value),env,'fixture-nonce')
+
+
 def test_vpn_pending_proof_never_revokes_old_key(tmp_path,monkeypatch):
     env=fixture_env();path=tmp_path/'state.json'
     row={**env,'phase':'PROOF_PENDING','native_ticket':'fixture-ticket','key_id':'candidate-fixture','old_key_id':'old-fixture'}
