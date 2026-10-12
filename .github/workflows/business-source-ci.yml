@@ -122,7 +122,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           export PYTHONPATH="$PWD/ops:$PWD/scripts:$PWD${PYTHONPATH:+:$PYTHONPATH}"
-          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_postal_address.py tests/test_glp_sponsor_followup_notifications.py
+          PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_glp_sponsor_campaign.py tests/test_glp_sponsor_continuation.py tests/test_glp_sponsor_boundary_repairs.py tests/test_glp_sponsor_postal_address.py tests/test_glp_sponsor_followup_notifications.py tests/test_glp_sponsor_unattended.py
       - name: GLP337 fixed shared-bridge custody (offline, exact head; no adoption)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

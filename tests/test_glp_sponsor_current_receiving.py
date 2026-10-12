@@ -265,7 +265,7 @@ def test_source_acceptance_binds_installed_bytes(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('damage',['none','asset','source','pricing','address','send_guard','art_pending','extra_member','supply_count'])
-def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypatch,damage):
+def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypatch,damage,recorded_operator=False):
     import zipfile
     import glp_sponsor_current_receiving as r
     source=Path(__file__).resolve().parents[1]
@@ -310,7 +310,16 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
                          'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py',
                          'sponsor_replies_sha256':'inbox_control_plane/sponsor_replies.py'}.items():
             accepted[key]=c.digest(tmp_path/name)
-        c.save(tmp_path/r.SUCCESSOR_SOURCE_REVIEW,accepted)
+        review_path=r.SUCCESSOR_SOURCE_REVIEW
+        if recorded_operator:
+            from test_glp_sponsor_unattended import decisions
+            decisions(tmp_path,monkeypatch)
+            accepted['canonical_inbox_sha256']=c.digest(tmp_path/'inbox_control_plane/control_plane.py')
+            accepted['firecrawl_client_sha256']=c.digest(tmp_path/'scripts/firecrawl_client.py')
+            review_path=r.OPERATOR_SOURCE_REVIEW
+            monkeypatch.setattr(r,'require_coordinator_execution',lambda:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))
+            monkeypatch.setattr(r,'current_authority',lambda *a,**kw:pytest.fail('NO TUI CUSTODY FOR AUTOMATION'))
+        c.save(tmp_path/review_path,accepted)
         installed=tmp_path/r.PACKET; installed.parent.mkdir(parents=True,exist_ok=True)
         old=dict(blobs); old['scripts/glp_sponsor_campaign.py']=b'predecessor source'
         old_manifest=dict(manifest,**{'scripts/glp_sponsor_campaign.py':hashlib.sha256(b'predecessor source').hexdigest()})
@@ -322,10 +331,10 @@ def test_real_packet_binding_closed_members_and_guard_refusals(tmp_path,monkeypa
         c.save(c.STATE/r.RECEIPT,previous); c.save(c.STATE/'approval.json',previous)
         c.save(c.STATE/'activation.json',dict(send_enabled=True,packet_sha256=c.digest(installed)))
         result=r.receive(c,c.digest(packet),'a'*40,tmp_path/'receiving.json',successor_packet=packet,
-                         replace_receipt_sha256=c.digest(c.STATE/r.RECEIPT))
+                         replace_receipt_sha256=c.digest(c.STATE/r.RECEIPT),recorded_operator=recorded_operator)
         assert result['status']=='CURRENT_PACKET_RECEIVED'
         assert c.approval_ready(c.campaign_config()) is True
-        accepted['reviewer']='RV-S2'; c.save(tmp_path/r.SUCCESSOR_SOURCE_REVIEW,accepted)
+        accepted['reviewer']='RV-S2'; c.save(tmp_path/review_path,accepted)
         with pytest.raises(RuntimeError,match='independent_installed_source_review_required'):
             c.approval_ready(c.campaign_config())
     else:

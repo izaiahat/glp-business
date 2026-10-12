@@ -1348,7 +1348,8 @@ CREATE TABLE IF NOT EXISTS future_send_policy(
 CREATE TABLE IF NOT EXISTS inbox_runs(
   run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, finished_at TEXT,
   discovered_count INTEGER NOT NULL DEFAULT 0, persisted_count INTEGER NOT NULL DEFAULT 0,
-  duplicate_count INTEGER NOT NULL DEFAULT 0, classified_count INTEGER NOT NULL DEFAULT 0,
+  duplicate_count INTEGER NOT NULL DEFAULT 0, non_inbound_count INTEGER NOT NULL DEFAULT 0 CHECK(non_inbound_count>=0),
+  classified_count INTEGER NOT NULL DEFAULT 0,
   decision_queued_count INTEGER NOT NULL DEFAULT 0, suppressed_count INTEGER NOT NULL DEFAULT 0,
   quarantined_count INTEGER NOT NULL DEFAULT 0, outbound_send_count INTEGER NOT NULL DEFAULT 0,
   provider_draft_count INTEGER NOT NULL DEFAULT 0, provider_mutation_count INTEGER NOT NULL DEFAULT 0,
@@ -1423,6 +1424,9 @@ class Ledger:
         for name, sql_type in additions.items():
             if name not in columns:
                 self.conn.execute(f"ALTER TABLE inbox_classifications ADD COLUMN {name} {sql_type}")
+        run_columns = {str(row[1]) for row in self.conn.execute("PRAGMA table_info(inbox_runs)")}
+        if "non_inbound_count" not in run_columns:
+            self.conn.execute("ALTER TABLE inbox_runs ADD COLUMN non_inbound_count INTEGER NOT NULL DEFAULT 0 CHECK(non_inbound_count>=0)")
         unique_event_action = False
         for index in self.conn.execute("PRAGMA index_list(mailbox_actions)"):
             if int(index[2]) != 1:
@@ -5678,6 +5682,7 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         token = next_token
     persisted = 0
     sent_only_skipped = 0
+    draft_only_skipped = 0
     last_message_at = None
     for item in selected:
         mid = str(item["id"])
@@ -5686,6 +5691,12 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         # Defensive backstop if Gmail search semantics drift or a provider
         # fixture ignores q=. Message labels are message-specific; inbound
         # messages must never carry the SENT system label.
+        if "DRAFT" in labels:
+            # A discovered unsent draft is neither persisted inbound mail nor
+            # a duplicate. Explicit closure preserves the coverage equation
+            # without emitting cards, storing draft bodies or excluding replies.
+            draft_only_skipped += 1
+            continue
         if "SENT" in labels:
             sent_only_skipped += 1
             continue
@@ -5704,7 +5715,8 @@ def poll_gmail_api(ledger: Ledger, mailbox: dict[str, Any], run_id: str, bootstr
         "mailbox_id": mailbox["mailbox_id"], "status": "pass", "profile_match": True,
         "discovered": len(seen_message_ids), "selected_unseen": len(selected),
         "persisted": persisted, "duplicates": duplicate,
-        "sent_only_skipped": sent_only_skipped,
+        "sent_only_skipped": sent_only_skipped, "draft_only_skipped": draft_only_skipped,
+        "non_inbound_skipped": sent_only_skipped + draft_only_skipped,
         "provider_duplicate_ids": provider_duplicate_ids, "deferred_unseen": deferred_unseen,
         "pages_traversed": pages_traversed, "pagination_complete": token is None,
         "provider_mutations": 0, "external_sends": 0,
@@ -6299,6 +6311,7 @@ def run_poll(
         "discovered": sum(int(row.get("discovered") or 0) for row in results),
         "persisted": sum(int(row.get("persisted") or 0) for row in results),
         "duplicates": sum(int(row.get("duplicates") or 0) for row in results),
+        "non_inbound_skipped": sum(int(row.get("non_inbound_skipped") or 0) for row in results),
     }
     projection_result = project_kael_daily_audits(ledger)
     affiliate_exception_repair = ledger.repair_affiliate_exception_outbox()
@@ -6319,12 +6332,12 @@ def run_poll(
     private_json(receipt_path, receipt)
     with ledger.conn:
         ledger.conn.execute(
-            """UPDATE inbox_runs SET finished_at=?,discovered_count=?,persisted_count=?,duplicate_count=?,
+            """UPDATE inbox_runs SET finished_at=?,discovered_count=?,persisted_count=?,duplicate_count=?,non_inbound_count=?,
             classified_count=?,decision_queued_count=(SELECT COUNT(*) FROM notification_outbox WHERE purpose='operator_decision'),
             suppressed_count=(SELECT COUNT(*) FROM inbox_classifications WHERE route='silent'),
             quarantined_count=(SELECT COUNT(*) FROM inbox_events WHERE state='quarantined'),outbound_send_count=0,
             provider_draft_count=0,provider_mutation_count=0,exit_status=?,receipt_path=? WHERE run_id=?""",
-            (receipt["finished_at"], counts["discovered"], counts["persisted"], counts["duplicates"], counts["persisted"], status, str(receipt_path), run_id),
+            (receipt["finished_at"], counts["discovered"], counts["persisted"], counts["duplicates"], counts["non_inbound_skipped"], counts["persisted"], status, str(receipt_path), run_id),
         )
     ledger.audit("poll_completed", "inbox_run", run_id, {"status": status, "counts": counts, "daily_audit_projection": {"status": projection_result["status"], "projected": projection_result["projected"], "existing": projection_result["existing"], "invalid_count": len(projection_result["invalid"])}, "outbound_send_count": 0, "provider_draft_count": 0, "provider_mutation_count": 0})
     return receipt
