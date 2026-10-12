@@ -6937,14 +6937,14 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "2f738895919deac524d20c0a4d434f1d4e3607e248fee6cb4ea98edbaf5f5d15"
+      "sha256": "0d993c0710725e594b32df9e0d4b280a4b593c010acb138192e40c50079eb1ab"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "419ce138cf623ddf11ca6083dce866870e71ce4a771d21ddc176dbc8383e9998"
+      "sha256": "a340c4f5a2ca534fd4f85ab7e9912512930a7f62719135c101f54eab7b1d7d6d"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",
