@@ -3378,7 +3378,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "ed31c8b3c38dd8e485a035e67396fb5c4ff8522504b831d7c245406c42d52f87"
+      "sha256": "223faa3400e3ee50398f6eeec9649d777746d18265aa5e0162b5d770b27a70ab"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -6955,7 +6955,9 @@
     },
     "tests/test_glp_sponsor_unattended.py": {
       "kind": "test",
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "sha256": "5e48c76f7186649539108df6a529e9d9cb41a370afe98195aa8a367ef1094882"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
@@ -7082,7 +7084,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "e0376c5916c083187e47039a65bf7f66d689794eda244f0e926cd49fc85f4777"
+      "sha256": "e5ca7551cb5d3fce4278ff8225b554d5187f03225b3c37d35d1f33012619b2d5"
     },
     "scripts/glp_capture_fetch_receipts.py": {
       "kind": "script",
@@ -7100,9 +7102,19 @@
       "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
     },
     "tests/test_glp_sponsor_poll_lock.py": {
-      "callers": [".github/workflows/business-source-ci.yml"],
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
       "kind": "test",
       "sha256": "5d3c5a346715f9a680c25a0b211e1d90e8fd1e37ea5b21a39ad8b476171e3a36"
+    },
+    "scripts/host_disk_authorized_retirement.py": {
+      "callers": [
+        "explicit D1b expanded operator-authority CLI"
+      ],
+      "kind": "script",
+      "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
+      "sha256": "108d2f5d869321dc9e7ebedbce922ec6b14d79dafa2aff5f7c88c41be01f57eb"
     }
   },
   "omitted_runtime_inputs": [
@@ -7113,5 +7125,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1046
+  "tracked_count": 1047
 }

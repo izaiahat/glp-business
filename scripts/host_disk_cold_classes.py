@@ -124,13 +124,14 @@ def dirty_worktree(p):
 def inactive(api,p):
     return not api.path_is_active_privileged(p)
 
-def inventory(root,pins,cutoff,deadline,*,hashes):
+def inventory(root,pins,cutoff,deadline,*,hashes,protection=None):
     """Select only cold files; no directory traversal through symlinks/protection."""
     root=Path(root); rows=[]; skipped=[]; stack=[root]; device=root.lstat().st_dev
+    protect=protection or protected
     while stack:
         if time.monotonic()>deadline: raise TimeoutError('inventory')
         p=stack.pop()
-        if protected(p,pins): skipped.append(str(p)); continue
+        if protect(p,pins): skipped.append(str(p)); continue
         s=p.lstat()
         if s.st_dev!=device: raise ValueError('cross-device')
         if stat.S_ISDIR(s.st_mode):
@@ -344,17 +345,26 @@ def cleanup_abandoned_archives(api, prune_root, *, source_roots, dry_run, deadli
     return result
 
 
-def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None,archive_destination=None,max_archive_input_bytes=None):
+def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None,archive_destination=None,max_archive_input_bytes=None,remote_authority=None):
     """Compress explicit cold members, preserve protected leaves and directory skeletons."""
     root=Path(root); dest=Path(destination); pins=custody_pins(pins)
-    if archive_destination is not None and cold_days<30:
+    protect=protected
+    authority=None
+    if remote_authority is not None:
+        authority=remote_authority.admit(root,cold_days)
+        if not isinstance(authority,dict) or authority.get('scope')!='superseded_site':
+            raise ValueError('explicit site retirement authority missing')
+        if archive_destination is not None:raise ValueError('ambiguous remote authority')
+        archive_destination=remote_authority
+        protect=remote_authority.protect
+    if archive_destination is not None and cold_days<30 and authority is None:
         raise ValueError('remote archive requires 30d cold scope')
     row={'rule':'cold_evidence_archive','path':str(root),'bytes_freed':0}
-    if root.is_symlink() or root.resolve()!=root.absolute() or protected(root,pins):
+    if root.is_symlink() or root.resolve()!=root.absolute() or protect(root,pins):
         return dict(row,status='REFUSED',reason='scope/protection')
     if dirty_worktree(root) or not inactive(api,root):
         return dict(row,status='REFUSED',reason='dirty/active')
-    rows,skipped=inventory(root,pins,time.time()-cold_days*86400,deadline,hashes=False)
+    rows,skipped=inventory(root,pins,time.time()-cold_days*86400,deadline,hashes=False,protection=protect)
     # Reclaim a shared inode only when every original link is in this selection.
     links={};blocks={}
     for r in rows:
@@ -438,7 +448,7 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
         archive_sha=sha(tmp)
         # Verification is complete before publishing the archive or retiring originals.
         fresh_pins=custody_pins(pins)
-        if any(protected(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
+        if any(protect(root/r['name'],fresh_pins) for r in rows): raise ValueError('new live symlink custody')
         if not inactive(api,root) or dirty_worktree(root): raise ValueError('new active/dirty reference')
         if any(signature(root/r['name'])!=r['signature'] for r in rows): raise ValueError('source changed before retire')
         verify={'archive_sha256':archive_sha,'manifest_sha256':sha(manifest),
@@ -474,12 +484,16 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
                 scopes.update(p for p in (root/member['name']).parents if p==root or root in p.parents)
             if any(p.is_symlink() or p.resolve()!=p.absolute() for p in scopes):
                 raise ValueError('source symlink/scope drift after upload')
-            if any(protected(root/r['name'],fresh_pins) for r in rows):
+            if any(protect(root/r['name'],fresh_pins) for r in rows):
                 raise ValueError('new custody after remote attempt')
             if not inactive(api,root) or dirty_worktree(root):
                 raise ValueError('new active/dirty after remote attempt')
             if any(signature(root/r['name'])!=r['signature'] for r in rows):
                 raise ValueError('source drift after remote attempt')
+            if authority is not None:
+                remote_authority.admit(root,cold_days)
+                if not remote:
+                    return dict(row,status='REMOTE_REQUIRED_ORIGINALS_RETAINED')
             if remote:
                 verify['remote']=remote
                 write_json(verified,verify)
