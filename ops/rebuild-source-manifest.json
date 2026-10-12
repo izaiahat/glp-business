@@ -4249,7 +4249,7 @@
         "all pytest workflows (fixture-only ledger isolation)"
       ],
       "kind": "test",
-      "sha256": "9ef699bc0508b6baa570a71c76f028fe2a199f0901dd88343ecaf4f370e0edb4"
+      "sha256": "0f01a9e9d7ceed45e4ffb0d185e391e29df617164f95144449d09ea46fc66e32"
     },
     "tests/finch_cabx_acceptance.py": {
       "callers": [
@@ -6348,7 +6348,7 @@
       ],
       "kind": "test",
       "scope": "J7 source-owned MaxBounty absence and Katalys documented population; no financial writes.",
-      "sha256": "7e20e89c46ca41d8b062eef5e61a8dc1cff071b11ffd2c72f25da34b79f41c45"
+      "sha256": "20e5a2352c808883b88364be3ac72123b0536fe3f88445d74549b5fe75dd7d9c"
     },
     "tests/test_j7_everflow_roster.py": {
       "callers": [
@@ -6388,7 +6388,7 @@
       ],
       "kind": "test",
       "scope": "Additive J7 fresh vault financial intake; predecessors and safety oracles unchanged.",
-      "sha256": "f8da497b5db31c8b0e4089f60f7a46769fc353f3fb4d32233d7c9101ed5a00df"
+      "sha256": "670cffbd9c6964e652003c26123b9e223b07b43f12f0b1536da3933b5081b83b"
     },
     "tests/test_j8_account_identity.py": {
       "callers": [
