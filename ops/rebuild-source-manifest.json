@@ -3378,7 +3378,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "223faa3400e3ee50398f6eeec9649d777746d18265aa5e0162b5d770b27a70ab"
+      "sha256": "8d7a8d58a94b2b00b7c7c43c50d23a75a832f24dddcb6ec9bf9cb356f0ceb6b5"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -7063,7 +7063,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "b91a35fef8c6873c27f8ff5ca6ce1482533ee8db630799ab61a843f77087eff7"
+      "sha256": "c391513243444f016902190f242283fb9e1db160645671170789e84292bfd19a"
     },
     "tests/test_host_disk_report_caches.py": {
       "callers": [
