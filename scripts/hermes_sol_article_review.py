@@ -362,13 +362,13 @@ def validate_result_custody(raw: dict, *, manifest: dict, packet: Path, session_
             raise ValueError('captured review input changed')
         # Hashing an input is insufficient: bind the actual in-band subjects to
         # the accepted manifest/packet, not a fixture-supplied input hash.
-        parts = ['SEALED ARTICLE SUBJECTS — READ ONLY',
-                 f"manifest_sha256={manifest['manifest_sha256']}", '']
+        parts = ['# SEALED PACKET CONTENT \u2014 ALREADY IN BAND', '',
+                 f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+                 'Every source line is prefixed with its original 1-based line number.']
         for row in manifest['subject_files']:
-            parts.append(f"===== {row['path']} =====")
+            parts.extend(['', f"## FILE: {row['path']}", ''])
             text = (packet / row['path']).read_text(encoding='utf-8')
-            parts.extend(f'{i:04d}|{line}' for i, line in enumerate(text.splitlines(), 1))
-            parts.append('')
+            parts.extend(f'{i}|{line}' for i, line in enumerate(text.splitlines(), 1))
         expected_context = '\n'.join(parts) + '\n'
         if len(captured['context_files']) != 1 or captured['context_files'][0]['content'] != expected_context:
             raise ValueError('runtime input is not this sealed packet')

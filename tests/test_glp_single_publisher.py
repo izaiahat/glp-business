@@ -76,7 +76,12 @@ def test_f03_merge_handoff_is_selected_by_hourly_release(tmp_path, monkeypatch):
     config.write_text('{}')
     # main intentionally sets process-local carrier bindings; undo after proof.
     monkeypatch.setattr(carrier, 'MAIN_RELEASE_FRESH', carrier.MAIN_RELEASE_FRESH)
+    import glp_release_search_notify as notify
+    search_calls = []
+    monkeypatch.setattr(notify, 'current_pointer', lambda: {'fixture': True})
+    monkeypatch.setattr(notify, 'submit_deployment', lambda pointer, predecessor: search_calls.append((pointer, predecessor)) or {'status': 'PASS_SEARCH_SUBMITTED'})
     assert release.main(['--sha', merged]) == 0
+    assert search_calls == [({'fixture': True}, tmp_path / 'old')]
     assert hourly == [{'source_ref': head, 'source_pr': url, 'publish': True, 'source_only': False}]
 
 

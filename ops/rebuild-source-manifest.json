@@ -1,6 +1,26 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "scripts/article_review_recovery.py": {
+      "callers": ["scripts/article_health_acceptance.py"],
+      "kind": "script",
+      "sha256": "c95d53dd925861ed555287a158e7ede340dc3ce558976241fb9fabcf56507785"
+    },
+    "scripts/glp_release_search_notify.py": {
+      "callers": ["scripts/glp_release_main.py"],
+      "kind": "script",
+      "sha256": "3463553b80b37466165e8233e2a1d0bd9d4c2750c3dbfced9b90ef48cdc70e6f"
+    },
+    "tests/test_article_review_recovery.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "c0e371bea3f9c0a973989e439c4ccb8f5eb6ea1f165361d53fa2c7b61b201548"
+    },
+    "tests/test_glp_release_search_notify.py": {
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "kind": "test",
+      "sha256": "a6637e8ccd2e3173a5931d12258a45883060cd843803d7545e1c6a68c616ba24"
+    },
     "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
       "callers": [
         "systemd:user:codex-evidence.service"
@@ -105,7 +125,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "7b035e3dbaf439d498f2d1a9ab90c5c8e707b71cd529ca44fd9bf042dbd0cd0d"
+      "sha256": "d090df2746f6345539eb3ba1fd4f61f667ab569285f88efeaaecc1c6c64f6b96"
     },
     ".codex-task/RESULT.md": {
       "callers": [
@@ -117,7 +137,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "2084ed1291b3860f93b53e85f0495b8e86fae4661232f86ef6ea2ec4eab8d8e1"
+      "sha256": "dc1f07391496ac230e47a812487aa4861c1ed3c56ad452f89b1d48d68ac15ce3"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -2232,7 +2252,7 @@
         "scripts/linear_orchestrator.py"
       ],
       "kind": "script",
-      "sha256": "7e08b442ec19cab9d811e46379d40b0c60ba0a4b7a18b37526cda8c0e01bbc59"
+      "sha256": "42d897ffc89f8d24b246c0feadf0cce017af7a1825d64d42cb38744b45df3d5d"
     },
     "scripts/article_source_carrier.py": {
       "callers": [
@@ -3095,7 +3115,7 @@
         "ops/hermes-cron-scripts/glp_release_main_cron.sh"
       ],
       "kind": "script",
-      "sha256": "0375fa8fe516c16e7b86b844edd94e1628cbfa6e020a3ce77666c3820017a684"
+      "sha256": "9ee9897b6011c8d920996d357b3e9f43953a31cd79f83a53a9be57cdf2a5121d"
     },
     "scripts/glp_robots_gate.py": {
       "callers": [
@@ -3349,7 +3369,7 @@
         "systems/seo-blog-machine/scripts/opus_review_loop.py"
       ],
       "kind": "review_transport",
-      "sha256": "d4a09018bd11cda1480851b806ebfb248aef4cc34b2791667917b02ff7ac1e88"
+      "sha256": "fe0a3a3f742bd43bf0158918bbe8207dcd5faa954602136c0249627007134e16"
     },
     "scripts/hermes_state_archive/tests/test_weekly.py": {
       "callers": [
@@ -4685,7 +4705,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "ed424026bb0b45f31b2ea7b687890f16810f9453ae136b57c2f34925eab78040"
+      "sha256": "ffb70151dbfbd82a2ef568c1546247dd4998230fbe713eb1b81c4b1d377f147d"
     },
     "tests/test_article_source_carrier.py": {
       "callers": [

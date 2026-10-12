@@ -14,6 +14,31 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import hermes_sol_article_review as review
 
 
+def test_fixture_matches_native_registered_context_builder(tmp_path):
+    import ast, os
+    source = ROOT / 'systems/seo-blog-machine/scripts/opus_review_loop.py'
+    tree = ast.parse(source.read_text())
+    node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'build_context_bundle')
+    namespace = {'Path': Path, 'os': os, 'Any': object,
+                 'subject_paths': lambda job: [Path(job['packet_dir'])/'04-draft.md']}
+    exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
+    subject = tmp_path/'04-draft.md'
+    subject.write_text('Actual native line.\nSecond line.\n')
+    manifest = {'manifest_sha256': 'a'*64}
+    result = namespace['build_context_bundle']({'packet_dir':str(tmp_path)}, manifest, 1, tmp_path)
+    assert result.read_text() == native_context(subject, manifest)
+
+
+
+def native_context(subject, manifest):
+    chunks = ['# SEALED PACKET CONTENT \u2014 ALREADY IN BAND', '',
+              f"Subject manifest SHA-256: {manifest['manifest_sha256']}",
+              'Every source line is prefixed with its original 1-based line number.',
+              '', f'## FILE: {subject.name}', '']
+    chunks.extend(f'{n}|{s}' for n, s in enumerate(subject.read_text().splitlines(), 1))
+    return '\n'.join(chunks) + '\n'
+
+
 def fixture(tmp_path, monkeypatch):
     packet = tmp_path / 'packet'
     packet.mkdir()
@@ -21,8 +46,7 @@ def fixture(tmp_path, monkeypatch):
     subject.write_text('Source-backed draft.\n')
     manifest = {'manifest_sha256': 'a' * 64, 'subject_files': [{'path': subject.name}]}
     context = tmp_path / 'context.txt'
-    context.write_text('SEALED ARTICLE SUBJECTS — READ ONLY\nmanifest_sha256=' + 'a' * 64 +
-                       '\n\n===== 04-draft.md =====\n0001|Source-backed draft.\n\n')
+    context.write_text(native_context(subject, manifest))
     prompt = tmp_path / 'prompt.txt'
     prompt.write_text('Review all five gates against manifest ' + 'a' * 64)
     args = SimpleNamespace(context_file=[str(context)], prompt_file=str(prompt), prompt=None,
@@ -57,6 +81,7 @@ def fixture(tmp_path, monkeypatch):
 
     class Agent:
         def __init__(self, **kwargs):
+            assert kwargs['session_db'] is handle, 'reviewer_must_use_native_sessiondb'
             self.kwargs = kwargs
             self.session_id = 'reviewer'
             self.provider, self.model = args.provider, args.model
