@@ -1634,7 +1634,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "source_control",
-      "sha256": "4c6ecd4242a3ac92a749642359deb3a44f8d74161e7bc3f860e1f527e0123ba7"
+      "sha256": "0fe89e0cf707d3456d45046352bfaf3868003cdb11c6be0865c8dd97f4cb0930"
     },
     "ops/scheduled-source-drift.md": {
       "callers": [
@@ -2394,7 +2394,7 @@
         "crontab:77"
       ],
       "kind": "script",
-      "sha256": "96ce46bedf9b08f5da5ee33259a1d67615671b2718a5a7b527f483d4370765c8"
+      "sha256": "fc1146a502f250c267c3460e8171bde678be7ee20ca773304aa9f0ffbfbfbd4b"
     },
     "scripts/cron_ports/fleet_sentinel.py": {
       "callers": [
@@ -4812,7 +4812,7 @@
         "cron_bridge_action"
       ],
       "kind": "test",
-      "sha256": "e5a1341189c1e44fc20b1c304a3abd7c261153d03b7f7e5eae4508c3467b09d0"
+      "sha256": "e9189cf48a32c24f8344431ab40210414d58c412dfb1e988d36c40199c124ff5"
     },
     "tests/test_current_release_acceptance.py": {
       "callers": [
@@ -6757,7 +6757,7 @@
         ".github/workflows/business-source-ci.yml"
       ],
       "kind": "test",
-      "sha256": "6f466bccda594d56d2fa13a329c3b686d377f9d5903e5f9ada9a3f978222b21c"
+      "sha256": "858676582466a12aa88eb8ddb86096dab33bb110d9b00a6ec748bd20e6f01469"
     },
     "tests/test_seat_autodispatch.py": {
       "callers": [

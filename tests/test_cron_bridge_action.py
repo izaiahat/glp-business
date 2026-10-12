@@ -1413,5 +1413,77 @@ class DecisionsGraphTests(unittest.TestCase):
                 self.assertEqual(self.calls, [])
 
 
+# Exact conclusive empty-supply recovery; uncertainty remains GET-only.
+import pytest
+
+
+def empty_supply_machine():
+    return {'schema':'n8n.article_carrier.v1', 'mode':'consume',
+            'status':'MISSED_DAY_SUPPLY_EXHAUSTED','published':False,'ready':0,
+            'resume_claim':False,'stale_claim_count':0,'entry_id':None,'topic_id':None,
+            'route':None,'url':None,'post_publish_supply':None,
+            'operation_id':'host-article-carrier-'+'a'*24}
+
+
+def test_exact_empty_supply_is_terminal_refusal(tmp_path, monkeypatch):
+    monkeypatch.setattr(cron,'ROOT',tmp_path)
+    assert cron.article_supply_exhausted_before_consume(empty_supply_machine())
+    job={'job_id':'old-empty','rc':0,'status':'done','stdout_tail':json.dumps(empty_supply_machine())}
+    with pytest.raises(cron.TerminalRefusal) as exc:
+        cron.finish_action('article_carrier_consume',{'mode':'consume'},job,{},tmp_path/'state')
+    assert exc.value.machine_status=='MISSED_DAY_SUPPLY_EXHAUSTED'
+
+
+@pytest.mark.parametrize('field,value',[
+    ('schema','other'),('mode','dryrun'),('status','BLOCKED_CONSUME_FAILED'),
+    ('published',True),('ready',1),('ready',False),('resume_claim',True),('stale_claim_count',1),
+    ('entry_id','entry'),('topic_id','topic'),('route','/guides/example/'),
+    ('url','https://glpclinicscout.com/guides/example/'),('post_publish_supply',{}),
+    ('operation_id','unbound')])
+def test_partial_or_uncertain_supply_shapes_remain_pending(tmp_path,monkeypatch,field,value):
+    monkeypatch.setattr(cron,'ROOT',tmp_path)
+    row={**empty_supply_machine(),field:value}
+    assert not cron.article_supply_exhausted_before_consume(row)
+    row=empty_supply_machine(); del row[field]
+    assert not cron.article_supply_exhausted_before_consume(row)
+
+
+@pytest.mark.parametrize('directory',['claims','consumed'])
+def test_supply_refusal_any_retained_effect_identity_refuses(tmp_path,monkeypatch,directory):
+    monkeypatch.setattr(cron,'ROOT',tmp_path)
+    row=empty_supply_machine(); key=hashlib.sha256(row['operation_id'].encode()).hexdigest()
+    path=tmp_path/'reports/glp-clinic-scout/seo-machine/article-buffer'/directory/(key+'.json')
+    path.parent.mkdir(parents=True);path.write_text('{}')
+    assert not cron.article_supply_exhausted_before_consume(row)
+
+
+def test_supply_reconcile_retains_failure_then_next_manual_dispatches_once(tmp_path,monkeypatch):
+    monkeypatch.setattr(cron,'ROOT',tmp_path)
+    row=empty_supply_machine();action='article_carrier_consume';args={'mode':'consume'}
+    payload={'action':'script','name':action,'args':args}
+    digest=hashlib.sha256(json.dumps(payload,sort_keys=True).encode()).hexdigest()
+    slot='2026-10-09T11:00:America/Los_Angeles'
+    state=tmp_path/(action+'-'+digest+'.state.json')
+    state.write_text(json.dumps({'pending':{'job_id':'old-empty','payload_sha256':digest,
+                'receipt_path':str(tmp_path/'old.json'),'due_slot':slot}}))
+    calls=[]
+    def call(path,payload=None):
+        calls.append(path)
+        return 200,{'job_id':'old-empty' if path.startswith('/job/') else 'new',
+                    'status':'done','rc':0,'stdout_tail':json.dumps(row)}
+    kwargs=dict(state_dir=tmp_path,actions={action:{}},call=call,notify=lambda *a:{},
+                invocation='manual_registered',due_slot=slot)
+    with patch.object(cron,'article_release_live',return_value=True):
+        first=cron.run_action(action,args,**kwargs)
+        assert first['status']=='FAIL' and first['machine_status']=='MISSED_DAY_SUPPLY_EXHAUSTED'
+        assert not json.loads(state.read_text()).get('pending')
+        assert calls==['/job/old-empty']
+        second=cron.run_action(action,args,finish=lambda *a:{},**kwargs)
+        assert second['status']=='PASS'
+        assert calls==['/job/old-empty','/run']
+        third=cron.run_action(action,args,finish=lambda *a:{},**kwargs)
+        assert third['status']=='SKIPPED_OBSERVED_SLOT' and len(calls)==2
+
+
 if __name__ == "__main__":
     unittest.main()
