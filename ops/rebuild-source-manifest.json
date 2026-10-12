@@ -103,7 +103,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e0b2f58ae55374b7797ac2639e06e44995dcc81302958109f487561d1b27fecf"
+      "sha256": "d801b8cd25bdbfbd85c9466126ddce03b0cc5b212acb2d73babc728e5d484d27"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -7044,6 +7044,13 @@
         "scripts/glp_onboarding_authoring_dispatch.py"
       ],
       "sha256": "7b79f501ca500f919f17f95043893340f6bcd07e2315382f92e36eabe5c13229"
+    },
+    "tests/test_business_source_ci_budget.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
     }
   },
   "omitted_runtime_inputs": [
@@ -7054,5 +7061,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1037
+  "tracked_count": 1038
 }

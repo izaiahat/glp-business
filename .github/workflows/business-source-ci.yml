@@ -40,7 +40,8 @@ jobs:
           python3 -m unittest tests.test_glp43_current_release.CurrentReleaseTests.test_existing_promotion_uses_exact_cohort_predecessor_without_global_adoption tests.test_glp43_current_release.CurrentReleaseTests.test_r8_existing_promotion_native_selection_rollback_and_no_replay -v
   python-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Retain every gate: measured serial steps exceeded the old 15m cap.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -69,6 +70,8 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install 'pytest==8.3.5' 'requests==2.32.3' 'PyYAML==6.0.2' 'croniter==6.0.0' 'cryptography==46.0.3'
           .venv/bin/python -m pip install -r ops/rook-mcp/requirements.txt
+      - name: Measured full-gate CI budget regression (offline, exact head)
+        run: .venv/bin/python -m pytest -q tests/test_business_source_ci_budget.py
       - name: Q11 GLP93 capture-root regression (synthetic offline, exact head; no runtime effects)
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
