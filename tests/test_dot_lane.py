@@ -80,12 +80,14 @@ def test_refill_plan_order_once_per_scope_and_idle_only(tmp_path):
         dict(id='first', issue='GLP-253', dots=['rook','finch'], effect='public_research',
              coordinator_authorized=True, brief='Public sources only; no sends.', files=[])])
     issues = [dict(identifier='GLP-328', priority=1, state={'type':'started'}),
-              dict(identifier='GLP-253', priority=0, state={'type':'backlog'})]
+              dict(identifier='GLP-253', priority=0, state={'type':'unstarted'})]
     plan = {'issues':[{'issue':'GLP-253','order':6}, {'issue':'GLP-328','order':17}]}
     assert lane.select('rook', issues, plan, policy, {}, [])[0]['id'] == 'first'
     assert lane.select('rook', issues, plan, policy, {'first':{}}, [])[0]['id'] == 'later'
     assert lane.select('rook', issues, plan, policy, {}, [dict(dot='rook', state='sent', issue='GLP-93')]) is None
     assert lane.select('finch', issues, plan, policy, {}, [dict(dot='rook', state='sent', issue='GLP-253')])[0]['id'] == 'later'
+    issues[1]['state']['type'] = 'backlog'
+    assert lane.select('rook',issues,plan,policy,{},[])[0]['id'] == 'later'
     policy['scopes'][0]['effect'] = 'send'
     assert lane.select('finch', issues, plan, policy, {'first':{}}, []) is None
     policy['scopes'][0]['effect'] = 'independent_pr'
@@ -112,6 +114,25 @@ def test_new_acceptance_versions_replenish_without_repeating_same_scope():
     assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[]) is None
     issue['description'] += '; newly admitted official terms question'
     assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[])[0]['id'] != first['id']
+
+
+def test_supply_ignores_execution_owner_metadata_changes():
+    import dot_lane as lane
+    policy = dict(scopes=[],continuous_public_research_issues=['GLP-93'])
+    description = '<!-- execution-owner:start -->\nOld owner and handoff\n<!-- execution-owner:end -->\nAcceptance: one official-source terms gap.'
+    issue = dict(identifier='GLP-93',description=description,state={'type':'started'})
+    plan = {'issues':[{'issue':'GLP-93','order':1}]}
+    first = lane.select('rook',[issue],plan,policy,{},[])[0]
+    assert 'Old owner' not in first['brief']
+    issue['description'] = description.replace('Old owner and handoff','New coordinator metadata')
+    assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[]) is None
+
+
+def test_legacy_raw_description_claim_does_not_repeat_after_supply_cleanup():
+    import dot_lane as lane
+    issue = dict(identifier='GLP-93',description='<!-- execution-owner:start -->old owner<!-- execution-owner:end -->Public acceptance',state={'type':'started'})
+    old = 'public-gap-glp-93-'+hashlib.sha256(issue['description'].encode()).hexdigest()[:16]
+    assert lane.select('rook',[issue],{'issues':[{'issue':'GLP-93','order':1}]},dict(scopes=[],continuous_public_research_issues=['GLP-93']),{old:{}},[]) is None
 
 
 def test_cloud_brief_requires_both_renewed_environment_confirmations(tmp_path):
@@ -143,6 +164,19 @@ def test_rook_cloud_updates_exact_readback_and_no_replay(tmp_path):
     receipt = json.loads(inbox.read_text())
     assert receipt['schema'] == 'DOT_CLOUD_UPDATE_V1'
     assert receipt['operator_approval'] is False
+
+
+def test_rook_cloud_terminal_owned_by_r1_is_still_historical_evidence(tmp_path):
+    import dot_lane as lane
+    import dot_dispatch as d
+    message = dict(id='123456789',channel_id=d.DOTS['rook']['channel'],author={'id':d.DOTS['rook']['user']},content='RESULT rook-glp-359-test Codex Cloud proof for R1, not approval.')
+    api = lambda method,route: [message] if '?limit=' in route else message
+    events = []
+    def effects(kind,issue,body,marker):
+        events.append(kind)
+        return {'id':'receipt'}
+    lane.cloud_updates(tmp_path,api=api,effects=effects)
+    assert events == ['linear','discord']
 
 
 def test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,monkeypatch):
@@ -177,6 +211,50 @@ def test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,mon
     out = lane.refill(tmp_path,issues=issues,dispatch=dispatch,effects=effects,cloud_reader=cloud)
     assert [r['status'] for r in out] == ['busy','busy']
     assert events == ['cloud','rook','finch']
+
+
+def test_one_refill_comment_hold_does_not_stall_the_other_dot(tmp_path,monkeypatch):
+    import dot_lane as lane
+    test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,monkeypatch)
+    ledger = tmp_path/'reports/ops/dot-refill/CLAIMS.json'
+    claims = json.loads(ledger.read_text())
+    claims['two']['status'] = 'dispatched'
+    ledger.write_text(json.dumps(claims))
+    def effects(kind,*args):
+        assert kind == 'linear_reconcile'
+        raise ValueError('uncertain_linear_effect_absent_coordinator_reconcile_required')
+    issues = [dict(identifier='GLP-253',state={'type':'started'}),dict(identifier='GLP-328',state={'type':'started'})]
+    out = lane.refill(tmp_path,issues=issues,effects=effects,cloud_reader=lambda root:[])
+    assert [r['status'] for r in out] == ['busy','awaiting_coordinator_refill_comment']
+
+
+def test_backlogged_reply_is_handed_to_coordinator_without_role_escalation(tmp_path):
+    import dot_lane as lane
+    import dot_dispatch as d
+    test_ingestion_writes_coordinator_receipt_and_is_idempotent(tmp_path)
+    directory = tmp_path/'reports/ops/dot-tickets/rook-glp-354-test'
+    completion = json.loads((directory/'COMPLETION.json').read_text())
+    completion['results'][0]['author_id'] = d.DOTS['rook']['user']
+    (directory/'COMPLETION.json').write_text(json.dumps(completion))
+    target = tmp_path/'reports/ops/fleet-ingest/rook-glp-354-test.json'
+    receipt = json.loads(target.read_text())
+    receipt['effects'] = {}
+    target.write_text(json.dumps(receipt))
+    class LinearError(Exception):
+        pass
+    events = []
+    def effects(kind,issue,body,marker):
+        events.append(kind)
+        if kind == 'linear':
+            raise LinearError('Fleet target must be an admitted active GLP issue')
+        if kind == 'linear_reconcile':
+            raise ValueError('uncertain_linear_effect_absent_coordinator_reconcile_required')
+        return {'id':'notification'}
+    lane.ingest(tmp_path,since=0,effects=effects)
+    assert json.loads(target.read_text())['status'] == 'awaiting_coordinator_comment'
+    assert events == ['linear','discord']
+    lane.ingest(tmp_path,since=0,effects=effects)
+    assert events == ['linear','discord','linear_reconcile']
 
 
 def test_uncertain_ingest_queries_but_does_not_repeat_external_write(tmp_path):
