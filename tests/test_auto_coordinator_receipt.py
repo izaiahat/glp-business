@@ -271,6 +271,49 @@ def test_historical_done_stdout_and_noop_not_authenticated_closure(tmp_path):
         authenticate_first()
 
 
+def replace_worker_output(root, paths, args, value):
+    """Rebind the full offline native trace so only observation semantics differ."""
+    decision = m.load(paths[1] / 'DECISION.json')
+    rec = decision['reconciliation'][0]
+    result_path = root / rec['readback_path']
+    result = m.load(result_path)
+    output_path = root / result['output_receipt']['path']
+    output = m.load(output_path)
+    output['output'] = value
+    put(output_path, output)
+    result['output_receipt']['sha256'] = m.sha(output_path.read_bytes())
+    put(result_path, result)
+    ref = next(r for r in decision['readbacks'] if r['path'] == rec['readback_path'])
+    ref['sha256'] = m.sha(result_path.read_bytes())
+    put(paths[1] / 'DECISION.json', decision)
+    with sqlite3.connect(args.state_db) as db:
+        db.execute('UPDATE messages SET content=? WHERE id=32', (rec['readback_path'] + ' ' + ref['sha256'],))
+        text = '\n'.join(r['path'] + ' ' + r['sha256'] for r in decision['readbacks'])
+        db.execute('UPDATE messages SET content=? WHERE id=12', (json.dumps({'exit_code': 0, 'output': text}),))
+
+
+@pytest.mark.parametrize('output', [
+    {'receipt_id': {}}, {'observations': []}, {'status': 'FAILED'},
+    {'status': 'PASS'}, {'published_row_count': True},
+    {'observations': [{'receipt_id': {}, 'status': 'FAILED'}]},
+    {'receipt_id': '  '}, {'observations': [None, False, 0]},
+])
+def test_empty_or_status_only_worker_output_is_refused(tmp_path, output):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    assert m.verify(args)['status'] == 'PASS'
+    replace_worker_output(tmp_path, paths, args, output)
+    with pytest.raises(ValueError, match='not a concrete bound observation'):
+        m.verify(args)
+
+
+def test_one_published_row_is_a_concrete_worker_output(tmp_path):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    replace_worker_output(tmp_path, paths, args, {'published_row_count': 1})
+    assert m.verify(args) == {'status': 'PASS', 'natural_actions': 1, 'second_run_repeated_effects': 0, 'writes': 0}
+
+
 def test_runner_deferral_preserves_receipt_boundary(monkeypatch):
     import auto_coordinator_runner as runner
     monkeypatch.setattr(runner.guard, 'inspect', lambda: {'status': 'DEFERRED_TUI_CHILDREN'})

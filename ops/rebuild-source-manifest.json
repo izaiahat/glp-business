@@ -7,14 +7,14 @@
         "scripts/auto_coordinator_runner.py",
         "manual:GLP-358 read-only verifier"
       ],
-      "sha256": "3a124cb5e1deffde51eebb3b812eab86d4195c40f02de27e8c26a713f12a6135"
+      "sha256": "27283fb38b9853918cb03694c7477571839927751094a49880b6ec916abaae21"
     },
     "tests/test_auto_coordinator_receipt.py": {
       "kind": "test",
       "callers": [
         "coordinator-receipt-ci"
       ],
-      "sha256": "bcfcc607cd549b386c750ed825303fadf92da1307604d2f8ed400b0d041cfdba"
+      "sha256": "554b2f5aec61f8a7360b9b4946168186926d8d699011f6728849e47b494a181c"
     },
     ".github/workflows/coordinator-receipt-ci.yml": {
       "kind": "repository_control",

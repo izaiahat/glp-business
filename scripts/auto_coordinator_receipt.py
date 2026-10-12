@@ -8,6 +8,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import math
 import os
 import shlex
 from pathlib import Path
@@ -182,6 +183,23 @@ def closer_call(native, session, message, issue, worker, flag):
     return invoked
 
 
+def meaningful_business_output(value):
+    """Require a typed observation, not container presence or execution status."""
+    if isinstance(value, dict):
+        metadata = {'status', 'state', 'success', 'ok', 'exit_code', 'rc', 'http_status', 'status_code'}
+        return any(isinstance(k, str) and k.strip() and k.strip().lower() not in metadata and
+                   meaningful_business_output(v) for k, v in value.items())
+    if isinstance(value, list):
+        return any(meaningful_business_output(v) for v in value)
+    # bool is an int subclass, but it is not a business count.
+    if type(value) in (int, float):
+        return value != 0 and (type(value) is int or math.isfinite(value))
+    if isinstance(value, str):
+        return bool(value.strip()) and value.strip().lower() not in {
+            'ok', 'pass', '200', 'failed', 'failure', 'success', 'true', 'false'}
+    return False
+
+
 def authenticate(root, directory, executions, native, output_root):
     inp, decision = validate(root, directory)
     execution = executions.execute('SELECT * FROM executions WHERE id=?', (decision['execution_id'],)).fetchone()
@@ -221,7 +239,7 @@ def authenticate(root, directory, executions, native, output_root):
             observed = load(root / output['path'])
             require(observed.get('issue') == result['issue'] and observed.get('logical_key') == rec['logical_key'] and
                     isinstance(observed.get('output'), dict) and observed['output'] and
-                    any(v not in (None, '', 'ok', 'PASS', '200', 0, True) for v in observed['output'].values()),
+                    meaningful_business_output(observed['output']),
                     'accepted worker output is not a concrete bound observation')
         else:
             require(load(root / rec['readback_path'])['state']['type'] == 'completed', 'prior Done no longer observed')
