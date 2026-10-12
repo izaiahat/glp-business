@@ -104,7 +104,9 @@ def test_editorial_only_contract_never_grants_tracking(tmp_path):
  assert r['affiliate_relationship_snapshot']['promotion_denied'] is True
  surfaces=r['profiles']['glp-clinic-scout']['surfaces']
  assert surfaces['review'] is True and surfaces['sitemap'] is True
- assert all(surfaces[k] is False for k in ['compare','quiz','calculator','go','guides'])
+ assert all(surfaces[k] is False for k in ['compare','quiz','calculator','go'])
+ assert set(surfaces)=={'review','sitemap','compare','quiz','calculator','go'}
+ assert all(r['profiles']['glp-clinic-scout']['exceptions'][k]['enabled'] is True for k in ['compare','quiz','calculator','go'])
  with pytest.raises(RuntimeError):b.build_contract(spec,research,'https://tracker.example/',logo,'803003')
  with pytest.raises(RuntimeError):b.editorial_hold_reason({**spec,'editorial_hold':False})
 

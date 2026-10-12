@@ -105,7 +105,7 @@ declare -A b2_pins=(
   ['/home/ubuntu/business/scripts/glp_price_index_source_rebind.mjs']='5342eabc650b351b5d3c7a2dd1329cf013a7445dbc30260f5240f6606cae021c'
   ['/home/ubuntu/business/scripts/glp_provider_dynamic_profile_activation.mjs']='598a7d4c9b1a261471569e9c69df6ae45d6fb6572807f801ccd958f6f0acd5a0'
   ['/home/ubuntu/business/scripts/glp_go_runtime_manifest_refresh.mjs']='a2309d7e02b80f204b40011f0009cb7fcabaf046903dd09cfab085ccecd45e1e'
-  ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='6156624b05f114875a099b3a3adfb48bf7cda4b472eab6c562577341f796f79b'
+  ['/home/ubuntu/business/scripts/build_glp_affiliate_wirein_incremental_v2.py']='c5cef691ddaf5d5e80a9337ed2181a68b430e0808301707847d3efe98dc6b506'
   ['/home/ubuntu/business/scripts/glp_review_editorial_projection.py']='113ff2f339be09305a80d3e963e6f1f4395bf18218dec975f344ccd916ec72c8'
 )
 for b2_path in "${!b2_pins[@]}"; do

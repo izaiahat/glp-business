@@ -1317,12 +1317,14 @@ def build_registry_entry(spec: dict) -> dict:
     if hold:
         entry['go']['entry_state'] = 'held'
         entry['profiles']['glp-clinic-scout']['surface_membership'] = 'review_only'
-        for surface in ('compare', 'quiz', 'calculator', 'go', 'guides'):
+        # Register only native surfaces. Editorial-only membership also keeps
+        # recommendation/guide projections out; an invented `guides` surface
+        # cannot carry a valid native exception and breaks the coverage contract.
+        for surface in ('compare', 'quiz', 'calculator', 'go'):
             entry['profiles']['glp-clinic-scout']['surfaces'][surface] = False
-            if surface != 'guides':
-                entry['profiles']['glp-clinic-scout']['exceptions'][surface] = {
-                    'enabled': True, 'reason': hold,
-                    'surface_restriction_basis': 'editorial_only_hold'}
+            entry['profiles']['glp-clinic-scout']['exceptions'][surface] = {
+                'enabled': True, 'reason': hold,
+                'surface_restriction_basis': 'editorial_only_hold'}
         entry['affiliate_relationship_snapshot'] = {
             'promotion_denied': True, 'reason': hold,
             'source_kind': 'explicit_editorial_only_source_authority'}
