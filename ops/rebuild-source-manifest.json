@@ -103,7 +103,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e66fefaa5bedeece01d7f27ec8b61ae67209f049c762c0c468bbc6bbca3222cb"
+      "sha256": "07ccb955853eb86494f7d043aadc6760b67d21dae5ee1b4e858cbcfd0e1907ef"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -3350,7 +3350,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "6110828d9f831578a50f829e5b355dd4109ea033af3a395bf43796ba5a29d13b"
+      "sha256": "fa3a6b14d59a1aebf5a92d1b141af529be37b758cc218c9713c915af312c0433"
     },
     "scripts/host_disk_cleanup_large_unit.py": {
       "callers": [
@@ -3364,7 +3364,7 @@
         "scripts/host_disk_large_sweep.py"
       ],
       "kind": "script",
-      "sha256": "c6b876b76788b187a3b910ed596cfa4949cefc118d9f6285837d159db9f495ba"
+      "sha256": "ed31c8b3c38dd8e485a035e67396fb5c4ff8522504b831d7c245406c42d52f87"
     },
     "scripts/host_disk_large_classes.py": {
       "callers": [
@@ -3378,7 +3378,7 @@
         "scripts/host_disk_cleanup_large_unit.py"
       ],
       "kind": "script",
-      "sha256": "7e4f8ba605a16a84e968db6c78166a5893d19816766de37eacc9bc0f6f6ed9a8"
+      "sha256": "f044042fe2d43c6e9eb4ca31179f436706760e2da5b61b62d50b67568f214b41"
     },
     "scripts/host_disk_payload_guard.py": {
       "callers": [
@@ -6264,7 +6264,7 @@
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "9f6edbc128c79fa10a63f9b9c8834c450b3426b2e41b415bb109f7f5b555fa82"
+      "sha256": "f0897b0e1c3c4b288b46a7310ef0e1afb644ef3c1653b562d7b3bec6e4b266c5"
     },
     "tests/test_host_disk_large_guards.py": {
       "callers": [
@@ -7022,6 +7022,20 @@
       ],
       "kind": "test",
       "sha256": "9f6a40a7430f9f553a53a5e990511c122aea62719deabc7f984f93df74f78015"
+    },
+    "scripts/host_disk_r2.py": {
+      "callers": [
+        "host-disk cleanup / business-source-ci"
+      ],
+      "kind": "script",
+      "sha256": "e1aa965929fba02ae1121d94a5078989d1d02a885e9eeeb029c8decd0a44bc7e"
+    },
+    "tests/test_host_disk_r2.py": {
+      "callers": [
+        "host-disk cleanup / business-source-ci"
+      ],
+      "kind": "test",
+      "sha256": "25e777ff155ebc29ce67169b95ed0d2fe000593360997376de7b434a6c12fa7f"
     }
   },
   "omitted_runtime_inputs": [
@@ -7032,5 +7046,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1034
+  "tracked_count": 1036
 }

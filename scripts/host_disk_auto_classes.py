@@ -245,7 +245,7 @@ def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, 
     return rows
 
 
-def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE, min_bytes=128 * 1024 ** 2):
+def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE, min_bytes=128 * 1024 ** 2, archive_destination=None):
     """Old (>7d) site candidates/releases/work -> verified tar.zst, then retire members.
 
     Reuses cold_archive (exact member set + SHA256 re-verified from the archive,
@@ -265,13 +265,17 @@ def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE
                 continue
             if max(p.lstat().st_mtime, p.lstat().st_ctime) > time.time() - 7 * 86400:
                 continue
-            dest = Path(report) / 'archives' / f'site-{kind}-{p.name}.tar.zst'
-            try:
-                rows.append(m.cold_archive(api, p, dest, pins=pins, dry_run=dry_run, deadline=deadline,
-                                           min_bytes=min_bytes, reserve_bytes=1024 ** 3))
-            except Exception as e:
-                rows.append({'rule': 'cold_evidence_archive', 'path': str(p), 'archive': str(dest),
-                             'status': 'ERROR_PRESERVED_OR_PARTIAL', 'reason': str(e), 'bytes_freed': 0, 'ok': False})
+            phases=[(30,archive_destination),(7,None)] if archive_destination is not None else [(7,None)]
+            for days,destination in phases:
+                dest = Path(report) / 'archives' / f'site-{kind}-{p.name}-{days}d.tar.zst'
+                try:
+                    rows.append(m.cold_archive(api,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
+                        cold_days=days,archive_destination=destination,
+                        min_bytes=min(min_bytes,1024**2) if days==30 else min_bytes,
+                        min_net_bytes=1024**2 if archive_destination is not None else None,reserve_bytes=1024**3))
+                except Exception as e:
+                    rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
+                        'status':'ERROR_PRESERVED_OR_PARTIAL','reason':str(e),'bytes_freed':0,'ok':False})
     return rows
 
 

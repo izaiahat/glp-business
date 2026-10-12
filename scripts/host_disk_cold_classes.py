@@ -8,6 +8,7 @@ not shared with writable source inodes. Fail closed on every process/identity ga
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import stat
 import subprocess
@@ -78,7 +79,7 @@ def protected(p, pins=()):
     referenced=any(str(a) in pinset for a in [p,*p.parents])
     return (referenced or p.name.endswith('.tar.zst.partial') or
             p.suffix.lower() in {'.db','.sqlite','.sqlite3','.duckdb','.db-wal','.db-shm','.db-journal','.sqlite-wal','.sqlite-shm','.sqlite-journal','.sqlite3-wal','.sqlite3-shm','.zst','.tar','.tgz','.gz'} or
-            any(n in PROTECTED or n.startswith(('.env','tmux-','.org.chromium.',
+            any(re.search(r'(^|[^a-z0-9])r8([^a-z0-9]|$)',n.lower()) or n in PROTECTED or n.startswith(('.env','tmux-','.org.chromium.',
                 'browser-profile','chrome-profile','chromium-profile','sealed','seal-'))
                 or any(t in n.lower() for t in ('backup','recovery','credential','secret','reconciliation','payout',
                     'invoice','ledger','revenue','transaction','stripe','financial'))
@@ -343,9 +344,11 @@ def cleanup_abandoned_archives(api, prune_root, *, source_roots, dry_run, deadli
     return result
 
 
-def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None):
+def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=7,min_bytes=0,reserve_bytes=0,min_net_bytes=None,archive_destination=None,max_archive_input_bytes=None):
     """Compress explicit cold members, preserve protected leaves and directory skeletons."""
     root=Path(root); dest=Path(destination); pins=custody_pins(pins)
+    if archive_destination is not None and cold_days<30:
+        raise ValueError('remote archive requires 30d cold scope')
     row={'rule':'cold_evidence_archive','path':str(root),'bytes_freed':0}
     if root.is_symlink() or root.resolve()!=root.absolute() or protected(root,pins):
         return dict(row,status='REFUSED',reason='scope/protection')
@@ -360,8 +363,23 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
     retained_shared=[r for r in rows if links[tuple(r['signature'][:2])]<r['signature'][6]]
     skipped.extend(str(root/r['name']) for r in retained_shared)
     rows=[r for r in rows if links[tuple(r['signature'][:2])]>=r['signature'][6]]
+    if max_archive_input_bytes is not None:
+        row['eligible_bytes_total']=amount
+        groups={}
+        for r in rows:groups.setdefault(tuple(r['signature'][:2]),[]).append(r)
+        selected=[];deferred=[];used=0
+        for group in sorted(groups.values(),key=lambda group:min(r['name'] for r in group)):
+            cost=sum(r['signature'][3]+65536 for r in group)
+            if used+cost>max_archive_input_bytes:deferred.extend(group)
+            else:selected.extend(group);used+=cost
+        rows=selected
+        skipped.extend(str(root/r['name']) for r in deferred)
+        row['deferred_for_headroom_members']=len(deferred)
+        selected_keys={tuple(r['signature'][:2]) for r in rows}
+        amount=sum(blocks[key]['allocated_bytes'] for key in selected_keys)
     row.update(eligible_bytes=amount,members=len(rows),protected_or_young=len(skipped))
-    if dry_run or not rows: return dict(row,status='ELIGIBLE' if rows else 'EMPTY')
+    if not rows:return dict(row,status='INSUFFICIENT_HEADROOM' if row.get('deferred_for_headroom_members') else 'EMPTY')
+    if dry_run:return dict(row,status='ELIGIBLE')
     if amount<min_bytes:return dict(row,status='BELOW_RECLAIM_FLOOR')
     if reserve_bytes:
         fs=os.statvfs(root)
@@ -411,7 +429,8 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
                 if not proc.stdin.closed: proc.stdin.close()
                 proc.wait()
         net_floor=min_bytes if min_net_bytes is None else min_net_bytes
-        if net_floor and amount-(tmp.stat().st_blocks*512+manifest.stat().st_blocks*512+len(rows)*2048)<net_floor:
+        local_net=amount-(tmp.stat().st_blocks*512+manifest.stat().st_blocks*512+len(rows)*2048)
+        if net_floor and local_net<net_floor and archive_destination is None:
             return dict(row,status='GATED_NO_NET_SAVINGS',bytes_freed=0)
         with listing.open('x') as f:
             owned[listing]=signature(listing)
@@ -427,11 +446,51 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
         with verified.open('x') as f:
             owned[verified]=signature(verified)
             json.dump(verify,f);f.flush();os.fsync(f.fileno())
-        os.replace(tmp,dest);owned[dest]=owned.pop(tmp)
+        os.replace(tmp,dest);owned.pop(tmp);owned[dest]=signature(dest)
         fd=os.open(dest.parent,os.O_RDONLY|os.O_DIRECTORY)
         try:os.fsync(fd)
         finally:os.close(fd)
+        remote=None
+        if archive_destination is not None:
+            try:
+                receipt=archive_destination.store(dest,manifest,deadline)
+                if receipt.get('verified') is not True or receipt.get('private') is not True:
+                    raise ValueError('unverified remote destination')
+                if len(receipt.get('objects',[]))!=2 or any(r.get('verified') is not True for r in receipt['objects']):
+                    raise ValueError('remote object readback proof missing')
+                expected={'archive':(archive_sha,dest.stat().st_size),'manifest':(verify['manifest_sha256'],manifest.stat().st_size)}
+                objects={r['role']:r for r in receipt['objects']}
+                if set(objects)!=set(expected) or any((objects[k]['sha256'],objects[k]['bytes'])!=v for k,v in expected.items()):
+                    raise ValueError('remote archive/manifest binding mismatch')
+                remote=receipt
+            except Exception as exc:
+                row['remote_fallback']={'error_type':type(exc).__name__,'local_verified':True}
+            if sha(dest)!=archive_sha or sha(manifest)!=verify['manifest_sha256']:
+                raise ValueError('archive/manifest drift after remote attempt')
+            # Upload/readback can take minutes: refresh every source/reference gate.
+            fresh_pins=custody_pins(pins)
+            scopes={root}
+            for member in rows:
+                scopes.update(p for p in (root/member['name']).parents if p==root or root in p.parents)
+            if any(p.is_symlink() or p.resolve()!=p.absolute() for p in scopes):
+                raise ValueError('source symlink/scope drift after upload')
+            if any(protected(root/r['name'],fresh_pins) for r in rows):
+                raise ValueError('new custody after remote attempt')
+            if not inactive(api,root) or dirty_worktree(root):
+                raise ValueError('new active/dirty after remote attempt')
+            if any(signature(root/r['name'])!=r['signature'] for r in rows):
+                raise ValueError('source drift after remote attempt')
+            if remote:
+                verify['remote']=remote
+                write_json(verified,verify)
+                owned[verified]=signature(verified)
+        if remote and net_floor:
+            controls=sum(p.stat().st_blocks*512 for p in (manifest,listing,verified))+len(rows)*2048
+            if amount-controls<net_floor:
+                return dict(row,status='GATED_NO_NET_SAVINGS',bytes_freed=0,remote=remote)
         freed=0; own_unlinks={}
+        if not remote and net_floor and local_net<net_floor:
+            return dict(row,status='GATED_NO_NET_SAVINGS',bytes_freed=0)
         if time.monotonic()>deadline: raise TimeoutError('pre-retirement deadline')
         with ledger.open('x') as f:
             for r in rows:
@@ -446,8 +505,13 @@ def cold_archive(api,root,destination,*,pins=(),dry_run=True,deadline,cold_days=
                 n=r['allocated_bytes'] if current[6]==1 else 0; freed+=n
                 f.write(json.dumps({'source':str(p),'member':r['name'],'sha256':r['sha256'],'freed_bytes':n})+'\n')
                 f.flush();os.fsync(f.fileno())
-        overhead=sum(x.stat().st_blocks*512 for x in [dest,manifest,listing,ledger,verified])
-        row.update(status='ARCHIVED_VERIFIED_RETIRED',gross_bytes_freed=freed,overhead_bytes=overhead,
+        if remote:
+            fresh=custody_pins(())
+            held=(signature(dest)!=owned[dest] or any(dest==q or q in dest.parents for q in fresh) or not inactive(api,dest))
+            if not held:dest.unlink()
+            row.update(rule='cold_evidence_r2_archive',remote=remote,local_archive_retained=held)
+        overhead=sum(x.stat().st_blocks*512 for x in [dest,manifest,listing,ledger,verified] if x.exists())
+        row.update(status=(('ARCHIVED_R2_VERIFIED_RETIRED_LOCAL_HELD' if row.get('local_archive_retained') else 'ARCHIVED_R2_VERIFIED_RETIRED') if remote else 'ARCHIVED_VERIFIED_RETIRED'),gross_bytes_freed=freed,overhead_bytes=overhead,
                    bytes_freed=freed-overhead,archive=str(dest),manifest=str(manifest),**verify)
         committed=True
         return row

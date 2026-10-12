@@ -351,6 +351,18 @@ def test_pressure_enrolls_cold_publisher_reports_without_enrolling_live_pins(tmp
     assert set(sweep.cold_report_roots((live,), pressure=True)) == {old, cold}
 
 
+def test_report_ranking_does_not_silently_drop_large_slow_roots(tmp_path,monkeypatch):
+    import host_disk_large_sweep as sweep
+    from types import SimpleNamespace
+    monkeypatch.setattr(sweep.time,'monotonic',lambda:100)
+    def du(*args,**kwargs):
+        assert kwargs['timeout']>=30
+        return SimpleNamespace(returncode=0,stdout='50000000000 root\n',stderr='')
+    monkeypatch.setattr(sweep.subprocess,'run',du)
+    ranking,refusals=sweep.rank_reports([tmp_path],400)
+    assert ranking==[(50000000000,tmp_path)] and refusals==[]
+
+
 def test_release_toolchains_are_protected_roots():
     import host_disk_cold_classes as cold
     root = Path('/home/ubuntu/business/site-system/toolchains/wrangler-4.114.0-r13')

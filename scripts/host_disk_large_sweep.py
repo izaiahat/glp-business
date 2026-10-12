@@ -98,6 +98,25 @@ def auto_classes(guarded,report,pins,external,*,dry_run,deadline):
     return pins,rows
 
 
+def rank_reports(roots,deadline):
+    """Large trees can take >10s to stat; record failures, never silently drop."""
+    ranking=[];refusals=[]
+    for root in roots:
+        row={'rule':'cold_report_ranking','path':str(root),'bytes_freed':0}
+        remaining=deadline-time.monotonic()
+        if remaining<1:
+            refusals.append(dict(row,status='INCOMPLETE',reason='budget'))
+            continue
+        try:
+            result=subprocess.run(['du','-x','-B1','-s',str(root)],capture_output=True,text=True,
+                                  timeout=min(120,remaining))
+            if result.returncode!=0:raise ValueError('du incomplete')
+            ranking.append((int(result.stdout.split()[0]),root))
+        except (OSError,ValueError,IndexError,subprocess.TimeoutExpired) as error:
+            refusals.append(dict(row,status='INCOMPLETE',reason=type(error).__name__))
+    return sorted(ranking,reverse=True),refusals
+
+
 def cold_report_roots(pins, *, pressure):
     """Enroll publisher evidence under pressure, retaining all member/live gates.
 
@@ -127,7 +146,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     deadline=time.monotonic()+budget
     d=os.statvfs('/');before=d.f_bavail*d.f_frsize
     pressure=before/(d.f_blocks*d.f_frsize)<0.15
-    rows=[];pins=references(report)
+    rows=[];pins=references(report);r2info=None
     from host_disk_reference_guard import ReferenceGuardAPI
     reference_data=json.loads((report/'references.json').read_text())
     guarded=ReferenceGuardAPI(api,reference_data['reference_source_identity'])
@@ -136,7 +155,7 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
         m.write_json(report/'large-classes.json',{'stage':stage,'pressure_trigger':pressure,
             'threshold_free_fraction':0.15,'before_free_bytes':before,
             'after_free_bytes':d.f_bavail*d.f_frsize,'df_delta_bytes':d.f_bavail*d.f_frsize-before,
-            'rows':rows,'reference_veto_source':guarded.last_reference_veto,
+            'rows':rows,'r2':r2info,'reference_veto_source':guarded.last_reference_veto,
             'attributable_bytes_freed':sum(r.get('bytes_freed',0) for r in rows)})
     external_ok=not external_pins
     if external_pins:
@@ -163,27 +182,50 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     rows.extend(m.idle_scratch(guarded,targets,pins=pins,dry_run=dry_run,deadline=deadline))
     save('cold_evidence')
     roots=cold_report_roots(pins,pressure=pressure)
-    estimates=[]
-    for root in roots:
-        if time.monotonic()>deadline:break
+    estimates,ranking_refusals=rank_reports(roots,deadline)
+    rows.extend(ranking_refusals)
+    class Unavailable:
+        def store(self,*args):raise RuntimeError('R2 destination unavailable')
+    remote=Unavailable();r2info={'bucket':'glp-cold-evidence','status':'DRY_RUN_NO_CONTACT'}
+    if external_ok and not dry_run:
         try:
-            r=subprocess.run(['du','-x','-B1','-s',str(root)],capture_output=True,text=True,timeout=5)
-            if r.returncode==0:estimates.append((int(r.stdout.split()[0]),root))
-        except (ValueError,subprocess.TimeoutExpired):continue
-    for amount,p in sorted(estimates,reverse=True):
-        if not external_ok:break  # PR/Linear/release references unknown: no new archives
-        if amount<250_000_000 or time.monotonic()+60>deadline:continue
+            from host_disk_r2 import Destination
+            remote=Destination.from_environment()
+            r2info['status']='CONFIGURED_PRIVATE'
+        except Exception as error:
+            r2info.update(status='UNAVAILABLE_LOCAL_FALLBACK',error_type=type(error).__name__)
+
+    if external_ok and time.monotonic()<deadline:
+        from host_disk_r2 import migrate_archives
+        save('r2_existing_archives')
+        rows.extend(migrate_archives(guarded,m,BUS/'reports/host-disk-prune',remote,
+                    pins=pins,deadline=deadline,dry_run=dry_run))
+    for amount,p in estimates:
+        if not external_ok:break
+        if amount<1024**2 or time.monotonic()+60>deadline:continue
         name=p.relative_to(BUS/'reports').as_posix().replace('/','--')
-        dest=report/'archives'/(name+'.tar.zst')
-        try:
-            rows.append(m.cold_archive(guarded,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
-                min_bytes=128*1024**2,min_net_bytes=1024**2 if pressure else None,reserve_bytes=1024**3))
-        except Exception as e:
-            effect,gross=partial_archive_effect(dest)
-            rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
-                'status':'ERROR_PRESERVED_OR_PARTIAL','reason':str(e),'bytes_freed':effect,
-                'gross_bytes_freed':gross,'ok':False})
-        save('cold_evidence')
+        for cold_days,destination in [(30,remote),(7,None)]:
+            index=0
+            while time.monotonic()+60<deadline:
+                index+=1
+                dest=report/'archives'/(name+f'-{cold_days}d-{index}.tar.zst')
+                fs=os.statvfs(p);available=fs.f_bavail*fs.f_frsize
+                cap=min(8*1024**3,max(0,available-1024**3))
+                try:
+                    result=m.cold_archive(guarded,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
+                        cold_days=cold_days,archive_destination=destination,max_archive_input_bytes=cap,
+                        min_bytes=1024**2 if cold_days==30 else 128*1024**2,
+                        min_net_bytes=1024**2 if pressure or cold_days==30 else None,reserve_bytes=1024**3)
+                    rows.append(result)
+                except Exception as error:
+                    effect,gross=partial_archive_effect(dest)
+                    rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
+                        'status':'ERROR_PRESERVED_OR_PARTIAL','reason':str(error),'bytes_freed':effect,
+                        'gross_bytes_freed':gross,'ok':False})
+                    break
+                save('cold_evidence')
+                if dry_run or result.get('gross_bytes_freed',0)<=0 or not result.get('deferred_for_headroom_members'):break
+
     duplicate_targets=[]
     for _,root in sorted(estimates,reverse=True)[:10]:
         if time.monotonic()>deadline:break
@@ -197,7 +239,10 @@ def run(report,*,dry_run=False,budget=1800,external_pins=None):
     if external_pins and external_ok and time.monotonic()<deadline:
         import host_disk_auto_classes as auto
         save('site_cold_archive')
-        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=deadline,dry_run=dry_run))
+        rows.extend(auto.site_cold_archive(guarded,m,report,pins=pins,deadline=deadline,dry_run=dry_run,archive_destination=remote))
+    if external_ok and not dry_run and hasattr(remote,'summary'):
+        try:r2info=remote.summary()
+        except Exception as error:r2info.update(status='OBJECT_COUNTS_UNKNOWN',error_type=type(error).__name__)
     save('complete');return rows
 
 if __name__=='__main__':
