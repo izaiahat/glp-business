@@ -484,17 +484,24 @@ def mail_admit(recipient,previous,client):
   else:raise RuntimeError('mail_coverage_incomplete')
  return True,''
 
-def send_message(client,preview,previous,attachments):
- """Use existing partner-mail client and verified alias, with attachment readback."""
- require_sponsor_send_window()
+def prepare_message(client,preview,previous,attachments,*,at=None):
+ """Shared alias, style, MIME and attachment admission; no send effect."""
+ require_sponsor_send_window(at)
  import glp_application_email_apply as partner
+ from inbox_control_plane.outbound_style_guard import assert_dash_free
+ assert_dash_free(preview['subject']+'\n'+preview['body'])
  partner.require_alias(client)
  message=EmailMessage();message['From']=f'GLP Clinic Scout <{SENDER}>';message['Reply-To']=SENDER;message['To']=preview['to'];message['Subject']=preview['subject'];message['List-Unsubscribe']=f'<mailto:{SENDER}?subject=STOP>'
  if previous.get('sent'):
   initial=previous['sent'][0];message['In-Reply-To']=initial['rfc_message_id'];message['References']=initial['rfc_message_id']
  message.set_content(preview['body'])
  for p in attachments:message.add_attachment(p.read_bytes(),maintype='application',subtype='pdf',filename=p.name)
- raw=base64.urlsafe_b64encode(message.as_bytes()).decode()
+ return base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+
+def send_message(client,preview,previous,attachments):
+ """Use existing partner-mail client and verified alias, with attachment readback."""
+ raw=prepare_message(client,preview,previous,attachments)
  require_sponsor_send_window()  # Alias/authentication/attachments may cross 17:00.
  if previous.get('sent'):
   # Thread binding uses the same authorized client, with its dash check above.
@@ -635,13 +642,15 @@ def consume_reply_stops(ledger,db=None,at=None):
       entry.update(stopped=stop['kind'],stop_event_id=stop['event_id'],reply_state=stop)
       result['applied']+=1
    try:
-    cursors=connection.execute("SELECT m.mailbox_id,m.lifecycle,m.freshness_sla_seconds,c.last_auth_success_at,c.last_read_success_at,c.last_complete_poll_at,c.unhealthy_reason,c.poll_receipt_id,r.finished_at,r.exit_status,r.discovered_count,r.persisted_count,r.duplicate_count FROM mailboxes m JOIN provider_cursors c USING(mailbox_id) JOIN inbox_runs r ON r.run_id=c.poll_receipt_id WHERE m.mailbox_id IN ('glp_ops_gmail','glp_izaiah_gmail')").fetchall()
+    run_columns={row[1] for row in connection.execute('PRAGMA table_info(inbox_runs)')}
+    skipped='r.non_inbound_count' if 'non_inbound_count' in run_columns else '0'
+    cursors=connection.execute("SELECT m.mailbox_id,m.lifecycle,m.freshness_sla_seconds,c.last_auth_success_at,c.last_read_success_at,c.last_complete_poll_at,c.unhealthy_reason,c.poll_receipt_id,r.finished_at,r.exit_status,r.discovered_count,r.persisted_count,r.duplicate_count,"+skipped+" FROM mailboxes m JOIN provider_cursors c USING(mailbox_id) JOIN inbox_runs r ON r.run_id=c.poll_receipt_id WHERE m.mailbox_id IN ('glp_ops_gmail','glp_izaiah_gmail')").fetchall()
     if {r[0] for r in cursors}!={'glp_ops_gmail','glp_izaiah_gmail'}:return result
-    # Current canonical adapter uses last_complete_poll_at as its watermark;
-    # its cursor column is not populated. Backlog_count counts discovered mail,
-    # so verify the finished run's persisted+duplicate closure instead.
-    for box,lifecycle,sla,auth,read,complete,unhealthy,receipt,finished,status,found,persisted,duplicates in cursors:
-     if lifecycle!='active' or not receipt or status!='pass' or not finished or unhealthy or found!=persisted+duplicates:return result
+    # Closure includes only provider-labelled non-inbound drafts/sent copies,
+    # not unknown ingestion refusals or deferred unseen messages.
+    for box,lifecycle,sla,auth,read,complete,unhealthy,receipt,finished,status,found,persisted,duplicates,non_inbound in cursors:
+     if (lifecycle!='active' or not receipt or status!='pass' or not finished or unhealthy
+         or non_inbound<0 or found!=persisted+duplicates+non_inbound):return result
      for timestamp in (auth,read,complete,finished):
       age=at-dt.datetime.fromisoformat(timestamp)
       if not dt.timedelta(0)<=age<=dt.timedelta(seconds=min(int(sla),900)):return result
@@ -655,7 +664,7 @@ def consume_reply_stops(ledger,db=None,at=None):
 
 from contextlib import contextmanager
 @contextmanager
-def canonical_send_boundary(ledger,at,required):
+def canonical_send_boundary(ledger,at,required,*,persist_stops=True):
  """Serialize canonical stop commits with the durable claim and send receipt."""
  if not required:
   yield
@@ -666,7 +675,7 @@ def canonical_send_boundary(ledger,at,required):
   with db:
    db.execute('BEGIN IMMEDIATE')
    readiness=consume_reply_stops(ledger,db=db,at=at)
-   if readiness['applied']:save(STATE/'ledger.json',ledger)
+   if readiness['applied'] and persist_stops:save(STATE/'ledger.json',ledger)
    if readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
    yield
  finally:db.close()
@@ -789,17 +798,21 @@ def send_interested_next_steps(ledger,config,finance_hosts,capacity):
  return sent
 
 
-def run(config,dry_run=False):
+def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
+ if preflight_at is not None and not transport_preflight:raise ValueError('preflight_at_requires_transport_preflight')
+ if transport_preflight and dry_run:raise ValueError('choose_preview_or_transport_preflight')
  STATE.mkdir(parents=True,exist_ok=True)
  with (STATE/'run.lock').open('a') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   enabled=False if dry_run else approval_ready(config)
-  at=now();pt=at.astimezone(PT)
+  if transport_preflight and not enabled:raise RuntimeError('transport_preflight_approval_required')
+  at=preflight_at or now();pt=at.astimezone(PT)
   if enabled:require_sponsor_send_window(at)
+  would_send=0;admitted=[]
   values=read_values();discovery=load(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json');local=read_local()
   plan=recipients(values,discovery,local)
-  sourcing_readiness=refresh_apollo_sources(plan,at) if config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
-  if enabled:
+  sourcing_readiness=refresh_apollo_sources(plan,at) if not transport_preflight and config.get('apollo_read_only_discovery') is True else {'status':'not_requested','email_verification':'unknown','enrichment_debits':0}
+  if enabled and not transport_preflight:
    sourcing_readiness['professional']=refresh_professional_sources(plan,discovery,at,config)
    if sourcing_readiness['professional']['status']!='disabled_pending_approval':
     save(ROOT/'reports/ops/sponsor-machine-20261003/contact-discovery.private.json',discovery)
@@ -808,11 +821,11 @@ def run(config,dry_run=False):
   if not local['suppression']['complete']:raise RuntimeError('suppression_ledger_incomplete:'+','.join(local['faults']))
   ledger=load(STATE/'ledger.json') if (STATE/'ledger.json').exists() else {}
   reply_readiness=consume_reply_stops(ledger)
-  if reply_readiness['applied']:save(STATE/'ledger.json',ledger)
+  if reply_readiness['applied'] and not transport_preflight:save(STATE/'ledger.json',ledger)
   finance_hosts=invoice_provider_hosts(values,local) if reply_readiness['status']=='read_complete' else ()
   finance_hosts={host for host in finance_hosts if not any(same(host,row.get('host',email.split('@')[-1]))
                  and row.get('stopped') not in (None,'agreement_candidate') for email,row in ledger.items())}
-  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run,finance_hosts=finance_hosts,ledger=ledger)
+  payment_readiness=refresh_paypal_orders(config,at,dry_run=dry_run or transport_preflight,finance_hosts=finance_hosts,ledger=ledger)
   if enabled and config.get('require_canonical_reply_coverage') is True and reply_readiness['status']!='read_complete':raise RuntimeError('canonical_sponsor_reply_coverage_unknown')
   sent_today=sum(dt.datetime.fromisoformat(s['sent_at']).astimezone(PT).date()==pt.date() for entry in ledger.values() for s in entry.get('sent',[]))
   # An outstanding claim may already have delivered despite failed readback.
@@ -831,7 +844,7 @@ def run(config,dry_run=False):
    if claim and dt.datetime.fromisoformat(claim['at']).astimezone(PT).date()==pt.date():used[int(claim['stage']>0)]+=1
   remaining={0:max(0,int(config.get('new_provider_daily_cap',config.get('batch_cap',25)))-used[0]),1:max(0,int(config.get('follow_up_daily_cap',25))-used[1])}
   total_remaining=max(0,config.get('batch_cap',25)-sent_today)
-  next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled else 0
+  next_steps=send_interested_next_steps(ledger,config,invoice_provider_hosts(read_values(),read_local()),remaining[1]) if enabled and not transport_preflight else 0
   selected={0:0,1:0};sent_by_kind={0:0,1:next_steps};previews=[];sent_count=next_steps;read_client=None;boundary_exclusions=[]
   for recipient in plan['recipients']:
    stage=due(recipient,ledger,at)
@@ -842,7 +855,7 @@ def run(config,dry_run=False):
    kind=int(stage>0)
    if split:
     if (sent_by_kind[kind] if enabled else selected[kind])>=remaining[kind]:continue
-   elif (sent_count if enabled else len(previews))>=total_remaining:break
+   elif ((sent_count+would_send) if enabled else len(previews))>=total_remaining:break
    rendered=render(recipient,stage,config);previews.append(rendered);selected[kind]+=1
    if not enabled:continue
    # Old discovery is a census, not a perpetual permission. Reverify the exact
@@ -861,14 +874,17 @@ def run(config,dry_run=False):
    if read_client is None:read_client=service('read')
    previous=ledger.setdefault(recipient['email'],{})
    allowed,reason=mail_admit(recipient,previous,read_client)
-   if not allowed:previous['stopped']=reason;save(STATE/'ledger.json',ledger);continue
+   if not allowed:
+    previous['stopped']=reason
+    if not transport_preflight:save(STATE/'ledger.json',ledger)
+    continue
    # Re-read suppression immediately before effect, unioned with all own stops.
    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
-   send_client=service('send') # Complete potentially blocking authentication BEFORE the final claim gate.
-   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True):
+   send_client=service('read' if transport_preflight else 'send') # Preflight requests no send-capable authentication.
+   with canonical_send_boundary(ledger,now(),config.get('require_canonical_reply_coverage') is True,persist_stops=not transport_preflight):
     # Re-read the LAST shared-ledger decision after all contact/mail/auth work,
     # using effect-boundary time, not run-start time. This is a read, never a debit.
-    boundary_at=now();boundary_pt=boundary_at.astimezone(PT)
+    boundary_at=at if transport_preflight else now();boundary_pt=boundary_at.astimezone(PT)
     if boundary_pt.weekday()>=5 or not 6<=boundary_pt.hour<17:
      boundary_exclusions.append({'host':recipient['host'],'reason':'outside_approved_weekday_06_17_PT_send_window'});continue
     if config.get('require_bouncer') is True:
@@ -879,6 +895,15 @@ def run(config,dry_run=False):
      boundary_exclusions.append({'host':recipient['host'],'reason':'boundary_professional_contact_expired'});continue
     # Stops committed during contact/mail/suppression reads win before claim.
     if due(recipient,ledger,boundary_at)!=stage:continue
+    if not approval_ready(config):raise RuntimeError('sponsor_approval_changed_at_boundary')
+    if not any(r['email']==recipient['email'] for r in recipients(read_values(),discovery,read_local())['recipients']):continue
+    attachments=[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']]
+    require_sponsor_send_window(boundary_at)
+    if transport_preflight:
+     prepare_message(send_client,rendered,previous,attachments,at=boundary_at)
+     would_send+=1;admitted.append({'host':recipient['host'],'email':recipient['email'],'stage':stage})
+     sent_by_kind[kind]+=1 # Capacity reservations only, never reported as sends.
+     continue
     previous.update(host=recipient['host'],organization=recipient['organization'],contact_source=recipient.get('contact_source','published_business_contact'),variant=rendered['variant'])
     previous['claimed']={'stage':stage,'at':stamp(boundary_at),'packet_sha256':config['packet_sha256']};save(STATE/'ledger.json',ledger)
     receipt=send_message(send_client,rendered,previous,[ROOT/'reports/ops/sponsor-machine-20261003/assets'/n for n in rendered['attachments']])
@@ -898,14 +923,20 @@ def run(config,dry_run=False):
    'follow_up_count':'actual reconciled follow-up and interested-reply sends in this run',
    'target_new_provider_daily_cap':config.get('new_provider_daily_cap',config.get('batch_cap',25)),
    'current_new_provider_supply':None})
-  save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
+  receipt.update(would_send=would_send,admitted_recipients=admitted,
+                 run_type='transport_preflight' if transport_preflight else receipt['run_type'],
+                 preflight_slot=stamp(at) if transport_preflight else None,
+                 coverage_observed_at=stamp() if transport_preflight else None)
+  if transport_preflight:receipt.update(new_provider_count=0,follow_up_count=0)
+  if not transport_preflight:save(STATE/'latest-dry-run.json' if not enabled else STATE/'latest-run.json',receipt)
   return receipt
 
 def main():
  sys.path[:0]=[str(ROOT/'scripts'),str(ROOT/'ops'),str(ROOT)]
- ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--dry-run',action='store_true');ap.add_argument('--scheduled',action='store_true')
+ ap.add_argument('--transport-preflight',action='store_true');ap.add_argument('--preflight-at',type=dt.datetime.fromisoformat);args=ap.parse_args()
  config=campaign_config()
- r=run(config,dry_run=args.dry_run)
- if args.dry_run:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
+ r=run(config,dry_run=args.dry_run,transport_preflight=args.transport_preflight,preflight_at=args.preflight_at)
+ if args.dry_run or args.transport_preflight:print(json.dumps({k:v for k,v in r.items() if k not in ('previews','exclusions')},sort_keys=True))
  elif r['send_enabled']:print(f"Sponsor outreach: {r['sent']} sent; eligible {r['eligible_recipient_count']}. Replies stop follow-ups.")
 if __name__=='__main__':main()
