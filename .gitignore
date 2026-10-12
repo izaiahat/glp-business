@@ -614,3 +614,7 @@
 !/systems/seo-blog-machine/scripts/improvement_loops.py
 !/systems/seo-blog-machine/scripts/ctr_snapshot.py
 !/tests/test_w10_ctr_snapshot_handoff.py
+# T1 approved review tracking source and exact-head regression
+!/scripts/glp_review_tracking_rebind.py
+!/tests/test_review_tracking_successor.py
+!/.github/workflows/review-tracking-successor.yml
