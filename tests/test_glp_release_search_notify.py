@@ -23,6 +23,7 @@ def test_release_changed_set_deployment_ledger_and_replay(tmp_path, monkeypatch)
     (new/'data').mkdir(); (new/'data/indexnow.json').write_text(json.dumps({'host':'glpclinicscout.com','key':'fixture','key_location':'https://glpclinicscout.com/fixture.txt'}))
     final=tmp_path/'final.json'; final.write_text(json.dumps({'status':'PASS_PRODUCTION_TERMINAL','deployment':{'deployment_id':'dep-1'},'site_head':'head-1'}))
     pointer={'deployment_id':'dep-1','site_head':'head-1','release_root':str(new),'final_receipt':{'path':str(final),'sha256':hashlib.sha256(final.read_bytes()).hexdigest()}}
+    pointer['supersedes'] = {'release_root': str(old)}
     calls=[]
     monkeypatch.setattr(notify,'current_pointer',lambda:pointer)
     monkeypatch.setattr(notify,'live_sitemap',lambda:new.joinpath('public/sitemap.xml').read_bytes())
@@ -32,6 +33,9 @@ def test_release_changed_set_deployment_ledger_and_replay(tmp_path, monkeypatch)
         calls.append(('gsc',xml));return {'http_status':204,'provider_readback':[{'path':notify.SITEMAP,'isPending':True}]}
     report=tmp_path/'receipts'; ledger=tmp_path/'indexnow.jsonl'
     kwargs=dict(root=tmp_path,report_root=report,ledger=ledger,poster=post,gsc_submit=gsc)
+    with pytest.raises(RuntimeError, match='predecessor_binding'):
+        notify.submit_deployment(pointer, new, **kwargs)
+    assert calls == []
     value=notify.submit_deployment(pointer,old,**kwargs)
     assert value['status']=='PASS_SEARCH_SUBMITTED'
     assert value['deployment_id']=='dep-1'

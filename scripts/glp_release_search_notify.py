@@ -118,6 +118,9 @@ def submit_deployment(pointer, predecessor, *, root=ROOT, report_root=REPORTS,
         or terminal.get('site_head')!=pointer.get('site_head')):
         raise RuntimeError('terminal_deployment_binding')
     if current_pointer()!=pointer: raise RuntimeError('search_pointer_drift')
+    expected_predecessor = (pointer.get('supersedes') or {}).get('release_root')
+    if not expected_predecessor or Path(predecessor).resolve(strict=True) != Path(expected_predecessor).resolve(strict=True):
+        raise RuntimeError('predecessor_binding')
     release=Path(pointer['release_root']); public=release/'public'; xml=(public/'sitemap.xml').read_bytes()
     if xml!=live_sitemap(): raise RuntimeError('live_sitemap_deployment_drift')
     binding={'deployment_id':deployment,'site_head':pointer['site_head'],
