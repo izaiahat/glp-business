@@ -36,6 +36,7 @@ def offline_draft(tmp_path, monkeypatch):
  from email.message import EmailMessage
  from unittest.mock import MagicMock
  import hashlib, base64
+ monkeypatch.setattr(n.c,'INBOX_POLL_LOCK',tmp_path/'poll.lock')
  body='Hi Andreas,\n\nOur proposed sponsor pilot is $750.\n'
  def row(message, identifier, labels, timestamp='1'):
   return dict(id=identifier,threadId=n.THREAD,labelIds=labels,internalDate=timestamp,
@@ -133,3 +134,28 @@ def test_send_time_guards_refuse_without_submission(offline_draft,monkeypatch,st
   with pytest.raises(RuntimeError):n.run(send=True)
  users.drafts.return_value.send.assert_not_called()
  assert not n.JOURNAL.exists()
+
+
+def test_overlapping_poll_finishes_before_nuimage_queue_read(offline_draft,monkeypatch):
+ import fcntl,threading
+ _,_,_,users=offline_draft
+ released=threading.Event()
+ load=n.c.load
+ def stable_queue(path):
+  assert released.is_set(),'Nu Image eligibility read raced canonical poll'
+  with n.c.INBOX_POLL_LOCK.open('a') as other:
+   with pytest.raises(BlockingIOError):fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  return load(path)
+ monkeypatch.setattr(n.c,'load',stable_queue)
+ with n.c.INBOX_POLL_LOCK.open('a') as poll:
+  fcntl.flock(poll,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  def finish():
+   threading.Event().wait(0.3)
+   released.set();fcntl.flock(poll,fcntl.LOCK_UN)
+  worker=threading.Thread(target=finish);worker.start()
+  try:result=n.run(send=False)
+  finally:worker.join(3)
+ assert result['status']=='PREFLIGHT_ONLY' and result['sends']==0
+ users.drafts.return_value.send.assert_not_called()
+ with n.c.INBOX_POLL_LOCK.open('a') as other:
+  fcntl.flock(other,fcntl.LOCK_EX|fcntl.LOCK_NB)

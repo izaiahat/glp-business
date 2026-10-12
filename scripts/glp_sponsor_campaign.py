@@ -5,7 +5,8 @@ Send requires exact packet approval + config enablement + fresh ledger, mail,
 registry and contact admission. Ambiguous sends are durably claimed, never replayed.
 """
 from __future__ import annotations
-import argparse,base64,datetime as dt,fcntl,hashlib,json,os,re,sys,tempfile
+import argparse,base64,datetime as dt,fcntl,hashlib,json,os,re,sys,tempfile,time
+from contextlib import contextmanager
 from pathlib import Path
 from email.message import EmailMessage
 from email.parser import BytesParser
@@ -18,6 +19,54 @@ STATE=Path(os.environ.get('GLP_SPONSOR_STATE',str(ROOT/'reports/ops/sponsor-mach
 CONFIG=ROOT/'ops/sponsor-machine/campaign.json'
 SENDER='partners@glpclinicscout.com'
 INBOX_DB=Path('/home/ubuntu/.hermes/state/email-monitor.sqlite3')
+INBOX_POLL_LOCK=Path('/home/ubuntu/.hermes/state/email-monitor-cron.lock')
+INBOX_POLL_WAIT_SECONDS=240
+
+
+def notify_inbox_poll_timeout(job):
+ """One existing ops-alerts post; never retry an uncertain webhook submission."""
+ import urllib.request
+ body=(f'⚠️ **{job}** — canonical inbox poll lock unavailable after 240s\n\n'
+       'Outbound sends **0** · eligibility checks **not started** · failed closed\n'
+       '→ Inspect the running inbox poll and this job before any manual retry.\n'
+       '-# source: scheduled sponsor inbox boundary · internal only')
+ try:
+  url=(Path.home()/'.hermes/secrets/n8n/ops-alerts-webhook.txt').read_text().strip()
+  request=urllib.request.Request(url+('&' if '?' in url else '?')+'wait=true',
+   data=json.dumps({'content':body,'allowed_mentions':{'parse':[]}}).encode(),method='POST',
+   headers={'Content-Type':'application/json','User-Agent':'glp-sponsor-inbox-boundary/1.0'})
+  with urllib.request.urlopen(request,timeout=30) as response:receipt=json.loads(response.read())
+  if not receipt.get('id') or str(receipt.get('channel_id'))!='1487300132054765629':
+   raise RuntimeError('ops_alert_readback_mismatch')
+ except Exception as exc:
+  # URL-bearing exceptions are secret; do not expose them or retry a possible post.
+  print('sponsor_inbox_lock_alert_unconfirmed:'+type(exc).__name__,file=sys.stderr)
+
+
+@contextmanager
+def inbox_poll_boundary(*,alert=False,job='Sponsor outreach'):
+ """Wait for the canonical cron, then retain its stable snapshot through transport.
+
+ Lock order: poll -> campaign -> canonical SQLite boundary. Never unlink the
+ shared inode or rerun a poll here. All original eligibility guards still run.
+ """
+ INBOX_POLL_LOCK.parent.mkdir(parents=True,exist_ok=True)
+ with INBOX_POLL_LOCK.open('a+') as poll_lock:
+  deadline=time.monotonic()+INBOX_POLL_WAIT_SECONDS
+  while True:
+   try:
+    fcntl.flock(poll_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    break
+   except BlockingIOError as exc:
+    remaining=deadline-time.monotonic()
+    if remaining<=0:
+     if alert:notify_inbox_poll_timeout(job)
+     raise RuntimeError('canonical_inbox_poll_lock_timeout') from exc
+    time.sleep(min(0.25,remaining))
+  try:yield
+  finally:fcntl.flock(poll_lock,fcntl.LOCK_UN)
+
+
 CAMPAIGN='sponsor-20261003-v1'
 PT=ZoneInfo('America/Los_Angeles')
 DAY_DELAYS=(0,4,10)
@@ -802,7 +851,7 @@ def run(config,dry_run=False,*,transport_preflight=False,preflight_at=None):
  if preflight_at is not None and not transport_preflight:raise ValueError('preflight_at_requires_transport_preflight')
  if transport_preflight and dry_run:raise ValueError('choose_preview_or_transport_preflight')
  STATE.mkdir(parents=True,exist_ok=True)
- with (STATE/'run.lock').open('a') as lock:
+ with inbox_poll_boundary(alert=not dry_run and not transport_preflight), (STATE/'run.lock').open('a') as lock:
   fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
   enabled=False if dry_run else approval_ready(config)
   if transport_preflight and not enabled:raise RuntimeError('transport_preflight_approval_required')
