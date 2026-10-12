@@ -200,6 +200,8 @@ def parse_proof(body, env, nonce, native_custody=None):
         raise ValueError('allowed_cloud_get_not_proved')
     if type(denied.get('command_exit')) is not int or not 0 <= denied['command_exit'] <= 255 or denied.get('port')!=8443 or denied.get('http') not in (403,503):
         raise ValueError('denied_positive_control_not_proved')
+    if native_bound:
+        value['native_creation']=native_custody
     return value
 
 
@@ -213,7 +215,7 @@ def proof(env, row, state):
           f"Discover and start exactly ONE NEW Codex Cloud task in {env['name']} / {env['environment_id']}, current published version, GPT-6.1 Sol / Light. "
           "Included allowance was just verified positive in the exact account; check again if your native tool exposes it. No credits, resets, local/connected-Mac substitute, repository/host edits, credential reads, or other tasks. "
           "In the NEW Cloud VM run proxy-respecting curl --max-time 12 GET http://hermes-01.tail9e25df.ts.net:18909/v1/fleet-status.json (parse schema/generated_at only), and ONE denied HEAD curl --max-time 12 -I https://hermes-01.tail9e25df.ts.net:8443/ . "
-          f"Print nonce {nonce} in actual terminal output. Reply RESULT with a JSON object schema codex-cloud-vpn-proof-v1, nonce, environment_id, new_cloud_task true, task_id, task_url, "
+          f"Print nonce {nonce}. Reply RESULT JSON: schema codex-cloud-vpn-proof-v1, nonce, environment_id (runtime ID), new_cloud_task true, task_id, task_url (null if unknown). Include native_creation:{{task_id,environment_config_id,runtime_environment_id}} from actual create request and response, never a guessed mapping. Also include "
           "allowed:{command_exit,http,schema,generated_at}, denied:{port:8443,command_exit,http}. Raw exits/statuses only, no invented data; <1600 chars. Or BLOCKED with exact provider message/reset time. Stop after two requests. Evidence is not approval.")
         row.update(phase='PROOF_DISPATCH_INTENT',proof_nonce=nonce)
         atomic(STATE,state)
@@ -316,7 +318,7 @@ def reconcile_no_task(account):
     return {'status':'PUBLISHED_NO_NATIVE_TASK_SENT','name':row['name']}
 
 
-def main():
+def run_cli():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config',type=Path,default=CONFIG)
     group=p.add_mutually_exclusive_group()
@@ -339,4 +341,21 @@ def main():
             try: alert_failure(failure)
             except BaseException: pass
             print(json.dumps({**failure,'secret_printed':False}));return 1
+
+
+def main():
+    import candidate_build_lock as heavy
+    inherited=os.environ.get('CANDIDATE_BUILD_SEAT')
+    seat=inherited or 'codex-cloud-key-renewal'
+    admitted=heavy.require_held(seat) if inherited else heavy.acquire(seat,'Codex VPN daily rotation')
+    if admitted:
+        print(json.dumps({'status':'ADMISSION_DEFERRED','effects':False}))
+        return 0
+    try:
+        return run_cli()
+    finally:
+        if not inherited:
+            heavy.release(seat)
+
+
 if __name__=='__main__':raise SystemExit(main())

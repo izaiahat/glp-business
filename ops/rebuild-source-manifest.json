@@ -6993,7 +6993,7 @@
         "ops/cron.d/codex-cloud-key-renewal"
       ],
       "kind": "script",
-      "sha256": "880ec9bea54ae9bf36554377ff66932ec2e02e6f4a672e5b3d4ea79665131fb3"
+      "sha256": "3827c2b0395dacc699492ebb13c68f343649ab45fd6638ff075f1b7cfede57ec"
     },
     "scripts/codex_cloud_vpn_browser.py": {
       "callers": [
@@ -7007,7 +7007,7 @@
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "b8ee13f5bf42d9eb6897e1d509abc9f34489c56e1892918323d1eaf0dca56b32"
+      "sha256": "794ca7056c5cf43e8f47d3b16a0d2b4fb9e0b9d1491caf3ac46a975da178b2a7"
     },
     "tests/test_codex_evidence_alias.py": {
       "callers": [

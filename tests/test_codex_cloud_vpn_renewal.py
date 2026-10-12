@@ -70,6 +70,28 @@ def test_vpn_native_runtime_id_and_null_url_require_creation_selector():
         r.parse_proof(json.dumps(value),env,'fixture-nonce')
 
 
+def test_vpn_cli_defers_when_heavy_seat_is_owned_elsewhere(monkeypatch):
+    import types
+    calls=[]
+    fake=types.SimpleNamespace(acquire=lambda *a:1,release=lambda *a:calls.append('release'))
+    monkeypatch.setitem(sys.modules,'candidate_build_lock',fake)
+    monkeypatch.delenv('CANDIDATE_BUILD_SEAT',raising=False)
+    monkeypatch.setattr(r,'run_cli',lambda:calls.append('effect'))
+    assert r.main()==0
+    assert calls==[]
+
+
+def test_vpn_cli_releases_its_own_heavy_seat(monkeypatch):
+    import types
+    calls=[]
+    fake=types.SimpleNamespace(acquire=lambda *a:0,release=lambda *a:calls.append('release'))
+    monkeypatch.setitem(sys.modules,'candidate_build_lock',fake)
+    monkeypatch.delenv('CANDIDATE_BUILD_SEAT',raising=False)
+    monkeypatch.setattr(r,'run_cli',lambda:0)
+    assert r.main()==0
+    assert calls==['release']
+
+
 def test_vpn_pending_proof_never_revokes_old_key(tmp_path,monkeypatch):
     env=fixture_env();path=tmp_path/'state.json'
     row={**env,'phase':'PROOF_PENDING','native_ticket':'fixture-ticket','key_id':'candidate-fixture','old_key_id':'old-fixture'}
