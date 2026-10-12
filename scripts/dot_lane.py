@@ -201,7 +201,8 @@ def cloud_updates(root=ROOT, *, api=dots.discord_api, effects=live_effect, looku
                 if message.get('author',{}).get('id') == dots.DOTS['rook']['user']
                 and not message.get('webhook_id')
                 and re.search(r'codex|cloud|tailscale|vpn',message.get('content',''),re.I)
-                and not re.search(r'RESULT rook-glp-',message.get('content',''))][:3]
+                and (not re.search(r'RESULT rook-glp-',message.get('content',''))
+                     or re.search(r'RESULT rook-glp-359-',message.get('content','')))][:3]
     outputs = []
     with dots.locked(receipts):
         for message in reversed(relevant):
@@ -256,7 +257,8 @@ def select(dot, issues, plan, policy, claims, tickets):
     scopes = list(policy['scopes'])
     # New input versions are supply, not a periodic re-run of the same research.
     for issue in issues:
-        if issue['identifier'] not in policy.get('continuous_public_research_issues',[]) or not issue.get('description'):
+        if (issue['identifier'] not in policy.get('continuous_public_research_issues',[]) or not issue.get('description')
+            or 'public-gap-'+issue['identifier'].lower()+'-'+hashlib.sha256(issue['description'].encode()).hexdigest()[:16] in claims):
             continue
         acceptance = re.sub(r'<!-- execution-owner:start -->.*?<!-- execution-owner:end -->','',issue['description'],flags=re.S).strip()
         if not acceptance:

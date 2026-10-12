@@ -42,14 +42,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "96393a6916e4408da73415891f0e8ef1979243b19eb4989409ffe5b951cd7e36"
+      "sha256": "ccf50cfd188657ce900d5d018417a76854c080ff912f54c90ee36ef6a358ca21"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "7ad8af49198967e558071ce9c4bcaba516c66d7c4df6ba0590229e9d52967a4e"
+      "sha256": "8a63ffcbf3e13481e6efb09ebd6e4fc6c78fcc604da796e224cf479e24ad2384"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [

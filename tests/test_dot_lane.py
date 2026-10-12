@@ -128,6 +128,13 @@ def test_supply_ignores_execution_owner_metadata_changes():
     assert lane.select('rook',[issue],plan,policy,{first['id']:{}},[]) is None
 
 
+def test_legacy_raw_description_claim_does_not_repeat_after_supply_cleanup():
+    import dot_lane as lane
+    issue = dict(identifier='GLP-93',description='<!-- execution-owner:start -->old owner<!-- execution-owner:end -->Public acceptance',state={'type':'started'})
+    old = 'public-gap-glp-93-'+hashlib.sha256(issue['description'].encode()).hexdigest()[:16]
+    assert lane.select('rook',[issue],{'issues':[{'issue':'GLP-93','order':1}]},dict(scopes=[],continuous_public_research_issues=['GLP-93']),{old:{}},[]) is None
+
+
 def test_cloud_brief_requires_both_renewed_environment_confirmations(tmp_path):
     import dot_lane as lane
     p = tmp_path/'reports/ops/fable-plan-2-20261009/lanes/R1/RESULT.json'
@@ -157,6 +164,19 @@ def test_rook_cloud_updates_exact_readback_and_no_replay(tmp_path):
     receipt = json.loads(inbox.read_text())
     assert receipt['schema'] == 'DOT_CLOUD_UPDATE_V1'
     assert receipt['operator_approval'] is False
+
+
+def test_rook_cloud_terminal_owned_by_r1_is_still_historical_evidence(tmp_path):
+    import dot_lane as lane
+    import dot_dispatch as d
+    message = dict(id='123456789',channel_id=d.DOTS['rook']['channel'],author={'id':d.DOTS['rook']['user']},content='RESULT rook-glp-359-test Codex Cloud proof for R1, not approval.')
+    api = lambda method,route: [message] if '?limit=' in route else message
+    events = []
+    def effects(kind,issue,body,marker):
+        events.append(kind)
+        return {'id':'receipt'}
+    lane.cloud_updates(tmp_path,api=api,effects=effects)
+    assert events == ['linear','discord']
 
 
 def test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,monkeypatch):
