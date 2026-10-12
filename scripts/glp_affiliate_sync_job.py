@@ -182,6 +182,38 @@ writeFileSync('artifacts/ops/affiliate-sync-census.json',JSON.stringify(census))
     save(report/'GATE.json',gate)
 
 
+def prepare_sync_source(source, report, changed):
+    """Bind a source branch to its parent AND complete intended tree.
+
+    A registry-only key collides when an accepted article advances main. On an
+    uncertain prior push, authenticate the remote tree/parent and reuse that
+    exact commit; never force-push or mint a timestamp-dependent replacement.
+    """
+    base = run(['git','rev-parse','HEAD'],cwd=source)
+    run(['git','add',*changed],cwd=source)
+    tree = run(['git','write-tree'],cwd=source)
+    branch = 'automation/affiliate-sync-' + hashlib.sha256((base+'\n'+tree).encode()).hexdigest()[:24]
+    ref = 'refs/heads/' + branch
+    remote = run(['git','ls-remote','--heads','origin',ref],cwd=source)
+    if remote:
+        rows = [line.split() for line in remote.splitlines()]
+        if len(rows)!=1 or len(rows[0])!=2 or rows[0][1]!=ref:
+            raise RuntimeError('sync_remote_source_identity_ambiguous')
+        head = rows[0][0]
+        run(['git','fetch','origin',head],cwd=source,log=report/'source-resume-fetch.log')
+        if (run(['git','rev-parse','FETCH_HEAD^{tree}'],cwd=source)!=tree
+                or run(['git','show','-s','--format=%P','FETCH_HEAD'],cwd=source)!=base):
+            raise RuntimeError('sync_remote_source_identity_drift')
+        run(['git','checkout','--detach',head],cwd=source)
+        save(report/'source-intent.json',{'branch':branch,'head':head,'base':base,'tree':tree,'reused_remote':True})
+    else:
+        run(['git','checkout','-b',branch],cwd=source)
+        run(['git','commit','-m','Sync authenticated affiliate terms and deny adverse selected relationships'],cwd=source,log=report/'commit.log')
+        save(report/'source-intent.json',{'branch':branch,'head':run(['git','rev-parse','HEAD'],cwd=source),'base':base,'tree':tree})
+        run(['git','push','-u','origin',branch],cwd=source,log=report/'push.log')
+    return branch
+
+
 def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_only=True):
     """Default to source production; hourly main must explicitly own publication."""
     from glp_affiliate_registry_sync import sync
@@ -214,14 +246,13 @@ def execute(config,report,*,source_ref=None,source_pr=None,publish=False,source_
         run(argv+['node','scripts/regenerate-go-runtime-manifest.mjs','--current-holds-only'],log=report/'regenerate.log')
         changed=run(['git','diff','--name-only'],cwd=source).splitlines()
         if not set(changed)<= {'data/program-registry.json','functions/go/program-manifest.js'}:raise RuntimeError('sync_source_scope_expanded')
-        branch='automation/affiliate-sync-'+sha(source/'data/program-registry.json')[:16]
-        run(['git','checkout','-b',branch],cwd=source)
-        run(['git','add',*changed],cwd=source)
-        run(['git','commit','-m','Sync authenticated affiliate terms and deny adverse selected relationships'],cwd=source,log=report/'commit.log')
-        # Deterministic branch identity makes an uncertain push inspectable.
-        save(report/'source-intent.json',{'branch':branch,'head':run(['git','rev-parse','HEAD'],cwd=source)})
-        run(['git','push','-u','origin',branch],cwd=source,log=report/'push.log')
-        source_pr=run(['gh','pr','create','--repo',REPO,'--base','main','--head',branch,'--title','Automatic F03 affiliate terms and relationship sync','--body','Exact sole-writer readback; denial-only relationship changes and authenticated-capture terms. No activation or tracker visits. Operator-approved F04/F06 propagation.'])
+        branch=prepare_sync_source(source,report,changed)
+        prs=json.loads(run(['gh','pr','list','--repo',REPO,'--head',branch,'--state','all','--json','url,state,headRefOid']))
+        if len(prs)>1 or (prs and prs[0]['state']=='CLOSED'):
+            raise RuntimeError('sync_source_pr_ambiguous_or_closed')
+        if prs and prs[0]['headRefOid']!=run(['git','rev-parse','HEAD'],cwd=source):
+            raise RuntimeError('sync_source_pr_head_drift')
+        source_pr=prs[0]['url'] if prs else run(['gh','pr','create','--repo',REPO,'--base','main','--head',branch,'--title','Automatic F03 affiliate terms and relationship sync','--body','Exact sole-writer readback; denial-only relationship changes and authenticated-capture terms. No activation or tracker visits. Operator-approved F04/F06 propagation.'])
         save(report/'PR.json',{'url':source_pr})
     if not source_pr:raise RuntimeError('merged_exact_head_pr_required')
     evidence=ci(source_pr,report)
