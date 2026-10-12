@@ -55,7 +55,14 @@ def worktree_pins(roots=(BUS / '.worktrees', BUS / 'worktrees')):
             common = gitdir.parent.parent  # <repo>/.git/worktrees/<name> -> <repo>/.git
             pins.add(common.parent)
             for record in (common / 'worktrees').glob('*/gitdir'):
-                pins.add(Path(record.read_text().strip()).parent)
+                target = Path(record.read_text().strip()).parent
+                # Administrative git records can outlive removed worktrees.
+                # lstat raises on permission/IO failures instead of authorizing effects.
+                try:
+                    target.lstat()
+                except FileNotFoundError:
+                    continue
+                pins.add(target)
     return pins
 
 
@@ -143,16 +150,18 @@ def external_pins():
     pins = set()
     for source in (worktree_pins, prepared_pins, pr_pins, linear_pins, live_release_pins, r8_pins):
         pins |= source()
-    return pins - LAYOUT
+    from host_disk_cold_classes import existing_pins
+    return existing_pins(pins - LAYOUT)
 
 
-def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False):
+def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, cutoff=None, check_atime=False, protection=None):
     """Shared effect path: every existing veto, then a single bounded removal."""
     from host_disk_large_classes import snapshot, lsof_inactive
     from host_disk_payload_guard import reject_database_payloads
     row = {'rule': rule, 'path': str(p), 'bytes_freed': 0}
+    protect = protection or m.protected
     try:
-        if p.is_symlink() or p.resolve() != p.absolute() or m.protected(p, pins):
+        if p.is_symlink() or p.resolve() != p.absolute() or protect(p, pins):
             raise ValueError('scope/protection')
         if extra_check:
             extra_check(p)
@@ -166,8 +175,9 @@ def _guarded_remove(api, m, p, pins, deadline, rule, dry_run, extra_check=None, 
             if cutoff is not None and stamp > cutoff:
                 raise ValueError('young descendant')
         fresh = m.custody_pins(pins)
-        if any(m.protected(p / r[0], fresh) for r in before):
+        if any(protect(p / r[0], fresh) for r in before):
             raise ValueError('new live symlink custody')
+        if extra_check:extra_check(p)
         if not lsof_inactive(p) or not m.inactive(api, p) or snapshot(p, deadline)[0] != before:
             raise ValueError('reference/identity')
         row['eligible_bytes'] = amount
@@ -235,7 +245,7 @@ def stale_tmp(api, m, *, pins, deadline, dry_run=True, root=TMP, min_age=86400, 
     return rows
 
 
-def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE, min_bytes=128 * 1024 ** 2):
+def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE, min_bytes=128 * 1024 ** 2, archive_destination=None):
     """Old (>7d) site candidates/releases/work -> verified tar.zst, then retire members.
 
     Reuses cold_archive (exact member set + SHA256 re-verified from the archive,
@@ -255,13 +265,17 @@ def site_cold_archive(api, m, report, *, pins, deadline, dry_run=True, site=SITE
                 continue
             if max(p.lstat().st_mtime, p.lstat().st_ctime) > time.time() - 7 * 86400:
                 continue
-            dest = Path(report) / 'archives' / f'site-{kind}-{p.name}.tar.zst'
-            try:
-                rows.append(m.cold_archive(api, p, dest, pins=pins, dry_run=dry_run, deadline=deadline,
-                                           min_bytes=min_bytes, reserve_bytes=1024 ** 3))
-            except Exception as e:
-                rows.append({'rule': 'cold_evidence_archive', 'path': str(p), 'archive': str(dest),
-                             'status': 'ERROR_PRESERVED_OR_PARTIAL', 'reason': str(e), 'bytes_freed': 0, 'ok': False})
+            phases=[(30,archive_destination),(7,None)] if archive_destination is not None else [(7,None)]
+            for days,destination in phases:
+                dest = Path(report) / 'archives' / f'site-{kind}-{p.name}-{days}d.tar.zst'
+                try:
+                    rows.append(m.cold_archive(api,p,dest,pins=pins,dry_run=dry_run,deadline=deadline,
+                        cold_days=days,archive_destination=destination,
+                        min_bytes=min(min_bytes,1024**2) if days==30 else min_bytes,
+                        min_net_bytes=1024**2 if archive_destination is not None else None,reserve_bytes=1024**3))
+                except Exception as e:
+                    rows.append({'rule':'cold_evidence_archive','path':str(p),'archive':str(dest),
+                        'status':'ERROR_PRESERVED_OR_PARTIAL','reason':str(e),'bytes_freed':0,'ok':False})
     return rows
 
 

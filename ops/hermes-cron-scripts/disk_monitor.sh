@@ -115,11 +115,21 @@ def post(message: str) -> None:
     ], env={**os.environ, 'DISCORD_CHANNEL_ID': CHANNEL_ID})
 
 
+def run_low_disk_trigger() -> str:
+    # Run the registered native producer, not a second threshold/launch path.
+    import runpy
+    return runpy.run_path(str(HERMES_HOME / 'scripts/host_disk_low_free_trigger.py'))['main']()
+
+
 def main() -> int:
     # Q36: run before disk's healthy/unchanged early returns; existing sender.
     sys.path.insert(0, '/home/ubuntu/business/scripts')
     from host_capacity_observer import notify_state_store
     state_rc = notify_state_store(HERMES_HOME, post, log)
+    cleanup_message = run_low_disk_trigger()
+    if cleanup_message:
+        log('low-disk cleanup launched by scheduled monitor')
+        post(cleanup_message)
     pct, size_h, used_h, avail_h = read_df()
     if pct >= 90:
         severity = 'critical'

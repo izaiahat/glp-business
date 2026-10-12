@@ -5,6 +5,13 @@ import host_disk_cold_classes as m
 import host_disk_large_classes as large
 import host_disk_large_sweep as sweep
 from host_disk_reference_guard import ReferenceGuardAPI
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_scheduler_custody(monkeypatch):
+    import host_disk_custody
+    monkeypatch.setattr(host_disk_custody, 'collect', lambda: set())
 
 
 class API:
