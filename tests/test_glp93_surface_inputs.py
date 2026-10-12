@@ -50,6 +50,21 @@ class SurfaceInputTests(unittest.TestCase):
         c['row_contract']['pros']=[]
         with self.assertRaisesRegex(SystemExit,'row_evidence_too_thin'):u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
 
+    def test_held_eligibility_has_no_borrowed_grant_or_review_identity(self):
+        p={'program_id':'held','display_name':'Held','review_path':'/reviews/held/'}
+        template={'program_id':'unrelated','review_path':'/reviews/unrelated/',
+                  'status':'live_operator_approved_transparent_direct',
+                  'operator_selection_receipt_sha256':'a'*64,'tracking_present_private':True}
+        held={'url':None,'host':None,'network':'MaxBounty','held':True}
+        actual=u.build_eligibility_entry(p,template,held,'b'*64)
+        self.assertEqual(actual['review_path'],'/reviews/held/')
+        self.assertIsNone(actual['operator_selection_receipt_sha256'])
+        self.assertFalse(actual['tracking_present_private'])
+        self.assertFalse(actual['live_link_allowed'])
+        self.assertFalse(actual['promotion_authorized'])
+        self.assertEqual(actual['status'],'held_editorial_only')
+        self.assertEqual(template['program_id'],'unrelated')
+
     def test_invalid_medication_values_refuse(self):
         for meds in [{'compounded': True}, ['oral', {'injectable': True}], 1]:
             with self.assertRaisesRegex(SystemExit, 'meds_offered_type_invalid'):

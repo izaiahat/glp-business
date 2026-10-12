@@ -113,6 +113,27 @@ def latest_release() -> Path:
     return max(dirs, key=lambda p: p.stat().st_mtime)
 
 
+def build_eligibility_entry(program: dict, template: dict, tracking: dict, receipt_sha: str) -> dict:
+    pid = render_id(program)
+    held = tracking.get('held') is True
+    entry = copy.deepcopy(template)
+    entry.update({
+        'program_id': pid, 'display_name': program['display_name'],
+        'review_path': program.get('review_path') or f'/reviews/{pid}/',
+        'affiliate_network': tracking['network'],
+        'network': str(tracking['network']).lower().split()[0],
+        'allowed_fallback_hosts': [] if held else [re.sub(r'^www\.', '', tracking['host'])],
+        'affiliate_link_mode': 'held_editorial_only' if held else 'transparent_direct',
+        'go_route_wired': False, 'live_link_allowed': not held,
+        'promotion_authorized': not held, 'redirector_tos_verified': False,
+        'operator_selection_receipt_sha256': None if held else receipt_sha,
+        'tracking_present_private': not held,
+    })
+    if held:
+        entry['status'] = 'held_editorial_only'
+    return entry
+
+
 def eligibility_with_retained_holds(rows: list[dict], live_ids: list[str]) -> list[dict]:
     """Keep explicit denial evidence; membership counts must not erase holds."""
     live = set(live_ids)
@@ -677,20 +698,7 @@ def _unify_in_place(release: Path) -> dict:
             continue
         contract = contracts.get(program["program_id"])
         tracking = tracking_for(program, contract, approved)
-        entry = copy.deepcopy(elig_template)
-        entry.update({
-            "program_id": pid,
-            "display_name": program["display_name"],
-            "affiliate_network": tracking["network"],
-            "network": str(tracking["network"]).lower().split()[0],
-            "allowed_fallback_hosts": [] if tracking.get('held') is True else [re.sub(r"^www\.", "", tracking["host"])],
-            "affiliate_link_mode": "transparent_direct",
-            "go_route_wired": False,
-            "live_link_allowed": tracking.get('held') is not True,
-            "promotion_authorized": tracking.get('held') is not True,
-            "redirector_tos_verified": False,
-            "operator_selection_receipt_sha256": receipt_sha,
-        })
+        entry = build_eligibility_entry(program, elig_template, tracking, receipt_sha)
         eligibility["programs"].append(entry)
         eligibility_ids.add(pid)
     eligibility["programs"] = eligibility_with_retained_holds(eligibility["programs"], live_ids)
