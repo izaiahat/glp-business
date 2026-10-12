@@ -100,7 +100,12 @@ def _receipt(payload):
     credit = payload.get("creditsUsed", payload.get("credits_used", meta.get("creditsUsed", meta.get("credits_used")))) if isinstance(payload, dict) else None
     if not isinstance(credit, (int, float)) or isinstance(credit, bool):
         credit = None
-    ident = (payload.get("id") or payload.get("jobId") or meta.get("scrapeId") or meta.get("scrape_id")) if isinstance(payload, dict) else None
+    entries = data.get('alexandria') if isinstance(data, dict) else None
+    if credit is None and isinstance(entries, list) and entries:
+        costs = [r.get('creditsCost', r.get('credits_cost')) if isinstance(r, dict) else None for r in entries]
+        if all(isinstance(c, (int, float)) and not isinstance(c, bool) and c >= 0 for c in costs):
+            credit = sum(costs)
+    ident = (payload.get("id") or payload.get("jobId") or payload.get("scrape_id") or meta.get("scrapeId") or meta.get("scrape_id")) if isinstance(payload, dict) else None
     # Provider identifiers are opaque untrusted data, not a credential-safe
     # alphabet. Hash every non-null identifier and retain correlation only.
     if ident is not None:

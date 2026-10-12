@@ -117,7 +117,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "e0b2f58ae55374b7797ac2639e06e44995dcc81302958109f487561d1b27fecf"
+      "sha256": "d801b8cd25bdbfbd85c9466126ddce03b0cc5b212acb2d73babc728e5d484d27"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -529,7 +529,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "341865c3ed9a2063f1c8a80711059ab7acae2e50ad12e03a26c98896eb8f3a05"
+      "sha256": "75533ef6e1c330e221c941a57cb906630162ee193950637760e949727de2bb83"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "callers": [
@@ -1145,7 +1145,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "956e1a9df9bf9c0b0b0510d4ab9ee20711f6df7fcae8a26d8cd09d7cdc3e3114"
+      "sha256": "d9ec947c922b65a7d035b003fa0c50a48020ea33408377d28b94c26e77b7ba30"
     },
     "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
       "callers": [
@@ -2506,7 +2506,7 @@
         "all maintained Firecrawl producers"
       ],
       "kind": "script",
-      "sha256": "a3b8df3dd8436aebbf71829be9daf078a3c135462d0bdac68e2c613bc50b4552"
+      "sha256": "9a514c5be48e6daa3aa917222496c633c3f248506bb2530a84b80cbb7dc8bbf3"
     },
     "scripts/fleet_ingest.md": {
       "callers": [
@@ -2541,7 +2541,7 @@
         "registered stage5 research fetch"
       ],
       "kind": "script",
-      "sha256": "2ee9fa180d4651e86c922e2815ee953391b3e8f5f2d66bf44789d27c1172e3a3"
+      "sha256": "4b8570ea086af2f64b096393c82d1d14219fb1576d828366c9b9fc2a7b29f7a2"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -3046,7 +3046,7 @@
         "manual:registered price verification"
       ],
       "kind": "script",
-      "sha256": "f487e71e33686e10360c242e93b6e5e58ccb202209c40dc242ac20387728fa21"
+      "sha256": "b8ca267055d2795ca828eab70270223282866cac742a37142d22cf9921d6e9f9"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -3213,7 +3213,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "3d41160b2cfd513da1a4ace21cb55a5de6686454343f2da595d469bd223d3034"
+      "sha256": "41c98955b0c2261f746613e058ea167f04ff7b3ec73d8bb739e82c3e2567a03c"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3705,7 +3705,7 @@
         "manual:bounded FDA warning search"
       ],
       "kind": "script",
-      "sha256": "9709e794ede7a3519ae1f6d8327e06656aa99c3cfb2833c572342a85d83f2cb1"
+      "sha256": "5ef2abcca7c2ac1cec8270479bff10bb2c7ca116bea88d664247d2b6fcb69e4c"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -5005,7 +5005,7 @@
         "Firecrawl exact-head CI"
       ],
       "kind": "test",
-      "sha256": "84a974ea234fa9909ea9e9134d6d00c60eb4c4bdf87edaf40b9bb135bc62ccab"
+      "sha256": "f11df4337e1e305cd3a366ea7f89beba3236e02ac843c915e82531dae45814ea"
     },
     "tests/test_firecrawl_glp350_monitor.py": {
       "callers": [
@@ -5040,7 +5040,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "245c660807ede537c97694ccf814e6d0736e4b41881f1451acab594502a59032"
+      "sha256": "6333d7b8daaffca1379c63126967e95fd7e2eaba5b10a76377fd7af7f4405765"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [
@@ -7078,6 +7078,21 @@
       ],
       "kind": "test",
       "sha256": "e0376c5916c083187e47039a65bf7f66d689794eda244f0e926cd49fc85f4777"
+    },
+    "scripts/glp_capture_fetch_receipts.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/g6_r1a_stage5_research_fetch.py",
+        "scripts/glp_onboarding_authoring_dispatch.py"
+      ],
+      "sha256": "7b79f501ca500f919f17f95043893340f6bcd07e2315382f92e36eabe5c13229"
+    },
+    "tests/test_business_source_ci_budget.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
     }
   },
   "omitted_runtime_inputs": [
@@ -7088,5 +7103,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1036
+  "tracked_count": 1038
 }

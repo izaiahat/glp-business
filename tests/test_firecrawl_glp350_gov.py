@@ -57,8 +57,13 @@ def offline_fda(monkeypatch, tmp_path):
             return SimpleNamespace(Path=SandboxPath)
         return builtins.__import__(name, globals, locals, fromlist, level)
 
-    def execute(responses):
+    def execute(responses, relative_output=False):
         pending = iter(responses)
+        output_arg = str(output)
+        if relative_output:
+            business.mkdir(parents=True, exist_ok=True)
+            monkeypatch.chdir(business)
+            output_arg = str(output.relative_to(business))
 
         def post(url, **kwargs):
             calls.append((url, kwargs))
@@ -76,7 +81,7 @@ def offline_fda(monkeypatch, tmp_path):
         monkeypatch.setattr(requests, 'post', post)
         with monkeypatch.context() as execution:
             execution.setattr(sys, 'argv', [str(ROOT / 'scripts/research_glp_batch2_fda_warning_provenance.py'),
-                                          '--spec', str(spec), '--output', str(output), '--limit', '1'])
+                                          '--spec', str(spec), '--output', output_arg, '--limit', '1'])
             execution.setattr('time.sleep', lambda seconds: None)
             runpy.run_path(str(ROOT / 'scripts/research_glp_batch2_fda_warning_provenance.py'),
                            run_name='__main__',
@@ -135,6 +140,13 @@ def test_fda_execution_grouped_results_and_receipt_provenance(offline_fda, capsy
         'research_glp_batch2_fda_warning_provenance.states', 'research_glp_batch2_fda_warning_provenance.states']
     assert [op['outcome'] for op in operations] == ['started', 'success', 'started', 'success']
     assert 'fixture-only' not in fc.LEDGER.read_text()
+
+
+def test_relative_output_does_not_fail_after_two_paid_calls(offline_fda):
+    execute, output, _, calls = offline_fda
+    execute([(200, {'success': True, 'data': {'web': []}})] * 2, relative_output=True)
+    assert (output / 'fda-warning-bounded-search-ledger.json').exists()
+    assert len(calls) == 2
 
 
 @pytest.mark.parametrize('data', [None, [], {}, {'news': []}, {'web': None},
