@@ -129,3 +129,27 @@ def test_job_main_refuses_when_floor_reached(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(jobs, 'OUT', tmp_path)
     assert jobs.main(['seo_signals']) == 0
     assert 'REFUSED_BUDGET' in capsys.readouterr().out
+
+
+def test_candidates_need_us_and_medication_evidence_and_exclude_fella_and_known(tmp_path):
+    p = tmp_path / 'd.json'
+    us = {'country': 'US', 'country_excerpt': 'licensed in all 50 states', 'medication_provider_excerpt': ''}
+    med = {'country': None, 'medication_provider_excerpt': 'We prescribe semaglutide.'}
+    p.write_text(json.dumps({'organizations': {
+        'good.com': {'provider': 'Good', 'scope_evidence': [us, med]},
+        'usonly.com': {'scope_evidence': [us]},
+        'fellahealth.com': {'scope_evidence': [us, med]},
+        'known.com': {'scope_evidence': [us, med]},
+        'sub.portal.com': {'scope_evidence': [us, med]}}}))
+    rows = jobs.candidate_providers(p, known=['www.known.com'])
+    assert [r['host'] for r in rows] == ['good.com']
+    assert rows[0]['state'] == 'CANDIDATE_NOT_APPROVED'
+
+
+def test_budget_targets_operator_spend_from_baseline_and_respects_floor(tmp_path, monkeypatch):
+    monkeypatch.setattr(jobs, 'OUT', tmp_path)
+    monkeypatch.setattr(jobs, 'LEDGER', tmp_path / 'none.jsonl')
+    r = jobs.job_budget(FakeClient(remaining=67452))
+    assert r['target_remaining'] == 71154 - 62000 and r['remaining_to_spend'] == 67452 - 9154
+    r = jobs.job_budget(FakeClient(remaining=3000), baseline_remaining=4000, target_spend=3000)
+    assert r['target_remaining'] == 3000 and r['remaining_to_spend'] == 0 and r['stop'] is True

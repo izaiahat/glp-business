@@ -39,7 +39,7 @@ LEDGER = ROOT / 'data/firecrawl/operations.jsonl'
 OUT = ROOT / 'data/firecrawl/jobs'
 CONTRACTS = ROOT / 'site-system/flagship-v2/candidates/glp34-provider-families-20260912/data/provider-page-contracts.json'
 FLOOR = 3000
-PAGES_PER_PROVIDER = 20
+PAGES_PER_PROVIDER = 25
 PERIOD_END = '2026-10-19T23:59:59+00:00'
 CAPS = {'provider_research': 6000, 'provider_discovery': 2500, 'seo_signals': 1500, 'sponsor_supply': 1500}
 CALLERS = {
@@ -267,6 +267,30 @@ def registry_providers(contracts_path=CONTRACTS):
     return out
 
 
+SPONSOR_DISCOVERY = ROOT / 'reports/ops/sponsor-machine-20261003/contact-discovery.private.json'
+
+
+def candidate_providers(path=SPONSOR_DISCOVERY, known=()):
+    """Candidate (not approved) providers with retained first-party US + GLP-1 Rx evidence."""
+    try:
+        orgs = json.loads(Path(path).read_text()).get('organizations', {})
+    except (OSError, ValueError):
+        return []
+    known = {h.removeprefix('www.') for h in known}
+    out = []
+    for host, org in sorted(orgs.items()):
+        host = host.lower().removeprefix('www.')
+        ev = org.get('scope_evidence') or []
+        if (EXCLUDED.search(host + json.dumps(org.get('provider'))) or host in known or host.count('.') > 1
+                or not re.fullmatch(r'[a-z0-9-]+\.[a-z]{2,}', host)
+                or not any(e.get('country') == 'US' for e in ev if isinstance(e, dict))
+                or not any(e.get('medication_provider_excerpt') for e in ev if isinstance(e, dict))):
+            continue
+        out.append({'program_id': 'candidate-' + host.replace('.', '-'), 'display_name': str(org.get('provider') or host)[:80],
+                    'official_url': 'https://' + host + '/', 'host': host, 'field_sources': [], 'state': 'CANDIDATE_NOT_APPROVED'})
+    return out
+
+
 def due(packet_path, days):
     if not packet_path.exists():
         return True
@@ -331,7 +355,9 @@ def job_provider_research(client, ax_client, budget, out=OUT, days=1, limit=None
     ax.discover('bbb-business-profiles-ratings-complaint', ['businesses/search', 'businesses/profile'])
     ax.discover('fda-gov', ['records/drug_recalls'])
     done, skipped = [], []
-    for p in registry_providers()[:limit]:
+    registry = registry_providers()
+    providers = registry + candidate_providers(known=[p['host'] for p in registry])
+    for p in providers[:limit]:
         path = Path(out) / 'provider-research' / (p['program_id'] + '.json')
         if not due(path, days):
             skipped.append(p['program_id'])
@@ -477,19 +503,24 @@ def job_seo_signals(client, ax_client, budget, out=OUT, topics=SEO_TOPICS):
 
 # ----------------------------------------------------------------- budget
 
-def job_budget(client, period_start='2026-09-19T23:59:59+00:00', target_spend=62000):
+BASELINE_REMAINING = 71154  # operator fact at FC71 start, 2026-10-12
+TARGET_SPEND = 62000         # spend ~60-65k of it by period end; floor still applies
+
+
+def job_budget(client, baseline_remaining=BASELINE_REMAINING, target_spend=TARGET_SPEND):
     usage = client.request('team/credit-usage', method='GET')
     data = usage.get('data') or usage
     remaining, plan = int(data['remainingCredits']), int(data['planCredits'])
     end = dt.datetime.fromisoformat(PERIOD_END)
     hours_left = max(0.0, (end - now()).total_seconds() / 3600)
-    spent = plan - remaining
+    target_remaining = max(FLOOR, baseline_remaining - target_spend)
+    to_spend = max(0, remaining - target_remaining)
     since = (now() - dt.timedelta(days=1)).isoformat()
-    report = {'schema': 'glp-firecrawl-budget-v1', 'at_utc': now().isoformat(), 'remaining': remaining,
-              'plan': plan, 'spent_period': spent, 'period_end': PERIOD_END, 'hours_left': round(hours_left, 1),
-              'floor': FLOOR, 'target_spend_period': target_spend,
-              'target_remaining_to_spend': max(0, target_spend - spent),
-              'needed_per_day': round(max(0, target_spend - spent) / max(hours_left / 24, 0.04)),
+    report = {'schema': 'glp-firecrawl-budget-v2', 'at_utc': now().isoformat(), 'remaining': remaining,
+              'plan': plan, 'spent_since_baseline': baseline_remaining - remaining, 'period_end': PERIOD_END,
+              'hours_left': round(hours_left, 1), 'floor': FLOOR, 'target_spend': target_spend,
+              'target_remaining': target_remaining, 'remaining_to_spend': to_spend,
+              'needed_per_day': round(to_spend / max(hours_left / 24, 0.04)),
               'daily_caps': CAPS, 'last_24h_by_caller': spent_by_caller(since),
               'stop': remaining <= FLOOR}
     private_json(OUT / 'budget' / 'latest.json', report)
