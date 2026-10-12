@@ -71,6 +71,20 @@ class SurfaceInputTests(unittest.TestCase):
         self.assertEqual(actual['status'],'held_editorial_only')
         self.assertEqual(template['program_id'],'unrelated')
 
+    def test_shipping_pro_requires_exact_bound_first_party_quote(self):
+        import tempfile, json, hashlib
+        with tempfile.TemporaryDirectory() as d:
+            raw=Path(d)/'capture.json'
+            raw.write_text(json.dumps({'data':{'markdown':'Provider advertises free shipping.'}}))
+            bind={'raw_capture_path':str(raw),'raw_capture_sha256':hashlib.sha256(raw.read_bytes()).hexdigest()}
+            field={'source_url':'https://provider.example/','quote':'free shipping'}
+            contract={'source_capture_bindings':{field['source_url']:bind}}
+            note=u.captured_shipping_pro({'research_shipping_wait':field},contract)
+            self.assertIn('Provider advertises free shipping',note)
+            self.assertIn('unknown',note)
+            field['quote']='free 2-day shipping'
+            with self.assertRaises(SystemExit):u.captured_shipping_pro({'research_shipping_wait':field},contract)
+
     def test_invalid_medication_values_refuse(self):
         for meds in [{'compounded': True}, ['oral', {'injectable': True}], 1]:
             with self.assertRaisesRegex(SystemExit, 'meds_offered_type_invalid'):

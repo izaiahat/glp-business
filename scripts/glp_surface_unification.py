@@ -375,6 +375,26 @@ def logo_for(program_id: str, logo_manifest: dict) -> dict | None:
     return None
 
 
+def captured_shipping_pro(ledger_entry: dict, contract: dict) -> str | None:
+    field=ledger_entry.get('research_shipping_wait') or {}
+    quote=field.get('quote') or ''
+    if not re.search(r'\bfree(?:\s+[0-9]+(?:-[0-9]+)?[- ]day)?\s+shipping\b',quote,re.I):
+        return None
+    binding=(contract.get('source_capture_bindings') or {}).get(field.get('source_url'))
+    if not binding:
+        fail('shipping_pro_capture_unbound')
+    raw=Path(binding['raw_capture_path']).read_bytes()
+    if hashlib.sha256(raw).hexdigest()!=binding.get('raw_capture_sha256'):
+        fail('shipping_pro_capture_drift')
+    body=json.loads(raw)
+    payload=body.get('data',body)
+    text=payload.get('markdown') or payload.get('html') or ''
+    normalized=lambda text:re.sub(r'\s+',' ',text).strip().casefold()
+    if normalized(quote) not in normalized(text):
+        fail('shipping_pro_quote_unbound')
+    return 'Provider advertises free shipping; total intake-to-delivery timing remains unknown.'
+
+
 def build_row(program: dict, ledger_entry: dict, contract: dict | None,
               ready6: dict | None, tracking: dict, logo_manifest: dict,
               receipt_sha: str, checked_as_of: str) -> dict:
@@ -400,7 +420,12 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
     else:
         fail(f"no_row_source:{pid}")
 
-    # Do not pad an accepted research contract with a second invented benefit.
+    # A second fact must be genuinely bound, not filler to meet card shape.
+    if len(pros)==1 and tracking.get('held') is not True and contract:
+        shipping_pro=captured_shipping_pro(ledger_entry,contract)
+        if shipping_pro:
+            pros.append(shipping_pro)
+    # Do not pad an accepted research contract with an invented benefit.
     # At least one evidenced pro and two explicit limitations remain required.
     if len(pros) < 1 or len(cons) < 2:
         fail(f"row_evidence_too_thin:{pid}")
