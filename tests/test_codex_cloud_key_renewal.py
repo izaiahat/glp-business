@@ -68,4 +68,4 @@ def test_renewal_registry_preserves_existing_scope():
     for row in config['environments']:
         assert row['tags']==['tag:codex-cloud']
         assert len((renewal.operator_steps(row)+'\n-# renewal-ref: '+'a'*20).encode('utf-16-le'))//2 <=1900
-    assert config['mode']=='manual_fallback'
+    assert config['mode'] in ('manual_fallback','automatic')

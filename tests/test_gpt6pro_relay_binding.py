@@ -1798,6 +1798,13 @@ console.log(JSON.stringify(fixtures.map(f => {
                              'transcript_count': users, 'stop': False})
 
     def test_proof_bound_preinsert_terminal_actual_cli(self):
+        self._proof_bound_preinsert_terminal_actual_cli('WRONG_MODEL')
+
+    def test_chat_mode_refusal_terminal_actual_cli(self):
+        """Exact typed=false mode receipt releases only distinct-ID admission."""
+        self._proof_bound_preinsert_terminal_actual_cli('CHAT_SURFACE_REFUSED')
+
+    def _proof_bound_preinsert_terminal_actual_cli(self, reason):
         """Reusable report-bound disposition; no replay or stale UNKNOWN release."""
         sha = lambda b: relay.hashlib.sha256(b).hexdigest()
         job, tab, origin = 'unlisted-preinsert-job', 'attributed-target', 1791334401239.7
@@ -1807,12 +1814,15 @@ console.log(JSON.stringify(fixtures.map(f => {
         (d / 'drive-input').mkdir()
         (d / 'drive-input/PROMPT.md').write_bytes(prompt)
         held = {'job': job, 'account': 'account-a', 'job_class': 'review', 'status': 'failed',
-            'reason': 'WRONG_MODEL', 'retry_blocked': True, 'typed': False, 'sent': False,
+            'reason': reason, 'retry_blocked': True, 'typed': False, 'sent': False,
             'reply_token': 'b'*64, 'ts': '2026-10-07T00:53:31+00:00',
             'input_sha256': sha(json.dumps([('PROMPT.md', sha(prompt))], separators=(',', ':')).encode()),
             **{k: 'fixture-'+k for k in relay.PROVENANCE_FIELDS},
-            'error': {'error': 'WRONG_MODEL', 'typed': False, 'sent': False,
+            'error': {'error': reason, 'typed': False, 'sent': False,
                       'state': {'url': HOME, 'stop': False, 'assistant_count': 0, 'last_len': 0}}}
+        if reason == 'CHAT_SURFACE_REFUSED':
+            # The actual mode gate emits a tab but no readiness-state snapshot.
+            held['error'] = {'error': reason, 'typed': False, 'sent': False, 'tab': tab}
         relay.job_write(job, held)
         preimage = (d / 'JOB.json').read_bytes()
         message = relay._failed_generation_identity(held).encode()
@@ -1837,7 +1847,10 @@ console.log(JSON.stringify(fixtures.map(f => {
             p = rp.with_name(key+'.json')
             p.write_text(json.dumps(data))
             evidence[key] = {'path': str(p.relative_to(self.root)), 'sha256': sha(p.read_bytes())}
-        facts = {'job': job, 'disposition': 'terminal_unsent_preinsert', 'reason': 'WRONG_MODEL',
+        if reason == 'CHAT_SURFACE_REFUSED':
+            # Explicit original error.tab, not a guessed pre-attempt inventory.
+            evidence.pop('preflight')
+        facts = {'job': job, 'disposition': 'terminal_unsent_preinsert', 'reason': reason,
             'submission_bound': False, 'typed': False, 'sent': False, 'job_sha256': sha(preimage),
             'message_sha256': sha(message), 'manifest_sha256': sha((d/'MANIFEST.json').read_bytes()),
             'drive_prompt_sha256': sha(prompt), 'error_tab': tab, 'time_origin': origin,
@@ -1864,7 +1877,12 @@ console.log(JSON.stringify(fixtures.map(f => {
             self.assertEqual((d/'JOB.json').read_bytes(), preimage)
             self.assertEqual(ledger.read_bytes(), before_ledger)
             witness.assert_called_with(tab, origin, disposition_only=True)
-            for key, value in [('typed', True), ('sent', 'UNKNOWN')]:
+            mutations = [('typed', True), ('sent', 'UNKNOWN')]
+            if reason == 'CHAT_SURFACE_REFUSED':
+                mutations += [('error', {k: v for k, v in held['error'].items() if k != 'tab'}),
+                              ('error', {**held['error'], 'tab': 'other-target'}),
+                              ('error', {**held['error'], 'state': {'stop': True}})]
+            for key, value in mutations:
                 relay.job_write(job, {**held, key: value})
                 changed = sha((d/'JOB.json').read_bytes())
                 rp.write_text(json.dumps({'jobs': [{**facts, 'job_sha256': changed}]}))

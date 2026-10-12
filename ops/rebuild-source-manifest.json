@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
+      "callers": [
+        "systemd:user:codex-evidence.service"
+      ],
+      "kind": "registered_source",
+      "sha256": "ebc8efce0c652ced18a99946ea7ceb2205be1a86e6465f6b8630ff4e3d7df380"
+    },
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_projection.py": {
+      "callers": [
+        "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py"
+      ],
+      "kind": "registered_source",
+      "sha256": "8da053343c5d740b2b1d1920b6692c25d9bbbeb3dfaed43b69e5fc20c3135974"
+    },
     ".github/workflows/dot-lane.yml": {
       "callers": [
         "DOT1 exact-head CI"
@@ -63,28 +77,28 @@
         "host cron"
       ],
       "kind": "cron",
-      "sha256": "17c6e9dc042a8c9b7c160bf43db945fbc62453e0370d90e195f6868f90204814"
+      "sha256": "3f2432533eb9b25323ea74cf30a1d23e688e4711f2c8478d585d43cfc4c0a07f"
     },
     "ops/codex-cloud/tailscale-renewal.json": {
       "callers": [
         "scripts/codex_cloud_key_renewal.py"
       ],
       "kind": "operations",
-      "sha256": "087dd08c8229d89a1c4764719348d3896d5f3ee6710c2c94aa4ac0f9705960bc"
+      "sha256": "9fa42e48aa1596045443b2c8b745ad71c42ce16d55c25685386b0b5f9794027c"
     },
     "ops/codex-cloud/KEY-RENEWAL.md": {
       "callers": [
         "manual:operator-secure-renewal"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "dc6196d203ad6ffe81aaeec53dae6b80cc1938c7b0b297687a163aac209dc241"
+      "sha256": "0680d516fe14859b19f4310fa89cfd715473ae9261d7febc7a9cee0d0905346b"
     },
     "tests/test_codex_cloud_key_renewal.py": {
       "callers": [
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "f53c15dc075f3f0a04e0ced1456e9d80f4d8c0573a60fe8b6facba82cf5ac1f6"
+      "sha256": "f22496c5974eae70dcedda539cda198f9ede624ccd1591b86a0f99d5a55110d4"
     },
     "tests/test_glp_single_publisher.py": {
       "callers": [
@@ -103,7 +117,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "ce482e513603baba9a5db85449d63c57314a773b1ca9c4fa6bbd5e0c13961a04"
+      "sha256": "c8be12d7e9a98d6c91084c4e1c7cdacb56459ad40b2115e199bc619af8a1cdc5"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -515,7 +529,7 @@
         "ops/hermes-cron-scripts/glp_evidence_refresh_daily.py"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "341865c3ed9a2063f1c8a80711059ab7acae2e50ad12e03a26c98896eb8f3a05"
+      "sha256": "75533ef6e1c330e221c941a57cb906630162ee193950637760e949727de2bb83"
     },
     "ops/glp/evidence-refresh-k3/compose_current_base.py": {
       "callers": [
@@ -1131,7 +1145,7 @@
         "hermes:1ef582b6c7a0"
       ],
       "kind": "script",
-      "sha256": "956e1a9df9bf9c0b0b0510d4ab9ee20711f6df7fcae8a26d8cd09d7cdc3e3114"
+      "sha256": "d9ec947c922b65a7d035b003fa0c50a48020ea33408377d28b94c26e77b7ba30"
     },
     "ops/hermes-cron-scripts/glp_firecrawl_monitors.py": {
       "callers": [
@@ -2492,7 +2506,7 @@
         "all maintained Firecrawl producers"
       ],
       "kind": "script",
-      "sha256": "a3b8df3dd8436aebbf71829be9daf078a3c135462d0bdac68e2c613bc50b4552"
+      "sha256": "9a514c5be48e6daa3aa917222496c633c3f248506bb2530a84b80cbb7dc8bbf3"
     },
     "scripts/fleet_ingest.md": {
       "callers": [
@@ -2527,7 +2541,7 @@
         "registered stage5 research fetch"
       ],
       "kind": "script",
-      "sha256": "2ee9fa180d4651e86c922e2815ee953391b3e8f5f2d66bf44789d27c1172e3a3"
+      "sha256": "4b8570ea086af2f64b096393c82d1d14219fb1576d828366c9b9fc2a7b29f7a2"
     },
     "scripts/generate_glp34_deploy_carrier.py": {
       "callers": [
@@ -3032,7 +3046,7 @@
         "manual:registered price verification"
       ],
       "kind": "script",
-      "sha256": "f487e71e33686e10360c242e93b6e5e58ccb202209c40dc242ac20387728fa21"
+      "sha256": "b8ca267055d2795ca828eab70270223282866cac742a37142d22cf9921d6e9f9"
     },
     "scripts/glp_program_liveness_check.py": {
       "callers": [
@@ -3199,7 +3213,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "08ad18f5563463e0242f8aa192640539e458113b08758b35916a63dc42a325b9"
+      "sha256": "53602c0c1338d6b774533362957dd2d4f0d003d87497a9a15ce048a6aab18e1b"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -3307,7 +3321,7 @@
         "on-demand:gpt6pro_wave"
       ],
       "kind": "script",
-      "sha256": "4af17f17d6621149dd223900583e13e1871d8249ac95e6da62208e8db7d680ff"
+      "sha256": "66326b533e11da4f975c62595fb8bac81eaebca4508875928a8d6bc4b8bb69e1"
     },
     "scripts/gpt6pro_wave.py": {
       "callers": [
@@ -3691,7 +3705,7 @@
         "manual:bounded FDA warning search"
       ],
       "kind": "script",
-      "sha256": "9709e794ede7a3519ae1f6d8327e06656aa99c3cfb2833c572342a85d83f2cb1"
+      "sha256": "5ef2abcca7c2ac1cec8270479bff10bb2c7ca116bea88d664247d2b6fcb69e4c"
     },
     "scripts/result_contract.py": {
       "callers": [],
@@ -4991,7 +5005,7 @@
         "Firecrawl exact-head CI"
       ],
       "kind": "test",
-      "sha256": "84a974ea234fa9909ea9e9134d6d00c60eb4c4bdf87edaf40b9bb135bc62ccab"
+      "sha256": "f11df4337e1e305cd3a366ea7f89beba3236e02ac843c915e82531dae45814ea"
     },
     "tests/test_firecrawl_glp350_monitor.py": {
       "callers": [
@@ -5026,7 +5040,7 @@
         ".github/workflows/firecrawl-integration.yml"
       ],
       "kind": "test",
-      "sha256": "245c660807ede537c97694ccf814e6d0736e4b41881f1451acab594502a59032"
+      "sha256": "6333d7b8daaffca1379c63126967e95fd7e2eaba5b10a76377fd7af7f4405765"
     },
     "tests/test_fleet_ingest.py": {
       "callers": [
@@ -6052,7 +6066,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "9cf39b4e72dcd5ea2bf88ac9c9e492bb713c4f0c1ab0c59ea36a0676511600c1"
+      "sha256": "9154d917951db79da5a537cd48e7241e247cfd354945fb20f25d3c24b5524114"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -6236,7 +6250,7 @@
     "tests/test_gpt6pro_relay_binding.py": {
       "callers": [],
       "kind": "test",
-      "sha256": "8e8deef6988f0b429c394bf62c97ce545f35375e76cb50dc224488e0f6b36df7"
+      "sha256": "ee96badd13d9b7ec37c888e58439138418f1280d0434ad029aedee6946e875f0"
     },
     "tests/test_gpt6pro_wave.py": {
       "callers": [
@@ -6979,6 +6993,34 @@
       ],
       "sha256": "d9d24e65b33412ec027a2ca5b8bc9ef25f71b4b4ff66528840c1cb271832beee"
     },
+    "scripts/codex_cloud_vpn_renewal.py": {
+      "callers": [
+        "ops/cron.d/codex-cloud-key-renewal"
+      ],
+      "kind": "script",
+      "sha256": "3827c2b0395dacc699492ebb13c68f343649ab45fd6638ff075f1b7cfede57ec"
+    },
+    "scripts/codex_cloud_vpn_browser.py": {
+      "callers": [
+        "scripts/codex_cloud_vpn_renewal.py"
+      ],
+      "kind": "script",
+      "sha256": "0d41f30ce9c0813a3bf679861a3d0d0798c57f68e4e9eb63c45ba909f04c5db0"
+    },
+    "tests/test_codex_cloud_vpn_renewal.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "794ca7056c5cf43e8f47d3b16a0d2b4fb9e0b9d1491caf3ac46a975da178b2a7"
+    },
+    "tests/test_codex_evidence_alias.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "42ff285e39d6f8cc979e96133e56bd4a3558991c1f5e939aad8e8a9cc909937b"
+    },
     "scripts/glp_review_tracking_rebind.py": {
       "kind": "script",
       "callers": [
@@ -7041,6 +7083,21 @@
       ],
       "kind": "test",
       "sha256": "e0376c5916c083187e47039a65bf7f66d689794eda244f0e926cd49fc85f4777"
+    },
+    "scripts/glp_capture_fetch_receipts.py": {
+      "kind": "script",
+      "callers": [
+        "scripts/g6_r1a_stage5_research_fetch.py",
+        "scripts/glp_onboarding_authoring_dispatch.py"
+      ],
+      "sha256": "7b79f501ca500f919f17f95043893340f6bcd07e2315382f92e36eabe5c13229"
+    },
+    "tests/test_business_source_ci_budget.py": {
+      "callers": [
+        ".github/workflows/business-source-ci.yml"
+      ],
+      "kind": "test",
+      "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
     }
   },
   "omitted_runtime_inputs": [
@@ -7051,5 +7108,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1036
+  "tracked_count": 1045
 }
