@@ -54,6 +54,8 @@ def site_protected(p,pins,root):
     if not isinstance(pins,(tuple,frozenset)):pins=tuple(pins)
     if p!=root and root not in p.parents:return True
     structural={SITE,SITE/'candidates',SITE/'releases',SITE/'work'} if SITE in root.parents else set()
+    prune=BUS/'reports/host-disk-prune'
+    if prune in root.parents:structural.add(prune)
     key=(id(pins),tuple(sorted(map(str,structural))))
     cached=_SITE_PIN_CACHE.get(key)
     if cached is None or cached[0] is not pins:

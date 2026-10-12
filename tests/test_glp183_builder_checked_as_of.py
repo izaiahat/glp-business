@@ -42,7 +42,7 @@ def load_contract_functions():
     source = Path(__file__).resolve().parents[1] / "scripts/build_glp_affiliate_wirein_incremental_v2.py"
     tree = ast.parse(source.read_text(), filename=str(source))
     names = {"quote", "stated", "canonical_field_sources", "normalize_regulatory_banner",
-             "build_contract", "validate_checked_as_of", "apply_changes", "main",
+             "build_contract", "validate_checked_as_of", "editorial_hold_reason", "apply_changes", "main",
              "read_json", "write_json", "file_sha", "sha_bytes", "logo_mutation_paths",
              "paired_cta_identity_successor"}
     functions = [node for node in tree.body
