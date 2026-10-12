@@ -127,7 +127,7 @@ def live_coordinator(expected=None):
 
 AUTOMATION_DECISION = 'ops/linear/approvals/OPERATOR-DECISION-20261011-grilling-round1.md'
 OPERATOR_SCHEMA = 'sponsor.recorded_operator_receiving.v1'
-OPERATOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S3/SOURCE-REVIEW.json'
+OPERATOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S4/SOURCE-REVIEW.json'
 
 
 def recorded_operator_authority(c):
@@ -300,7 +300,7 @@ def reviewed_source_head(c, *, recorded_operator=False):
         pins['canonical_inbox_sha256'] = 'inbox_control_plane/control_plane.py'
         pins['firecrawl_client_sha256'] = 'scripts/firecrawl_client.py'
     head = review.get('reviewed_source_head', '')
-    if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] in ('S1', 'RV-S2', 'S3')
+    if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] in ('S1', 'RV-S2', 'S3', 'S4')
         or not re.fullmatch('[0-9a-f]{40}', head)
         or any(review.get(key) != c.digest(c.ROOT/name) for key, name in pins.items())):
         raise RuntimeError('independent_installed_source_review_required')
