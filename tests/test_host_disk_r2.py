@@ -19,6 +19,7 @@ class Remote:
 
 
 def setup(tmp_path, monkeypatch):
+    monkeypatch.setenv('TMPDIR',str(tmp_path))
     import host_disk_custody
     monkeypatch.setattr(host_disk_custody,'collect',lambda:set())
     monkeypatch.setattr(m,'live_symlink_targets',lambda:set())
