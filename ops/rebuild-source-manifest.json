@@ -7,14 +7,14 @@
         "scripts/auto_coordinator_runner.py",
         "manual:GLP-358 read-only verifier"
       ],
-      "sha256": "c5d3c356795588fdda28000d44282c5589237fe38df0ab460dec9b3df1f9bafa"
+      "sha256": "3a124cb5e1deffde51eebb3b812eab86d4195c40f02de27e8c26a713f12a6135"
     },
     "tests/test_auto_coordinator_receipt.py": {
       "kind": "test",
       "callers": [
         "coordinator-receipt-ci"
       ],
-      "sha256": "e095e6e47ec10d50fc0c8fa5b8f5a86670fc7b428da44da2fe46117412ef0f21"
+      "sha256": "bcfcc607cd549b386c750ed825303fadf92da1307604d2f8ed400b0d041cfdba"
     },
     ".github/workflows/coordinator-receipt-ci.yml": {
       "kind": "repository_control",
@@ -1517,7 +1517,7 @@
     "ops/linear/AUTO-COORDINATOR.md": {
       "callers": [],
       "kind": "instruction_or_policy",
-      "sha256": "a681fb7222a9ceed517e2543160fee1c80029943a00f5a35a9b86d711a4767b5"
+      "sha256": "6362f2406ae3749ee38b5b200dee7e49272c4a98b528f465b1e70a3360ec8eb5"
     },
     "ops/linear/CONVENTIONS.md": {
       "callers": [],

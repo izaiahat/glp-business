@@ -41,12 +41,26 @@ In this mode these rules supersede the maintenance/support actions below:
   SKIP_DEPENDENCY, SKIP_LIVE_OWNER, SKIP_RECONCILED; no invented S5/S6 rows.
   `actions` bind issue/owner/kind/fingerprint/inbox_sha256, pre-effect guard and
   guard_message_id, and `effect` with native message_id plus dispatch call_id,
-  exact brief and child_session, or closure done_readback. Include this receipt
+  exact brief and child_session (account for every task/child in a batched call),
+  or closure worker_result, preflight_message_id and done_readback. A closure
+  requires direct native `LINEAR_ROLE=orchestrator python3 scripts/linear_close.py
+  ISSUE WORKER --check-only` then `--apply` tool-call/result linkage; retain the
+  issue id, open state before the gate, and bound completed readback with genuine
+  updatedAt during apply, read back after apply. Historical Done/no-op is not a
+  new closure. Include this receipt
   directory in every dispatched brief. Retain unknown/uncertain effects as
   failures; never repeat them to fill the receipt. `reconciliation` covers each
   preceding action's exact [issue,owner,kind,fingerprint] logical_key and
   prior_effect, actual readback_path and UNCHANGED_NO_REPEAT only when observed.
-  A failed task continuation is NOT unchanged-output idempotence. Changed inputs
+  A failed task continuation is NOT unchanged-output idempotence. Require the
+  selected child's genuine RESULT to bind issue, owner, child_session and exact
+  logical_key, with an output_receipt (path/sha256) containing the same issue/key
+  and an output object with a concrete observed business identifier/value. Have
+  that child retain and cite its RESULT path+sha256 in its final native message;
+  an unrelated DONE_READY_TO_CLOSE cannot stand in for its output. Include these
+  bindings in the original brief; do not backfill them after a failed run.
+  Prerequisite closure < activation < first verified natural execution is required.
+  Changed inputs
   require a new decision, not a manufactured unchanged receipt. Print this
   directory and the genuine coordinator session ID in the final native output.
   Missing native/readback bindings leave acceptance incomplete. This retention

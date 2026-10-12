@@ -76,6 +76,19 @@ def native_fixture(root, paths):
     db = sqlite3.connect(root / 'state.db')
     db.execute('CREATE TABLE sessions(id,source,started_at,ended_at,parent_session_id)')
     db.execute('CREATE TABLE messages(id,session_id,role,tool_name,content,tool_calls,timestamp)')
+    # The child really emits the exact bound result/output in this offline trace.
+    decision = m.load(paths[1] / 'DECISION.json')
+    rec = decision['reconciliation'][0]
+    output_path = paths[1] / 'accepted-output.json'
+    put(output_path, {'issue': 'GLP-358', 'logical_key': rec['logical_key'], 'output': {'receipt_id': 'offline-observation-358'}})
+    put(root / rec['readback_path'], {'status': 'DONE_READY_TO_CLOSE', 'issue': 'GLP-358', 'owner': 'owner',
+        'child_session': 'child', 'logical_key': rec['logical_key'], 'output_receipt': {
+            'path': str(output_path.relative_to(root)), 'sha256': m.sha(output_path.read_bytes())}})
+    ref = next(r for r in decision['readbacks'] if r['path'] == rec['readback_path'])
+    ref['sha256'] = m.sha((root / rec['readback_path']).read_bytes())
+    put(paths[1] / 'DECISION.json', decision)
+    db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?)', (32, 'child', 'assistant', None,
+        rec['readback_path'] + ' ' + ref['sha256'], None, 1791767998))
     for n, path in enumerate(paths, 1):
         start = 1791766800 + (n - 1) * 3600  # 2026-10-12 01:00 UTC
         db.execute('INSERT INTO sessions VALUES(?,?,?,?,?)', ('s%s' % n, 'oneshot', start + 1, start + 1700, None))
@@ -147,6 +160,115 @@ def test_unreported_second_run_dispatch_is_refused(tmp_path):
     db.commit(); db.close()
     with pytest.raises(ValueError, match='unreported or duplicated native dispatch'):
         m.verify(args)
+
+
+def test_prerequisite_after_natural_runs_is_refused(tmp_path):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    assert m.verify(args)['status'] == 'PASS'
+    with sqlite3.connect(args.state_db) as db:
+        db.execute('UPDATE messages SET timestamp=? WHERE id=1', (1791778000,))
+        db.execute('UPDATE messages SET timestamp=? WHERE id=2', (1791778001,))
+    with pytest.raises(ValueError, match='prerequisite must precede'):
+        m.verify(args)
+
+
+def test_omitted_batched_task_and_child_is_refused(tmp_path):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    assert m.verify(args)['status'] == 'PASS'
+    with sqlite3.connect(args.state_db) as db:
+        calls = json.loads(db.execute('SELECT tool_calls FROM messages WHERE id=30').fetchone()[0])
+        payload = json.loads(calls[0]['function']['arguments'])
+        payload['tasks'].append({'goal': 'GLP-999 unreported child', 'provider': 'openai-codex', 'model': 'gpt-6.1-sol', 'speed': 'fast'})
+        calls[0]['function']['arguments'] = json.dumps(payload)
+        db.execute('UPDATE messages SET tool_calls=? WHERE id=30', (json.dumps(calls),))
+        db.execute('INSERT INTO sessions VALUES(?,?,?,?,?)', ('extra-child', 'subagent', 1791766811, 1791768001, 's1'))
+        db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?)', (34, 'extra-child', 'user', None, 'GLP-999 unreported child', None, 1791766811))
+    with pytest.raises(ValueError, match='unreported or ambiguous batched'):
+        m.verify(args)
+
+
+def test_unrelated_worker_result_for_failed_selected_child_is_refused(tmp_path):
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    assert m.verify(args)['status'] == 'PASS'
+    decision = m.load(paths[1] / 'DECISION.json')
+    ref = next(r for r in decision['readbacks'] if r['path'].endswith('worker.json'))
+    put(tmp_path / ref['path'], {'issue': 'GLP-999', 'status': 'DONE_READY_TO_CLOSE', 'child_session': 'unrelated-child'})
+    ref['sha256'] = m.sha((tmp_path / ref['path']).read_bytes())
+    put(paths[1] / 'DECISION.json', decision)
+    with sqlite3.connect(args.state_db) as db:
+        text = '\n'.join(r['path'] + ' ' + r['sha256'] for r in decision['readbacks'])
+        db.execute('UPDATE messages SET content=? WHERE id=12', (json.dumps({'exit_code': 0, 'output': text}),))
+        db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?)', (33, 'child', 'assistant', None, 'FAILED: no accepted business output', None, 1791767999))
+    with pytest.raises(ValueError, match='issue/child/action identity mismatch'):
+        m.verify(args)
+
+
+def test_historical_done_stdout_and_noop_not_authenticated_closure(tmp_path):
+    # A native terminal READ of old Done stdout is not an --apply invocation.
+    db = sqlite3.connect(':memory:')
+    db.row_factory = sqlite3.Row
+    db.execute('CREATE TABLE messages(id,session_id,role,tool_name,content,tool_calls,timestamp,tool_call_id)')
+    call = {'id': 'read-old', 'function': {'name': 'terminal', 'arguments': json.dumps({'command': 'cat historical-closure.txt'})}}
+    db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)', (29, 's1', 'assistant', None, None, json.dumps([call]), 10, None))
+    db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)', (30, 's1', 'tool', 'terminal', json.dumps({'exit_code': 0, 'output': 'GLP-358 Done historical/RESULT.json'}), None, 11, 'read-old'))
+    message = db.execute('SELECT * FROM messages WHERE id=30').fetchone()
+    with pytest.raises(ValueError, match='not direct gated linear_close'):
+        m.closer_call(db, 's1', message, 'GLP-358', 'worker.json', '--apply')
+    # --check-only must be genuine as well; already-Done apply alone is not a gate.
+    call['function']['arguments'] = json.dumps({'command': 'LINEAR_ROLE=orchestrator python3 scripts/linear_close.py GLP-358 worker.json --apply'})
+    db.execute('UPDATE messages SET tool_calls=? WHERE id=29', (json.dumps([call]),))
+    assert m.closer_call(db, 's1', message, 'GLP-358', 'worker.json', '--apply')['id'] == 29
+    with pytest.raises(ValueError, match='not direct gated linear_close'):
+        m.closer_call(db, 's1', message, 'GLP-358', 'worker.json', '--check-only')
+    db.close()
+    # Exercise the full new-closure path, then replay the same historical Done.
+    paths = fixture(tmp_path)
+    args = native_fixture(tmp_path, paths)
+    inp = m.load(paths[0] / 'INPUT.json')
+    inbox = inp['inbox'][0]
+    inbox['data']['status'] = 'READY_TO_CLOSE'
+    inbox['raw'] = json.dumps(inbox['data'])
+    inbox['sha256'] = m.sha(inbox['raw'].encode())
+    put(paths[0] / 'INPUT.json', inp)
+    decision = m.load(paths[0] / 'DECISION.json')
+    decision['input_sha256'] = m.sha((paths[0] / 'INPUT.json').read_bytes())
+    action = decision['actions'][0]
+    action['kind'] = 'close'
+    action['inbox_sha256'] = inbox['sha256']
+    done_path = paths[0] / 'done.json'
+    put(done_path, {'identifier': 'GLP-358', 'id': 'issue-358', 'state': {'type': 'completed'}, 'updatedAt': '2026-10-12T01:00:06+00:00'})
+    action['effect'] = {'message_id': 30, 'preflight_message_id': 25, 'worker_result': 'worker.json', 'done_readback': str(done_path.relative_to(tmp_path))}
+    done_ref = {'path': str(done_path.relative_to(tmp_path)), 'sha256': m.sha(done_path.read_bytes()), 'native_message_id': 40}
+    decision['readbacks'].append(done_ref)
+    decision['linear_readback']['GLP-358']['id'] = 'issue-358'
+    board_ref = decision['readbacks'][0]
+    put(tmp_path / board_ref['path'], decision['linear_readback'])
+    board_ref['sha256'] = m.sha((tmp_path / board_ref['path']).read_bytes())
+    put(paths[0] / 'DECISION.json', decision)
+    with sqlite3.connect(args.state_db) as db:
+        db.execute('DELETE FROM sessions WHERE id="child"')
+        db.execute('ALTER TABLE messages ADD COLUMN tool_call_id')
+        db.execute('UPDATE messages SET content=? WHERE id=11', (json.dumps({'exit_code': 0, 'output': '\n'.join(r['path'] + ' ' + r['sha256'] for r in decision['readbacks'][:-1])}),))
+        for ident, flag, stamp in ((24, '--check-only', 1791766803.2), (29, '--apply', 1791766805)):
+            call = {'id': str(ident), 'function': {'name': 'terminal', 'arguments': json.dumps({'command': 'LINEAR_ROLE=orchestrator python3 scripts/linear_close.py GLP-358 worker.json ' + flag})}}
+            db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)', (ident, 's1', 'assistant', None, None, json.dumps([call]), stamp, None))
+        db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)', (25, 's1', 'tool', 'terminal', json.dumps({'exit_code': 0, 'output': 'GLP-358 PASS gate=prevalidated coordinator-acceptance=required writes=0'}), None, 1791766804, '24'))
+        db.execute('UPDATE messages SET role="tool", tool_name="terminal", content=?, tool_calls=NULL, timestamp=?, tool_call_id="29" WHERE id=30', (json.dumps({'exit_code': 0, 'output': 'GLP-358 Done worker/GLP-358/RESULT.json'}), 1791766807))
+        db.execute('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)', (40, 's1', 'tool', 'terminal', json.dumps({'exit_code': 0, 'output': done_ref['path'] + ' ' + done_ref['sha256']}), None, 1791766808, None))
+    def authenticate_first():
+        with m.rodb(args.executions_db) as executions, m.rodb(args.state_db) as native:
+            return m.authenticate(tmp_path, paths[0], executions, native, tmp_path / 'outputs')
+    assert authenticate_first()[1]['actions'][0]['kind'] == 'close'
+    put(done_path, {'identifier': 'GLP-358', 'id': 'issue-358', 'state': {'type': 'completed'}, 'updatedAt': '2026-10-11T01:00:06+00:00'})
+    done_ref['sha256'] = m.sha(done_path.read_bytes())
+    put(paths[0] / 'DECISION.json', decision)
+    with sqlite3.connect(args.state_db) as db:
+        db.execute('UPDATE messages SET content=? WHERE id=40', (json.dumps({'exit_code': 0, 'output': done_ref['path'] + ' ' + done_ref['sha256']}),))
+    with pytest.raises(ValueError, match='historical Done/no-op'):
+        authenticate_first()
 
 
 def test_runner_deferral_preserves_receipt_boundary(monkeypatch):

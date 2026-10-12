@@ -9,6 +9,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shlex
 from pathlib import Path
 import sqlite3
 import sys
@@ -159,6 +160,28 @@ def rodb(path):
     return db
 
 
+def closer_call(native, session, message, issue, worker, flag):
+    """Authenticate a direct closer invocation, not stdout from a log/no-op."""
+    require(message and message['role'] == 'tool' and message['tool_name'] == 'terminal', 'not actual closer output')
+    require('tool_call_id' in message.keys() and message['tool_call_id'], 'native closer invocation binding absent')
+    matches = []
+    for row in native.execute('SELECT * FROM messages WHERE session_id=? AND role=? AND id<? AND tool_calls IS NOT NULL',
+                              (session, 'assistant', message['id'])):
+        for call in json.loads(row['tool_calls']):
+            if call['id'] == message['tool_call_id']:
+                matches.append((row, call))
+    require(len(matches) == 1, 'native closer invocation binding absent or ambiguous')
+    invoked, call = matches[0]
+    require(call['function']['name'] == 'terminal', 'not native terminal closer invocation')
+    words = shlex.split(json.loads(call['function']['arguments'])['command'])
+    require(words[:1] == ['LINEAR_ROLE=orchestrator'] and len(words) == 6 and
+            Path(words[1]).name in ('python3', 'python') and
+            words[2] == 'scripts/linear_close.py' and words[3:] == [issue, worker, flag],
+            'not direct gated linear_close invocation')
+    require(invoked['timestamp'] <= message['timestamp'], 'closer invocation chronology absent')
+    return invoked
+
+
 def authenticate(root, directory, executions, native, output_root):
     inp, decision = validate(root, directory)
     execution = executions.execute('SELECT * FROM executions WHERE id=?', (decision['execution_id'],)).fetchone()
@@ -186,14 +209,36 @@ def authenticate(root, directory, executions, native, output_root):
             require(child and child['ended_at'] is not None and child['ended_at'] < session['started_at'], 'prior child not terminal before second run')
             result = load(root / rec['readback_path'])
             require(result['status'] == 'DONE_READY_TO_CLOSE', 'failed continuation is not unchanged completed-output proof')
+            require(result.get('issue') == rec['logical_key'][0] and result.get('owner') == rec['logical_key'][1] and
+                    result.get('child_session') == child['id'] and result.get('logical_key') == rec['logical_key'],
+                    'worker result issue/child/action identity mismatch')
+            result_sha = binding(root, rec['readback_path'])['sha256']
+            final = native.execute("SELECT * FROM messages WHERE session_id=? AND role='assistant' ORDER BY id DESC LIMIT 1", (child['id'],)).fetchone()
+            require(final and rec['readback_path'] in (final['content'] or '') and result_sha in final['content'] and
+                    child['started_at'] <= final['timestamp'] <= child['ended_at'], 'worker result not bound to genuine child final output')
+            output = result.get('output_receipt') or {}
+            require(output.get('path') and binding(root, output['path'])['sha256'] == output.get('sha256'), 'accepted worker output receipt absent')
+            observed = load(root / output['path'])
+            require(observed.get('issue') == result['issue'] and observed.get('logical_key') == rec['logical_key'] and
+                    isinstance(observed.get('output'), dict) and observed['output'] and
+                    any(v not in (None, '', 'ok', 'PASS', '200', 0, True) for v in observed['output'].values()),
+                    'accepted worker output is not a concrete bound observation')
         else:
             require(load(root / rec['readback_path'])['state']['type'] == 'completed', 'prior Done no longer observed')
     actual_calls = []
+    actual_tasks = []
     for message in native.execute('SELECT tool_calls FROM messages WHERE session_id=? AND tool_calls IS NOT NULL', (session['id'],)):
         for call in json.loads(message['tool_calls']):
             if call.get('function', {}).get('name') == 'delegate_task':
                 actual_calls.append(call['id'])
-    require(sorted(actual_calls) == sorted(a['effect']['call_id'] for a in decision['actions'] if a['kind'] == 'dispatch'), 'unreported or duplicated native dispatch')
+                tasks = json.loads(call['function']['arguments']).get('tasks', [])
+                actual_tasks.extend((call['id'], task['goal']) for task in tasks)
+    dispatches = [a for a in decision['actions'] if a['kind'] == 'dispatch']
+    require(sorted(set(actual_calls)) == sorted(set(a['effect']['call_id'] for a in dispatches)) and
+            len(actual_calls) == len(set(actual_calls)), 'unreported or duplicated native dispatch')
+    expected_tasks = [(a['effect']['call_id'], a['effect']['brief']) for a in dispatches]
+    require(sorted(actual_tasks) == sorted(expected_tasks) and len(actual_tasks) == len(set(actual_tasks)),
+            'unreported or ambiguous batched task/child')
     actual_closures = []
     for message in native.execute("SELECT id,content FROM messages WHERE session_id=? AND role='tool' AND tool_name='terminal'", (session['id'],)):
         payload = json.loads(message['content'])
@@ -219,10 +264,31 @@ def authenticate(root, directory, executions, native, output_root):
             require(child and child['parent_session_id'] == session['id'] and child['source'] == 'subagent', 'child not native descendant')
             require(native.execute('SELECT 1 FROM messages WHERE session_id=? AND role=? AND content=?', (child['id'], 'user', task['goal'])).fetchone(), 'child brief mismatch')
         else:
-            require(m['role'] == 'tool' and m['tool_name'] == 'terminal', 'not actual closer output')
+            worker = effect.get('worker_result')
+            require(worker, 'native closer invocation/worker binding absent')
+            invoked = closer_call(native, session['id'], m, a['issue'], worker, '--apply')
+            preflight = native.execute('SELECT * FROM messages WHERE id=? AND session_id=?',
+                                       (effect['preflight_message_id'], session['id'])).fetchone()
+            gate_call = closer_call(native, session['id'], preflight, a['issue'], worker, '--check-only')
+            gate = json.loads(preflight['content'])
+            require(gate['exit_code'] == 0 and a['issue'] + ' PASS gate=prevalidated' in gate['output'] and
+                    g['timestamp'] < gate_call['timestamp'] <= preflight['timestamp'] < invoked['timestamp'], 'new OPEN closer gate absent')
             result = json.loads(m['content'])
             require(result['exit_code'] == 0 and a['issue'] + ' Done ' in result['output'], 'actual new closure absent')
-            require(load(root / effect['done_readback'])['state']['type'] == 'completed', 'Done readback missing')
+            require(effect['done_readback'] in [r['path'] for r in decision['readbacks']], 'Done readback not bound')
+            done = load(root / effect['done_readback'])
+            before = decision['linear_readback'][a['issue']]
+            require(done['identifier'] == a['issue'] and done['id'] == before['id'] and done['state']['type'] == 'completed' and
+                    before['state']['type'] not in ('completed', 'canceled'), 'OPEN-to-Done readback missing')
+            changed = dt.datetime.fromisoformat(done['updatedAt'].replace('Z', '+00:00')).timestamp()
+            require(invoked['timestamp'] <= changed <= m['timestamp'], 'historical Done/no-op is not a new transition')
+            done_ref = next(r for r in decision['readbacks'] if r['path'] == effect['done_readback'])
+            done_message = native.execute('SELECT timestamp FROM messages WHERE id=? AND session_id=?',
+                                          (done_ref['native_message_id'], session['id'])).fetchone()
+            require(done_message and m['timestamp'] <= done_message['timestamp'] <= finish, 'Done readback precedes closure')
+    children = [r['id'] for r in native.execute("SELECT id FROM sessions WHERE parent_session_id=? AND source='subagent'", (session['id'],))]
+    require(sorted(children) == sorted(a['effect']['child_session'] for a in dispatches) and
+            len(children) == len(set(a['effect']['child_session'] for a in dispatches)), 'unreported or ambiguous native child')
     return execution, decision
 
 
@@ -258,7 +324,9 @@ def verify(args):
             require(getattr(args, field), 'timestamped preactivation closure/resume native messages required')
         close = native.execute('SELECT * FROM messages WHERE id=?', (args.closure_message,)).fetchone()
         resume = native.execute('SELECT * FROM messages WHERE id=?', (args.activation_message,)).fetchone()
-        require(close and resume and close['timestamp'] < resume['timestamp'] and close['role'] == resume['role'] == 'tool', 'activation ordering absent')
+        require(close and resume and close['timestamp'] < resume['timestamp'] <
+                dt.datetime.fromisoformat(e1['started_at']).timestamp() and close['role'] == resume['role'] == 'tool',
+                'activation ordering absent: prerequisite must precede first natural execution')
         c, r = json.loads(close['content']), json.loads(resume['content'])
         require(c['exit_code'] == r['exit_code'] == 0 and 'GLP-355 Done ' + worker in c['output'] and 'Resumed job:' in r['output'] and JOB in r['output'], 'real prerequisite closure/resume absent')
     return {'status': 'PASS', 'natural_actions': len(d1['actions']), 'second_run_repeated_effects': 0, 'writes': 0}
