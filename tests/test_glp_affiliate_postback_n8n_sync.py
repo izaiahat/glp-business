@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-SOURCE = Path("/home/ubuntu/business/scripts/glp_affiliate_postback_n8n_sync.py")
+SOURCE = Path(__file__).resolve().parents[1] / "scripts/glp_affiliate_postback_n8n_sync.py"
 spec = importlib.util.spec_from_file_location("glp_affiliate_postback_n8n_sync_test", SOURCE)
 assert spec and spec.loader
 sync = importlib.util.module_from_spec(spec)
@@ -422,3 +422,88 @@ def test_reviewed_cli_writes_private_attested_receipt_and_safe_stdout(
     assert "credential-id" not in stdout
     assert sync.QUERY_WEBHOOK_URL not in stdout
     assert "nodes" not in stdout
+
+
+@pytest.mark.parametrize("missing", ["Run Durable Ledger Writer", "Build Sanitized Bridge Request"])
+def test_equal_saved_and_published_graphs_cannot_hide_a_missing_referenced_node(missing):
+    candidate = sync.build_workflow("credential-id", "a" * 64)
+    candidate["nodes"] = [n for n in candidate["nodes"] if n["name"] != missing]
+    with pytest.raises(sync.SyncError, match="workflow_connection_node_missing"):
+        sync.validate_live(_live(candidate), candidate, "")
+
+
+def test_query_identity_repair_is_minimal_and_authenticates_maxbounty_and_test():
+    import hashlib
+    secret = "synthetic-only-regression-secret" * 3
+    digest = hashlib.sha256(secret.encode()).hexdigest()
+    before = _live(sync.build_workflow("credential-id", digest))
+    before["id"] = "dG2y4DqpoHEMCLfD"
+    before["settings"]["availableInMCP"] = True
+    next(n for n in before["nodes"] if n["name"] == "Run Durable Ledger Writer")["retryOnFail"] = False
+    before["activeVersion"]["nodes"] = deepcopy(before["nodes"])
+    candidate = sync.build_query_identity_repair(before, digest)
+    restored = deepcopy(candidate)
+    next(n for n in restored["nodes"] if n["name"] == "Verify Query Secret and Strip")["parameters"]["jsCode"] = sync.query_auth_js(digest)
+    assert restored == sync.workflow_payload(before)
+    code = next(n for n in candidate["nodes"] if n["name"] == "Verify Query Secret and Strip")["parameters"]["jsCode"]
+    query = {"pb_key":secret,"network":"maxbounty","offer_id":"32122","network_account_ref":"803003","click_id":"TEST-CLICK","conversion_id":"TEST-CONVERSION","event":"conversion","event_status":"test","is_test":"true"}
+    program = "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); try {const result=new Function('$input',d.code)({first:()=>({json:{query:d.query,headers:{ip:'forbidden'}}})}); console.log(JSON.stringify({ok:true,result}));} catch(e) {console.log(JSON.stringify({ok:false,reason:e.message}));}"
+    def run(q):
+        return json.loads(subprocess.run(["node","-e",program],input=json.dumps({"code":code,"query":q}),text=True,capture_output=True,check=True).stdout)
+    result = run(query)
+    assert result["ok"] is True
+    assert result["result"][0]["json"] == {"body":{},"query":{k:v for k,v in query.items() if k != "pb_key"}}
+    for extra in [{"ip":"192.0.2.1"},{"email":"test@example.invalid"},{"diagnosis":"forbidden"},{"commission":"1"},{"pb_key":"wrong"}]:
+        assert run({**query,**extra})["ok"] is False
+    candidate_live = _live(candidate)
+    candidate_live["id"] = before["id"]
+    assert sync.build_query_identity_repair(candidate_live,digest) == candidate
+    assert sync.validate_live(candidate_live,candidate,secret)["secret_literal_detected"] is False
+
+
+def test_scoped_repair_refuses_unknown_authenticator_without_changing_input():
+    before = _live(sync.build_workflow("credential-id", "a" * 64))
+    before["id"] = "dG2y4DqpoHEMCLfD"
+    next(n for n in before["nodes"] if n["name"] == "Verify Query Secret and Strip")["parameters"]["jsCode"] += "\n// unreviewed drift"
+    before["activeVersion"]["nodes"] = deepcopy(before["nodes"])
+    original = deepcopy(before)
+    with pytest.raises(sync.SyncError, match="query_authenticator_predecessor_drift"):
+        sync.build_query_identity_repair(before, "a" * 64)
+    assert before == original
+
+
+def test_scoped_exact_transition_preserves_current_graph_and_never_provisions(monkeypatch, tmp_path):
+    secret = "s" * 64
+    secret_path = tmp_path / "shared-secret.txt"
+    secret_path.write_text(secret)
+    secret_path.chmod(0o600)
+    monkeypatch.setattr(sync, "SECRET_PATH", secret_path)
+    before = _live(sync.build_workflow("credential-id", sync.hashlib.sha256(secret.encode()).hexdigest()))
+    before["id"] = "dG2y4DqpoHEMCLfD"
+    next(n for n in before["nodes"] if n["name"] == "Run Durable Ledger Writer")["retryOnFail"] = False
+    before["activeVersion"]["nodes"] = deepcopy(before["nodes"])
+    candidate = sync.build_query_identity_repair(before, sync.hashlib.sha256(secret.encode()).hexdigest())
+    class Client:
+        current = deepcopy(before)
+        puts = 0
+        def list_workflows(self): return [deepcopy(self.current)]
+        def get_workflow(self, wid):
+            assert wid == before["id"]
+            return deepcopy(self.current)
+        def update_workflow(self, wid, payload):
+            assert wid == before["id"] and payload == candidate
+            self.puts += 1
+            self.current = _live(payload)
+            self.current["id"] = wid
+        def __getattr__(self, name):
+            raise AssertionError("unexpected provisioning/activation: " + name)
+    client = Client()
+    result = sync.apply_live(client, repair_existing=True, repair_query_identity=True,
+        expected_before_sha256=sync.canonical_sha256(sync.workflow_payload(before)),
+        expected_after_sha256=sync.canonical_sha256(candidate))
+    assert client.puts == 1
+    assert result["credential_created"] is False and result["secret_created"] is False
+    assert result["workflow_created"] is False and result["exact_transition_enforced"] is True
+    with pytest.raises(sync.SyncError, match="requires_exact_transition"):
+        sync.apply_live(client, repair_existing=True, repair_query_identity=True)
+    assert client.puts == 1

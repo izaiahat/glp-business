@@ -9,6 +9,7 @@ the credential-create request, and never printed or embedded in workflow JSON.
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 import datetime as dt
 import hashlib
 import json
@@ -24,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 BUSINESS = Path("/home/ubuntu/business")
-sys.path.insert(0, str(BUSINESS / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import glp_postback_authority as authority  # noqa: E402
 
@@ -604,9 +605,63 @@ def executable_payload(workflow: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_graph_references(workflow: dict[str, Any]) -> None:
+    """Parity alone cannot establish graph completeness."""
+    nodes, connections = workflow.get("nodes"), workflow.get("connections")
+    if not isinstance(nodes, list) or not isinstance(connections, dict):
+        raise SyncError("workflow_graph_body_invalid")
+    names = [node.get("name") for node in nodes if isinstance(node, dict)]
+    if len(names) != len(nodes) or any(not isinstance(n, str) or not n for n in names) or len(set(names)) != len(names):
+        raise SyncError("workflow_node_identity_invalid")
+    names = set(names)
+    for source, outputs in connections.items():
+        if source not in names:
+            raise SyncError("workflow_connection_node_missing")
+        if not isinstance(outputs, dict):
+            raise SyncError("workflow_connections_invalid")
+        for ports in outputs.values():
+            if not isinstance(ports, list):
+                raise SyncError("workflow_connections_invalid")
+            for edges in ports:
+                if not isinstance(edges, list):
+                    raise SyncError("workflow_connections_invalid")
+                for edge in edges:
+                    if not isinstance(edge, dict) or edge.get("node") not in names:
+                        raise SyncError("workflow_connection_node_missing")
+
+
+def build_query_identity_repair(live: dict[str, Any], secret_sha256: str) -> dict[str, Any]:
+    """Only extend the existing query edge, never rebuild its current graph.
+
+    Preserve the historical build_workflow()/receipt contract. The query edge
+    gains the existing downstream account identity and TEST metadata only;
+    payout, IP, PHI and arbitrary keys remain rejected.
+    """
+    if live.get("id") != "dG2y4DqpoHEMCLfD":
+        raise SyncError("query_identity_repair_workflow_identity_invalid")
+    candidate = deepcopy(workflow_payload(live))
+    validate_live(live, candidate, "")
+    original = query_auth_js(secret_sha256)
+    repaired = original.replace(
+        "'pb_key', 'network', 'offer_id', 'click_id', 'conversion_id', 'event'",
+        "'pb_key', 'network', 'offer_id', 'click_id', 'conversion_id', 'event', "
+        "'network_account_ref', 'event_status', 'is_test'",
+    )
+    verifiers = [n for n in candidate["nodes"] if n["name"] == "Verify Query Secret and Strip"]
+    if len(verifiers) != 1 or verifiers[0].get("type") != "n8n-nodes-base.code":
+        raise SyncError("query_authenticator_predecessor_drift")
+    parameters = verifiers[0].get("parameters") or {}
+    if parameters.get("jsCode") not in (original, repaired):
+        raise SyncError("query_authenticator_predecessor_drift")
+    parameters["jsCode"] = repaired
+    return candidate
+
+
 def validate_live(
     live: dict[str, Any], candidate: dict[str, Any], shared_secret: str
 ) -> dict[str, Any]:
+    validate_graph_references(candidate)
+    validate_graph_references(live)
     if live.get("name") != WORKFLOW_NAME:
         raise SyncError("workflow_name_drift")
     if live.get("active") is not True:
@@ -614,6 +669,7 @@ def validate_live(
     active_version = live.get("activeVersion")
     if not isinstance(active_version, dict):
         raise SyncError("workflow_active_version_missing")
+    validate_graph_references(active_version)
     active_version_id = str(live.get("activeVersionId") or "")
     nested_active_version_id = str(
         active_version.get("id") or active_version.get("versionId") or ""
@@ -715,6 +771,7 @@ def apply_live(
     repair_existing: bool = False,
     expected_before_sha256: str | None = None,
     expected_after_sha256: str | None = None,
+    repair_query_identity: bool = False,
 ) -> dict[str, Any]:
     reviewed_transition = _reviewed_transition(
         expected_before_sha256,
@@ -722,6 +779,8 @@ def apply_live(
     )
     if reviewed_transition and not repair_existing:
         raise SyncError("reviewed_transition_requires_repair_existing")
+    if repair_query_identity and not reviewed_transition:
+        raise SyncError("query_identity_repair_requires_exact_transition")
 
     # In reviewed mode the provider preimage is the first mutable-system
     # prerequisite. No secret/material ensure or credential creator may run
@@ -749,22 +808,30 @@ def apply_live(
     else:
         shared_secret, secret_created = ensure_secret()
 
-    credentials = [item for item in client.list_credentials() if item.get("name") == CREDENTIAL_NAME]
-    if len(credentials) > 1:
-        raise SyncError("duplicate_header_credentials")
     credential_created = False
-    if credentials:
-        credential = credentials[0]
+    if repair_query_identity:
+        # Reuse references in the authenticated exact live preimage; no material
+        # provisioning, credential listing or generic graph reconstruction.
+        candidate = build_query_identity_repair(
+            live, hashlib.sha256(shared_secret.encode("utf-8")).hexdigest()
+        )
+        credential = next(n for n in live["nodes"] if n["name"] == "Authenticated Postback")["credentials"]["httpHeaderAuth"]
     else:
-        if reviewed_transition:
-            raise SyncError("reviewed_header_credential_missing")
-        credential = client.create_credential(shared_secret)
-        credential_created = True
+        credentials = [item for item in client.list_credentials() if item.get("name") == CREDENTIAL_NAME]
+        if len(credentials) > 1:
+            raise SyncError("duplicate_header_credentials")
+        if credentials:
+            credential = credentials[0]
+        else:
+            if reviewed_transition:
+                raise SyncError("reviewed_header_credential_missing")
+            credential = client.create_credential(shared_secret)
+            credential_created = True
+        candidate = build_workflow(str(credential.get("id") or ""), hashlib.sha256(shared_secret.encode("utf-8")).hexdigest())
     credential_id = str(credential.get("id") or "")
     if not credential_id or credential.get("name") != CREDENTIAL_NAME:
         raise SyncError("header_credential_create_readback_invalid")
 
-    candidate = build_workflow(credential_id, hashlib.sha256(shared_secret.encode("utf-8")).hexdigest())
     candidate_sha256 = canonical_sha256(candidate)
     if expected_after_sha256 and candidate_sha256 != expected_after_sha256:
         raise SyncError("reviewed_after_definition_sha256_mismatch")
@@ -887,6 +954,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--repair-existing", action="store_true")
+    parser.add_argument("--repair-query-identity", action="store_true", help="Preserve the current receiver; extend only account/TEST query fields under exact transition hashes")
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--expected-before-sha256")
     parser.add_argument("--expected-after-sha256")
@@ -905,6 +973,7 @@ def main(argv: list[str] | None = None) -> int:
             repair_existing=True,
             expected_before_sha256=args.expected_before_sha256,
             expected_after_sha256=args.expected_after_sha256,
+            repair_query_identity=args.repair_query_identity,
         )
         try:
             result = authority.attest_receipt(result)
@@ -920,7 +989,15 @@ def main(argv: list[str] | None = None) -> int:
             "secrets_printed": False,
         }, sort_keys=True))
         return 0
-    result = inspect(client)
+    if args.repair_query_identity:
+        live = client.get_workflow("dG2y4DqpoHEMCLfD")
+        secret = read_existing_secret(SECRET_PATH)
+        candidate = build_query_identity_repair(live, hashlib.sha256(secret.encode()).hexdigest())
+        result = {"status":"PREVIEW_QUERY_IDENTITY_REPAIR", "write_performed":False,
+            "expected_before_definition_sha256":canonical_sha256(workflow_payload(live)),
+            "expected_after_definition_sha256":canonical_sha256(candidate)}
+    else:
+        result = inspect(client)
     if args.receipt:
         args.receipt.parent.mkdir(parents=True, exist_ok=True)
         args.receipt.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
