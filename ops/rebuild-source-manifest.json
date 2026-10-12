@@ -27,7 +27,7 @@
         "manual:DOTS coordinator"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "9ddcb274145d4deb774e5fee21c41aa5d073d10b58f29b7c4d70cd380640d7f9"
+      "sha256": "deffff1b910d2839e09108392d4b301ecbf6a3dc0a07aaba59b00f374b9a853d"
     },
     "ops/cron.d/glp-dot-refill": {
       "callers": [
@@ -42,14 +42,14 @@
         "ops/cron.d/glp-dot-refill"
       ],
       "kind": "script",
-      "sha256": "d529727db90db3bc620f28a8b5edf0e959998614fac06356642984ea6246d3fc"
+      "sha256": "3005edafb2408caa1467e5846df50fbfc3c8884ece26877067c59df8fbde0038"
     },
     "tests/test_dot_lane.py": {
       "callers": [
         ".github/workflows/dot-lane.yml"
       ],
       "kind": "test",
-      "sha256": "f133c7a9cd52f49173a682c1dfcd77123c00d1c7305e3872281024dd61f3e36e"
+      "sha256": "393cce1733a980519e866253149d233a27df4f3652f6e8862406733b279de39f"
     },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [

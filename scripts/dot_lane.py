@@ -157,16 +157,30 @@ def ingest(root=ROOT, *, since=0, effects=live_effect, pr_lookup=pr_lookup):
                 effect = receipt['effects'].get(kind,{})
                 if effect.get('status') == 'confirmed':
                     continue
-                mode = kind+'_reconcile' if effect.get('status') == 'posting' else kind
+                held = effect.get('status') == 'scope_refused_before_post'
+                mode = kind+'_reconcile' if effect.get('status') == 'posting' or held else kind
                 receipt['effects'][kind] = {'status':'posting', 'attempted_at':effect.get('attempted_at',time.time())}
                 dots.atomic_json(target, receipt)
-                value = effects(mode, state['issue'], content, marker)
+                if kind == 'discord' and receipt['effects'].get('linear',{}).get('status') == 'scope_refused_before_post':
+                    content = content.replace('🟢 **DOTS ingestion**','🟡 **DOTS coordinator comment required**')
+                try:
+                    value = effects(mode, state['issue'], content, marker)
+                except Exception as error:
+                    refused = type(error).__name__ == 'LinearError' and str(error) == 'Fleet target must be an admitted active GLP issue'
+                    absent = held and str(error) == 'uncertain_linear_effect_absent_coordinator_reconcile_required'
+                    if kind != 'linear' or not (refused or absent):
+                        raise
+                    receipt['effects'][kind] = {'status':'scope_refused_before_post','reason':'Fleet comment scope refused; coordinator must post the exact preserved body, without changing root admission or replaying the dot.'}
+                    receipt['coordinator_comment_body'] = body
+                    dots.atomic_json(target,receipt)
+                    continue
                 receipt['effects'][kind] = dict(status='confirmed', **value)
                 dots.atomic_json(target, receipt)
-            receipt.update(status='ingested', ingested_at=receipt.get('ingested_at', time.time()))
+            status = 'ingested' if receipt['effects']['linear']['status']=='confirmed' else 'awaiting_coordinator_comment'
+            receipt.update(status=status, ingested_at=receipt.get('ingested_at', time.time()))
             dots.atomic_json(target, receipt)
             append_once(root/'reports/ops/fable-plan-2-20261009/lanes/DOTS/INBOX.jsonl', receipt, 'ticket')
-            outputs.append({'ticket':state['ticket'], 'status':'ingested', 'receipt':str(target)})
+            outputs.append({'ticket':state['ticket'], 'status':status, 'receipt':str(target)})
     return outputs
 
 
@@ -299,15 +313,28 @@ def refill(root=ROOT, *, dot=None, issues=None, dispatch=dots.dispatch, effects=
             if claim.get('status') == 'selecting':
                 # Never turn a crashed/uncertain effect into an automatic retry.
                 raise ValueError('refill_uncertain_selection_requires_coordinator_reconcile')
-            if claim.get('status') == 'dispatched':
+            if claim.get('status') in {'dispatched','coordinator_comment_required'}:
                 marker = '[DOTS-REFILL:'+scope_id+']'
                 mode = 'linear_reconcile' if claim.get('comment_posting') else 'linear'
                 claim['comment_posting'] = True
                 dots.atomic_json(ledger, claims)
-                claim['linear_comment'] = effects(mode,claim['issue'],claim['comment_body'],marker)
+                try:
+                    claim['linear_comment'] = effects(mode,claim['issue'],claim['comment_body'],marker)
+                except Exception as error:
+                    refused = type(error).__name__ == 'LinearError' and str(error) == 'Fleet target must be an admitted active GLP issue'
+                    absent = str(error) == 'uncertain_linear_effect_absent_coordinator_reconcile_required'
+                    if not (refused or absent):
+                        raise
+                    claim['status'] = 'coordinator_comment_required'
+                    claim['comment_hold'] = 'Exact comment absent/refused; coordinator must reconcile. No role escalation, resend or automatic POST.'
+                    dots.atomic_json(ledger,claims)
+                    continue
                 claim['status'] = 'commented'
                 dots.atomic_json(ledger, claims)
         for name in ([dot] if dot else ['rook','finch']):
+            if any(claim.get('dot')==name and claim.get('status')=='coordinator_comment_required' for claim in claims.values()):
+                result.append({'dot':name,'status':'awaiting_coordinator_refill_comment'})
+                continue
             tickets = [read(path) for path in tickets_dir.glob('*/TICKET.json')]
             # Terminal evidence must reach the coordinator BEFORE another task.
             unhanded = [row for row in tickets if row.get('dot') == name

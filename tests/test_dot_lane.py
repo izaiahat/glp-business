@@ -181,6 +181,50 @@ def test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,mon
     assert events == ['cloud','rook','finch']
 
 
+def test_one_refill_comment_hold_does_not_stall_the_other_dot(tmp_path,monkeypatch):
+    import dot_lane as lane
+    test_full_refill_cloud_handoff_precedes_rook_and_busy_is_silent(tmp_path,monkeypatch)
+    ledger = tmp_path/'reports/ops/dot-refill/CLAIMS.json'
+    claims = json.loads(ledger.read_text())
+    claims['two']['status'] = 'dispatched'
+    ledger.write_text(json.dumps(claims))
+    def effects(kind,*args):
+        assert kind == 'linear_reconcile'
+        raise ValueError('uncertain_linear_effect_absent_coordinator_reconcile_required')
+    issues = [dict(identifier='GLP-253',state={'type':'started'}),dict(identifier='GLP-328',state={'type':'started'})]
+    out = lane.refill(tmp_path,issues=issues,effects=effects,cloud_reader=lambda root:[])
+    assert [r['status'] for r in out] == ['busy','awaiting_coordinator_refill_comment']
+
+
+def test_backlogged_reply_is_handed_to_coordinator_without_role_escalation(tmp_path):
+    import dot_lane as lane
+    import dot_dispatch as d
+    test_ingestion_writes_coordinator_receipt_and_is_idempotent(tmp_path)
+    directory = tmp_path/'reports/ops/dot-tickets/rook-glp-354-test'
+    completion = json.loads((directory/'COMPLETION.json').read_text())
+    completion['results'][0]['author_id'] = d.DOTS['rook']['user']
+    (directory/'COMPLETION.json').write_text(json.dumps(completion))
+    target = tmp_path/'reports/ops/fleet-ingest/rook-glp-354-test.json'
+    receipt = json.loads(target.read_text())
+    receipt['effects'] = {}
+    target.write_text(json.dumps(receipt))
+    class LinearError(Exception):
+        pass
+    events = []
+    def effects(kind,issue,body,marker):
+        events.append(kind)
+        if kind == 'linear':
+            raise LinearError('Fleet target must be an admitted active GLP issue')
+        if kind == 'linear_reconcile':
+            raise ValueError('uncertain_linear_effect_absent_coordinator_reconcile_required')
+        return {'id':'notification'}
+    lane.ingest(tmp_path,since=0,effects=effects)
+    assert json.loads(target.read_text())['status'] == 'awaiting_coordinator_comment'
+    assert events == ['linear','discord']
+    lane.ingest(tmp_path,since=0,effects=effects)
+    assert events == ['linear','discord','linear_reconcile']
+
+
 def test_uncertain_ingest_queries_but_does_not_repeat_external_write(tmp_path):
     # The already exercised receipt fixture provides a real staged terminal pair.
     import dot_lane as lane
