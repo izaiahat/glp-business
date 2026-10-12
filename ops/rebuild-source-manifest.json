@@ -7100,6 +7100,28 @@
       ],
       "kind": "test",
       "sha256": "6ab6903f69f4d47fdc05b24e7505720f0a12f83663869532464e2b17a9b7f262"
+    },
+    "ops/glp/seo_weekly_budget.py": {
+      "callers": [
+        "scripts/glp_weekly_strategy_report.py",
+        "scripts/glp_weekly_seo_collect.py"
+      ],
+      "kind": "script",
+      "sha256": "d6a81acf399c1027a06e1f78d67a6ad204f28211e7baa75c84e5c443f272f30f"
+    },
+    "ops/glp/weekly_keyword_plan.py": {
+      "callers": [
+        "ops/glp/weekly_strategy_sync.py"
+      ],
+      "kind": "script",
+      "sha256": "630d98f1ea4c12ebd86a8b7d342620a0927118620aea81140e23827c50ee8150"
+    },
+    "tests/test_glp44_weekly_keyword_budget.py": {
+      "callers": [
+        "scripts/run_tests.sh"
+      ],
+      "kind": "test",
+      "sha256": "8ffe4aebfa7deb61185632b9da4fccaf343f0090c17e75caf086f21cad5655a3"
     }
   },
   "omitted_runtime_inputs": [
@@ -7110,5 +7132,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1045
+  "tracked_count": 1048
 }
