@@ -1316,6 +1316,7 @@ def build_registry_entry(spec: dict) -> dict:
     hold = editorial_hold_reason(spec)
     if hold:
         entry['go']['entry_state'] = 'held'
+        entry['profiles']['glp-clinic-scout']['surface_membership'] = 'review_only'
         for surface in ('compare', 'quiz', 'calculator', 'go', 'guides'):
             entry['profiles']['glp-clinic-scout']['surfaces'][surface] = False
             if surface != 'guides':
