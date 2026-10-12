@@ -190,3 +190,81 @@ def test_private_bucket_object_expiry_is_refused():
     with pytest.raises(RuntimeError,match='expiry'):control.check_private()
 
 
+def test_explicit_remote_authority_keeps_originals_on_failed_readback(tmp_path,monkeypatch):
+    root,dest=setup(tmp_path,monkeypatch)
+    class Authorized(Remote):
+        def admit(self,root,days):return {'scope':'superseded_site'}
+        def protect(self,p,pins):return m.protected(p,pins)
+        def store(self,*args):raise OSError('fixture failed GET')
+    row=m.cold_archive(API(),root,dest,dry_run=False,cold_days=0,
+        remote_authority=Authorized(),deadline=time.monotonic()+60)
+    assert row['status']=='REMOTE_REQUIRED_ORIGINALS_RETAINED'
+    assert (root/'proof').exists() and not dest.exists()
+
+
+def test_authorized_pair_store_reconciles_without_overwrite(tmp_path):
+    from host_disk_authorized_retirement import store_pair
+    transport=Transport(FakeS3(),lambda:True)
+    archive,manifest=pair(tmp_path,days=0)
+    proof=store_pair(transport,archive,manifest,time.monotonic()+60)
+    assert all(o['created'] and o['verified'] for o in proof['objects'])
+    again=store_pair(transport,archive,manifest,time.monotonic()+60)
+    assert not any(o['created'] for o in again['objects'])
+    transport.client.objects[proof['objects'][0]['key']]=b'conflicting bytes'
+    with pytest.raises(ValueError,match='binding'):
+        store_pair(transport,archive,manifest,time.monotonic()+60)
+
+
+def test_site_protection_relaxes_only_seal_name_not_named_holds(tmp_path):
+    from host_disk_authorized_retirement import site_protected
+    root=tmp_path/'sealed-old'
+    assert not site_protected(root/'ordinary.txt',(),root)
+    assert site_protected(root/'ordinary.txt',(root,),root)
+    for name in ('data.sqlite','backup.txt','R8.txt','.env','financial.json','secrets/value'):
+        assert site_protected(root/name,(),root)
+
+
+def test_real_site_authority_requires_disjoint_current_refs(tmp_path,monkeypatch):
+    import host_disk_authorized_retirement as authorized
+    site=tmp_path/'site';root=site/'candidates/sealed-old';root.mkdir(parents=True)
+    monkeypatch.setattr(authorized,'SITE',site)
+    monkeypatch.setattr(authorized,'fresh_pins',lambda:())
+    authority=authorized.SiteAuthority(root,object())
+    assert authority.admit(root,0)['scope']=='superseded_site'
+    monkeypatch.setattr(authorized,'fresh_pins',lambda:(root,))
+    with pytest.raises(ValueError,match='custody'):authority.admit(root,0)
+    with pytest.raises(ValueError,match='scope'):authority.admit(root,30)
+
+
+def test_completed_archive_authority_retains_manifest_and_partial_recovery(tmp_path,monkeypatch):
+    import host_disk_authorized_retirement as authorized
+    root,dest=setup(tmp_path,monkeypatch)
+    m.cold_archive(API(),root,dest,dry_run=False,cold_days=7,deadline=time.monotonic()+60)
+    monkeypatch.setattr(authorized,'fresh_pins',lambda:())
+    ledger=Path(str(dest)+'.retirement.jsonl');original=ledger.read_text();ledger.write_text('')
+    row=authorized.completed_archive(API(),dest,Remote(),tmp_path,time.monotonic()+60,False)
+    assert row['status']=='RETAINED_PARTIAL_RETIREMENT_RECOVERY' and dest.exists()
+    ledger.write_text(original)
+    class Pair(Remote):
+        def private_check(self):return True
+        def readback(self,*args,**kwargs):return None
+    monkeypatch.setattr(authorized,'store_pair',lambda d,a,b,end:Remote().store(a,b,end))
+    row=authorized.completed_archive(API(),dest,Pair(),tmp_path,time.monotonic()+60,False)
+    assert row['status']=='MIGRATED_R2_VERIFIED' and not dest.exists()
+    assert Path(str(dest)+'.manifest.json').exists() and ledger.exists()
+
+
+def test_remote_authority_becomes_current_before_retirement_refuses(tmp_path,monkeypatch):
+    root,dest=setup(tmp_path,monkeypatch)
+    class Authority(Remote):
+        calls=0
+        def protect(self,p,pins):return m.protected(p,pins)
+        def admit(self,r,days):
+            self.calls+=1
+            if self.calls>1:raise ValueError('new current production custody')
+            return {'scope':'superseded_site'}
+    with pytest.raises(ValueError,match='production custody'):
+        m.cold_archive(API(),root,dest,dry_run=False,cold_days=0,remote_authority=Authority(),deadline=time.monotonic()+60)
+    assert (root/'proof').exists() and not dest.exists()
+
+
