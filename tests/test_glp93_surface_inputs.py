@@ -35,6 +35,21 @@ class SurfaceInputTests(unittest.TestCase):
         self.assertEqual(u.eligibility_with_retained_holds(rows, ['live']), rows[:2])
         self.assertEqual(held['live_link_allowed'], False)
 
+    def test_explicit_editorial_hold_keeps_missing_tracker_dark(self):
+        p={'program_id':'held','display_name':'Held','review_path':'/reviews/held/','affiliate_relationship_snapshot':{'promotion_denied':True}}
+        c={'network_contract':{'network':'MaxBounty','tracking_url':None,'promotion_authorized_in_this_artifact':False},'row_contract':{'live_link_allowed':False,'promotion_authorized':False,'pros':['Clinician review described'],'cons':['Price unknown','Pharmacy unknown']}}
+        tracking=u.tracking_for(p,c,{})
+        self.assertEqual(tracking,{'url':None,'host':None,'network':'MaxBounty','held':True})
+        entry={'source_url':'https://provider.example/','starting_price':'UNKNOWN'}
+        row=u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
+        self.assertIsNone(row['affiliate_href'])
+        self.assertFalse(row['live_link_allowed'])
+        self.assertFalse(row['promotion_authorized'])
+        p['affiliate_relationship_snapshot']['promotion_denied']=False
+        with self.assertRaisesRegex(SystemExit,'tracking_url_missing'):u.tracking_for(p,c,{})
+        c['row_contract']['pros']=[]
+        with self.assertRaisesRegex(SystemExit,'row_evidence_too_thin'):u.build_row(p,entry,c,None,tracking,{'logos':[]},'a'*64,'2026-10-10')
+
     def test_invalid_medication_values_refuse(self):
         for meds in [{'compounded': True}, ['oral', {'injectable': True}], 1]:
             with self.assertRaisesRegex(SystemExit, 'meds_offered_type_invalid'):

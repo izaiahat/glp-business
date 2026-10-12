@@ -379,7 +379,9 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
     else:
         fail(f"no_row_source:{pid}")
 
-    if len(pros) < 2 or len(cons) < 2:
+    # Do not pad an accepted research contract with a second invented benefit.
+    # At least one evidenced pro and two explicit limitations remain required.
+    if len(pros) < 1 or len(cons) < 2:
         fail(f"row_evidence_too_thin:{pid}")
 
     href = tracking["url"]
@@ -395,7 +397,7 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
         "cons": cons,
         "criteria_scores": ledger_entry.get("criteria_scores") or {},
         "insurance": insurance or "Not stated",
-        "live_link_allowed": True,
+        "live_link_allowed": tracking.get('held') is not True,
         "meds_offered": meds or "Prescription and clinician approval required",
         "operator_selection_receipt_sha256": receipt_sha,
         "program_id": pid,
@@ -406,7 +408,7 @@ def build_row(program: dict, ledger_entry: dict, contract: dict | None,
             "status": "NOT_VERIFIED",
             "verified_as_of": checked_as_of,
         },
-        "promotion_authorized": True,
+        "promotion_authorized": tracking.get('held') is not True,
         "pros": pros,
         "provider": display,
         "review_path": program["review_path"],
@@ -450,6 +452,11 @@ def tracking_for(program: dict, contract: dict | None, approved: dict) -> dict:
         url = network_contract.get("tracking_url")
         network = network_contract.get("network") or "Direct affiliate"
         if not url:
+            row = contract.get('row_contract') or {}
+            if ((program.get('affiliate_relationship_snapshot') or {}).get('promotion_denied') is True
+                    and network_contract.get('promotion_authorized_in_this_artifact') is False
+                    and row.get('live_link_allowed') is False and row.get('promotion_authorized') is False):
+                return {'url': None, 'host': None, 'network': network, 'held': True}
             fail(f"tracking_url_missing:{pid}")
         host = re.sub(r"^https://([^/]+).*$", r"\1", url)
         return {"url": url, "host": host, "network": network}
@@ -676,11 +683,11 @@ def _unify_in_place(release: Path) -> dict:
             "display_name": program["display_name"],
             "affiliate_network": tracking["network"],
             "network": str(tracking["network"]).lower().split()[0],
-            "allowed_fallback_hosts": [re.sub(r"^www\.", "", tracking["host"])],
+            "allowed_fallback_hosts": [] if tracking.get('held') is True else [re.sub(r"^www\.", "", tracking["host"])],
             "affiliate_link_mode": "transparent_direct",
             "go_route_wired": False,
-            "live_link_allowed": True,
-            "promotion_authorized": True,
+            "live_link_allowed": tracking.get('held') is not True,
+            "promotion_authorized": tracking.get('held') is not True,
             "redirector_tos_verified": False,
             "operator_selection_receipt_sha256": receipt_sha,
         })
