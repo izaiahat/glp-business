@@ -41,7 +41,8 @@ def project(target, receipts, snapshot):
   row['network_contract']['tracking_url']=link;row['row_contract']['affiliate_href']=link
   if 'tracking_host' in row:row['tracking_host']=urlparse(link).hostname
   if 'affiliate_tracking_host' in row['row_contract']:row['row_contract']['affiliate_tracking_host']=urlparse(link).hostname
-  sources[pid]=receipt
+  sources[pid]={'campaign':{k:api[k] for k in ('campaign_id','details','allowed_traffic_types','landing_pages','creatives') if k in api},'tracking_api_receipt':issued,'capture_path':str(capture),'capture_sha256':c['capture_sha256']}
+  sources[pid]['campaign']['details']={k:api['details'][k] for k in ('name','status','affiliate_campaign_status','rules') if k in api['details']}
   authority['programs'][pid]={'status':'VERIFIED','promotion_authorized':True,'constructor_verified':True,'network':'MaxBounty','direct_only':True,'issued_link':link,'tracking_link_sha256':hashlib.sha256(link.encode()).hexdigest(),'reason':'approved_api_link_sole_writer_ready','source_receipt':f'data/review-tracking-receipts.json#{pid}'}
  if not updates:raise RuntimeError('review_tracking_receipts_empty')
  successor=paired_cta_tracking_successor(raw,contracts,migration,updates)
