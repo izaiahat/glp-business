@@ -1,0 +1,30 @@
+name: GLP-349 memory cleaner
+on:
+  pull_request:
+    paths:
+      - scripts/host_swap_cleaner.py
+      - tests/test_host_swap_cleaner.py
+      - ops/hermes-cron-scripts/host_swap_cleaner.py
+      - .github/workflows/glp349-memory-cleaner.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/host_swap_cleaner.py
+      - tests/test_host_swap_cleaner.py
+      - ops/hermes-cron-scripts/host_swap_cleaner.py
+      - .github/workflows/glp349-memory-cleaner.yml
+permissions:
+  contents: read
+jobs:
+  cold-swap-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 tests/test_host_swap_cleaner.py -v
+      - name: Verify launcher source pin
+        run: |
+          python3 -c "import hashlib,re,pathlib; s=pathlib.Path('scripts/host_swap_cleaner.py'); w=pathlib.Path('ops/hermes-cron-scripts/host_swap_cleaner.py').read_text(); assert hashlib.sha256(s.read_bytes()).hexdigest() in w"
+      - run: python3 -m py_compile scripts/host_swap_cleaner.py ops/hermes-cron-scripts/host_swap_cleaner.py

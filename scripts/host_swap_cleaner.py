@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Guarded host maintenance: reap proven dormant local daemons; rotate cold swap.
-No model/context changes, no pattern kills, no protected CDP browser kills.
+"""Guarded host maintenance: reap proven dormant local daemons; observe cold swap.
+No model/context changes, swap mutation, pattern kills, or protected CDP browser kills.
+Cold live heap is not garbage: swapoff creates page-in IO and later swap-out churn.
 """
 from __future__ import annotations
 import argparse
@@ -199,7 +200,7 @@ def swaps():
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--apply', action='store_true')
-    parser.add_argument('--all-files', action='store_true', help='manual only; recheck every guard for every file')
+    parser.add_argument('--all-files', action='store_true', help='legacy no-effect option; automatic swap rotation is retired')
     args = parser.parse_args()
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE / 'lock').open('a') as lock:
@@ -211,7 +212,6 @@ def main():
         receipt = {'at': time.time(), 'apply': args.apply, 'before': memory(), 'reaper': reap(args.apply), 'rotations': []}
         if receipt['reaper']['terminated']:
             time.sleep(2)
-        previous = json.loads((STATE / 'cooldown.json').read_text()) if (STATE / 'cooldown.json').exists() else {}
         vm = vm_sample()
         start = time.monotonic()
         time.sleep(2)
@@ -221,43 +221,11 @@ def main():
         receipt['swap_io_mib_s'] = rate
         receipt['psi_full_avg10'] = full
         receipt['skip_reason'] = guard(memory(), full, rate)
-        if not receipt['skip_reason'] and args.apply:
-            permission = subprocess.run(['sudo', '-n', 'true'], capture_output=True, text=True)
-            if permission.returncode:
-                receipt['skip_reason'] = 'sudo_unavailable'
-            else:
-                for row in sorted(swaps(), key=lambda r: r['used_kib']):
-                    if row['used_kib'] < 262144 or time.time() - previous.get(row['path'], 0) < COOLDOWN:
-                        continue
-                    # Re-sample current PSI/load/headroom before each actual syscall.
-                    full_now = psi_full()
-                    refusal = guard(memory(), full_now, rate)
-                    if refusal:
-                        receipt['skip_reason'] = refusal
-                        break
-                    item = {**row, 'at': time.time()}
-                    receipt['rotations'].append(item)
-                    off = subprocess.run(['sudo', '-n', 'swapoff', row['path']], capture_output=True, text=True)
-                    item['swapoff_rc'] = off.returncode
-                    item['swapoff_stderr'] = off.stderr[:1000]
-                    # Default negative priorities are assigned by the kernel; -p takes nonnegative priorities.
-                    command = ['sudo', '-n', 'swapon']
-                    if row['priority'] >= 0:
-                        command += ['-p', str(row['priority'])]
-                    command += [row['path']]
-                    if any(r['path'] == row['path'] for r in swaps()):
-                        on = subprocess.CompletedProcess(command, 0, '', 'swapoff refused; file remained active')
-                    else:
-                        on = subprocess.run(command, capture_output=True, text=True)
-                    item['swapon_rc'] = on.returncode
-                    item['swapon_stderr'] = on.stderr[:1000]
-                    item['active_after'] = any(r['path'] == row['path'] for r in swaps())
-                    previous[row['path']] = time.time()
-                    atomic_json(STATE / 'cooldown.json', previous)
-                    if off.returncode or not item['active_after'] or on.returncode:
-                        break
-                    if not args.all_files:
-                        break
+        # A quiet two-second sample does not make cold live pages reclaimable.
+        # Historical cron rotations forced 2.5-2.7GiB back in while workers ran.
+        # Preserve pressure guard measurements and orphan protections, but never
+        # manufacture swap IO as housekeeping. --all-files is legacy/no-effect.
+        receipt['swap_rotation_policy'] = 'disabled_cold_live_heap'
         receipt['after'] = memory()
         receipt['status'] = 'error' if any(r['swapoff_rc'] or r['swapon_rc'] or not r['active_after'] for r in receipt['rotations']) else 'ok'
         atomic_json(STATE / 'latest.json', receipt)
