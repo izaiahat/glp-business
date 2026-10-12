@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
+      "callers": [
+        "systemd:user:codex-evidence.service"
+      ],
+      "kind": "registered_source",
+      "sha256": "ebc8efce0c652ced18a99946ea7ceb2205be1a86e6465f6b8630ff4e3d7df380"
+    },
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_projection.py": {
+      "callers": [
+        "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py"
+      ],
+      "kind": "registered_source",
+      "sha256": "8da053343c5d740b2b1d1920b6692c25d9bbbeb3dfaed43b69e5fc20c3135974"
+    },
     ".github/workflows/dot-lane.yml": {
       "callers": [
         "DOT1 exact-head CI"
@@ -63,28 +77,28 @@
         "host cron"
       ],
       "kind": "cron",
-      "sha256": "17c6e9dc042a8c9b7c160bf43db945fbc62453e0370d90e195f6868f90204814"
+      "sha256": "3f2432533eb9b25323ea74cf30a1d23e688e4711f2c8478d585d43cfc4c0a07f"
     },
     "ops/codex-cloud/tailscale-renewal.json": {
       "callers": [
         "scripts/codex_cloud_key_renewal.py"
       ],
       "kind": "operations",
-      "sha256": "087dd08c8229d89a1c4764719348d3896d5f3ee6710c2c94aa4ac0f9705960bc"
+      "sha256": "9fa42e48aa1596045443b2c8b745ad71c42ce16d55c25685386b0b5f9794027c"
     },
     "ops/codex-cloud/KEY-RENEWAL.md": {
       "callers": [
         "manual:operator-secure-renewal"
       ],
       "kind": "instruction_or_policy",
-      "sha256": "dc6196d203ad6ffe81aaeec53dae6b80cc1938c7b0b297687a163aac209dc241"
+      "sha256": "0680d516fe14859b19f4310fa89cfd715473ae9261d7febc7a9cee0d0905346b"
     },
     "tests/test_codex_cloud_key_renewal.py": {
       "callers": [
         "tests/test_glp_release_main.py"
       ],
       "kind": "test",
-      "sha256": "f53c15dc075f3f0a04e0ced1456e9d80f4d8c0573a60fe8b6facba82cf5ac1f6"
+      "sha256": "f22496c5974eae70dcedda539cda198f9ede624ccd1591b86a0f99d5a55110d4"
     },
     "tests/test_glp_single_publisher.py": {
       "callers": [
@@ -6052,7 +6066,7 @@
         "scripts/run_tests.sh"
       ],
       "kind": "test",
-      "sha256": "9cf39b4e72dcd5ea2bf88ac9c9e492bb713c4f0c1ab0c59ea36a0676511600c1"
+      "sha256": "9154d917951db79da5a537cd48e7241e247cfd354945fb20f25d3c24b5524114"
     },
     "tests/test_glp_research_autowire.py": {
       "callers": [
@@ -6973,6 +6987,34 @@
         "business source CI"
       ],
       "sha256": "d9d24e65b33412ec027a2ca5b8bc9ef25f71b4b4ff66528840c1cb271832beee"
+    },
+    "scripts/codex_cloud_vpn_renewal.py": {
+      "callers": [
+        "ops/cron.d/codex-cloud-key-renewal"
+      ],
+      "kind": "script",
+      "sha256": "3827c2b0395dacc699492ebb13c68f343649ab45fd6638ff075f1b7cfede57ec"
+    },
+    "scripts/codex_cloud_vpn_browser.py": {
+      "callers": [
+        "scripts/codex_cloud_vpn_renewal.py"
+      ],
+      "kind": "script",
+      "sha256": "0d41f30ce9c0813a3bf679861a3d0d0798c57f68e4e9eb63c45ba909f04c5db0"
+    },
+    "tests/test_codex_cloud_vpn_renewal.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "794ca7056c5cf43e8f47d3b16a0d2b4fb9e0b9d1491caf3ac46a975da178b2a7"
+    },
+    "tests/test_codex_evidence_alias.py": {
+      "callers": [
+        "tests/test_glp_release_main.py"
+      ],
+      "kind": "test",
+      "sha256": "42ff285e39d6f8cc979e96133e56bd4a3558991c1f5e939aad8e8a9cc909937b"
     },
     "scripts/glp_review_tracking_rebind.py": {
       "kind": "script",
