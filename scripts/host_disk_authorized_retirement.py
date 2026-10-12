@@ -24,6 +24,7 @@ SITE=BUS/'site-system/flagship-v2'
 BASE=BUS/'reports/glp-clinic-scout/seo-machine/current-content-base.json'
 AUTHORITY='D1b-expanded-operator-retirement-20261012'
 _CANONICAL_ROOTS=()
+_SITE_PIN_CACHE={}
 
 
 def store_pair(destination, archive, manifest, deadline):
@@ -50,9 +51,16 @@ def store_pair(destination, archive, manifest, deadline):
 def site_protected(p,pins,root):
     """Only the obsolete seal-name veto is superseded; all named holds remain."""
     p=Path(p);root=Path(root)
+    if not isinstance(pins,(tuple,frozenset)):pins=tuple(pins)
     if p!=root and root not in p.parents:return True
     structural={SITE,SITE/'candidates',SITE/'releases',SITE/'work'} if SITE in root.parents else set()
-    pinset={str(p) for p in pins if Path(p) not in structural}
+    key=(id(pins),tuple(sorted(map(str,structural))))
+    cached=_SITE_PIN_CACHE.get(key)
+    if cached is None or cached[0] is not pins:
+        if len(_SITE_PIN_CACHE)>32:_SITE_PIN_CACHE.clear()
+        cached=(pins,frozenset(str(p) for p in pins if Path(p) not in structural))
+        _SITE_PIN_CACHE[key]=cached
+    pinset=cached[1]
     if any(str(q) in pinset for q in (p,*p.parents)):return True
     # Strip ONLY seal/sealed prefixes inside this explicitly scoped tree. The
     # baseline predicate still handles databases, backups, finance, R8 and secrets.
@@ -82,6 +90,14 @@ def fresh_pins():
         if not root.is_absolute() or not root.is_dir():raise ValueError('production/rollback root missing')
         roles.append(root);pins.add(root);pins.add(root.parent.parent)
     _CANONICAL_ROOTS=tuple(roles)
+    from host_disk_large_sweep import references
+    gate=BUS/'reports/ops/fable-plan-2-20261009/lanes/D1b/reference-gate'
+    gate.mkdir(parents=True,exist_ok=True)
+    pins.update(references(gate))
+    profiles=Path('/home/ubuntu/.hermes/profiles')
+    if profiles.is_dir():
+        for profile in profiles.iterdir():
+            if profile.is_dir():pins.update(cold.live_symlink_targets(home=profile,max_depth=3))
     return cold.custody_pins(pins)
 
 
@@ -119,6 +135,9 @@ def completed_archive(api,p,destination,report,deadline,dry_run):
     if proof.get('verified') is not True or digest(p)!=proof['archive_sha256'] or digest(manifest)!=proof['manifest_sha256']:
         raise ValueError('local verification drift')
     pins=fresh_pins()
+    source=Path(data['source'])
+    if any(site_protected(source/r['name'],pins,source) for r in members) or any(source==q or source in q.parents or q in source.parents for q in _CANONICAL_ROOTS):
+        raise ValueError('archive member live or named custody')
     if (p.parent.resolve()!=p.parent.absolute() or p.stat().st_nlink!=1
         or site_protected(p.with_suffix('.ordinary'),pins,p.parent)
         or not cold.inactive(api,p)):raise ValueError('archive live/named custody')
@@ -128,6 +147,8 @@ def completed_archive(api,p,destination,report,deadline,dry_run):
     cold.verify_archive(p,members,report/(digest(p)+'.listing.txt'))
     remote=store_pair(destination,p,manifest,deadline)
     pins=fresh_pins()
+    if any(site_protected(source/r['name'],pins,source) for r in members) or any(source==q or source in q.parents or q in source.parents for q in _CANONICAL_ROOTS):
+        raise ValueError('new archive member live or named custody')
     if (cold.signature(p)!=identity or any(cold.signature(q)!=s for q,s in controls.items())
         or digest(manifest)!=proof['manifest_sha256']
         or p.parent.resolve()!=p.parent.absolute()

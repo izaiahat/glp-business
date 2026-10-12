@@ -203,6 +203,14 @@ def test_site_ranking_keeps_largest_direct_child_first(tmp_path,monkeypatch):
     assert a.ranked_roots(tmp_path)==[tmp_path/'big',tmp_path/'small']
 
 
+def test_site_pin_cache_never_reuses_mutated_reference_lists(tmp_path):
+    from host_disk_authorized_retirement import site_protected
+    root=tmp_path/'sealed-old';pins=[]
+    assert not site_protected(root/'ordinary',pins,root)
+    pins.append(root)
+    assert site_protected(root/'ordinary',pins,root)
+
+
 def test_private_bucket_object_expiry_is_refused():
     control=r2.Control({'CLOUDFLARE_ACCOUNT_ID':'fixture','CLOUDFLARE_API_TOKEN':'fixture'})
     def request(method,suffix,**kwargs):
