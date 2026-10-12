@@ -1,7 +1,7 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "abe3db51adeb636b2a6cce01ae3d5ea740575745307f3810b28749a2b8ad5ab2"},
+    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "1e7d3acb63372c9bb57340dd998ea5796cf719096153883eecfcf6db2fd2f770"},
     "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "2b1e73c2d00c7d5ad11ab89670bbe8aa3d7363feac58c40416e76623e96721cb"},
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {"callers": ["hermes cron sponsor supply refresh"], "kind": "source_control", "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"},
     "scripts/glp_firecrawl_jobs.py": {"callers": ["ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"], "kind": "script", "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"},

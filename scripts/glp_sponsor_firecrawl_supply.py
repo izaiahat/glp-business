@@ -182,7 +182,7 @@ def evidence(host, url, markup, sha, at, page_hits, business_locals, same_org, s
         rows.append({'source_url': url, 'country': None, 'country_excerpt': '', 'medication_provider_excerpt': med, 'sha256': sha, 'observed_utc': at})
     if us:
         rows.append({'source_url': url, 'country': 'US', 'country_excerpt': us, 'medication_provider_excerpt': '', 'sha256': sha, 'observed_utc': at})
-    fit = sponsor_fit(text) if sponsor else None
+    fit = sponsor_fit(text) if sponsor and not re.search(r'/(?:blog|posts?|news|articles?|guides?|clinical-trials)(?:/|$)', url, re.I) else None
     if fit:
         rows.append({'source_url': url, 'sponsor_category': fit[0], 'sponsor_category_excerpt': fit[1],
                      'sha256': sha, 'observed_utc': at})
