@@ -7220,7 +7220,7 @@
         "host-disk cleanup / business-source-ci"
       ],
       "kind": "test",
-      "sha256": "e5ca7551cb5d3fce4278ff8225b554d5187f03225b3c37d35d1f33012619b2d5"
+      "sha256": "5af581ca0612e0952766979bbae32cb3196a3eea5b66705032715697f686e5fc"
     },
     "scripts/glp_capture_fetch_receipts.py": {
       "kind": "script",
@@ -7250,7 +7250,7 @@
       ],
       "kind": "script",
       "scope": "Completed verified archives and superseded site members; shared singleton and fresh production/rollback/PR/scheduler custody; verified R2 pair before retirement; not scheduled.",
-      "sha256": "108d2f5d869321dc9e7ebedbce922ec6b14d79dafa2aff5f7c88c41be01f57eb"
+      "sha256": "9d9b778b100660f37eedfca9b7b9e4849f90910bab6b09423d29f9cb923223a3"
     },
     "ops/glp/seo_weekly_budget.py": {
       "callers": [
