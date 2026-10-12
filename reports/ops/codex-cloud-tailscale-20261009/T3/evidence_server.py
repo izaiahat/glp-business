@@ -6,6 +6,8 @@ from evidence_projection import snapshot
 ADDRESS='100.96.222.106'
 PORT=18909
 PATH='/evidence/codex.json'
+# R1 operator explicitly requires this exact read-only fleet-status route.
+PATHS=frozenset((PATH,'/v1/fleet-status.json'))
 class Handler(BaseHTTPRequestHandler):
     server_version='Evidence/1'
     sys_version=''
@@ -22,7 +24,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.command!='HEAD': self.wfile.write(body)
         self.close_connection=True
     def do_GET(self):
-        if self.path!=PATH or self.requestline.split()[1]!=PATH:
+        if self.path not in PATHS or self.requestline.split()[1]!=self.path:
             return self.respond(404,b'{"error":"not found"}')
         self.respond(200,json.dumps(snapshot(),sort_keys=True).encode())
     def denied(self):

@@ -8,6 +8,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import glp_release_main as rm  # noqa: E402
+from test_codex_cloud_vpn_renewal import (
+    test_vpn_renewal_14day_threshold_and_no_remint,
+    test_vpn_private_reader_refuses_symlink_and_hardlink,
+    test_vpn_cloud_proof_requires_new_task_nonce_allowed_and_denied,
+    test_vpn_pending_proof_never_revokes_old_key,
+)
+from test_codex_evidence_alias import test_exact_readonly_alias_and_denials
 from test_codex_cloud_key_renewal import (
     test_renewal_monitor_deadline_and_exact_readback,
     test_renewal_monitor_uncertain_post_reconciles_without_repost,
