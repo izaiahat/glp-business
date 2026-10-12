@@ -1,5 +1,6 @@
 """GLP-354: all cleanup effects are confined to disposable fixture trees."""
 import json
+import importlib.util
 import os
 from pathlib import Path
 import shutil
@@ -10,10 +11,31 @@ import types
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-import host_disk_cold_classes as cold
-import host_disk_large_classes as large
-import host_disk_tmp_custody as custody
+CANDIDATE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(CANDIDATE / 'scripts'))
+
+
+def load_candidate(name, path):
+    """Bind the tested modules before sweep can prepend installed scripts."""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    assert Path(module.__file__).resolve() == path.resolve()
+    return module
+
+
+for name in ('host_disk_payload_guard', 'host_disk_custody', 'host_disk_cold_classes',
+             'host_disk_large_classes', 'host_disk_tmp_custody',
+             'host_disk_auto_classes', 'host_disk_reference_guard'):
+    load_candidate(name, CANDIDATE / 'scripts' / (name + '.py'))
+with patch.dict(sys.modules, {'host_disk_pruner': types.ModuleType('host_disk_pruner')}):
+    sweep = load_candidate('host_disk_large_sweep', CANDIDATE / 'scripts/host_disk_large_sweep.py')
+sys.modules['host_disk_large_sweep'] = sweep
+sys.path.insert(0, str(CANDIDATE / 'scripts'))
+cold = sys.modules['host_disk_cold_classes']
+large = sys.modules['host_disk_large_classes']
+custody = sys.modules['host_disk_tmp_custody']
 
 
 class FixtureAPI:
@@ -59,8 +81,11 @@ class DeclaredTmpTests(unittest.TestCase):
         self.enterContext(patch.object(time, 'time', return_value=now + 2 * 86400))
         self.enterContext(patch.object(cold, 'TMP_ROOT', self.tmp, create=True))
         self.enterContext(patch.object(cold, 'live_symlink_targets', return_value=set()))
+        self.enterContext(patch.object(sys.modules['host_disk_custody'], 'collect', return_value=set()))
         self.enterContext(patch.object(large, 'lsof_inactive', return_value=True))
         self.enterContext(patch.object(custody, 'SYMLINK_ROOTS', (self.links,)))
+        self.enterContext(patch.object(custody, 'CRON_ROOTS', ()))
+        self.enterContext(patch.object(custody, 'SYSTEMD_ROOTS', (self.schedules,)))
         self.enterContext(patch.object(custody, 'SCHEDULE_ROOTS', (self.schedules,)))
         self.enterContext(patch.object(custody, 'REQUIRED_FILES', (self.jobs,)))
         self.enterContext(patch.object(custody, 'PROC', self.proc))
@@ -78,6 +103,71 @@ class DeclaredTmpTests(unittest.TestCase):
         self.assertEqual(result['status'], 'REMOVED', result)
         self.assertFalse(self.candidate.exists())
         self.assertEqual(self.api.removed, [self.candidate])
+
+    def test_hermes_cron_bytecode_is_not_a_scheduler_source(self):
+        cache = self.links / 'hermes-agent/cron/__pycache__'
+        cache.mkdir(parents=True)
+        (cache / 'jobs.cpython-311.pyc').write_bytes(bytes.fromhex('a7 0d 0d 0a 00 ff'))
+        result = self.run_candidate(dry_run=True)
+        self.assertEqual(result['status'], 'ELIGIBLE', result)
+        self.assertTrue(self.candidate.is_dir())
+        self.assertFalse(self.api.removed)
+
+    def test_masked_systemd_unit_does_not_pin_idle_directory(self):
+        (self.schedules / 'masked.service').symlink_to('/dev/null')
+        result = self.run_candidate(dry_run=True)
+        self.assertEqual(result['status'], 'ELIGIBLE', result)
+        self.assertTrue(self.candidate.is_dir())
+        self.assertFalse(self.api.removed)
+
+    def test_bytecode_tree_symlink_custody_is_still_checked(self):
+        cache = self.links / 'hermes-agent/cron/__pycache__'
+        cache.mkdir(parents=True)
+        (cache / 'payload.pyc').symlink_to(self.candidate / 'payload.txt')
+        self.assertIn('symlink', self.assert_kept()['reason'])
+
+    def test_binary_actual_systemd_source_is_still_refused(self):
+        (self.schedules / 'reader.service').write_bytes(bytes.fromhex('a7 0d 0d 0a 00 ff'))
+        self.assert_kept()
+
+    def test_device_other_than_null_is_not_a_masked_unit(self):
+        (self.schedules / 'reader.service').symlink_to('/dev/zero')
+        self.assertIn('unreadable tmp schedule', self.assert_kept()['reason'])
+
+    def test_non_unit_link_to_null_is_not_a_masked_unit(self):
+        (self.schedules / 'reader.conf').symlink_to('/dev/null')
+        self.assertIn('unreadable tmp schedule', self.assert_kept()['reason'])
+
+    def test_indirect_link_to_null_is_not_the_mask_exception(self):
+        alias = self.base / 'null-alias'
+        alias.symlink_to('/dev/null')
+        (self.schedules / 'reader.service').symlink_to(alias)
+        self.assertIn('unreadable tmp schedule', self.assert_kept()['reason'])
+
+    def test_cron_link_to_null_is_not_a_masked_systemd_unit(self):
+        cron = self.links / 'registered-cron'
+        cron.mkdir()
+        (cron / 'reader.service').symlink_to('/dev/null')
+        with patch.object(custody, 'CRON_ROOTS', (cron,)):
+            self.assertIn('unreadable tmp schedule', self.assert_kept()['reason'])
+
+    def test_unreadable_registered_cron_source_is_still_refused(self):
+        cron = self.links / 'registered-cron'
+        cron.mkdir()
+        (cron / 'reader').write_bytes(bytes.fromhex('a7 0d 0d 0a 00 ff'))
+        with patch.object(custody, 'CRON_ROOTS', (cron,)):
+            self.assert_kept()
+
+    def test_unit_unmasked_during_process_scan_is_refused(self):
+        unit = self.schedules / 'reader.service'
+        unit.symlink_to('/dev/null')
+        original = custody._process_scan
+        def changed(path, deadline, inodes):
+            original(path, deadline, inodes)
+            unit.unlink()
+            unit.write_text('[Service]\nWorkingDirectory=' + str(path))
+        with patch.object(custody, '_process_scan', changed):
+            self.assertIn('inventory changed', self.assert_kept()['reason'])
 
     def assert_kept(self):
         result = self.run_candidate(dry_run=False)
@@ -282,7 +372,7 @@ class DeclaredTmpTests(unittest.TestCase):
         root.mkdir(parents=True)
         (bus / 'ops').mkdir()
         (bus / 'ops/disk-retention-policy.json').write_text('{"protected_roots": []}')
-        target = '/tmp/aeo-declared-reviewed/payload.txt'
+        target = str(self.candidate / 'payload.txt')
         (root / 'NOTE.txt').write_text('retain ' + target)
         report = self.base / 'report'
         report.mkdir()
@@ -292,4 +382,12 @@ class DeclaredTmpTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    if sys.argv[1:] == ['--pytest-guards']:
+        import pytest
+        raise SystemExit(pytest.main(['-q', '-p', 'no:cacheprovider',
+            str(CANDIDATE / 'tests/test_host_disk_auto_classes.py'),
+            str(CANDIDATE / 'tests/test_host_disk_large_guards.py'),
+            str(CANDIDATE / 'tests/test_host_disk_custody.py'),
+            str(CANDIDATE / 'tests/test_host_disk_report_caches.py'),
+            str(CANDIDATE / 'tests/test_host_disk_r2.py')]))
     unittest.main()

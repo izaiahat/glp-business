@@ -7812,14 +7812,14 @@
         "scripts/host_disk_auto_classes.py"
       ],
       "kind": "script",
-      "sha256": "b78a9936a2b044a1fb0d24d1578bc4d37ddcca59c912687047d36dfc05d0d680"
+      "sha256": "07061c3b346f1e9a7c509b9a8185f58743bc5ccf230306d90efb7327e739ecd8"
     },
     "tests/test_host_disk_tmp_custody.py": {
       "callers": [
         "business-source-ci"
       ],
       "kind": "test",
-      "sha256": "01f8f7ec70d7f7cd2ec3d11045e5e7a03b4e6b9f1d29b24332826888e24c76bb"
+      "sha256": "e29f35ee8e0ab80392469011f0dfdd71e266987a57ee02dbfdb19cde673ec336"
     }
   },
   "omitted_runtime_inputs": [
