@@ -4,6 +4,29 @@ import host_disk_custody as custody
 import host_disk_cold_classes as cold
 
 
+def test_wide_live_symlink_inventory_has_bounded_memory(tmp_path):
+    import tracemalloc
+    home=tmp_path/'home';wide=home/'wide';wide.mkdir(parents=True)
+    target=tmp_path/'target';target.mkdir()
+    for index in range(16000):(wide/f'file-{index:05d}').touch()
+    (wide/'live').symlink_to(target,target_is_directory=True)
+    tracemalloc.start()
+    try:
+        pins=cold.live_symlink_targets(home=home,max_depth=3)
+        peak=tracemalloc.get_traced_memory()[1]
+    finally:tracemalloc.stop()
+    assert target in pins
+    assert peak<2*1024**2, f'wide directory allocated {peak} bytes'
+
+
+def test_protection_pin_cache_is_bounded_across_fresh_gates(tmp_path):
+    cold._PIN_CACHE.clear()
+    for index in range(100):
+        pins=(tmp_path/f'ref-{index}',)
+        assert not cold.protected(tmp_path/'ordinary',pins)
+    assert len(cold._PIN_CACHE)<=32
+
+
 def test_fresh_scheduler_skill_lane_pins(tmp_path):
     bus = tmp_path / 'business'
     home = tmp_path / 'hermes'; home.mkdir()
