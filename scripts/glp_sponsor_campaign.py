@@ -249,6 +249,7 @@ def recipients(values,discovery,local):
  or licensure claim follows. Portal hosts are unresolved identities, not contacts.
  """
  import glp328_outreach_policy as policy
+ from glp_sponsor_firecrawl_supply import research_only_organization,sponsor_rows
  if tuple(values[0])!=policy.EXPECTED_HEADERS:raise RuntimeError('registry_schema_drift')
  rows=[policy.classify_row(i,r) for i,r in enumerate(values[1:],2)]
  held_hosts={r['host'] for r in rows if r.get('blocks_org') and r['host']}
@@ -261,11 +262,15 @@ def recipients(values,discovery,local):
   med_evidenced=any(x.get('medication_provider_excerpt') for x in scope)
   us_evidenced=any(x.get('country')=='US' and re.search(r'customers|residents|areaServed|PostalAddress|available|across|pricing|states|doctors|WW USA',x.get('country_excerpt',''),re.I) and not re.search(r'copyright|usa-today|1 out of 5',x.get('country_excerpt',''),re.I) for x in scope)
   if any(same(h,b) for b in held_hosts) or normalize(name) in held_names or 'fella' in name.lower():reason='held_or_excluded_organization'
+  elif research_only_organization(h,discovery.get('organizations',{}).get(h,{}),sys.modules[__name__]):reason='research_use_only_excluded'
   elif any(h.endswith(p) for p in PLATFORMS):reason='registry_official_host_is_portal_unresolved'
   elif not (MEDICATION.search(' '.join(map(str,[raw[3],raw[7],name]))) or med_evidenced) or re.search(r'snack|nutrition|serum|ring|tracker|belt|supplement',name,re.I):reason='not_glp_medication_provider'
   elif not (re.search(r'\bUS\b|United States|USA', ' '.join(map(str,[raw[3],raw[7],name])),re.I) or us_evidenced):reason='us_program_scope_unknown'
   if reason:exclusions.append({**r,'reason':reason});continue
   organizations.setdefault(h,[]).append(r)
+ # Sponsor discovery is a separate commercial census, not a registry mutation.
+ for h,rs in sponsor_rows(discovery,rows,local,sys.modules[__name__],now()).items():
+  organizations.setdefault(h,rs)
  candidates=[]
  import glp_sponsor_readiness as readiness
  for h,rs in sorted(organizations.items()):

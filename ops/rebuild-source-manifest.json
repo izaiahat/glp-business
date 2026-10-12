@@ -1,8 +1,8 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
-    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "5241c5c2076941ab85a6e1912a5b85cae11d8ca6dd15cdf4daab9fdb632657b2"},
-    "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "86ff5ea288b0c256c0d1b5e0b04f3d807834c94862c38593189c3ea310d0262e"},
+    "scripts/glp_sponsor_firecrawl_supply.py": {"callers": ["ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh weekday sponsor supply refresh (evidence only, never sends)"], "kind": "script", "sha256": "8221dbde7ff6dee3ba25999e5a5f99a405f0527b3bf5bbf4a961355912f89345"},
+    "tests/test_glp_sponsor_firecrawl_supply.py": {"callers": ["scripts/run_tests.sh", "business-source-ci", "firecrawl-integration"], "kind": "test", "sha256": "9b561429abf2d77b5735f48907745ff608fb07e8960575c09730978678b1e627"},
     "ops/hermes-cron-scripts/glp_sponsor_firecrawl_supply.sh": {"callers": ["hermes cron sponsor supply refresh"], "kind": "source_control", "sha256": "9300de9f5dece996ba05330c713b672f8bef2a92f6597ca5792925856ade5da2"},
     "scripts/glp_firecrawl_jobs.py": {"callers": ["ops/hermes-cron-scripts/glp_firecrawl_{provider_research,provider_discovery,seo_signals,budget}.sh"], "kind": "script", "sha256": "2275077e4ab754e8c3a40263c6a8662124183f664be0a8e6c1c017d1a84094a4"},
     "tests/test_glp_firecrawl_jobs.py": {"callers": ["scripts/run_tests.sh", "firecrawl-integration"], "kind": "test", "sha256": "d10a5dd5d578dbc949ac0eedb3f2851c5780ca854c519639330878ed6b10ac48"},
@@ -3257,7 +3257,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "92330781d8446f80eb279bd5a8fc56d0b89651af8d92c58b4a7218ab78de8045"
+      "sha256": "d62dd2677721c35c0b70fdc0996b2e6c8dbe9f929bceb5949a22c26fc86d3d3e"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [

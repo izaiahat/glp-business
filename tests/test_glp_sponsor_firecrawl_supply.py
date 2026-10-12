@@ -124,3 +124,35 @@ def test_merged_rows_are_reaccepted_by_installed_scope_gate_with_real_page_parse
     assert len(campaign.scope_evidence_current('example.com', org, at)) == 2
     # Script-only text is never evidence.
     assert 'semaglutide' not in ' '.join(r['medication_provider_excerpt'] for r in rows)
+
+
+def test_nonregistry_sponsors_require_current_us_fit_and_preserve_all_exclusions(monkeypatch):
+    import hashlib
+    import glp_sponsor_campaign as campaign
+    import glp328_outreach_policy as policy
+    at = dt.datetime.now(dt.timezone.utc)
+    def org(host, text):
+        html = '<p>' + text + '</p>'
+        sha = hashlib.sha256(html.encode()).hexdigest()
+        rows, contacts = supply.evidence(host, 'https://' + host + '/', html, sha, at.isoformat(),
+                                        campaign.public_page_hits, campaign.BUSINESS_LOCALS, campaign.same, sponsor=True)
+        return {'provider': host, 'scope_evidence': rows, 'discovery': {'_markup': [
+            {'html': html, 'sha256': sha, 'url': 'https://' + host + '/', 'final_url': 'https://' + host + '/'}], 'candidates': contacts}}
+    text = 'We sell protein nutrition shakes. We ship to customers across the United States. For partnerships email partners@{host}.'
+    hosts = ['nutrition.example', 'fella.example', 'held.example', 'suppressed.example', 'conversation.example', 'research.example']
+    organizations = {h: org(h, text.format(host=h)) for h in hosts}
+    organizations['research.example'] = org('research.example', text.format(host='research.example') + ' Our peptides are for research use only and not for human consumption.')
+    organizations['unknown.example'] = org('unknown.example', 'We sell protein nutrition shakes. For partnerships email partners@unknown.example.')
+    values = [list(policy.EXPECTED_HEADERS), [''] * len(policy.EXPECTED_HEADERS)]
+    monkeypatch.setattr(policy, 'classify_row', lambda i, r: {'host':'held.example','program':'Held','eligible':False,'blocks_org':True,'row':i,'reason':'status_hold_preserved'})
+    local = {'suppression': {'complete':True, 'entries':[{'domain':'suppressed.example'}]},
+             'conversations':[{'domain':'conversation.example'}]}
+    plan = campaign.recipients(values, {'organizations':organizations}, local)
+    assert [r['host'] for r in plan['recipients']] == ['nutrition.example']
+    # A forged excerpt, stale evidence, or an unbound page cannot qualify a sponsor.
+    next(r for r in organizations['nutrition.example']['scope_evidence'] if r.get('sponsor_category'))['sponsor_category_excerpt'] = 'We sell fitness coaching.'
+    assert not campaign.recipients(values, {'organizations':organizations}, local)['recipients']
+    organizations['nutrition.example'] = org('nutrition.example', text.format(host='nutrition.example'))
+    for row in organizations['nutrition.example']['scope_evidence']:
+        row['observed_utc'] = '2020-01-01T00:00:00+00:00'
+    assert not campaign.recipients(values, {'organizations':organizations}, local)['recipients']
