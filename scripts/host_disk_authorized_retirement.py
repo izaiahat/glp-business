@@ -156,7 +156,9 @@ def main():
     lock_path=Path('/home/ubuntu/.hermes/runstate/host-disk-cleanup.lock')
     lock_fd=cleanup_lease(lock_path,args.lease_fd)
     report.mkdir(parents=True,exist_ok=False)
-    import evidence_preserving_pruner as api
+    sys.path.append(str(BUS/'ops'))
+    sys.path.append(str(BUS/'scripts'))
+    import host_disk_pruner as api
     destination=Destination.from_environment();deadline=time.monotonic()+args.budget
     rows=[];before=os.statvfs('/')
     def save():
