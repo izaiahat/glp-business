@@ -7,6 +7,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from affiliate_reporting_xentraffic_j7 import capture,collector
 from glp_affiliate_weekly_reporting_j6 import windows
 
+pytestmark = pytest.mark.usefixtures('j7_financial_clock')
+
 class Browser:
     def __init__(self,total=0):self.total=total;self.closed=False
     def js(self,expression):
@@ -55,6 +57,30 @@ def test_missing_tampered_stale_and_mismatched_inputs_refuse(tmp_path):
     c=collector(p,hashlib.sha256(p.read_bytes()).hexdigest())
     with pytest.raises(ValueError,match='renewal'):c(w,0,1,sink=lambda r:None)
     with pytest.raises(ValueError,match='regular'):collector(tmp_path/'missing',sha)
+
+def test_portal_week_closes_at_new_york_midnight_not_utc(j7_financial_clock):
+    """Regression for the Monday 00:00Z–04:00Z CI failure interval."""
+    import affiliate_reporting_eden_portal_j7 as eden
+    w = windows(datetime(2026, 10, 12, 0, tzinfo=timezone.utc))
+    for module, partner in ((__import__('affiliate_reporting_xentraffic_j7'), '4384'), (eden, '62')):
+        def js(expression):
+            if 'protected_account_required' in expression:
+                return {'partner': partner, 'calendar': True, 'currency': True}
+            if expression.startswith('window.__j7FinancialRead('):
+                return {'http_status': 200, 'response_sha256': 'a'*64,
+                        'keys': ['conversions', 'paging'],
+                        'paging': {'page': 1, 'page_size': 100, 'total_count': 0},
+                        'row_count': 0, 'captured_at': datetime.now(timezone.utc).isoformat()}
+            return True
+        for hour, minute, closed in ((0, 0, False), (3, 59, False), (4, 0, True), (6, 0, True)):
+            j7_financial_clock.current = datetime(2026, 10, 12, hour, minute, tzinfo=timezone.utc)
+            doc = module.capture(js, owned_session='synthetic-clock-regression', window=w,
+                                 goto_url=lambda url: None, wait_for_load=lambda: None)
+            row = next(r for r in doc['observations'] if r['period_purpose'] == 'closed_week')
+            assert row['end_exclusive'] == '2026-10-12T00:00:00-04:00'
+            assert row['report_complete_period'] is closed
+            assert doc['captured_at'] == j7_financial_clock.current.isoformat()
+
 
 def test_wrong_principal_and_failed_browser_cleanup():
     b=Browser()
