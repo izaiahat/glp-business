@@ -125,6 +125,39 @@ def live_coordinator(expected=None):
     return found[0]
 
 
+AUTOMATION_DECISION = 'ops/linear/approvals/OPERATOR-DECISION-20261011-grilling-round1.md'
+OPERATOR_SCHEMA = 'sponsor.recorded_operator_receiving.v1'
+OPERATOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S3/SOURCE-REVIEW.json'
+
+
+def recorded_operator_authority(c):
+    """Recorded operator decisions authorize unattended work, not a TUI epilogue.
+
+    Exact commercial/art and independent installed-source review are separate
+    gates below. This is same-UID local evidence, not cryptographic identity.
+    Changes to either recorded decision invalidate an existing receipt.
+    """
+    required = {
+        DECISION: ('6. GLP-328: GO at 25/day',
+                   '15. Outbound sponsor/outreach email sends only Mon-Fri 06:00-17:00 America/Los_Angeles.'),
+        AUTOMATION_DECISION: ('5. Sponsor outreach: up to 25 first-touch/day, weekdays 06:00–17:00 PT; automatic follow-ups day 4 and day 10 in the same window, stopped on reply. Operator must be notified of every reply via the existing inbox monitor so replies are handled.',),
+    }
+    decisions = {}
+    for name, phrases in required.items():
+        path = c.ROOT/name
+        try:
+            text = path.read_text()
+            if path.is_symlink() or any(not any(line.startswith(phrase) for line in text.splitlines()) for phrase in phrases):
+                raise ValueError('scope_missing')
+            decisions[name] = c.digest(path)
+        except (OSError, ValueError) as exc:
+            raise RuntimeError('recorded_operator_decision_missing:'+name) from exc
+    return dict(actor='Izaiah Tilton', decisions=decisions,
+                timezone='America/Los_Angeles', weekdays=[0,1,2,3,4],
+                start_hour=6, end_hour_exclusive=17, new_provider_daily_cap=25,
+                follow_up_days=[4,10], stop_on_reply=True, suppression_required=True)
+
+
 def current_authority(c, coordinator=None):
     plan = strict((c.ROOT / PLAN).read_text())
     if plan.get('schema') != 'glp-fable-plan-2-v1' or plan.get('executor_keys', {}).get('coordinator') != 'TUI or auto-coordinator cron acting on fleet-inbox rows':
@@ -215,7 +248,7 @@ def packet_binding(c, packet, config, *, require_installed_manifest=True):
 SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/S1/SOURCE-REVIEW.json'
 SUCCESSOR_SOURCE_REVIEW = 'reports/ops/fable-plan-2-20261009/lanes/RV-S2/RECEIVER-SOURCE-REVIEW.json'
 RENEWABLE_SOURCES = {'scripts/glp_sponsor_campaign.py', 'scripts/glp_sponsor_current_receiving.py',
-                     'inbox_control_plane/sponsor_replies.py'}
+                     'inbox_control_plane/sponsor_replies.py', 'inbox_control_plane/control_plane.py', 'scripts/firecrawl_client.py'}
 
 
 def refresh_source_packet(c, predecessor_sha256, output):
@@ -254,16 +287,20 @@ def refresh_source_packet(c, predecessor_sha256, output):
     return dict(status='UNRECEIVED_SOURCE_ONLY_PACKET',packet_sha256=c.digest(output),sends=0)
 
 
-def reviewed_source_head(c):
+def reviewed_source_head(c, *, recorded_operator=False):
     successor = (c.ROOT/SUCCESSOR_SOURCE_REVIEW).exists()
-    review = strict((c.ROOT/(SUCCESSOR_SOURCE_REVIEW if successor else SOURCE_REVIEW)).read_bytes())
+    review_path = OPERATOR_SOURCE_REVIEW if recorded_operator else (SUCCESSOR_SOURCE_REVIEW if successor else SOURCE_REVIEW)
+    review = strict((c.ROOT/review_path).read_bytes())
     pins = {'campaign_sender_sha256':'scripts/glp_sponsor_campaign.py',
             'current_receiver_sha256':'scripts/glp_sponsor_current_receiving.py',
             'nuimage_sender_sha256':'scripts/glp_sponsor_nuimage_reply.py'}
-    if successor:
+    if successor or recorded_operator:
         pins['sponsor_replies_sha256'] = 'inbox_control_plane/sponsor_replies.py'
+    if recorded_operator:
+        pins['canonical_inbox_sha256'] = 'inbox_control_plane/control_plane.py'
+        pins['firecrawl_client_sha256'] = 'scripts/firecrawl_client.py'
     head = review.get('reviewed_source_head', '')
-    if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] in ('S1', 'RV-S2')
+    if (review.get('status') != 'PASS' or not review.get('reviewer') or review['reviewer'] in ('S1', 'RV-S2', 'S3')
         or not re.fullmatch('[0-9a-f]{40}', head)
         or any(review.get(key) != c.digest(c.ROOT/name) for key, name in pins.items())):
         raise RuntimeError('independent_installed_source_review_required')
@@ -279,8 +316,20 @@ def approval_ready(c, config):
     fields = {'schema','actor','coordinator_authority','receiving_session_id','packet_sha256',
               'decision','reviewed_source_head','installed_bindings'}
     sha = c.digest(packet)
-    # Bind both receipt copies to the currently live coordinator, not a name
-    # or merely well-formed historical session string.
+    # Recorded-operator custody is stable across TUI shutdown/restarts. Legacy
+    # receipts remain legacy; no automatic conversion or copied approval.
+    if receipt.get('schema') == OPERATOR_SCHEMA:
+        fields = {'schema','actor','operator_authority','packet_sha256','decision','reviewed_source_head','installed_bindings'}
+        if (set(receipt) != fields or receipt.get('actor') != 'Izaiah Tilton'
+            or receipt.get('operator_authority') != recorded_operator_authority(c)
+            or receipt.get('packet_sha256') != sha or config.get('packet_sha256') != sha
+            or receipt.get('decision') != 'RECEIVE RECORDED OPERATOR SPONSOR PACKET '+sha
+            or receipt.get('reviewed_source_head') != reviewed_source_head(c,recorded_operator=True)
+            or strict((c.STATE/'approval.json').read_bytes()) != receipt
+            or receipt.get('installed_bindings') != packet_binding(c,packet,config)):
+            raise RuntimeError('recorded_operator_receiving_invalid')
+        return True
+    # Legacy receiving still requires genuine live coordinator evidence.
     coordinator = receipt.get('coordinator_authority', {}).get('coordinator')
     if not isinstance(coordinator, dict):
         raise RuntimeError('current_coordinator_receiving_invalid')
@@ -299,8 +348,12 @@ def approval_ready(c, config):
     return True
 
 
-def receive(c, packet_sha256, source_head, result, *, successor_packet=None, replace_receipt_sha256=None):
-    session = require_coordinator_execution()
+def receive(c, packet_sha256, source_head, result, *, successor_packet=None, replace_receipt_sha256=None, recorded_operator=False):
+    # Unattended renewal is explicitly requested and re-reads recorded operator
+    # authority. It never borrows a TUI identity or modifies its scratch file.
+    session = None if recorded_operator else require_coordinator_execution()
+    if recorded_operator:
+        recorded_operator_authority(c)
     import fcntl
     import io
     import shutil
@@ -315,7 +368,7 @@ def receive(c, packet_sha256, source_head, result, *, successor_packet=None, rep
         packet = c.ROOT / PACKET
         # Authenticate the consumed buffer, not a path re-read after validation.
         candidate = Path(successor_packet).read_bytes() if renewing else packet.read_bytes()
-        if hashlib.sha256(candidate).hexdigest() != packet_sha256 or source_head != reviewed_source_head(c):
+        if hashlib.sha256(candidate).hexdigest() != packet_sha256 or source_head != (reviewed_source_head(c,recorded_operator=True) if recorded_operator else reviewed_source_head(c)):
             raise RuntimeError('current_receiving_exact_head_or_packet_changed')
         config = c.load(c.CONFIG)
         config.update(send_enabled=True, packet_sha256=packet_sha256)
@@ -326,20 +379,28 @@ def receive(c, packet_sha256, source_head, result, *, successor_packet=None, rep
             activation = strict((c.STATE/'activation.json').read_bytes())
             if (hashlib.sha256(previous).hexdigest()!=replace_receipt_sha256
                 or strict((c.STATE/'approval.json').read_bytes())!=old
-                or old.get('schema')!=SCHEMA or old.get('packet_sha256')!=c.digest(packet)
+                or old.get('schema') not in (SCHEMA,OPERATOR_SCHEMA) or old.get('packet_sha256')!=c.digest(packet)
                 or activation!={'send_enabled':True,'packet_sha256':old['packet_sha256']}):
                 raise RuntimeError('current_renewal_predecessor_changed')
             before = c.technical_packet_members(packet)
             after = c.technical_packet_members(io.BytesIO(candidate))
+            if (not recorded_operator and any(before.get(name)!=after.get(name)
+                for name in ('inbox_control_plane/control_plane.py','scripts/firecrawl_client.py'))):
+                raise RuntimeError('current_renewal_extended_source_requires_recorded_review')
             if set(before)!=set(after) or any(before[name]!=after[name]
                 for name in before if name not in RENEWABLE_SOURCES|{MANIFEST}):
                 raise RuntimeError('current_renewal_outward_bytes_changed')
-        receipt = dict(schema=SCHEMA, actor='coordinator', coordinator_authority=current_authority(c),
-                       receiving_session_id=session, packet_sha256=packet_sha256,
-                       decision='RECEIVE CURRENT SPONSOR PACKET '+packet_sha256,
-                       reviewed_source_head=source_head, installed_bindings=bindings)
-        if receipt['coordinator_authority']['coordinator']['session_id'] != session:
-            raise RuntimeError('current_coordinator_changed_during_receiving')
+        if recorded_operator:
+            receipt = dict(schema=OPERATOR_SCHEMA, actor='Izaiah Tilton', operator_authority=recorded_operator_authority(c),
+                           packet_sha256=packet_sha256, decision='RECEIVE RECORDED OPERATOR SPONSOR PACKET '+packet_sha256,
+                           reviewed_source_head=source_head, installed_bindings=bindings)
+        else:
+            receipt = dict(schema=SCHEMA, actor='coordinator', coordinator_authority=current_authority(c),
+                           receiving_session_id=session, packet_sha256=packet_sha256,
+                           decision='RECEIVE CURRENT SPONSOR PACKET '+packet_sha256,
+                           reviewed_source_head=source_head, installed_bindings=bindings)
+            if receipt['coordinator_authority']['coordinator']['session_id'] != session:
+                raise RuntimeError('current_coordinator_changed_during_receiving')
         preimages=result.parent/'canonical-preimages'
         preimages.mkdir(parents=True,exist_ok=True)
         originals=[c.STATE/name for name in ('approval.json','activation.json',RECEIPT)]
@@ -460,6 +521,7 @@ def main():
     parser.add_argument('--predecessor-packet-sha256')
     parser.add_argument('--successor-packet', type=Path)
     parser.add_argument('--replace-receipt-sha256')
+    parser.add_argument('--recorded-operator',action='store_true',help='Explicit recorded-decision custody, no live TUI prerequisite')
     args = parser.parse_args()
     if args.refresh_source_packet:
         if not args.predecessor_packet_sha256:
@@ -475,7 +537,8 @@ def main():
         if not all((args.packet_sha256,args.reviewed_source_head,args.record_received)):
             parser.error('receiving requires exact packet-sha256, reviewed-source-head and record-received')
         result=receive(c,args.packet_sha256,args.reviewed_source_head,args.record_received,
-                       successor_packet=args.successor_packet,replace_receipt_sha256=args.replace_receipt_sha256)
+                       successor_packet=args.successor_packet, replace_receipt_sha256=args.replace_receipt_sha256,
+                       recorded_operator=args.recorded_operator)
     print(json.dumps(result, indent=2))
 
 

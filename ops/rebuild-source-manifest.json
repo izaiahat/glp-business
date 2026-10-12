@@ -117,7 +117,7 @@
     ".github/workflows/business-source-ci.yml": {
       "callers": [],
       "kind": "repository_control",
-      "sha256": "d801b8cd25bdbfbd85c9466126ddce03b0cc5b212acb2d73babc728e5d484d27"
+      "sha256": "c8be12d7e9a98d6c91084c4e1c7cdacb56459ad40b2115e199bc619af8a1cdc5"
     },
     ".github/workflows/finch-file-review.yml": {
       "callers": [
@@ -345,7 +345,7 @@
     "inbox_control_plane/control_plane.py": {
       "callers": [],
       "kind": "script",
-      "sha256": "197226f14c9b983c9d6ce499ebd3f1e36fbb4ad66b064b7aba0040ad5a24a64d"
+      "sha256": "175cc5f72c03e8e0a6d30ee9d7b8db24ad0c54023f172c4516b52671683754d7"
     },
     "inbox_control_plane/gmail_client.py": {
       "callers": [],
@@ -3213,7 +3213,7 @@
         "ops/hermes-cron-scripts/glp_sponsor_campaign.sh"
       ],
       "kind": "script",
-      "sha256": "41c98955b0c2261f746613e058ea167f04ff7b3ec73d8bb739e82c3e2567a03c"
+      "sha256": "5735f04a6552948bee7d6586fa7bddd8ac2aa5f10fe3d1d8903516a86cd26706"
     },
     "scripts/glp_sponsor_packet_successor.py": {
       "callers": [
@@ -6951,14 +6951,19 @@
         "scripts/glp_sponsor_campaign.py",
         "coordinator-only current packet receiving"
       ],
-      "sha256": "0d993c0710725e594b32df9e0d4b280a4b593c010acb138192e40c50079eb1ab"
+      "sha256": "5296cf5d36019cad855fd9d991e6c44aeb617d6c21a953399a0e6a72e9bd7ccd"
+    },
+    "tests/test_glp_sponsor_unattended.py": {
+      "kind": "test",
+      "callers": [".github/workflows/business-source-ci.yml"],
+      "sha256": "5e48c76f7186649539108df6a529e9d9cb41a370afe98195aa8a367ef1094882"
     },
     "tests/test_glp_sponsor_current_receiving.py": {
       "kind": "test",
       "callers": [
         "scripts/run_tests.sh"
       ],
-      "sha256": "a340c4f5a2ca534fd4f85ab7e9912512930a7f62719135c101f54eab7b1d7d6d"
+      "sha256": "5174fe5af6bd4d292b9a77d40f3b1c7c0ea6b5e7bab8efb2eb70180a6850cfc8"
     },
     "scripts/glp_surface_unification.py": {
       "kind": "script",
@@ -7103,5 +7108,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1044
+  "tracked_count": 1045
 }
