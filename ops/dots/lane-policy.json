@@ -1,0 +1,26 @@
+{
+  "schema": "DOT_LANE_POLICY_V1",
+  "ingest_since": 1791761039,
+  "authority": "DOT1 operator scope: safe idle refill in PLAN/Linear order; public research subtasks only",
+  "continuous_public_research_issues": ["GLP-93", "GLP-253", "GLP-327", "GLP-328"],
+  "scopes": [
+    {
+      "id": "glp253-public-ro-rail-census-v1",
+      "issue": "GLP-253",
+      "dots": ["rook", "finch"],
+      "effect": "public_research",
+      "coordinator_authorized": true,
+      "files": [],
+      "brief": "GLP-253 evidence support, coordinator retains intake ownership. From OFFICIAL PUBLIC sources only, census Ro/Roman Health affiliate/partner rails: exact canonical public partner URLs, visible network/platform, any public publisher eligibility restrictions, short quoted evidence and capture date. Distinguish Ro from lookalikes; unknown stays UNKNOWN. No Sheet/private marketplace access or mutation, no approval inference, no emails/forms/signups/login/tracking links. Evidence is not application or adoption authority. Return one bounded table within 1800 characters."
+    },
+    {
+      "id": "glp328-public-business-contact-gap-v2",
+      "issue": "GLP-328",
+      "dots": ["rook", "finch"],
+      "effect": "public_research",
+      "coordinator_authorized": true,
+      "files": [],
+      "brief": "GLP-328 no-send evidence support, coordinator retains sponsor pipeline ownership. Check official published business/partnership contact channels for WeightWatchers Clinic and Noom ONLY (new cohort, not the prior AgelessRx/Shed search). Return exact official URL, business-purpose quote, published email if any, date, and gaps. Patient support, recruitment, inferred addresses and forms are not qualifying sponsor emails. No enrichment/verification/debits/outreach/forms, permission change or pipeline mutation. Bounded not-found is valid evidence, not proof no contact exists. Return one bounded table within 1800 characters."
+    }
+  ]
+}

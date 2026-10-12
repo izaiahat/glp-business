@@ -1,6 +1,56 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    ".github/workflows/dot-lane.yml": {
+      "callers": [
+        "DOT1 exact-head CI"
+      ],
+      "kind": "repository_control",
+      "sha256": "4ffe4dbf63404fbd318bd137eb64d96301cfb2cb76bd9f4a344434289ca548fd"
+    },
+    "ops/dots/requirements.txt": {
+      "callers": [
+        "dot dispatcher and approved interpreter install"
+      ],
+      "kind": "operations",
+      "sha256": "9d5655db623ae9f20d07ed63fc6ff538ed97ce5765ef98ff136ec0f679e35ab9"
+    },
+    "ops/dots/lane-policy.json": {
+      "callers": [
+        "scripts/dot_lane.py"
+      ],
+      "kind": "operations",
+      "sha256": "390d10ecf41d19baf351d2b29b6e51fa97a6feda58779d9427525bec6e432bed"
+    },
+    "ops/dots/README.md": {
+      "callers": [
+        "manual:DOTS coordinator"
+      ],
+      "kind": "instruction_or_policy",
+      "sha256": "6fc324d33f49eb8c4075ffc95f0a486670321b9a23558eb2bb71e1ecb9965860"
+    },
+    "ops/cron.d/glp-dot-refill": {
+      "callers": [
+        "host cron every 15 min"
+      ],
+      "kind": "cron",
+      "sha256": "ec22b5629655db7be0a5ded88bc43079a6752a33d33847ca6f291a80e5c9f037"
+    },
+    "scripts/dot_lane.py": {
+      "callers": [
+        "fleet_ingest_cron.sh",
+        "ops/cron.d/glp-dot-refill"
+      ],
+      "kind": "script",
+      "sha256": "89389135bbfca3219319f1dcb178a8f08f72d8bed931f255bdd98c17126f9e60"
+    },
+    "tests/test_dot_lane.py": {
+      "callers": [
+        ".github/workflows/dot-lane.yml"
+      ],
+      "kind": "test",
+      "sha256": "b0e3f38e7339d0fe58565a527b58b3c1ca681505ed79ad3e73eaccd6453663d8"
+    },
     "scripts/codex_cloud_key_renewal.py": {
       "callers": [
         "ops/cron.d/codex-cloud-key-renewal"
@@ -931,7 +981,7 @@
         "Hermes fleet-output-ingestion"
       ],
       "kind": "script",
-      "sha256": "d5b7041333596b542ea7970bd577b710f0973baf0ed4776cea37be4ad468a65c"
+      "sha256": "e6392306a7446a5acac6fb7796de3d228ee1dacee50bd46bda6a9a6927b36421"
     },
     "ops/hermes-cron-scripts/glp334_live_reconciliation.sh": {
       "callers": [
@@ -6933,5 +6983,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1020
+  "tracked_count": 1027
 }
