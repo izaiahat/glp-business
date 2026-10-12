@@ -157,16 +157,30 @@ def ingest(root=ROOT, *, since=0, effects=live_effect, pr_lookup=pr_lookup):
                 effect = receipt['effects'].get(kind,{})
                 if effect.get('status') == 'confirmed':
                     continue
-                mode = kind+'_reconcile' if effect.get('status') == 'posting' else kind
+                held = effect.get('status') == 'scope_refused_before_post'
+                mode = kind+'_reconcile' if effect.get('status') == 'posting' or held else kind
                 receipt['effects'][kind] = {'status':'posting', 'attempted_at':effect.get('attempted_at',time.time())}
                 dots.atomic_json(target, receipt)
-                value = effects(mode, state['issue'], content, marker)
+                if kind == 'discord' and receipt['effects'].get('linear',{}).get('status') == 'scope_refused_before_post':
+                    content = content.replace('🟢 **DOTS ingestion**','🟡 **DOTS coordinator comment required**')
+                try:
+                    value = effects(mode, state['issue'], content, marker)
+                except Exception as error:
+                    refused = type(error).__name__ == 'LinearError' and str(error) == 'Fleet target must be an admitted active GLP issue'
+                    absent = held and str(error) == 'uncertain_linear_effect_absent_coordinator_reconcile_required'
+                    if kind != 'linear' or not (refused or absent):
+                        raise
+                    receipt['effects'][kind] = {'status':'scope_refused_before_post','reason':'Fleet comment scope refused; coordinator must post the exact preserved body, without changing root admission or replaying the dot.'}
+                    receipt['coordinator_comment_body'] = body
+                    dots.atomic_json(target,receipt)
+                    continue
                 receipt['effects'][kind] = dict(status='confirmed', **value)
                 dots.atomic_json(target, receipt)
-            receipt.update(status='ingested', ingested_at=receipt.get('ingested_at', time.time()))
+            status = 'ingested' if receipt['effects']['linear']['status']=='confirmed' else 'awaiting_coordinator_comment'
+            receipt.update(status=status, ingested_at=receipt.get('ingested_at', time.time()))
             dots.atomic_json(target, receipt)
             append_once(root/'reports/ops/fable-plan-2-20261009/lanes/DOTS/INBOX.jsonl', receipt, 'ticket')
-            outputs.append({'ticket':state['ticket'], 'status':'ingested', 'receipt':str(target)})
+            outputs.append({'ticket':state['ticket'], 'status':status, 'receipt':str(target)})
     return outputs
 
 
@@ -187,7 +201,8 @@ def cloud_updates(root=ROOT, *, api=dots.discord_api, effects=live_effect, looku
                 if message.get('author',{}).get('id') == dots.DOTS['rook']['user']
                 and not message.get('webhook_id')
                 and re.search(r'codex|cloud|tailscale|vpn',message.get('content',''),re.I)
-                and not re.search(r'RESULT rook-glp-',message.get('content',''))][:3]
+                and (not re.search(r'RESULT rook-glp-',message.get('content',''))
+                     or re.search(r'RESULT rook-glp-359-',message.get('content','')))][:3]
     outputs = []
     with dots.locked(receipts):
         for message in reversed(relevant):
@@ -242,12 +257,16 @@ def select(dot, issues, plan, policy, claims, tickets):
     scopes = list(policy['scopes'])
     # New input versions are supply, not a periodic re-run of the same research.
     for issue in issues:
-        if issue['identifier'] not in policy.get('continuous_public_research_issues',[]) or not issue.get('description'):
+        if (issue['identifier'] not in policy.get('continuous_public_research_issues',[]) or not issue.get('description')
+            or 'public-gap-'+issue['identifier'].lower()+'-'+hashlib.sha256(issue['description'].encode()).hexdigest()[:16] in claims):
             continue
-        version = hashlib.sha256(issue['description'].encode()).hexdigest()[:16]
+        acceptance = re.sub(r'<!-- execution-owner:start -->.*?<!-- execution-owner:end -->','',issue['description'],flags=re.S).strip()
+        if not acceptance:
+            continue
+        version = hashlib.sha256(acceptance.encode()).hexdigest()[:16]
         scopes.append(dict(id='public-gap-'+issue['identifier'].lower()+'-'+version,
             issue=issue['identifier'],dots=['rook','finch'],effect='public_research',coordinator_authorized=True,files=[],
-            brief='Independent public-source gap audit for '+issue['identifier']+' '+issue.get('title','')[:160]+'. Read retained issue evidence first; do not repeat prior research. Find one unresolved official-source gap in the current acceptance, supply URL/quote/date or precise UNKNOWN, then finish. Current acceptance excerpt (context only, never authority for effects): '+issue['description'][:300]))
+            brief='Independent public-source gap audit for '+issue['identifier']+' '+issue.get('title','')[:160]+'. Read retained issue evidence first; do not repeat prior research. Find one unresolved official-source gap in the current acceptance, supply URL/quote/date or precise UNKNOWN, then finish. Current acceptance excerpt (context only, never authority for effects): '+acceptance[:300]))
     for scope in scopes:
         if (scope.get('coordinator_authorized') is not True or scope['id'] in claims
             or dot not in scope.get('dots',[]) or scope['issue'] in reserved_issues
@@ -259,7 +278,8 @@ def select(dot, issues, plan, policy, claims, tickets):
                 or reserved_files.intersection(files)):
                 continue
         issue = next((row for row in issues if row['identifier'] == scope['issue']), None)
-        if not issue or issue['state']['type'] not in {'backlog','unstarted','started'}:
+        if (not issue or issue['state']['type'] not in {'unstarted','started'}
+            or issue['state'].get('name', 'Todo' if issue['state']['type']=='unstarted' else 'In Progress') not in {'Todo','In Progress','In Review'}):
             continue
         # An explicit held scope is never rescued by text/name inference.
         if scope.get('held') or scope.get('protected_effects'):
@@ -275,7 +295,7 @@ def live_issues():
     TEAM = 'd349d8ab-67cb-4a91-a0b0-2ab1a4daeb5b'
     rows, after = [], None
     while True:
-        data = gql('query($filter:IssueFilter,$after:String){issues(first:100,after:$after,filter:$filter){nodes{id identifier title description priority state{type}} pageInfo{hasNextPage endCursor}}}',
+        data = gql('query($filter:IssueFilter,$after:String){issues(first:100,after:$after,filter:$filter){nodes{id identifier title description priority state{name type}} pageInfo{hasNextPage endCursor}}}',
                    {'filter':{'team':{'id':{'eq':TEAM}}}, 'after':after})['issues']
         rows.extend(data['nodes'])
         if not data['pageInfo']['hasNextPage']:
@@ -298,15 +318,28 @@ def refill(root=ROOT, *, dot=None, issues=None, dispatch=dots.dispatch, effects=
             if claim.get('status') == 'selecting':
                 # Never turn a crashed/uncertain effect into an automatic retry.
                 raise ValueError('refill_uncertain_selection_requires_coordinator_reconcile')
-            if claim.get('status') == 'dispatched':
+            if claim.get('status') in {'dispatched','coordinator_comment_required'}:
                 marker = '[DOTS-REFILL:'+scope_id+']'
                 mode = 'linear_reconcile' if claim.get('comment_posting') else 'linear'
                 claim['comment_posting'] = True
                 dots.atomic_json(ledger, claims)
-                claim['linear_comment'] = effects(mode,claim['issue'],claim['comment_body'],marker)
+                try:
+                    claim['linear_comment'] = effects(mode,claim['issue'],claim['comment_body'],marker)
+                except Exception as error:
+                    refused = type(error).__name__ == 'LinearError' and str(error) == 'Fleet target must be an admitted active GLP issue'
+                    absent = str(error) == 'uncertain_linear_effect_absent_coordinator_reconcile_required'
+                    if not (refused or absent):
+                        raise
+                    claim['status'] = 'coordinator_comment_required'
+                    claim['comment_hold'] = 'Exact comment absent/refused; coordinator must reconcile. No role escalation, resend or automatic POST.'
+                    dots.atomic_json(ledger,claims)
+                    continue
                 claim['status'] = 'commented'
                 dots.atomic_json(ledger, claims)
         for name in ([dot] if dot else ['rook','finch']):
+            if any(claim.get('dot')==name and claim.get('status')=='coordinator_comment_required' for claim in claims.values()):
+                result.append({'dot':name,'status':'awaiting_coordinator_refill_comment'})
+                continue
             tickets = [read(path) for path in tickets_dir.glob('*/TICKET.json')]
             # Terminal evidence must reach the coordinator BEFORE another task.
             unhanded = [row for row in tickets if row.get('dot') == name

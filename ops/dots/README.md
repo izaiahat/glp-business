@@ -41,14 +41,20 @@ Evidence lands in `reports/ops/fleet-ingest/<ticket>.json` and
 read-only GitHub head SHA and author are queued for coordinator non-author
 review. This is not acceptance, issue closure, health-claim review, merge or
 release approval. Native custody mismatches refuse before any external write.
-Linear and ops-alerts effects are journaled separately. After an ambiguous
+Linear and ops-alerts effects are journaled separately. A definitive pre-POST
+fleet-scope refusal still writes the genuine native receipt, ops-alert and DOTS
+INBOX data as `awaiting_coordinator_comment`; it preserves the exact body for the
+coordinator to post. It never switches roles or changes root admission. One dot's
+selection-comment hold does not stall the other dot; that dot alone remains held
+until exact read-only comment reconciliation succeeds. After an ambiguous
 write, the next run does a target readback only; absent effects stay refused for
 coordinator reconciliation. Never delete the journal to force another send.
 
 ## Supply, not an autonomous approval machine
 
 `ops/dots/lane-policy.json` defines explicit safe scope templates, not another
-priority board. Fresh live Linear issues and the coordinator's current PLAN
+priority board. Fresh live Linear issues admitted as Todo/In Progress/In Review (never Backlog,
+Blocked or Triage) and the coordinator's current PLAN
 order determine selection. Already claimed scopes never repeat, including
 blocked outcomes. Active issues/files are reserved; a terminal result must be
 handed to the coordinator before that dot receives another brief.

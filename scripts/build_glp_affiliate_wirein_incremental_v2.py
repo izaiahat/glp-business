@@ -572,6 +572,34 @@ def paired_cta_identity_successor(before_raw: bytes, after: dict, migration: dic
     return successor
 
 
+def paired_cta_tracking_successor(before_raw: bytes, after: dict, migration: dict,
+                                  approved_links: dict[str, str]) -> dict:
+    """Replace only the named href pairs; preserve identities and all prose."""
+    if (migration.get("schema") != "glp-provider-cta-identity-v2"
+            or migration.get("metadata_only") is not True
+            or sha_bytes(before_raw) != migration.get("baseline_contract_sha256")):
+        raise RuntimeError("cta_identity_baseline_mismatch")
+    if set(approved_links).intersection(migration.get("programs", {})):
+        raise RuntimeError("cta_tracking_identity_overlap")
+    expected = json.loads(before_raw)
+    for pid, href in approved_links.items():
+        rows = [r for r in expected["providers"] if r["program_id"] == pid]
+        if len(rows) != 1 or not href.startswith("https://"):
+            raise RuntimeError("cta_tracking_successor_scope_invalid")
+        rows[0]["network_contract"]["tracking_url"] = href
+        rows[0]["row_contract"]["affiliate_href"] = href
+        if "tracking_host" in rows[0]:
+            rows[0]["tracking_host"] = urlparse(href).hostname
+        if "affiliate_tracking_host" in rows[0]["row_contract"]:
+            rows[0]["row_contract"]["affiliate_tracking_host"] = urlparse(href).hostname
+    if not approved_links or expected != after:
+        raise RuntimeError("cta_tracking_successor_scope_invalid")
+    successor = json.loads(json.dumps(migration))
+    successor["baseline_contract_sha256"] = sha_bytes(
+        (json.dumps(after, indent=2, sort_keys=True) + "\n").encode())
+    return successor
+
+
 def write_json(path: Path, value, private: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
