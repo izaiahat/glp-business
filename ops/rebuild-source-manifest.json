@@ -1,6 +1,20 @@
 {
   "description": "Explicit curated source snapshot; no runtime state, portal exports, nested site tree, or reports/history except the explicitly listed maintained Q25 script and source-pin files. Source hashes identify import provenance, not runtime deployment.",
   "files": {
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py": {
+      "callers": [
+        "systemd:user:codex-evidence.service"
+      ],
+      "kind": "registered_source",
+      "sha256": "c23791ffb56b7c2a84b8a638d4dad862aa5898fa67884af33257bcf00de9f868"
+    },
+    "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_projection.py": {
+      "callers": [
+        "reports/ops/codex-cloud-tailscale-20261009/T3/evidence_server.py"
+      ],
+      "kind": "registered_source",
+      "sha256": "8da053343c5d740b2b1d1920b6692c25d9bbbeb3dfaed43b69e5fc20c3135974"
+    },
     ".github/workflows/dot-lane.yml": {
       "callers": [
         "DOT1 exact-head CI"
@@ -6983,5 +6997,5 @@
     "n8n workflow registry with unreviewed endpoint metadata and live n8n state"
   ],
   "schema": "GLP_BUSINESS_SOURCE_V1",
-  "tracked_count": 1027
+  "tracked_count": 1029
 }
