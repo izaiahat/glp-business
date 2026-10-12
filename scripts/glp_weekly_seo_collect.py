@@ -95,16 +95,31 @@ class RecordedCogny(CognyClient):
   return headers,body
 
 class RecordedDFS(DataForSEO):
- def __init__(self,store,run_id):
-  super().__init__(ledger_path=store.path/'dataforseo-ledger.jsonl',run_id=run_id);self.store=store;self.n=0
+ def __init__(self,store,run_id,budget=None,prefix='dfs'):
+  super().__init__(ledger_path=store.path/'dataforseo-ledger.jsonl',run_id=run_id);self.store=store;self.n=0;self.budget=budget;self.prefix=prefix
+ def _journal_cost(self):
+  if not self.ledger_path.is_file():return None
+  rows=[json.loads(x) for x in self.ledger_path.read_text().splitlines() if x.strip()]
+  rows=[r for r in rows if r.get('run_id')==self.run_id and r.get('event') in ('RESULT','AMBIGUOUS')]
+  return rows[-1].get('cost') if rows and rows[-1]['event']=='RESULT' else None
  def _post(self,path,payload,timeout=180):
+  # GLP-44 weekly cap: reserve a published-price ceiling BEFORE the request;
+  # BudgetRefused (over cap / unknown cost) means nothing was sent.
+  if self.budget is None: raise ValueError('weekly_budget_required_for_metered_call')
+  reservation=self.budget.reserve('dataforseo',path,payload,run_id=self.run_id)
   self.n+=1;began=now()
-  self.store.save(f'raw/dfs-{self.n}-SUBMITTED.json',{'request_started_at_utc':began,'endpoint':path,'payload':payload,'run_id':self.run_id,'state':'SUBMITTED_DO_NOT_REPLAY'})
-  doc=super()._post(path,payload,timeout)
-  self.store.save(f'raw/dfs-{self.n}-COMPLETE.json',{'request_started_at_utc':began,'captured_at_utc':now(),'endpoint':path,'payload':payload,'response':doc,'run_id':self.run_id})
+  self.store.save(f'raw/{self.prefix}-{self.n}-SUBMITTED.json',{'request_started_at_utc':began,'endpoint':path,'payload':payload,'run_id':self.run_id,'state':'SUBMITTED_DO_NOT_REPLAY','reservation_id':reservation['reservation_id'],'estimate_usd':reservation['estimate_usd']})
+  try:
+   doc=super()._post(path,payload,timeout)
+  except Exception:
+   # A provider-rejected call may still carry a measured cost in the rail
+   # journal; transport ambiguity stays unknown and blocks further spend.
+   self.budget.settle(reservation,self._journal_cost());raise
+  self.budget.settle(reservation,doc.get('cost') if isinstance(doc,dict) else None)
+  self.store.save(f'raw/{self.prefix}-{self.n}-COMPLETE.json',{'request_started_at_utc':began,'captured_at_utc':now(),'endpoint':path,'payload':payload,'response':doc,'run_id':self.run_id})
   return doc
 
-def run(output, *, allow_metered=False, report_date=None):
+def run(output, *, allow_metered=False, report_date=None, budget=None, max_cost_usd=1.0):
  helper_path=Path(__file__).resolve().parents[1]/'ops/glp/weekly_strategy_inputs.py'
  if sha(helper_path.read_bytes())!='d60df3ea3605385b1bcf04268a50ea8d2c2fd8dda2bbc361252531ab890f51c7':
   raise ValueError('weekly_estate_helper_source_drift')
@@ -118,7 +133,7 @@ def run(output, *, allow_metered=False, report_date=None):
  base=snap('content-base',basepath);release=Path(base['release_root']);data=release/'data'
  registry=snap('registry',data/'program-registry.json')
  for key,name in [('ledger','program-content-ledger.json'),('pricing','provider-pricing-matrix.json'),('contracts','provider-page-contracts.json'),('seo-copy','page-seo-copy.json')]:snap(key,data/name)
- snap('supply',B/'reports/glp-clinic-scout/seo-machine/keyword-gap/current-topic-supply.json')
+ supply=snap('supply',B/'reports/glp-clinic-scout/seo-machine/keyword-gap/current-topic-supply.json')
  renderers={}
  for p in sorted((release/'src').rglob('*')):
   if p.is_file() and p.suffix in ('.mjs','.js') and (b'page-seo-copy' in p.read_bytes() or p.name=='page-seo-copy.mjs'):
@@ -171,16 +186,28 @@ def run(output, *, allow_metered=False, report_date=None):
  # Prefix-only Cogny snapshots remain separately bound; never relabel as domain.
  began=now()
  if allow_metered:
-  dfs=RecordedDFS(store,run_id)
-  result=dfs.ranked_keywords(['glpwinner.com','glpclinicscout.com'],page_size=1000,max_pages_per_target=10,max_cost_usd=1.0)
-  ledger=[json.loads(x) for x in dfs.ledger_path.read_text().splitlines()]
+  if budget is None: raise ValueError('weekly_budget_required_for_metered_collection')
+  dfs=RecordedDFS(store,run_id,budget)
+  result=dfs.ranked_keywords(['glpwinner.com','glpclinicscout.com'],page_size=1000,max_pages_per_target=10,max_cost_usd=max_cost_usd)
+  ledger=[json.loads(x) for x in dfs.ledger_path.read_text().splitlines()] if dfs.ledger_path.is_file() else []
   costs=[x['cost'] for x in ledger if x['event']=='RESULT' and x.get('cost') is not None]
   ambiguous=any(x['event']=='AMBIGUOUS' for x in ledger)
   actual_cost=None if ambiguous else sum(costs)
  else:
   result={'ok':False,'complete':False,'domains':{},'state':'UNKNOWN_METERED_COLLECTION_HELD','required_artifact':'Explicit recurring DataForSEO collection authority and per-run ceiling; no prior capture retimestamped'}
   actual_cost=0
- bindings['footprint']=store.save('inputs/footprint.json',{'request_started_at_utc':began,'captured_at_utc':now(),'context':{'targets':['glpwinner.com','glpclinicscout.com'],'location_code':2840,'language_code':'en','max_pages_per_target':10,'max_cost_usd':1.0,'rail_account_order':['tryboringai','ops'],'run_id':run_id,'ledger_actual_cost_usd':actual_cost,'scope':'Bounded existing comparator, not market census'},'result':result})
+ bindings['footprint']=store.save('inputs/footprint.json',{'request_started_at_utc':began,'captured_at_utc':now(),'context':{'targets':['glpwinner.com','glpclinicscout.com'],'location_code':2840,'language_code':'en','max_pages_per_target':10,'max_cost_usd':max_cost_usd if allow_metered else 0,'weekly_budget':budget.receipt() if allow_metered else None,'rail_account_order':['tryboringai','ops'],'run_id':run_id,'ledger_actual_cost_usd':actual_cost,'scope':'Bounded existing comparator, not market census'},'result':result})
+ # GLP-44: current Google Ads volume for this week's supply gap candidates
+ # (one bounded task; unknown volume stays null, never zero).
+ began=now()
+ if allow_metered:
+  words=sorted({' '.join(str(r.get('keyword') or '').lower().split()) for r in supply.get('gaps',[]) if isinstance(r,dict)})
+  words=[w for w in words if w and 'fella' not in w and len(w)<=80 and len(w.split())<=10 and all(c.isalnum() or c in " '-" for c in w)][:1000]
+  volume=RecordedDFS(store,run_id+':volume',budget,prefix='dfs-volume').search_volume(words) if words else {}
+  gap_volume={'ok':bool(words) and all(v.get('ok') for v in volume.values()) and len(volume)>0,'requested':len(words),'rows':volume}
+ else:
+  gap_volume={'ok':False,'requested':0,'rows':{},'state':'UNKNOWN_METERED_COLLECTION_HELD'}
+ bindings['gap-volume']=store.save('inputs/gap-volume.json',{'request_started_at_utc':began,'captured_at_utc':now(),'context':{'endpoint':'/keywords_data/google_ads/search_volume/live','location_code':2840,'language_code':'en','scope':'Current supply gap keywords only','weekly_budget':budget.receipt() if allow_metered else None},'result':gap_volume})
  routes={'/providers/','/reviews/','/pharmacies/'}
  routes.update(p['review_path'] for p in registry['programs'] if p.get('review_path'))
  for s in snapshots.values():
@@ -208,6 +235,8 @@ def run(output, *, allow_metered=False, report_date=None):
  manifest={'schema':'glp-weekly-module-inputs-v1','inputs':bindings,'built_at_utc':now(),'run_id':run_id,'current_base_sha256':sha(sources[basepath]),'current_base_deployment_id':base['deployment_id'],'source_bindings':{str(p):{'sha256':sha(raw)} for p,raw in sources.items()},'renderer_bindings':renderers,'pointer_stability':'PASS_EXACT_BYTES_PRE_POST','raw_receipts':{str(p.relative_to(store.path)):{'sha256':sha(p.read_bytes())} for p in sorted((store.path/'raw').glob('*'))},'publication_authorized':False}
  binding=store.save('MODULE-INPUTS.json',manifest)
  summary={'run_id':run_id,'manifest':binding,'gsc_rows':{k:len(v['result']['rows']) for k,v in snapshots.items()},'gsc_complete':{k:v['result']['complete'] for k,v in snapshots.items()},'footprints':{k:{'rows':len(v['items']),'total_count':v['total_count'],'complete':v['complete'],'pages':v['pages']} for k,v in result['domains'].items()},'actual_cost_usd':actual_cost,'dataforseo_ok':result['ok'],'routes':len(routes),'pages_200':len(pages),'excluded_pages':len(exclusions),'renderer_count':len(renderers),'mode':'MANUAL_CURRENT_DATA_DRY_RUN','natural_execution_id':None,'effects':{'queue_writes':0,'site_writes':0,'schedules':0,'sends':0},'limitations':['Cogny identity lacks domain property unless explicitly present; domain reads use confirmed GoogleRail identity','GSC query privacy omissions and internal limits remain','GA4/PostHog/estate UNKNOWN, not requested','Public HTML only; no JS, affiliate requests or redirects','No S14 history retimestamped; no category volume refetch']}
+ summary['weekly_spend']=budget.receipt() if allow_metered else None
+ summary['gap_volume_rows']=sum(1 for v in gap_volume['rows'].values() if v.get('ok'))
  summary['cogny_query_count']=len(cogny['queries'])
  summary['cogny_evidence']=cogny['binding']
  summary['limitations']=[x.replace('GA4/PostHog/estate UNKNOWN, not requested','GA4/PostHog are bounded neutral observations, not article/click attribution or cash; estate contains fresh bound analytics outputs, not inferred natural execution') for x in summary['limitations']]
