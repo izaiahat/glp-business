@@ -971,14 +971,26 @@ PRO_CHAT_SURFACE_JS = r'''function ensureProChatSurface(){
                p.getAttribute('aria-disabled')==='true'||s.display==='none'||s.visibility==='hidden')return false;
         }return true;
     };
+    const refuse=reason=>({error:'CHAT_SURFACE_REFUSED',reason:reason});
     const main=document.querySelector('main');
-    if(!main)return {error:'CHAT_SURFACE_REFUSED'};
-    const buttons=[...main.querySelectorAll('button')].filter(visible);
-    const chat=buttons.filter(e=>e.innerText.trim()==='Chat');
-    const work=buttons.filter(e=>e.innerText.trim()==='Work');
-    if(chat.length!==1||work.length!==1)return {error:'CHAT_SURFACE_REFUSED'};
+    if(!main)return refuse('mode_missing');
+    // The captured app shell identifies the toggle independently of other
+    // Chat/Work-labelled buttons. Retain the old main-only contract if absent.
+    const groups=typeof main.querySelectorAll==='function'?
+        [...main.querySelectorAll('[role="group"][aria-label="Composer mode"]')]
+            .filter(e=>e.getAttribute('aria-label')==='Composer mode'):[];
+    if(groups.length>1)return refuse('mode_ambiguous');
+    if(groups.length===1&&!visible(groups[0]))return refuse('mode_unverified');
+    const scope=groups.length===1?groups[0]:main;
+    const buttons=[...scope.querySelectorAll('button')].filter(visible);
+    const label=e=>(e.textContent||e.innerText).trim();
+    const chat=buttons.filter(e=>label(e)==='Chat');
+    const work=buttons.filter(e=>label(e)==='Work');
+    if(!chat.length&&!work.length)return refuse('mode_missing');
+    if(chat.length!==1||work.length!==1)return refuse('mode_ambiguous');
     if(chat[0].getAttribute('aria-pressed')==='true'&&work[0].getAttribute('aria-pressed')==='false')return {switched:false};
-    return {error:'CHAT_SURFACE_REFUSED'};
+    if(work[0].getAttribute('aria-pressed')==='true')return refuse('work_selected');
+    return refuse('mode_unverified');
 }'''
 
 
@@ -1284,9 +1296,25 @@ for readiness_observations in range(1, 47):
 if RETAINED: _fresh()
 # Verify the independent composer mode before every path's picker. The sender
 # never changes Work to Chat; unverified/ambiguous mode refuses before input.
-chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
+chat_surface=None
+# A new empty root can hydrate the composer before its independent mode toggle.
+# Observe ONLY missing controls under the same freshness/security checks; do not
+# switch Work, retry retained documents, or insert before a positive Chat proof.
+for mode_observation in range(11):
+    if _fresh()!=fresh:
+        _binding_error('conversation_mismatch', tab=tab['targetId'])
+    chat_surface=_bound_js(tab['targetId'],fresh,{json.dumps('(()=>{' + PRO_CHAT_SURFACE_JS + 'return ensureProChatSurface();})()')})
+    if (not isinstance(chat_surface,dict) or not chat_surface.get('error') or
+            chat_surface.get('reason')!='mode_missing' or RETAINED or mode_observation==10):
+        break
+    current=_state(lambda expression: _bound_js(tab['targetId'],fresh,expression))
+    if (current['human_challenge'] or current['security_interstitial'] or current['logged_out'] or
+            current['rate_limited'] or current['drive_reconnect'] or current['stop']):
+        _binding_error('mode_readiness_changed', tab=tab['targetId'], state=current)
+    time.sleep(0.3)
 if not isinstance(chat_surface,dict) or chat_surface.get('error'):
-    print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId']}})); raise SystemExit(0)
+    print('RELAY_JSON:'+json.dumps({{'error':'CHAT_SURFACE_REFUSED','typed':False,'sent':False,'tab':tab['targetId'],
+        'mode_observation':mode_observation+1,'mode_evidence':chat_surface}})); raise SystemExit(0)
 if chat_surface.get('switched') is not False:
     _binding_error('CHAT_SURFACE_REFUSED', tab=tab['targetId'])
 # All paths must commit supported 6 Pro maximum explicitly, even when
@@ -1418,6 +1446,41 @@ else:
     return bu_json(script, timeout=900)
 
 
+# Activity/commentary uses the same markdown style as final output. Only a
+# positively complete latest turn and its typed final assistant unit supply bytes.
+CURRENT_REPLY_JS = r'''function currentFinalReply(start,end,renderer='turn_markdown'){
+    const main=document.querySelector('main');
+    const turns=main?[...main.querySelectorAll('[data-turn-key]')]:[];
+    const states=main?[...main.querySelectorAll('[data-talvt-turn-state]')]:[];
+    if(!turns.length&&!states.length)return {present:false};
+    const refuse=reason=>({present:true,complete:false,reason:reason,n:0});
+    if(main.querySelector('button[data-testid="stop-button"], button[aria-label="Stop generating"]'))
+        return refuse('generation_active');
+    if(!turns.length)return refuse('turn_missing');
+    const turn=turns[turns.length-1];
+    const owned=[...turn.querySelectorAll('[data-talvt-turn-state]')]
+        .filter(e=>e.closest('[data-turn-key]')===turn);
+    if(owned.length!==1||owned[0].getAttribute('data-talvt-turn-state')!=='complete')
+        return refuse('turn_incomplete');
+    const units=[...owned[0].querySelectorAll('[data-content-search-unit-key$=":assistant"]')];
+    if(units.length!==1||!units[0].querySelector('[data-conversation-role="assistant"]'))
+        return refuse('final_assistant_unverified');
+    const nodes=[...units[0].querySelectorAll('[data-markdown-text-style="assistant-message"]')]
+        .filter(e=>!e.closest('[class*="group/activity-header"]')&&
+                   e.closest('[data-content-search-unit-key]')===units[0]);
+    if(nodes.length!==1||!nodes[0].innerText)return refuse('final_markdown_unverified');
+    let node=nodes[0];
+    if(renderer==='role')node=node.closest('[data-message-author-role=assistant]');
+    if(renderer==='selection_markdown'&&!node.closest('[data-chatgpt-selection-message-id]'))
+        return refuse('saved_renderer_unavailable');
+    if(!node)return refuse('saved_renderer_unavailable');
+    if(start!==undefined)return node.innerText.slice(start,end);
+    return {present:true,complete:true,n:node.innerText.length,
+        turn_key:turn.getAttribute('data-turn-key'),
+        unit_key:units[0].getAttribute('data-content-search-unit-key')};
+}'''
+
+
 def read_reply(conversation_url: str, tab: str | None = None, reload: bool = False,
                protected: list[str] | tuple[str, ...] = (), existing_only: bool = False,
                expected_identity: str | None = None, capture_mode: str | None = None) -> dict:
@@ -1428,8 +1491,11 @@ def read_reply(conversation_url: str, tab: str | None = None, reload: bool = Fal
     """
     if existing_only and (reload or not tab or not _conversation(conversation_url)):
         raise ValueError('existing reply requires an exact tab and canonical conversation without reload')
-    if capture_mode not in (None, 'role', 'selection_markdown'):
+    if capture_mode not in (None, 'role', 'selection_markdown', 'turn_markdown'):
         raise ValueError('unknown reply capture mode')
+    turn_probe = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply();})()'
+    turn_slice = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply(%d,%d,%s);})()'
+    turn_render = '(()=>{' + CURRENT_REPLY_JS + 'return currentFinalReply(undefined,undefined,%s);})()'
     script = BU_PRELUDE + f'''
 RELOAD={reload!r}
 EXISTING_ONLY={existing_only!r}
@@ -1449,33 +1515,54 @@ activate_tab(tab)
 time.sleep(1)
 probe=lambda expression: _bound_js(tab, want, expression)
 st=_state(probe)
-if RELOAD and not st["stop"] and not st["thinking_failed"]:
+turn=probe({turn_probe!r})
+def _incomplete(value):
+    return value.get('present') and value.get('complete') is not True
+if RELOAD and not st["stop"] and not st["thinking_failed"] and not _incomplete(turn):
     _page_load_slot()
-    # Generation may resume or fail while waiting for the global page token.
-    if not (lambda state: state["stop"] or state["thinking_failed"])(_state(probe)):
+    # Recheck both generation representations after the shared pacing wait.
+    if not (lambda state: state["stop"] or state["thinking_failed"])(_state(probe)) and not _incomplete(probe({turn_probe!r})):
         probe("location.href="+json.dumps(want))
         wait_for_load(); time.sleep(8)
     st=_state(probe)
+turn=probe({turn_probe!r})
+if _incomplete(turn):
+    st['stop']=True
+    st['reply_incomplete_reason']=turn.get('reason')
 st["conversation_url_now"]=probe("location.href")
 if {expected_identity is not None!r}:
     identity={expected_identity!r}
     st["user_identity_matched"]=probe("(()=>{{const m=document.querySelector('main');return !!m&&[...m.querySelectorAll('[data-message-author-role=user]')].some(e=>e.innerText.includes("+json.dumps(identity)+"));}})()")
-n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m.length?m[m.length-1].innerText.length:0;}})()""")
 mode=CAPTURE_MODE or 'role'
-if mode=='selection_markdown':
-    n=0
-if not n and CAPTURE_MODE!='role':
-    # A forced capture uses the original DOM source; never substitute the other
-    # renderer when it cannot reproduce the saved representation.
-    n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m.length?m[m.length-1].innerText.length:0;}})()""") or 0
-    if n: mode='selection_markdown'
+n=0
+if turn.get('present'):
+    mode=CAPTURE_MODE or 'turn_markdown'
+    rendered=probe({turn_render!r} % json.dumps(mode))
+    if rendered.get('complete') is True:
+        n=rendered['n']
+    else:
+        st['stop']=True
+        st['reply_incomplete_reason']=rendered.get('reason')
+elif not _incomplete(turn):
+    if mode not in ('selection_markdown','turn_markdown'):
+        n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m.length?m[m.length-1].innerText.length:0;}})()""")
+    if not n and CAPTURE_MODE not in ('role','turn_markdown'):
+        # Preserve the exact saved renderer; no approximate equivalence.
+        n=probe("""(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m.length?m[m.length-1].innerText.length:0;}})()""") or 0
+        if n: mode='selection_markdown'
 parts=[]
 for i in range(0, n, {IPC_CHUNK}):
-    if mode=='selection_markdown':
+    if turn.get('present'):
+        part=probe({turn_slice!r} % (i,i+{IPC_CHUNK},json.dumps(mode)))
+        if not isinstance(part,str):_binding_error('reply_became_incomplete',tab=tab)
+        parts.append(part)
+    elif mode=='selection_markdown':
         parts.append(probe("(()=>{{const m=[...document.querySelectorAll('[data-chatgpt-selection-message-id] [data-markdown-text-style]')];return m[m.length-1].innerText.slice(%d,%d);}})()" % (i, i+{IPC_CHUNK})))
     else:
         parts.append(probe("(()=>{{const m=[...document.querySelectorAll('[data-message-author-role=assistant]')];return m[m.length-1].innerText.slice(%d,%d);}})()" % (i, i+{IPC_CHUNK})))
 text="".join(parts)
+if turn.get('present') and probe({turn_probe!r})!=turn:
+    _binding_error('reply_turn_changed',tab=tab)
 st['render_mode']=mode
 st["conversation_url_now"]=probe("location.href")
 print("RELAY_JSON:"+json.dumps({{"state":st,"text":text,"tab":tab}}))
